@@ -23,6 +23,7 @@ use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec::Vec};
 use core::iter;
 use enum_iterator::{self, Sequence};
 pub use pointers::*;
+use wasmparser::ValType;
 
 /// All available syscalls.
 ///
@@ -537,6 +538,21 @@ pub enum HashType {
     ReservationId,
     /// This enum variant is used for the `gr_random` syscall.
     SubjectId,
+}
+
+impl From<ParamType> for ValType {
+    fn from(value: ParamType) -> Self {
+        use RegularParamType::*;
+
+        match value {
+            ParamType::Regular(regular_ptr) => match regular_ptr {
+                Length | Pointer(_) | Offset | DurationBlockNumber | DelayBlockNumber | Handler
+                | Alloc | Free | FreeUpperBound | Version => ValType::I32,
+                Gas => ValType::I64,
+            },
+            ParamType::Error(_) => ValType::I32,
+        }
+    }
 }
 
 impl From<ParamType> for ValueType {

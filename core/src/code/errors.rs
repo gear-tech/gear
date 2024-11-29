@@ -180,7 +180,7 @@ pub enum ImportError {
 pub enum CodecError {
     /// The wasm bytecode is failed to be decoded
     #[display(fmt = "The wasm bytecode is failed to be decoded: {_0}")]
-    Decode(SerializationError),
+    Decode(BinaryReaderError),
     /// Failed to encode instrumented program
     #[display(fmt = "Failed to encode instrumented program: {_0}")]
     Encode(SerializationError),

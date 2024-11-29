@@ -19,19 +19,15 @@
 //! Module that contains functions to check code.
 
 use crate::{
-    code::{errors::*, GENERIC_OS_PAGE_SIZE},
+    code::{errors::*, module::Module, GENERIC_OS_PAGE_SIZE},
     message::{DispatchKind, WasmEntryPoint},
     pages::{WasmPage, WasmPagesAmount},
 };
-use alloc::collections::BTreeSet;
-use gear_wasm_instrument::{
-    parity_wasm::elements::{
-        ExportEntry, External, GlobalEntry, ImportCountType, InitExpr, Instruction, Internal,
-        Module, Type, ValueType,
-    },
-    SyscallName, STACK_END_EXPORT_NAME,
+use alloc::{collections::BTreeSet, vec::Vec};
+use gear_wasm_instrument::{SyscallName, STACK_END_EXPORT_NAME};
+use wasmparser::{
+    ConstExpr, DataKind, Export, ExternalKind, Global, Operator, Payload, TypeRef, ValType,
 };
-use wasmparser::Payload;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGES_AMOUNT: u16 = u16::MAX / 2 + 1; // 2GB
@@ -56,10 +52,12 @@ pub fn get_static_pages(module: &Module) -> Result<WasmPagesAmount, CodeError> {
     let static_pages = module
         .import_section()
         .ok_or(SectionError::NotFound(SectionName::Import))?
-        .entries()
         .iter()
-        .find_map(|entry| match entry.external() {
-            External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
+        .find_map(|entry| match entry.ty {
+            TypeRef::Memory(mem_ty) => Some({
+                u32::try_from(mem_ty.initial)
+                    .unwrap_or_else(|_| unreachable!("only WASM32 is supported"))
+            }),
             _ => None,
         })
         .map(WasmPagesAmount::try_from)
@@ -79,11 +77,9 @@ pub fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
     for entry in module
         .export_section()
         .expect("Exports section has been checked for already")
-        .entries()
-        .iter()
     {
-        if let Internal::Function(_) = entry.internal() {
-            if let Some(entry) = DispatchKind::try_from_entry(entry.field()) {
+        if let ExternalKind::Func = entry.kind {
+            if let Some(entry) = DispatchKind::try_from_entry(entry.name) {
                 entries.insert(entry);
             }
         }
@@ -95,43 +91,41 @@ pub fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
 pub fn check_exports(module: &Module) -> Result<(), CodeError> {
     let types = module
         .type_section()
-        .ok_or(SectionError::NotFound(SectionName::Type))?
-        .types();
+        .ok_or(SectionError::NotFound(SectionName::Type))?;
 
     let funcs = module
         .function_section()
-        .ok_or(SectionError::NotFound(SectionName::Function))?
-        .entries();
+        .ok_or(SectionError::NotFound(SectionName::Function))?;
 
-    let import_count = module.import_count(ImportCountType::Function) as u32;
+    let import_count = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
 
     let exports = module
         .export_section()
-        .ok_or(SectionError::NotFound(SectionName::Export))?
-        .entries();
+        .ok_or(SectionError::NotFound(SectionName::Export))?;
 
     let mut entry_point_found = false;
     for (export_index, export) in exports.iter().enumerate() {
-        let &Internal::Function(func_index) = export.internal() else {
+        let ExternalKind::Func = export.kind else {
             continue;
         };
 
-        let index = func_index.checked_sub(import_count).ok_or(
-            ExportError::ExportReferencesToImportFunction(export_index as u32, func_index),
+        let index = export.index.checked_sub(import_count).ok_or(
+            ExportError::ExportReferencesToImportFunction(export_index as u32, export.index),
         )?;
 
         // Panic is impossible, unless the Module structure is invalid.
         let type_id = funcs
             .get(index as usize)
+            .copied()
             .unwrap_or_else(|| unreachable!("Module structure is invalid"))
-            .type_ref() as usize;
+            as usize;
 
         // Panic is impossible, unless the Module structure is invalid.
-        let Type::Function(func_type) = types
+        let func_type = types
             .get(type_id)
             .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        if !ALLOWED_EXPORTS.contains(&export.field()) {
+        if !ALLOWED_EXPORTS.contains(&export.name) {
             Err(ExportError::ExcessExport(export_index as u32))?;
         }
 
@@ -139,7 +133,7 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
             Err(ExportError::InvalidExportFnSignature(export_index as u32))?;
         }
 
-        if REQUIRED_EXPORTS.contains(&export.field()) {
+        if REQUIRED_EXPORTS.contains(&export.name) {
             entry_point_found = true;
         }
     }
@@ -153,13 +147,11 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
 pub fn check_imports(module: &Module) -> Result<(), CodeError> {
     let types = module
         .type_section()
-        .ok_or(SectionError::NotFound(SectionName::Type))?
-        .types();
+        .ok_or(SectionError::NotFound(SectionName::Type))?;
 
     let imports = module
         .import_section()
-        .ok_or(SectionError::NotFound(SectionName::Import))?
-        .entries();
+        .ok_or(SectionError::NotFound(SectionName::Import))?;
 
     let syscalls = SyscallName::instrumentable_map();
 
@@ -170,15 +162,15 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
             .try_into()
             .unwrap_or_else(|_| unreachable!("Import index should fit in u32"));
 
-        match import.external() {
-            External::Function(i) => {
+        match import.ty {
+            TypeRef::Func(i) => {
                 // Panic is impossible, unless the Module structure is invalid.
-                let Type::Function(func_type) = &types
-                    .get(*i as usize)
+                let func_type = &types
+                    .get(i as usize)
                     .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
                 let syscall = syscalls
-                    .get(import.field())
+                    .get(import.name)
                     .ok_or(ImportError::UnknownImport(import_index))?;
 
                 if !visited_imports.insert(*syscall) {
@@ -191,7 +183,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
                     .params()
                     .iter()
                     .copied()
-                    .map(Into::<ValueType>::into);
+                    .map(Into::<ValType>::into);
                 let results = signature.results().unwrap_or(&[]);
 
                 if !(params.eq(func_type.params().iter().copied())
@@ -200,11 +192,11 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
                     Err(ImportError::InvalidImportFnSignature(import_index))?;
                 }
             }
-            External::Global(_) => Err(ImportError::UnexpectedImportKind {
+            TypeRef::Global(_) => Err(ImportError::UnexpectedImportKind {
                 kind: &"Global",
                 index: import_index,
             })?,
-            External::Table(_) => Err(ImportError::UnexpectedImportKind {
+            TypeRef::Table(_) => Err(ImportError::UnexpectedImportKind {
                 kind: &"Table",
                 index: import_index,
             })?,
@@ -215,50 +207,51 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
     Ok(())
 }
 
-fn get_export_entry_with_index<'a>(
-    module: &'a Module,
-    name: &str,
-) -> Option<(u32, &'a ExportEntry)> {
+fn get_export_entry_with_index<'a>(module: &'a Module, name: &str) -> Option<(u32, Export<'a>)> {
     module
         .export_section()?
-        .entries()
         .iter()
         .enumerate()
         .find_map(|(export_index, export)| {
-            (export.field() == name).then_some((export_index as u32, export))
+            (export.name == name).then_some((export_index as u32, *export))
         })
 }
 
 fn get_export_global_with_index(module: &Module, name: &str) -> Option<(u32, u32)> {
     let (export_index, export) = get_export_entry_with_index(module, name)?;
-    match export.internal() {
-        Internal::Global(index) => Some((export_index, *index)),
+    match export.kind {
+        ExternalKind::Global => Some((export_index, export.index)),
         _ => None,
     }
 }
 
-fn get_init_expr_const_i32(init_expr: &InitExpr) -> Option<i32> {
-    match init_expr.code() {
-        [Instruction::I32Const(const_i32), Instruction::End] => Some(*const_i32),
+fn get_init_expr_const_i32(init_expr: &ConstExpr) -> Option<i32> {
+    let operators = init_expr
+        .get_operators_reader()
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    match operators.as_slice() {
+        [Operator::I32Const { value }, Operator::End] => Some(*value),
         _ => None,
     }
 }
 
-fn get_export_global_entry(
-    module: &Module,
+fn get_export_global_entry<'a>(
+    module: &'a Module,
     export_index: u32,
     global_index: u32,
-) -> Result<&GlobalEntry, CodeError> {
-    let index = (global_index as usize)
-        .checked_sub(module.import_count(ImportCountType::Global))
+) -> Result<&'a Global<'a>, CodeError> {
+    let index = global_index
+        .checked_sub(module.import_count(|ty| matches!(ty, TypeRef::Global(_))))
         .ok_or(ExportError::ExportReferencesToImportGlobal(
             export_index,
             global_index,
-        ))?;
+        ))? as usize;
 
     module
         .global_section()
-        .and_then(|s| s.entries().get(index))
+        .and_then(|s| s.get(index))
         .ok_or(ExportError::IncorrectGlobalIndex(global_index, export_index).into())
 }
 
@@ -276,7 +269,7 @@ pub fn check_data_section(
 
     // Check that data segments amount does not exceed the limit.
     if let Some(data_segments_amount_limit) = data_section_amount_limit {
-        let number_of_data_segments = data_section.entries().len() as u32;
+        let number_of_data_segments = data_section.len() as u32;
         if number_of_data_segments > data_segments_amount_limit {
             Err(DataSectionError::DataSegmentsAmountLimit {
                 limit: data_segments_amount_limit,
@@ -285,10 +278,18 @@ pub fn check_data_section(
         }
     }
 
-    for data_segment in data_section.entries() {
-        let data_segment_offset = data_segment
-            .offset()
-            .as_ref()
+    for data_segment in data_section {
+        let data_offset_expr = if let DataKind::Active {
+            memory_index,
+            offset_expr,
+        } = &data_segment.kind
+        {
+            debug_assert_eq!(*memory_index, 0);
+            Some(offset_expr)
+        } else {
+            None
+        };
+        let data_segment_offset = data_offset_expr
             .and_then(get_init_expr_const_i32)
             .ok_or(DataSectionError::Initialization)? as u32;
 
@@ -302,7 +303,7 @@ pub fn check_data_section(
                 ))?;
         }
 
-        let Some(size) = u32::try_from(data_segment.value().len())
+        let Some(size) = u32::try_from(data_segment.data.len())
             .map_err(|_| DataSectionError::EndAddressOverflow(data_segment_offset))?
             .checked_sub(1)
         else {
@@ -336,7 +337,7 @@ pub fn check_table_section(
     };
 
     if let Some(table_number_limit) = table_number_limit {
-        let table_number = table_section.entries().len() as u32;
+        let table_number = table_section.len() as u32;
         if table_number > table_number_limit {
             Err(TableSectionError::TableNumberLimit {
                 limit: table_number_limit,
@@ -357,7 +358,7 @@ fn get_stack_end_offset(module: &Module) -> Result<Option<u32>, CodeError> {
 
     Ok(Some(
         get_init_expr_const_i32(
-            get_export_global_entry(module, export_index, global_index)?.init_expr(),
+            &get_export_global_entry(module, export_index, global_index)?.init_expr,
         )
         .ok_or(StackEndError::Initialization)? as u32,
     ))
@@ -376,8 +377,7 @@ pub fn check_and_canonize_gear_stack_end(
     module
         .export_section_mut()
         .unwrap_or_else(|| unreachable!("Cannot find export section"))
-        .entries_mut()
-        .retain(|export| export.field() != STACK_END_EXPORT_NAME);
+        .retain(|export| export.name != STACK_END_EXPORT_NAME);
 
     if stack_end_offset % WasmPage::SIZE != 0 {
         return Err(StackEndError::NotAligned(stack_end_offset).into());
@@ -401,16 +401,15 @@ pub fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
     };
 
     export_section
-        .entries()
         .iter()
         .enumerate()
-        .filter_map(|(export_index, export)| match export.internal() {
-            Internal::Global(index) => Some((export_index as u32, *index)),
+        .filter_map(|(export_index, export)| match export.kind {
+            ExternalKind::Global => Some((export_index as u32, export.index)),
             _ => None,
         })
         .try_for_each(|(export_index, global_index)| {
             let entry = get_export_global_entry(module, export_index, global_index)?;
-            if entry.global_type().is_mutable() {
+            if entry.ty.mutable {
                 Err(ExportError::MutableGlobalExport(global_index, export_index).into())
             } else {
                 Ok(())
@@ -438,15 +437,23 @@ pub fn get_data_section_size(module: &Module) -> Result<u32, CodeError> {
     };
 
     let mut used_pages = BTreeSet::new();
-    for data_segment in data_section.entries() {
-        let data_segment_offset = data_segment
-            .offset()
-            .as_ref()
+    for data_segment in data_section {
+        let data_offset_expr = if let DataKind::Active {
+            memory_index,
+            offset_expr,
+        } = &data_segment.kind
+        {
+            debug_assert_eq!(*memory_index, 0);
+            Some(offset_expr)
+        } else {
+            None
+        };
+        let data_segment_offset = data_offset_expr
             .and_then(get_init_expr_const_i32)
             .ok_or(DataSectionError::Initialization)? as u32;
         let data_segment_start = data_segment_offset / GENERIC_OS_PAGE_SIZE;
 
-        let data_segment_size = data_segment.value().len() as u32;
+        let data_segment_size = data_segment.data.len() as u32;
 
         if data_segment_size == 0 {
             // Zero size data segment
@@ -470,16 +477,15 @@ pub fn get_instantiated_global_section_size(module: &Module) -> Result<u32, Code
         return Ok(0);
     };
 
-    Ok(global_section
-        .entries()
-        .iter()
-        .fold(0, |total_bytes, global| {
-            let value_size = match global.global_type().content_type() {
-                ValueType::I32 | ValueType::F32 => size_of::<i32>(),
-                ValueType::I64 | ValueType::F64 => size_of::<i64>(),
-            } as u32;
-            total_bytes.saturating_add(value_size)
-        }))
+    Ok(global_section.iter().fold(0, |total_bytes, global| {
+        let value_size = match global.ty.content_type {
+            ValType::I32 | ValType::F32 => size_of::<i32>(),
+            ValType::I64 | ValType::F64 => size_of::<i64>(),
+            ValType::Ref(_) => REF_TYPE_SIZE as usize,
+            ValType::V128 => unreachable!("SIMD is not supported"),
+        } as u32;
+        total_bytes.saturating_add(value_size)
+    }))
 }
 
 /// Calculates the amount of bytes in the table section that will be allocated during module instantiation.
@@ -488,14 +494,12 @@ pub fn get_instantiated_table_section_size(module: &Module) -> Result<u32, CodeE
         return Ok(0);
     };
 
-    Ok(table_section
-        .entries()
-        .iter()
-        .fold(0, |total_bytes, table| {
-            let count = table.limits().initial();
-            // Tables may hold only reference types, which are 4 bytes long.
-            total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
-        }))
+    Ok(table_section.iter().fold(0, |total_bytes, table| {
+        let count = u32::try_from(table.ty.initial)
+            .unwrap_or_else(|_| unreachable!("only WASM32 is supported"));
+        // Tables may hold only reference types, which are 4 bytes long.
+        total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
+    }))
 }
 
 /// Calculates the amount of bytes in the table/element section that will be initialized during module instantiation.
@@ -504,19 +508,16 @@ pub fn get_instantiated_element_section_size(module: &Module) -> Result<u32, Cod
         return Ok(0);
     }
 
-    let Some(element_section) = module.elements_section() else {
+    let Some(element_section) = module.element_section() else {
         // No element section
         return Ok(0);
     };
 
-    Ok(element_section
-        .entries()
-        .iter()
-        .fold(0, |total_bytes, segment| {
-            let count = segment.members().iter().count() as u32;
-            // Tables may hold only reference types, which are 4 bytes long.
-            total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
-        }))
+    Ok(element_section.iter().fold(0, |total_bytes, segment| {
+        let count = segment.items.count() as u32;
+        // Tables may hold only reference types, which are 4 bytes long.
+        total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
+    }))
 }
 
 pub struct CodeTypeSectionSizes {

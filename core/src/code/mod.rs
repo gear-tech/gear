@@ -32,6 +32,7 @@ use gear_wasm_instrument::{
 
 mod errors;
 mod instrumented;
+mod module;
 mod utils;
 
 pub use errors::*;
@@ -138,8 +139,7 @@ impl Code {
             wasmparser::validate(&original_code).map_err(CodeError::Validation)?;
         }
 
-        let mut module =
-            parity_wasm::deserialize_buffer(&original_code).map_err(CodecError::Decode)?;
+        let mut module = module::Module::new(&original_code).map_err(CodecError::Decode)?;
 
         let static_pages = utils::get_static_pages(&module)?;
 
