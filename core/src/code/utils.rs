@@ -26,7 +26,8 @@ use crate::{
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{SyscallName, STACK_END_EXPORT_NAME};
 use wasmparser::{
-    ConstExpr, DataKind, Export, ExternalKind, Global, Operator, Payload, TypeRef, ValType,
+    ConstExpr, DataKind, ElementItems, Export, ExternalKind, Global, Operator, Payload, TypeRef,
+    ValType,
 };
 
 /// Defines maximal permitted count of memory pages.
@@ -144,6 +145,21 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
         .map_err(CodeError::Export)
 }
 
+fn eq_parity_and_wasmparser(
+    parity: &gear_wasm_instrument::parity_wasm::elements::ValueType,
+    wasmparser: &ValType,
+) -> bool {
+    use gear_wasm_instrument::parity_wasm::elements::ValueType as ParityType;
+
+    match (parity, wasmparser) {
+        (ParityType::I32, ValType::I32)
+        | (ParityType::I64, ValType::I64)
+        | (ParityType::F32, ValType::F32)
+        | (ParityType::F64, ValType::F64) => true,
+        _ => false,
+    }
+}
+
 pub fn check_imports(module: &Module) -> Result<(), CodeError> {
     let types = module
         .type_section()
@@ -187,7 +203,10 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
                 let results = signature.results().unwrap_or(&[]);
 
                 if !(params.eq(func_type.params().iter().copied())
-                    && results == func_type.results())
+                    && results
+                        .iter()
+                        .zip(func_type.results())
+                        .all(|(a, b)| eq_parity_and_wasmparser(a, b)))
                 {
                     Err(ImportError::InvalidImportFnSignature(import_index))?;
                 }
@@ -514,7 +533,10 @@ pub fn get_instantiated_element_section_size(module: &Module) -> Result<u32, Cod
     };
 
     Ok(element_section.iter().fold(0, |total_bytes, segment| {
-        let count = segment.items.count() as u32;
+        let count = match &segment.items {
+            ElementItems::Functions(section) => section.count(),
+            ElementItems::Expressions(_ty, section) => section.count(),
+        };
         // Tables may hold only reference types, which are 4 bytes long.
         total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
     }))
