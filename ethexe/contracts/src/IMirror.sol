@@ -85,23 +85,22 @@ interface IMirror {
 
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata payload, uint128 value) external payable returns (bytes32);
+    function sendMessage(bytes calldata payload, uint128 value) external returns (bytes32);
 
-    function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external payable;
+    function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external;
 
-    // payable?
     function claimValue(bytes32 claimedId) external;
 
-    function executableBalanceTopUp(uint128 value) external payable;
+    function executableBalanceTopUp(uint128 value) external;
 
-    function sendValueToInheritor() external;
+    function transferLockedValueToInheritor() external;
 
     /* Router-driven state and funds management */
     // NOTE: all of these methods will have additional handler (with hooks) for decoder.
 
     function updateState(bytes32 newStateHash) external;
 
-    function setCreator(address creator) external;
+    function setInitializer(address initializer) external;
 
     function setInheritor(address inheritor) external;
 

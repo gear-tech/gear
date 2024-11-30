@@ -8,16 +8,39 @@ import {IWrappedVara} from "./IWrappedVara.sol";
 import {IMirrorDecoder} from "./IMirrorDecoder.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
-// TODO: handle ETH sent in each contract.
 contract Mirror is IMirror {
-    // TODO (breathx) consider these being `private`?
-    bytes32 public stateHash;
-    address public inheritor;
-    // NOTE: Nonce 0 is used for init message in current implementation
-    uint256 public nonce; /* = 1 */
     address public decoder;
+    address public inheritor;
+    /// @dev This nonce is the source for message ids unique generations. Must be bumped on each send. Zeroed nonce is always represent init message by eligible account.
+    address public initializer;
+    bytes32 public stateHash;
+    uint256 public nonce;
 
-    address public creator;
+    /* Modifiers */
+    modifier onlyRouter() {
+        require(msg.sender == router(), "caller is not the router");
+        _;
+    }
+
+    modifier retrievingValue(uint128 value) {
+        if (value != 0) {
+            address routerAddr = router();
+            bool success = _wvara(routerAddr).transferFrom(_source(), routerAddr, value);
+            require(success, "failed to transfer non-zero amount of WVara from source to router");
+        }
+        _;
+    }
+
+    // TODO (breathx): terminated programs compute threshold must always be treated as balance-enough.
+    modifier whenTerminated() {
+        require(inheritor != address(0), "program is not terminated");
+        _;
+    }
+
+    modifier whileActive() {
+        require(inheritor == address(0), "program is terminated");
+        _;
+    }
 
     /* Operational functions */
 
@@ -28,11 +51,13 @@ contract Mirror is IMirror {
     /* Primary Gear logic */
 
     // TODO (breathx): sendMessage with msg.sender, but with tx.origin if decoder.
-    function sendMessage(bytes calldata _payload, uint128 _value) external payable returns (bytes32) {
-        require(inheritor == address(0), "program is terminated");
-
-        _retrieveValueToRouter(_value);
-
+    function sendMessage(bytes calldata _payload, uint128 _value)
+        external
+        whileActive
+        retrievingValue(_value)
+        returns (bytes32)
+    {
+        // TODO (breathx): WITHIN THE PR check initializer.
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
 
         emit MessageQueueingRequested(id, _source(), _payload, _value);
@@ -40,34 +65,25 @@ contract Mirror is IMirror {
         return id;
     }
 
-    function sendReply(bytes32 _repliedTo, bytes calldata _payload, uint128 _value) external payable {
-        require(inheritor == address(0), "program is terminated");
-
-        _retrieveValueToRouter(_value);
-
+    function sendReply(bytes32 _repliedTo, bytes calldata _payload, uint128 _value)
+        external
+        whileActive
+        retrievingValue(_value)
+    {
         emit ReplyQueueingRequested(_repliedTo, _source(), _payload, _value);
     }
 
-    // TODO (breathx): fix inability to claim value from terminated program.
     function claimValue(bytes32 _claimedId) external {
-        require(inheritor == address(0), "program is terminated");
-
         emit ValueClaimingRequested(_claimedId, _source());
     }
 
-    function executableBalanceTopUp(uint128 _value) external payable {
-        require(inheritor == address(0), "program is terminated");
-
-        _retrieveValueToRouter(_value);
-
+    function executableBalanceTopUp(uint128 _value) external whileActive retrievingValue(_value) {
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
-    function sendValueToInheritor() public {
-        require(inheritor != address(0), "program is not terminated");
-
-        uint256 balance = IWrappedVara(IRouter(router()).wrappedVara()).balanceOf(address(this));
-        _sendValueTo(inheritor, uint128(balance));
+    function transferLockedValueToInheritor() public whenTerminated {
+        uint256 balance = _wvara(router()).balanceOf(address(this));
+        _transferValue(inheritor, uint128(balance));
     }
 
     /* Router-driven state and funds management */
@@ -80,15 +96,15 @@ contract Mirror is IMirror {
         }
     }
 
-    function setCreator(address _creator) external onlyRouter {
-        creator = _creator;
+    function setInitializer(address _initializer) external onlyRouter {
+        initializer = _initializer;
     }
 
     // TODO (breathx): handle after-all transfers to program on wvara event properly.
     function setInheritor(address _inheritor) external onlyRouter {
         inheritor = _inheritor;
 
-        sendValueToInheritor();
+        transferLockedValueToInheritor();
     }
 
     function messageSent(bytes32 id, address destination, bytes calldata payload, uint128 value) external onlyRouter {
@@ -115,7 +131,7 @@ contract Mirror is IMirror {
         external
         onlyRouter
     {
-        _sendValueTo(destination, value);
+        _transferValue(destination, value);
 
         if (decoder != address(0)) {
             bytes memory callData = abi.encodeWithSelector(
@@ -136,7 +152,7 @@ contract Mirror is IMirror {
     }
 
     function valueClaimed(bytes32 claimedId, address destination, uint128 value) external onlyRouter {
-        _sendValueTo(destination, value);
+        _transferValue(destination, value);
 
         emit ValueClaimed(claimedId, value);
     }
@@ -166,12 +182,12 @@ contract Mirror is IMirror {
         emit MessageQueueingRequested(id, source, payload, value);
     }
 
-    modifier onlyRouter() {
-        require(msg.sender == router(), "only router contract is eligible for operation");
-        _;
-    }
-
     /* Local helper functions */
+
+    function _wvara(address routerAddr) private view returns (IWrappedVara) {
+        address wvaraAddr = IRouter(routerAddr).wrappedVara();
+        return IWrappedVara(wvaraAddr);
+    }
 
     function _source() private view returns (address) {
         if (msg.sender == decoder) {
@@ -181,25 +197,10 @@ contract Mirror is IMirror {
         }
     }
 
-    function _retrieveValueToRouter(uint128 _value) private {
-        if (_value != 0) {
-            address routerAddress = router();
-
-            IWrappedVara wrappedVara = IWrappedVara(IRouter(routerAddress).wrappedVara());
-
-            bool success = wrappedVara.transferFrom(_source(), routerAddress, _value);
-
-            require(success, "failed to retrieve WVara");
-        }
-    }
-
-    function _sendValueTo(address destination, uint128 value) private {
-        IWrappedVara wrappedVara = IWrappedVara(IRouter(router()).wrappedVara());
-
+    function _transferValue(address destination, uint128 value) private {
         if (value != 0) {
-            bool success = wrappedVara.transfer(destination, value);
-
-            require(success, "failed to send WVara");
+            bool success = _wvara(router()).transfer(destination, value);
+            require(success, "failed to transfer WVara");
         }
     }
 }
