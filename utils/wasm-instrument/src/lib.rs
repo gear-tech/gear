@@ -34,7 +34,6 @@ use wasmparser::{
     BlockType, Export, ExternalKind, FuncType, GlobalType, Import, Operator, TypeRef, ValType,
 };
 
-//mod convert;
 mod module;
 #[cfg(test)]
 mod tests;
