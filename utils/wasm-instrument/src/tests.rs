@@ -18,15 +18,13 @@
 
 use crate::{
     gas_metering::ConstantCostRules,
-    module::{Function, ModuleBuilder},
+    module::{ConstExpr, Function, Global, ModuleBuilder},
     syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
     InstrumentationBuilder, InstrumentationError, Module, GLOBAL_NAME_GAS,
 };
 use alloc::format;
 use gwasm_instrument::gas_metering::Rules;
-use wasmparser::{
-    BinaryReader, BlockType, FuncType, Global, GlobalType, Operator, Operator::*, ValType,
-};
+use wasmparser::{BlockType, FuncType, GlobalType, Operator, Operator::*, ValType};
 
 macro_rules! parse_wat {
     ($module:ident = $source:expr) => {
@@ -65,7 +63,9 @@ fn prebuilt_simple_module() -> Module<'static> {
             mutable: false,
             shared: false,
         },
-        init_expr: wasmparser::ConstExpr::new(BinaryReader::new(&[], 0)),
+        init_expr: ConstExpr {
+            instructions: vec![],
+        },
     });
 
     builder.push_type(FuncType::new([ValType::I32], []));

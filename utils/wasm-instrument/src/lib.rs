@@ -22,20 +22,17 @@
 extern crate alloc;
 extern crate core;
 
-use alloc::vec;
-use gwasm_instrument::{
-    parity_wasm::{
-        builder,
-        elements::{BlockType, Instruction, Instructions, Local, ValueType},
-    },
-    InjectionConfig,
-};
-
-use crate::module::ModuleBuilder;
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use gwasm_instrument::{self as wasm_instrument, gas_metering, parity_wasm, utils};
 pub use module::Module;
-use wasmparser::{FuncType, Import, TypeRef, ValType};
+
+use crate::module::{ConstExpr, Function, Global, ModuleBuilder};
+use alloc::vec;
+use gear_wasm::elements::Instruction;
+use gwasm_instrument::InjectionConfig;
+use wasmparser::{
+    BlockType, Export, ExternalKind, FuncType, GlobalType, Import, Operator, TypeRef, ValType,
+};
 
 //mod convert;
 mod module;
@@ -250,24 +247,24 @@ fn inject_gas_limiter<'a, R: Rules>(
     let gas_charge_index = module.functions_space();
     let gas_index = module.globals_space() as u32;
 
-    let mut mbuilder = builder::from_module(module);
+    let mut mbuilder = ModuleBuilder::from_module(module);
 
-    mbuilder.push_global(
-        builder::global()
-            .value_type()
-            .i64()
-            .init_expr(Instruction::I64Const(0))
-            .mutable()
-            .build(),
-    );
+    mbuilder.push_global(Global {
+        ty: GlobalType {
+            content_type: ValType::I64,
+            mutable: true,
+            shared: false,
+        },
+        init_expr: ConstExpr {
+            instructions: vec![Operator::I64Const { value: 0 }],
+        },
+    });
 
-    mbuilder.push_export(
-        builder::export()
-            .field(GLOBAL_NAME_GAS)
-            .internal()
-            .global(gas_index)
-            .build(),
-    );
+    mbuilder.push_export(Export {
+        name: GLOBAL_NAME_GAS,
+        kind: ExternalKind::Global,
+        index: gas_index,
+    });
 
     // This const is introduced to avoid future errors in code if some other
     // `I64Const` instructions appear in gas charge function body.
@@ -275,35 +272,49 @@ fn inject_gas_limiter<'a, R: Rules>(
 
     let mut elements = vec![
         // I. Put global with value of current gas counter of any type.
-        Instruction::GetGlobal(gas_index),
+        Operator::GlobalGet {
+            global_index: gas_index,
+        },
         // II. Calculating total gas to charge as sum of:
         //  - `gas_charge(..)` argument;
         //  - `gas_charge(..)` call cost.
         //
         // Setting the sum into local with index 1 with keeping it on stack.
-        Instruction::GetLocal(0),
-        Instruction::I64ExtendUI32,
-        Instruction::I64Const(GAS_CHARGE_COST_PLACEHOLDER),
-        Instruction::I64Add,
-        Instruction::TeeLocal(1),
+        Operator::LocalGet { local_index: 0 },
+        Operator::I64ExtendI32U,
+        Operator::I64Const {
+            value: GAS_CHARGE_COST_PLACEHOLDER,
+        },
+        Operator::I64Add,
+        Operator::LocalTee { local_index: 1 },
         // III. Validating left amount of gas.
         //
         // In case of requested value is bigger than actual gas counter value,
         // than we call `out_of_gas()` that will terminate execution.
-        Instruction::I64LtU,
-        Instruction::If(BlockType::NoResult),
-        Instruction::I32Const(SystemBreakCode::OutOfGas as i32),
-        Instruction::Call(gr_system_break_index),
-        Instruction::End,
+        Operator::I64LtU,
+        Operator::If {
+            blockty: BlockType::Empty,
+        },
+        Operator::I32Const {
+            value: SystemBreakCode::OutOfGas as i32,
+        },
+        Operator::Call {
+            function_index: gr_system_break_index,
+        },
+        Operator::End,
         // IV. Calculating new global value by subtraction.
         //
         // Result is stored back into global.
-        Instruction::GetGlobal(gas_index),
-        Instruction::GetLocal(1),
-        Instruction::I64Sub,
-        Instruction::SetGlobal(gas_index),
+        Operator::GlobalGet {
+            global_index: gas_index,
+        },
+        Operator::LocalGet { local_index: 1 },
+        Operator::I64Sub,
+        Operator::GlobalSet {
+            global_index: gas_index,
+        },
         // V. Ending `gas_charge()` function.
-        Instruction::End,
+        Operator::End,
     ];
 
     // determine cost for successful execution
@@ -312,11 +323,11 @@ fn inject_gas_limiter<'a, R: Rules>(
     let cost_blocks = elements
         .iter()
         .filter(|instruction| match instruction {
-            Instruction::If(_) => {
+            Operator::If { .. } => {
                 block_of_code = true;
                 true
             }
-            Instruction::End => {
+            Operator::End => {
                 block_of_code = false;
                 false
             }
@@ -353,22 +364,20 @@ fn inject_gas_limiter<'a, R: Rules>(
     // update cost for 'gas_charge' function itself
     let cost_instr = elements
         .iter_mut()
-        .find(|i| **i == Instruction::I64Const(GAS_CHARGE_COST_PLACEHOLDER))
+        .find(|i| {
+            **i == Operator::I64Const {
+                value: GAS_CHARGE_COST_PLACEHOLDER,
+            }
+        })
         .expect("Const for cost of the fn not found");
-    *cost_instr = Instruction::I64Const(cost as i64);
+    *cost_instr = Operator::I64Const { value: cost as i64 };
 
     // gas_charge function
-    mbuilder.push_function(
-        builder::function()
-            .signature()
-            .with_param(ValueType::I32)
-            .build()
-            .body()
-            .with_locals(vec![Local::new(1, ValueType::I64)])
-            .with_instructions(Instructions::new(elements))
-            .build()
-            .build(),
-    );
+    mbuilder.push_type(FuncType::new([ValType::I32], []));
+    mbuilder.push_function(Function {
+        locals: vec![(1, ValType::I64)],
+        instructions: elements,
+    });
 
     // back to plain module
     let module = mbuilder.build();

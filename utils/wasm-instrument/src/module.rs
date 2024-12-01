@@ -24,7 +24,7 @@ use wasm_encoder::{
 };
 use wasmparser::{
     BinaryReaderError, Data, ElementKind, Encoding, Export, ExternalKind, FuncType, FunctionBody,
-    Global, Import, MemoryType, Operator, Payload, Table, TypeRef,
+    GlobalType, Import, MemoryType, Operator, Payload, Table, TypeRef, ValType,
 };
 
 pub type Result<T, E = Error> = core::result::Result<T, E>;
@@ -38,7 +38,7 @@ pub enum Error {
 }
 
 pub struct ConstExpr<'a> {
-    instructions: Vec<Operator<'a>>,
+    pub instructions: Vec<Operator<'a>>,
 }
 
 impl<'a> ConstExpr<'a> {
@@ -53,6 +53,20 @@ impl<'a> ConstExpr<'a> {
     }
 }
 
+pub struct Global<'a> {
+    pub ty: GlobalType,
+    pub init_expr: ConstExpr<'a>,
+}
+
+impl<'a> Global<'a> {
+    fn new(global: wasmparser::Global<'a>) -> Result<Self> {
+        Ok(Self {
+            ty: global.ty,
+            init_expr: ConstExpr::new(global.init_expr)?,
+        })
+    }
+}
+
 pub enum ElementItems<'a> {
     Functions(Vec<u32>),
     Expressions(RefType, Vec<ConstExpr<'a>>),
@@ -64,7 +78,7 @@ impl<'a> ElementItems<'a> {
             wasmparser::ElementItems::Functions(f) => {
                 let mut funcs = Vec::new();
                 for func in f {
-                    funcs.push(RoundtripReencoder.function_index(func?));
+                    funcs.push(func?);
                 }
                 Self::Functions(funcs.into())
             }
@@ -95,7 +109,7 @@ impl<'a> Element<'a> {
 
 #[derive(Debug)]
 pub struct Function<'a> {
-    pub locals: Vec<(u32, wasm_encoder::ValType)>,
+    pub locals: Vec<(u32, ValType)>,
     pub instructions: Vec<Operator<'a>>,
 }
 
@@ -104,7 +118,7 @@ impl<'a> Function<'a> {
         let mut locals = Vec::new();
         for pair in func.get_locals_reader()? {
             let (cnt, ty) = pair?;
-            locals.push((cnt, RoundtripReencoder.val_type(ty)?));
+            locals.push((cnt, ty));
         }
 
         let mut instructions = Vec::new();
@@ -224,6 +238,10 @@ impl<'a> ModuleBuilder<'a> {
         self.module.global_section.get_or_insert_with(Vec::new)
     }
 
+    fn export_section(&mut self) -> &mut Vec<Export<'a>> {
+        self.module.export_section.get_or_insert_with(Vec::new)
+    }
+
     fn code_section(&mut self) -> &mut Vec<Function<'a>> {
         self.module.code_section.get_or_insert_with(Vec::new)
     }
@@ -239,6 +257,10 @@ impl<'a> ModuleBuilder<'a> {
 
     pub fn push_global(&mut self, global: Global<'a>) {
         self.global_section().push(global);
+    }
+
+    pub fn push_export(&mut self, export: Export<'a>) {
+        self.export_section().push(export);
     }
 
     pub fn push_function(&mut self, function: Function<'a>) {
@@ -314,7 +336,12 @@ impl<'a> Module<'a> {
                 Payload::TagSection(_) => {}
                 Payload::GlobalSection(section) => {
                     debug_assert!(global_section.is_none());
-                    global_section = Some(section.into_iter().collect::<Result<_, _>>()?);
+                    global_section = Some(
+                        section
+                            .into_iter()
+                            .map(|element| element.map_err(Into::into).and_then(Global::new))
+                            .collect::<Result<_, _>>()?,
+                    );
                 }
                 Payload::ExportSection(section) => {
                     debug_assert!(export_section.is_none());
