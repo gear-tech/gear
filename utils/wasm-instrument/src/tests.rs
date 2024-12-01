@@ -28,6 +28,13 @@ use wasmparser::{
     BinaryReader, BlockType, FuncType, Global, GlobalType, Operator, Operator::*, ValType,
 };
 
+macro_rules! parse_wat {
+    ($module:ident = $source:expr) => {
+        let module_bytes = wat::parse_str($source).unwrap();
+        let $module = Module::new(&module_bytes).unwrap();
+    };
+}
+
 fn inject<'a, R, GetRulesFn>(
     module: Module<'a>,
     get_gas_rules: GetRulesFn,
@@ -103,7 +110,7 @@ fn duplicate_import() {
             )"#,
         system_break = SyscallName::SystemBreak.to_str()
     );
-    let module = parse_wat(&wat);
+    parse_wat!(module = &wat);
 
     assert_eq!(
         inject(module, |_| ConstantCostRules::default(), "env").unwrap_err(),
@@ -124,7 +131,7 @@ fn duplicate_export() {
         (export "{GLOBAL_NAME_GAS}" (global 0))
         )"#
     );
-    let module = parse_wat(&wat);
+    parse_wat!(module = &wat);
 
     assert_eq!(
         inject(module, |_| ConstantCostRules::default(), "env").unwrap_err(),
@@ -268,17 +275,12 @@ fn cost_overflow() {
     );
 }
 
-fn parse_wat<'a>(source: &str) -> Module<'a> {
-    let module_bytes = wat::parse_str(source).unwrap();
-    Module::new(module_bytes).unwrap()
-}
-
 macro_rules! test_gas_counter_injection {
     (name = $name:ident; input = $input:expr; expected = $expected:expr) => {
         #[test]
         fn $name() {
-            let input_module = parse_wat($input);
-            let expected_module = parse_wat($expected);
+            parse_wat!(input_module = $input);
+            parse_wat!(expected_module = $expected);
 
             let injected_module = inject(input_module, |_| ConstantCostRules::default(), "env")
                 .expect("inject_gas_counter call failed");

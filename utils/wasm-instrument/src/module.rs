@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{borrow::Cow, boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 use wasm_encoder::{
     reencode,
     reencode::{Reencode, RoundtripReencoder},
@@ -120,7 +120,7 @@ impl<'a> Function<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ModuleBuilder<'a> {
     module: Module<'a>,
 }
@@ -246,10 +246,9 @@ impl<'a> ModuleBuilder<'a> {
     }
 }
 
-#[derive(derive_more::DebugCustom)]
+#[derive(derive_more::DebugCustom, Default)]
 #[debug(fmt = "Module {{ .. }}")]
 pub struct Module<'a> {
-    pub code: Box<Cow<'a, [u8]>>,
     pub type_section: Option<Vec<FuncType>>,
     pub import_section: Option<Vec<Import<'a>>>,
     pub function_section: Option<Vec<u32>>,
@@ -264,7 +263,7 @@ pub struct Module<'a> {
 }
 
 impl<'a> Module<'a> {
-    pub fn new(code: impl Into<Cow<'a, [u8]>>) -> Result<Self> {
+    pub fn new(code: &'a [u8]) -> Result<Self> {
         let mut type_section = None;
         let mut import_section = None;
         let mut function_section = None;
@@ -277,8 +276,7 @@ impl<'a> Module<'a> {
         let mut data_section = None;
         let mut code_section = None;
 
-        let code = Box::new(code.into());
-        let payloads = wasmparser::Parser::new(0).parse_all(&*code);
+        let payloads = wasmparser::Parser::new(0).parse_all(code);
         for payload in payloads {
             match payload? {
                 Payload::Version {
@@ -369,7 +367,6 @@ impl<'a> Module<'a> {
         }
 
         Ok(Self {
-            code,
             type_section,
             import_section,
             function_section,
