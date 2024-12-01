@@ -16,71 +16,78 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
 use crate::{
     gas_metering::ConstantCostRules,
+    module::{Function, ModuleBuilder},
     syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
+    InstrumentationBuilder, InstrumentationError, Module, GLOBAL_NAME_GAS,
 };
 use alloc::format;
-use elements::Instruction::*;
+use gwasm_instrument::gas_metering::Rules;
+use wasmparser::{
+    BinaryReader, BlockType, FuncType, Global, GlobalType, Operator, Operator::*, ValType,
+};
 
-fn inject<R, GetRulesFn>(
-    module: elements::Module,
+fn inject<'a, R, GetRulesFn>(
+    module: Module<'a>,
     get_gas_rules: GetRulesFn,
-    module_name: &str,
-) -> Result<Module, InstrumentationError>
+    module_name: &'a str,
+) -> Result<Module<'a>, InstrumentationError>
 where
-    R: Rules,
-    GetRulesFn: FnMut(&Module) -> R,
+    R: Rules + 'a,
+    GetRulesFn: FnMut(&Module) -> R + 'a,
 {
     InstrumentationBuilder::new(module_name)
         .with_gas_limiter(get_gas_rules)
         .instrument(module)
 }
 
-fn get_function_body(module: &elements::Module, index: usize) -> Option<&[elements::Instruction]> {
+fn get_function_body<'a>(module: &'a Module, index: usize) -> Option<&'a [Operator<'a>]> {
     module
         .code_section()
-        .and_then(|code_section| code_section.bodies().get(index))
-        .map(|func_body| func_body.code().elements())
+        .and_then(|code_section| code_section.get(index))
+        .map(|func_body| func_body.instructions.as_ref())
 }
 
-fn prebuilt_simple_module() -> elements::Module {
-    builder::module()
-        .global()
-        .value_type()
-        .i32()
-        .build()
-        .function()
-        .signature()
-        .param()
-        .i32()
-        .build()
-        .body()
-        .build()
-        .build()
-        .function()
-        .signature()
-        .param()
-        .i32()
-        .build()
-        .body()
-        .with_instructions(elements::Instructions::new(vec![
-            Call(0),
-            If(elements::BlockType::NoResult),
-            Call(0),
-            Call(0),
-            Call(0),
+fn prebuilt_simple_module() -> Module<'static> {
+    let mut builder = ModuleBuilder::default();
+
+    builder.push_global(Global {
+        ty: GlobalType {
+            content_type: ValType::I32,
+            mutable: false,
+            shared: false,
+        },
+        init_expr: wasmparser::ConstExpr::new(BinaryReader::new(&[], 0)),
+    });
+
+    builder.push_type(FuncType::new([ValType::I32], []));
+    builder.push_function(Function {
+        locals: Vec::new(),
+        instructions: vec![],
+    });
+
+    builder.push_type(FuncType::new([ValType::I32], []));
+    builder.push_function(Function {
+        locals: Vec::new(),
+        instructions: vec![
+            Call { function_index: 0 },
+            If {
+                blockty: BlockType::Empty,
+            },
+            Call { function_index: 0 },
+            Call { function_index: 0 },
+            Call { function_index: 0 },
             Else,
-            Call(0),
-            Call(0),
+            Call { function_index: 0 },
+            Call { function_index: 0 },
             End,
-            Call(0),
+            Call { function_index: 0 },
             End,
-        ]))
-        .build()
-        .build()
-        .build()
+        ],
+    });
+
+    builder.build()
 }
 
 #[test]
@@ -99,8 +106,8 @@ fn duplicate_import() {
     let module = parse_wat(&wat);
 
     assert_eq!(
-        inject(module, |_| ConstantCostRules::default(), "env"),
-        Err(InstrumentationError::SystemBreakImportAlreadyExists)
+        inject(module, |_| ConstantCostRules::default(), "env").unwrap_err(),
+        InstrumentationError::SystemBreakImportAlreadyExists,
     );
 }
 
@@ -120,8 +127,8 @@ fn duplicate_export() {
     let module = parse_wat(&wat);
 
     assert_eq!(
-        inject(module, |_| ConstantCostRules::default(), "env"),
-        Err(InstrumentationError::GasGlobalAlreadyExists)
+        inject(module, |_| ConstantCostRules::default(), "env").unwrap_err(),
+        InstrumentationError::GasGlobalAlreadyExists
     );
 }
 
@@ -140,25 +147,47 @@ fn call_index() {
 
     assert_eq!(
         get_function_body(&injected_module, 1).unwrap(),
-        &vec![
-            I32Const(3),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            If(elements::BlockType::NoResult),
-            I32Const(3),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
+        [
+            I32Const { value: 3 },
+            Call {
+                function_index: gas_charge_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
+            If {
+                blockty: BlockType::Empty
+            },
+            I32Const { value: 3 },
+            Call {
+                function_index: gas_charge_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
             Else,
-            I32Const(2),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
+            I32Const { value: 2 },
+            Call {
+                function_index: gas_charge_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
             End,
-            Call(empty_func_index),
+            Call {
+                function_index: empty_func_index
+            },
             End
-        ][..]
+        ]
     );
 }
 
@@ -178,40 +207,70 @@ fn cost_overflow() {
 
     assert_eq!(
         get_function_body(&injected_module, 1).unwrap(),
-        &vec![
+        &[
             // (instruction_cost * 3) as i32 => ((2147483647 * 2) + 2147483647) as i32 =>
             // ((2147483647 + 2147483647 + 1) + 2147483646) as i32 =>
             // (u32::MAX as i32) + 2147483646 as i32
-            I32Const(-1),
-            Call(gas_charge_index),
-            I32Const((instruction_cost - 1) as i32),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            If(elements::BlockType::NoResult),
+            I32Const { value: -1 },
+            Call {
+                function_index: gas_charge_index
+            },
+            I32Const {
+                value: (instruction_cost - 1) as i32
+            },
+            Call {
+                function_index: gas_charge_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
+            If {
+                blockty: BlockType::Empty
+            },
             // Same as upper
-            I32Const(-1),
-            Call(gas_charge_index),
-            I32Const((instruction_cost - 1) as i32),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
+            I32Const { value: -1 },
+            Call {
+                function_index: gas_charge_index
+            },
+            I32Const {
+                value: (instruction_cost - 1) as i32
+            },
+            Call {
+                function_index: gas_charge_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
             Else,
             // (instruction_cost * 2) as i32
-            I32Const(-2),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
+            I32Const { value: -2 },
+            Call {
+                function_index: gas_charge_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
+            Call {
+                function_index: empty_func_index
+            },
             End,
-            Call(empty_func_index),
+            Call {
+                function_index: empty_func_index
+            },
             End
-        ][..]
+        ]
     );
 }
 
-fn parse_wat(source: &str) -> elements::Module {
+fn parse_wat<'a>(source: &str) -> Module<'a> {
     let module_bytes = wat::parse_str(source).unwrap();
-    elements::deserialize_buffer(module_bytes.as_ref()).unwrap()
+    Module::new(module_bytes).unwrap()
 }
 
 macro_rules! test_gas_counter_injection {

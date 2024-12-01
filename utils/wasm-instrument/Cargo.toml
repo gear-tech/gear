@@ -17,6 +17,8 @@ gwasm-instrument = { workspace = true, features = ["sign_ext"] }
 derive_more.workspace = true
 enum-iterator.workspace = true
 wasmparser.workspace = true
+wasm-encoder = { version = "0.220.0", features = ["wasmparser"] }
+bumpalo = "3.16.0"
 
 # TODO: move in a proper place
 # parity-wasm

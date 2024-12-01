@@ -19,12 +19,12 @@
 //! Module that contains functions to check code.
 
 use crate::{
-    code::{errors::*, module::Module, GENERIC_OS_PAGE_SIZE},
+    code::{errors::*, GENERIC_OS_PAGE_SIZE},
     message::{DispatchKind, WasmEntryPoint},
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use gear_wasm_instrument::{SyscallName, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::{Module, SyscallName, STACK_END_EXPORT_NAME};
 use wasmparser::{
     ConstExpr, DataKind, ElementItems, Export, ExternalKind, Global, Operator, Payload, TypeRef,
     ValType,
@@ -110,7 +110,7 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
             continue;
         };
 
-        let index = export.index.checked_sub(import_count).ok_or(
+        let index = export.index.checked_sub(import_count as u32).ok_or(
             ExportError::ExportReferencesToImportFunction(export_index as u32, export.index),
         )?;
 

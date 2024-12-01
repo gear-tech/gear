@@ -20,21 +20,25 @@
 #![allow(clippy::items_after_test_module)]
 
 extern crate alloc;
+extern crate core;
 
 use alloc::vec;
 use gwasm_instrument::{
     parity_wasm::{
         builder,
-        elements::{
-            self, BlockType, ImportCountType, Instruction, Instructions, Local, Module, ValueType,
-        },
+        elements::{BlockType, Instruction, Instructions, Local, ValueType},
     },
     InjectionConfig,
 };
 
+use crate::module::ModuleBuilder;
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use gwasm_instrument::{self as wasm_instrument, gas_metering, parity_wasm, utils};
+pub use module::Module;
+use wasmparser::{FuncType, Import, TypeRef, ValType};
 
+//mod convert;
+mod module;
 #[cfg(test)]
 mod tests;
 
@@ -157,7 +161,7 @@ where
 
     /// Performs instrumentation of a given WASM module depending
     /// on the parameters with which the [`InstrumentationBuilder`] was created.
-    pub fn instrument(&mut self, module: Module) -> Result<Module, InstrumentationError> {
+    pub fn instrument(&mut self, module: Module<'a>) -> Result<Module<'a>, InstrumentationError> {
         if let (None, None) = (self.stack_limiter, &self.gas_limiter) {
             return Ok(module);
         }
@@ -190,16 +194,15 @@ where
     }
 }
 
-fn inject_system_break_import(
-    module: elements::Module,
-    break_module_name: &str,
-) -> Result<(u32, elements::Module), InstrumentationError> {
+fn inject_system_break_import<'a>(
+    module: Module<'a>,
+    break_module_name: &'a str,
+) -> Result<(u32, Module<'a>), InstrumentationError> {
     if module
         .import_section()
         .map(|section| {
-            section.entries().iter().any(|entry| {
-                entry.module() == break_module_name
-                    && entry.field() == SyscallName::SystemBreak.to_str()
+            section.iter().any(|entry| {
+                entry.module == break_module_name && entry.name == SyscallName::SystemBreak.to_str()
             })
         })
         .unwrap_or(false)
@@ -207,44 +210,38 @@ fn inject_system_break_import(
         return Err(InstrumentationError::SystemBreakImportAlreadyExists);
     }
 
-    let mut mbuilder = builder::from_module(module);
-
+    let mut mbuilder = ModuleBuilder::from_module(module);
     // fn gr_system_break(code: u32) -> !;
-    let import_sig =
-        mbuilder.push_signature(builder::signature().with_param(ValueType::I32).build_sig());
+    let import_idx = mbuilder.push_type(FuncType::new([ValType::I32], []));
 
     // back to plain module
-    let module = mbuilder
-        .import()
-        .module(break_module_name)
-        .field(SyscallName::SystemBreak.to_str())
-        .external()
-        .func(import_sig)
-        .build()
-        .build();
+    mbuilder.push_import(Import {
+        module: break_module_name,
+        name: SyscallName::SystemBreak.to_str(),
+        ty: TypeRef::Func(import_idx),
+    });
 
-    let import_count = module.import_count(ImportCountType::Function);
+    let import_count = mbuilder
+        .as_module()
+        .import_count(|ty| matches!(ty, TypeRef::Func(_)));
     let inserted_index = import_count as u32 - 1;
 
-    let module = utils::rewrite_sections_after_insertion(module, inserted_index, 1)
-        .expect("Failed to rewrite sections");
+    let module = mbuilder
+        .rewrite_sections_after_insertion(inserted_index, 1)
+        .expect("Failed to rewrite sections")
+        .build();
 
     Ok((inserted_index, module))
 }
 
-fn inject_gas_limiter<R: Rules>(
-    module: Module,
+fn inject_gas_limiter<'a, R: Rules>(
+    module: Module<'a>,
     rules: &R,
     gr_system_break_index: u32,
-) -> Result<Module, InstrumentationError> {
+) -> Result<Module<'a>, InstrumentationError> {
     if module
         .export_section()
-        .map(|section| {
-            section
-                .entries()
-                .iter()
-                .any(|entry| entry.field() == GLOBAL_NAME_GAS)
-        })
+        .map(|section| section.iter().any(|entry| entry.name == GLOBAL_NAME_GAS))
         .unwrap_or(false)
     {
         return Err(InstrumentationError::GasGlobalAlreadyExists);

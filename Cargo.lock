@@ -6615,11 +6615,13 @@ dependencies = [
 name = "gear-wasm-instrument"
 version = "1.7.0"
 dependencies = [
+ "bumpalo",
  "derive_more 0.99.18",
  "enum-iterator 1.5.0",
  "gear-wasm",
  "gwasm-instrument",
  "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasm-encoder 0.220.0",
  "wasmparser 0.220.0",
  "wat",
 ]
@@ -19064,6 +19066,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebf48234b389415b226a4daef6562933d38c7b28a8b8f64c5c4130dad1561ab7"
 dependencies = [
  "leb128",
+ "wasmparser 0.220.0",
 ]
 
 [[package]]
