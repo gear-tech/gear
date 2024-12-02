@@ -120,7 +120,7 @@ contract MiddlewareTest is Test, POCBaseTest {
             assertEq(res.length, 3);
             assertEq(res[0], operators[3]);
             assertEq(res[1], operators[1]);
-            assert(res[2] == operators[0] || res[2] == operators[2] || res[2] == operators[4]);
+            assertTrue(res[2] == operators[0] || res[2] == operators[2] || res[2] == operators[4]);
         }
 
         {
@@ -128,8 +128,8 @@ contract MiddlewareTest is Test, POCBaseTest {
             assertEq(res.length, 4);
             assertEq(res[0], operators[3]);
             assertEq(res[1], operators[1]);
-            assert(res[2] == operators[0] || res[2] == operators[2] || res[2] == operators[4]);
-            assert((res[3] == operators[3] || res[3] == operators[2] || res[3] == operators[4]) && res[3] != res[2]);
+            assertTrue(res[2] == operators[0] || res[2] == operators[2] || res[2] == operators[4]);
+            assertTrue((res[3] == operators[3] || res[3] == operators[2] || res[3] == operators[4]) && res[3] != res[2]);
         }
 
         {
