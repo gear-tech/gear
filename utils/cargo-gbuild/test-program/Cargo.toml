@@ -12,6 +12,9 @@ gstd = { path = "../../../gstd" }
 [dev-dependencies]
 gtest = { path = "../../../gtest" }
 
+# TODO: remove in case of parity-scale-codec 3.7.0 release
+parity-scale-codec-derive = "=3.6.12"
+
 [features]
 debug = ["gstd/debug"]
 default = []
