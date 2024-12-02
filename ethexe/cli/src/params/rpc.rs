@@ -85,6 +85,7 @@ impl RpcParams {
 ///
 /// The type is introduced to overcome `Option<Option<T>>` handling of `clap`.
 #[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Cors {
     /// All hosts allowed.
     All,

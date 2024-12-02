@@ -215,7 +215,7 @@ impl TryFrom<Args> for Config {
             prometheus_config: args.prometheus_params.and_then(|params| {
                 params.prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string())
             }),
-            rpc_config: args.rpc_params.as_config(),
+            rpc_config: args.rpc_params.and_then(|v| v.as_config()),
         })
     }
 }
