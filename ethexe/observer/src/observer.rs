@@ -29,13 +29,20 @@ pub(crate) const MAX_QUERY_BLOCK_RANGE: u64 = 100_000;
 
 pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
 
-#[derive(Clone)]
 pub struct Observer {
     provider: ObserverProvider,
     router_address: AlloyAddress,
+    // Always `Some`
+    blocks_subscription: Option<Subscription<Block>>,
     blob_reader: Arc<dyn BlobReader>,
     status_sender: watch::Sender<ObserverStatus>,
     status: ObserverStatus,
+}
+
+impl Clone for Observer {
+    fn clone(&self) -> Self {
+        self.clone_with_resubscribe()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -43,49 +50,6 @@ pub struct ObserverStatus {
     pub eth_block_number: u64,
     pub pending_upload_code: u64,
     pub last_router_state: u64,
-}
-
-impl Observer {
-    pub async fn new(
-        ethereum_rpc: &str,
-        router_address: Address,
-        blob_reader: Arc<dyn BlobReader>,
-    ) -> Result<Self> {
-        let (status_sender, _status_receiver) = watch::channel(ObserverStatus::default());
-        Ok(Self {
-            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
-            router_address: AlloyAddress::new(router_address.0),
-            blob_reader,
-            status: Default::default(),
-            status_sender,
-        })
-    }
-
-    pub fn get_status_receiver(&self) -> watch::Receiver<ObserverStatus> {
-        self.status_sender.subscribe()
-    }
-
-    fn update_status<F>(&mut self, update_fn: F)
-    where
-        F: FnOnce(&mut ObserverStatus),
-    {
-        update_fn(&mut self.status);
-        let _ = self.status_sender.send_replace(self.status);
-    }
-
-    pub fn provider(&self) -> &ObserverProvider {
-        &self.provider
-    }
-
-    /// Returns events stream producer, which produces a stream for polling events
-    /// in observed blocks.
-    pub fn events_stream_producer(self) -> EventsStreamProducer {
-        EventsStreamProducer::new(self)
-    }
-
-    async fn subscribe_blocks(&self) -> Result<Subscription<Block>> {
-        self.provider.subscribe_blocks().await.map_err(Into::into)
-    }
 }
 
 macro_rules! define_event_stream_method {
@@ -97,21 +61,12 @@ macro_rules! define_event_stream_method {
         $block_data_type:ty,
         $event_type:ty
     ) => {
-        pub fn $method_name(self) -> impl Stream<Item = $event_type> + 'static {
-            let Self {
-                mut observer,
-                maybe_subscription,
-            } = self;
+        pub fn $method_name(&mut self) -> impl Stream<Item = $event_type> + '_ {
+            let new_subscription = self.resubscribe_blocks();
+            let old_subscription = self.blocks_subscription.take().expect("always some");
+            self.blocks_subscription = Some(new_subscription);
             async_stream::stream! {
-                let blocks_subscription = match maybe_subscription {
-                    Some(subscription) => subscription,
-                    // TODO #4335: always subscribe blocks when Observer is created.
-                    None => observer
-                        .subscribe_blocks()
-                        .await
-                        .expect("failed to subscribe to blocks"),
-                };
-                let mut block_stream = blocks_subscription.into_stream();
+                let mut block_stream = old_subscription.into_stream();
                 let mut futures = FuturesUnordered::new();
 
                 loop {
@@ -129,7 +84,7 @@ macro_rules! define_event_stream_method {
                             let block_number = block.header.number;
                             let block_timestamp = block.header.timestamp;
 
-                            let events = match $read_events_fn(block_hash, &observer.provider, observer.router_address).await {
+                            let events = match $read_events_fn(block_hash, &self.provider, self.router_address).await {
                                 Ok(events) => events,
                                 Err(err) => {
                                     log::error!("failed to read events: {err}");
@@ -143,7 +98,7 @@ macro_rules! define_event_stream_method {
                                 if let $block_event_type::Router($router_event_type::CodeValidationRequested { code_id, blob_tx_hash }) = event {
                                     codes_len += 1;
 
-                                    let blob_reader = observer.blob_reader.clone();
+                                    let blob_reader = self.blob_reader.clone();
                                     let code_id = *code_id;
                                     let blob_tx_hash = *blob_tx_hash;
 
@@ -154,7 +109,7 @@ macro_rules! define_event_stream_method {
                                 }
                             }
 
-                            observer.update_status(|status| {
+                            self.update_status(|status| {
                                 status.eth_block_number = block_number;
                                 if codes_len > 0 {
                                     status.last_router_state = block_number;
@@ -188,38 +143,39 @@ macro_rules! define_event_stream_method {
     }
 }
 
-/// Events stream producer.
-///
-/// Produces events stream that yields obtained from the observed chain blocks.
-pub struct EventsStreamProducer {
-    observer: Observer,
-    maybe_subscription: Option<Subscription<Block>>,
-}
-
-impl EventsStreamProducer {
-    /// Creates an events stream producer from the `observer`.
-    pub fn new(observer: Observer) -> Self {
-        Self {
-            observer,
-            maybe_subscription: None,
-        }
+impl Observer {
+    pub async fn new(
+        ethereum_rpc: &str,
+        router_address: Address,
+        blob_reader: Arc<dyn BlobReader>,
+    ) -> Result<Self> {
+        let (status_sender, _status_receiver) = watch::channel(ObserverStatus::default());
+        let provider = ProviderBuilder::new().on_builtin(ethereum_rpc).await?;
+        let blocks_subscription = provider.subscribe_blocks().await?;
+        Ok(Self {
+            provider,
+            router_address: AlloyAddress::new(router_address.0),
+            blocks_subscription: Some(blocks_subscription),
+            blob_reader,
+            status: Default::default(),
+            status_sender,
+        })
     }
 
-    /// Subscribes to blocks and stores the subscription to be used
-    /// when events stream is created.
-    ///
-    /// For more info read `ethexe_cli::service::ServicePendingRun` docs.
-    pub async fn with_blocks_subscribed_first(self) -> Self {
-        let subscription = self
-            .observer
-            .subscribe_blocks()
-            .await
-            .expect("failed to subscribe to blocks");
+    pub fn get_status_receiver(&self) -> watch::Receiver<ObserverStatus> {
+        self.status_sender.subscribe()
+    }
 
-        Self {
-            observer: self.observer,
-            maybe_subscription: Some(subscription),
-        }
+    fn update_status<F>(&mut self, update_fn: F)
+    where
+        F: FnOnce(&mut ObserverStatus),
+    {
+        update_fn(&mut self.status);
+        let _ = self.status_sender.send_replace(self.status);
+    }
+
+    pub fn provider(&self) -> &ObserverProvider {
+        &self.provider
     }
 
     define_event_stream_method!(
@@ -239,6 +195,30 @@ impl EventsStreamProducer {
         RequestBlockData,
         RequestEvent
     );
+
+    /// Clones the `Observer` with resubscribing to blocks.
+    ///
+    /// Resubscription here is the same as calling provider's `subscibe_blocks`
+    /// method from the sense of both approaches will result in receiving only new blocks.
+    /// All the previous blocks queued in the inner channel of the subscription won't be
+    /// accessible by the new subscription.
+    pub fn clone_with_resubscribe(&self) -> Self {
+        Self {
+            provider: self.provider.clone(),
+            router_address: self.router_address,
+            blocks_subscription: Some(self.resubscribe_blocks()),
+            blob_reader: self.blob_reader.clone(),
+            status_sender: self.status_sender.clone(),
+            status: self.status,
+        }
+    }
+
+    fn resubscribe_blocks(&self) -> Subscription<Block> {
+        // `expect` is called to state the invariant` that `blocks_subscription` is always `Some`.
+        let subscription_ref = self.blocks_subscription.as_ref().expect("always some");
+
+        subscription_ref.resubscribe()
+    }
 }
 
 pub(crate) async fn read_code_from_tx_hash(
@@ -544,11 +524,11 @@ mod tests {
 
         let (send_subscription_created, receive_subscription_created) = oneshot::channel::<()>();
         let handle = task::spawn(async move {
-            let observer = Observer::new(&ethereum_rpc, router_address, cloned_blob_reader)
+            let mut observer = Observer::new(&ethereum_rpc, router_address, cloned_blob_reader)
                 .await
                 .expect("failed to create observer");
 
-            let observer_events = observer.events_stream_producer().events_all();
+            let observer_events = observer.events_all();
             futures::pin_mut!(observer_events);
 
             send_subscription_created.send(()).unwrap();

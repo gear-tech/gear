@@ -825,10 +825,7 @@ mod utils {
                     (rpc_url, None)
                 }
                 Err(_) => {
-                    let anvil = Anvil::new()
-                        .block_time(block_time.as_secs())
-                        .try_spawn()
-                        .unwrap();
+                    let anvil = Anvil::new().try_spawn().unwrap();
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
                 }
@@ -861,7 +858,7 @@ mod utils {
                 .expect("failed to create observer");
 
             let (broadcaster, _events_stream) = {
-                let observer = observer.clone();
+                let mut observer = observer.clone();
                 let (sender, mut receiver) = tokio::sync::broadcast::channel::<Event>(2048);
                 let sender = Arc::new(Mutex::new(sender));
                 let cloned_sender = sender.clone();
@@ -869,7 +866,7 @@ mod utils {
                 let (send_subscription_created, receive_subscription_created) =
                     oneshot::channel::<()>();
                 let handle = task::spawn(async move {
-                    let observer_events = observer.events_stream_producer().events_all();
+                    let observer_events = observer.events_all();
                     futures::pin_mut!(observer_events);
 
                     send_subscription_created.send(()).unwrap();
@@ -1335,9 +1332,11 @@ mod utils {
                 None,
                 None,
             );
-            let service_pending_run = service.pending_run().await;
-            let handle = task::spawn(service_pending_run.complete_run());
+            let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);
+
+            // Sleep to wait for the new service to start
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
 
         pub async fn stop_service(&mut self) {
