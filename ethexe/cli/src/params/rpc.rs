@@ -19,7 +19,10 @@
 use clap::Args;
 use ethexe_rpc::RpcConfig;
 use serde::Deserialize;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    str::FromStr,
+};
 
 /// Parameters used to config prometheus.
 #[derive(Debug, Clone, Args, Deserialize)]
@@ -35,6 +38,14 @@ pub struct RpcParams {
     /// Do not start rpc endpoint.
     #[arg(long, default_value = "false")]
     pub no_rpc: bool,
+
+    /// Specify browser *origins* allowed to access the HTTP & WS RPC servers.
+    ///
+    /// A comma-separated list of origins (protocol://domain or special `null`
+    /// value). Value of `all` will disable origin validation. Default is to
+    /// allow localhost origin.
+    #[arg(long)]
+    pub rpc_cors: Option<Cors>,
 }
 
 impl RpcParams {
@@ -53,6 +64,63 @@ impl RpcParams {
 
         let listen_addr = SocketAddr::new(ip, self.rpc_port);
 
-        Some(RpcConfig { listen_addr })
+        let cors = self
+            .rpc_cors
+            .clone()
+            .unwrap_or_else(|| {
+                Cors::List(vec![
+                    "http://localhost:*".into(),
+                    "http://127.0.0.1:*".into(),
+                    "https://localhost:*".into(),
+                    "https://127.0.0.1:*".into(),
+                ])
+            })
+            .into();
+
+        Some(RpcConfig { listen_addr, cors })
+    }
+}
+
+/// CORS setting
+///
+/// The type is introduced to overcome `Option<Option<T>>` handling of `clap`.
+#[derive(Clone, Debug, Deserialize)]
+pub enum Cors {
+    /// All hosts allowed.
+    All,
+    /// Only hosts on the list are allowed.
+    List(Vec<String>),
+}
+
+impl From<Cors> for Option<Vec<String>> {
+    fn from(cors: Cors) -> Self {
+        match cors {
+            Cors::All => None,
+            Cors::List(list) => Some(list),
+        }
+    }
+}
+
+impl FromStr for Cors {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut is_all = false;
+        let mut origins = Vec::new();
+        for part in s.split(',') {
+            match part {
+                "all" | "*" => {
+                    is_all = true;
+                    break;
+                }
+                other => origins.push(other.to_owned()),
+            }
+        }
+
+        if is_all {
+            Ok(Cors::All)
+        } else {
+            Ok(Cors::List(origins))
+        }
     }
 }
