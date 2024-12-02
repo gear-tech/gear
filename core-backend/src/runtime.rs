@@ -20,7 +20,7 @@
 
 use crate::{
     error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
-    memory::{BackendMemory, ExecutorMemory, MemoryAccessRegistry},
+    memory::{BackendMemory, ExecutorMemory, MemoryAccessIo, MemoryAccessRegistry},
     state::{HostState, State},
     BackendExternalities,
 };
@@ -75,15 +75,24 @@ where
     Ext: BackendExternalities + 'static,
 {
     #[track_caller]
-    pub fn run_any<U, F>(&mut self, gas: u64, token: CostToken, f: F) -> Result<(u64, U), HostError>
+    pub fn run_any<U, F>(
+        &mut self,
+        io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
+        gas: u64,
+        token: CostToken,
+        f: F,
+    ) -> Result<(u64, U), HostError>
     where
-        F: FnOnce(&mut Self) -> Result<U, UndefinedTerminationReason>,
+        F: FnOnce(
+            &mut Self,
+            &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
+        ) -> Result<U, UndefinedTerminationReason>,
     {
         self.state_mut().ext.decrease_current_counter_to(gas);
 
         let run = || {
             self.state_mut().ext.charge_gas_for_token(token)?;
-            f(self)
+            f(self, io)
         };
 
         run()
@@ -97,20 +106,25 @@ where
     #[track_caller]
     pub fn run_fallible<U: Sized, F, R>(
         &mut self,
+        io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
         gas: u64,
         res_ptr: u32,
         token: CostToken,
         f: F,
     ) -> Result<(u64, ()), HostError>
     where
-        F: FnOnce(&mut Self) -> Result<U, RunFallibleError>,
+        F: FnOnce(
+            &mut Self,
+            &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
+        ) -> Result<U, RunFallibleError>,
         R: From<Result<U, u32>> + Sized,
     {
         self.run_any(
+            io,
             gas,
             token,
-            |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
-                let res = f(ctx);
+            |ctx: &mut Self, io| -> Result<_, UndefinedTerminationReason> {
+                let res = f(ctx, io);
                 let res = ctx.process_fallible_func_result(res)?;
 
                 // TODO: move above or make normal process memory access.

@@ -396,36 +396,36 @@ where
 /// Read static size type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryReadAs<T> {
-    ptr: u32,
+    pub ptr: u32,
     _phantom: PhantomData<T>,
 }
 
 /// Read decoded type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
-    ptr: u32,
+    pub ptr: u32,
     _phantom: PhantomData<T>,
 }
 
 /// Read access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryRead {
-    ptr: u32,
-    size: u32,
+    pub ptr: u32,
+    pub size: u32,
 }
 
 /// Write static size type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryWriteAs<T> {
-    ptr: u32,
+    pub ptr: u32,
     _phantom: PhantomData<T>,
 }
 
 /// Write access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryWrite {
-    ptr: u32,
-    size: u32,
+    pub ptr: u32,
+    pub size: u32,
 }
 
 #[cfg(test)]
