@@ -71,7 +71,7 @@ contract MiddlewareTest is Test {
 
     // TODO: sync with the latest version of the middleware
     function test_constructor() public view {
-        sym.networkRegistry().isEntity(address(middleware));
+        assertTrue(sym.networkRegistry().isEntity(address(middleware)));
         assertEq(sym.networkMiddlewareService().middleware(address(middleware)), address(middleware));
     }
 
@@ -210,11 +210,11 @@ contract MiddlewareTest is Test {
         assertEq(middleware.getOperatorStakeAt(operator2, ts), stake2);
 
         // Check active operators
-        (address[] memory active_operators, uint256[] memory stakes) = middleware.getActiveOperatorsStakeAt(ts);
-        assertEq(active_operators.length, 2);
+        (address[] memory activeOperators, uint256[] memory stakes) = middleware.getActiveOperatorsStakeAt(ts);
+        assertEq(activeOperators.length, 2);
         assertEq(stakes.length, 2);
-        assertEq(active_operators[0], operator1);
-        assertEq(active_operators[1], operator2);
+        assertEq(activeOperators[0], operator1);
+        assertEq(activeOperators[1], operator2);
         assertEq(stakes[0], stake1);
         assertEq(stakes[1], stake2);
     }
