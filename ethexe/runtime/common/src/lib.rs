@@ -19,38 +19,26 @@
 //! Runtime common implementation.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(unused)]
 
 extern crate alloc;
 
-use alloc::{
-    collections::{BTreeMap, VecDeque},
-    vec::Vec,
-};
-use anyhow::Result;
-use core::{marker::PhantomData, mem::swap};
+use alloc::{collections::BTreeMap, vec::Vec};
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     ids::ProgramId,
     memory::PageBuf,
-    message::{DispatchKind, IncomingDispatch, IncomingMessage, Value},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
-    program::MemoryInfix,
-    reservation::GasReservationMap,
+    message::{DispatchKind, IncomingDispatch, IncomingMessage},
+    pages::GearPage,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::{CodeId, H256};
+use gprimitives::CodeId;
 use gsys::{GasMultiplier, Percent};
-use parity_scale_codec::{Decode, Encode};
-use state::{
-    ActiveProgram, Dispatch, HashOf, InitStatus, MaybeHashOf, MessageQueue, ProgramState, Storage,
-    Waitlist,
-};
+use state::{Dispatch, HashOf, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
 pub use journal::Handler as JournalHandler;
@@ -65,7 +53,7 @@ mod transitions;
 
 pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
 
-const RUNTIME_ID: u32 = 0;
+pub const RUNTIME_ID: u32 = 0;
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
@@ -136,7 +124,6 @@ where
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {
         block_info,
-        performance_multiplier: Percent::new(100),
         forbidden_funcs: [
             // Deprecated
             SyscallName::CreateProgramWGas,
@@ -162,15 +149,18 @@ where
             SyscallName::Random,
         ]
         .into(),
-        reserve_for: 125_000_000,
-        gas_multiplier: GasMultiplier::one(), // TODO
-        costs: Default::default(),            // TODO
-        existential_deposit: 0,               // TODO
-        mailbox_threshold: 3000,
-        max_reservations: 50,
-        max_pages: 512.into(),
+        gas_multiplier: GasMultiplier::one(),
+        costs: Default::default(),
+        max_pages: MAX_WASM_PAGES_AMOUNT.into(),
         outgoing_limit: 1024,
         outgoing_bytes_limit: 64 * 1024 * 1024,
+        // TBD about deprecation
+        performance_multiplier: Percent::new(100),
+        // Deprecated
+        existential_deposit: 0,
+        mailbox_threshold: 0,
+        max_reservations: 0,
+        reserve_for: 0,
     };
 
     let active_state = match program_state.program {
