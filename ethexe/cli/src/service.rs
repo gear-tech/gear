@@ -434,7 +434,7 @@ impl Service {
 
     pub async fn run(self) -> Result<()> {
         self.run_inner().await.map_err(|err| {
-            log::error!("Service finished work with error: {:?}", err);
+            log::error!("Service finished work with error: {err:?}");
             err
         })
     }
