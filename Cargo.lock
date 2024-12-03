@@ -273,6 +273,7 @@ checksum = "ea59dc42102bc9a1905dc57901edc6dd48b9f38115df86c7d252acba70d71d04"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
+ "k256",
  "serde",
 ]
 
@@ -4483,6 +4484,7 @@ dependencies = [
  "ethexe-runtime-common",
  "ethexe-sequencer",
  "ethexe-signer",
+ "ethexe-tx-pool",
  "ethexe-utils",
  "ethexe-validator",
  "futures",
@@ -4495,7 +4497,9 @@ dependencies = [
  "ntest",
  "parity-scale-codec",
  "rand",
+ "reqwest",
  "serde",
+ "serde_json",
  "static_init",
  "tempfile",
  "tokio",
@@ -4647,6 +4651,7 @@ dependencies = [
  "ethexe-db",
  "ethexe-processor",
  "ethexe-runtime-common",
+ "ethexe-tx-pool",
  "futures",
  "gear-core",
  "gprimitives",
@@ -4728,6 +4733,19 @@ dependencies = [
  "secp256k1 0.30.0",
  "sha3",
  "tempfile",
+]
+
+[[package]]
+name = "ethexe-tx-pool"
+version = "1.7.0"
+dependencies = [
+ "anyhow",
+ "ethexe-db",
+ "ethexe-signer",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "tokio",
 ]
 
 [[package]]

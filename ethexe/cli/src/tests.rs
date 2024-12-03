@@ -36,13 +36,14 @@ use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
+use ethexe_tx_pool::{EthexeTransaction, Transaction};
 use ethexe_validator::Validator;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -790,11 +791,94 @@ async fn multiple_validators() {
     assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn tx_pool_gossip() {
+    gear_utils::init_default_logger();
+
+    // Setup env of 2 nodes, one of them knows about the other one.
+    let mut env = TestEnv::new(TestEnvConfig::default().validators_amount(3))
+        .await
+        .unwrap();
+
+    log::info!("📗 Starting node 0");
+    let mut node0 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[0])
+            .network(None, None),
+    );
+    node0.start_service().await;
+
+    log::info!("📗 Starting node 1");
+    let mut node1 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[1])
+            .service_rpc(9505)
+            .network(None, node0.multiaddr.clone()),
+    );
+    node1.start_service().await;
+
+    // Prepare tx data
+    let raw_message = b"hello world".to_vec();
+    let signature = env
+        .signer
+        .sign(env.validators[2], &raw_message)
+        .expect("failed signing message");
+    let signature_bytes = signature.encode();
+
+    // Send request
+    log::info!("Sending tx pool request");
+    let resp = send_json_request(node1.service_rpc_url().expect("rpc server is set"), || {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "transactionPool_sendMessage",
+            "params": {
+                "raw_message": raw_message,
+                "signature": signature_bytes.clone(),
+            },
+            "id": 1,
+        })
+    })
+    .await
+    .expect("failed sending request");
+
+    assert!(resp.status().is_success());
+
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    // Check that node0 received the message
+    let tx = EthexeTransaction::Message {
+        raw_message,
+        signature: signature_bytes,
+    };
+    let tx_hash = tx.tx_hash();
+
+    let tx_data = node0
+        .db
+        .validated_transaction(tx_hash)
+        .expect("tx not found");
+    let node0_db_tx: EthexeTransaction =
+        Decode::decode(&mut &tx_data[..]).expect("failed to decode tx");
+    assert_eq!(node0_db_tx, tx);
+}
+
+async fn send_json_request(
+    rpc_server_url: String,
+    create_request: impl Fn() -> serde_json::Value,
+) -> Result<reqwest::Response, reqwest::Error> {
+    let client = reqwest::Client::new();
+    let req_body = create_request();
+
+    client.post(rpc_server_url).json(&req_body).send().await
+}
+
 mod utils {
     use super::*;
     use ethexe_observer::SimpleBlockData;
+    use ethexe_rpc::{RpcConfig, RpcService};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
+    use std::net::SocketAddr;
     use tokio::sync::{broadcast::Sender, Mutex};
 
     pub struct TestEnv {
@@ -932,6 +1016,7 @@ mod utils {
                 sequencer_public_key,
                 validator_public_key,
                 network,
+                service_rpc_config,
             } = config;
 
             let db =
@@ -963,6 +1048,7 @@ mod utils {
                 validator_public_key,
                 network_address,
                 network_bootstrap_address,
+                service_rpc_config,
             }
         }
 
@@ -1094,6 +1180,8 @@ mod utils {
         pub validator_public_key: Option<ethexe_signer::PublicKey>,
         /// Network configuration, if provided then new node starts with network.
         pub network: Option<NodeNetworkConfig>,
+        /// RPC configuration, if provided then new node starts with RPC service.
+        pub service_rpc_config: Option<RpcConfig>,
     }
 
     impl NodeConfig {
@@ -1121,6 +1209,15 @@ mod utils {
                 address,
                 bootstrap_address,
             });
+            self
+        }
+
+        pub fn service_rpc(mut self, rpc_port: u16) -> Self {
+            let service_rpc_config = RpcConfig {
+                listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
+            };
+            self.service_rpc_config = Some(service_rpc_config);
+
             self
         }
     }
@@ -1256,6 +1353,7 @@ mod utils {
         validator_public_key: Option<ethexe_signer::PublicKey>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
+        service_rpc_config: Option<RpcConfig>,
     }
 
     impl Node {
@@ -1326,6 +1424,16 @@ mod utils {
                 None => None,
             };
 
+            let tx_pool_artifacts = ethexe_tx_pool::new((self.db.clone(),));
+
+            let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
+                RpcService::new(
+                    service_rpc_config.clone(),
+                    self.db.clone(),
+                    tx_pool_artifacts.input_sender.clone(),
+                )
+            });
+
             let service = Service::new_from_parts(
                 self.db.clone(),
                 self.observer.clone(),
@@ -1338,7 +1446,8 @@ mod utils {
                 sequencer,
                 validator,
                 None,
-                None,
+                rpc,
+                tx_pool_artifacts,
             );
 
             let handle = task::spawn(service.run());
@@ -1356,6 +1465,12 @@ mod utils {
             handle.abort();
             let _ = handle.await;
             self.multiaddr = None;
+        }
+
+        pub fn service_rpc_url(&self) -> Option<String> {
+            self.service_rpc_config
+                .as_ref()
+                .map(|rpc| format!("http://{}", rpc.listen_addr))
         }
     }
 

@@ -16,22 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use jsonrpsee::types::ErrorObject;
+use anyhow::{anyhow, Result};
 
-// TODO #4364: https://github.com/gear-tech/gear/issues/4364
-
-pub fn db(err: &'static str) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Database error", Some(err))
+pub(crate) fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N]> {
+    let mut buf = [0; N];
+    hex::decode_to_slice(strip_prefix(s), &mut buf)
+        .map_err(|_| anyhow!("invalid hex format for {s:?}"))?;
+    Ok(buf)
 }
 
-pub fn runtime(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
-}
-
-pub fn internal() -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Internal error", None::<&str>)
-}
-
-pub fn tx_pool(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Transaction pool error", Some(format!("{err}")))
+pub(crate) fn strip_prefix(s: &str) -> &str {
+    if let Some(s) = s.strip_prefix("0x") {
+        s
+    } else {
+        s
+    }
 }
