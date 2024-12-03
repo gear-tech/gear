@@ -45,7 +45,7 @@ wasmer-types.workspace = true
 [dev-dependencies]
 rand.workspace = true
 demo-messenger.workspace = true
-demo-wallets.workspace = true
+demo-fungible-token.workspace = true
 demo-waiter.workspace = true
 gear-node-wrapper.workspace = true
 

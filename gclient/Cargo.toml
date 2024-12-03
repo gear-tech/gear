@@ -39,8 +39,7 @@ demo-calc-hash-in-one-block.workspace = true
 demo-custom.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-distributor.workspace = true
-demo-wallets.workspace = true
-demo-wallets-io.workspace = true
+demo-fungible-token.workspace = true
 demo-mul-by-const.workspace = true
 demo-node.workspace = true
 demo-program-factory.workspace = true

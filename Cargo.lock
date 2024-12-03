@@ -3846,26 +3846,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-wallets"
-version = "0.1.0"
-dependencies = [
- "demo-wallets-io",
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
-]
-
-[[package]]
-name = "demo-wallets-io"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "demo-wat"
 version = "0.1.0"
 dependencies = [
@@ -5749,9 +5729,9 @@ dependencies = [
  "clap 4.5.9",
  "color-eyre",
  "colored",
+ "demo-fungible-token",
  "demo-messenger",
  "demo-waiter",
- "demo-wallets",
  "dirs",
  "env_logger",
  "etc",
@@ -5799,14 +5779,13 @@ dependencies = [
  "demo-constructor",
  "demo-custom",
  "demo-distributor",
+ "demo-fungible-token",
  "demo-mul-by-const",
  "demo-node",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
  "demo-reserve-gas",
- "demo-wallets",
- "demo-wallets-io",
  "demo-wat",
  "env_logger",
  "futures",
@@ -6825,10 +6804,10 @@ dependencies = [
  "anyhow",
  "base64 0.21.7",
  "colored",
+ "demo-fungible-token",
  "demo-messenger",
  "demo-vec",
  "demo-waiter",
- "demo-wallets",
  "futures",
  "futures-util",
  "gear-core",
@@ -10747,6 +10726,7 @@ dependencies = [
  "demo-delayed-reservation-sender",
  "demo-delayed-sender",
  "demo-distributor",
+ "demo-fungible-token",
  "demo-futures-unordered",
  "demo-gas-burned",
  "demo-incomplete-async-payloads",
@@ -10775,7 +10755,6 @@ dependencies = [
  "demo-wait-wake",
  "demo-waiter",
  "demo-waiting-proxy",
- "demo-wallets",
  "derive_more 0.99.18",
  "env_logger",
  "frame-benchmarking",

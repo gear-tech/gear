@@ -361,7 +361,7 @@ async fn test_program_counters() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_for_handle() -> Result<()> {
-    use demo_wallets::{Id, MessageIn, MessageOut, Wallet, WASM_BINARY};
+    use demo_fungible_token::{FTAction, FTEvent, InitConfig, WASM_BINARY};
 
     let node = dev_node();
 
@@ -373,9 +373,11 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
         .await?
         .signer("//Alice", None)?;
 
+    let payload = InitConfig::test_sequence().encode();
+
     signer
         .calls
-        .upload_program(WASM_BINARY.to_vec(), salt, vec![], 100_000_000_000, 0)
+        .upload_program(WASM_BINARY.to_vec(), salt, payload, 100_000_000_000, 0)
         .await?;
 
     assert!(
@@ -383,19 +385,9 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
         "Program not exists on chain."
     );
 
-    let message_in = MessageIn {
-        id: Id {
-            decimal: 1,
-            hex: [1].to_vec(),
-        },
-    };
+    let message_in = FTAction::TotalSupply;
 
-    let message_out = MessageOut {
-        res: Wallet::test_sequence()
-            .iter()
-            .find(|w| w.id.decimal == message_in.id.decimal)
-            .cloned(),
-    };
+    let message_out = FTEvent::TotalSupply(0);
 
     // 2. calculate reply for handle
     let reply_info = signer

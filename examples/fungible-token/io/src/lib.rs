@@ -80,3 +80,27 @@ pub struct IoFungibleToken {
     pub allowances: Vec<(ActorId, Vec<(ActorId, u128)>)>,
     pub decimals: u8,
 }
+
+impl InitConfig {
+    pub fn test_sequence() -> Self {
+        InitConfig {
+            name: "MyToken".to_string(),
+            symbol: "MTK".to_string(),
+            decimals: 18,
+            initial_capacity: None,
+        }
+    }
+}
+
+impl IoFungibleToken {
+    pub fn test_sequence() -> Self {
+        IoFungibleToken {
+            name: "MyToken".to_string(),
+            symbol: "MTK".to_string(),
+            total_supply: 0,
+            balances: vec![],
+            allowances: vec![],
+            decimals: 18,
+        }
+    }
+}

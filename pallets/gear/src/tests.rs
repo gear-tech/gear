@@ -186,7 +186,7 @@ fn calculate_gas_results_in_finite_wait() {
 
 #[test]
 fn state_rpc_calls_trigger_reinstrumentation() {
-    use demo_wallets::{MessageInitIn, WASM_BINARY};
+    use demo_fungible_token::{InitConfig, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -195,7 +195,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             RuntimeOrigin::signed(USER_2),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            <MessageInitIn as Default>::default().encode(),
+            InitConfig::test_sequence().encode(),
             DEFAULT_GAS_LIMIT * 100,
             10_000,
             false,
@@ -2581,7 +2581,7 @@ fn unstoppable_block_execution_works() {
 
 #[test]
 fn read_state_works() {
-    use demo_wallets::{MessageInitIn, Wallet, WASM_BINARY};
+    use demo_fungible_token::{InitConfig, IoFungibleToken, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2589,7 +2589,7 @@ fn read_state_works() {
             RuntimeOrigin::signed(USER_2),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            <MessageInitIn as Default>::default().encode(),
+            InitConfig::test_sequence().encode(),
             DEFAULT_GAS_LIMIT * 100,
             10_000,
             false,
@@ -2601,7 +2601,7 @@ fn read_state_works() {
 
         assert!(Gear::is_initialized(program_id));
 
-        let expected = Wallet::test_sequence().encode();
+        let expected = IoFungibleToken::test_sequence().encode();
 
         let res = Gear::read_state_impl(program_id, Default::default(), None)
             .expect("Failed to read state");

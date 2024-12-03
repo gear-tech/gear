@@ -41,7 +41,7 @@ pub trait NodeExec {
     /// let node = Node::new();
     /// let args = Args::new("upload")
     ///              .flag("--code-only")
-    ///              .program(env::wasm_bin("demo_wallets.opt.wasm"));
+    ///              .program(env::wasm_bin("demo_fungible_token.opt.wasm"));
     /// let output = node.run(args)
     ///
     /// // ...

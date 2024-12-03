@@ -46,7 +46,7 @@ rand = { workspace = true, optional = true }
 gear-node-wrapper.workspace = true
 tokio = { workspace = true, features = ["full"] }
 demo-messenger.workspace = true
-demo-wallets.workspace = true
+demo-fungible-token.workspace = true
 demo-vec.workspace = true
 demo-waiter = { workspace = true, features = ["std"] }
 

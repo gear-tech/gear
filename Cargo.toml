@@ -81,8 +81,6 @@ members = [
     "examples/wait_wake",
     "examples/waiter",
     "examples/waiting-proxy",
-    "examples/wallets",
-    "examples/wallets/io",
     "examples/wat",
     "galloc",
     "gbuiltins/*",
@@ -492,8 +490,6 @@ demo-wait-timeout = { path = "examples/wait-timeout" }
 demo-wait-wake = { path = "examples/wait_wake" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
 demo-stack-allocations = { path = "examples/stack-allocations" }
-demo-wallets = { path = "examples/wallets" }
-demo-wallets-io = { path = "examples/wallets/io" }
 demo-wat = { path = "examples/wat" }
 
 # Dependencies that only used in one package

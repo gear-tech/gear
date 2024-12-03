@@ -31,13 +31,14 @@ async fn test_command_upload_works() -> Result<()> {
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice", None)?;
-    let code_id = CodeId::generate(demo_wallets::WASM_BINARY);
+    let code_id = CodeId::generate(demo_fungible_token::WASM_BINARY);
     assert!(
         signer.api().code_storage(code_id).await.is_err(),
         "code should not exist"
     );
 
-    let output = node.run(Args::new("upload").program(env::wasm_bin("demo_wallets.opt.wasm")))?;
+    let output =
+        node.run(Args::new("upload").program(env::wasm_bin("demo_fungible_token.opt.wasm")))?;
     assert!(
         output
             .stderr
@@ -60,7 +61,7 @@ async fn test_command_upload_code_works() -> Result<()> {
     let output = node.run(
         Args::new("upload")
             .flag("--code-only")
-            .program(env::wasm_bin("demo_wallets.opt.wasm")),
+            .program(env::wasm_bin("demo_fungible_token.opt.wasm")),
     )?;
 
     let stderr = output.stderr.convert();
