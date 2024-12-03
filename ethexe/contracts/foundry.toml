@@ -1,4 +1,5 @@
 [profile.default]
+solc_version = "0.8.28"
 src = "src"
 out = "out"
 libs = ["lib"]
@@ -16,6 +17,7 @@ ignored_warnings_from = [
 ]
 # Enable new EVM codegen
 via_ir = true
+fs_permissions = [{access = "read-write", path = "out"}, { access = "read", path = "lib"}]
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"

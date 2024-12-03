@@ -75,7 +75,7 @@ contract RouterTest is Test {
         assertEq(router.validators(), validators);
         assertEq(router.signingThresholdPercentage(), 6666);
 
-        assert(router.areValidators(validators));
+        assertTrue(router.areValidators(validators));
     }
 
     function test_ping() public {

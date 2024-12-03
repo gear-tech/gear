@@ -18,12 +18,12 @@ import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratabl
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
-// TODO: document all functions and variables
-// TODO: implement election logic
+// TODO (asap): document all functions and variables
+// TODO (asap): implement rewards distribution
+// TODO (asap): add validators commission
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
-// TODO: implement rewards distribution
-// TODO: use hints for simbiotic calls
+// TODO: use hints for symbiotic calls
 contract Middleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
@@ -47,8 +47,8 @@ contract Middleware {
     error VetoDurationTooShort();
     error VetoDurationTooLong();
     error IncompatibleVaultVersion();
-    error NotRegistredVault();
-    error NotRegistredOperator();
+    error NotRegisteredVault();
+    error NotRegisteredOperator();
     error RoleMismatch();
     error ResolverMismatch();
     error ResolverSetDelayTooLong();
@@ -72,7 +72,7 @@ contract Middleware {
     struct Config {
         uint48 eraDuration;
         uint48 minVaultEpochDuration;
-        uint48 operatoraGracePeriod;
+        uint48 operatorGracePeriod;
         uint48 vaultGracePeriod;
         uint48 minVetoDuration;
         uint48 minSlashExecutionDelay;
@@ -94,7 +94,7 @@ contract Middleware {
 
     uint48 public immutable eraDuration;
     uint48 public immutable minVaultEpochDuration;
-    uint48 public immutable operatoraGracePeriod;
+    uint48 public immutable operatorGracePeriod;
     uint48 public immutable vaultGracePeriod;
     uint48 public immutable minVetoDuration;
     uint48 public immutable minSlashExecutionDelay;
@@ -107,10 +107,11 @@ contract Middleware {
     address public immutable networkOptIn;
     address public immutable middlewareService;
     address public immutable collateral;
-    address public immutable roleSlashRequester;
-    address public immutable roleSlashExecutor;
     address public immutable vetoResolver;
     bytes32 public immutable subnetwork;
+
+    address public roleSlashRequester;
+    address public roleSlashExecutor;
 
     EnumerableMap.AddressToUintMap private operators;
     EnumerableMap.AddressToUintMap private vaults;
@@ -120,7 +121,7 @@ contract Middleware {
 
         eraDuration = cfg.eraDuration;
         minVaultEpochDuration = cfg.minVaultEpochDuration;
-        operatoraGracePeriod = cfg.operatoraGracePeriod;
+        operatorGracePeriod = cfg.operatorGracePeriod;
         vaultGracePeriod = cfg.vaultGracePeriod;
         minVetoDuration = cfg.minVetoDuration;
         minSlashExecutionDelay = cfg.minSlashExecutionDelay;
@@ -142,6 +143,14 @@ contract Middleware {
         // Presently network and middleware are the same address
         INetworkRegistry(networkRegistry).registerNetwork();
         INetworkMiddlewareService(middlewareService).setMiddleware(address(this));
+    }
+
+    function changeSlashRequester(address newRole) external _onlyRole(roleSlashRequester) {
+        roleSlashRequester = newRole;
+    }
+
+    function changeSlashExecutor(address newRole) external _onlyRole(roleSlashExecutor) {
+        roleSlashExecutor = newRole;
     }
 
     // TODO: Check that total stake is big enough
@@ -166,7 +175,7 @@ contract Middleware {
     function unregisterOperator(address operator) external {
         (, uint48 disabledTime) = operators.getTimes(operator);
 
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + operatoraGracePeriod) {
+        if (disabledTime == 0 || Time.timestamp() < disabledTime + operatorGracePeriod) {
             revert OperatorGracePeriodNotPassed();
         }
 
@@ -267,12 +276,50 @@ contract Middleware {
         vaults.remove(vault);
     }
 
-    function getOperatorStakeAt(address operator, uint48 ts)
-        external
-        view
-        _validTimestamp(ts)
-        returns (uint256 stake)
-    {
+    function makeElectionAt(uint48 ts, uint256 maxValidators) public view returns (address[] memory) {
+        require(maxValidators > 0, "Max validators must be greater than zero");
+
+        (address[] memory activeOperators, uint256[] memory stakes) = getActiveOperatorsStakeAt(ts);
+
+        if (activeOperators.length <= maxValidators) {
+            return activeOperators;
+        }
+
+        // Bubble sort descending
+        uint256 n = activeOperators.length;
+        for (uint256 i = 0; i < n; i++) {
+            for (uint256 j = 0; j < n - 1 - i; j++) {
+                if (stakes[j] < stakes[j + 1]) {
+                    (stakes[j], stakes[j + 1]) = (stakes[j + 1], stakes[j]);
+                    (activeOperators[j], activeOperators[j + 1]) = (activeOperators[j + 1], activeOperators[j]);
+                }
+            }
+        }
+
+        // Choose between validators with the same stake
+        uint256 sameStakeCount = 1;
+        uint256 lastStake = stakes[maxValidators - 1];
+        for (uint256 i = maxValidators; i < activeOperators.length; i++) {
+            if (stakes[i] != lastStake) {
+                break;
+            }
+            sameStakeCount += 1;
+        }
+
+        if (sameStakeCount > 1) {
+            // If there are multiple validators with the same stake, choose one randomly
+            uint256 randomIndex = uint256(keccak256(abi.encodePacked(ts))) % sameStakeCount;
+            activeOperators[maxValidators - 1] = activeOperators[maxValidators + randomIndex - 1];
+        }
+
+        assembly {
+            mstore(activeOperators, maxValidators)
+        }
+
+        return activeOperators;
+    }
+
+    function getOperatorStakeAt(address operator, uint48 ts) public view _validTimestamp(ts) returns (uint256 stake) {
         (uint48 enabledTime, uint48 disabledTime) = operators.getTimes(operator);
         if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
             return 0;
@@ -281,7 +328,7 @@ contract Middleware {
         stake = _collectOperatorStakeFromVaultsAt(operator, ts);
     }
 
-    // TODO: change return siggnature
+    // TODO: change return signature
     function getActiveOperatorsStakeAt(uint48 ts)
         public
         view
@@ -315,14 +362,14 @@ contract Middleware {
         for (uint256 i; i < data.length; ++i) {
             SlashData calldata slashData = data[i];
             if (!operators.contains(slashData.operator)) {
-                revert NotRegistredOperator();
+                revert NotRegisteredOperator();
             }
 
             for (uint256 j; j < slashData.vaults.length; ++j) {
                 VaultSlashData calldata vaultData = slashData.vaults[j];
 
                 if (!vaults.contains(vaultData.vault)) {
-                    revert NotRegistredVault();
+                    revert NotRegisteredVault();
                 }
 
                 address slasher = IVault(vaultData.vault).slasher();
@@ -338,7 +385,7 @@ contract Middleware {
             SlashIdentifier calldata slash = slashes[i];
 
             if (!vaults.contains(slash.vault)) {
-                revert NotRegistredVault();
+                revert NotRegisteredVault();
             }
 
             IVetoSlasher(IVault(slash.vault).slasher()).executeSlash(slash.index, new bytes(0));
@@ -388,7 +435,7 @@ contract Middleware {
         // Operator grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
         require(
-            cfg.operatoraGracePeriod >= cfg.minVaultEpochDuration,
+            cfg.operatorGracePeriod >= cfg.minVaultEpochDuration,
             "Operator grace period must be bigger than min vaults epoch duration"
         );
 
@@ -402,8 +449,8 @@ contract Middleware {
         // Give some time for the resolvers to veto slashes.
         require(cfg.minVetoDuration > 0, "Veto duration cannot be zero");
 
-        // Simbiotic guarantees that any veto slasher has veto duration less than vault epoch duration.
-        // But we also want to guaratie that there is some time to execute the slash.
+        // Symbiotic guarantees that any veto slasher has veto duration less than vault epoch duration.
+        // But we also want to guarantee that there is some time to execute the slash.
         require(cfg.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
         require(
             cfg.minVetoDuration + cfg.minSlashExecutionDelay <= cfg.minVaultEpochDuration,
@@ -411,7 +458,7 @@ contract Middleware {
         );
 
         // In order to be able to change resolver, we need to limit max delay in epochs.
-        // `3` - is minimal number of epochs, which is simbiotic veto slasher impl restrictions.
+        // `3` - is minimal number of epochs, which is symbiotic veto slasher impl restrictions.
         require(cfg.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
     }
 
@@ -422,7 +469,7 @@ contract Middleware {
             revert IncorrectTimestamp();
         }
 
-        uint48 gracePeriod = operatoraGracePeriod < vaultGracePeriod ? operatoraGracePeriod : vaultGracePeriod;
+        uint48 gracePeriod = operatorGracePeriod < vaultGracePeriod ? operatorGracePeriod : vaultGracePeriod;
         if (ts + gracePeriod <= Time.timestamp()) {
             revert IncorrectTimestamp();
         }

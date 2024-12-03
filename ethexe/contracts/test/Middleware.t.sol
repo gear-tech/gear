@@ -21,26 +21,29 @@ import {Middleware} from "../src/Middleware.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 
-contract MiddlewareTest is Test {
+contract MiddlewareTest is Test, POCBaseTest {
     using MessageHashUtils for address;
 
     uint48 eraDuration = 1000;
-    address public owner;
     POCBaseTest public sym;
     Middleware public middleware;
     WrappedVara public wrappedVara;
 
-    function setUp() public {
-        // For correct simbiotic work with time artitmeticks
+    function setUp() public override {
+        // For correct symbiotic work with time arithmetics
         vm.warp(eraDuration * 100);
 
-        sym = new POCBaseTest();
-        sym.setUp();
+        // set up the symbiotic ecosystem
+        SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
+        super.setUp();
 
-        owner = address(this);
+        // For understanding where symbiotic ecosystem is using
+        sym = POCBaseTest(address(this));
 
         wrappedVara = WrappedVara(
-            Upgrades.deployTransparentProxy("WrappedVara.sol", owner, abi.encodeCall(WrappedVara.initialize, (owner)))
+            Upgrades.deployTransparentProxy(
+                "WrappedVara.sol", address(0xdead), abi.encodeCall(WrappedVara.initialize, (owner))
+            )
         );
 
         wrappedVara.mint(owner, 1_000_000);
@@ -48,13 +51,13 @@ contract MiddlewareTest is Test {
         Middleware.Config memory cfg = Middleware.Config({
             eraDuration: eraDuration,
             minVaultEpochDuration: eraDuration * 2,
-            operatoraGracePeriod: eraDuration * 2,
+            operatorGracePeriod: eraDuration * 2,
             vaultGracePeriod: eraDuration * 2,
             minVetoDuration: eraDuration / 3,
             minSlashExecutionDelay: eraDuration / 3,
             maxResolverSetEpochsDelay: type(uint256).max,
             vaultRegistry: address(sym.vaultFactory()),
-            allowedVaultImplVersion: sym.vaultFactory().lastVersion(),
+            allowedVaultImplVersion: 1,
             vetoSlasherImplType: 1,
             operatorRegistry: address(sym.operatorRegistry()),
             networkRegistry: address(sym.networkRegistry()),
@@ -75,6 +78,79 @@ contract MiddlewareTest is Test {
         assertEq(sym.networkMiddlewareService().middleware(address(middleware)), address(middleware));
     }
 
+    function test_election() public {
+        address[] memory operators = new address[](5);
+        address[] memory vaults = new address[](operators.length);
+
+        for (uint256 i = 0; i < operators.length; i++) {
+            operators[i] = address(uint160(i) + 0x1000);
+            _createOperator(operators[i]);
+            vaults[i] = _createVaultForOperator(operators[i]);
+        }
+
+        _depositFromInVault(owner, vaults[0], 1_000);
+        _depositFromInVault(owner, vaults[1], 2_000);
+        _depositFromInVault(owner, vaults[2], 1_000);
+        _depositFromInVault(owner, vaults[3], 5_000);
+        _depositFromInVault(owner, vaults[4], 1_000);
+
+        vm.warp(vm.getBlockTimestamp() + 1000);
+
+        vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
+        middleware.makeElectionAt(uint48(vm.getBlockTimestamp()), 10);
+
+        vm.expectRevert();
+        middleware.makeElectionAt(uint48(vm.getBlockTimestamp()) - 1, 0);
+
+        {
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 1);
+            assertEq(res.length, 1);
+            assertEq(res[0], operators[3]);
+        }
+
+        {
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 2);
+            assertEq(res.length, 2);
+            assertEq(res[0], operators[3]);
+            assertEq(res[1], operators[1]);
+        }
+
+        {
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 3);
+            assertEq(res.length, 3);
+            assertEq(res[0], operators[3]);
+            assertEq(res[1], operators[1]);
+            assertTrue(res[2] == operators[0] || res[2] == operators[2] || res[2] == operators[4]);
+        }
+
+        {
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 4);
+            assertEq(res.length, 4);
+            assertEq(res[0], operators[3]);
+            assertEq(res[1], operators[1]);
+            assertTrue(res[2] == operators[0] || res[2] == operators[2] || res[2] == operators[4]);
+            assertTrue((res[3] == operators[3] || res[3] == operators[2] || res[3] == operators[4]) && res[3] != res[2]);
+        }
+
+        {
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 5);
+            assertEq(res.length, operators.length);
+            // In that case not sorted by stake
+            for (uint256 i; i < operators.length; i++) {
+                assertEq(res[i], operators[i]);
+            }
+        }
+
+        {
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 6);
+            assertEq(res.length, operators.length);
+            // In that case not sorted by stake
+            for (uint256 i; i < operators.length; i++) {
+                assertEq(res[i], operators[i]);
+            }
+        }
+    }
+
     // TODO: split to multiple tests
     function test_registerOperator() public {
         // Register operator
@@ -87,7 +163,7 @@ contract MiddlewareTest is Test {
         vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyAdded.selector));
         middleware.registerOperator();
 
-        // Try to register abother operator without registering it in symbiotic
+        // Try to register another operator without registering it in symbiotic
         vm.startPrank(address(0x2));
         vm.expectRevert(abi.encodeWithSelector(Middleware.OperatorDoesNotExist.selector));
         middleware.registerOperator();
@@ -321,7 +397,7 @@ contract MiddlewareTest is Test {
         // Try to request slash from unknown operator
         vm.warp(vm.getBlockTimestamp() + 1);
         _requestSlash(
-            address(0xdead), uint48(vm.getBlockTimestamp() - 1), vault1, 100, Middleware.NotRegistredOperator.selector
+            address(0xdead), uint48(vm.getBlockTimestamp() - 1), vault1, 100, Middleware.NotRegisteredOperator.selector
         );
     }
 
@@ -330,7 +406,7 @@ contract MiddlewareTest is Test {
 
         // Try to request slash from unknown vault
         _requestSlash(
-            operator1, uint48(vm.getBlockTimestamp() - 1), address(0xdead), 100, Middleware.NotRegistredVault.selector
+            operator1, uint48(vm.getBlockTimestamp() - 1), address(0xdead), 100, Middleware.NotRegisteredVault.selector
         );
     }
 
@@ -383,7 +459,7 @@ contract MiddlewareTest is Test {
     function test_slashTwoOperatorsTwoVaults() external {
         (address operator1, address operator2, address vault1, address vault2,,) = _prepareTwoOperators();
 
-        // Request slases for 2 operators with corresponding vaults
+        // Request slashes for 2 operators with corresponding vaults
         Middleware.VaultSlashData[] memory operator1_vaults = new Middleware.VaultSlashData[](1);
         operator1_vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
 
@@ -428,14 +504,14 @@ contract MiddlewareTest is Test {
         IVetoSlasher(slasher).vetoSlash(slashIndex, new bytes(0));
     }
 
-    function test_slashExecutionUnregistredVault() external {
+    function test_slashExecutionUnregisteredVault() external {
         (address operator1,, address vault1,,,) = _prepareTwoOperators();
 
         // Make slash request for operator1 in vault1
         uint256 slashIndex = _requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
 
         // Try to execute slash for unknown vault
-        vm.expectRevert(Middleware.NotRegistredVault.selector);
+        vm.expectRevert(Middleware.NotRegisteredVault.selector);
         _executeSlash(address(0xdead), slashIndex);
     }
 
@@ -452,8 +528,8 @@ contract MiddlewareTest is Test {
         operator1 = address(0x1);
         operator2 = address(0x2);
 
-        _registerOperator(operator1);
-        _registerOperator(operator2);
+        _createOperator(operator1);
+        _createOperator(operator2);
 
         vault1 = _createVaultForOperator(operator1);
         vault2 = _createVaultForOperator(operator2);
@@ -536,7 +612,7 @@ contract MiddlewareTest is Test {
         vm.stopPrank();
     }
 
-    function _registerOperator(address operator) private {
+    function _createOperator(address operator) internal {
         vm.startPrank(operator);
         sym.operatorRegistry().registerOperator();
         sym.operatorNetworkOptInService().optIn(address(middleware));
@@ -571,7 +647,7 @@ contract MiddlewareTest is Test {
 
         (vault,,) = sym.vaultConfigurator().create(
             IVaultConfigurator.InitParams({
-                version: sym.vaultFactory().lastVersion(),
+                version: 1,
                 owner: operator,
                 vaultParams: abi.encode(
                     IVault.InitParams({
