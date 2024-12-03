@@ -117,7 +117,7 @@ pub struct Args {
 
     #[allow(missing_docs)]
     #[clap(flatten)]
-    pub rpc_params: RpcParams,
+    pub rpc_params: Option<RpcParams>,
 
     #[command(subcommand)]
     pub extra_command: Option<ExtraCommands>,
