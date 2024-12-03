@@ -19,7 +19,7 @@
 use clap::Parser;
 use gear_wasm_builder::{
     code_validator::CodeValidator,
-    optimize::{self, OptType, Optimizer},
+    optimize::{self, Optimizer},
 };
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
@@ -212,7 +212,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rt_allowed_imports: HashSet<&str> = RT_ALLOWED_IMPORTS.into();
 
     for file in &wasm_files {
-        if !file.ends_with(".wasm") || file.ends_with(".meta.wasm") || file.ends_with(".opt.wasm") {
+        if !file.ends_with(".wasm") || file.ends_with(".opt.wasm") {
             continue;
         }
 
@@ -275,7 +275,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "*** Processing chain optimization: {}",
             optimized_wasm_path.display()
         );
-        let code = optimizer.optimize(OptType::Opt)?;
+        let code = optimizer.optimize()?;
         log::info!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
         fs::write(&optimized_wasm_path, &code)?;

@@ -16,18 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Artifact;
-use anyhow::{anyhow, Result};
-use cargo_metadata::{CargoOpt, Message, MetadataCommand};
-use cargo_toml::Manifest;
-use gear_wasm_optimizer::OptType;
+use anyhow::Result;
+use cargo_metadata::{CargoOpt, MetadataCommand};
 use serde::{Deserialize, Serialize};
-use std::{
-    io::BufReader,
-    ops::Deref,
-    path::PathBuf,
-    process::{Command, Stdio},
-};
+use std::{ops::Deref, path::PathBuf};
 
 /// Cargo metadata
 pub struct Metadata {

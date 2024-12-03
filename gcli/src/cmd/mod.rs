@@ -56,7 +56,6 @@ pub enum Command {
     Info(Info),
     New(New),
     Config(Config),
-    #[clap(subcommand)]
     Program(Program),
     Reply(Reply),
     Send(Send),
@@ -97,9 +96,6 @@ impl Command {
         let this = match self {
             Command::Upload(upload) => {
                 Command::Upload(upload.clone_with_code_overridden(artifact.opt))
-            }
-            Command::Program(program) => {
-                Command::Program(program.clone_with_meta_overridden(artifact.meta))
             }
             _ => self.clone(),
         };

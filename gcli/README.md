@@ -6,12 +6,19 @@
 [![License][l1]][l2]
 
 [ci1]: https://github.com/gear-tech/gear/workflows/CI/badge.svg
+
 [ci2]: https://github.com/gear-tech/gear/actions/workflows/CI.yaml
+
 [docs1]: https://img.shields.io/badge/current-docs-brightgreen.svg
+
 [docs2]: https://docs.rs/gear-program/
+
 [d1]: https://img.shields.io/crates/d/gear-program.svg
+
 [d2]: https://crates.io/crates/gear-program
+
 [l1]: https://img.shields.io/badge/License-GPL%203.0-success
+
 [l2]: https://github.com/clearloop/gear-program/blob/master/LICENSE
 
 ## Getting Started
@@ -36,7 +43,6 @@ Commands:
   info            Get account info from ss58address
   key             Keypair utils
   login           Log in to account
-  meta            Show metadata structure, read types from registry, etc
   new             Create a new gear program
   program         Read program state, etc
   reply           Sends a reply message
