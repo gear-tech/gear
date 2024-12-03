@@ -16,12 +16,13 @@ contract Mirror is IMirror {
     bytes32 public stateHash;
     uint256 public nonce;
 
-    /* Modifiers */
+    /// @dev Only the router can call functions marked with this modifier.
     modifier onlyRouter() {
         require(msg.sender == router(), "caller is not the router");
         _;
     }
 
+    /// @dev Non-zero value must be transferred from source to router in functions marked with this modifier.
     modifier retrievingValue(uint128 value) {
         if (value != 0) {
             address routerAddr = router();
@@ -32,11 +33,13 @@ contract Mirror is IMirror {
     }
 
     // TODO (breathx): terminated programs compute threshold must always be treated as balance-enough.
+    /// @dev Functions marked with this modifier can be called only after the program is terminated.
     modifier whenTerminated() {
         require(inheritor != address(0), "program is not terminated");
         _;
     }
 
+    /// @dev Functions marked with this modifier can be called only if the program is active.
     modifier whileActive() {
         require(inheritor == address(0), "program is terminated");
         _;
