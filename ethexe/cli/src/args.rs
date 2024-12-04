@@ -167,9 +167,9 @@ pub struct UploadCodeArgs {
 #[derive(Clone, Debug, Deserialize, Parser)]
 pub struct CreateProgramArgs {
     code_id: String,
-    init_payload: String,
-    value: u128,
 }
+
+// TODO (breathx): support message sending here.
 
 impl ExtraCommands {
     pub async fn run(&self, config: &config::Config) -> anyhow::Result<()> {
@@ -288,15 +288,8 @@ impl ExtraCommands {
                     .code_id
                     .parse()
                     .map_err(|err| anyhow!("failed to parse code id: {err}"))?;
+
                 let salt = rand::random();
-                let init_payload = if let Some(init_payload) =
-                    create_program_args.init_payload.strip_prefix("0x")
-                {
-                    hex::decode(init_payload)?
-                } else {
-                    create_program_args.init_payload.clone().into_bytes()
-                };
-                let value = create_program_args.value;
 
                 let Some((sender_address, ethexe_ethereum)) =
                     maybe_sender_address.zip(maybe_ethereum)
@@ -308,13 +301,11 @@ impl ExtraCommands {
 
                 let router = ethexe_ethereum.router();
 
-                let (tx, actor_id) = router
-                    .create_program(code_id, salt, init_payload, value)
-                    .await?;
+                let (tx, actor_id) = router.create_program(code_id, salt).await?;
 
                 println!("Completed in transaction {tx:?}");
                 println!(
-                    "Waiting for state update of program {}...",
+                    "Program address on Ethereum {}",
                     actor_id.to_address_lossy()
                 );
 
