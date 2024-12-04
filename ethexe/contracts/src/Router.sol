@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {IRouter} from "./IRouter.sol";
-import {IMirror} from "./IMirror.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Gear} from "./libraries/Gear.sol";
+import {IMirror} from "./IMirror.sol";
+import {IMirrorDecoder} from "./IMirrorDecoder.sol";
+import {IRouter} from "./IRouter.sol";
+import {IWrappedVara} from "./IWrappedVara.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 // TODO (gsobol): append middleware for slashing support.
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
@@ -209,33 +208,24 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         emit CodeValidationRequested(_codeId, _blobTxHash);
     }
 
-    function createProgram(bytes32 _codeId, bytes32 _salt, bytes calldata _payload, uint128 _value)
+    function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {
+        address mirror = _createProgram(_codeId, _salt);
+
+        IMirror(mirror).initialize(msg.sender, address(0));
+
+        return mirror;
+    }
+
+    function createProgramWithDecoder(address _decoderImpl, bytes32 _codeId, bytes32 _salt)
         external
         returns (address)
     {
-        (address actorId, uint128 executableBalance) = _createProgramWithoutMessage(_codeId, _salt, _value);
+        address mirror = _createProgram(_codeId, _salt);
+        address decoder = _createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)));
 
-        IMirror(actorId).initMessage(msg.sender, _payload, _value, executableBalance);
+        IMirror(mirror).initialize(msg.sender, decoder);
 
-        return actorId;
-    }
-
-    function createProgramWithDecoder(
-        address _decoderImpl,
-        bytes32 _codeId,
-        bytes32 _salt,
-        bytes calldata _payload,
-        uint128 _value
-    ) external returns (address) {
-        (address actorId, uint128 executableBalance) = _createProgramWithoutMessage(_codeId, _salt, _value);
-
-        IMirror mirrorInstance = IMirror(actorId);
-
-        mirrorInstance.createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)));
-
-        mirrorInstance.initMessage(msg.sender, _payload, _value, executableBalance);
-
-        return actorId;
+        return mirror;
     }
 
     // # Validators calls.
@@ -333,10 +323,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     /* Helper private functions */
 
-    function _createProgramWithoutMessage(bytes32 _codeId, bytes32 _salt, uint128 _value)
-        private
-        returns (address, uint128)
-    {
+    function _createProgram(bytes32 _codeId, bytes32 _salt) private returns (address) {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
@@ -344,11 +331,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             router.protocolData.codes[_codeId] == Gear.CodeState.Validated,
             "code must be validated before program creation"
         );
-
-        // By default get 10 WVara for executable balance.
-        uint128 executableBalance = 10_000_000_000_000;
-
-        _retrieveValue(router, executableBalance + _value);
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
@@ -360,7 +342,15 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         emit ProgramCreated(actorId, _codeId);
 
-        return (actorId, executableBalance);
+        return actorId;
+    }
+
+    function _createDecoder(address _implementation, bytes32 _salt) private returns (address) {
+        address decoder = Clones.cloneDeterministic(_implementation, _salt);
+
+        IMirrorDecoder(decoder).initialize();
+
+        return decoder;
     }
 
     function _commitBlock(Storage storage router, Gear.BlockCommitment calldata _blockCommitment)
@@ -379,13 +369,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
          */
         router.latestCommittedBlock = Gear.CommittedBlockInfo(_blockCommitment.hash, _blockCommitment.timestamp);
 
-        bytes memory transitionsHashes;
-
-        for (uint256 i = 0; i < _blockCommitment.transitions.length; i++) {
-            Gear.StateTransition calldata stateTransition = _blockCommitment.transitions[i];
-
-            transitionsHashes = bytes.concat(transitionsHashes, _doStateTransition(stateTransition));
-        }
+        bytes32 transitionsHashesHash = _commitTransitions(router, _blockCommitment.transitions);
 
         emit BlockCommitted(_blockCommitment.hash);
 
@@ -394,73 +378,31 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             _blockCommitment.timestamp,
             _blockCommitment.previousCommittedBlock,
             _blockCommitment.predecessorBlock,
-            keccak256(transitionsHashes)
+            transitionsHashesHash
         );
     }
 
-    function _doStateTransition(Gear.StateTransition calldata _stateTransition) private returns (bytes32) {
-        Storage storage router = _router();
+    function _commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
+        private
+        returns (bytes32)
+    {
+        bytes memory transitionsHashes;
 
-        require(
-            router.protocolData.programs[_stateTransition.actorId] != 0,
-            "couldn't perform transition for unknown program"
-        );
+        for (uint256 i = 0; i < _transitions.length; i++) {
+            Gear.StateTransition calldata transition = _transitions[i];
 
-        IWrappedVara wrappedVaraActor = IWrappedVara(router.implAddresses.wrappedVara);
-        wrappedVaraActor.transfer(_stateTransition.actorId, _stateTransition.valueToReceive);
+            require(
+                router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
+            );
 
-        IMirror mirrorActor = IMirror(_stateTransition.actorId);
+            IWrappedVara(router.implAddresses.wrappedVara).transfer(transition.actorId, transition.valueToReceive);
 
-        bytes memory valueClaimsBytes;
+            bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);
 
-        for (uint256 i = 0; i < _stateTransition.valueClaims.length; i++) {
-            Gear.ValueClaim calldata claim = _stateTransition.valueClaims[i];
-
-            mirrorActor.valueClaimed(claim.messageId, claim.destination, claim.value);
-
-            valueClaimsBytes = bytes.concat(valueClaimsBytes, Gear.valueClaimBytes(claim));
+            transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
         }
 
-        bytes memory messagesHashes;
-
-        for (uint256 i = 0; i < _stateTransition.messages.length; i++) {
-            Gear.Message calldata message = _stateTransition.messages[i];
-
-            if (message.replyDetails.to == 0) {
-                mirrorActor.messageSent(message.id, message.destination, message.payload, message.value);
-            } else {
-                mirrorActor.replySent(
-                    message.destination,
-                    message.payload,
-                    message.value,
-                    message.replyDetails.to,
-                    message.replyDetails.code
-                );
-            }
-
-            messagesHashes = bytes.concat(messagesHashes, Gear.messageHash(message));
-        }
-
-        if (_stateTransition.inheritor != address(0)) {
-            mirrorActor.setInheritor(_stateTransition.inheritor);
-        }
-
-        mirrorActor.updateState(_stateTransition.newStateHash);
-
-        return Gear.stateTransitionHash(
-            _stateTransition.actorId,
-            _stateTransition.newStateHash,
-            _stateTransition.inheritor,
-            _stateTransition.valueToReceive,
-            keccak256(valueClaimsBytes),
-            keccak256(messagesHashes)
-        );
-    }
-
-    function _retrieveValue(Storage storage router, uint128 _value) private {
-        bool success = IERC20(router.implAddresses.wrappedVara).transferFrom(msg.sender, address(this), _value);
-
-        require(success, "failed to retrieve WVara");
+        return keccak256(transitionsHashes);
     }
 
     function _resetValidators(

@@ -38,12 +38,14 @@ impl AsRawPtr for ReservationId {}
 
 /// Extensions for additional features.
 pub mod ext {
-    use crate::stack_buffer;
-    use core::{
-        fmt::{self, Write as _},
-        mem::MaybeUninit,
+    #[cfg(any(feature = "debug", debug_assertions))]
+    use {
+        crate::stack_buffer::{self, MAX_BUFFER_SIZE},
+        core::{
+            fmt::{self, Write as _},
+            mem::MaybeUninit,
+        },
     };
-    use gear_stack_buffer::MAX_BUFFER_SIZE;
 
     /// Add a `data` string to the debug log.
     ///
