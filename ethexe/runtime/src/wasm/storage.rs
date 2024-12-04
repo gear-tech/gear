@@ -35,7 +35,11 @@ pub struct RuntimeInterfaceStorage;
 
 impl Storage for RuntimeInterfaceStorage {
     fn read_state(&self, hash: H256) -> Option<ProgramState> {
-        database_ri::read_unwrapping(&hash)
+        if hash.is_zero() {
+            Some(ProgramState::zero())
+        } else {
+            database_ri::read_unwrapping(&hash)
+        }
     }
 
     fn write_state(&self, state: ProgramState) -> H256 {
