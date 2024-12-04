@@ -454,7 +454,7 @@ contract Middleware {
         require(cfg.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
         require(
             cfg.minVetoDuration + cfg.minSlashExecutionDelay <= cfg.minVaultEpochDuration,
-            "Veto duration and slash execution delay must be less than ot equal to min vaults epoch duration"
+            "Veto duration and slash execution delay must be less than or equal to min vaults epoch duration"
         );
 
         // In order to be able to change resolver, we need to limit max delay in epochs.
