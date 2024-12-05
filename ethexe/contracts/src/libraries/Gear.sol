@@ -131,6 +131,18 @@ library Gear {
         return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
     }
 
+    function decodePackedAddress(bytes memory data) internal pure returns (address) {
+        require(data.length == 20, "Address must be 20 bytes long if exist");
+
+        address addr;
+
+        assembly ("memory-safe") {
+            addr := mload(add(data, 20))
+        }
+
+        return addr;
+    }
+
     function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
         return ComputationSettings(COMPUTATION_THRESHOLD, WVARA_PER_SECOND);
     }

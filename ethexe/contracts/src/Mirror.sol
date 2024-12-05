@@ -128,8 +128,7 @@ contract Mirror is IMirror {
 
         /// @dev Set inheritor if specified.
         if (_transition.inheritor.length != 0) {
-            require(_transition.inheritor.length == 20, "inheritor address must be 20 bytes long");
-            _setInheritor(abi.decode(_transition.inheritor, (address)));
+            _setInheritor(Gear.decodePackedAddress(_transition.inheritor));
         }
 
         /// @dev Update the state hash if changed.

@@ -118,10 +118,11 @@ contract RouterTest is Test {
         );
 
         Gear.StateTransition[] memory transitions = new Gear.StateTransition[](1);
+
         transitions[0] = Gear.StateTransition(
             actorId, // actor id
             bytes32(uint256(42)), // new state hash
-            new bytes(0), // inheritor
+            abi.encodePacked(address(137)), // inheritor
             uint128(0), // value to receive
             new Gear.ValueClaim[](0), // value claims
             messages // messages
@@ -142,6 +143,7 @@ contract RouterTest is Test {
 
         assertEq(actor.stateHash(), bytes32(uint256(42)));
         assertEq(actor.nonce(), uint256(1));
+        assertEq(actor.inheritor(), address(137));
     }
 
     /* helper functions */
