@@ -19,7 +19,7 @@ library Gear {
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
 
     struct Validators {
-        // TODO: After FROST multisignature applied - consider to remove validators set and list.
+        // TODO: After FROST multi signature applied - consider to remove validators set and list.
         // Replace it with list hash. Any node can access the list of validators using this hash from other nodes.
         mapping(address => bool) set;
         address[] list;
@@ -230,7 +230,7 @@ library Gear {
         uint256 ts1 = router.validationSettings.validators1.useFromTimestamp;
 
         // Impossible case, because of implementation.
-        require(ts0 != ts1, "eras timstamp must not be equal");
+        require(ts0 != ts1, "eras timestamp must not be equal");
 
         bool ts1Greater = ts0 < ts1;
         bool tsGE0 = ts0 <= ts;
