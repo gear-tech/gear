@@ -132,35 +132,14 @@ library Gear {
         return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
     }
 
-    function decodePackedAddress(bytes memory data) internal pure returns (address) {
+    function decodePackedAddress(bytes calldata data) internal pure returns (address) {
         require(data.length == 20, "Address must be 20 bytes long if exist");
-
-        address addr;
-
-        assembly ("memory-safe") {
-            addr := mload(add(data, 20))
-        }
-
-        return addr;
+        return address(bytes20(data));
     }
 
-    function decodeReplyDetails(bytes memory data) internal pure returns (ReplyDetails memory) {
+    function decodeReplyDetails(bytes calldata data) internal pure returns (ReplyDetails memory) {
         require(data.length == 36, "ReplyDetails must be 36 bytes long if exist");
-
-        bytes32 to;
-        bytes4 code;
-
-        // Decode the 'to' field (first 32 bytes)
-        assembly ("memory-safe") {
-            to := mload(add(data, 32))
-        }
-
-        // Decode the 'code' field (next 4 bytes)
-        assembly ("memory-safe") {
-            code := mload(add(data, 36))
-        }
-
-        return ReplyDetails(to, code);
+        return ReplyDetails(bytes32(data[:32]), bytes4(data[32:36]));
     }
 
     function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
