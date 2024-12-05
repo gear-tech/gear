@@ -174,7 +174,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             state.program = Program::Exited(value_destination);
 
             transitions.modify_transition(id_exited, |transition| {
-                transition.inheritor = value_destination
+                transition.inheritor = Some(value_destination);
             });
 
             mem::replace(&mut state.balance, 0)
