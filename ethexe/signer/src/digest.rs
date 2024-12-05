@@ -163,14 +163,16 @@ impl ToDigest for Message {
             reply_details,
         } = self;
 
-        let (reply_details_to, reply_details_code) = reply_details.unwrap_or_default().into_parts();
-
         hasher.update(id.as_ref());
         hasher.update(destination.to_address_lossy().as_bytes());
         hasher.update(payload.as_slice());
         hasher.update(value.to_be_bytes().as_slice());
-        hasher.update(reply_details_to.as_ref());
-        hasher.update(reply_details_code.to_bytes().as_slice());
+        if let Some(reply_details) = reply_details {
+            let (reply_to, reply_code) = reply_details.into_parts();
+
+            hasher.update(reply_to.as_ref());
+            hasher.update(reply_code.to_bytes().as_ref());
+        }
     }
 }
 
@@ -196,6 +198,7 @@ impl ToDigest for BlockCommitment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethexe_common::gear_core::message::{ReplyCode, ReplyDetails};
     use gprimitives::{ActorId, CodeId, MessageId, H256};
     use std::vec;
 
@@ -219,7 +222,7 @@ mod tests {
                 destination: ActorId::from(0),
                 payload: b"Hello, World!".to_vec(),
                 value: 0,
-                reply_details: None,
+                reply_details: Some(ReplyDetails::new(42.into(), ReplyCode::manual())),
             }],
         };
         let _digest = state_transition.to_digest();

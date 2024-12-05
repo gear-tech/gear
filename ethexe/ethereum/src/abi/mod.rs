@@ -60,6 +60,7 @@ sol!(
 
 pub(crate) mod utils {
     use alloy::primitives::{Bytes, FixedBytes, Uint};
+    use gear_core::message::ReplyDetails;
     use gprimitives::{ActorId, CodeId, MessageId, H256};
 
     pub type Bytes32 = FixedBytes<32>;
@@ -93,6 +94,22 @@ pub(crate) mod utils {
     pub fn maybe_actor_id_to_addr_bytes(maybe_actor_id: Option<ActorId>) -> Bytes {
         maybe_actor_id
             .map(|actor_id| actor_id_to_address_lossy(actor_id).0.into())
+            .unwrap_or_default()
+    }
+
+    pub fn maybe_reply_details_to_bytes(maybe_reply_details: Option<ReplyDetails>) -> Bytes {
+        maybe_reply_details
+            .map(|reply_details| {
+                let (message_id, reply_code) = reply_details.into_parts();
+                let reply_code = reply_code.to_bytes();
+
+                let mut bytes =
+                    Vec::with_capacity(size_of_val(&message_id) + size_of_val(&reply_code));
+                bytes.extend_from_slice(message_id.as_ref());
+                bytes.extend_from_slice(reply_code.as_ref());
+
+                bytes.into()
+            })
             .unwrap_or_default()
     }
 
