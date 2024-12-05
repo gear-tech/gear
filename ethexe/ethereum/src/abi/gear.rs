@@ -18,7 +18,6 @@
 
 use crate::abi::{utils::*, Gear};
 use ethexe_common::gear::*;
-use gear_core::message::ReplyDetails;
 
 //                          //
 // From Rust types to alloy //
@@ -52,24 +51,7 @@ impl From<Message> for Gear::Message {
             destination: actor_id_to_address_lossy(value.destination),
             payload: value.payload.into(),
             value: value.value,
-            replyDetails: value.reply_details.into(),
-        }
-    }
-}
-
-impl From<Option<ReplyDetails>> for Gear::ReplyDetails {
-    fn from(value: Option<ReplyDetails>) -> Self {
-        value.unwrap_or_default().into()
-    }
-}
-
-impl From<ReplyDetails> for Gear::ReplyDetails {
-    fn from(value: ReplyDetails) -> Self {
-        let (to, code) = value.into_parts();
-
-        Self {
-            to: message_id_to_bytes32(to),
-            code: code.to_bytes().into(),
+            replyDetails: maybe_reply_details_to_bytes(value.reply_details),
         }
     }
 }

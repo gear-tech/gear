@@ -158,8 +158,7 @@ contract Mirror is IMirror {
 
             messagesHashes = bytes.concat(messagesHashes, Gear.messageHash(message));
 
-            // TODO (breathx): optimize it to bytes WITHIN THE PR.
-            if (message.replyDetails.to == 0) {
+            if (message.replyDetails.length == 0) {
                 _sendMailboxedMessage(message);
             } else {
                 _sendReplyMessage(message);
@@ -193,6 +192,8 @@ contract Mirror is IMirror {
 
     /// @dev Non-zero value always sent since never goes to mailbox.
     function _sendReplyMessage(Gear.Message calldata _message) private {
+        Gear.ReplyDetails memory replyDetails = Gear.decodeReplyDetails(_message.replyDetails);
+
         _transferValue(_message.destination, _message.value);
 
         if (decoder != address(0)) {
@@ -201,8 +202,8 @@ contract Mirror is IMirror {
                 _message.destination,
                 _message.payload,
                 _message.value,
-                _message.replyDetails.to,
-                _message.replyDetails.code
+                replyDetails.to,
+                replyDetails.code
             );
 
             // Result is ignored here.
@@ -213,7 +214,7 @@ contract Mirror is IMirror {
             }
         }
 
-        emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
+        emit Reply(_message.payload, _message.value, replyDetails.to, replyDetails.code);
     }
 
     function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32) {

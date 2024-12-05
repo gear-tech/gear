@@ -66,6 +66,16 @@ impl ReplyCode {
         unsafe { *<*const _>::from(self).cast::<u8>() }
     }
 
+    /// Returns ReplyCode::Success(SuccessReplyReason::Auto).
+    pub const fn auto() -> Self {
+        Self::Success(SuccessReplyReason::Auto)
+    }
+
+    /// Returns ReplyCode::Success(SuccessReplyReason::Manual).
+    pub const fn manual() -> Self {
+        Self::Success(SuccessReplyReason::Manual)
+    }
+
     /// Converts `ReplyCode` to 4 bytes array.
     pub fn to_bytes(self) -> [u8; 4] {
         let mut bytes = [self.discriminant(), 0, 0, 0];
