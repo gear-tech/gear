@@ -64,7 +64,8 @@ library Gear {
         address destination;
         bytes payload;
         uint128 value;
-        ReplyDetails replyDetails;
+        /// @dev Should be empty for non-replies or abi encoded `ReplyDetails` type.
+        bytes replyDetails;
     }
 
     struct ProtocolData {
@@ -143,20 +144,33 @@ library Gear {
         return addr;
     }
 
+    function decodeReplyDetails(bytes memory data) internal pure returns (ReplyDetails memory) {
+        require(data.length == 36, "ReplyDetails must be 36 bytes long if exist");
+
+        bytes32 to;
+        bytes4 code;
+
+        // Decode the 'to' field (first 32 bytes)
+        assembly ("memory-safe") {
+            to := mload(add(data, 32))
+        }
+
+        // Decode the 'code' field (next 4 bytes)
+        assembly ("memory-safe") {
+            code := mload(add(data, 36))
+        }
+
+        return ReplyDetails(to, code);
+    }
+
     function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
         return ComputationSettings(COMPUTATION_THRESHOLD, WVARA_PER_SECOND);
     }
 
+    // TODO (breathx): optimize to calldata within the pr (?). Same for inheritor.
     function messageHash(Message memory message) internal pure returns (bytes32) {
         return keccak256(
-            abi.encodePacked(
-                message.id,
-                message.destination,
-                message.payload,
-                message.value,
-                message.replyDetails.to,
-                message.replyDetails.code
-            )
+            abi.encodePacked(message.id, message.destination, message.payload, message.value, message.replyDetails)
         );
     }
 

@@ -111,9 +111,9 @@ contract RouterTest is Test {
             deployer, // destination
             "PONG", // payload
             0, // value
-            Gear.ReplyDetails(
-                0, // reply to
-                0 // reply code
+            abi.encodePacked(
+                bytes32(uint256(42)), // reply to
+                bytes4(0) // reply code
             )
         );
 
