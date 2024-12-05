@@ -158,7 +158,6 @@ contract Mirror is IMirror {
 
             messagesHashes = bytes.concat(messagesHashes, Gear.messageHash(message));
 
-            // TODO (breathx): optimize it to bytes WITHIN THE PR.
             if (message.replyDetails.length == 0) {
                 _sendMailboxedMessage(message);
             } else {
