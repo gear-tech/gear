@@ -127,8 +127,9 @@ contract Mirror is IMirror {
         bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
 
         /// @dev Set inheritor if specified.
-        if (_transition.inheritor != address(0)) {
-            _setInheritor(_transition.inheritor);
+        if (_transition.inheritor.length != 0) {
+            require(_transition.inheritor.length == 20, "inheritor address must be 20 bytes long");
+            _setInheritor(abi.decode(_transition.inheritor, (address)));
         }
 
         /// @dev Update the state hash if changed.

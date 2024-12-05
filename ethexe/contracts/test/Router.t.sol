@@ -121,7 +121,7 @@ contract RouterTest is Test {
         transitions[0] = Gear.StateTransition(
             actorId, // actor id
             bytes32(uint256(42)), // new state hash
-            address(0), // inheritor
+            new bytes(0), // inheritor
             uint128(0), // value to receive
             new Gear.ValueClaim[](0), // value claims
             messages // messages

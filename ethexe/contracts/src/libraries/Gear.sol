@@ -82,7 +82,8 @@ library Gear {
     struct StateTransition {
         address actorId;
         bytes32 newStateHash;
-        address inheritor;
+        /// @dev Must be empty if no inheritor is set, otherwise 20 bytes of an inheritor address.
+        bytes inheritor;
         uint128 valueToReceive;
         ValueClaim[] valueClaims;
         Message[] messages;
@@ -154,7 +155,7 @@ library Gear {
     function stateTransitionHash(
         address actor,
         bytes32 newStateHash,
-        address inheritor,
+        bytes memory inheritor,
         uint128 valueToReceive,
         bytes32 valueClaimsHash,
         bytes32 messagesHashesHash
