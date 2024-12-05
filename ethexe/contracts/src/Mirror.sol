@@ -233,7 +233,6 @@ contract Mirror is IMirror {
         return keccak256(valueClaimsBytes);
     }
 
-    // TODO (breathx): optimize inheritor to bytes WITHIN THE PR.
     function _setInheritor(address _inheritor) private whileActive {
         /// @dev Set inheritor.
         inheritor = _inheritor;
