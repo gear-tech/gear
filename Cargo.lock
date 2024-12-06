@@ -6602,7 +6602,6 @@ dependencies = [
  "enum-iterator 1.5.0",
  "gear-wasm",
  "gwasm-instrument",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmparser 0.220.0",
  "wat",
 ]
@@ -19054,8 +19053,7 @@ dependencies = [
 [[package]]
 name = "wasm-instrument"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a47ecb37b9734d1085eaa5ae1a81e60801fd8c28d4cabdd8aedb982021918bc"
+source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.4.0-sign-ext#e57b713873d4364e41ed495893a2f06a80cca5ab"
 dependencies = [
  "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
