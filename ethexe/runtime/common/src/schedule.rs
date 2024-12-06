@@ -1,19 +1,14 @@
 use crate::{
-    state::{
-        Dispatch, MaybeHashOf, PayloadLookup, ProgramState, Storage, ValueWithExpiry,
-        MAILBOX_VALIDITY,
-    },
-    InBlockTransitions, TransitionController,
+    state::{Dispatch, PayloadLookup, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    TransitionController,
 };
-use alloc::vec;
-use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{Rfm, ScheduledTask, Sd, Sum},
-    router::{OutgoingMessage, ValueClaim},
+    gear::ValueClaim,
 };
-use gear_core::{ids::ProgramId, message::ReplyMessage, tasks::TaskHandler};
+use gear_core::{ids::ProgramId, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;
-use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
 
 #[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct Handler<'a, S: Storage> {
@@ -27,7 +22,7 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
         message_id: MessageId,
     ) -> u64 {
         self.update_state(program_id, |state, storage, transitions| {
-            let ValueWithExpiry { value, expiry } =
+            let ValueWithExpiry { value, .. } =
                 state.mailbox_hash.modify_mailbox(storage, |mailbox| {
                     mailbox
                         .remove(user_id, message_id)
@@ -90,7 +85,7 @@ impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
             transitions.modify_transition(program_id, |transition| {
                 transition
                     .messages
-                    .push(dispatch.into_outgoing(storage, user_id))
+                    .push(dispatch.into_message(storage, user_id))
             })
         });
 

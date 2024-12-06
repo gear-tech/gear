@@ -181,6 +181,7 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
   WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.rs"
+  touch "$WEIGHT_FILE"
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
@@ -204,6 +205,7 @@ for PALLET in "${PALLETS[@]}"; do
   if [ "$PALLET" == "pallet_gear" ]
   then
     echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
+    touch "./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs"
     OUTPUT=$(
         $TASKSET_CMD $GEAR benchmark pallet \
         --chain="$chain_spec" \

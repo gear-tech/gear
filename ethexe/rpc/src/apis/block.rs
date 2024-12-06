@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{common::block_header_at_or_latest, errors};
-use ethexe_common::BlockRequestEvent;
+use ethexe_common::events::BlockRequestEvent;
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
 use gprimitives::H256;
 use jsonrpsee::{

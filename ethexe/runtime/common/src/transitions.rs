@@ -24,10 +24,9 @@ use anyhow::{anyhow, Result};
 use core::num::NonZero;
 use ethexe_common::{
     db::{BlockHeader, Schedule, ScheduledTask},
-    router::{OutgoingMessage, StateTransition, ValueClaim},
+    gear::{Message, StateTransition, ValueClaim},
 };
-use gprimitives::{ActorId, CodeId, H256};
-use parity_scale_codec::{Decode, Encode};
+use gprimitives::{ActorId, H256};
 
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
@@ -71,7 +70,7 @@ impl InBlockTransitions {
         self.states.keys().cloned().collect()
     }
 
-    pub fn current_messages(&self) -> Vec<(ActorId, OutgoingMessage)> {
+    pub fn current_messages(&self) -> Vec<(ActorId, Message)> {
         self.modifications
             .iter()
             .flat_map(|(id, trans)| trans.messages.iter().map(|message| (*id, message.clone())))
@@ -191,7 +190,7 @@ pub struct NonFinalTransition {
     pub inheritor: ActorId,
     pub value_to_receive: u128,
     pub claims: Vec<ValueClaim>,
-    pub messages: Vec<OutgoingMessage>,
+    pub messages: Vec<Message>,
 }
 
 impl NonFinalTransition {

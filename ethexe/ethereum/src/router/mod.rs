@@ -25,12 +25,12 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::router::{BlockCommitment, CodeCommitment};
+use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
-use gprimitives::{ActorId, CodeId, H160, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use std::sync::Arc;
 
 pub mod events;
@@ -72,18 +72,6 @@ impl Router {
 
     pub fn wvara(&self) -> WVara {
         WVara::new(self.wvara_address, self.instance.provider().clone())
-    }
-
-    pub async fn update_validators(&self, validators: Vec<H160>) -> Result<H256> {
-        let validators = validators
-            .into_iter()
-            .map(|v| v.to_fixed_bytes().into())
-            .collect();
-
-        let builder = self.instance.updateValidators(validators);
-        let receipt = builder.send().await?.try_get_receipt().await?;
-
-        Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn request_code_validation(
@@ -130,7 +118,7 @@ impl Router {
             if let Some(signatures::CODE_GOT_VALIDATED) = log.topic0().cloned() {
                 let event = crate::decode_log::<IRouter::CodeGotValidated>(&log)?;
 
-                if event.id == code_id {
+                if event.codeId == code_id {
                     return Ok(event.valid);
                 }
             }
@@ -139,19 +127,10 @@ impl Router {
         Err(anyhow!("Failed to define if code is validated"))
     }
 
-    pub async fn create_program(
-        &self,
-        code_id: CodeId,
-        salt: H256,
-        payload: impl AsRef<[u8]>,
-        value: u128,
-    ) -> Result<(H256, ActorId)> {
-        let builder = self.instance.createProgram(
-            code_id.into_bytes().into(),
-            salt.to_fixed_bytes().into(),
-            payload.as_ref().to_vec().into(),
-            value,
-        );
+    pub async fn create_program(&self, code_id: CodeId, salt: H256) -> Result<(H256, ActorId)> {
+        let builder = self
+            .instance
+            .createProgram(code_id.into_bytes().into(), salt.to_fixed_bytes().into());
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
@@ -240,9 +219,9 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn last_commitment_block_hash(&self) -> Result<H256> {
+    pub async fn latest_committed_block_hash(&self) -> Result<H256> {
         self.instance
-            .lastBlockCommitmentHash()
+            .latestCommittedBlockHash()
             .call()
             .await
             .map(|res| H256(*res._0))

@@ -1,31 +1,21 @@
 use crate::{
-    state::{
-        self, ActiveProgram, Dispatch, MaybeHashOf, Program, ProgramState, Storage,
-        ValueWithExpiry, MAILBOX_VALIDITY,
-    },
-    InBlockTransitions, TransitionController,
+    state::{ActiveProgram, Dispatch, Program, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    TransitionController,
 };
-use alloc::{collections::BTreeMap, vec, vec::Vec};
-use anyhow::{bail, Result};
+use alloc::{collections::BTreeMap, vec::Vec};
+use anyhow::bail;
 use core::{mem, num::NonZero};
-use core_processor::{
-    common::{DispatchOutcome, JournalHandler},
-    configs::BlockInfo,
-};
-use ethexe_common::{db::ScheduledTask, router::OutgoingMessage};
+use core_processor::common::{DispatchOutcome, JournalHandler};
+use ethexe_common::db::ScheduledTask;
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
-    message::{
-        Dispatch as CoreDispatch, Message, MessageWaitedType, Payload, StoredDispatch,
-        StoredMessage,
-    },
+    message::{Dispatch as CoreDispatch, MessageWaitedType, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
-    program::ProgramState as InitStatus,
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
+use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
 
 #[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct Handler<'a, S: Storage> {
@@ -38,7 +28,7 @@ pub struct Handler<'a, S: Storage> {
 impl<S: Storage> Handler<'_, S> {
     fn send_dispatch_to_program(
         &mut self,
-        message_id: MessageId,
+        _message_id: MessageId,
         destination: ActorId,
         dispatch: Dispatch,
         delay: u32,
@@ -63,7 +53,7 @@ impl<S: Storage> Handler<'_, S> {
 
     fn send_dispatch_to_user(
         &mut self,
-        message_id: MessageId,
+        _message_id: MessageId,
         dispatch: StoredDispatch,
         delay: u32,
     ) {
@@ -122,12 +112,12 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
-        source: ProgramId,
+        _source: ProgramId,
         outcome: DispatchOutcome,
     ) {
         match outcome {
             DispatchOutcome::Exit { program_id } => {
-                log::trace!("Dispatch outcome exit: {message_id}")
+                log::trace!("Dispatch outcome exit: {message_id} for program {program_id}")
             }
 
             DispatchOutcome::InitSuccess { program_id } => {
@@ -146,7 +136,8 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                     };
 
                     Ok(())
-                });
+                })
+                .expect("failed to update state");
             }
 
             DispatchOutcome::InitFailure {
@@ -172,7 +163,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         }
     }
 
-    fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
+    fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {
         // TODO
         // unreachable!("Must not be called here")
     }
@@ -240,7 +231,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         &mut self,
         dispatch: StoredDispatch,
         duration: Option<u32>,
-        waited_type: MessageWaitedType,
+        _waited_type: MessageWaitedType,
     ) {
         let Some(duration) = duration else {
             todo!("Wait dispatch without specified duration");
@@ -336,7 +327,8 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             });
 
             Ok(())
-        });
+        })
+        .expect("failed to update state");
     }
 
     fn update_allocations(
@@ -365,7 +357,8 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             });
 
             Ok(())
-        });
+        })
+        .expect("failed to update state");
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
@@ -393,7 +386,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         todo!()
     }
 
-    fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
+    fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
         todo!()
     }
 
