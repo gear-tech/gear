@@ -590,7 +590,8 @@ debug = true
 # sp-io = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
 # sp-application-crypto = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
 
-# this patched dependecy forces its `sign_ext` feature to be used by Substrate dependencies
+# these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
+wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
 wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
 
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
