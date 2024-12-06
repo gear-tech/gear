@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 interface IMirrorDecoder {
-    function initialize() external;
+    function initialize(address mirror) external;
 
     function mirror() external view returns (address);
 
