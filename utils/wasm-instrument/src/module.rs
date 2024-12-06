@@ -226,7 +226,7 @@ impl<'a> ModuleBuilder<'a> {
         &self.module
     }
 
-    fn type_section(&mut self) -> &mut Vec<FuncType> {
+    fn type_section(&mut self) -> &mut TypeSection {
         self.module.type_section.get_or_insert_with(Vec::new)
     }
 
@@ -242,7 +242,7 @@ impl<'a> ModuleBuilder<'a> {
         self.module.export_section.get_or_insert_with(Vec::new)
     }
 
-    fn code_section(&mut self) -> &mut Vec<Function<'a>> {
+    fn code_section(&mut self) -> &mut CodeSection<'a> {
         self.module.code_section.get_or_insert_with(Vec::new)
     }
 
@@ -268,12 +268,16 @@ impl<'a> ModuleBuilder<'a> {
     }
 }
 
+pub type TypeSection = Vec<FuncType>;
+pub type FuncSection = Vec<u32>;
+pub type CodeSection<'a> = Vec<Function<'a>>;
+
 #[derive(derive_more::DebugCustom, Default)]
 #[debug(fmt = "Module {{ .. }}")]
 pub struct Module<'a> {
-    pub type_section: Option<Vec<FuncType>>,
+    pub type_section: Option<TypeSection>,
     pub import_section: Option<Vec<Import<'a>>>,
-    pub function_section: Option<Vec<u32>>,
+    pub function_section: Option<FuncSection>,
     pub table_section: Option<Vec<Table<'a>>>,
     pub memory_section: Option<Vec<MemoryType>>,
     pub global_section: Option<Vec<Global<'a>>>,
@@ -281,7 +285,7 @@ pub struct Module<'a> {
     pub start_section: Option<u32>,
     pub element_section: Option<Vec<Element<'a>>>,
     pub data_section: Option<Vec<Data<'a>>>,
-    pub code_section: Option<Vec<Function<'a>>>,
+    pub code_section: Option<CodeSection<'a>>,
 }
 
 impl<'a> Module<'a> {
@@ -432,11 +436,11 @@ impl<'a> Module<'a> {
 
     // Getters //
 
-    pub fn type_section(&self) -> Option<&Vec<FuncType>> {
+    pub fn type_section(&self) -> Option<&TypeSection> {
         self.type_section.as_ref()
     }
 
-    pub fn type_section_mut(&mut self) -> Option<&mut Vec<FuncType>> {
+    pub fn type_section_mut(&mut self) -> Option<&mut TypeSection> {
         self.type_section.as_mut()
     }
 
@@ -448,11 +452,11 @@ impl<'a> Module<'a> {
         self.import_section.as_mut()
     }
 
-    pub fn function_section(&self) -> Option<&Vec<u32>> {
+    pub fn function_section(&self) -> Option<&FuncSection> {
         self.function_section.as_ref()
     }
 
-    pub fn function_section_mut(&mut self) -> Option<&mut Vec<u32>> {
+    pub fn function_section_mut(&mut self) -> Option<&mut FuncSection> {
         self.function_section.as_mut()
     }
 
@@ -492,6 +496,10 @@ impl<'a> Module<'a> {
         self.start_section
     }
 
+    pub fn start_section_mut(&mut self) -> Option<&mut u32> {
+        self.start_section.as_mut()
+    }
+
     pub fn element_section(&self) -> Option<&Vec<Element>> {
         self.element_section.as_ref()
     }
@@ -512,7 +520,7 @@ impl<'a> Module<'a> {
         self.code_section.as_ref()
     }
 
-    pub fn code_section_mut(&mut self) -> Option<&mut Vec<Function<'a>>> {
+    pub fn code_section_mut(&mut self) -> Option<&mut CodeSection<'a>> {
         self.code_section.as_mut()
     }
 }

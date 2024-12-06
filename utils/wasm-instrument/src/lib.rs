@@ -28,13 +28,13 @@ pub use module::Module;
 
 use crate::module::{ConstExpr, Function, Global, ModuleBuilder};
 use alloc::vec;
-use gear_wasm::elements::Instruction;
 use gwasm_instrument::InjectionConfig;
 use wasmparser::{
     BlockType, Export, ExternalKind, FuncType, GlobalType, Import, Operator, TypeRef, ValType,
 };
 
 mod module;
+mod stack_limiter;
 #[cfg(test)]
 mod tests;
 
@@ -170,14 +170,18 @@ where
                 stack_limit,
                 injection_fn: |_| {
                     [
-                        Instruction::I32Const(SystemBreakCode::StackLimitExceeded as i32),
-                        Instruction::Call(gr_system_break_index),
+                        Operator::I32Const {
+                            value: SystemBreakCode::StackLimitExceeded as i32,
+                        },
+                        Operator::Call {
+                            function_index: gr_system_break_index,
+                        },
                     ]
                 },
                 stack_height_export_name: export_stack_height.then_some(STACK_HEIGHT_EXPORT_NAME),
             };
 
-            module = wasm_instrument::inject_stack_limiter_with_config(module, injection_config)
+            module = stack_limiter::inject_with_config(module, injection_config)
                 .map_err(|_| InstrumentationError::StackLimitInjection)?;
         }
 
@@ -340,12 +344,12 @@ fn inject_gas_limiter<'a, R: Rules>(
         .ok_or(InstrumentationError::CostCalculationOverflow)?;
 
     let cost_push_arg = rules
-        .instruction_cost(&Instruction::I32Const(0))
+        .instruction_cost(&Operator::I32Const { value: 0 })
         .map(|c| c as u64)
         .ok_or(InstrumentationError::InstructionCostNotFound)?;
 
     let cost_call = rules
-        .instruction_cost(&Instruction::Call(0))
+        .instruction_cost(&Operator::Call { function_index: 0 })
         .map(|c| c as u64)
         .ok_or(InstrumentationError::InstructionCostNotFound)?;
 
