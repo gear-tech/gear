@@ -6046,7 +6046,7 @@ dependencies = [
  "scale-info",
  "serde",
  "wabt",
- "wasmparser 0.220.0",
+ "wasmparser-nostd",
 ]
 
 [[package]]
@@ -6589,7 +6589,7 @@ dependencies = [
  "rand",
  "thiserror",
  "wasm-smith",
- "wasmparser 0.220.0",
+ "wasmparser-nostd",
  "wasmprinter",
  "wat",
 ]
@@ -6602,7 +6602,7 @@ dependencies = [
  "enum-iterator 1.5.0",
  "gear-wasm",
  "gwasm-instrument",
- "wasmparser 0.220.0",
+ "wasmparser-nostd",
  "wat",
 ]
 
@@ -6620,7 +6620,7 @@ dependencies = [
  "wabt",
  "wasm-opt",
  "wasmer",
- "wasmparser 0.220.0",
+ "wasmparser-nostd",
  "which",
 ]
 
@@ -19471,17 +19471,6 @@ name = "wasmparser"
 version = "0.121.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9dbe55c8f9d0dbd25d9447a5a889ff90c0cc3feaa7395310d3d826b2c703eaab"
-dependencies = [
- "bitflags 2.5.0",
- "indexmap 2.6.0",
- "semver 1.0.18",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.220.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e246c2772ce3ebc83f89a2d4487ac5794cad6c309b2071818a88c7db7c36d87b"
 dependencies = [
  "bitflags 2.5.0",
  "indexmap 2.6.0",
