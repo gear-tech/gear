@@ -7,6 +7,9 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 rust-version = "1.81"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(force_wasmer_cranelift_i_know_what_i_do)'] }
+
 [workspace]
 resolver = "2"
 
