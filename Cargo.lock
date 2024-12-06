@@ -4701,7 +4701,7 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
  "rand",
  "sp-allocator",
  "sp-wasm-interface 21.0.1 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
@@ -6558,7 +6558,7 @@ dependencies = [
  "gmeta",
  "itertools 0.13.0",
  "log",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
  "pathdiff",
  "regex",
  "rustc_version 0.4.0",
@@ -11208,7 +11208,7 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
  "primitive-types",
  "scale-info",
  "sp-core 34.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
@@ -11266,7 +11266,7 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
  "primitive-types",
  "scale-info",
  "sp-io 38.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
@@ -11437,7 +11437,7 @@ dependencies = [
  "log",
  "pallet-balances",
  "parity-scale-codec",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
  "primitive-types",
  "scale-info",
  "sp-core 34.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
@@ -11916,12 +11916,6 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
-
-[[package]]
-name = "parity-wasm"
-version = "0.45.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1ad0aff30c1da14b1254fcb2af73e1fa9a28670e584a626f53a369d0e157304"
 
 [[package]]
 name = "parity-wasm"
@@ -16988,7 +16982,7 @@ checksum = "d521a405707b5be561367cd3d442ff67588993de24062ce3adefcf8437ee9fe1"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
  "scale-info",
  "serde",
  "sp-crypto-hashing-proc-macro 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -17005,7 +16999,7 @@ source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
  "scale-info",
  "serde",
  "sp-crypto-hashing-proc-macro 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
@@ -17491,7 +17485,7 @@ dependencies = [
  "jobserver",
  "merkleized-metadata",
  "parity-scale-codec",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
  "polkavm-linker",
  "sc-executor 0.40.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-core 34.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -19046,7 +19040,7 @@ version = "0.1.0"
 dependencies = [
  "clap 4.5.13",
  "hex",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
 ]
 
 [[package]]
@@ -19054,7 +19048,7 @@ name = "wasm-instrument"
 version = "0.4.0"
 source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.4.0-sign-ext#e57b713873d4364e41ed495893a2f06a80cca5ab"
 dependencies = [
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
 ]
 
 [[package]]
@@ -19105,7 +19099,7 @@ dependencies = [
  "env_logger",
  "gear-wasm-builder",
  "log",
- "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm",
 ]
 
 [[package]]
@@ -19332,7 +19326,7 @@ name = "wasmi"
 version = "0.13.2"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
- "parity-wasm 0.45.0 (git+https://github.com/gear-tech/parity-wasm?branch=v0.45.0-sign-ext)",
+ "parity-wasm",
  "wasmi-validation",
  "wasmi_core 0.2.1",
 ]
@@ -19371,7 +19365,7 @@ name = "wasmi-validation"
 version = "0.5.0"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
- "parity-wasm 0.45.0 (git+https://github.com/gear-tech/parity-wasm?branch=v0.45.0-sign-ext)",
+ "parity-wasm",
 ]
 
 [[package]]
