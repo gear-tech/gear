@@ -1454,8 +1454,8 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
                     .copied()
                     .unwrap_or((max_params, max_results));
                 w.call_indirect
-                    .saturating_add(w.call_indirect_per_param.saturating_sub(params))
-                    .saturating_add(w.call_indirect_per_result.saturating_sub(results))
+                    .saturating_add(w.call_indirect_per_param.saturating_mul(params))
+                    .saturating_add(w.call_indirect_per_result.saturating_mul(results))
             }
             BrTable(ref data) => w
                 .br_table
