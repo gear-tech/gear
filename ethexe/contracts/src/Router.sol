@@ -283,10 +283,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return actorId;
     }
 
-    function _createDecoder(address _implementation, bytes32 _salt, address mirror) private returns (address) {
+    function _createDecoder(address _implementation, bytes32 _salt, address _mirror) private returns (address) {
         address decoder = Clones.cloneDeterministic(_implementation, _salt);
 
-        IMirrorDecoder(decoder).initialize(mirror);
+        IMirrorDecoder(decoder).initialize(_mirror);
 
         return decoder;
     }
