@@ -186,7 +186,7 @@ wasmer-vm = "4.3.4"
 wasmer-compiler = "4.3.4"
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
-wasmparser = { version = "0.220", default-features = false, features = ["validate"] }
+wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
 which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
