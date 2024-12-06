@@ -599,5 +599,3 @@ blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross
 
 # TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
-
-wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
