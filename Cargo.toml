@@ -289,6 +289,7 @@ runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/prim
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
+wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 
 # ethexe deps
 ethexe-cli = { path = "ethexe/cli", default-features = false }
@@ -552,7 +553,6 @@ smallvec = "1.13.2"                                          # utils/node-wrappe
 fs4 = "0.11.1"                                               # utils/gear-wasmer-cache
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
-wasm-smith = "0.220.0"                                       # utils/wasm-gen
 
 [profile.dev.package.corosensei]
 opt-level = 3

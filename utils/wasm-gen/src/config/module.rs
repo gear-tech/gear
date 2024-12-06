@@ -18,30 +18,29 @@
 
 //! Config entities related to generating plain wasm module using `wasm-smith`.
 //!
-//! We don't give access to [`wasm_smith::Config`] directly, but with several adaptors,
+//! We don't give access to [`wasm_smith::SwarmConfig`] directly, but with several adaptors,
 //! because valid wasm module is not always valid gear module. So, some configurational variables
 //! can be arbitrary, but some must be constantly set. That's implemented with [`ArbitraryParams`]
 //! and [`ConstantParams`].
 
+use crate::MemoryLayout;
 use arbitrary::{Arbitrary, Result, Unstructured};
 use std::num::NonZero;
-use wasm_smith::{Config, InstructionKind::*, InstructionKinds, MemoryOffsetChoices};
+use wasm_smith::{InstructionKind::*, InstructionKinds, SwarmConfig};
 
 pub use wasm_smith::InstructionKind;
 
-const WASM_PAGE_SIZE: u64 = 0x10_000;
-
 /// Wasm module generation config.
 ///
-/// This config wraps the [`wasm_smith::Config`]. That's to make it
+/// This config wraps the [`wasm_smith::SwarmConfig`]. That's to make it
 /// easy creating a configuration, which is custom, from one side, and,
 /// from another side, results in generating valid gear wasm modules.
 #[derive(Debug, Clone)]
-pub struct WasmModuleConfig(Config);
+pub struct WasmModuleConfig(SwarmConfig);
 
 impl WasmModuleConfig {
     /// Unwrap the inner `wasm-smith` config.
-    pub fn into_inner(self) -> Config {
+    pub fn into_inner(self) -> SwarmConfig {
         self.0
     }
 }
@@ -75,14 +74,16 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             tail_call_enabled,
             relaxed_simd_enabled,
             saturating_float_to_int_enabled,
-            sign_extension_ops_enabled,
+            sign_extension_enabled,
             simd_enabled,
-            allow_floats,
+            float_enabled,
+            memory_grow_enabled,
             max_data_segments,
             min_data_segments,
             max_types,
             min_types,
             memory_offset_choices,
+            reserved_memory_size,
         } = ConstantParams::default();
 
         let SelectableParams {
@@ -125,7 +126,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
 
         let allowed_instructions = InstructionKinds::new(&allowed_instructions);
 
-        Self(Config {
+        Self(SwarmConfig {
             allow_start_export,
             available_imports,
             bulk_memory_enabled,
@@ -133,9 +134,6 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             disallow_traps,
             exceptions_enabled,
             export_everything,
-            gc_enabled: false,
-            custom_page_sizes_enabled: false,
-            generate_custom_sections: false,
             max_aliases,
             max_components,
             max_data_segments,
@@ -148,9 +146,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_instances,
             max_instructions,
             max_memories,
-            max_memory32_bytes: max_memory_pages * WASM_PAGE_SIZE,
-            // we don't support 64-bit WASM
-            max_memory64_bytes: 0,
+            max_memory_pages,
             max_modules,
             max_nesting_depth,
             max_tables,
@@ -160,11 +156,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_values,
             memory64_enabled,
             memory_max_size_required,
-            memory_offset_choices: MemoryOffsetChoices(
-                memory_offset_choices.0,
-                memory_offset_choices.1,
-                memory_offset_choices.2,
-            ),
+            memory_offset_choices,
             min_data_segments,
             min_element_segments,
             min_elements,
@@ -179,22 +171,18 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             min_uleb_size,
             multi_value_enabled,
             reference_types_enabled,
+            reserved_memory_size,
             tail_call_enabled,
             relaxed_simd_enabled,
             saturating_float_to_int_enabled,
-            sign_extension_ops_enabled,
-            shared_everything_threads_enabled: false,
+            sign_extension_enabled,
             simd_enabled,
+            float_enabled,
             threads_enabled,
-            allow_invalid_funcs: false,
-            wide_arithmetic_enabled: false,
             allowed_instructions,
             max_table_elements,
             table_max_size_required,
-            // do not export anything to pass our checks
-            exports: Some(Vec::new()),
-            allow_floats,
-            extended_const_enabled: false,
+            memory_grow_enabled,
         })
     }
 }
@@ -202,7 +190,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
 /// Arbitrary wasm module generation params.
 ///
 /// These are params that are allowed to be randomly set.
-/// All of them are later used to instantiate `wasm_smith::Config`.
+/// All of them are later used to instantiate `wasm_smith::SwarmConfig`.
 #[derive(Debug, Clone)]
 pub struct ArbitraryParams {
     available_imports: Option<Vec<u8>>,
@@ -227,15 +215,15 @@ pub struct ArbitraryParams {
     min_tags: usize,
     min_uleb_size: u8,
     threads_enabled: bool,
-    max_table_elements: u64,
+    max_table_elements: u32,
     table_max_size_required: bool,
     max_memory_pages: u64,
 }
 
 impl Arbitrary<'_> for ArbitraryParams {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let random_config = u.arbitrary()?;
-        let Config {
+        let random_swarm = u.arbitrary()?;
+        let SwarmConfig {
             available_imports,
             canonicalize_nans,
             export_everything,
@@ -260,9 +248,9 @@ impl Arbitrary<'_> for ArbitraryParams {
             threads_enabled,
             max_table_elements,
             table_max_size_required,
-            max_memory32_bytes,
+            max_memory_pages,
             ..
-        } = random_config;
+        } = random_swarm;
 
         Ok(ArbitraryParams {
             available_imports,
@@ -289,14 +277,14 @@ impl Arbitrary<'_> for ArbitraryParams {
             threads_enabled,
             max_table_elements,
             table_max_size_required,
-            max_memory_pages: max_memory32_bytes / WASM_PAGE_SIZE,
+            max_memory_pages,
         })
     }
 }
 
 /// Constant wasm module generation params.
 ///
-/// Wraps params, which are used to create `wasm_smith::Config`, but they
+/// Wraps params, which are used to create `wasm_smith::SwarmConfig`, but they
 /// must have pre-defined values to make `wasm-smith` generate valid gear modules.
 pub struct ConstantParams {
     allow_start_export: bool,
@@ -319,31 +307,34 @@ pub struct ConstantParams {
     tail_call_enabled: bool,
     relaxed_simd_enabled: bool,
     saturating_float_to_int_enabled: bool,
-    sign_extension_ops_enabled: bool,
+    sign_extension_enabled: bool,
     simd_enabled: bool,
-    allow_floats: bool,
+    float_enabled: bool,
+    memory_grow_enabled: bool,
     min_types: usize,
     memory_offset_choices: (u32, u32, u32),
+    reserved_memory_size: Option<u64>,
 }
 
 impl Default for ConstantParams {
     fn default() -> Self {
         ConstantParams {
             bulk_memory_enabled: false,
-            sign_extension_ops_enabled: false,
+            sign_extension_enabled: false,
             saturating_float_to_int_enabled: false,
             reference_types_enabled: false,
             tail_call_enabled: false,
             // This is related to reference_types_enabled.
             max_tables: 1,
             simd_enabled: false,
-            allow_floats: false,
+            float_enabled: false,
             relaxed_simd_enabled: false,
             exceptions_enabled: false,
             memory64_enabled: false,
             disallow_traps: true,
             allow_start_export: false,
             multi_value_enabled: false,
+            memory_grow_enabled: false,
             min_memories: 0,
             max_memories: 1,
             min_exports: 0,
@@ -355,8 +346,7 @@ impl Default for ConstantParams {
             max_types: 100,
             min_types: 5,
             memory_offset_choices: (75, 25, 0),
-            // TODO: revert
-            //reserved_memory_size: Some(MemoryLayout::RESERVED_MEMORY_SIZE as u64),
+            reserved_memory_size: Some(MemoryLayout::RESERVED_MEMORY_SIZE as u64),
         }
     }
 }
