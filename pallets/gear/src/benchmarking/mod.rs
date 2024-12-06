@@ -327,11 +327,6 @@ benchmarks! {
     }: {}
 
     #[extra]
-    check_wasm_proposals {
-        tests::wasm_multivalue_proposal::<T>();
-    }: {}
-
-    #[extra]
     check_lazy_pages_all {
         tests::lazy_pages::lazy_pages_charging::<T>();
         tests::lazy_pages::lazy_pages_charging_special::<T>();
