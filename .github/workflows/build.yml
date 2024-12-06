@@ -123,6 +123,10 @@ jobs:
         run: |
           # fast benchmark tests before long run
           cargo test -p "pallet-*" --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.profiles.flags }} bench
+          # check `multivalue` proposal works
+          RUSTFLAGS="--cfg force_wasmer_cranelift_i_know_what_i_do" \
+            cargo test -p pallet-gear --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.profiles.flags }} \
+            benchmarking::bench_check_wasm_proposals -- --exact
 
       - name: "Test: Benchmarks in WASM"
         # unoptimized benchmarks take a few hours to run
