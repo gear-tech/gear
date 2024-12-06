@@ -199,7 +199,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         returns (address)
     {
         address mirror = _createProgram(_codeId, _salt);
-        address decoder = _createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)));
+        address decoder = _createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)), mirror);
 
         IMirror(mirror).initialize(msg.sender, decoder);
 
@@ -283,10 +283,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return actorId;
     }
 
-    function _createDecoder(address _implementation, bytes32 _salt) private returns (address) {
+    function _createDecoder(address _implementation, bytes32 _salt, address mirror) private returns (address) {
         address decoder = Clones.cloneDeterministic(_implementation, _salt);
 
-        IMirrorDecoder(decoder).initialize();
+        IMirrorDecoder(decoder).initialize(mirror);
 
         return decoder;
     }
