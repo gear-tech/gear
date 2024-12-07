@@ -24,7 +24,7 @@
 #![allow(non_local_definitions)]
 
 // Make the WASM binary available.
-#[cfg(all(feature = "std", not(feature = "fuzz")))]
+#[cfg(all(feature = "std", not(fuzz)))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use common::{storage::Messenger, DelegateFee};

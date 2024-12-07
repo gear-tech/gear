@@ -28,6 +28,7 @@ contract RouterTest is Test {
     uint256[] public validatorsPrivateKeys;
 
     Router public router;
+    WrappedVara public wrappedVara;
 
     function setUp() public {
         validators.push(alicePublic);
@@ -40,7 +41,7 @@ contract RouterTest is Test {
 
         startPrank(deployer);
 
-        WrappedVara wrappedVara = WrappedVara(
+        wrappedVara = WrappedVara(
             Upgrades.deployTransparentProxy(
                 "WrappedVara.sol", deployer, abi.encodeCall(WrappedVara.initialize, (deployer))
             )
@@ -63,8 +64,6 @@ contract RouterTest is Test {
 
         router.lookupGenesisHash();
 
-        wrappedVara.approve(address(router), type(uint256).max);
-
         Mirror mirror = new Mirror();
 
         MirrorProxy mirrorProxy = new MirrorProxy(address(router));
@@ -75,7 +74,7 @@ contract RouterTest is Test {
         assertEq(router.validators(), validators);
         assertEq(router.signingThresholdPercentage(), 6666);
 
-        assert(router.areValidators(validators));
+        assertTrue(router.areValidators(validators));
     }
 
     function test_ping() public {
@@ -94,8 +93,11 @@ contract RouterTest is Test {
 
         router.commitCodes(codeCommitments, _signCodeCommitments(codeCommitments));
 
-        address actorId = router.createProgram(codeId, "salt", "PING", 1_000_000_000);
+        address actorId = router.createProgram(codeId, "salt");
         IMirror actor = IMirror(actorId);
+
+        wrappedVara.approve(address(actor), 1_000_000_000);
+        actor.sendMessage("PING", 1_000_000_000);
 
         assertEq(actor.router(), address(router));
         assertEq(actor.stateHash(), 0);

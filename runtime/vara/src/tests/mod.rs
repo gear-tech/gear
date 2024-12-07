@@ -20,7 +20,6 @@
 
 use super::*;
 use crate::Runtime;
-
 use frame_support::dispatch::GetDispatchInfo;
 use frame_system::limits::WeightsPerClass;
 use gear_core::costs::{IoCosts, LazyPagesCosts, PagesCosts};
@@ -37,6 +36,8 @@ use utils::*;
 #[cfg(feature = "dev")]
 #[test]
 fn bridge_storages_have_correct_prefixes() {
+    use frame_support::traits::StorageInstance;
+
     // # SAFETY: Do not change storage prefixes without total bridge re-deploy.
     const PALLET_PREFIX: &str = "GearEthBridge";
 
@@ -276,7 +277,7 @@ fn syscall_weights_test() {
         gr_reply_commit: 13_000_000.into(),
         gr_reply_commit_wgas: 12_000_000.into(),
         gr_reservation_reply: 9_500_000.into(),
-        gr_reservation_reply_per_byte: 800_000.into(),
+        gr_reservation_reply_per_byte: 800.into(),
         gr_reservation_reply_commit: 9_000_000.into(),
         gr_reply_push: 2_000_000.into(),
         gr_reply: 14_500_000.into(),
@@ -362,6 +363,8 @@ fn lazy_page_costs_heuristic_test() {
 #[test]
 fn write_is_not_too_cheap() {
     let costs: IoCosts = MemoryWeights::<Runtime>::default().into();
+
+    #[allow(clippy::unnecessary_min_or_max)]
     let cheapest_write = u64::MAX
         .min(costs.lazy_pages.signal_write.cost_for_one())
         .min(
@@ -374,7 +377,7 @@ fn write_is_not_too_cheap() {
                 + costs.lazy_pages.host_func_write_after_read.cost_for_one(),
         );
 
-    let block_max_gas = 3 * 10 ^ 12; // 3 seconds
+    let block_max_gas = 3 * (10 ^ 12); // 3 seconds
     let runtime_heap_size_in_wasm_pages = 0x4000; // 1GB
 
     assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);

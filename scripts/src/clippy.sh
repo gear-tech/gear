@@ -20,11 +20,7 @@ EOF
 }
 
 gear_clippy() {
-  EXCLUDE_PACKAGES="--exclude vara-runtime --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz"
-  INCLUDE_PACKAGES="-p vara-runtime -p runtime-fuzzer -p runtime-fuzzer-fuzz"
-
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo clippy --workspace "$@" $EXCLUDE_PACKAGES -- --no-deps -D warnings
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo clippy $INCLUDE_PACKAGES --all-features -- --no-deps -D warnings
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo clippy --workspace "$@" -- --no-deps -D warnings
 }
 
 examples_clippy() {

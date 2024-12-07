@@ -986,12 +986,15 @@ mod utils {
             Ok(WaitForUploadCode { listener, code_id })
         }
 
+        // TODO (breathx): split it into different functions WITHIN THE PR.
         pub async fn create_program(
             &self,
             code_id: CodeId,
             payload: &[u8],
             value: u128,
         ) -> Result<WaitForProgramCreation> {
+            const EXECUTABLE_BALANCE: u128 = 500_000_000_000_000;
+
             log::info!(
                 "📗 Create program, code_id {code_id}, payload len {}",
                 payload.len()
@@ -999,11 +1002,22 @@ mod utils {
 
             let listener = self.events_publisher().subscribe().await;
 
-            let (_, program_id) = self
-                .ethereum
-                .router()
-                .create_program(code_id, H256::random(), payload, value)
+            let router = self.ethereum.router();
+
+            let (_, program_id) = router.create_program(code_id, H256::random()).await?;
+
+            let program_address = program_id.to_address_lossy().0.into();
+
+            router
+                .wvara()
+                .approve(program_address, value + EXECUTABLE_BALANCE)
                 .await?;
+
+            let mirror = self.ethereum.mirror(program_address.into_array().into());
+
+            mirror.executable_balance_top_up(EXECUTABLE_BALANCE).await?;
+
+            mirror.send_message(payload, value).await?;
 
             Ok(WaitForProgramCreation {
                 listener,
