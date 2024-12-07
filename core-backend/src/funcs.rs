@@ -36,6 +36,7 @@ use crate::{
 use alloc::{
     format,
     string::{String, ToString},
+    vec::Vec,
 };
 use blake2::{digest::typenum::U32, Blake2b, Digest};
 use codec::{Decode, MaxEncodedLen};
@@ -114,11 +115,10 @@ impl TryFrom<SyscallValue> for u64 {
 
 trait SyscallArg: Sized {
     const REQUIRED_ARGS: usize;
-    const COMPLEX: bool = true;
 
     fn new<Caller, Ext>(
         registry: &mut MemoryAccessRegistry<Caller>,
-        args: &[SyscallValue],
+        args: &[Value],
     ) -> Result<Self, HostError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
@@ -133,11 +133,11 @@ pub struct ReadAs<T> {
     read: WasmMemoryReadAs<T>,
 }
 
-pub struct ReadDecoded<T> {
+pub struct ReadDecoded<T: Decode + MaxEncodedLen> {
     read: WasmMemoryReadDecoded<T>,
 }
 
-pub struct ReadDecodedSpecial<T> {
+pub struct ReadDecodedSpecial<T: Decode + MaxEncodedLen + Default> {
     read: Option<WasmMemoryReadDecoded<T>>,
 }
 
@@ -151,33 +151,45 @@ pub struct WriteAs<T> {
 
 impl SyscallArg for u32 {
     const REQUIRED_ARGS: usize = 1;
-    const COMPLEX: bool = false;
 
     fn new<Caller, Ext>(
         _: &mut MemoryAccessRegistry<Caller>,
-        args: &[SyscallValue],
+        args: &[Value],
     ) -> Result<Self, HostError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        Ok(args[0].try_into()?)
+        if args.len() != Self::REQUIRED_ARGS {
+            log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", Self::REQUIRED_ARGS, args.len());
+            return Err(HostError);
+        }
+
+        log::debug!(target: "syscalls", "constructing u32 from args: {:?}", args);
+
+        SyscallValue(args[0]).try_into()
     }
 }
 
 impl SyscallArg for u64 {
     const REQUIRED_ARGS: usize = 1;
-    const COMPLEX: bool = false;
 
     fn new<Caller, Ext>(
         _: &mut MemoryAccessRegistry<Caller>,
-        args: &[SyscallValue],
+        args: &[Value],
     ) -> Result<Self, HostError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        Ok(args[0].try_into()?)
+        if args.len() != Self::REQUIRED_ARGS {
+            log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", Self::REQUIRED_ARGS, args.len());
+            return Err(HostError);
+        }
+
+        log::debug!(target: "syscalls", "constructing u64 from args: {:?}", args);
+
+        SyscallValue(args[0]).try_into()
     }
 }
 
@@ -186,13 +198,24 @@ impl SyscallArg for Read {
 
     fn new<Caller, Ext>(
         registry: &mut MemoryAccessRegistry<Caller>,
-        args: &[SyscallValue],
+        args: &[Value],
     ) -> Result<Self, HostError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        let read = registry.register_read(args[0].try_into()?, args[1].try_into()?);
+        if args.len() != Self::REQUIRED_ARGS {
+            log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", Self::REQUIRED_ARGS, args.len());
+            return Err(HostError);
+        }
+
+        log::debug!(target: "syscalls", "constructing Read from args: {:?}", args);
+
+        let ptr = SyscallValue(args[0]).try_into()?;
+        let size = SyscallValue(args[1]).try_into()?;
+
+        let read = registry.register_read(ptr, size);
+
         Ok(Self { read })
     }
 }
@@ -202,13 +225,22 @@ impl<T> SyscallArg for ReadAs<T> {
 
     fn new<Caller, Ext>(
         registry: &mut MemoryAccessRegistry<Caller>,
-        args: &[SyscallValue],
+        args: &[Value],
     ) -> Result<Self, HostError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        let read = registry.register_read_as(args[0].try_into()?);
+        if args.len() != Self::REQUIRED_ARGS {
+            log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", Self::REQUIRED_ARGS, args.len());
+            return Err(HostError);
+        }
+
+        log::debug!(target: "syscalls", "constructing ReadAs from args: {:?}", args);
+
+        let ptr = SyscallValue(args[0]).try_into()?;
+
+        let read = registry.register_read_as(ptr);
         Ok(Self { read })
     }
 }
@@ -218,28 +250,45 @@ impl<T: Decode + MaxEncodedLen> SyscallArg for ReadDecoded<T> {
 
     fn new<Caller, Ext>(
         registry: &mut MemoryAccessRegistry<Caller>,
-        args: &[SyscallValue],
+        args: &[Value],
     ) -> Result<Self, HostError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        let read = registry.register_read_decoded(args[0].try_into()?);
+        if args.len() != Self::REQUIRED_ARGS {
+            log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", Self::REQUIRED_ARGS, args.len());
+            return Err(HostError);
+        }
+
+        log::debug!(target: "syscalls", "constructing ReadDecoded from args: {:?}", args);
+
+        let ptr = SyscallValue(args[0]).try_into()?;
+
+        let read = registry.register_read_decoded(ptr);
         Ok(Self { read })
     }
 }
 
-impl<T: Decode + MaxEncodedLen> SyscallArg for ReadDecodedSpecial<T> {
+impl<T: Decode + MaxEncodedLen + Default> SyscallArg for ReadDecodedSpecial<T> {
     const REQUIRED_ARGS: usize = 1;
     fn new<Caller, Ext>(
         registry: &mut MemoryAccessRegistry<Caller>,
-        args: &[SyscallValue],
+        args: &[Value],
     ) -> Result<Self, HostError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        let ptr: u32 = args[0].try_into()?;
+        if args.len() != Self::REQUIRED_ARGS {
+            log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", Self::REQUIRED_ARGS, args.len());
+            return Err(HostError);
+        }
+
+        log::debug!(target: "syscalls", "constructing ReadDecodedSpecial from args: {:?}", args);
+
+        let ptr: u32 = SyscallValue(args[0]).try_into()?;
+
         if ptr != PTR_SPECIAL {
             let read = registry.register_read_decoded(ptr);
             Ok(Self { read: Some(read) })
@@ -254,13 +303,24 @@ impl SyscallArg for Write {
 
     fn new<Caller, Ext>(
         registry: &mut MemoryAccessRegistry<Caller>,
-        args: &[SyscallValue],
+        args: &[Value],
     ) -> Result<Self, HostError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        let write = registry.register_write(args[0].try_into()?, args[1].try_into()?);
+        if args.len() != Self::REQUIRED_ARGS {
+            log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", Self::REQUIRED_ARGS, args.len());
+            return Err(HostError);
+        }
+
+        log::debug!(target: "syscalls", "constructing Write from args: {:?}", args);
+
+        let ptr = SyscallValue(args[1]).try_into()?;
+        let size = SyscallValue(args[0]).try_into()?;
+
+        let write = registry.register_write(ptr, size);
+
         Ok(Self { write })
     }
 }
@@ -270,13 +330,22 @@ impl<T> SyscallArg for WriteAs<T> {
 
     fn new<Caller, Ext>(
         registry: &mut MemoryAccessRegistry<Caller>,
-        args: &[SyscallValue],
+        args: &[Value],
     ) -> Result<Self, HostError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        let write = registry.register_write_as(args[0].try_into()?);
+        if args.len() != Self::REQUIRED_ARGS {
+            log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", Self::REQUIRED_ARGS, args.len());
+            return Err(HostError);
+        }
+
+        log::debug!(target: "syscalls", "constructing WriteAs from args: {:?}", args);
+
+        let ptr = SyscallValue(args[0]).try_into()?;
+
+        let write = registry.register_write_as(ptr);
         Ok(Self { write })
     }
 }
@@ -291,6 +360,8 @@ impl Read {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
+        log::debug!(target: "syscalls", "Read::read");
+
         io.read(ctx, self.read)
     }
 
@@ -309,6 +380,8 @@ impl<T> ReadAs<T> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
+        log::debug!(target: "syscalls", "ReadAs::read");
+
         io.read_as(ctx, self.read)
     }
 }
@@ -323,11 +396,13 @@ impl<T: Decode + MaxEncodedLen> ReadDecoded<T> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
+        log::debug!(target: "syscalls", "ReadDecoded::read");
+
         io.read_decoded(ctx, self.read)
     }
 }
 
-impl<T: Decode + MaxEncodedLen> ReadDecodedSpecial<T> {
+impl<T: Decode + MaxEncodedLen + Default> ReadDecodedSpecial<T> {
     pub fn read<Caller, Ext>(
         self,
         ctx: &mut CallerWrap<Caller>,
@@ -337,6 +412,8 @@ impl<T: Decode + MaxEncodedLen> ReadDecodedSpecial<T> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
+        log::debug!(target: "syscalls", "ReadDecodedSpecial::read");
+
         match self.read {
             Some(read) => io.read_decoded(ctx, read),
             None => Ok(Default::default()),
@@ -355,6 +432,8 @@ impl Write {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
+        log::debug!(target: "syscalls", "Write::write");
+
         io.write(ctx, self.write, buff)
     }
 
@@ -374,6 +453,8 @@ impl<T> WriteAs<T> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
+        log::debug!(target: "syscalls", "WriteAs::write");
+
         io.write_as(ctx, self.write, obj)
     }
 }
@@ -426,6 +507,14 @@ pub(crate) trait Syscall<Caller, T = ()> {
     ) -> Result<(Gas, T), HostError>;
 }
 
+type BuildResult<Call, Caller> = Result<
+    (
+        Call,
+        Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
+    ),
+    HostError,
+>;
+
 /// Trait is implemented for functions.
 ///
 /// # Generics
@@ -435,17 +524,7 @@ pub(crate) trait SyscallBuilder<Caller, Args: ?Sized, Res, Call>
 where
     Call: Syscall<Caller, Res>,
 {
-    fn build(
-        self,
-        ctx: &mut CallerWrap<Caller>,
-        args: &[Value],
-    ) -> Result<
-        (
-            Call,
-            Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
-        ),
-        HostError,
-    >;
+    fn build(self, ctx: &mut CallerWrap<Caller>, args: &[Value]) -> BuildResult<Call, Caller>;
 }
 
 impl<Caller, Res, Call, Builder> SyscallBuilder<Caller, (), Res, Call> for Builder
@@ -453,17 +532,7 @@ where
     Builder: FnOnce() -> Call,
     Call: Syscall<Caller, Res>,
 {
-    fn build(
-        self,
-        _: &mut CallerWrap<Caller>,
-        args: &[Value],
-    ) -> Result<
-        (
-            Call,
-            Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
-        ),
-        HostError,
-    > {
+    fn build(self, _: &mut CallerWrap<Caller>, args: &[Value]) -> BuildResult<Call, Caller> {
         let _: [Value; 0] = args.try_into().map_err(|_| HostError)?;
         Ok(((self)(), None))
     }
@@ -474,17 +543,7 @@ where
     Builder: for<'a> FnOnce(&'a [Value]) -> Call,
     Call: Syscall<Caller, Res>,
 {
-    fn build(
-        self,
-        _: &mut CallerWrap<Caller>,
-        args: &[Value],
-    ) -> Result<
-        (
-            Call,
-            Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
-        ),
-        HostError,
-    > {
+    fn build(self, _: &mut CallerWrap<Caller>, args: &[Value]) -> BuildResult<Call, Caller> {
         Ok(((self)(args), None))
     }
 }
@@ -493,11 +552,13 @@ where
 macro_rules! impl_syscall_builder {
     ($($generic:ident),+) => {
         #[allow(non_snake_case)]
-        impl<Caller, Res, Call, Builder, $($generic),+> SyscallBuilder<Caller, ($($generic,)+), Res, Call>
+        impl<Caller, Ext, Res, Call, Builder, $($generic),+> SyscallBuilder<Caller, ($($generic,)+), Res, Call>
             for Builder
         where
             Builder: FnOnce($($generic),+) -> Call,
             Call: Syscall<Caller, Res>,
+            Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
+            Ext: BackendExternalities + 'static,
             $( $generic: SyscallArg, )+
         {
             fn build(self, caller: &mut CallerWrap<Caller>, args: &[Value]) -> Result<
@@ -507,32 +568,33 @@ macro_rules! impl_syscall_builder {
                 ),
                 HostError,
             > {
-                const ARGS_AMOUNT: usize = impl_syscall_builder!(@count $($generic),+);
+                let ARGS_AMOUNT: usize = 0 $( + $generic::REQUIRED_ARGS )+;
 
-                let args: [Value; ARGS_AMOUNT] = args.try_into().map_err(|_| HostError)?;
+                if(args.len() != ARGS_AMOUNT) {
+                    log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", ARGS_AMOUNT, args.len());
+                    return Err(HostError);
+                }
 
                 let mut registry = MemoryAccessRegistry::default();
 
-                impl_syscall_builder!(@generate_args [0] registry args $($generic,)+);
+                let mut index = 0;
+                $(
+                    let args_count = $generic::REQUIRED_ARGS;
+                    let args_slice = &args[index..index + args_count];
+                    let $generic = $generic::new(&mut registry, args_slice).map_err(|_| HostError)?;
+                    index += args_count;
+                )+
+
+                if(index != ARGS_AMOUNT) {
+                    log::debug!(target: "syscalls", "Invalid index");
+                    return Err(HostError);
+                }
 
                 let io = registry.pre_process(caller).map_err(|_| HostError)?;
 
                 Ok(((self)($($generic),+), Some(io)))
             }
         }
-    };
-    (@count $generic:ident) => { 1 };
-    (@count $generic:ident, $($generics:ident),+) => { 1 + impl_syscall_builder!(@count $($generics),+) };
-    (@generate_args [$index:expr] $registry:ident $args:ident) => {};
-    (@generate_args [$index:expr] $registry:ident $args:ident $first_arg:ident, $( $rest_arg:ident, )*) => {
-        let $first_arg;
-        if($first_arg::COMPLEX) {
-            let complex_args = $args[$index..($index + $first_arg::REQUIRED_ARGS)].try_into().map_err(|_| HostError)?;
-            $first_arg = $first_arg::new(&mut $registry, &complex_args).map_err(|_| HostError)?;
-        } else {
-            $first_arg = $args[$index].try_into().map_err(|_| HostError)?;
-        }
-        impl_syscall_builder!(@generate_args [$index + 1] $registry $args $( $rest_arg, )*);
     };
 }
 
@@ -541,8 +603,8 @@ impl_syscall_builder!(A, B);
 impl_syscall_builder!(A, B, C);
 impl_syscall_builder!(A, B, C, D);
 impl_syscall_builder!(A, B, C, D, E);
-impl_syscall_builder!(A, B, C, D, E, F);
-impl_syscall_builder!(A, B, C, D, E, F, G);
+// impl_syscall_builder!(A, B, C, D, E, F);
+// impl_syscall_builder!(A, B, C, D, E, F, G);
 
 /// "raw" syscall without any argument parsing or without calling [`CallerWrap`] helper methods
 struct RawSyscall<F>(F);
@@ -565,10 +627,10 @@ where
     fn execute(
         self,
         caller: &mut CallerWrap<Caller>,
-        _io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
+        io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
         (): Self::Context,
     ) -> Result<(Gas, T), HostError> {
-        (self.0)(caller)
+        (self.0)(caller, io)
     }
 }
 
@@ -709,6 +771,9 @@ where
         let mut caller = CallerWrap::new(caller);
 
         let (ctx, args) = Call::Context::from_args(args)?;
+
+        log::debug!(target: "syscalls", "real args: {:?}", args);
+
         let (syscall, mut io) = builder.build(&mut caller, args)?;
         let (gas, value) = syscall.execute(&mut caller, &mut io, ctx)?;
         let value = value.into();
@@ -744,7 +809,11 @@ where
             value,
         } = pid_value.read(ctx, io)?;
 
+        log::debug!(target: "HUI", "send_inner: destination: {:?}, value: {:?}", destination, value);
+
         let payload = Self::read_message_payload(ctx, io, payload)?;
+
+        log::debug!(target: "HUI", "send_inner: payload: {:?}", payload);
 
         ctx.ext_mut()
             .send(
@@ -762,6 +831,7 @@ where
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::Send(payload.size().into()),
             move |ctx: &mut CallerWrap<Caller>, io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>| {
+                log::debug!(target: "HUI", "HUI");
                 Self::send_inner(ctx, io.as_mut().unwrap(), pid_value, payload, None, delay)
             },
         )
@@ -911,8 +981,8 @@ where
         FallibleSyscall::new::<ErrorBytes>(CostToken::Read, move |ctx: &mut CallerWrap<Caller>, io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>| {
             let payload_lock = ctx.ext_mut().lock_payload(at, buffer.size())?;
             payload_lock
-                .drop_with::<MemoryAccessError, _>(|payload_access| {
-                    let mut f = move || {
+                .drop_with::<MemoryAccessError, _>(move |payload_access| {
+                    let  f = || {
                         buffer.write(ctx, io.as_mut().unwrap(), payload_access.as_slice())?;
                         Ok(())
                     };
@@ -1067,29 +1137,24 @@ where
         )
     }
 
-    pub fn block_timestamp(timestamp_ptr: u32) -> impl Syscall<Caller> {
+    pub fn block_timestamp(timestamp_write: WriteAs<[u8; 8]>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::BlockTimestamp,
-            move |ctx: &mut CallerWrap<Caller>, _io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>| {
+            move |ctx: &mut CallerWrap<Caller>, io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>| {
                 let timestamp = ctx.ext_mut().block_timestamp()?;
 
-                let mut registry = MemoryAccessRegistry::default();
-                let write_timestamp = registry.register_write_as(timestamp_ptr);
-                let mut io = registry.pre_process(ctx)?;
-                io.write_as(ctx, write_timestamp, timestamp.to_le_bytes())
+                timestamp_write.write(ctx, io.as_mut().unwrap(), timestamp.to_le_bytes())
                     .map_err(Into::into)
             },
         )
     }
 
-    pub fn random(subject_ptr: u32, bn_random_ptr: u32) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Random, move |ctx: &mut CallerWrap<Caller>, _io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>| {
-            let mut registry = MemoryAccessRegistry::default();
-            let read_subject = registry.register_read_decoded(subject_ptr);
-            let write_bn_random = registry.register_write_as(bn_random_ptr);
-            let mut io = registry.pre_process(ctx)?;
-
-            let raw_subject: Hash = io.read_decoded(ctx, read_subject)?;
+    pub fn random(
+        subject_ptr: ReadDecoded<Hash>,
+        bn_random_ptr: WriteAs<BlockNumberWithHash>,
+    ) -> impl Syscall<Caller> {
+        InfallibleSyscall::new(CostToken::Random, move |ctx: &mut CallerWrap<Caller>, io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>| {
+            let raw_subject = subject_ptr.read(ctx, io.as_mut().unwrap())?;
             let (random, bn) = ctx.ext_mut().random()?;
             let subject = [&raw_subject, random].concat();
 
@@ -1097,7 +1162,7 @@ where
             blake2_ctx.update(subject);
             let hash = blake2_ctx.finalize().into();
 
-            io.write_as(ctx, write_bn_random, BlockNumberWithHash { bn, hash })
+            bn_random_ptr.write(ctx, io.as_mut().unwrap(), BlockNumberWithHash { bn, hash })
                 .map_err(Into::into)
         })
     }
