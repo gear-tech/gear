@@ -25,7 +25,7 @@ runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-core.workspace = true
 gear-utils.workspace = true
-vara-runtime = { workspace = true, features = ["std", "dev", "fuzz"] }
+vara-runtime = { workspace = true, features = ["std", "dev"] }
 pallet-gear.workspace = true
 pallet-gear-bank.workspace = true
 
