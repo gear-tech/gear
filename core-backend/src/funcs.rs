@@ -164,7 +164,6 @@ macro_rules! impl_syscall_builder {
                 let ARGS_AMOUNT: usize = 0 $( + $generic::REQUIRED_ARGS )+;
 
                 if args.len() != ARGS_AMOUNT {
-                    log::debug!(target: "syscalls", "Invalid arguments amount, required args: {}, actual args: {}", ARGS_AMOUNT, args.len());
                     return Err(HostError);
                 }
 
@@ -183,7 +182,6 @@ macro_rules! impl_syscall_builder {
                 )+
 
                 if(index != ARGS_AMOUNT) {
-                    log::debug!(target: "syscalls", "Invalid index");
                     return Err(HostError);
                 }
 
