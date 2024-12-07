@@ -1769,7 +1769,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(body::from_instructions(vec![Instruction::I64Const(0x7ffffffff3ffffff)])),
-            aux_res: Some(ValueType::I64),
+            aux_res: vec![ValueType::I64],
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(OFFSET_AUX),
                 Instruction::Drop,
@@ -1837,6 +1837,36 @@ benchmarks! {
             .. Default::default()
         }));
     }: {
+        sbox.invoke();
+    }
+
+    instr_call_indirect_per_result {
+        let r in 0 .. T::Schedule::get().limits.results;
+
+        #[cfg(not(force_wasmer_cranelift_i_know_what_i_do))]
+        let _ = r;
+
+        #[cfg(force_wasmer_cranelift_i_know_what_i_do)]
+        let mut sbox = {
+            let num_elements = T::Schedule::get().limits.table_size;
+            Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+                aux_body: Some(body::repeated_dyn(r, vec![RandomI64(0, num_elements as i64)])),
+                aux_res: vec![ValueType::I64; r as usize],
+                handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
+                    RandomI32(0, num_elements as i32),
+                    Regular(Instruction::CallIndirect(r.min(1), 0)), // aux signature: 1 or 0
+                    DropRepeated(r as usize),
+                ])),
+                table: Some(TableSegment {
+                    num_elements,
+                    function_index: OFFSET_AUX,
+                    init_elements: Default::default(),
+                }),
+                .. Default::default()
+            }))
+        };
+    }: {
+        #[cfg(force_wasmer_cranelift_i_know_what_i_do)]
         sbox.invoke();
     }
 

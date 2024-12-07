@@ -21,7 +21,9 @@
 //! is because they are for the on-chain environment data.
 
 use anyhow::{anyhow, Context, Result};
-use wasmer::{Engine, FunctionEnv, Imports, Instance, Memory, MemoryType, Module, Store};
+use wasmer::{
+    Engine, FunctionEnv, Imports, Instance, Memory, MemoryType, Module, Singlepass, Store,
+};
 
 /// HostState for the WASM executor
 #[derive(Default)]
@@ -37,7 +39,7 @@ pub fn call_metadata(wasm: &[u8]) -> Result<Vec<u8>> {
 
 /// Executes the WASM code.
 fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
-    let engine = Engine::default();
+    let engine = Engine::from(Singlepass::default());
     let module = Module::new(&engine, wasm).unwrap();
 
     let mut store = Store::new(engine);
