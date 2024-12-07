@@ -1847,7 +1847,7 @@ benchmarks! {
         let _ = r;
 
         #[cfg(force_wasmer_cranelift_i_know_what_i_do)]
-        let sbox = {
+        let mut sbox = {
             let num_elements = T::Schedule::get().limits.table_size;
             Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
                 aux_body: Some(body::repeated_dyn(r, vec![RandomI64(0, num_elements as i64)])),
