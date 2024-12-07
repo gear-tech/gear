@@ -180,6 +180,7 @@ pub const BUILTIN_ID: u64 = 1;
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (ActorWithId<BUILTIN_ID, crate::builtin::Actor<Test>>,);
+    type BlockLimiter = GearGas;
     type WeightInfo = ();
 }
 
@@ -292,6 +293,7 @@ impl pallet_gear_eth_bridge::Config for Test {
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
     type SessionsPerEra = SessionsPerEra;
+    type BlockLimiter = GearGas;
     type WeightInfo = ();
 }
 

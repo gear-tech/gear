@@ -181,18 +181,27 @@ fn multi_miller_loop() {
             _ => false,
         }));
 
-        // Check the computations are correct
+        // Check the case of the block gas allowance having been exceeded
         System::reset_events();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
-            payload,
+            payload.clone(),
             gas_info.min_limit,
             0,
             false,
         ));
 
+        run_for_n_blocks(1, Some(gas_info.min_limit - 1));
+
+        // The dispatch is still in the queue
+        assert!(!message_queue_empty());
+
+        // Check the computations are correct
+        System::reset_events();
+
+        // No need to send another message, the dispatch is still in the queue
         run_to_next_block();
 
         let response = match System::events().into_iter().find_map(|e| match e.event {
