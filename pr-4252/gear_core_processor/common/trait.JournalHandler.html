@@ -1,0 +1,176 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Journal handler."><title>JournalHandler in gear_core_processor::common - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-99073656bbb10eb3.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="gear_core_processor" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (612a33f20 2024-07-29)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-2a506944c89e7bb4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../gear_core_processor/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../gear_core_processor/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../../gear_core_processor/index.html">gear_core_processor</a><span class="version">1.7.0</span></h2></div><h2 class="location"><a href="#">JournalHandler</a></h2><div class="sidebar-elems"><section><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.exit_dispatch">exit_dispatch</a></li><li><a href="#tymethod.gas_burned">gas_burned</a></li><li><a href="#tymethod.message_consumed">message_consumed</a></li><li><a href="#tymethod.message_dispatched">message_dispatched</a></li><li><a href="#tymethod.reply_deposit">reply_deposit</a></li><li><a href="#tymethod.reserve_gas">reserve_gas</a></li><li><a href="#tymethod.send_dispatch">send_dispatch</a></li><li><a href="#tymethod.send_signal">send_signal</a></li><li><a href="#tymethod.send_value">send_value</a></li><li><a href="#tymethod.stop_processing">stop_processing</a></li><li><a href="#tymethod.store_new_programs">store_new_programs</a></li><li><a href="#tymethod.system_reserve_gas">system_reserve_gas</a></li><li><a href="#tymethod.system_unreserve_gas">system_unreserve_gas</a></li><li><a href="#tymethod.unreserve_gas">unreserve_gas</a></li><li><a href="#tymethod.update_allocations">update_allocations</a></li><li><a href="#tymethod.update_gas_reservation">update_gas_reservation</a></li><li><a href="#tymethod.update_pages_data">update_pages_data</a></li><li><a href="#tymethod.wait_dispatch">wait_dispatch</a></li><li><a href="#tymethod.wake_message">wake_message</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><h2><a href="index.html">In gear_core_processor::common</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Trait <a href="../index.html">gear_core_processor</a>::<wbr><a href="index.html">common</a>::<wbr><a class="trait" href="#">JournalHandler</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../../src/gear_core_processor/common.rs.html#346-428">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><pre class="rust item-decl"><code>pub trait JournalHandler {
+<details class="toggle type-contents-toggle"><summary class="hideme"><span>Show 19 methods</span></summary>    // Required methods
+    fn <a href="#tymethod.message_dispatched" class="fn">message_dispatched</a>(
+        &amp;mut self,
+        message_id: MessageId,
+        source: ProgramId,
+        outcome: <a class="enum" href="enum.DispatchOutcome.html" title="enum gear_core_processor::common::DispatchOutcome">DispatchOutcome</a>,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.gas_burned" class="fn">gas_burned</a>(&amp;mut self, message_id: MessageId, amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>);
+<span class="item-spacer"></span>    fn <a href="#tymethod.exit_dispatch" class="fn">exit_dispatch</a>(
+        &amp;mut self,
+        id_exited: ProgramId,
+        value_destination: ProgramId,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.message_consumed" class="fn">message_consumed</a>(&amp;mut self, message_id: MessageId);
+<span class="item-spacer"></span>    fn <a href="#tymethod.send_dispatch" class="fn">send_dispatch</a>(
+        &amp;mut self,
+        message_id: MessageId,
+        dispatch: Dispatch,
+        delay: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+        reservation: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ReservationId&gt;,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.wait_dispatch" class="fn">wait_dispatch</a>(
+        &amp;mut self,
+        dispatch: StoredDispatch,
+        duration: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;,
+        waited_type: MessageWaitedType,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.wake_message" class="fn">wake_message</a>(
+        &amp;mut self,
+        message_id: MessageId,
+        program_id: ProgramId,
+        awakening_id: MessageId,
+        delay: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.update_pages_data" class="fn">update_pages_data</a>(
+        &amp;mut self,
+        program_id: ProgramId,
+        pages_data: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html" title="struct alloc::collections::btree::map::BTreeMap">BTreeMap</a>&lt;GearPage, PageBuf&gt;,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.update_allocations" class="fn">update_allocations</a>(
+        &amp;mut self,
+        program_id: ProgramId,
+        allocations: IntervalsTree&lt;WasmPage&gt;,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.send_value" class="fn">send_value</a>(
+        &amp;mut self,
+        from: ProgramId,
+        to: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ProgramId&gt;,
+        value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.store_new_programs" class="fn">store_new_programs</a>(
+        &amp;mut self,
+        program_id: ProgramId,
+        code_id: CodeId,
+        candidates: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(MessageId, ProgramId)&gt;,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.stop_processing" class="fn">stop_processing</a>(&amp;mut self, dispatch: StoredDispatch, gas_burned: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>);
+<span class="item-spacer"></span>    fn <a href="#tymethod.reserve_gas" class="fn">reserve_gas</a>(
+        &amp;mut self,
+        message_id: MessageId,
+        reservation_id: ReservationId,
+        program_id: ProgramId,
+        amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+        bn: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.unreserve_gas" class="fn">unreserve_gas</a>(
+        &amp;mut self,
+        reservation_id: ReservationId,
+        program_id: ProgramId,
+        expiration: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.update_gas_reservation" class="fn">update_gas_reservation</a>(
+        &amp;mut self,
+        program_id: ProgramId,
+        reserver: GasReserver,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.system_reserve_gas" class="fn">system_reserve_gas</a>(&amp;mut self, message_id: MessageId, amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>);
+<span class="item-spacer"></span>    fn <a href="#tymethod.system_unreserve_gas" class="fn">system_unreserve_gas</a>(&amp;mut self, message_id: MessageId);
+<span class="item-spacer"></span>    fn <a href="#tymethod.send_signal" class="fn">send_signal</a>(
+        &amp;mut self,
+        message_id: MessageId,
+        destination: ProgramId,
+        code: SignalCode,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.reply_deposit" class="fn">reply_deposit</a>(
+        &amp;mut self,
+        message_id: MessageId,
+        future_reply_id: MessageId,
+        amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+    );
+</details>}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Journal handler.</p>
+<p>Something that can update state.</p>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.message_dispatched" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#348-353">source</a><h4 class="code-header">fn <a href="#tymethod.message_dispatched" class="fn">message_dispatched</a>(
+    &amp;mut self,
+    message_id: MessageId,
+    source: ProgramId,
+    outcome: <a class="enum" href="enum.DispatchOutcome.html" title="enum gear_core_processor::common::DispatchOutcome">DispatchOutcome</a>,
+)</h4></section></summary><div class="docblock"><p>Process message dispatch.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.gas_burned" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#355">source</a><h4 class="code-header">fn <a href="#tymethod.gas_burned" class="fn">gas_burned</a>(&amp;mut self, message_id: MessageId, amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>)</h4></section></summary><div class="docblock"><p>Process gas burned.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.exit_dispatch" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#357">source</a><h4 class="code-header">fn <a href="#tymethod.exit_dispatch" class="fn">exit_dispatch</a>(&amp;mut self, id_exited: ProgramId, value_destination: ProgramId)</h4></section></summary><div class="docblock"><p>Process exit dispatch.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.message_consumed" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#359">source</a><h4 class="code-header">fn <a href="#tymethod.message_consumed" class="fn">message_consumed</a>(&amp;mut self, message_id: MessageId)</h4></section></summary><div class="docblock"><p>Process message consumed.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.send_dispatch" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#361-367">source</a><h4 class="code-header">fn <a href="#tymethod.send_dispatch" class="fn">send_dispatch</a>(
+    &amp;mut self,
+    message_id: MessageId,
+    dispatch: Dispatch,
+    delay: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+    reservation: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ReservationId&gt;,
+)</h4></section></summary><div class="docblock"><p>Process send dispatch.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.wait_dispatch" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#369-374">source</a><h4 class="code-header">fn <a href="#tymethod.wait_dispatch" class="fn">wait_dispatch</a>(
+    &amp;mut self,
+    dispatch: StoredDispatch,
+    duration: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;,
+    waited_type: MessageWaitedType,
+)</h4></section></summary><div class="docblock"><p>Process send message.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.wake_message" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#376-382">source</a><h4 class="code-header">fn <a href="#tymethod.wake_message" class="fn">wake_message</a>(
+    &amp;mut self,
+    message_id: MessageId,
+    program_id: ProgramId,
+    awakening_id: MessageId,
+    delay: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+)</h4></section></summary><div class="docblock"><p>Process send message.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.update_pages_data" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#384">source</a><h4 class="code-header">fn <a href="#tymethod.update_pages_data" class="fn">update_pages_data</a>(
+    &amp;mut self,
+    program_id: ProgramId,
+    pages_data: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html" title="struct alloc::collections::btree::map::BTreeMap">BTreeMap</a>&lt;GearPage, PageBuf&gt;,
+)</h4></section></summary><div class="docblock"><p>Process page update.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.update_allocations" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#386">source</a><h4 class="code-header">fn <a href="#tymethod.update_allocations" class="fn">update_allocations</a>(
+    &amp;mut self,
+    program_id: ProgramId,
+    allocations: IntervalsTree&lt;WasmPage&gt;,
+)</h4></section></summary><div class="docblock"><p>Process <a href="enum.JournalNote.html#variant.UpdateAllocations" title="variant gear_core_processor::common::JournalNote::UpdateAllocations">JournalNote::UpdateAllocations</a>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.send_value" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#388">source</a><h4 class="code-header">fn <a href="#tymethod.send_value" class="fn">send_value</a>(&amp;mut self, from: ProgramId, to: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ProgramId&gt;, value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)</h4></section></summary><div class="docblock"><p>Send value.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.store_new_programs" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#392-397">source</a><h4 class="code-header">fn <a href="#tymethod.store_new_programs" class="fn">store_new_programs</a>(
+    &amp;mut self,
+    program_id: ProgramId,
+    code_id: CodeId,
+    candidates: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(MessageId, ProgramId)&gt;,
+)</h4></section></summary><div class="docblock"><p>Store new programs in storage.</p>
+<p>Program ids are ids of <em>potential</em> (planned to be initialized) programs.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.stop_processing" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#401">source</a><h4 class="code-header">fn <a href="#tymethod.stop_processing" class="fn">stop_processing</a>(&amp;mut self, dispatch: StoredDispatch, gas_burned: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>)</h4></section></summary><div class="docblock"><p>Stop processing queue.</p>
+<p>Pushes StoredDispatch back to the top of the queue and decreases gas allowance.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.reserve_gas" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#403-410">source</a><h4 class="code-header">fn <a href="#tymethod.reserve_gas" class="fn">reserve_gas</a>(
+    &amp;mut self,
+    message_id: MessageId,
+    reservation_id: ReservationId,
+    program_id: ProgramId,
+    amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+    bn: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+)</h4></section></summary><div class="docblock"><p>Reserve gas.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.unreserve_gas" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#412-417">source</a><h4 class="code-header">fn <a href="#tymethod.unreserve_gas" class="fn">unreserve_gas</a>(
+    &amp;mut self,
+    reservation_id: ReservationId,
+    program_id: ProgramId,
+    expiration: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+)</h4></section></summary><div class="docblock"><p>Unreserve gas.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.update_gas_reservation" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#419">source</a><h4 class="code-header">fn <a href="#tymethod.update_gas_reservation" class="fn">update_gas_reservation</a>(
+    &amp;mut self,
+    program_id: ProgramId,
+    reserver: GasReserver,
+)</h4></section></summary><div class="docblock"><p>Update gas reservations.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.system_reserve_gas" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#421">source</a><h4 class="code-header">fn <a href="#tymethod.system_reserve_gas" class="fn">system_reserve_gas</a>(&amp;mut self, message_id: MessageId, amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>)</h4></section></summary><div class="docblock"><p>Do system reservation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.system_unreserve_gas" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#423">source</a><h4 class="code-header">fn <a href="#tymethod.system_unreserve_gas" class="fn">system_unreserve_gas</a>(&amp;mut self, message_id: MessageId)</h4></section></summary><div class="docblock"><p>Do system unreservation.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.send_signal" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#425">source</a><h4 class="code-header">fn <a href="#tymethod.send_signal" class="fn">send_signal</a>(
+    &amp;mut self,
+    message_id: MessageId,
+    destination: ProgramId,
+    code: SignalCode,
+)</h4></section></summary><div class="docblock"><p>Send system signal.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.reply_deposit" class="method"><a class="src rightside" href="../../src/gear_core_processor/common.rs.html#427">source</a><h4 class="code-header">fn <a href="#tymethod.reply_deposit" class="fn">reply_deposit</a>(
+    &amp;mut self,
+    message_id: MessageId,
+    future_reply_id: MessageId,
+    amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+)</h4></section></summary><div class="docblock"><p>Create deposit for future reply.</p>
+</div></details></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"></div><script src="../../trait.impl/gear_core_processor/common/trait.JournalHandler.js" async></script></section></div></main></body></html>
