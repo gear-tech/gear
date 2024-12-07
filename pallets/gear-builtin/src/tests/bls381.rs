@@ -95,7 +95,7 @@ fn decoding_error() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::UserspacePanic,
@@ -137,7 +137,7 @@ fn multi_miller_loop() {
 
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::UserspacePanic,
@@ -172,7 +172,7 @@ fn multi_miller_loop() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::RanOutOfGas,
@@ -197,7 +197,7 @@ fn multi_miller_loop() {
 
         let response = match System::events().into_iter().find_map(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                assert_eq!(message.destination(), ProgramId::from(SIGNER));
+                assert_eq!(message.destination(), SIGNER.cast());
                 assert!(matches!(message.details(), Some(details) if matches!(details.to_reply_code(), ReplyCode::Success(..))));
 
                 Some(message.payload_bytes().to_vec())
@@ -256,7 +256,7 @@ fn final_exponentiation() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::RanOutOfGas,
@@ -281,7 +281,7 @@ fn final_exponentiation() {
 
         let response = match System::events().into_iter().find_map(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                assert_eq!(message.destination(), ProgramId::from(SIGNER));
+                assert_eq!(message.destination(), SIGNER.cast());
                 assert!(matches!(message.details(), Some(details) if matches!(details.to_reply_code(), ReplyCode::Success(..))));
 
                 Some(message.payload_bytes().to_vec())
@@ -339,7 +339,7 @@ fn msm_g1() {
 
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::UserspacePanic,
@@ -374,7 +374,7 @@ fn msm_g1() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::RanOutOfGas,
@@ -399,7 +399,7 @@ fn msm_g1() {
 
         let response = match System::events().into_iter().find_map(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                assert_eq!(message.destination(), ProgramId::from(SIGNER));
+                assert_eq!(message.destination(), SIGNER.cast());
                 assert!(matches!(message.details(), Some(details) if matches!(details.to_reply_code(), ReplyCode::Success(..))));
 
                 Some(message.payload_bytes().to_vec())
@@ -457,7 +457,7 @@ fn msm_g2() {
 
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::UserspacePanic,
@@ -492,7 +492,7 @@ fn msm_g2() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::RanOutOfGas,
@@ -517,7 +517,7 @@ fn msm_g2() {
 
         let response = match System::events().into_iter().find_map(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                assert_eq!(message.destination(), ProgramId::from(SIGNER));
+                assert_eq!(message.destination(), SIGNER.cast());
                 assert!(matches!(message.details(), Some(details) if matches!(details.to_reply_code(), ReplyCode::Success(..))));
 
                 Some(message.payload_bytes().to_vec())
@@ -574,7 +574,7 @@ fn mul_projective_g1() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::RanOutOfGas,
@@ -599,7 +599,7 @@ fn mul_projective_g1() {
 
         let response = match System::events().into_iter().find_map(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                assert_eq!(message.destination(), ProgramId::from(SIGNER));
+                assert_eq!(message.destination(), SIGNER.cast());
                 assert!(matches!(message.details(), Some(details) if matches!(details.to_reply_code(), ReplyCode::Success(..))));
 
                 Some(message.payload_bytes().to_vec())
@@ -656,7 +656,7 @@ fn mul_projective_g2() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::RanOutOfGas,
@@ -681,7 +681,7 @@ fn mul_projective_g2() {
 
         let response = match System::events().into_iter().find_map(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                assert_eq!(message.destination(), ProgramId::from(SIGNER));
+                assert_eq!(message.destination(), SIGNER.cast());
                 assert!(matches!(message.details(), Some(details) if matches!(details.to_reply_code(), ReplyCode::Success(..))));
 
                 Some(message.payload_bytes().to_vec())
@@ -717,7 +717,7 @@ fn aggregate_g1() {
         let encoded_points = ark_points.encode();
 
         let payload = Request::AggregateG1 { points: encoded_points }.encode();
-        let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_actor_id = ACTOR_ID.into();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
         // Check the case of insufficient gas
@@ -736,7 +736,7 @@ fn aggregate_g1() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::RanOutOfGas,
@@ -761,7 +761,7 @@ fn aggregate_g1() {
 
         let response = match System::events().into_iter().find_map(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                assert_eq!(message.destination(), ProgramId::from(SIGNER));
+                assert_eq!(message.destination(), SIGNER.cast());
                 assert!(matches!(message.details(), Some(details) if matches!(details.to_reply_code(), ReplyCode::Success(..))));
 
                 Some(message.payload_bytes().to_vec())
@@ -816,7 +816,7 @@ fn map_to_g2affine() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER)
+                message.destination() == SIGNER.cast()
                     && matches!(message.details(), Some(details) if details.to_reply_code()
                     == ReplyCode::Error(ErrorReplyReason::Execution(
                         SimpleExecutionError::RanOutOfGas,
@@ -841,7 +841,7 @@ fn map_to_g2affine() {
 
         let response = match System::events().into_iter().find_map(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                assert_eq!(message.destination(), ProgramId::from(SIGNER));
+                assert_eq!(message.destination(), SIGNER.cast());
                 assert!(matches!(message.details(), Some(details) if matches!(details.to_reply_code(), ReplyCode::Success(..))));
 
                 Some(message.payload_bytes().to_vec())

@@ -237,7 +237,7 @@ fn calculate_gas_info_works() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER) && message.details().is_some() && {
+                message.destination() == SIGNER.cast() && message.details().is_some() && {
                     let details = message.details().expect("Value checked above");
                     details.to_reply_code()
                         == ReplyCode::Error(ErrorReplyReason::Execution(

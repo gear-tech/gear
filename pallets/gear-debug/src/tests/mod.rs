@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::mock::*;
-use common::{self, event::MessageEntry, CodeStorage, Origin as _};
+use common::{self, event::MessageEntry, CodeStorage, Origin};
 use frame_support::assert_ok;
 use gear_core::{
     ids::{prelude::*, CodeId, MessageId, ProgramId},
@@ -251,7 +251,7 @@ fn debug_mode_works() {
                         DispatchKind::Handle,
                         StoredMessage::new(
                             message_id_1,
-                            1.into(),
+                            1.cast(),
                             program_id_1,
                             Default::default(),
                             0,
@@ -263,7 +263,7 @@ fn debug_mode_works() {
                         DispatchKind::Handle,
                         StoredMessage::new(
                             message_id_2,
-                            1.into(),
+                            1.cast(),
                             program_id_2,
                             Default::default(),
                             0,
@@ -356,10 +356,12 @@ fn get_last_program_id() -> ProgramId {
 }
 
 #[track_caller]
-fn maybe_last_message(account: u64) -> Option<UserMessage> {
+fn maybe_last_message(account: impl Origin) -> Option<UserMessage> {
+    let account = account.cast();
+
     System::events().into_iter().rev().find_map(|e| {
         if let super::mock::RuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-            if message.destination() == account.into() {
+            if message.destination() == account {
                 Some(message)
             } else {
                 None
