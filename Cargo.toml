@@ -554,6 +554,9 @@ fs4 = "0.11.1"                                               # utils/gear-wasmer
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)'] }
+
 [profile.dev.package.corosensei]
 opt-level = 3
 

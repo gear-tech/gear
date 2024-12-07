@@ -347,13 +347,14 @@ fn lazy_page_costs_heuristic_test() {
 #[test]
 fn write_is_not_too_cheap() {
     let costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
+    #[allow(clippy::unnecessary_min_or_max)]
     let cheapest_write = u64::MAX
         .min(costs.signal_write.cost_for_one())
         .min(costs.signal_read.cost_for_one() + costs.signal_write_after_read.cost_for_one())
         .min(costs.host_func_write.cost_for_one())
         .min(costs.host_func_read.cost_for_one() + costs.host_func_write_after_read.cost_for_one());
 
-    let block_max_gas = 3 * 10 ^ 12; // 3 seconds
+    let block_max_gas = 3 * (10 ^ 12); // 3 seconds
     let runtime_heap_size_in_wasm_pages = 0x4000; // 1GB
     assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);
 }

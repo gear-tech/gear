@@ -28,7 +28,7 @@ fn proptest_input_validity() {
         GearCallsGenerator::random_data_requirement() + BalanceManager::random_data_requirement();
 
     assert!(MIN_GEAR_CALLS_BYTES >= min_unstructured_input_size);
-    assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
+    const _: () = assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
 }
 
 #[test]

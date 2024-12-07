@@ -19,7 +19,7 @@
 #[cfg(all(feature = "std", not(feature = "metadata-hash")))]
 fn main() {
     substrate_build_script_utils::generate_cargo_keys();
-    #[cfg(all(feature = "std", not(feature = "fuzz")))]
+    #[cfg(all(feature = "std", not(fuzz)))]
     {
         substrate_wasm_builder::WasmBuilder::build_using_defaults()
     }
@@ -28,7 +28,7 @@ fn main() {
 #[cfg(all(feature = "std", feature = "metadata-hash"))]
 fn main() {
     substrate_build_script_utils::generate_cargo_keys();
-    #[cfg(all(feature = "std", not(feature = "fuzz")))]
+    #[cfg(all(feature = "std", not(fuzz)))]
     {
         substrate_wasm_builder::WasmBuilder::init_with_defaults()
             .enable_metadata_hash("VARA", 12)

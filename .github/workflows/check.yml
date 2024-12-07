@@ -105,6 +105,7 @@ jobs:
     runs-on: [kuberunner, github-runner-01]
     env:
       RUSTUP_HOME: /tmp/rustup_home
+      RUSTFLAGS: "--cfg fuzz"
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
