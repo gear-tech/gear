@@ -97,6 +97,7 @@ pub(crate) enum MemoryAccessError {
     Memory(MemoryError),
     ProcessAccess(ProcessAccessError),
     RuntimeBuffer(RuntimeBufferSizeError),
+    ManagerError,
     // TODO: remove #2164
     Decode,
 }
@@ -122,6 +123,9 @@ impl BackendSyscallError for MemoryAccessError {
             // pre-process charges: now we need actual counter type, so
             // it will be parsed and handled further (issue #3018).
             MemoryAccessError::ProcessAccess(ProcessAccessError::GasLimitExceeded) => {
+                UndefinedTerminationReason::ProcessAccessErrorResourcesExceed
+            }
+            MemoryAccessError::ManagerError => {
                 UndefinedTerminationReason::ProcessAccessErrorResourcesExceed
             }
             e @ MemoryAccessError::Decode => {

@@ -57,5 +57,5 @@ fn function_name<T>() -> &'static str {
 }
 
 pub fn trace_syscall<T>(args: &[Value]) {
-    log::debug!(target: "syscalls", "{}({})", function_name::<T>(), ArgsFormatter(args));
+    log::trace!(target: "syscalls", "{}({})", function_name::<T>(), ArgsFormatter(args));
 }

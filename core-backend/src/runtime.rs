@@ -20,12 +20,41 @@
 
 use crate::{
     error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
-    memory::{BackendMemory, ExecutorMemory, MemoryAccessIo, MemoryAccessRegistry},
+    memory::{
+        BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessIo, MemoryAccessRegistry,
+    },
     state::{HostState, State},
     BackendExternalities,
 };
 use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{AsContextExt, HostError};
+
+pub(crate) type MemoryAccessIoOption<Caller> =
+    Option<Result<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError>>;
+
+pub(crate) struct MemoryAccessIoWrapper<Caller> {
+    pub io: MemoryAccessIoOption<Caller>,
+}
+
+impl<Caller, Ext, Mem> MemoryAccessIoWrapper<Caller>
+where
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+    Mem: 'static,
+{
+    pub fn new(io: MemoryAccessIoOption<Caller>) -> Self {
+        Self { io }
+    }
+
+    pub fn io_mut_ref(
+        &mut self,
+    ) -> Result<&mut MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError> {
+        match &mut self.io {
+            Some(Ok(io)) => Ok(io),
+            Some(Err(err)) => Err(err.clone()),
+            None => Err(MemoryAccessError::ManagerError),
+        }
+    }
+}
 
 pub(crate) struct CallerWrap<'a, Caller> {
     pub caller: &'a mut Caller,
@@ -77,7 +106,7 @@ where
     #[track_caller]
     pub fn run_any<U, F>(
         &mut self,
-        io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
+        mut io: MemoryAccessIoWrapper<Caller>,
         gas: u64,
         token: CostToken,
         f: F,
@@ -85,14 +114,14 @@ where
     where
         F: FnOnce(
             &mut Self,
-            &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
+            &mut MemoryAccessIoWrapper<Caller>,
         ) -> Result<U, UndefinedTerminationReason>,
     {
         self.state_mut().ext.decrease_current_counter_to(gas);
 
         let run = || {
             self.state_mut().ext.charge_gas_for_token(token)?;
-            f(self, io)
+            f(self, &mut io)
         };
 
         run()
@@ -106,17 +135,14 @@ where
     #[track_caller]
     pub fn run_fallible<U: Sized, F, R>(
         &mut self,
-        io: &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
+        io: MemoryAccessIoWrapper<Caller>,
         gas: u64,
         res_ptr: u32,
         token: CostToken,
         f: F,
     ) -> Result<(u64, ()), HostError>
     where
-        F: FnOnce(
-            &mut Self,
-            &mut Option<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>>,
-        ) -> Result<U, RunFallibleError>,
+        F: FnOnce(&mut Self, &mut MemoryAccessIoWrapper<Caller>) -> Result<U, RunFallibleError>,
         R: From<Result<U, u32>> + Sized,
     {
         self.run_any(
