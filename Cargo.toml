@@ -8,7 +8,7 @@ repository = "https://github.com/gear-tech/gear"
 rust-version = "1.81"
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(force_wasmer_cranelift_i_know_what_i_do)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(force_wasmer_cranelift_i_know_what_i_do)'] }
 
 [workspace]
 resolver = "2"
@@ -556,9 +556,6 @@ smallvec = "1.13.2"                                          # utils/node-wrappe
 fs4 = "0.11.1"                                               # utils/gear-wasmer-cache
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
-
-[workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)'] }
 
 [profile.dev.package.corosensei]
 opt-level = 3
