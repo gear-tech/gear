@@ -27,10 +27,8 @@ use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use pallet_staking::WeightInfo as _;
 use sp_runtime::AccountId32;
 
-#[cfg(feature = "dev")]
-use frame_support::traits::StorageInstance;
-
 mod utils;
+
 use utils::*;
 
 #[cfg(feature = "dev")]

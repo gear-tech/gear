@@ -69,7 +69,7 @@ pub(super) fn check_expectations(expectations: &[WeightExpectation]) -> Result<u
         .collect::<Vec<String>>();
 
     if errors.is_empty() {
-        Ok(expectations.iter().count())
+        Ok(expectations.len())
     } else {
         Err(errors)
     }
