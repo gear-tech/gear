@@ -127,8 +127,8 @@ contract Mirror is IMirror {
         bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
 
         /// @dev Set inheritor if specified.
-        if (_transition.inheritor != address(0)) {
-            _setInheritor(_transition.inheritor);
+        if (_transition.inheritor.length != 0) {
+            _setInheritor(Gear.decodePackedAddress(_transition.inheritor));
         }
 
         /// @dev Update the state hash if changed.
@@ -232,7 +232,6 @@ contract Mirror is IMirror {
         return keccak256(valueClaimsBytes);
     }
 
-    // TODO (breathx): optimize inheritor to bytes WITHIN THE PR.
     function _setInheritor(address _inheritor) private whileActive {
         /// @dev Set inheritor.
         inheritor = _inheritor;

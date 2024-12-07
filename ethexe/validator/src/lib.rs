@@ -281,7 +281,7 @@ mod tests {
         let transition = StateTransition {
             actor_id: H256::random().0.into(),
             new_state_hash: H256::random(),
-            inheritor: H256::random().0.into(),
+            inheritor: Some(H256::random().0.into()),
             value_to_receive: 123,
             value_claims: vec![],
             messages: vec![],

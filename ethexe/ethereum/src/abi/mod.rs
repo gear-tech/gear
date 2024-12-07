@@ -59,7 +59,7 @@ sol!(
 );
 
 pub(crate) mod utils {
-    use alloy::primitives::{FixedBytes, Uint};
+    use alloy::primitives::{Bytes, FixedBytes, Uint};
     use gprimitives::{ActorId, CodeId, MessageId, H256};
 
     pub type Bytes32 = FixedBytes<32>;
@@ -88,6 +88,12 @@ pub(crate) mod utils {
 
     pub fn code_id_to_bytes32(code_id: CodeId) -> Bytes32 {
         code_id.into_bytes().into()
+    }
+
+    pub fn maybe_actor_id_to_addr_bytes(maybe_actor_id: Option<ActorId>) -> Bytes {
+        maybe_actor_id
+            .map(|actor_id| actor_id_to_address_lossy(actor_id).0.into())
+            .unwrap_or_default()
     }
 
     pub fn message_id_to_bytes32(message_id: MessageId) -> Bytes32 {

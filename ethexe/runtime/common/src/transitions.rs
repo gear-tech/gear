@@ -172,7 +172,7 @@ impl InBlockTransitions {
                 res.push(StateTransition {
                     actor_id,
                     new_state_hash,
-                    inheritor: ActorId::zero(),
+                    inheritor: modification.inheritor,
                     value_to_receive: modification.value_to_receive,
                     value_claims: modification.claims,
                     messages: modification.messages,
@@ -187,7 +187,7 @@ impl InBlockTransitions {
 #[derive(Debug, Default)]
 pub struct NonFinalTransition {
     initial_state: H256,
-    pub inheritor: ActorId,
+    pub inheritor: Option<ActorId>,
     pub value_to_receive: u128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
@@ -200,6 +200,6 @@ impl NonFinalTransition {
             // check if state hash changed at final (always op)
             && current_state == self.initial_state
             // check if with unchanged state needs commitment (op)
-            && (self.inheritor.is_zero() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
+            && (self.inheritor.is_none() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
     }
 }
