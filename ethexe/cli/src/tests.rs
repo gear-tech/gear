@@ -501,10 +501,6 @@ async fn ping_reorg() {
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.reply_payload, b"PONG");
 
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(env.block_time).await;
-
     log::info!("📗 Test after reverting to the program creation snapshot");
     provider
         .anvil_revert(program_created_snapshot_id)
@@ -546,10 +542,6 @@ async fn ping_reorg() {
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.reply_payload, b"PONG");
-
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(Duration::from_secs(1)).await;
 }
 
 // Mine 150 blocks - send message - mine 150 blocks.
@@ -1354,7 +1346,6 @@ mod utils {
                 None,
                 None,
             );
-
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);
 

@@ -432,6 +432,13 @@ impl Service {
         }
     }
 
+    pub async fn run(self) -> Result<()> {
+        self.run_inner().await.map_err(|err| {
+            log::error!("Service finished work with error: {err:?}");
+            err
+        })
+    }
+
     async fn run_inner(self) -> Result<()> {
         let Service {
             db,
@@ -589,13 +596,6 @@ impl Service {
         }
 
         Ok(())
-    }
-
-    pub async fn run(self) -> Result<()> {
-        self.run_inner().await.map_err(|err| {
-            log::error!("Service finished work with error: {:?}", err);
-            err
-        })
     }
 
     async fn post_process_commitments(
