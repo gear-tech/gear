@@ -1,0 +1,831 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `core-processor/src/executor.rs`."><title>executor.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-99073656bbb10eb3.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="gear_core_processor" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (612a33f20 2024-07-29)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-2a506944c89e7bb4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<a href="#2" id="2">2</a>
+<a href="#3" id="3">3</a>
+<a href="#4" id="4">4</a>
+<a href="#5" id="5">5</a>
+<a href="#6" id="6">6</a>
+<a href="#7" id="7">7</a>
+<a href="#8" id="8">8</a>
+<a href="#9" id="9">9</a>
+<a href="#10" id="10">10</a>
+<a href="#11" id="11">11</a>
+<a href="#12" id="12">12</a>
+<a href="#13" id="13">13</a>
+<a href="#14" id="14">14</a>
+<a href="#15" id="15">15</a>
+<a href="#16" id="16">16</a>
+<a href="#17" id="17">17</a>
+<a href="#18" id="18">18</a>
+<a href="#19" id="19">19</a>
+<a href="#20" id="20">20</a>
+<a href="#21" id="21">21</a>
+<a href="#22" id="22">22</a>
+<a href="#23" id="23">23</a>
+<a href="#24" id="24">24</a>
+<a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
+<a href="#42" id="42">42</a>
+<a href="#43" id="43">43</a>
+<a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
+<a href="#47" id="47">47</a>
+<a href="#48" id="48">48</a>
+<a href="#49" id="49">49</a>
+<a href="#50" id="50">50</a>
+<a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+</pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+
+// Copyright (C) 2021-2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
+
+</span><span class="kw">use crate</span>::{
+    common::{
+        <a href="common.rs.html#438-443">ActorExecutionError</a>, <a href="common.rs.html#447-464">ActorExecutionErrorReplyReason</a>, <a href="common.rs.html#61-90">DispatchResult</a>, <a href="common.rs.html#47-58">DispatchResultKind</a>,
+        <a href="common.rs.html#430-433">ExecutionError</a>, <a href="common.rs.html#539-548">Program</a>, <a href="common.rs.html#488-507">SystemExecutionError</a>, <a href="common.rs.html#552-563">WasmExecutionContext</a>,
+    },
+    configs::{<a href="configs.rs.html#34-39">BlockInfo</a>, <a href="configs.rs.html#42-66">ExecutionSettings</a>},
+    ext::{<a href="ext.rs.html#65-103">ProcessorContext</a>, <a href="ext.rs.html#167-197">ProcessorExternalities</a>},
+};
+<span class="kw">use </span>alloc::{<a href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">string::String</a>, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">vec::Vec</a>};
+<span class="kw">use </span>gear_core::{
+    code::InstrumentedCode,
+    env::Externalities,
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
+    ids::ProgramId,
+    memory::AllocationsContext,
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        WasmEntryPoint,
+    },
+    pages::{numerated::tree::IntervalsTree, WasmPage},
+    program::MemoryInfix,
+    reservation::GasReserver,
+};
+<span class="kw">use </span>gear_core_backend::{
+    env::{BackendReport, Environment, EnvironmentError},
+    error::{
+        ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
+        TerminationReason,
+    },
+    BackendExternalities,
+};
+
+<span class="doccomment">/// Execute wasm with dispatch and return dispatch result.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>execute_wasm&lt;Ext&gt;(
+    balance: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+    dispatch: IncomingDispatch,
+    context: <a href="common.rs.html#552-563">WasmExecutionContext</a>,
+    settings: <a href="configs.rs.html#42-66">ExecutionSettings</a>,
+    msg_ctx_settings: ContextSettings,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<a href="common.rs.html#61-90">DispatchResult</a>, <a href="common.rs.html#430-433">ExecutionError</a>&gt;
+<span class="kw">where
+    </span>Ext: <a href="ext.rs.html#167-197">ProcessorExternalities</a> + BackendExternalities + <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html">Send</a> + <span class="lifetime">'static</span>,
+    &lt;Ext <span class="kw">as </span>Externalities&gt;::AllocError:
+        BackendAllocSyscallError&lt;ExtError = Ext::UnrecoverableError&gt;,
+    RunFallibleError: From&lt;Ext::FallibleError&gt;,
+    &lt;Ext <span class="kw">as </span>Externalities&gt;::UnrecoverableError: BackendSyscallError,
+{
+    <span class="kw">let </span><a href="common.rs.html#552-563">WasmExecutionContext</a> {
+        gas_counter,
+        gas_allowance_counter,
+        gas_reserver,
+        program,
+        memory_size,
+    } = <a href="#55">context</a>;
+
+    <span class="comment">// TODO: consider avoiding cloning here.
+    </span><span class="kw">let </span>initial_gas_reserver = <a href="#69">gas_reserver</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>();
+
+    <span class="kw">let </span>kind = <a href="#54">dispatch</a>.kind();
+
+    <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(<span class="string">"Executing program {}"</span>, program.id);
+    <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(<span class="string">"Executing dispatch {:?}"</span>, dispatch);
+
+    <span class="comment">// Creating allocations context.
+    </span><span class="kw">let </span>allocations_context = AllocationsContext::try_new(
+        <a href="#71">memory_size</a>,
+        <a href="#70">program</a>.allocations,
+        <a href="#70">program</a>.code.static_pages(),
+        <a href="#70">program</a>.code.stack_end(),
+        <a href="#56">settings</a>.max_pages,
+    )
+    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(SystemExecutionError::from)<span class="question-mark">?</span>;
+
+    <span class="comment">// Creating message context.
+    </span><span class="kw">let </span><span class="prelude-val">Some</span>(message_context) = MessageContext::new(<a href="#54">dispatch</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(), <a href="#70">program</a>.id, <a href="#57">msg_ctx_settings</a>)
+    <span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(<a href="common.rs.html#438-443">ActorExecutionError</a> {
+            gas_amount: <a href="#67">gas_counter</a>.to_amount(),
+            reason: <a href="common.rs.html#463">ActorExecutionErrorReplyReason::UnsupportedMessage</a>,
+        }
+        .<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
+    };
+
+    <span class="comment">// Creating value counter.
+    //
+    // NOTE: Value available equals free balance with message value if value
+    // wasn't transferred to program yet.
+    //
+    // In case of second execution (between waits) - message value already
+    // included in free balance or wasted.
+    </span><span class="kw">let </span>value_available = <a href="#53">balance</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.saturating_add">saturating_add</a>(
+        <a href="#54">dispatch</a>
+            .context()
+            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.is_none">is_none</a>()
+            .<a href="https://doc.rust-lang.org/nightly/core/foreigntype.bool.html#method.then">then</a>(|| <a href="#54">dispatch</a>.value())
+            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_default">unwrap_or_default</a>(),
+    );
+    <span class="kw">let </span>value_counter = ValueCounter::new(<a href="#109">value_available</a>);
+
+    <span class="kw">let </span>context = <a href="ext.rs.html#65-103">ProcessorContext</a> {
+        <a href="#67">gas_counter</a>,
+        <a href="#68">gas_allowance_counter</a>,
+        <a href="#69">gas_reserver</a>,
+        system_reservation: <span class="prelude-val">None</span>,
+        <a href="#116">value_counter</a>,
+        <a href="#83">allocations_context</a>,
+        <a href="#93">message_context</a>,
+        block_info: <a href="#56">settings</a>.block_info,
+        performance_multiplier: <a href="#56">settings</a>.performance_multiplier,
+        program_id: <a href="#70">program</a>.id,
+        program_candidates_data: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+        forbidden_funcs: <a href="#56">settings</a>.forbidden_funcs,
+        reserve_for: <a href="#56">settings</a>.reserve_for,
+        random_data: <a href="#56">settings</a>.random_data,
+        gas_multiplier: <a href="#56">settings</a>.gas_multiplier,
+        existential_deposit: <a href="#56">settings</a>.existential_deposit,
+        mailbox_threshold: <a href="#56">settings</a>.mailbox_threshold,
+        costs: <a href="#56">settings</a>.ext_costs,
+    };
+
+    <span class="comment">// Creating externalities.
+    </span><span class="kw">let </span>ext = <a href="ext.rs.html#169">Ext::new</a>(<a href="#118">context</a>);
+
+    <span class="comment">// Execute program in backend env.
+    </span><span class="kw">let </span>execute = || {
+        <span class="kw">let </span>env = Environment::new(
+            <a href="#140">ext</a>,
+            <a href="#70">program</a>.code.code(),
+            <a href="#77">kind</a>,
+            <a href="#70">program</a>.code.exports().<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
+            <a href="#71">memory_size</a>,
+        )<span class="question-mark">?</span>;
+        <a href="#144">env</a>.execute(|ctx, memory, globals_config| {
+            <a href="ext.rs.html#179-187">Ext::lazy_pages_init_for_program</a>(
+                <a href="#151">ctx</a>,
+                <a href="#151">memory</a>,
+                <a href="#70">program</a>.id,
+                <a href="#70">program</a>.memory_infix,
+                <a href="#70">program</a>.code.stack_end(),
+                <a href="#151">globals_config</a>,
+                <a href="#56">settings</a>.lazy_pages_costs,
+            )
+        })
+    };
+
+    <span class="kw">let </span>(termination, <span class="kw-2">mut </span>store, memory, ext) = <span class="kw">match </span><a href="#143">execute</a>() {
+        <span class="prelude-val">Ok</span>(report) =&gt; {
+            <span class="kw">let </span>BackendReport {
+                termination_reason,
+                <span class="kw-2">mut </span>store,
+                <span class="kw-2">mut </span>memory,
+                ext,
+            } = <a href="#165">report</a>;
+
+            <span class="kw">let </span><span class="kw-2">mut </span>termination = <span class="kw">match </span><a href="#167">termination_reason</a> {
+                TerminationReason::Actor(reason) =&gt; <a href="#174">reason</a>,
+                TerminationReason::System(reason) =&gt; {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(ExecutionError::System(<a href="#175">reason</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))
+                }
+            };
+
+            <span class="comment">// released pages initial data will be added to `pages_initial_data` after execution.
+            </span><a href="ext.rs.html#190-193">Ext::lazy_pages_post_execution_actions</a>(<span class="kw-2">&amp;mut </span><a href="#168">store</a>, <span class="kw-2">&amp;mut </span><a href="#169">memory</a>);
+
+            <span class="kw">if </span>!Ext::lazy_pages_status().is_normal() {
+                <a href="#173">termination</a> = <a href="#170">ext</a>.current_counter_type().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
+            }
+
+            (<a href="#173">termination</a>, <a href="#168">store</a>, <a href="#169">memory</a>, <a href="#170">ext</a>)
+        }
+        <span class="prelude-val">Err</span>(EnvironmentError::System(e)) =&gt; {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ExecutionError::System(<a href="common.rs.html#495">SystemExecutionError::Environment</a>(<a href="#189">e</a>)))
+        }
+        <span class="prelude-val">Err</span>(EnvironmentError::Actor(gas_amount, err)) =&gt; {
+            <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"ActorExecutionErrorReplyReason::Environment({err}) occurred"</span>);
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ExecutionError::Actor(<a href="common.rs.html#438-443">ActorExecutionError</a> {
+                <a href="#192">gas_amount</a>,
+                reason: <a href="common.rs.html#453">ActorExecutionErrorReplyReason::Environment</a>,
+            }));
+        }
+    };
+
+    <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(<span class="string">"Termination reason: {:?}"</span>, termination);
+
+    <span class="kw">let </span>info = <a href="#164">ext</a>
+        .<a href="ext.rs.html#172-176">into_ext_info</a>(<span class="kw-2">&amp;mut </span><a href="#164">store</a>, <span class="kw-2">&amp;</span><a href="#164">memory</a>)
+        .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="common.rs.html#502">SystemExecutionError::IntoExtInfo</a>)<span class="question-mark">?</span>;
+
+    <span class="comment">// Parsing outcome.
+    </span><span class="kw">let </span>kind = <span class="kw">match </span><a href="#164">termination</a> {
+        ActorTerminationReason::Exit(value_dest) =&gt; <a href="common.rs.html#55">DispatchResultKind::Exit</a>(<a href="#209">value_dest</a>),
+        ActorTerminationReason::Leave | ActorTerminationReason::Success =&gt; {
+            <a href="common.rs.html#49">DispatchResultKind::Success</a>
+        }
+        ActorTerminationReason::Trap(explanation) =&gt; {
+            <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(
+                <span class="string">"💥 Trap during execution of {}\n📔 Explanation: {explanation}"</span>,
+                program.id
+            );
+            <a href="common.rs.html#51">DispatchResultKind::Trap</a>(<a href="#213">explanation</a>)
+        }
+        ActorTerminationReason::Wait(duration, waited_type) =&gt; {
+            <a href="common.rs.html#53">DispatchResultKind::Wait</a>(<a href="#220">duration</a>, <a href="#220">waited_type</a>)
+        }
+        ActorTerminationReason::GasAllowanceExceeded =&gt; <a href="common.rs.html#57">DispatchResultKind::GasAllowanceExceed</a>,
+    };
+
+    <span class="comment">// With lazy-pages we update some page data in storage,
+    // when it has been write accessed, so no need to compare old and new page data.
+    </span><span class="kw">let </span>page_update = <a href="#203">info</a>.pages_data;
+
+    <span class="comment">// Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
+    </span><span class="kw">let </span>program_candidates = <a href="#203">info</a>.program_candidates_data;
+
+    <span class="comment">// Triggering update of gas reserver only in case of it changed.
+    </span><span class="kw">let </span>gas_reserver = <a href="#75">initial_gas_reserver</a>
+        .<a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.ne">ne</a>(<span class="kw-2">&amp;</span><a href="#203">info</a>.gas_reserver)
+        .<a href="https://doc.rust-lang.org/nightly/core/foreigntype.bool.html#method.then_some">then_some</a>(<a href="#203">info</a>.gas_reserver);
+
+    <span class="comment">// Output
+    </span><span class="prelude-val">Ok</span>(<a href="common.rs.html#61-90">DispatchResult</a> {
+        <a href="#208">kind</a>,
+        <a href="#54">dispatch</a>,
+        program_id: <a href="#70">program</a>.id,
+        context_store: <a href="#203">info</a>.context_store,
+        generated_dispatches: <a href="#203">info</a>.generated_dispatches,
+        awakening: <a href="#203">info</a>.awakening,
+        reply_deposits: <a href="#203">info</a>.reply_deposits,
+        <a href="#231">program_candidates</a>,
+        gas_amount: <a href="#203">info</a>.gas_amount,
+        <a href="#234">gas_reserver</a>,
+        system_reservation_context: <a href="#203">info</a>.system_reservation_context,
+        <a href="#228">page_update</a>,
+        allocations: <a href="#203">info</a>.allocations,
+        reply_sent: <a href="#203">info</a>.reply_sent,
+    })
+}
+
+<span class="doccomment">/// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
+</span><span class="attr">#[allow(clippy::too_many_arguments)]
+</span><span class="kw">pub fn </span><a href="../../gear_core_processor/informational/fn.execute_for_reply.html">execute_for_reply</a>&lt;Ext, EP&gt;(
+    function: EP,
+    instrumented_code: InstrumentedCode,
+    allocations: <span class="prelude-ty">Option</span>&lt;IntervalsTree&lt;WasmPage&gt;&gt;,
+    program_info: <span class="prelude-ty">Option</span>&lt;(ProgramId, MemoryInfix)&gt;,
+    payload: Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
+    gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+    block_info: <a href="configs.rs.html#34-39">BlockInfo</a>,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt;
+<span class="kw">where
+    </span>Ext: <a href="ext.rs.html#167-197">ProcessorExternalities</a> + BackendExternalities + <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html">Send</a> + <span class="lifetime">'static</span>,
+    &lt;Ext <span class="kw">as </span>Externalities&gt;::AllocError:
+        BackendAllocSyscallError&lt;ExtError = Ext::UnrecoverableError&gt;,
+    RunFallibleError: From&lt;Ext::FallibleError&gt;,
+    &lt;Ext <span class="kw">as </span>Externalities&gt;::UnrecoverableError: BackendSyscallError,
+    EP: WasmEntryPoint,
+{
+    <span class="kw">let </span>(program_id, memory_infix) = <a href="#263">program_info</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_default">unwrap_or_default</a>();
+    <span class="kw">let </span>program = <a href="common.rs.html#539-548">Program</a> {
+        id: <a href="#276">program_id</a>,
+        <a href="#276">memory_infix</a>,
+        code: <a href="#261">instrumented_code</a>,
+        allocations: <a href="#262">allocations</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_default">unwrap_or_default</a>(),
+    };
+    <span class="kw">let </span>static_pages = <a href="#277">program</a>.code.static_pages();
+    <span class="kw">let </span>memory_size = <a href="#277">program</a>
+        .allocations
+        .end()
+        .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|p| <a href="#287">p</a>.inc())
+        .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or">unwrap_or</a>(<a href="#283">static_pages</a>);
+
+    <span class="kw">let </span>message_context = MessageContext::new(
+        IncomingDispatch::new(
+            DispatchKind::Handle,
+            IncomingMessage::new(
+                <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+                <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+                <a href="#264">payload</a>
+                    .<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
+                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|e| <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"Failed to create payload: {e:?}"</span>))<span class="question-mark">?</span>,
+                <a href="#265">gas_limit</a>,
+                <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+                <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+            ),
+            <span class="prelude-val">None</span>,
+        ),
+        <a href="#277">program</a>.id,
+        <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+    )
+    .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<span class="string">"Incorrect message store context: out of outgoing bytes limit"</span>)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>context = <a href="ext.rs.html#65-103">ProcessorContext</a> {
+        gas_counter: GasCounter::new(<a href="#265">gas_limit</a>),
+        gas_allowance_counter: GasAllowanceCounter::new(<a href="#265">gas_limit</a>),
+        gas_reserver: GasReserver::new(<span class="kw-2">&amp;</span><a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(), <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(), <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()),
+        value_counter: ValueCounter::new(<a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()),
+        allocations_context: AllocationsContext::try_new(
+            <a href="#284">memory_size</a>,
+            <a href="#277">program</a>.allocations,
+            <a href="#283">static_pages</a>,
+            <a href="#277">program</a>.code.stack_end(),
+            <span class="number">512</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
+        )
+        .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|e| <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"Failed to create alloc ctx: {e:?}"</span>))<span class="question-mark">?</span>,
+        <a href="#290">message_context</a>,
+        <a href="#266">block_info</a>,
+        performance_multiplier: gsys::Percent::new(<span class="number">100</span>),
+        program_id: <a href="#277">program</a>.id,
+        program_candidates_data: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+        forbidden_funcs: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+        reserve_for: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+        random_data: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+        system_reservation: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(<span class="number">1</span>),
+        existential_deposit: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+        mailbox_threshold: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+        costs: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+    };
+
+    <span class="comment">// Creating externalities.
+    </span><span class="kw">let </span>ext = <a href="ext.rs.html#169">Ext::new</a>(<a href="#310">context</a>);
+
+    <span class="comment">// Execute program in backend env.
+    </span><span class="kw">let </span>execute = || {
+        <span class="kw">let </span>env = Environment::new(
+            <a href="#339">ext</a>,
+            <a href="#277">program</a>.code.code(),
+            <a href="#260">function</a>,
+            <a href="#277">program</a>.code.exports().<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
+            <a href="#284">memory_size</a>,
+        )<span class="question-mark">?</span>;
+        <a href="#343">env</a>.execute(|ctx, memory, globals_config| {
+            <a href="ext.rs.html#179-187">Ext::lazy_pages_init_for_program</a>(
+                <a href="#350">ctx</a>,
+                <a href="#350">memory</a>,
+                <a href="#276">program_id</a>,
+                <a href="#277">program</a>.memory_infix,
+                <a href="#277">program</a>.code.stack_end(),
+                <a href="#350">globals_config</a>,
+                <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
+            )
+        })
+    };
+
+    <span class="kw">let </span>(termination, <span class="kw-2">mut </span>store, memory, ext) = <span class="kw">match </span><a href="#342">execute</a>() {
+        <span class="prelude-val">Ok</span>(report) =&gt; {
+            <span class="kw">let </span>BackendReport {
+                termination_reason,
+                store,
+                memory,
+                ext,
+            } = <a href="#364">report</a>;
+
+            <span class="kw">let </span>termination_reason = <span class="kw">match </span><a href="#366">termination_reason</a> {
+                TerminationReason::Actor(reason) =&gt; <a href="#373">reason</a>,
+                TerminationReason::System(reason) =&gt; {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"Backend error: {reason}"</span>))
+                }
+            };
+
+            (<a href="#372">termination_reason</a>, <a href="#367">store</a>, <a href="#368">memory</a>, <a href="#369">ext</a>)
+        }
+        <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"Backend error: {e}"</span>)),
+    };
+
+    <span class="kw">match </span><a href="#363">termination</a> {
+        ActorTerminationReason::Exit(<span class="kw">_</span>)
+        | ActorTerminationReason::Leave
+        | ActorTerminationReason::Wait(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="string">"Execution has incorrect termination reason"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
+        }
+        ActorTerminationReason::Success =&gt; (),
+        ActorTerminationReason::Trap(explanation) =&gt; {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
+                <span class="string">"Program execution failed with error: {explanation}"
+            </span>));
+        }
+        ActorTerminationReason::GasAllowanceExceeded =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="string">"Unreachable"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+    };
+
+    <span class="kw">let </span>info = <a href="#363">ext</a>
+        .<a href="ext.rs.html#172-176">into_ext_info</a>(<span class="kw-2">&amp;mut </span><a href="#363">store</a>, <span class="kw-2">&amp;</span><a href="#363">memory</a>)
+        .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|e| <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"Backend postprocessing error: {e:?}"</span>))<span class="question-mark">?</span>;
+
+    <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(
+        <span class="string">"[execute_for_reply] Gas burned: {}"</span>,
+        info.gas_amount.burned()
+    );
+
+    <span class="kw">for </span>(dispatch, <span class="kw">_</span>, <span class="kw">_</span>) <span class="kw">in </span>info.generated_dispatches {
+        <span class="kw">if </span><span class="macro">matches!</span>(dispatch.kind(), DispatchKind::Reply) {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(dispatch.payload_bytes().to_vec());
+        }
+    }
+
+    <span class="prelude-val">Err</span>(<span class="string">"Reply not found"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
+}
+</code></pre></div></section></main></body></html>
