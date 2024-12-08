@@ -84,25 +84,25 @@ impl Publisher {
                 bail!("Package {name} has empty description!");
             }
 
-            if pkg.license.is_empty() {
+            if pkg.license.is_none() {
                 bail!("Package {name} has empty license!");
             }
 
             // TODO #4125: disallow empty categories, keywords
 
-            if pkg.repository.is_empty() {
+            if pkg.repository.is_none() {
                 bail!("Package {name} has empty repository!");
             }
 
-            if pkg.homepage.is_empty() {
+            if pkg.homepage.is_none() {
                 bail!("Package {name} has empty homepage!");
             }
 
-            if pkg.documentation.is_empty() {
+            if pkg.documentation.is_none() {
                 bail!("Package {name} has empty documentation!");
             }
 
-            if pkg.rust_version.is_empty() {
+            if pkg.rust_version.is_none() {
                 bail!("Package {name} has empty rust-version!");
             }
 
