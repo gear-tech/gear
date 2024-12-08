@@ -69,8 +69,6 @@ impl Publisher {
                 continue;
             };
 
-            let mut is_published = false;
-
             if pkg.authors.is_empty() {
                 bail!("Package {name} has empty authors!");
             }
@@ -105,6 +103,8 @@ impl Publisher {
             if pkg.rust_version.is_none() {
                 bail!("Package {name} has empty rust-version!");
             }
+
+            let mut is_published = false;
 
             if verify {
                 match crate::verify_owners(name).await? {
