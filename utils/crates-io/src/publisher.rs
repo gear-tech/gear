@@ -71,6 +71,10 @@ impl Publisher {
 
             let mut is_published = false;
 
+            if pkg.authors.is_empty() {
+                bail!("Package {name} has empty authors!");
+            }
+
             if pkg
                 .description
                 .as_ref()
@@ -78,6 +82,28 @@ impl Publisher {
                 .unwrap_or(true)
             {
                 bail!("Package {name} has empty description!");
+            }
+
+            if pkg.license.is_empty() {
+                bail!("Package {name} has empty license!");
+            }
+
+            // TODO #4125: disallow empty categories, keywords
+
+            if pkg.repository.is_empty() {
+                bail!("Package {name} has empty repository!");
+            }
+
+            if pkg.homepage.is_empty() {
+                bail!("Package {name} has empty homepage!");
+            }
+
+            if pkg.documentation.is_empty() {
+                bail!("Package {name} has empty documentation!");
+            }
+
+            if pkg.rust_version.is_empty() {
+                bail!("Package {name} has empty rust-version!");
             }
 
             if verify {
