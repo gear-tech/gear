@@ -98,17 +98,9 @@ interface IRouter {
     /// @dev CodeValidationRequested Emitted on success.
     function requestCodeValidation(bytes32 codeId, bytes32 blobTxHash) external;
     /// @dev ProgramCreated Emitted on success.
-    function createProgram(bytes32 codeId, bytes32 salt, bytes calldata payload, uint128 value)
-        external
-        returns (address);
+    function createProgram(bytes32 codeId, bytes32 salt) external returns (address);
     /// @dev ProgramCreated Emitted on success.
-    function createProgramWithDecoder(
-        address decoderImpl,
-        bytes32 codeId,
-        bytes32 salt,
-        bytes calldata payload,
-        uint128 value
-    ) external returns (address);
+    function createProgramWithDecoder(address decoderImpl, bytes32 codeId, bytes32 salt) external returns (address);
 
     // # Validators calls.
     /// @dev CodeGotValidated Emitted for each code in commitment.
