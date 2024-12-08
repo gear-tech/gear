@@ -110,7 +110,7 @@
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html">core::cell::RefCell</a>;
 <span class="kw">use </span>gear_core::{
     ids::{<a href="../../../gear_common/struct.MessageId.html">MessageId</a>, <a href="../../../gear_common/type.ProgramId.html">ProgramId</a>},
-    <a href="../../../gear_core/message/user/struct.UserStoredMessage.html">message::UserStoredMessage</a>,
+    message::UserStoredMessage,
 };
 
 <span class="doccomment">/// Mailbox implementation that can be used in a native, non-wasm runtimes.
@@ -124,7 +124,7 @@
     MailboxKeyGen&lt;<a href="../../../gear_common/type.ProgramId.html">ProgramId</a>&gt;,
 &gt;;
 <span class="doccomment">/// Type represents message stored in the mailbox.
-</span><span class="kw">pub type </span><a href="../../../gear_common/auxiliary/mailbox/type.MailboxedMessage.html">MailboxedMessage</a> = <a href="../../../gear_core/message/user/struct.UserStoredMessage.html">UserStoredMessage</a>;
+</span><span class="kw">pub type </span><a href="../../../gear_common/auxiliary/mailbox/type.MailboxedMessage.html">MailboxedMessage</a> = UserStoredMessage;
 
 <a class="macro" href="https://doc.rust-lang.org/nightly/std/macro.thread_local.html">std::thread_local!</a> {
     <span class="comment">// Definition of the mailbox (`StorageDoubleMap`) global storage, accessed by the `Mailbox` trait implementor.
