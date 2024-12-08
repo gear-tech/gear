@@ -69,6 +69,41 @@ impl Publisher {
                 continue;
             };
 
+            if pkg.authors.is_empty() {
+                bail!("Package {name} has empty authors!");
+            }
+
+            if pkg
+                .description
+                .as_ref()
+                .map(|v| v.is_empty())
+                .unwrap_or(true)
+            {
+                bail!("Package {name} has empty description!");
+            }
+
+            if pkg.license.is_none() {
+                bail!("Package {name} has empty license!");
+            }
+
+            // TODO #4125: disallow empty categories, keywords
+
+            if pkg.repository.is_none() {
+                bail!("Package {name} has empty repository!");
+            }
+
+            if pkg.homepage.is_none() {
+                bail!("Package {name} has empty homepage!");
+            }
+
+            if pkg.documentation.is_none() {
+                bail!("Package {name} has empty documentation!");
+            }
+
+            if pkg.rust_version.is_none() {
+                bail!("Package {name} has empty rust-version!");
+            }
+
             let mut is_published = false;
 
             if verify {
