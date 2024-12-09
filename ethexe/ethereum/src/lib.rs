@@ -300,7 +300,9 @@ impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactio
             Err(err) => err,
         };
 
-        for _ in 0..3 {
+        log::trace!("Failed to get transaction receipt for {tx_hash}. Retrying...");
+        for n in 0..3 {
+            log::trace!("Attempt {n}. Error - {err}");
             match err {
                 PendingTransactionError::TransportError(RpcError::NullResp) => {}
                 _ => break,
