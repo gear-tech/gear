@@ -30,8 +30,16 @@ fn main() {
     substrate_build_script_utils::generate_cargo_keys();
     #[cfg(all(feature = "std", not(feature = "fuzz")))]
     {
+        const TOKEN_SYMBOL: &str = if cfg!(not(feature = "dev")) {
+            "VARA"
+        } else {
+            "TVARA"
+        };
+
+        const DECIMALS: u8 = 12;
+
         substrate_wasm_builder::WasmBuilder::init_with_defaults()
-            .enable_metadata_hash("VARA", 12)
+            .enable_metadata_hash(TOKEN_SYMBOL, DECIMALS)
             .build()
     }
 }
