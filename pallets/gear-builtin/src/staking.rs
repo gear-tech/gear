@@ -136,4 +136,8 @@ where
 
         (result.map(|_| Default::default()), gas_spent)
     }
+
+    fn max_gas() -> u64 {
+        Default::default()
+    }
 }

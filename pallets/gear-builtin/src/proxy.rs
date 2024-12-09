@@ -93,4 +93,8 @@ where
             Err(e) => (Err(e), gas_limit),
         }
     }
+
+    fn max_gas() -> u64 {
+        Default::default()
+    }
 }

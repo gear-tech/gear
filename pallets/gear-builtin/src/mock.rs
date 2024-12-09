@@ -255,6 +255,10 @@ impl BuiltinActor for SuccessBuiltinActor {
 
         (Ok(payload), 1_000_000_u64)
     }
+
+    fn max_gas() -> u64 {
+        Default::default()
+    }
 }
 
 // A builtin actor that always returns an error.
@@ -275,6 +279,10 @@ impl BuiltinActor for ErrorBuiltinActor {
             });
         }
         (Err(BuiltinActorError::InsufficientGas), 100_000_u64)
+    }
+
+    fn max_gas() -> u64 {
+        Default::default()
     }
 }
 
@@ -306,6 +314,10 @@ impl BuiltinActor for HonestBuiltinActor {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
 
         (Ok(payload), 500_000_u64)
+    }
+
+    fn max_gas() -> u64 {
+        Default::default()
     }
 }
 

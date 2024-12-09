@@ -65,6 +65,10 @@ where
             } => send_message_request::<T>(dispatch.source(), destination, payload, gas_limit),
         }
     }
+
+    fn max_gas() -> u64 {
+        Default::default()
+    }
 }
 
 fn send_message_request<T: Config>(

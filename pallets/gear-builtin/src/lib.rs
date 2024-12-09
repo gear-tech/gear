@@ -70,7 +70,7 @@ use gear_core::{
     str::LimitedStr,
 };
 use impl_trait_for_tuples::impl_for_tuples;
-use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
+use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
@@ -128,6 +128,9 @@ pub trait BuiltinActor {
         dispatch: &StoredDispatch,
         gas_limit: u64,
     ) -> (Result<Payload, BuiltinActorError>, u64);
+
+    /// Returns the maximum gas that can be spent by the actor.
+    fn max_gas() -> u64;
 }
 
 /// A marker struct to associate a builtin actor with its unique ID.
@@ -148,7 +151,7 @@ impl<const ID: u64, A: BuiltinActor> BuiltinActorWithId for ActorWithId<ID, A> {
 /// a in-memory collection of builtin actors.
 pub trait BuiltinCollection {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, Box<ActorErrorHandleFn>>,
+        registry: &mut BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
         id_converter: &dyn Fn(u64) -> ProgramId,
     );
 }
@@ -158,14 +161,14 @@ pub trait BuiltinCollection {
 #[tuple_types_custom_trait_bound(BuiltinActorWithId + 'static)]
 impl BuiltinCollection for Tuple {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, Box<ActorErrorHandleFn>>,
+        registry: &mut BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
         id_converter: &dyn Fn(u64) -> ProgramId,
     ) {
         for_tuples!(
             #(
                 let actor_id = id_converter(Tuple::ID);
                 if let Entry::Vacant(e) = registry.entry(actor_id) {
-                    e.insert(Box::new(Tuple::Actor::handle));
+                    e.insert((Box::new(Tuple::Actor::handle), Box::new(Tuple::Actor::max_gas)));
                 } else {
                     let err_msg = format!(
                         "Tuple::for_tuples: Duplicate builtin ids. \
@@ -287,7 +290,7 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
 }
 
 pub struct BuiltinRegistry<T: Config> {
-    pub registry: BTreeMap<ProgramId, Box<ActorErrorHandleFn>>,
+    pub registry: BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
 impl<T: Config> BuiltinRegistry<T> {
@@ -305,17 +308,24 @@ impl<T: Config> BuiltinRegistry<T> {
 impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     type Error = BuiltinActorError;
 
-    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<&'a ActorErrorHandleFn> {
-        self.registry.get(id).map(|f| &**f)
+    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<BuiltinInfo<'a, Self::Error>> {
+        self.registry
+            .get(id)
+            .map(|(f, g)| BuiltinInfo::<'a, Self::Error> {
+                handle: &**f,
+                max_gas: &**g,
+            })
     }
 
     fn run(
         &self,
-        f: &ActorErrorHandleFn,
+        context: BuiltinInfo<Self::Error>,
         dispatch: StoredDispatch,
         gas_limit: u64,
     ) -> Vec<JournalNote> {
         let actor_id = dispatch.destination();
+
+        let BuiltinInfo { handle, max_gas } = context;
 
         if dispatch.kind() != DispatchKind::Handle {
             let err_msg = format!(
@@ -333,13 +343,22 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
             );
         }
 
-        // Creating a gas counter to track gas usage (because core processor needs it).
+        // We only allow a message to even start processing if it can fit into the current block
+        // (where the gas estimation is as accurate as the actor's `max_gas()` method).
+        let current_gas_allowance = GasAllowanceOf::<T>::get();
+        if max_gas() > current_gas_allowance {
+            return process_allowance_exceed(dispatch.into_incoming(gas_limit), actor_id, 0);
+        }
+
+        // Creating a gas counter to track gas usage.
         let mut gas_counter = GasCounter::new(gas_limit);
 
-        // TODO: #3752. Need to run gas limit check before calling `f(&dispatch)`.
+        // TODO: Refactor the BuiltinActor::handle() signature to take a [mutable] gas counter
+        // and gas allowance counter as inputs. This way `handle` would return just a `Result`,
+        // with all gas-counting related information contained in the gas counters.
 
         // Actual call to the builtin actor
-        let (res, gas_spent) = f(&dispatch, gas_limit);
+        let (res, gas_spent) = handle(&dispatch, gas_limit);
 
         // We rely on a builtin actor to perform the check for gas limit consistency before
         // executing a message and report an error if the `gas_limit` was to have been exceeded.

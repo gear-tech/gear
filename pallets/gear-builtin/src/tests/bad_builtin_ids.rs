@@ -107,6 +107,10 @@ impl BuiltinActor for SomeBuiltinActor {
 
         (Ok(payload), 1_000_u64)
     }
+
+    fn max_gas() -> u64 {
+        Default::default()
+    }
 }
 
 impl pallet_gear_builtin::Config for Test {

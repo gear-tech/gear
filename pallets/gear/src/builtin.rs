@@ -23,18 +23,28 @@ use gear_core::{
     message::{Payload, StoredDispatch},
 };
 
+/// Builtin actor `handle` function signature.
 pub type HandleFn<E> = dyn Fn(&StoredDispatch, u64) -> (Result<Payload, E>, u64);
+
+/// Builtin actor `max_gas` function signature.
+// TODO: let the weight function take a complexity argument similar to extrinsics weight functions
+pub type WeightFn = dyn Fn() -> u64;
+
+pub struct BuiltinInfo<'a, E> {
+    pub handle: &'a HandleFn<E>,
+    pub max_gas: &'a WeightFn,
+}
 
 /// A trait representing a registry that provides methods to lookup and run a builtin actor.
 pub trait BuiltinDispatcher {
     type Error;
 
     /// Looks up a builtin actor by its actor id.
-    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<&'a HandleFn<Self::Error>>;
+    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<BuiltinInfo<'a, Self::Error>>;
 
     fn run(
         &self,
-        f: &HandleFn<Self::Error>,
+        context: BuiltinInfo<Self::Error>,
         dispatch: StoredDispatch,
         gas_limit: u64,
     ) -> Vec<JournalNote>;
@@ -43,13 +53,13 @@ pub trait BuiltinDispatcher {
 impl BuiltinDispatcher for () {
     type Error = ();
 
-    fn lookup<'a>(&'a self, _id: &ProgramId) -> Option<&'a HandleFn<Self::Error>> {
+    fn lookup<'a>(&'a self, _id: &ProgramId) -> Option<BuiltinInfo<'a, Self::Error>> {
         None
     }
 
     fn run(
         &self,
-        _f: &HandleFn<Self::Error>,
+        _context: BuiltinInfo<Self::Error>,
         _dispatch: StoredDispatch,
         _gas_limit: u64,
     ) -> Vec<JournalNote> {

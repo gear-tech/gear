@@ -69,6 +69,10 @@ impl<T: Config> BuiltinActor for Actor<T> {
             gas_spent,
         )
     }
+
+    fn max_gas() -> u64 {
+        Default::default()
+    }
 }
 
 fn decode_vec<T: Config, I: Input>(
