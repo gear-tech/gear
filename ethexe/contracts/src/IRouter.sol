@@ -23,11 +23,12 @@ interface IRouter {
         /// @notice Computation parameters for programs processing.
         /// @dev These parameters should be used for the operational logic of event and message handling on nodes. Any modifications will take effect in the next block.
         Gear.ComputationSettings computeSettings;
+        /// @notice Protocol time intervals durations.
+        /// @dev This contains information about the durations of the protocol's time intervals.
+        Gear.Durations durations;
         /// @notice Gear protocol data related to this router instance.
         /// @dev This contains information about the available codes and programs.
         Gear.ProtocolData protocolData;
-        /// @notice Durations.
-        Gear.Durations durations;
     }
 
     /// @notice Emitted when all necessary state transitions have been applied and states have changed.

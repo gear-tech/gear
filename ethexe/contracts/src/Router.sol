@@ -56,18 +56,33 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         _setStorageSlot("router.storage.RouterV2");
         Storage storage newRouter = _router();
 
+        // Set current block as genesis.
         newRouter.genesisBlock = Gear.newGenesis();
-        newRouter.validationSettings.signingThresholdPercentage =
-            oldRouter.validationSettings.signingThresholdPercentage;
-        newRouter.computeSettings = oldRouter.computeSettings;
+
+        // New router latestCommittedBlock is already zeroed.
+
+        // Copy impl addresses from the old router.
         newRouter.implAddresses = oldRouter.implAddresses;
 
+        // Copy signing threshold percentage from the old router.
+        newRouter.validationSettings.signingThresholdPercentage =
+            oldRouter.validationSettings.signingThresholdPercentage;
+
+        // Copy validators from the old router.
         // TODO (gsobol): consider what to do. Maybe we should start reelection process.
         // Skipping validators1 copying - means we forget election results
         // if an election is already done for the next era.
         _resetValidators(
             newRouter.validationSettings.validators0, Gear.currentEraValidators(oldRouter).list, block.timestamp
         );
+
+        // Copy computation settings from the old router.
+        newRouter.computeSettings = oldRouter.computeSettings;
+
+        // Copy durations from the old router.
+        newRouter.durations = oldRouter.durations;
+
+        // All protocol data must be removed - so leave it zeroed in new router.
     }
 
     // # Views.
@@ -241,30 +256,17 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         uint256 nextEraStart = router.genesisBlock.timestamp + router.durations.era * commitment.eraIndex;
         require(block.timestamp >= nextEraStart - router.durations.election, "election is not yet started");
 
-        bool useValidators0 = Gear.currentEraValidatorsStoredInValidators1(router);
-        if (useValidators0) {
-            require(
-                router.validationSettings.validators0.useFromTimestamp < block.timestamp,
-                "looks like validators for next era are already set"
-            );
-        } else {
-            require(
-                router.validationSettings.validators1.useFromTimestamp < block.timestamp,
-                "looks like validators for next era are already set"
-            );
-        }
+        // Maybe free slot for new validators:
+        Gear.Validators storage _validators = Gear.previousEraValidators(router);
+        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
 
-        bytes32 commitmentHash = keccak256(bytes.concat(Gear.validatorsCommitmentHash(commitment)));
+        bytes32 commitmentHash = Gear.validatorsCommitmentHash(commitment);
         require(
-            Gear.validateSignatures(router, commitmentHash, signatures),
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), signatures),
             "next era validators signatures verification failed"
         );
 
-        if (useValidators0) {
-            _resetValidators(router.validationSettings.validators0, commitment.validators, nextEraStart);
-        } else {
-            _resetValidators(router.validationSettings.validators1, commitment.validators, nextEraStart);
-        }
+        _resetValidators(_validators, commitment.validators, nextEraStart);
 
         emit NextEraValidatorsSet(nextEraStart);
     }

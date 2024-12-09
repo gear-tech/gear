@@ -222,6 +222,14 @@ library Gear {
         }
     }
 
+    function previousEraValidators(IRouter.Storage storage router) internal view returns (Validators storage) {
+        if (currentEraValidatorsStoredInValidators1(router)) {
+            return router.validationSettings.validators0;
+        } else {
+            return router.validationSettings.validators1;
+        }
+    }
+
     /// @dev Returns whether current era validators are stored in `router.validationSettings.validators1`.
     ///      `false` means that current era validators are stored in `router.validationSettings.validators0`.
     function currentEraValidatorsStoredInValidators1(IRouter.Storage storage router) internal view returns (bool) {
