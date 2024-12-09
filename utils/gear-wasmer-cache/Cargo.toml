@@ -8,8 +8,8 @@ homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
+[lints]
+workspace = true
 
 [dependencies]
 wasmer.workspace = true

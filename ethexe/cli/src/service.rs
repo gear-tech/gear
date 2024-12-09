@@ -951,6 +951,7 @@ mod tests {
             )),
             rpc_config: Some(RpcConfig {
                 listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
+                cors: None,
             }),
         })
         .await

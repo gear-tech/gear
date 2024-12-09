@@ -12,12 +12,14 @@ homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 derive_more.workspace = true
 enum-iterator.workspace = true
-fail = { workspace = true, features = [ "failpoints" ], optional = true }
 
 # Internal deps
 gear-core.workspace = true
@@ -34,6 +36,9 @@ sp-runtime.workspace = true
 frame-support.workspace = true
 frame-system = { workspace = true, optional = true }
 frame-benchmarking = { workspace = true, optional = true }
+
+[target.'cfg(fuzz)'.dependencies]
+fail = { workspace = true, features = [ "failpoints" ] }
 
 [dev-dependencies]
 hex-literal.workspace = true
@@ -59,4 +64,3 @@ runtime-benchmarks = [
     "frame-support/runtime-benchmarks",
     "gear-wasm-instrument",
 ]
-fuzz = ["fail"]

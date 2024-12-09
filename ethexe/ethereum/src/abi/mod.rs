@@ -21,11 +21,17 @@ use alloy::sol;
 mod events;
 mod gear;
 
-sol!(
-    #[sol(rpc)]
-    IMirror,
-    "Mirror.json"
-);
+pub use mirror_abi::*;
+
+// TODO (breathx): remove this dummy hack to avoid reentrancy issues with
+// the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
+mod mirror_abi {
+    alloy::sol!(
+        #[sol(rpc)]
+        IMirror,
+        "Mirror.json"
+    );
+}
 
 sol!(
     #[sol(rpc)]
