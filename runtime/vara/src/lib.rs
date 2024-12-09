@@ -197,7 +197,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 1700,
+    spec_version: 1701,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
