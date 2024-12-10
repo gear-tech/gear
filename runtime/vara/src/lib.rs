@@ -1245,7 +1245,6 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;
-    type BlockLimiter = GearGas;
     type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
 }
 

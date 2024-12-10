@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError};
+use crate::{
+    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
+};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
@@ -101,11 +103,12 @@ pub struct SomeBuiltinActor {}
 impl BuiltinActor for SomeBuiltinActor {
     fn handle(
         _dispatch: &StoredDispatch,
-        _gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64) {
+        context: &mut BuiltinContext,
+    ) -> Result<Payload, BuiltinActorError> {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
+        context.try_charge_gas(1_000_u64)?;
 
-        (Ok(payload), 1_000_u64)
+        Ok(payload)
     }
 
     fn max_gas() -> u64 {

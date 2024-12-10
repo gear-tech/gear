@@ -18,7 +18,7 @@
 
 use crate::{
     self as pallet_gear_builtin, bls12_381, proxy, ActorWithId, BuiltinActor, BuiltinActorError,
-    GasAllowanceOf,
+    BuiltinContext, GasAllowanceOf,
 };
 use common::{storage::Limiter, GasProvider, GasTree};
 use core::cell::RefCell;
@@ -237,8 +237,8 @@ pub struct SuccessBuiltinActor {}
 impl BuiltinActor for SuccessBuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
-        _gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64) {
+        context: &mut BuiltinContext,
+    ) -> Result<Payload, BuiltinActorError> {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
@@ -252,8 +252,9 @@ impl BuiltinActor for SuccessBuiltinActor {
 
         // Build the reply message
         let payload = b"Success".to_vec().try_into().expect("Small vector");
+        context.try_charge_gas(1_000_000_u64)?;
 
-        (Ok(payload), 1_000_000_u64)
+        Ok(payload)
     }
 
     fn max_gas() -> u64 {
@@ -266,8 +267,8 @@ pub struct ErrorBuiltinActor {}
 impl BuiltinActor for ErrorBuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
-        _gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64) {
+        context: &mut BuiltinContext,
+    ) -> Result<Payload, BuiltinActorError> {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
@@ -278,7 +279,8 @@ impl BuiltinActor for ErrorBuiltinActor {
                 })
             });
         }
-        (Err(BuiltinActorError::InsufficientGas), 100_000_u64)
+        context.try_charge_gas(100_000_u64)?;
+        Err(BuiltinActorError::InsufficientGas)
     }
 
     fn max_gas() -> u64 {
@@ -291,9 +293,9 @@ pub struct HonestBuiltinActor {}
 impl BuiltinActor for HonestBuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
-        gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64) {
-        let is_error = gas_limit < 500_000_u64;
+        context: &mut BuiltinContext,
+    ) -> Result<Payload, BuiltinActorError> {
+        let is_error = context.to_gas_amount().left() < 500_000_u64;
 
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
@@ -307,13 +309,15 @@ impl BuiltinActor for HonestBuiltinActor {
         }
 
         if is_error {
-            return (Err(BuiltinActorError::InsufficientGas), 100_000_u64);
+            context.try_charge_gas(100_000_u64)?;
+            return Err(BuiltinActorError::InsufficientGas);
         }
 
         // Build the reply message
         let payload = b"Success".to_vec().try_into().expect("Small vector");
+        context.try_charge_gas(500_000_u64)?;
 
-        (Ok(payload), 500_000_u64)
+        Ok(payload)
     }
 
     fn max_gas() -> u64 {
