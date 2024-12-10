@@ -45,9 +45,8 @@ use crate::{
     GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{
-    common::*,
-    configs::{BlockConfig, TESTS_MAX_PAGES_NUMBER},
-    ContextChargedForInstrumentation, ContextChargedForProgram, Ext,
+    common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
+    Ext,
 };
 use gear_common::{
     auxiliary::{
