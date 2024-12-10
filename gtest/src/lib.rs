@@ -531,10 +531,10 @@ pub mod constants {
 
     /// Gas allowance for executing user dispatch and set of generated
     /// by programs dispatches from execution of the user dispatch.
-    pub const GAS_ALLOWANCE: Gas = 750_000_000_000;
+    pub const GAS_ALLOWANCE: Gas = 1_000_000_000_000;
 
     /// Gas multiplier used to calculate equivalence of gas in token value.
-    pub const GAS_MULTIPLIER: GasMultiplier<Value, Gas> = GasMultiplier::ValuePerGas(6);
+    pub const GAS_MULTIPLIER: GasMultiplier<Value, Gas> = GasMultiplier::ValuePerGas(VALUE_PER_GAS);
 
     /* Currency-related constants */
 
@@ -583,5 +583,5 @@ pub mod constants {
     }
 
     /// Default initial balance for users.
-    pub const DEFAULT_USERS_INITIAL_BALANCE: Value = EXISTENTIAL_DEPOSIT * 100_000;
+    pub const DEFAULT_USERS_INITIAL_BALANCE: Value = 100_000 * UNITS;
 }
