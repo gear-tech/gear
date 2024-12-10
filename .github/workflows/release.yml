@@ -86,7 +86,7 @@ jobs:
         run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/production_vara_runtime_v$VARA_SPEC.wasm"
 
       - name: "Build: Production node client and development `vara-runtime`"
-        run: cargo build -p gear-cli --profile production
+        run: cargo build -p gear-cli --profile production --features metadata-hash
 
       - name: "Test: Development `vara-runtime`"
         run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev true target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
