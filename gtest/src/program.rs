@@ -22,7 +22,7 @@ use crate::{
     manager::ExtManager,
     state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     system::System,
-    Result, Value, GAS_ALLOWANCE,
+    Result, Value, MAX_USER_GAS_LIMIT,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
@@ -539,7 +539,7 @@ impl<'a> Program<'a> {
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
     {
-        self.send_bytes_with_gas_and_value(from, payload, GAS_ALLOWANCE, value)
+        self.send_bytes_with_gas_and_value(from, payload, MAX_USER_GAS_LIMIT, value)
     }
 
     /// Send the message to the program with bytes payload, gas limit and value.

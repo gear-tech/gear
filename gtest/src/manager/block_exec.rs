@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::SuccessfulDispatchResultKind;
-use gear_core::{gas::GasCounter, str::LimitedStr};
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, gas::GasCounter, str::LimitedStr};
 use task::get_maximum_task_gas;
 
 use super::*;
@@ -540,7 +540,7 @@ impl ExtManager {
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: schedule.rent_weights.mailbox_threshold.ref_time,
             max_reservations: MAX_RESERVATIONS,
-            max_pages: TESTS_MAX_PAGES_NUMBER.into(),
+            max_pages: MAX_WASM_PAGES_AMOUNT.into(),
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         }
