@@ -17,6 +17,7 @@ import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegato
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
 
+import {IMiddleware} from "../src/IMiddleware.sol";
 import {Middleware} from "../src/Middleware.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
@@ -423,12 +424,13 @@ contract MiddlewareTest is Base {
         (address operator1,, address vault1, address vault2,,) = prepareTwoOperators();
 
         // Try request slashes for one operator, but 2 vaults
-        Middleware.VaultSlashData[] memory vaults = new Middleware.VaultSlashData[](2);
-        vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
-        vaults[1] = Middleware.VaultSlashData({vault: vault2, amount: 20});
+        Middleware.VaultSlashData[] memory vaults = new IMiddleware.VaultSlashData[](2);
+        vaults[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 10});
+        vaults[1] = IMiddleware.VaultSlashData({vault: vault2, amount: 20});
 
         Middleware.SlashData[] memory slashes = new Middleware.SlashData[](1);
-        slashes[0] = Middleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
+        slashes[0] =
+            IMiddleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
 
         requestSlash(slashes, IVetoSlasher.InsufficientSlash.selector);
 
@@ -439,8 +441,9 @@ contract MiddlewareTest is Base {
         vm.warp(vm.getBlockTimestamp() + 1);
 
         // Request slashes with correct vaults
-        vaults[1] = Middleware.VaultSlashData({vault: vault3, amount: 30});
-        slashes[0] = Middleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
+        vaults[1] = IMiddleware.VaultSlashData({vault: vault3, amount: 30});
+        slashes[0] =
+            IMiddleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
         requestSlash(slashes, 0);
     }
 
@@ -448,19 +451,19 @@ contract MiddlewareTest is Base {
         (address operator1, address operator2, address vault1, address vault2,,) = prepareTwoOperators();
 
         // Request slashes for 2 operators with corresponding vaults
-        Middleware.VaultSlashData[] memory operator1_vaults = new Middleware.VaultSlashData[](1);
-        operator1_vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
+        Middleware.VaultSlashData[] memory operator1_vaults = new IMiddleware.VaultSlashData[](1);
+        operator1_vaults[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 10});
 
-        Middleware.VaultSlashData[] memory operator2_vaults = new Middleware.VaultSlashData[](1);
-        operator2_vaults[0] = Middleware.VaultSlashData({vault: vault2, amount: 20});
+        Middleware.VaultSlashData[] memory operator2_vaults = new IMiddleware.VaultSlashData[](1);
+        operator2_vaults[0] = IMiddleware.VaultSlashData({vault: vault2, amount: 20});
 
-        Middleware.SlashData[] memory slashes = new Middleware.SlashData[](2);
-        slashes[0] = Middleware.SlashData({
+        Middleware.SlashData[] memory slashes = new IMiddleware.SlashData[](2);
+        slashes[0] = IMiddleware.SlashData({
             operator: operator1,
             ts: uint48(vm.getBlockTimestamp() - 1),
             vaults: operator1_vaults
         });
-        slashes[1] = Middleware.SlashData({
+        slashes[1] = IMiddleware.SlashData({
             operator: operator2,
             ts: uint48(vm.getBlockTimestamp() - 1),
             vaults: operator2_vaults
@@ -530,8 +533,8 @@ contract MiddlewareTest is Base {
     }
 
     function executeSlash(address vault, uint256 index) private {
-        Middleware.SlashIdentifier[] memory slashes = new Middleware.SlashIdentifier[](1);
-        slashes[0] = Middleware.SlashIdentifier({vault: vault, index: index});
+        Middleware.SlashIdentifier[] memory slashes = new IMiddleware.SlashIdentifier[](1);
+        slashes[0] = IMiddleware.SlashIdentifier({vault: vault, index: index});
 
         vm.startPrank(admin);
         {
@@ -544,11 +547,11 @@ contract MiddlewareTest is Base {
         private
         returns (uint256 slashIndex)
     {
-        Middleware.VaultSlashData[] memory vaults = new Middleware.VaultSlashData[](1);
-        vaults[0] = Middleware.VaultSlashData({vault: vault, amount: amount});
+        IMiddleware.VaultSlashData[] memory vaults = new IMiddleware.VaultSlashData[](1);
+        vaults[0] = IMiddleware.VaultSlashData({vault: vault, amount: amount});
 
-        Middleware.SlashData[] memory slashes = new Middleware.SlashData[](1);
-        slashes[0] = Middleware.SlashData({operator: operator, ts: ts, vaults: vaults});
+        IMiddleware.SlashData[] memory slashes = new IMiddleware.SlashData[](1);
+        slashes[0] = IMiddleware.SlashData({operator: operator, ts: ts, vaults: vaults});
 
         slashIndex = requestSlash(slashes, err)[0];
         assertNotEq(slashIndex, type(uint256).max);

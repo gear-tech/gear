@@ -16,6 +16,7 @@ import {INetworkMiddlewareService} from "symbiotic-core/src/interfaces/service/I
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratableEntity.sol";
 
+import {IMiddleware} from "./IMiddleware.sol";
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
 // TODO (asap): document all functions and variables
@@ -25,7 +26,7 @@ import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
-contract Middleware {
+contract Middleware is IMiddleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
     using Subnetwork for address;
@@ -53,43 +54,6 @@ contract Middleware {
     error RoleMismatch();
     error ResolverMismatch();
     error ResolverSetDelayTooLong();
-
-    struct VaultSlashData {
-        address vault;
-        uint256 amount;
-    }
-
-    struct SlashData {
-        address operator;
-        uint48 ts;
-        VaultSlashData[] vaults;
-    }
-
-    struct SlashIdentifier {
-        address vault;
-        uint256 index;
-    }
-
-    struct Config {
-        uint48 eraDuration;
-        uint48 minVaultEpochDuration;
-        uint48 operatorGracePeriod;
-        uint48 vaultGracePeriod;
-        uint48 minVetoDuration;
-        uint48 minSlashExecutionDelay;
-        uint256 maxResolverSetEpochsDelay;
-        address vaultRegistry;
-        uint64 allowedVaultImplVersion;
-        uint64 vetoSlasherImplType;
-        address operatorRegistry;
-        address networkRegistry;
-        address networkOptIn;
-        address middlewareService;
-        address collateral;
-        address roleSlashRequester;
-        address roleSlashExecutor;
-        address vetoResolver;
-    }
 
     uint96 public constant NETWORK_IDENTIFIER = 0;
 

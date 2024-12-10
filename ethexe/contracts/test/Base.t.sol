@@ -19,6 +19,7 @@ import {WrappedVara} from "../src/WrappedVara.sol";
 import {IMirror, Mirror} from "../src/Mirror.sol";
 import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {IRouter, Router} from "../src/Router.sol";
+import {IMiddleware} from "../src/IMiddleware.sol";
 import {Middleware} from "../src/Middleware.sol";
 import {Gear} from "../src/libraries/Gear.sol";
 
@@ -68,7 +69,7 @@ contract Base is POCBaseTest {
         SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
         super.setUp();
 
-        Middleware.Config memory cfg = Middleware.Config({
+        Middleware.Config memory cfg = IMiddleware.Config({
             eraDuration: eraDuration,
             minVaultEpochDuration: eraDuration * 2,
             operatorGracePeriod: eraDuration * 2,
