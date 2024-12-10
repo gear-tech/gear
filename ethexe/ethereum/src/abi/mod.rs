@@ -40,6 +40,7 @@ sol!(
 );
 
 sol!(
+    #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IRouter,
     "Router.json"

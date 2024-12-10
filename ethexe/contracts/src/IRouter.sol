@@ -23,6 +23,9 @@ interface IRouter {
         /// @notice Computation parameters for programs processing.
         /// @dev These parameters should be used for the operational logic of event and message handling on nodes. Any modifications will take effect in the next block.
         Gear.ComputationSettings computeSettings;
+        /// @notice Protocol time intervals durations.
+        /// @dev This contains information about the durations of the protocol's time intervals.
+        Gear.Durations durations;
         /// @notice Gear protocol data related to this router instance.
         /// @dev This contains information about the available codes and programs.
         Gear.ProtocolData protocolData;
@@ -44,6 +47,11 @@ interface IRouter {
     /// @param codeId The expected code ID of the applied WASM blob, represented as a Blake2 hash.
     /// @param blobTxHash The transaction hash that contains the WASM blob. Set to zero if applied to the current transaction.
     event CodeValidationRequested(bytes32 codeId, bytes32 blobTxHash);
+
+    /// @notice Emitted when validators for the next era are set.
+    /// @dev This is an *informational* event, signaling that the validator set has been set for the next era.
+    /// @param startTimestamp timestamp when the new era starts.
+    event NextEraValidatorsSet(uint256 startTimestamp);
 
     /// @notice Emitted when the computation settings have been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to change the computation settings. Users and program authors may want to adjust their practices, while validators need to apply the changes internally starting from the next block.
@@ -67,6 +75,7 @@ interface IRouter {
 
     // # Views.
     function genesisBlockHash() external view returns (bytes32);
+    function genesisTimestamp() external view returns (uint48);
     function latestCommittedBlockHash() external view returns (bytes32);
 
     function mirrorImpl() external view returns (address);
@@ -107,4 +116,7 @@ interface IRouter {
     function commitCodes(Gear.CodeCommitment[] calldata codeCommitments, bytes[] calldata signatures) external;
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
     function commitBlocks(Gear.BlockCommitment[] calldata blockCommitments, bytes[] calldata signatures) external;
+    /// @dev NextEraValidatorsSet Emitted on success.
+    function commitValidators(Gear.ValidatorsCommitment calldata validatorsCommitment, bytes[] calldata signatures)
+        external;
 }

@@ -21,6 +21,7 @@ import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 // TODO (asap): document all functions and variables
 // TODO (asap): implement rewards distribution
 // TODO (asap): add validators commission
+// TODO: introduce common struct for address and balance/value
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
