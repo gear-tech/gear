@@ -867,11 +867,8 @@ pub mod gbuild {
 #[cfg(test)]
 mod tests {
     use super::Program;
-
     use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
     use demo_constructor::{Arg, Scheme};
-    use gear_common::Origin;
-
     use gear_core::ids::ActorId;
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 
@@ -1085,7 +1082,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Insufficient balance: user (0x0500000000000000000000000000000000000000000000000000000000000000) \
+        expected = "Insufficient balance: user (0x0000000000000000000000000500000000000000000000000000000000000000) \
     tries to send (1000000000001) value, (4500000000000) gas and ED (1000000000000), while his balance (1000000000000)"
     )]
     fn fails_on_insufficient_balance() {
@@ -1446,7 +1443,12 @@ mod tests {
         let handle = Calls::builder()
             .reserve_gas(10_000_000_000, 5)
             .store("reservation")
-            .reservation_send_value("reservation", user_id.into_origin().0, payload.clone(), 0);
+            .reservation_send_value(
+                "reservation",
+                ActorId::from(user_id).into_bytes(),
+                payload.clone(),
+                0,
+            );
         let msg_id = prog.send(user_id, handle);
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&msg_id));
@@ -1459,7 +1461,7 @@ mod tests {
         let new_prog_id = 4343;
         let new_program = Program::from_binary_with_id(&sys, new_prog_id, WASM_BINARY);
         let payload = b"sup!".to_vec();
-        let handle = Calls::builder().send(user_id.into_origin().0, payload.clone());
+        let handle = Calls::builder().send(ActorId::from(user_id).into_bytes(), payload.clone());
         let scheme = Scheme::predefined(
             Calls::builder().noop(),
             handle,
@@ -1474,7 +1476,12 @@ mod tests {
         let handle = Calls::builder()
             .reserve_gas(10_000_000_000, 5)
             .store("reservation")
-            .reservation_send_value("reservation", new_prog_id.into_origin().0, [], 0);
+            .reservation_send_value(
+                "reservation",
+                ActorId::from(new_prog_id).into_bytes(),
+                [],
+                0,
+            );
         let msg_id = prog.send(user_id, handle);
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&msg_id));
