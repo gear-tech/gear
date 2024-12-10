@@ -17,6 +17,10 @@ gwasm-instrument = { workspace = true, features = ["sign_ext"] }
 derive_more.workspace = true
 enum-iterator.workspace = true
 
+# TODO: remove when tooling is updated
+# forcely enable features in transitive dependencies like `gwasm-instrument`
+gear-wasm = { version = "0.45.1", default-features = false, features = ["sign_ext", "multi_value"] }
+
 [dev-dependencies]
 wasmparser.workspace = true
 wat.workspace = true
@@ -26,4 +30,5 @@ default = ["std"]
 std = [
     "gwasm-instrument/std",
     "wasmparser/std",
+    "gear-wasm/std",
 ]
