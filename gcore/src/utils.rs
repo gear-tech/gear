@@ -20,21 +20,33 @@
 use gprimitives::ReservationId;
 use gprimitives::{ActorId, CodeId, MessageId};
 
-pub(crate) trait AsRawPtr: AsRef<[u8]> + AsMut<[u8]> {
-    fn as_ptr(&self) -> *const [u8; 32] {
+// pub(crate) trait AsRawPtr: AsRef<[u8]> + AsMut<[u8]> {
+//     fn as_ptr(&self) -> *const [u8; 32] {
+//         self.as_ref().as_ptr() as *const _
+//     }
+
+//     fn as_mut_ptr(&mut self) -> *mut [u8; 32] {
+//         self.as_mut().as_mut_ptr() as *mut _
+//     }
+// }
+pub(crate) trait AsRawPtr<U, const N: usize>: AsRef<[U]> + AsMut<[U]>
+where
+    U: 'static + Copy,
+{
+    fn as_ptr(&self) -> *const [U; N] {
         self.as_ref().as_ptr() as *const _
     }
 
-    fn as_mut_ptr(&mut self) -> *mut [u8; 32] {
+    fn as_mut_ptr(&mut self) -> *mut [U; N] {
         self.as_mut().as_mut_ptr() as *mut _
     }
 }
 
-impl AsRawPtr for ActorId {}
-impl AsRawPtr for CodeId {}
-impl AsRawPtr for MessageId {}
+impl AsRawPtr<u8, 32> for ActorId {}
+impl AsRawPtr<u8, 32> for CodeId {}
+impl AsRawPtr<u8, 32> for MessageId {}
 #[cfg(not(feature = "ethexe"))]
-impl AsRawPtr for ReservationId {}
+impl AsRawPtr<u8, 32> for ReservationId {}
 
 /// Extensions for additional features.
 pub mod ext {

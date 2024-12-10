@@ -1145,6 +1145,17 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 480_883
             .saturating_add(Weight::from_parts(130_379_476, 0).saturating_mul(s.into()))
     }
+    /// The range of component `r` is `[0, 20]`.
+	fn gr_permute(r: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 95_000_000 picoseconds.
+		Weight::from_parts(103_931_696, 0)
+			.saturating_add(Weight::from_parts(0, 0))
+			// Standard Error: 435_353
+			.saturating_add(Weight::from_parts(286_706_306, 0).saturating_mul(r.into()))
+	}
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_read(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
