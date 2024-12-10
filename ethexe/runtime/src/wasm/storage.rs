@@ -17,16 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::interface::database_ri;
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 use core_processor::configs::BlockInfo;
 use ethexe_runtime_common::{
     state::{
-        Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, ProgramState,
-        Storage, Waitlist,
+        Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
+        ProgramState, Storage, Waitlist,
     },
     RuntimeInterface,
 };
-use gear_core::{memory::PageBuf, message::Payload, pages::GearPage};
+use gear_core::{memory::PageBuf, message::Payload};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gprimitives::H256;
 
@@ -86,8 +86,16 @@ impl Storage for RuntimeInterfaceStorage {
         database_ri::read_unwrapping(&hash.hash())
     }
 
+    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+        database_ri::read_unwrapping(&hash.hash())
+    }
+
     fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
         unsafe { HashOf::new(database_ri::write(pages)) }
+    }
+
+    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+        unsafe { HashOf::new(database_ri::write(pages_region)) }
     }
 
     fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
@@ -129,7 +137,7 @@ impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
         self.block_info
     }
 
-    fn init_lazy_pages(&self, _: BTreeMap<GearPage, HashOf<PageBuf>>) {
+    fn init_lazy_pages(&self) {
         assert!(Self::LazyPages::try_to_enable_lazy_pages(Default::default()))
     }
 
