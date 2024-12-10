@@ -533,6 +533,9 @@ pub mod constants {
     /// by programs dispatches from execution of the user dispatch.
     pub const GAS_ALLOWANCE: Gas = 1_000_000_000_000;
 
+    /// Max allowed user gas to apply for external message.
+    pub const MAX_USER_GAS_LIMIT: Gas = 750_000_000_000;
+
     /// Gas multiplier used to calculate equivalence of gas in token value.
     pub const GAS_MULTIPLIER: GasMultiplier<Value, Gas> = GasMultiplier::ValuePerGas(VALUE_PER_GAS);
 
