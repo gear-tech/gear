@@ -55,6 +55,7 @@ mod private {
     impl Sealed for DispatchStash {}
     impl Sealed for Mailbox {}
     impl Sealed for MemoryPages {}
+    impl Sealed for MemoryPagesRegion {}
     impl Sealed for MessageQueue {}
     impl Sealed for Payload {}
     impl Sealed for PageBuf {}
@@ -813,23 +814,112 @@ impl Mailbox {
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct MemoryPages(BTreeMap<GearPage, HashOf<PageBuf>>);
+pub struct MemoryPages(BTreeMap<u8, HashOf<MemoryPagesRegion>>);
 
 impl MemoryPages {
-    pub fn update(&mut self, new_pages: BTreeMap<GearPage, HashOf<PageBuf>>) {
+    pub const REGIONS_AMOUNT: usize = 4;
+
+    pub fn page_region(page: GearPage) -> u8 {
+        (u32::from(page) as usize / Self::REGIONS_AMOUNT) as u8
+    }
+
+    pub fn update_and_store_regions<S: Storage>(
+        &mut self,
+        storage: &S,
+        new_pages: BTreeMap<GearPage, HashOf<PageBuf>>,
+    ) {
+        let mut updated_regions = BTreeMap::new();
+
+        let mut current_region = None;
+        let mut current_region_entry = None;
+
         for (page, data) in new_pages {
-            self.0.insert(page, data);
+            let page_region = Self::page_region(page);
+
+            if current_region != Some(page_region) {
+                let region_entry = updated_regions.entry(page_region).or_insert_with(|| {
+                    self.0
+                        .remove(&page_region)
+                        .map(|region_hash| {
+                            storage
+                                .read_pages_region(region_hash)
+                                .expect("failed to read region from storage")
+                        })
+                        .unwrap_or_default()
+                });
+
+                current_region = Some(page_region);
+                current_region_entry = Some(region_entry);
+            }
+
+            current_region_entry
+                .as_mut()
+                .expect("infallible; inserted above")
+                .0
+                .insert(page, data);
+        }
+
+        for (region, region_data) in updated_regions {
+            let region_hash = region_data
+                .store(storage)
+                .hash()
+                .expect("infallible; pages are only appended here, none are removed");
+
+            self.0.insert(region, region_hash);
         }
     }
 
-    pub fn remove(&mut self, pages: &Vec<GearPage>) {
+    pub fn remove_and_store_regions<S: Storage>(&mut self, storage: &S, pages: &Vec<GearPage>) {
+        let mut updated_regions = BTreeMap::new();
+
+        let mut current_region = None;
+        let mut current_region_entry = None;
+
         for page in pages {
-            self.0.remove(page);
+            let page_region = Self::page_region(*page);
+
+            if current_region != Some(page_region) {
+                let region_entry = updated_regions.entry(page_region).or_insert_with(|| {
+                    self.0
+                        .remove(&page_region)
+                        .map(|region_hash| {
+                            storage
+                                .read_pages_region(region_hash)
+                                .expect("failed to read region from storage")
+                        })
+                        .unwrap_or_default()
+                });
+
+                current_region = Some(page_region);
+                current_region_entry = Some(region_entry);
+            }
+
+            current_region_entry
+                .as_mut()
+                .expect("infallible; inserted above")
+                .0
+                .remove(page);
+        }
+
+        for (region, region_data) in updated_regions {
+            if let Some(region_hash) = region_data.store(storage).hash() {
+                self.0.insert(region, region_hash);
+            }
         }
     }
 
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages(self)))
+    }
+}
+
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct MemoryPagesRegion(BTreeMap<GearPage, HashOf<PageBuf>>);
+
+impl MemoryPagesRegion {
+    pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
+        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages_region(self)))
     }
 }
 
@@ -904,12 +994,17 @@ pub trait Storage {
     /// Writes mailbox and returns its hash.
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox>;
 
-    // TODO: #4355.
     /// Reads memory pages by pages hash.
     fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;
 
+    /// Writes memory pages region and returns its hash.
+    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion>;
+
     /// Writes memory pages and returns its hash.
     fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages>;
+
+    /// Writes memory pages region and returns its hash.
+    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion>;
 
     /// Reads allocations by allocations hash.
     fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations>;

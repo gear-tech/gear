@@ -19,6 +19,7 @@
 //! Runtime common implementation.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(unused)] // TODO (breathx): WITHIN THE PR
 
 extern crate alloc;
 
@@ -271,7 +272,8 @@ where
 
     let random_data = ri.random_data();
 
-    ri.init_lazy_pages(pages_map.into());
+    todo!("TODO (breathx): WITHIN THE PR");
+    ri.init_lazy_pages(Default::default());
 
     core_processor::process::<Ext<RI::LazyPages>>(&block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))

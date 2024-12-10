@@ -21,8 +21,8 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use core_processor::configs::BlockInfo;
 use ethexe_runtime_common::{
     state::{
-        Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, ProgramState,
-        Storage, Waitlist,
+        Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
+        ProgramState, Storage, Waitlist,
     },
     RuntimeInterface,
 };
@@ -86,8 +86,16 @@ impl Storage for RuntimeInterfaceStorage {
         database_ri::read_unwrapping(&hash.hash())
     }
 
+    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+        database_ri::read_unwrapping(&hash.hash())
+    }
+
     fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
         unsafe { HashOf::new(database_ri::write(pages)) }
+    }
+
+    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+        unsafe { HashOf::new(database_ri::write(pages_region)) }
     }
 
     fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {

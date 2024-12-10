@@ -18,6 +18,8 @@
 
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
+#![allow(unused)] // TODO (breathx): WITHIN THE PR
+
 use crate::Database;
 use core::fmt;
 use ethexe_db::BlockMetaStorage;
@@ -63,7 +65,8 @@ impl ThreadParams {
                 panic!("Couldn't get pages hash for inactive program!")
             };
 
-            pages_hash.query(&self.db).expect(UNKNOWN_STATE).into()
+            todo!("TODO (breathx): WITHIN THE PR")
+            // pages_hash.query(&self.db).expect(UNKNOWN_STATE).into()
         })
     }
 }
