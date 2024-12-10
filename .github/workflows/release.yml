@@ -62,7 +62,8 @@ jobs:
 
       - name: "Environment: Export versions"
         run: |
-          echo "VARA_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
+          echo "VARA_PROD_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | head -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
+          echo "VARA_DEV_SPEC=$(cat runtime/vara/src/lib.rs | grep "spec_version: " | tail -n 1 | awk -F " " '{print substr($2, 1, length($2)-1)}')" >> $GITHUB_ENV
 
       - name: "Environment: Make `artifact` directory"
         run: mkdir -p artifact
@@ -80,10 +81,10 @@ jobs:
 
       - name: "Artifact: Production `vara-runtime` metadata"
         run: |
-          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/production_vara_runtime_v${VARA_SPEC}_metadata.scale"
+          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/production_vara_runtime_v${VARA_PROD_SPEC}_metadata.scale"
 
       - name: "Artifact: Production `vara-runtime`"
-        run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/production_vara_runtime_v$VARA_SPEC.wasm"
+        run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/production_vara_runtime_v${VARA_PROD_SPEC}.wasm"
 
       - name: "Build: Production node client and development `vara-runtime`"
         run: cargo build -p gear-cli --profile production
@@ -93,18 +94,18 @@ jobs:
 
       - name: "Artifact: Development `vara-runtime` metadata"
         run: |
-          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/testnet_vara_runtime_v${VARA_SPEC}_metadata.scale"
+          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}_metadata.scale"
 
       - name: "Artifact: Production node client and development `vara-runtime`"
         run: |
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/testnet_vara_runtime_v$VARA_SPEC.wasm"
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}.wasm"
           cp target/production/gear artifact/gear
           strip artifact/gear || true
 
       - name: Check SHA256 checksums
         run: |
-          sha256sum artifact/production_vara_runtime_v$VARA_SPEC.wasm
-          sha256sum artifact/testnet_vara_runtime_v$VARA_SPEC.wasm
+          sha256sum artifact/production_vara_runtime_v${VARA_PROD_SPEC}.wasm
+          sha256sum artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}.wasm
 
       - name: Publish
         uses: softprops/action-gh-release@v2
