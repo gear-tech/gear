@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::interface::database_ri;
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 use core_processor::configs::BlockInfo;
 use ethexe_runtime_common::{
     state::{
@@ -26,7 +26,7 @@ use ethexe_runtime_common::{
     },
     RuntimeInterface,
 };
-use gear_core::{memory::PageBuf, message::Payload, pages::GearPage};
+use gear_core::{memory::PageBuf, message::Payload};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gprimitives::H256;
 
@@ -137,7 +137,7 @@ impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
         self.block_info
     }
 
-    fn init_lazy_pages(&self, _: BTreeMap<GearPage, HashOf<PageBuf>>) {
+    fn init_lazy_pages(&self) {
         assert!(Self::LazyPages::try_to_enable_lazy_pages(Default::default()))
     }
 
