@@ -817,7 +817,18 @@ impl Mailbox {
 pub struct MemoryPages(BTreeMap<u8, HashOf<MemoryPagesRegion>>);
 
 impl MemoryPages {
-    pub const REGIONS_AMOUNT: usize = 4;
+    /// Granularity parameter of how memory pages hashes are stored.
+    ///
+    /// Instead of a single huge map of GearPage to HashOf<PageBuf>, memory is
+    /// stored in page regions. Each region represents the same map,
+    /// but with a specific range of GearPage as keys.
+    ///
+    /// # Safety
+    /// Be careful adjusting this value, as it affects the storage invariants.
+    /// In case of a change, not only should the database be migrated, but
+    /// necessary changes should also be applied in the ethexe lazy pages
+    /// host implementation: see the `ThreadParams` struct.
+    pub const REGIONS_AMOUNT: usize = 16;
 
     pub fn page_region(page: GearPage) -> u8 {
         (u32::from(page) as usize / Self::REGIONS_AMOUNT) as u8
