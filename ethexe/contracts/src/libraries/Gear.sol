@@ -104,6 +104,7 @@ library Gear {
     struct Durations {
         uint256 era;
         uint256 election;
+        uint256 validationDelay;
     }
 
     struct ValidationSettings {
@@ -191,7 +192,30 @@ library Gear {
         view
         returns (bool)
     {
-        Validators storage validators = currentEraValidators(router);
+        return validateSignaturesAt(router, _dataHash, _signatures, block.timestamp);
+    }
+
+    /// @dev Validates signatures of the given data hash at the given timestamp.
+    function validateSignaturesAt(
+        IRouter.Storage storage router,
+        bytes32 _dataHash,
+        bytes[] calldata _signatures,
+        uint256 ts
+    ) internal view returns (bool) {
+        uint256 eraStarted = eraStartedAt(router, block.timestamp);
+        if (ts < eraStarted && block.timestamp < eraStarted + router.durations.validationDelay) {
+            require(ts >= router.genesisBlock.timestamp, "cannot validate before genesis");
+            require(ts + router.durations.era >= eraStarted, "timestamp is older than previous era");
+
+            // Validation must be done using validators from previous era,
+            // because `ts` is in the past and we are in the validation delay period.
+        } else {
+            require(ts <= block.timestamp, "timestamp cannot be in the future");
+
+            // Validation must be done using current era validators.
+        }
+
+        Validators storage validators = validatorsAt(router, ts);
 
         uint256 threshold =
             validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
@@ -215,25 +239,32 @@ library Gear {
     }
 
     function currentEraValidators(IRouter.Storage storage router) internal view returns (Validators storage) {
-        if (currentEraValidatorsStoredInValidators1(router)) {
-            return router.validationSettings.validators1;
-        } else {
-            return router.validationSettings.validators0;
-        }
+        return validatorsAt(router, block.timestamp);
     }
 
+    /// @dev Returns previous era validators, if there is no previous era, then returns free validators slot,
+    ///     which must be zeroed.
     function previousEraValidators(IRouter.Storage storage router) internal view returns (Validators storage) {
-        if (currentEraValidatorsStoredInValidators1(router)) {
+        if (validatorsStoredInSlot1At(router, block.timestamp)) {
             return router.validationSettings.validators0;
         } else {
             return router.validationSettings.validators1;
         }
     }
 
-    /// @dev Returns whether current era validators are stored in `router.validationSettings.validators1`.
+    // TODO: comment
+    function validatorsAt(IRouter.Storage storage router, uint256 ts) internal view returns (Validators storage) {
+        if (validatorsStoredInSlot1At(router, ts)) {
+            return router.validationSettings.validators1;
+        } else {
+            return router.validationSettings.validators0;
+        }
+    }
+
+    /// @dev Returns whether validators at `ts` are stored in `router.validationSettings.validators1`.
     ///      `false` means that current era validators are stored in `router.validationSettings.validators0`.
-    function currentEraValidatorsStoredInValidators1(IRouter.Storage storage router) internal view returns (bool) {
-        uint256 ts = block.timestamp;
+    /// @param ts Timestamp for which to check the validators slot, must be greater than both slots timestamp values.
+    function validatorsStoredInSlot1At(IRouter.Storage storage router, uint256 ts) internal view returns (bool) {
         uint256 ts0 = router.validationSettings.validators0.useFromTimestamp;
         uint256 ts1 = router.validationSettings.validators1.useFromTimestamp;
 
@@ -244,8 +275,8 @@ library Gear {
         bool tsGE0 = ts0 <= ts;
         bool tsGE1 = ts1 <= ts;
 
-        // Both eras are in the future - impossible case because of implementation.
-        require(tsGE0 || tsGE1, "could not identify validators for current timestamp");
+        // Both eras are in the future - not supported by this function.
+        require(tsGE0 || tsGE1, "could not identify validators for the given timestamp");
 
         // Two impossible cases, because of math rules:
         // 1)  ts1Greater && !tsGE0 &&  tsGE1
@@ -265,5 +296,13 @@ library Gear {
 
     function valueClaimBytes(ValueClaim memory claim) internal pure returns (bytes memory) {
         return abi.encodePacked(claim.messageId, claim.destination, claim.value);
+    }
+
+    function eraIndexAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
+        return (ts - router.genesisBlock.timestamp) / router.durations.era;
+    }
+
+    function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
+        return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.durations.era;
     }
 }

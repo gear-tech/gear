@@ -44,7 +44,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
         router.computeSettings = Gear.defaultComputationSettings();
-        router.durations = Gear.Durations(_eraDuration, _electionDuration);
+        router.durations = Gear.Durations(_eraDuration, _electionDuration, 100);
 
         // Set validators for the era 0.
         _resetValidators(router.validationSettings.validators0, _validators, block.timestamp);
@@ -310,15 +310,24 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
+        require(_blockCommitments.length > 0, "no block commitments to commit");
+
         bytes memory blockCommitmentsHashes;
+        uint256 maxTimestamp = 0;
 
         for (uint256 i = 0; i < _blockCommitments.length; i++) {
             Gear.BlockCommitment calldata blockCommitment = _blockCommitments[i];
             blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
+            if (blockCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = blockCommitment.timestamp;
+            }
         }
 
+        // NOTE: Use maxTimestamp to validate signatures for all block commitments.
+        // This means that if at least one commitment is for block from current era,
+        // then all commitments should be checked with current era validators.
         require(
-            Gear.validateSignatures(router, keccak256(blockCommitmentsHashes), _signatures),
+            Gear.validateSignaturesAt(router, keccak256(blockCommitmentsHashes), _signatures, maxTimestamp),
             "signatures verification failed"
         );
     }
