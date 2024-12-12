@@ -19,9 +19,9 @@ library Gear {
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
 
     struct Validators {
-        // TODO: After FROST multi signature applied - consider to remove validators set and list.
+        // TODO: After FROST multi signature applied - consider to remove validators map and list.
         // Replace it with list hash. Any node can access the list of validators using this hash from other nodes.
-        mapping(address => bool) set;
+        mapping(address => bool) map;
         address[] list;
         uint256 useFromTimestamp;
     }
@@ -101,7 +101,7 @@ library Gear {
         Message[] messages;
     }
 
-    struct Durations {
+    struct Timelines {
         uint256 era;
         uint256 election;
     }
@@ -204,7 +204,7 @@ library Gear {
 
             address validator = msgHash.recover(signature);
 
-            if (validators.set[validator]) {
+            if (validators.map[validator]) {
                 if (++validSignatures == threshold) {
                     return true;
                 }

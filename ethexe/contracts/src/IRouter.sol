@@ -23,9 +23,9 @@ interface IRouter {
         /// @notice Computation parameters for programs processing.
         /// @dev These parameters should be used for the operational logic of event and message handling on nodes. Any modifications will take effect in the next block.
         Gear.ComputationSettings computeSettings;
-        /// @notice Protocol time intervals durations.
-        /// @dev This contains information about the durations of the protocol's time intervals.
-        Gear.Durations durations;
+        /// @notice Protocol timelines.
+        /// @dev This contains information about the protocol's timelines.
+        Gear.Timelines timelines;
         /// @notice Gear protocol data related to this router instance.
         /// @dev This contains information about the available codes and programs.
         Gear.ProtocolData protocolData;
@@ -48,10 +48,10 @@ interface IRouter {
     /// @param blobTxHash The transaction hash that contains the WASM blob. Set to zero if applied to the current transaction.
     event CodeValidationRequested(bytes32 codeId, bytes32 blobTxHash);
 
-    /// @notice Emitted when validators for the next era are set.
-    /// @dev This is an *informational* event, signaling that the validator set has been set for the next era.
+    /// @notice Emitted when validators for the next era has been set.
+    /// @dev This is an *informational* and *request* event, signaling that validators has been set for the next era.
     /// @param startTimestamp timestamp when the new era starts.
-    event NextEraValidatorsSet(uint256 startTimestamp);
+    event NextEraValidatorsCommitted(uint256 startTimestamp);
 
     /// @notice Emitted when the computation settings have been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to change the computation settings. Users and program authors may want to adjust their practices, while validators need to apply the changes internally starting from the next block.
@@ -68,10 +68,6 @@ interface IRouter {
     /// @notice Emitted when the router's storage slot has been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
     event StorageSlotChanged();
-
-    /// @notice Emitted when the election mechanism forces the validator set to be changed.
-    /// @dev This is an *informational* event, signaling that only new validators are now able to pass commitment signing verification.
-    event ValidatorsChanged();
 
     // # Views.
     function genesisBlockHash() external view returns (bytes32);
@@ -116,7 +112,7 @@ interface IRouter {
     function commitCodes(Gear.CodeCommitment[] calldata codeCommitments, bytes[] calldata signatures) external;
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
     function commitBlocks(Gear.BlockCommitment[] calldata blockCommitments, bytes[] calldata signatures) external;
-    /// @dev NextEraValidatorsSet Emitted on success.
+    /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(Gear.ValidatorsCommitment calldata validatorsCommitment, bytes[] calldata signatures)
         external;
 }
