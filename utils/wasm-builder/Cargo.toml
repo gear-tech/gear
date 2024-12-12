@@ -2,9 +2,11 @@
 name = "gear-wasm-builder"
 description = "Utility for building Gear programs"
 documentation = "https://docs.rs/gear-wasm-builder"
-version.workspace = true
 edition.workspace = true
+version.workspace = true
+authors.workspace = true
 license.workspace = true
+homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 include = ["build.rs", "src/**/*", "Cargo.toml", "README.md"]

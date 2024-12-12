@@ -27,6 +27,9 @@ pub const VARA_DECIMAL: u8 = 12;
 /// Vara Token Symbol
 pub const VARA_TOKEN_SYMBOL: &str = "VARA";
 
+/// Vara Testnet Token Symbol
+pub const VARA_TESTNET_TOKEN_SYMBOL: &str = "TVARA";
+
 /// The minimal amount of blocks to resume represented as a factor of weeks.
 pub const RENT_RESUME_WEEK_FACTOR: BlockNumber = 4;
 
