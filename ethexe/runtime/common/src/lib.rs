@@ -19,37 +19,24 @@
 //! Runtime common implementation.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(unused)]
 
 extern crate alloc;
 
-use alloc::{
-    collections::{BTreeMap, VecDeque},
-    vec::Vec,
-};
-use anyhow::Result;
-use core::{marker::PhantomData, mem::swap};
+use alloc::vec::Vec;
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     ids::ProgramId,
-    message::{DispatchKind, IncomingDispatch, IncomingMessage, Value},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
-    program::MemoryInfix,
-    reservation::GasReservationMap,
+    message::{DispatchKind, IncomingDispatch, IncomingMessage},
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::{CodeId, H256};
+use gprimitives::CodeId;
 use gsys::{GasMultiplier, Percent};
-use parity_scale_codec::{Decode, Encode};
-use state::{
-    ActiveProgram, ComplexStorage, Dispatch, HashAndLen, InitStatus, MaybeHash, MessageQueue,
-    ProgramState, Storage, Waitlist,
-};
+use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
 pub use journal::Handler as JournalHandler;
@@ -64,45 +51,46 @@ mod transitions;
 
 pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
 
-const RUNTIME_ID: u32 = 0;
+pub const RUNTIME_ID: u32 = 0;
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
 
     fn block_info(&self) -> BlockInfo;
-    fn init_lazy_pages(&self, pages_map: BTreeMap<GearPage, H256>);
+    fn init_lazy_pages(&self);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn storage(&self) -> &S;
 }
 
-pub(crate) fn update_state<S: Storage>(
-    in_block_transitions: &mut InBlockTransitions,
-    storage: &S,
-    program_id: ProgramId,
-    f: impl FnOnce(&mut ProgramState) -> Result<()>,
-) -> H256 {
-    update_state_with_storage(in_block_transitions, storage, program_id, |_s, state| {
-        f(state)
-    })
+pub struct TransitionController<'a, S: Storage> {
+    pub storage: &'a S,
+    pub transitions: &'a mut InBlockTransitions,
 }
 
-pub(crate) fn update_state_with_storage<S: Storage>(
-    in_block_transitions: &mut InBlockTransitions,
-    storage: &S,
-    program_id: ProgramId,
-    f: impl FnOnce(&S, &mut ProgramState) -> Result<()>,
-) -> H256 {
-    let state_hash = in_block_transitions
-        .state_of(&program_id)
-        .expect("failed to find program in known states");
+impl<'a, S: Storage> TransitionController<'a, S> {
+    pub fn update_state<T>(
+        &mut self,
+        program_id: ProgramId,
+        f: impl FnOnce(&mut ProgramState, &S, &mut InBlockTransitions) -> T,
+    ) -> T {
+        let state_hash = self
+            .transitions
+            .state_of(&program_id)
+            .expect("failed to find program in known states");
 
-    let new_state_hash = storage
-        .mutate_state(state_hash, f)
-        .expect("failed to mutate state");
+        let mut state = self
+            .storage
+            .read_state(state_hash)
+            .expect("failed to read state from storage");
 
-    in_block_transitions.modify_state(program_id, new_state_hash);
+        let res = f(&mut state, self.storage, self.transitions);
 
-    new_state_hash
+        let new_state_hash = self.storage.write_state(state);
+
+        self.transitions.modify_state(program_id, new_state_hash);
+
+        res
+    }
 }
 
 pub fn process_next_message<S, RI>(
@@ -134,7 +122,6 @@ where
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {
         block_info,
-        performance_multiplier: Percent::new(100),
         forbidden_funcs: [
             // Deprecated
             SyscallName::CreateProgramWGas,
@@ -160,15 +147,18 @@ where
             SyscallName::Random,
         ]
         .into(),
-        reserve_for: 125_000_000,
-        gas_multiplier: GasMultiplier::one(), // TODO
-        costs: Default::default(),            // TODO
-        existential_deposit: 0,               // TODO
-        mailbox_threshold: 3000,
-        max_reservations: 50,
-        max_pages: 512.into(),
+        gas_multiplier: GasMultiplier::one(),
+        costs: Default::default(),
+        max_pages: MAX_WASM_PAGES_AMOUNT.into(),
         outgoing_limit: 1024,
         outgoing_bytes_limit: 64 * 1024 * 1024,
+        // TBD about deprecation
+        performance_multiplier: Percent::new(100),
+        // Deprecated
+        existential_deposit: 0,
+        mailbox_threshold: 0,
+        max_reservations: 0,
+        reserve_for: 0,
     };
 
     let active_state = match program_state.program {
@@ -183,11 +173,11 @@ where
         id: dispatch_id,
         kind,
         source,
-        payload_hash,
+        payload,
         value,
         details,
         context,
-    } = queue.pop_front().unwrap();
+    } = queue.dequeue().unwrap(); // TODO (breathx): why unwrap?
 
     if active_state.initialized && kind == DispatchKind::Init {
         // Panic is impossible, because gear protocol does not provide functionality
@@ -204,8 +194,7 @@ where
         todo!("Process messages to uninitialized program");
     }
 
-    let payload = payload_hash
-        .with_hash_or_default(|hash| ri.storage().read_payload(hash).expect("Cannot get payload"));
+    let payload = payload.query(ri.storage()).expect("failed to get payload");
 
     let gas_limit = block_config
         .gas_multiplier
@@ -239,19 +228,14 @@ where
     let context = match core_processor::precharge_for_allocations(
         &block_config,
         context,
-        allocations.intervals_amount() as u32,
+        allocations.tree_len(),
     ) {
         Ok(context) => context,
         Err(journal) => return journal,
     };
 
-    let pages_map = active_state.pages_hash.with_hash_or_default(|hash| {
-        ri.storage()
-            .read_pages(hash)
-            .expect("Cannot get memory pages")
-    });
     let actor_data = ExecutableActorData {
-        allocations,
+        allocations: allocations.into(),
         code_id,
         code_exports: code.exports().clone(),
         static_pages: code.static_pages(),
@@ -280,7 +264,7 @@ where
 
     let random_data = ri.random_data();
 
-    ri.init_lazy_pages(pages_map.clone());
+    ri.init_lazy_pages();
 
     core_processor::process::<Ext<RI::LazyPages>>(&block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))

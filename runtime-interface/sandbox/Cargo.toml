@@ -1,6 +1,7 @@
 [package]
 name = "gear-sandbox-interface"
 description = "Gear Sandbox Interface"
+documentation = "https://docs.rs/gear-sandbox-interface"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -27,5 +28,6 @@ std = [
 
   "sp-runtime-interface/std",
   "sp-wasm-interface/std",
+  "sp-wasm-interface/wasmtime",
 ]
 runtime-benchmarks = []

@@ -123,7 +123,7 @@ impl UserSignalHandler for FuzzerLazyPagesSignalHandler {
         log::debug!("Interrupted, exception info = {:?}", info);
         FUZZER_LP_CONTEXT.with(|ctx| {
             let mut borrow = ctx.borrow_mut();
-            let ctx = borrow.as_mut().ok_or_else(|| Error::WasmMemAddrIsNotSet)?;
+            let ctx = borrow.as_mut().ok_or(Error::WasmMemAddrIsNotSet)?;
             user_signal_handler_internal(ctx, info)
         })
     }
@@ -134,7 +134,7 @@ fn user_signal_handler_internal(
     info: ExceptionInfo,
 ) -> Result<(), Error> {
     let native_addr = info.fault_addr as usize;
-    let is_write = info.is_write.ok_or_else(|| Error::ReadOrWriteIsUnknown)?;
+    let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
     let wasm_mem_range = &ctx.memory_range;
 
     if !wasm_mem_range.contains(&native_addr) {

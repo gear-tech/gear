@@ -80,13 +80,15 @@ pub struct MessageHandle(u32);
 /// struct. The source `ActorId` for a message being processed can be obtained
 /// using `gstd::msg::source()` function. Also, each send function has a target
 /// `ActorId` as one of the arguments.
+///
+/// NOTE: Implementation of `From<u64>` places bytes from idx=12 for Eth compatibility.
 #[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ActorId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 try_from_slice debug, ActorId);
+macros::impl_primitive!(new zero into_bytes from_h256 into_h256 try_from_slice debug, ActorId);
 
 impl ActorId {
     /// Returns the ss58-check address with default ss58 version.
@@ -111,11 +113,33 @@ impl ActorId {
     }
 }
 
+impl From<u64> for ActorId {
+    fn from(value: u64) -> Self {
+        let mut id = Self::zero();
+        id.0[12..20].copy_from_slice(&value.to_le_bytes()[..]);
+        id
+    }
+}
+
 impl From<H160> for ActorId {
     fn from(h160: H160) -> Self {
         let mut actor_id = Self::zero();
         actor_id.0[12..].copy_from_slice(h160.as_ref());
         actor_id
+    }
+}
+
+impl TryInto<H160> for ActorId {
+    type Error = &'static str;
+
+    fn try_into(self) -> Result<H160, Self::Error> {
+        if !self.0[..12].iter().all(|i| i.eq(&0)) {
+            Err("ActorId has non-zero prefix")
+        } else {
+            let mut h160 = H160::zero();
+            h160.0.copy_from_slice(&self.into_bytes()[12..]);
+            Ok(h160)
+        }
     }
 }
 

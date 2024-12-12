@@ -23,6 +23,7 @@ use anyhow::{ensure, Context as _, Result};
 use directories::ProjectDirs;
 use ethexe_network::NetworkEventLoopConfig;
 use ethexe_prometheus_endpoint::Registry;
+use ethexe_rpc::RpcConfig;
 use ethexe_signer::{Address, PublicKey};
 use std::{iter, net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 use tempfile::TempDir;
@@ -101,6 +102,14 @@ pub struct Config {
     /// Block production time.
     pub block_time: Duration,
 
+    /// Amount of physical threads tokio runtime will use for program processing.
+    ///
+    /// The default value is the number of cores available to the system.
+    pub worker_threads_override: Option<usize>,
+
+    /// Amount of virtual threads (workers) for programs processing.
+    pub virtual_threads: usize,
+
     /// Path of the state database
     pub database_path: PathBuf,
 
@@ -116,14 +125,14 @@ pub struct Config {
     /// Sender address to send Ethereum transaction.
     pub sender_address: Option<String>,
 
-    // Network configuration
+    /// Network configuration.
     pub net_config: Option<NetworkEventLoopConfig>,
 
-    // Prometheus configuration
+    /// Prometheus configuration.
     pub prometheus_config: Option<PrometheusConfig>,
 
-    /// RPC port
-    pub rpc_port: Option<u16>,
+    /// Rpc endpoint configuration.
+    pub rpc_config: Option<RpcConfig>,
 }
 
 impl TryFrom<Args> for Config {
@@ -195,6 +204,8 @@ impl TryFrom<Args> for Config {
                 .context("failed to parse router address")?,
             max_commitment_depth: args.max_commitment_depth.unwrap_or(1000),
             block_time: Duration::from_secs(args.block_time),
+            worker_threads_override: args.worker_threads_override.map(|v| u8::from(v).into()),
+            virtual_threads: u8::from(args.virtual_threads).into(),
             database_path: base_path.join("db"),
             key_path: base_path.join("key"),
             sequencer,
@@ -204,7 +215,7 @@ impl TryFrom<Args> for Config {
             prometheus_config: args.prometheus_params.and_then(|params| {
                 params.prometheus_config(DEFAULT_PROMETHEUS_PORT, "ethexe-dev".to_string())
             }),
-            rpc_port: args.rpc_port,
+            rpc_config: args.rpc_params.and_then(|v| v.as_config()),
         })
     }
 }

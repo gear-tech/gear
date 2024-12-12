@@ -29,10 +29,19 @@ pub use self::{
     manifest::{LockFile, Manifest, Workspace},
     publisher::Publisher,
     simulator::Simulator,
-    version::verify,
+    version::{verify, verify_owners, PackageStatus},
 };
 use anyhow::Result;
 use std::process::{Command, ExitStatus};
+
+/// Username that owns crates.
+pub const USER_OWNER: &str = "breathx";
+
+/// Team that owns crates.
+pub const TEAM_OWNER: &str = "github:gear-tech:dev";
+
+/// Expected owners of crates.
+pub const EXPECTED_OWNERS: [&str; 2] = [USER_OWNER, TEAM_OWNER];
 
 /// Required Packages without local dependencies.
 pub const SAFE_DEPENDENCIES: &[&str] = &[
@@ -60,6 +69,7 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
 pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gprimitives",
     "gbuiltin-eth-bridge",
+    "gbuiltin-proxy",
     "gbuiltin-staking",
     "gstd-codegen",
     "gcore",
@@ -106,14 +116,6 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
 /// Name for temporary cargo registry.
 pub const CARGO_REGISTRY_NAME: &str = "cargo-http-registry";
 
-/// Check the input package
-pub fn check(manifest: &str) -> Result<ExitStatus> {
-    Command::new("cargo")
-        .args(["+stable", "check", "--manifest-path", manifest])
-        .status()
-        .map_err(Into::into)
-}
-
 /// Test the input package
 pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
     Command::new("cargo")
@@ -132,6 +134,14 @@ pub fn publish(manifest: &str) -> Result<ExitStatus> {
             manifest,
             "--allow-dirty",
         ])
+        .status()
+        .map_err(Into::into)
+}
+
+/// Add owner to the input package
+pub fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
+    Command::new("cargo")
+        .args(["+stable", "owner", "--add", owner, package])
         .status()
         .map_err(Into::into)
 }

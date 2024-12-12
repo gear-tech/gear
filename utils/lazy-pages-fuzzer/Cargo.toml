@@ -15,6 +15,6 @@ gear-lazy-pages-common.workspace = true
 log.workspace = true
 region.workspace = true
 wasmer.workspace = true
-sandbox-wasmi.workspace = true
+wasmi.workspace = true
 wasmprinter.workspace = true
 wat.workspace = true

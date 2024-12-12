@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::cell::RefCell;
+use core::{cell::RefCell, sync::atomic::Ordering};
 
 use codec::{Decode, Encode};
 use gear_sandbox_host::sandbox::{self as sandbox_env, env::Instantiate};
@@ -32,10 +32,10 @@ struct Sandboxes {
 }
 
 impl Sandboxes {
-    pub fn new() -> Self {
+    pub fn new(sandbox_backend: sandbox_env::SandboxBackend) -> Self {
         Self {
             store_data_key: 0,
-            store: sandbox_env::SandboxComponents::new(sandbox_env::SandboxBackend::Wasmer),
+            store: sandbox_env::SandboxComponents::new(sandbox_backend),
         }
     }
 
@@ -61,8 +61,21 @@ impl Sandboxes {
     }
 }
 
+// Global sandbox backend type selector
+static SANDBOX_BACKEND_TYPE: sandbox_env::AtomicSandboxBackend =
+    sandbox_env::AtomicSandboxBackend::new(sandbox_env::SandboxBackend::Wasmer);
+
 thread_local! {
-    static SANDBOXES: RefCell<Sandboxes> = RefCell::new(Sandboxes::new());
+    static SANDBOXES: RefCell<Sandboxes> = {
+        let sandbox_backend = SANDBOX_BACKEND_TYPE.load(Ordering::SeqCst);
+        RefCell::new(Sandboxes::new(sandbox_backend))
+    }
+}
+
+/// Sets the global sandbox backend type.
+/// Buy default, it's set to `Wasmer`, so in case of `Wasmer` it's not necessary to call this function.
+pub fn init(sandbox_backend: sandbox_env::SandboxBackend) {
+    SANDBOX_BACKEND_TYPE.store(sandbox_backend, Ordering::SeqCst);
 }
 
 struct SupervisorContext<'a, 'b> {

@@ -24,9 +24,11 @@ use crate::{
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
-use gear_wasmer_cache::get_or_compile_with_cache;
 use sp_wasm_interface_common::HostPointer;
-use std::{collections::btree_map::BTreeMap, fs, marker::PhantomData, path::PathBuf, ptr::NonNull};
+use std::{
+    collections::btree_map::BTreeMap, fs, marker::PhantomData, path::PathBuf, ptr::NonNull,
+    sync::OnceLock,
+};
 use wasmer::{
     sys::{BaseTunables, VMConfig},
     vm::{
@@ -38,13 +40,16 @@ use wasmer::{
 };
 use wasmer_types::{ExternType, Target};
 
-fn fs_cache() -> PathBuf {
-    let out_dir = PathBuf::from(env!("OUT_DIR"));
-    let cache = out_dir.join("wasmer-cache");
-    if !cache.exists() {
-        fs::create_dir(&cache).unwrap();
-    }
-    cache
+fn cache_base_path() -> PathBuf {
+    static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
+    CACHE_DIR
+        .get_or_init(|| {
+            let out_dir = PathBuf::from(env!("OUT_DIR"));
+            let cache = out_dir.join("wasmer-cache");
+            fs::create_dir_all(&cache).unwrap();
+            cache
+        })
+        .into()
 }
 
 struct CustomTunables {
@@ -424,10 +429,9 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         code: &[u8],
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
-        let module = get_or_compile_with_cache(code, store.engine(), fs_cache).map_err(|e| {
-            log::trace!(target: TARGET, "Failed to create module: {e}");
-            Error::Module
-        })?;
+        let module = gear_wasmer_cache::get(store.engine(), code, cache_base_path())
+            .inspect_err(|e| log::trace!(target: TARGET, "Failed to create module: {e}"))
+            .map_err(|_e| Error::Module)?;
         let mut imports = Imports::new();
 
         for import in module.imports() {

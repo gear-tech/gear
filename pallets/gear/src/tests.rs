@@ -374,7 +374,7 @@ fn test_failing_delayed_reservation_send() {
 
         let message = maybe_any_last_message().expect("Should be");
         assert_eq!(message.id(), err_reply);
-        assert_eq!(message.destination(), USER_1.into());
+        assert_eq!(message.destination(), USER_1.cast());
     });
 }
 
@@ -2137,7 +2137,7 @@ fn delayed_send_user_message_with_reservation() {
             PROXY_WGAS_WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InputArgs {
-                destination: USER_2.into(),
+                destination: USER_2.cast(),
                 delay: delay.saturated_into(),
                 reservation_amount,
             }
@@ -3220,7 +3220,7 @@ fn send_message_works() {
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
-            USER_2.into(),
+            USER_2.cast(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             mail_value,
@@ -3417,7 +3417,7 @@ fn send_message_expected_failure() {
         MailboxOf::<Test>::clear();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(LOW_BALANCE_USER),
-            USER_1.into(),
+            USER_1.cast(),
             EMPTY_PAYLOAD.to_vec(),
             10,
             value,
@@ -3465,7 +3465,7 @@ fn messages_processing_works() {
 
         assert_last_dequeued(2);
 
-        assert_ok!(send_default_message(USER_1, USER_2.into()));
+        assert_ok!(send_default_message(USER_1, USER_2.cast()));
         assert_ok!(send_default_message(USER_1, program_id));
 
         run_to_block(3, None);
@@ -6010,7 +6010,7 @@ fn test_wait_timeout() {
         //
         // Emits error when locks are timeout
         let duration = 10u64;
-        let payload = Command::SendTimeout(USER_1.into(), duration.saturated_into()).encode();
+        let payload = Command::SendTimeout(USER_1.cast(), duration.saturated_into()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -6070,7 +6070,7 @@ fn test_join_wait_timeout() {
         let duration_a: BlockNumber = 5;
         let duration_b: BlockNumber = 10;
         let payload = Command::JoinTimeout(
-            USER_1.into(),
+            USER_1.cast(),
             duration_a.saturated_into(),
             duration_b.saturated_into(),
         )
@@ -6135,7 +6135,7 @@ fn test_select_wait_timeout() {
         let duration_a: BlockNumber = 5;
         let duration_b: BlockNumber = 10;
         let payload = Command::SelectTimeout(
-            USER_1.into(),
+            USER_1.cast(),
             duration_a.saturated_into(),
             duration_b.saturated_into(),
         )
@@ -6186,7 +6186,7 @@ fn test_wait_lost() {
 
         let duration_a: BlockNumber = 5;
         let duration_b: BlockNumber = 10;
-        let payload = Command::WaitLost(USER_1.into()).encode();
+        let payload = Command::WaitLost(USER_1.cast()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -6819,7 +6819,7 @@ fn test_sequence_inheritor_of() {
         // serial inheritance
         let mut programs = vec![];
         for i in 1000..1100 {
-            let program_id = ProgramId::from(i);
+            let program_id = i.cast();
             manager.set_program(
                 program_id,
                 &code_info,
@@ -6828,7 +6828,7 @@ fn test_sequence_inheritor_of() {
             );
 
             ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
-                let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.into());
+                let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.cast());
                 if i % 2 == 0 {
                     *program = Program::Exited(inheritor);
                 } else {
@@ -6856,23 +6856,23 @@ fn test_sequence_inheritor_of() {
             (inheritor, holders)
         };
 
-        let res = Gear::inheritor_for(USER_1.into(), NonZero::<usize>::MAX);
+        let res = Gear::inheritor_for(USER_1.cast(), NonZero::<usize>::MAX);
         assert_eq!(res, Err(InheritorForError::NotFound));
 
         let (inheritor, holders) = inheritor_for(programs[99], usize::MAX);
-        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(inheritor, USER_1.cast());
         assert_eq!(holders, indexed_programs);
 
         let (inheritor, holders) = inheritor_for(programs[49], usize::MAX);
-        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(inheritor, USER_1.cast());
         assert_eq!(holders, indexed_programs[..=49]);
 
         let (inheritor, holders) = inheritor_for(programs[0], usize::MAX);
-        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(inheritor, USER_1.cast());
         assert_eq!(holders, indexed_programs[..=0]);
 
         let (inheritor, holders) = inheritor_for(programs[0], 1);
-        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(inheritor, USER_1.cast());
         assert_eq!(holders, indexed_programs[..=0]);
 
         let (inheritor, holders) = inheritor_for(programs[99], 10);
@@ -6884,7 +6884,7 @@ fn test_sequence_inheritor_of() {
         assert_eq!(holders, indexed_programs[50..]);
 
         let (inheritor, holders) = inheritor_for(programs[99], 100);
-        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(inheritor, USER_1.cast());
         assert_eq!(holders, indexed_programs);
 
         let (inheritor, holders) = inheritor_for(programs[99], 99);
@@ -12584,73 +12584,6 @@ fn state_rollback() {
 }
 
 #[test]
-fn incomplete_async_payloads_kept() {
-    use demo_incomplete_async_payloads::{Command, WASM_BINARY};
-    use demo_ping::WASM_BINARY as PING_BINARY;
-
-    init_logger();
-
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            PING_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            Default::default(),
-            BlockGasLimitOf::<Test>::get(),
-            0,
-            false,
-        ));
-
-        let ping = get_last_program_id();
-
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            ping.encode(),
-            BlockGasLimitOf::<Test>::get(),
-            0,
-            false,
-        ));
-
-        let incomplete = get_last_program_id();
-
-        run_to_next_block(None);
-
-        System::reset_events();
-
-        let to_send = [
-            Command::Handle,
-            Command::Reply,
-            Command::HandleStore,
-            Command::ReplyStore,
-        ]
-        .iter()
-        .map(Encode::encode)
-        .collect();
-        send_payloads(USER_1, incomplete, to_send);
-        run_to_next_block(None);
-
-        // "None" are auto-replies.
-        let to_assert = [
-            None,
-            Some("OK PING"),
-            Some("OK REPLY"),
-            None,
-            Some("STORED COMMON"),
-            Some("STORED REPLY"),
-        ]
-        .iter()
-        .map(|v| {
-            v.map(|s| Assertion::Payload(s.as_bytes().to_vec()))
-                .unwrap_or_else(|| Assertion::ReplyCode(SuccessReplyReason::Auto.into()))
-        })
-        .collect::<Vec<_>>();
-        assert_responses_to_user(USER_1, to_assert);
-    })
-}
-
-#[test]
 fn rw_lock_works() {
     use demo_ping::WASM_BINARY as PING_BINARY;
     use demo_rwlock::{Command, WASM_BINARY};
@@ -13484,7 +13417,7 @@ fn relay_messages() {
             RelayCall::ResendPush(vec![
                 // "Hi, USER_2!"
                 ResendPushData {
-                    destination: USER_2.into(),
+                    destination: USER_2.cast(),
                     start: None,
                     end: Some((10, true)),
                 },
@@ -13498,7 +13431,7 @@ fn relay_messages() {
             RelayCall::ResendPush(vec![
                 // the same but end index specified in another way
                 ResendPushData {
-                    destination: USER_2.into(),
+                    destination: USER_2.cast(),
                     start: None,
                     end: Some((11, false)),
                 },
@@ -13512,7 +13445,7 @@ fn relay_messages() {
             RelayCall::ResendPush(vec![
                 // "Ping USER_3."
                 ResendPushData {
-                    destination: USER_3.into(),
+                    destination: USER_3.cast(),
                     start: Some(12),
                     end: None,
                 },
@@ -13526,7 +13459,7 @@ fn relay_messages() {
             RelayCall::ResendPush(vec![
                 // invalid range
                 ResendPushData {
-                    destination: USER_3.into(),
+                    destination: USER_3.cast(),
                     start: Some(2),
                     end: Some((0, true)),
                 },
@@ -13543,7 +13476,7 @@ fn relay_messages() {
     }
 
     test(
-        RelayCall::Resend(USER_3.into()),
+        RelayCall::Resend(USER_3.cast()),
         payload,
         vec![Expected {
             user: USER_3,
@@ -13551,7 +13484,7 @@ fn relay_messages() {
         }],
     );
     test(
-        RelayCall::ResendWithGas(USER_3.into(), 50_000),
+        RelayCall::ResendWithGas(USER_3.cast(), 50_000),
         payload,
         vec![Expected {
             user: USER_3,
@@ -15484,8 +15417,8 @@ fn incorrect_store_context() {
         QueueOf::<Test>::queue(dispatch).unwrap();
 
         run_to_next_block(None);
-
-        assert_failed(mid, ActorExecutionErrorReplyReason::UnsupportedMessage);
+        // does not fail anymore, context does not keep state between executions
+        assert_succeed(mid);
     });
 }
 
@@ -16047,7 +15980,7 @@ pub(crate) mod utils {
     ) where
         B: Into<BalanceOf<Test>> + Copy,
     {
-        let account_id = origin.cast();
+        let account_id: u64 = origin.cast();
         let available = available.into();
         let locked = locked.into();
         let reserved = reserved.into();
@@ -16059,7 +15992,7 @@ pub(crate) mod utils {
             "Free balance of {available} + {locked} (available + locked)"
         );
         assert_eq!(account_data.frozen, locked, "Frozen balance");
-        let maybe_ed = Balances::locks(account_id)
+        let maybe_ed = Balances::locks(&account_id)
             .into_iter()
             .filter_map(|lock| {
                 if lock.id == EXISTENTIAL_DEPOSIT_LOCK_ID {
@@ -16587,10 +16520,12 @@ pub(crate) mod utils {
     }
 
     #[track_caller]
-    pub(super) fn maybe_last_message(account: AccountId) -> Option<UserMessage> {
+    pub(super) fn maybe_last_message(account: impl Origin) -> Option<UserMessage> {
+        let account = account.cast();
+
         System::events().into_iter().rev().find_map(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if message.destination() == account.into() {
+                if message.destination() == account {
                     Some(message)
                 } else {
                     None
@@ -16627,8 +16562,8 @@ pub(crate) mod utils {
     }
 
     #[track_caller]
-    pub(super) fn get_last_mail(account: AccountId) -> UserStoredMessage {
-        MailboxOf::<Test>::iter_key(account)
+    pub(super) fn get_last_mail(account: impl Origin) -> UserStoredMessage {
+        MailboxOf::<Test>::iter_key(account.cast())
             .last()
             .map(|(msg, _bn)| msg)
             .expect("Element should be")
@@ -16794,7 +16729,9 @@ pub(crate) mod utils {
     }
 
     #[track_caller]
-    pub(crate) fn assert_responses_to_user(user_id: AccountId, assertions: Vec<Assertion>) {
+    pub(crate) fn assert_responses_to_user(user_id: impl Origin, assertions: Vec<Assertion>) {
+        let user_id = user_id.cast();
+
         let messages: Vec<UserMessage> = System::events()
             .into_iter()
             .filter_map(|e| {
@@ -16804,12 +16741,12 @@ pub(crate) mod utils {
                     None
                 }
             })
-            .filter(|message| message.destination() == user_id.into())
+            .filter(|message| message.destination() == user_id)
             .collect();
 
         if messages.len() != assertions.len() {
             panic!(
-                "Expected {} messages, you assert only {} of them\n{:?}",
+                "Expected {} messages, you assert only {} of them\n{:#?}",
                 messages.len(),
                 assertions.len(),
                 messages
@@ -16905,12 +16842,14 @@ pub(crate) mod utils {
 
     // Collect all messages by account in chronological order (oldest first)
     #[track_caller]
-    pub(super) fn all_user_messages(user_id: AccountId) -> Vec<UserMessage> {
+    pub(super) fn all_user_messages(user_id: impl Origin) -> Vec<UserMessage> {
+        let user_id = user_id.cast();
+
         System::events()
             .into_iter()
             .filter_map(|e| {
                 if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                    if message.destination() == user_id.into() {
+                    if message.destination() == user_id {
                         Some(message)
                     } else {
                         None

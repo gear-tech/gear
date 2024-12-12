@@ -27,12 +27,13 @@ extern "C" fn init() {
 mod gtest_tests {
     extern crate std;
 
-    use gtest::{Log, Program, System};
+    use gtest::{constants::UNITS, Log, Program, System};
 
     #[test]
     fn init_self() {
         let system = System::new();
         system.init_logger();
+        system.mint_to(123, UNITS * 100);
 
         let this_program = Program::current(&system);
 

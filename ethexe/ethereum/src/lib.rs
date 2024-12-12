@@ -150,11 +150,11 @@ impl Ethereum {
             deployer_address,
             Bytes::copy_from_slice(
                 &RouterInitializeCall {
-                    initialOwner: deployer_address,
+                    _owner: deployer_address,
                     _mirror: mirror_address,
                     _mirrorProxy: mirror_proxy_address,
                     _wrappedVara: wvara_address,
-                    _validatorsKeys: validators,
+                    _validators: validators,
                 }
                 .abi_encode(),
             ),
@@ -169,11 +169,14 @@ impl Ethereum {
         let builder = wrapped_vara.approve(router_address, U256::MAX);
         builder.send().await?.try_get_receipt().await?;
 
-        assert_eq!(router.mirror().call().await?._0, *mirror.address());
+        assert_eq!(router.mirrorImpl().call().await?._0, *mirror.address());
         assert_eq!(
-            router.mirrorProxy().call().await?._0,
+            router.mirrorProxyImpl().call().await?._0,
             *mirror_proxy.address()
         );
+
+        let builder = router.lookupGenesisHash();
+        builder.send().await?.try_get_receipt().await?;
 
         Ok(Self {
             router_address,
@@ -297,7 +300,9 @@ impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactio
             Err(err) => err,
         };
 
-        for _ in 0..3 {
+        log::trace!("Failed to get transaction receipt for {tx_hash}. Retrying...");
+        for n in 0..3 {
+            log::trace!("Attempt {n}. Error - {err}");
             match err {
                 PendingTransactionError::TransportError(RpcError::NullResp) => {}
                 _ => break,

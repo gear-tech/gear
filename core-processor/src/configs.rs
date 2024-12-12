@@ -26,9 +26,6 @@ use gear_core::{
 
 pub use gear_wasm_instrument::syscalls::SyscallName;
 
-/// Number of max pages number to use it in tests.
-pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
-
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BlockInfo {

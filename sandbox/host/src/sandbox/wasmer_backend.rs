@@ -31,14 +31,11 @@ use crate::{
         BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
         SupervisorContext, SupervisorFuncIndex,
     },
+    store_refcell,
     util::MemoryTransfer,
 };
 
-pub use store_refcell::StoreRefCell;
-mod store_refcell;
-
-#[cfg(feature = "gear-wasmer-cache")]
-use gear_wasmer_cache::*;
+pub type StoreRefCell = store_refcell::StoreRefCell<wasmer::Store>;
 
 environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
 
@@ -156,7 +153,7 @@ pub fn invoke(
 }
 
 #[cfg(feature = "gear-wasmer-cache")]
-fn fs_cache() -> PathBuf {
+fn cache_base_path() -> PathBuf {
     use std::sync::OnceLock;
     use tempfile::TempDir;
 
@@ -178,7 +175,7 @@ pub fn instantiate(
     supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
     #[cfg(feature = "gear-wasmer-cache")]
-    let module = get_or_compile_with_cache(wasm, context.store().borrow().engine(), fs_cache)
+    let module = gear_wasmer_cache::get(context.store().borrow().engine(), wasm, cache_base_path())
         .map_err(|_| InstantiationError::ModuleDecoding)?;
 
     #[cfg(not(feature = "gear-wasmer-cache"))]
@@ -296,7 +293,6 @@ pub fn instantiate(
             instance,
             store: context.store().clone(),
         },
-        guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
     })
 }
 

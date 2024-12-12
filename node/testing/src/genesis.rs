@@ -55,7 +55,7 @@ pub fn config_endowed(extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
         balances: BalancesConfig { balances: endowed },
         babe: BabeConfig {
             authorities: vec![],
-            epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
+            epoch_config: BABE_GENESIS_EPOCH_CONFIG,
             ..Default::default()
         },
         grandpa: GrandpaConfig {
@@ -80,6 +80,7 @@ pub fn config_endowed(extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
                     to_session_keys(&Ed25519Keyring::Charlie, &Sr25519Keyring::Charlie),
                 ),
             ],
+            ..Default::default()
         },
         staking: StakingConfig {
             stakers: vec![

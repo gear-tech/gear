@@ -20,8 +20,7 @@ use alloc::vec::Vec;
 use gear_core::message::ReplyCode;
 use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
-
-/* Events section */
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub enum Event {
@@ -104,7 +103,7 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
 pub enum RequestEvent {
     ExecutableBalanceTopUpRequested {
         value: u128,

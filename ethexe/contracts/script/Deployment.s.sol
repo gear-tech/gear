@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {Script, console} from "forge-std/Script.sol";
 import {Mirror} from "../src/Mirror.sol";
 import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {Router} from "../src/Router.sol";
+import {Script, console} from "forge-std/Script.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 
-contract RouterScript is Script {
+contract DeploymentScript is Script {
+    using Strings for uint160;
+
     WrappedVara public wrappedVara;
     Router public router;
     Mirror public mirror;
@@ -31,7 +34,6 @@ contract RouterScript is Script {
 
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
         address mirrorProxyAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
-        address wrappedVaraAddress = address(wrappedVara);
 
         router = Router(
             Upgrades.deployTransparentProxy(
@@ -39,7 +41,7 @@ contract RouterScript is Script {
                 deployerAddress,
                 abi.encodeCall(
                     Router.initialize,
-                    (deployerAddress, mirrorAddress, mirrorProxyAddress, wrappedVaraAddress, validatorsArray)
+                    (deployerAddress, mirrorAddress, mirrorProxyAddress, address(wrappedVara), validatorsArray)
                 )
             )
         );
@@ -48,10 +50,46 @@ contract RouterScript is Script {
 
         wrappedVara.approve(address(router), type(uint256).max);
 
+        vm.roll(vm.getBlockNumber() + 1);
+        router.lookupGenesisHash();
+
+        vm.assertEq(router.mirrorImpl(), address(mirror));
+        vm.assertEq(router.mirrorProxyImpl(), address(mirrorProxy));
+        vm.assertEq(mirrorProxy.router(), address(router));
+        vm.assertNotEq(router.genesisBlockHash(), bytes32(0));
+
         vm.stopBroadcast();
 
-        vm.assertEq(router.mirror(), address(mirror));
-        vm.assertEq(router.mirrorProxy(), address(mirrorProxy));
-        vm.assertEq(mirrorProxy.router(), address(router));
+        printContractInfo("Router", address(router), Upgrades.getImplementationAddress(address(router)));
+        printContractInfo("WVara", address(wrappedVara), Upgrades.getImplementationAddress(address(wrappedVara)));
+        printContractInfo("Mirror", mirrorProxyAddress, mirrorAddress);
+    }
+
+    function printContractInfo(string memory contractName, address contractAddress, address expectedImplementation)
+        public
+        pure
+    {
+        console.log("================================================================================================");
+        console.log("[ CONTRACT  ]", contractName);
+        console.log("[ ADDRESS   ]", contractAddress);
+        console.log("[ IMPL ADDR ]", expectedImplementation);
+        console.log(
+            "[ PROXY VERIFICATION ] Click \"Is this a proxy?\" on Etherscan to be able read and write as proxy."
+        );
+        console.log("                       Alternatively, run the following curl request.");
+        console.log("```");
+        console.log("curl --request POST 'https://api-holesky.etherscan.io/api' \\");
+        console.log("   --header 'Content-Type: application/x-www-form-urlencoded' \\");
+        console.log("   --data-urlencode 'module=contract' \\");
+        console.log("   --data-urlencode 'action=verifyproxycontract' \\");
+        console.log(string.concat("   --data-urlencode 'address=", uint160(contractAddress).toHexString(), "' \\"));
+        console.log(
+            string.concat(
+                "   --data-urlencode 'expectedimplementation=", uint160(expectedImplementation).toHexString(), "' \\"
+            )
+        );
+        console.log("   --data-urlencode \"apikey=$ETHERSCAN_API_KEY\"");
+        console.log("```");
+        console.log("================================================================================================");
     }
 }
