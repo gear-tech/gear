@@ -25,7 +25,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::watch;
 
 /// Max number of blocks to query in alloy.
-pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 1024;
+pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
 
 pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
 
