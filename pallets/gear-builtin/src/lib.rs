@@ -120,7 +120,7 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
     }
 }
 
-/// TODO:
+/// A builtin actor execution context. Primarily used to track gas usage.
 #[derive(Debug)]
 pub struct BuiltinContext {
     pub(crate) gas_counter: GasCounter,
@@ -436,7 +436,11 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 process_success(SuccessfulDispatchResultKind::Success, dispatch_result)
             }
             Err(BuiltinActorError::GasAllowanceExceeded) => {
-                process_allowance_exceed(dispatch, actor_id, gas_amount.burned())
+                // Ideally, this should never happen, as we should have checked the gas allowance
+                // before even entring the `handle` method. However, if this error does occur,
+                // we should handle it by discarding the gas burned and requeueing the message.
+                // N.B.: if `gas_amount.burned` is not zero, the cost is borne by the validator.
+                process_allowance_exceed(dispatch, actor_id, 0)
             }
             Err(err) => {
                 // Builtin actor call failed.

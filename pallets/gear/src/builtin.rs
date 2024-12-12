@@ -27,7 +27,7 @@ use gear_core::{
 pub type HandleFn<C, E> = dyn Fn(&StoredDispatch, &mut C) -> Result<Payload, E>;
 
 /// Builtin actor `max_gas` function signature.
-// TODO: let the weight function take a complexity argument similar to extrinsics weight functions
+// TODO: #4395. Let the weight function take complexity arguments for more accurate gas estimation.
 pub type WeightFn = dyn Fn() -> u64;
 
 pub struct BuiltinInfo<'a, C, E> {
