@@ -23,7 +23,8 @@ use core::fmt;
 use ethexe_db::BlockMetaStorage;
 use ethexe_runtime_common::{
     state::{
-        ActiveProgram, HashOf, MemoryPages, MemoryPagesRegion, Program, ProgramState, Storage,
+        ActiveProgram, HashOf, MemoryPages, MemoryPagesInner, MemoryPagesRegionInner, Program,
+        ProgramState, RegionIdx, Storage,
     },
     BlockInfo,
 };
@@ -44,8 +45,8 @@ pub struct ThreadParams {
     pub db: Database,
     pub block_info: BlockInfo,
     pub state_hash: H256,
-    pub pages_registry: Option<BTreeMap<u8, HashOf<MemoryPagesRegion>>>,
-    pages_regions: Option<BTreeMap<u8, BTreeMap<GearPage, HashOf<PageBuf>>>>,
+    pages_registry_cache: Option<MemoryPagesInner>,
+    pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
 
 impl fmt::Debug for ThreadParams {
@@ -59,7 +60,7 @@ impl ThreadParams {
         &mut self,
         page: GearPage,
     ) -> Option<&BTreeMap<GearPage, HashOf<PageBuf>>> {
-        let pages_registry = self.pages_registry.get_or_insert_with(|| {
+        let pages_registry = self.pages_registry_cache.get_or_insert_with(|| {
             let ProgramState {
                 program: Program::Active(ActiveProgram { pages_hash, .. }),
                 ..
@@ -71,13 +72,15 @@ impl ThreadParams {
             pages_hash.query(&self.db).expect(UNKNOWN_STATE).into()
         });
 
-        let page_region = MemoryPages::page_region(page);
+        let region_idx = MemoryPages::page_region(page);
 
-        let region_hash = pages_registry.get(&page_region)?;
+        let region_hash = pages_registry.get(&region_idx)?;
 
-        let pages_regions = self.pages_regions.get_or_insert_with(Default::default);
+        let pages_regions = self
+            .pages_regions_cache
+            .get_or_insert_with(Default::default);
 
-        let page_region = pages_regions.entry(page_region).or_insert_with(|| {
+        let page_region = pages_regions.entry(region_idx).or_insert_with(|| {
             self.db
                 .read_pages_region(*region_hash)
                 .expect("Pages region not found")
@@ -112,8 +115,8 @@ pub fn set(db: Database, chain_head: H256, state_hash: H256) {
             timestamp: header.timestamp,
         },
         state_hash,
-        pages_registry: None,
-        pages_regions: None,
+        pages_registry_cache: None,
+        pages_regions_cache: None,
     }))
 }
 
