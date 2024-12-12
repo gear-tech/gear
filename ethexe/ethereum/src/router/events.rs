@@ -16,10 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{decode_log, IRouter};
+use crate::{abi::utils::bytes32_to_h256, decode_log, IRouter};
 use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
 use anyhow::{anyhow, Result};
 use ethexe_common::events::{RouterEvent, RouterRequestEvent};
+use gprimitives::H256;
 use signatures::*;
 
 pub mod signatures {
@@ -88,4 +89,14 @@ pub fn try_extract_request_event(log: &Log) -> Result<Option<RouterRequestEvent>
         .expect("filtered above");
 
     Ok(Some(request_event))
+}
+
+pub fn try_extract_committed_block_hash(log: &Log) -> Result<Option<H256>> {
+    if log.topic0() != Some(&BLOCK_COMMITTED) {
+        return Ok(None);
+    }
+
+    decode_log::<IRouter::BlockCommitted>(log)
+        .map(|e| Some(bytes32_to_h256(e.hash)))
+        .map_err(Into::into)
 }

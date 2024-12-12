@@ -24,7 +24,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::watch;
 
 /// Max number of blocks to query in alloy.
-pub(crate) const MAX_QUERY_BLOCK_RANGE: u64 = 100_000;
+pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 1024;
 
 pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
 
@@ -309,7 +309,7 @@ pub(crate) async fn read_block_events_batch(
     let to_block = to_block as u64;
 
     while start_block <= to_block {
-        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE - 1);
+        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE as u64 - 1);
 
         let filter = Filter::new().from_block(start_block).to_block(end_block);
 
@@ -421,8 +421,9 @@ pub(crate) async fn read_block_request_events_batch(
     let mut start_block = from_block as u64;
     let to_block = to_block as u64;
 
+    // TODO (breathx): FIX WITHIN PR. to iters.
     while start_block <= to_block {
-        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE - 1);
+        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE as u64 - 1);
 
         let filter = Filter::new().from_block(start_block).to_block(end_block);
 
@@ -506,6 +507,54 @@ async fn read_request_events_impl(
             res.entry(block_hash)
                 .or_default()
                 .push(BlockRequestEvent::mirror(address, request_event));
+        }
+    }
+
+    Ok(res)
+}
+
+pub(crate) async fn read_committed_blocks_batch(
+    from_block: u32,
+    to_block: u32,
+    provider: &ObserverProvider,
+    router_address: AlloyAddress,
+) -> Result<Vec<H256>> {
+    let mut start_block = from_block as u64;
+    let to_block = to_block as u64;
+
+    let mut res = Vec::new();
+
+    while start_block <= to_block {
+        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE as u64 - 1);
+
+        let filter = Filter::new().from_block(start_block).to_block(end_block);
+
+        let iter_res = read_committed_blocks_impl(router_address, provider, filter).await?;
+
+        res.extend(iter_res);
+
+        start_block = end_block + 1;
+    }
+
+    Ok(res)
+}
+
+async fn read_committed_blocks_impl(
+    router_address: AlloyAddress,
+    provider: &ObserverProvider,
+    filter: Filter,
+) -> Result<Vec<H256>> {
+    let filter = filter
+        .address(router_address)
+        .event_signature(Topic::from(router::events::signatures::BLOCK_COMMITTED));
+
+    let logs = provider.get_logs(&filter).await?;
+
+    let mut res = Vec::with_capacity(logs.len());
+
+    for log in logs {
+        if let Some(hash) = router::events::try_extract_committed_block_hash(&log)? {
+            res.push(hash);
         }
     }
 
