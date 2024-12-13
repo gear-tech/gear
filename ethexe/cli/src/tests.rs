@@ -55,11 +55,14 @@ use tokio::{
 use utils::{NodeConfig, TestEnv, TestEnvConfig};
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(1000_000)]
 async fn ping() {
     gear_utils::init_default_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let config = TestEnvConfig::default()
+        .rpc("ws://54.67.75.1:8546")
+        .block_time(Duration::from_secs(12));
+    let mut env = TestEnv::new(config).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
     let mut node = env.new_node(
@@ -825,14 +828,16 @@ mod utils {
             let TestEnvConfig {
                 validators_amount,
                 block_time,
+                rpc_url,
+                ..
             } = config;
 
-            let (rpc_url, anvil) = match std::env::var("__ETHEXE_CLI_TESTS_RPC_URL") {
-                Ok(rpc_url) => {
+            let (rpc_url, anvil) = match rpc_url {
+                Some(rpc_url) => {
                     log::info!("📍 Using provided RPC URL: {}", rpc_url);
                     (rpc_url, None)
                 }
-                Err(_) => {
+                None => {
                     let anvil = Anvil::new().try_spawn().unwrap();
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
@@ -840,7 +845,11 @@ mod utils {
             };
 
             let signer = Signer::new(tempfile::tempdir()?.into_path())?;
-            let mut wallets = AnvilWallets::new(&signer);
+            let mut wallets = if anvil.is_some() {
+                AnvilWallets::new(&signer)
+            } else {
+                AnvilWallets::holesky(&signer)
+            };
 
             let sender_address = wallets.next().to_address();
             let validators: Vec<_> = (0..validators_amount)
@@ -1075,6 +1084,8 @@ mod utils {
     pub struct TestEnvConfig {
         pub validators_amount: usize,
         pub block_time: Duration,
+        pub rpc_url: Option<String>,
+        pub deployer_private_key: Option<String>,
     }
 
     impl Default for TestEnvConfig {
@@ -1082,6 +1093,8 @@ mod utils {
             Self {
                 validators_amount: 1,
                 block_time: Duration::from_secs(1),
+                rpc_url: None,
+                deployer_private_key: None,
             }
         }
     }
@@ -1094,6 +1107,16 @@ mod utils {
 
         pub fn block_time(mut self, block_time: Duration) -> Self {
             self.block_time = block_time;
+            self
+        }
+
+        pub fn rpc(mut self, rpc_url: &str) -> Self {
+            self.rpc_url = Some(rpc_url.to_string());
+            self
+        }
+
+        pub fn deployer_private_key(mut self, deployer_private_key: &str) -> Self {
+            self.deployer_private_key = Some(deployer_private_key.to_string());
             self
         }
     }
@@ -1239,6 +1262,19 @@ mod utils {
             ]
             .map(|s| signer.add_key(s.parse().unwrap()).unwrap());
 
+            Self {
+                wallets: accounts.to_vec(),
+                next_wallet: 0,
+            }
+        }
+
+        pub fn holesky(signer: &Signer) -> Self {
+            let accounts = [
+                "460b661f54b8fd8c564a510a81a48d720ab4ca6f90cf9791dc84251126e7f527",
+                "029aa0916bbb87524a94d793f3224d857ea0b06c054f19275222dea706af7594",
+                "e9e881c7d40a9a5895c94beb01abaaa00b12bb413f5cda2a0799870c50fd0b09",
+            ]
+            .map(|s| signer.add_key(s.parse().unwrap()).unwrap());
             Self {
                 wallets: accounts.to_vec(),
                 next_wallet: 0,

@@ -115,6 +115,7 @@ impl Ethereum {
             .collect();
         let deployer_address = Address::new(sender_address.0);
 
+        log::debug!("Deploying WrappedVara");
         let wrapped_vara_impl = IWrappedVara::deploy(provider.clone()).await?;
         let proxy = ITransparentUpgradeableProxy::deploy(
             provider.clone(),
@@ -130,6 +131,7 @@ impl Ethereum {
         .await?;
         let wrapped_vara = IWrappedVara::new(*proxy.address(), provider.clone());
         let wvara_address = *wrapped_vara.address();
+        log::debug!("WrappedVara deployed at {wvara_address}");
 
         let nonce = provider.get_transaction_count(deployer_address).await?;
         let mirror_address = deployer_address.create(
@@ -143,6 +145,7 @@ impl Ethereum {
                 .ok_or_else(|| anyhow!("failed to add 3"))?,
         );
 
+        log::debug!("Deploying Router");
         let router_impl = IRouter::deploy(provider.clone()).await?;
         let proxy = ITransparentUpgradeableProxy::deploy(
             provider.clone(),
@@ -164,6 +167,7 @@ impl Ethereum {
         .await?;
         let router_address = *proxy.address();
         let router = IRouter::new(router_address, provider.clone());
+        log::debug!("Router deployed at {router_address}");
 
         let mirror = IMirror::deploy(provider.clone()).await?;
         let mirror_proxy = IMirrorProxy::deploy(provider.clone(), router_address).await?;
@@ -179,6 +183,9 @@ impl Ethereum {
 
         let builder = router.lookupGenesisHash();
         builder.send().await?.try_get_receipt().await?;
+
+        log::debug!("Deployed Router at {router_address}");
+        log::debug!("Deployed WrappedVara at {wvara_address}");
 
         Ok(Self {
             router_address,
