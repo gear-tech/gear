@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Gear} from "./libraries/Gear.sol";
+import {IMiddleware} from "./IMiddleware.sol";
 import {IMirror} from "./IMirror.sol";
 import {IMirrorDecoder} from "./IMirrorDecoder.sol";
 import {IRouter} from "./IRouter.sol";
@@ -26,6 +27,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address _mirror,
         address _mirrorProxy,
         address _wrappedVara,
+        address _middleware,
         uint256 _eraDuration,
         uint256 _electionDuration,
         address[] calldata _validators
@@ -41,7 +43,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
 
         router.genesisBlock = Gear.newGenesis();
-        router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
+        router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara, _middleware);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration);
@@ -108,6 +110,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function wrappedVara() public view returns (address) {
         return _router().implAddresses.wrappedVara;
+    }
+
+    function middleware() public view returns (address) {
+        return _router().implAddresses.middleware;
     }
 
     function areValidators(address[] calldata _validators) public view returns (bool) {
@@ -439,5 +445,20 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function _setStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
+    }
+
+    function requestSlashCommitment(IMiddleware.SlashData[] calldata slashData) external {
+        Storage storage router = _router();
+
+        address middlewareAddress = router.implAddresses.middleware;
+        require(middlewareAddress != address(0), "Middleware address not set");
+
+        IMiddleware middlewareInstance = IMiddleware(middlewareAddress);
+
+        // Call the requestSlash function from the middleware
+        middlewareInstance.requestSlash(slashData);
+
+        // Emit an event to indicate the slash request has been processed
+        emit SlashRequestProcessed(middlewareAddress, slashData);
     }
 }

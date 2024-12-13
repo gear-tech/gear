@@ -96,11 +96,13 @@ contract Base is POCBaseTest {
     function setUpRouter(address[] memory _validators) internal {
         require(admin != address(0), "Base: admin must be initialized");
         require(address(wrappedVara) != address(0), "Base: wrappedVara should be initialized");
+        require(address(middleware) != address(0), "Base: middleware should be initialized");
         require(eraDuration > 0, "Base: eraDuration should be greater than 0");
         require(electionDuration > 0, "Base: electionDuration should be greater than 0");
         require(blockDuration > 0, "Base: blockDuration should be greater than 0");
 
         address wrappedVaraAddress = address(wrappedVara);
+        address middlewareAddress = address(middleware);
 
         address mirrorAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 2);
         address mirrorProxyAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
@@ -118,6 +120,7 @@ contract Base is POCBaseTest {
                             mirrorAddress,
                             mirrorProxyAddress,
                             wrappedVaraAddress,
+                            middlewareAddress,
                             uint256(eraDuration),
                             uint256(electionDuration),
                             _validators

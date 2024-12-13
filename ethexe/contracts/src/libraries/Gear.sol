@@ -30,6 +30,7 @@ library Gear {
         address mirror;
         address mirrorProxy;
         address wrappedVara;
+        address middleware;
     }
 
     struct ValidatorsCommitment {

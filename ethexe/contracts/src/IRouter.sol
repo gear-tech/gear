@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import {IMiddleware} from "./Middleware.sol";
 import {Gear} from "./libraries/Gear.sol";
 
 /// @title Gear.exe Router Interface
@@ -65,6 +66,13 @@ interface IRouter {
     /// @param codeId The code ID of the WASM implementation of the created program.
     event ProgramCreated(address actorId, bytes32 indexed codeId);
 
+    /**
+     * @dev Emitted when a slash request is processed by the middleware.
+     * @param middleware The address of the middleware that processed the slash request.
+     * @param slashData An array of SlashData structures containing details of the slash request.
+     */
+    event SlashRequestProcessed(address indexed middleware, IMiddleware.SlashData[] slashData);
+
     /// @notice Emitted when the router's storage slot has been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
     event StorageSlotChanged();
@@ -77,6 +85,7 @@ interface IRouter {
     function mirrorImpl() external view returns (address);
     function mirrorProxyImpl() external view returns (address);
     function wrappedVara() external view returns (address);
+    function middleware() external view returns (address);
 
     function areValidators(address[] calldata validators) external view returns (bool);
     function isValidator(address validator) external view returns (bool);
@@ -115,4 +124,5 @@ interface IRouter {
     /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(Gear.ValidatorsCommitment calldata validatorsCommitment, bytes[] calldata signatures)
         external;
+    function requestSlashCommitment(IMiddleware.SlashData[] calldata slashData) external;
 }

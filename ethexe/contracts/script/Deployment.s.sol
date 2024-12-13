@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import {Middleware} from "../src/Middleware.sol";
 import {Mirror} from "../src/Mirror.sol";
 import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {Router} from "../src/Router.sol";
@@ -16,6 +17,7 @@ contract DeploymentScript is Script {
     Router public router;
     Mirror public mirror;
     MirrorProxy public mirrorProxy;
+    Middleware public middleware;
 
     function setUp() public {}
 
@@ -34,6 +36,7 @@ contract DeploymentScript is Script {
 
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
         address mirrorProxyAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
+        address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 4);
 
         router = Router(
             Upgrades.deployTransparentProxy(
@@ -46,6 +49,7 @@ contract DeploymentScript is Script {
                         mirrorAddress,
                         mirrorProxyAddress,
                         address(wrappedVara),
+                        middlewareAddress,
                         1 days,
                         2 hours,
                         validatorsArray

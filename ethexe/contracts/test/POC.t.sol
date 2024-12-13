@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import {console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "forge-std/Test.sol";
+
+import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
 
 import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
@@ -15,8 +18,10 @@ import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.s
 
 import {Gear} from "../src/libraries/Gear.sol";
 import {Base} from "./Base.t.sol";
+import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 import {IMirror} from "../src/Mirror.sol";
 import {IRouter} from "../src/IRouter.sol";
+import {IMiddleware} from "./../src/IMiddleware.sol";
 
 contract POCTest is Base {
     using MessageHashUtils for address;
@@ -24,6 +29,7 @@ contract POCTest is Base {
 
     EnumerableMap.AddressToUintMap private operators;
     address[] private vaults;
+    POCBaseTest private sym;
 
     function setUp() public override {
         admin = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
@@ -56,6 +62,9 @@ contract POCTest is Base {
             middleware.changeSlashExecutor(address(router));
         }
         vm.stopPrank();
+
+        // For understanding where symbiotic ecosystem is using
+        sym = POCBaseTest(address(this));
     }
 
     function test_POC() public {
@@ -221,5 +230,69 @@ contract POCTest is Base {
                 _transitions // commitment transitions
             )
         );
+    }
+
+    function test_requestSlash() public {
+        address operator1 = address(0x1);
+        address operator2 = address(0x2);
+
+        uint256 stake1 = 1_000;
+        uint256 stake2 = 2_000;
+
+        address vault1 = createOperatorWithStake(operator1, stake1);
+        address vault2 = createOperatorWithStake(operator2, stake2);
+
+        rollBlocks(1);
+
+        // Change validators stake and make re-election
+        depositInto(vault1, 10_000);
+        depositInto(vault2, 10_000);
+        
+        rollBlocks((eraDuration - electionDuration) / blockDuration);
+        middleware.makeElectionAt(
+            uint48(vm.getBlockTimestamp()) - 1,
+            maxValidators
+        );
+
+        address middlewareAddress = address(middleware);
+        
+        // Middleware must be deployed and stored
+        assertEq(
+            router.middleware(),
+            middlewareAddress,
+            "Middleware address mismatch"
+        );
+
+        IMiddleware.VaultSlashData[]
+            memory vaultData = new IMiddleware.VaultSlashData[](1);
+        vaultData[0] = IMiddleware.VaultSlashData({
+            vault: vault1,
+            amount: 1000
+        });
+
+        // Prepare SlashData with the registered operator and timestamp
+        IMiddleware.SlashData[]
+            memory slashDataArray = new IMiddleware.SlashData[](1);
+        slashDataArray[0] = IMiddleware.SlashData({
+            operator: operator1, // The operator address
+            ts: uint48(block.timestamp), // Current timestamp
+            vaults: vaultData // Vault data prepared earlier
+        });
+
+        rollBlocks(1);
+        
+        vm.expectCall(
+            middlewareAddress,
+            abi.encodeWithSelector(
+                IMiddleware.requestSlash.selector,
+                slashDataArray
+            )
+        );
+
+        router.requestSlashCommitment(slashDataArray);
+
+        // IVault(vault1).sla
+
+        console.log("requestSlashCommitment executed successfully.");
     }
 }
