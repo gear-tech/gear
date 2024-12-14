@@ -411,7 +411,7 @@ where
     }
 }
 
-impl<'a, T> core::ops::Add<T> for &'a NonZeroU256
+impl<T> core::ops::Add<T> for &NonZeroU256
 where
     T: Into<U256>,
 {
@@ -447,7 +447,7 @@ where
     }
 }
 
-impl<'a, T> core::ops::Sub<T> for &'a NonZeroU256
+impl<T> core::ops::Sub<T> for &NonZeroU256
 where
     T: Into<U256>,
 {
@@ -499,7 +499,7 @@ impl<'a> core::ops::Mul<&'a NonZeroU256> for &'a NonZeroU256 {
     }
 }
 
-impl<'a> core::ops::Mul<NonZeroU256> for &'a NonZeroU256 {
+impl core::ops::Mul<NonZeroU256> for &NonZeroU256 {
     type Output = NonZeroU256;
 
     fn mul(self, other: NonZeroU256) -> NonZeroU256 {

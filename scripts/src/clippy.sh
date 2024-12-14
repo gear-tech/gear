@@ -20,7 +20,7 @@ EOF
 }
 
 gear_clippy() {
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo clippy --workspace "$@" -- --no-deps -D warnings
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo clippy --workspace "$@" -- --no-deps -D warnings -A static_mut_refs
 }
 
 examples_clippy() {

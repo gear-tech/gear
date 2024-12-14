@@ -41,7 +41,7 @@ impl AccessQueue {
     pub fn contains(&self, message_id: &MessageId) -> bool {
         let inner = unsafe { &*self.0.get() };
 
-        inner.as_ref().map_or(false, |v| v.contains(message_id))
+        inner.as_ref().is_some_and(|v| v.contains(message_id))
     }
 
     pub fn len(&self) -> usize {

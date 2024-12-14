@@ -1404,7 +1404,7 @@ struct ScheduleRules<'a, T: Config> {
     params: Vec<u32>,
 }
 
-impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
+impl<T: Config> Rules for ScheduleRules<'_, T> {
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
         use Instruction::*;
         use SignExtInstruction::*;

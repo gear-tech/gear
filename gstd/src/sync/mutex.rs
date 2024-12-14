@@ -175,7 +175,7 @@ pub struct MutexGuard<'a, T> {
     holder_msg_id: MessageId,
 }
 
-impl<'a, T> MutexGuard<'a, T> {
+impl<T> MutexGuard<'_, T> {
     #[track_caller]
     fn ensure_access_by_holder(&self) {
         let current_msg_id = msg::id();
@@ -189,7 +189,7 @@ impl<'a, T> MutexGuard<'a, T> {
     }
 }
 
-impl<'a, T> Drop for MutexGuard<'a, T> {
+impl<T> Drop for MutexGuard<'_, T> {
     fn drop(&mut self) {
         let is_holder_msg_signal_handler = match () {
             #[cfg(not(feature = "ethexe"))]

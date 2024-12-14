@@ -16592,7 +16592,7 @@ pub(crate) mod utils {
         OutgoingWithValueInHandle,
     }
 
-    impl<'a> ProgramCodeKind<'a> {
+    impl ProgramCodeKind<'_> {
         pub(super) fn to_bytes(self) -> Vec<u8> {
             let mut validate = true;
             let source = match self {

@@ -359,7 +359,7 @@ struct ExtMutator<'a, LP: LazyPagesInterface> {
     reservation_to_mark: Option<ReservationId>,
 }
 
-impl<'a, LP: LazyPagesInterface> core::ops::Deref for ExtMutator<'a, LP> {
+impl<LP: LazyPagesInterface> core::ops::Deref for ExtMutator<'_, LP> {
     type Target = Ext<LP>;
 
     fn deref(&self) -> &Self::Target {

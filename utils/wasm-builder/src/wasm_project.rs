@@ -310,7 +310,7 @@ extern "C" fn metahash() {{
     pub fn postprocess_meta(
         &self,
         original_wasm_path: &PathBuf,
-        file_base_name: &String,
+        file_base_name: &str,
     ) -> Result<()> {
         let meta_wasm_path = self
             .wasm_target_dir
@@ -365,7 +365,7 @@ extern "C" fn metahash() {{
     pub fn postprocess_opt<P: AsRef<Path>>(
         &self,
         original_wasm_path: P,
-        file_base_name: &String,
+        file_base_name: &str,
     ) -> Result<PathBuf> {
         let [original_copy_wasm_path, opt_wasm_path] = [".wasm", ".opt.wasm"]
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
