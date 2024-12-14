@@ -74,12 +74,12 @@ fn test_compile() -> Result<()> {
 
 #[test]
 fn test_program_tests() {
-    // NOTE: workaround for installing stable toolchain if not exist
+    // NOTE: workaround for installing beta toolchain if not exist
     // This is momently only for adapting the environment (nightly)
     // of our CI.
     {
         let targets = Command::new("rustup")
-            .args(["target", "list", "--toolchain", "stable"])
+            .args(["target", "list", "--toolchain", "beta"])
             .output()
             .expect("Failed to list rust toolchains")
             .stdout;
@@ -89,21 +89,21 @@ fn test_program_tests() {
                 .args([
                     "toolchain",
                     "install",
-                    "stable",
+                    "beta",
                     "--component",
                     "llvm-tools",
                     "--target",
                     "wasm32v1-none",
                 ])
                 .status()
-                .expect("Failed to install stable toolchain")
+                .expect("Failed to install beta toolchain")
                 .success());
         }
     }
 
     assert!(Command::new("cargo")
         .current_dir("test-program")
-        .args(["+stable", "test", "--manifest-path", "Cargo.toml"])
+        .args(["+beta", "test", "--manifest-path", "Cargo.toml"])
         .status()
         .expect("Failed to run the tests of cargo-gbuild/test-program")
         .success());
