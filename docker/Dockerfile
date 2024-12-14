@@ -1,3 +1,4 @@
+# TODO: check if wasm32v1-none is needed
 # ===== BUILD STAGE ======
 FROM amazonlinux:2023 as builder
 

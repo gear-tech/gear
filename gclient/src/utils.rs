@@ -40,12 +40,12 @@ pub fn wat2wasm(wat: impl AsRef<str>) -> Vec<u8> {
 /// let wasm_path = gclient::wasm_target(".", "demo_ping");
 /// assert_eq!(
 ///     wasm_path,
-///     "./target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
+///     "./target/wasm32v1-none/release/demo_ping.opt.wasm"
 /// );
 /// ```
 pub fn wasm_target(root_path: impl AsRef<str>, demo_name: impl AsRef<str>) -> String {
     format!(
-        "{}/target/wasm32-unknown-unknown/release/{}.opt.wasm",
+        "{}/target/wasm32v1-none/release/{}.opt.wasm",
         root_path.as_ref(),
         demo_name.as_ref()
     )

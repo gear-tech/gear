@@ -428,7 +428,7 @@ macro_rules! syscalls {
                 $vis extern "C" fn $symbol($(_: $arg_ty),*) $(-> $ret_ty)? {
                     unimplemented!(concat!(
                         stringify!($symbol),
-                        " syscall is only available for wasm32-unknown-unknown target"
+                        " syscall is only available for wasm32 architecture"
                     ))
                 }
             )*
