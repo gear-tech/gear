@@ -115,7 +115,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 600_000_000, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 800_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
