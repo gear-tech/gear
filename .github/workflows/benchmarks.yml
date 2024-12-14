@@ -138,7 +138,9 @@ jobs:
           wasm-opt --version
 
       - name: Check CPU frequency
-        run: sudo cpupower frequency-info | grep 'current CPU frequency'
+        run: |
+          sudo cpupower frequency-info
+          sudo lscpu
 
       - name: Run all benchmarks
         run: |
