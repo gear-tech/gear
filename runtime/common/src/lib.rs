@@ -20,7 +20,6 @@
 
 mod apis;
 pub mod constants;
-pub mod weights;
 
 use sp_runtime::traits::Get;
 
