@@ -1,15 +1,13 @@
 //! Contains the code for the stack height limiter instrumentation.
 
 use crate::{
-    module::{ConstExpr, Global, ModuleBuilder},
+    module::{ConstExpr, Export, Global, ModuleBuilder},
     Module,
 };
-use alloc::{vec, vec::Vec};
+use alloc::{string::ToString, vec, vec::Vec};
 use core::mem;
 use max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext};
-use wasmparser::{
-    BlockType, Export, ExternalKind, FuncType, GlobalType, Operator, TypeRef, ValType,
-};
+use wasmparser::{BlockType, ExternalKind, FuncType, GlobalType, Operator, TypeRef, ValType};
 
 mod max_height;
 mod thunk;
@@ -162,7 +160,7 @@ fn generate_stack_height_global<'a>(
 
     if let Some(stack_height_export_name) = stack_height_export_name {
         mbuilder.push_export(Export {
-            name: stack_height_export_name,
+            name: stack_height_export_name.to_string(),
             kind: ExternalKind::Func,
             index: stack_height_global_idx,
         });

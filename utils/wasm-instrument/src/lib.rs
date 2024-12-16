@@ -27,14 +27,15 @@ pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use module::Module;
 
 use crate::{
-    module::{ConstExpr, Function, Global, ModuleBuilder},
+    module::{ConstExpr, Export, Function, Global, ModuleBuilder},
     stack_limiter::InjectionConfig,
 };
-use alloc::vec;
+use alloc::{string::ToString, vec};
 use wasmparser::{
-    BlockType, Export, ExternalKind, FuncType, GlobalType, Import, Operator, TypeRef, ValType,
+    BlockType, ExternalKind, FuncType, GlobalType, Import, Operator, TypeRef, ValType,
 };
 
+mod export_globals;
 mod gas_metering;
 mod module;
 mod stack_limiter;
@@ -267,7 +268,7 @@ fn inject_gas_limiter<'a, R: Rules>(
     });
 
     mbuilder.push_export(Export {
-        name: GLOBAL_NAME_GAS,
+        name: GLOBAL_NAME_GAS.to_string(),
         kind: ExternalKind::Global,
         index: gas_index,
     });

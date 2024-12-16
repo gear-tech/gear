@@ -30,6 +30,8 @@ gear-wasm = { version = "0.45.1", default-features = false, features = ["sign_ex
 wat.workspace = true
 rand.workspace = true
 binaryen = "0.12"
+diff = "0.1.13"
+wasmprinter.workspace = true
 
 [features]
 default = ["std"]

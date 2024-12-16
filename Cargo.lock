@@ -6639,6 +6639,7 @@ dependencies = [
  "binaryen",
  "bumpalo",
  "derive_more 0.99.18",
+ "diff",
  "enum-iterator 1.5.0",
  "gear-wasm",
  "gwasm-instrument",
@@ -6646,6 +6647,7 @@ dependencies = [
  "rand",
  "wasm-encoder 0.220.0",
  "wasmparser 0.220.0",
+ "wasmprinter",
  "wat",
 ]
 

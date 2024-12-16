@@ -16,13 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::vec::Vec;
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use wasm_encoder::{
     reencode,
     reencode::{Reencode, RoundtripReencoder},
 };
 use wasmparser::{
-    BinaryReaderError, Data, ElementKind, Encoding, Export, ExternalKind, FuncType, FunctionBody,
+    BinaryReaderError, Data, ElementKind, Encoding, ExternalKind, FuncType, FunctionBody,
     GlobalType, Import, MemoryType, Operator, Payload, RefType, Table, TypeRef, ValType,
 };
 
@@ -73,6 +76,22 @@ impl<'a> Global<'a> {
             ty: global.ty,
             init_expr: ConstExpr::new(global.init_expr)?,
         })
+    }
+}
+
+pub struct Export {
+    pub name: String,
+    pub kind: ExternalKind,
+    pub index: u32,
+}
+
+impl Export {
+    fn new(export: wasmparser::Export) -> Self {
+        Self {
+            name: export.name.to_string(),
+            kind: export.kind,
+            index: export.index,
+        }
     }
 }
 
@@ -249,7 +268,7 @@ impl<'a> ModuleBuilder<'a> {
         self.module.global_section.get_or_insert_with(Vec::new)
     }
 
-    fn export_section(&mut self) -> &mut Vec<Export<'a>> {
+    fn export_section(&mut self) -> &mut Vec<Export> {
         self.module.export_section.get_or_insert_with(Vec::new)
     }
 
@@ -271,7 +290,7 @@ impl<'a> ModuleBuilder<'a> {
         self.global_section().len() as u32 - 1
     }
 
-    pub fn push_export(&mut self, export: Export<'a>) {
+    pub fn push_export(&mut self, export: Export) {
         self.export_section().push(export);
     }
 
@@ -293,7 +312,7 @@ pub struct Module<'a> {
     pub table_section: Option<Vec<Table<'a>>>,
     pub memory_section: Option<Vec<MemoryType>>,
     pub global_section: Option<Vec<Global<'a>>>,
-    pub export_section: Option<Vec<Export<'a>>>,
+    pub export_section: Option<Vec<Export>>,
     pub start_section: Option<u32>,
     pub element_section: Option<Vec<Element<'a>>>,
     pub data_section: Option<Vec<Data<'a>>>,
@@ -360,7 +379,12 @@ impl<'a> Module<'a> {
                 }
                 Payload::ExportSection(section) => {
                     debug_assert!(export_section.is_none());
-                    export_section = Some(section.into_iter().collect::<Result<_, _>>()?);
+                    export_section = Some(
+                        section
+                            .into_iter()
+                            .map(|e| e.map(Export::new))
+                            .collect::<Result<_, _>>()?,
+                    );
                 }
                 Payload::StartSection { func, range: _ } => {
                     start_section = Some(func);
@@ -481,8 +505,12 @@ impl<'a> Module<'a> {
 
         if let Some(crate_section) = self.export_section() {
             let mut encoder_section = wasm_encoder::ExportSection::new();
-            for &export in crate_section {
-                RoundtripReencoder.parse_export(&mut encoder_section, export);
+            for export in crate_section {
+                encoder_section.export(
+                    &export.name,
+                    RoundtripReencoder.export_kind(export.kind),
+                    export.index,
+                );
             }
             module.section(&encoder_section);
         }
@@ -631,11 +659,11 @@ impl<'a> Module<'a> {
         self.global_section.as_mut()
     }
 
-    pub fn export_section(&self) -> Option<&Vec<Export<'a>>> {
+    pub fn export_section(&self) -> Option<&Vec<Export>> {
         self.export_section.as_ref()
     }
 
-    pub fn export_section_mut(&mut self) -> Option<&mut Vec<Export<'a>>> {
+    pub fn export_section_mut(&mut self) -> Option<&mut Vec<Export>> {
         self.export_section.as_mut()
     }
 
