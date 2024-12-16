@@ -255,8 +255,9 @@ impl<'a> ModuleBuilder<'a> {
         self.import_section().push(import);
     }
 
-    pub fn push_global(&mut self, global: Global<'a>) {
+    pub fn push_global(&mut self, global: Global<'a>) -> u32 {
         self.global_section().push(global);
+        self.global_section().len() as u32 - 1
     }
 
     pub fn push_export(&mut self, export: Export<'a>) {

@@ -1,13 +1,15 @@
 //! Contains the code for the stack height limiter instrumentation.
 
 use crate::{
-    module::{ConstExpr, Global},
+    module::{ConstExpr, Global, ModuleBuilder},
     Module,
 };
 use alloc::{vec, vec::Vec};
 use core::mem;
 use max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext};
-use wasmparser::{BlockType, FuncType, GlobalType, Operator, TypeRef, ValType};
+use wasmparser::{
+    BlockType, Export, ExternalKind, FuncType, GlobalType, Operator, TypeRef, ValType,
+};
 
 mod max_height;
 mod thunk;
@@ -111,7 +113,7 @@ where
 /// Same as the [`inject`] function, but allows to configure exit instructions when the stack limit
 /// is reached and the export name of the stack height global.
 pub fn inject_with_config<'a, I: IntoIterator<Item = Operator<'a>>>(
-    mut module: Module<'a>,
+    module: Module<'a>,
     injection_config: InjectionConfig<'a, I, impl Fn(&FuncType) -> I>,
 ) -> Result<Module<'a>, &'static str>
 where
@@ -122,11 +124,11 @@ where
         injection_fn,
         stack_height_export_name,
     } = injection_config;
+
+    let (mut module, stack_height_global_idx) =
+        generate_stack_height_global(module, stack_height_export_name);
     let mut ctx = Context {
-        stack_height_global_idx: generate_stack_height_global(
-            &mut module,
-            stack_height_export_name,
-        ),
+        stack_height_global_idx,
         func_stack_costs: compute_stack_costs(&module, &injection_fn)?,
         stack_limit,
     };
@@ -138,10 +140,10 @@ where
 }
 
 /// Generate a new global that will be used for tracking current stack height.
-fn generate_stack_height_global(
-    module: &mut Module,
-    stack_height_export_name: Option<&str>,
-) -> u32 {
+fn generate_stack_height_global<'a>(
+    module: Module<'a>,
+    stack_height_export_name: Option<&'a str>,
+) -> (Module<'a>, u32) {
     let global_entry = Global {
         ty: GlobalType {
             content_type: ValType::I32,
@@ -153,38 +155,19 @@ fn generate_stack_height_global(
         },
     };
 
-    let stack_height_global_idx = match module.global_section_mut() {
-        Some(global_section) => {
-            global_section.push(global_entry);
-            (global_section.len() as u32) - 1
-        }
-        None => {
-            module.sections_mut().push(elements::Section::Global(
-                elements::GlobalSection::with_entries(vec![global_entry]),
-            ));
-            0
-        }
-    };
+    let mut mbuilder = ModuleBuilder::from_module(module);
+
+    let stack_height_global_idx = mbuilder.push_global(global_entry);
 
     if let Some(stack_height_export_name) = stack_height_export_name {
-        let export_entry = elements::ExportEntry::new(
-            stack_height_export_name.into(),
-            elements::Internal::Global(stack_height_global_idx),
-        );
-
-        match module.export_section_mut() {
-            Some(export_section) => {
-                export_section.entries_mut().push(export_entry);
-            }
-            None => {
-                module.sections_mut().push(elements::Section::Export(
-                    elements::ExportSection::with_entries(vec![export_entry]),
-                ));
-            }
-        }
+        mbuilder.push_export(Export {
+            name: stack_height_export_name,
+            kind: ExternalKind::Func,
+            index: stack_height_global_idx,
+        });
     }
 
-    stack_height_global_idx
+    (mbuilder.build(), stack_height_global_idx)
 }
 
 /// Calculate stack costs for all functions.
