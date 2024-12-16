@@ -16,10 +16,14 @@ on:
         description: Instance type to provision for benchmarking.
         required: true
         default: 'c6i.metal'
+      instance_max_cpu_frequency:
+        description: Max CPU frequency (only baremetal).
+        required: true
+        default: '3000000'
       instance_disk_size:
         description: Disk size (in GB) for the instance.
         required: true
-        default: 100
+        default: '100'
 
 concurrency:
   group: benchmarks
@@ -93,7 +97,7 @@ jobs:
       run: |
         cd terraform/bench-runner
         terraform init
-        terraform apply -auto-approve -var="aws_region=${{ env.AVAILABLE_REGION }}" -var="instance_type=${{ inputs.instance_type }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
+        terraform apply -auto-approve -var="aws_region=${{ env.AVAILABLE_REGION }}" -var="instance_type=${{ inputs.instance_type }}" -var="max_cpu_frequency=${{ inputs.instance_max_cpu_frequency }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
 
     - name: Notify on Failure
       if: failure()
@@ -111,6 +115,7 @@ jobs:
   benchmarks:
     needs: provision-runner
     runs-on: [bench]
+    timeout-minutes: 720
     permissions:
       contents: write
       pull-requests: write
@@ -131,6 +136,9 @@ jobs:
           tar xzf wasm-opt-linux-x64.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
           cargo install cargo-script
           wasm-opt --version
+
+      - name: Check CPU frequency
+        run: sudo cpupower frequency-info | grep 'current CPU frequency'
 
       - name: Run all benchmarks
         run: |
@@ -169,8 +177,8 @@ jobs:
         with:
           name: weights-vara
           path: |
+            core/src/gas_metering/
             runtime/vara/src/weights/
-            utils/wasm-instrument/src/gas_metering/
 
       - name: "TIP: download the artifacts and use `./scripts/unpack-weights.sh`"
         run: |
@@ -182,17 +190,17 @@ jobs:
         with:
           commit_message: >-
             chore(runtime): update weights
-          file_pattern: "pallets/gear/src/ pallets/gear-builtin/src/ runtime/vara/src/weights/ utils/wasm-instrument/src/gas_metering/"
+          file_pattern: "core/src/gas_metering/ pallets/gear/src/ pallets/gear-builtin/src/ runtime/vara/src/weights/"
 
       - name: Create Pull Request
         if: ${{ inputs.change-type == 'pull_request' }}
         uses: peter-evans/create-pull-request@v7
         with:
           add-paths: |
+            core/src/gas_metering/
             pallets/gear/src/
             pallets/gear-builtin/src/
             runtime/vara/src/weights/
-            utils/wasm-instrument/src/gas_metering/
           commit-message: update weights
           branch: weights/patch
           branch-suffix: short-commit-hash
@@ -230,7 +238,7 @@ jobs:
       run: |
         cd terraform/bench-runner
         terraform init
-        terraform destroy -auto-approve -var="aws_region=${{ needs.provision-runner.outputs.available_region }}" -var="instance_type=${{ inputs.instance_type }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
+        terraform destroy -auto-approve -var="aws_region=${{ needs.provision-runner.outputs.available_region }}" -var="instance_type=${{ inputs.instance_type }}" -var="max_cpu_frequency=${{ inputs.instance_max_cpu_frequency }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
 
     - name: Notify on Failure
       if: failure()

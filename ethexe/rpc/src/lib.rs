@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use apis::{BlockApi, BlockServer, ProgramApi, ProgramServer};
 use ethexe_db::Database;
 use futures::FutureExt;
@@ -35,6 +35,8 @@ mod apis;
 mod common;
 mod errors;
 
+pub(crate) mod util;
+
 #[derive(Clone)]
 struct PerConnection<RpcMiddleware, HttpMiddleware> {
     methods: Methods,
@@ -42,32 +44,43 @@ struct PerConnection<RpcMiddleware, HttpMiddleware> {
     svc_builder: TowerServiceBuilder<RpcMiddleware, HttpMiddleware>,
 }
 
+/// Configuration of the RPC endpoint.
+#[derive(Debug, Clone)]
 pub struct RpcConfig {
-    port: u16,
-    db: Database,
+    /// Listen address.
+    pub listen_addr: SocketAddr,
+    /// CORS.
+    pub cors: Option<Vec<String>>,
 }
 
 pub struct RpcService {
     config: RpcConfig,
+    db: Database,
 }
 
 impl RpcService {
-    pub fn new(port: u16, db: Database) -> Self {
-        Self {
-            config: RpcConfig { port, db },
-        }
+    pub fn new(config: RpcConfig, db: Database) -> Self {
+        Self { config, db }
     }
 
-    pub async fn run_server(self) -> anyhow::Result<(ServerHandle, u16)> {
-        let listener =
-            TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], self.config.port))).await?;
+    pub const fn port(&self) -> u16 {
+        self.config.listen_addr.port()
+    }
 
-        let service_builder = Server::builder().to_service_builder();
+    pub async fn run_server(self) -> Result<ServerHandle> {
+        let listener = TcpListener::bind(self.config.listen_addr).await?;
+
+        let cors = util::try_into_cors(self.config.cors)?;
+
+        let http_middleware = tower::ServiceBuilder::new().layer(cors);
+
+        let service_builder = Server::builder()
+            .set_http_middleware(http_middleware)
+            .to_service_builder();
+
         let mut module = JsonrpcModule::new(());
-        module.merge(ProgramServer::into_rpc(ProgramApi::new(
-            self.config.db.clone(),
-        )))?;
-        module.merge(BlockServer::into_rpc(BlockApi::new(self.config.db.clone())))?;
+        module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
+        module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
 
         let (stop_handle, server_handle) = stop_channel();
 
@@ -136,6 +149,6 @@ impl RpcService {
             }
         });
 
-        Ok((server_handle, self.config.port))
+        Ok(server_handle)
     }
 }

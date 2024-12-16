@@ -99,7 +99,8 @@ run_fuzzer() {
   fi
 
   # Run fuzzer
-  RUST_LOG="$LOG_TARGETS" cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
+  RUSTFLAGS="--cfg fuzz" RUST_LOG="$LOG_TARGETS" \
+    cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
 }
 
 run_lazy_pages_fuzzer() {
@@ -107,6 +108,7 @@ run_lazy_pages_fuzzer() {
 
   ROOT_DIR="$1"
   CORPUS_DIR="$2"
+  RUSTFLAGS="--cfg fuzz"
 
   # Navigate to lazy pages fuzzer dir
   cd $ROOT_DIR/utils/lazy-pages-fuzzer
@@ -122,7 +124,7 @@ run_lazy_pages_fuzzer() {
 
 run_fuzzer_tests() {
   # This includes property tests for runtime-fuzzer.
-  cargo nextest run -p runtime-fuzzer
+  RUSTFLAGS="--cfg fuzz" cargo nextest run -p runtime-fuzzer
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
@@ -134,12 +136,13 @@ doc_test() {
   MANIFEST="$1"
   shift
 
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" --no-fail-fast "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --manifest-path="$MANIFEST" --no-fail-fast "$@"
 }
 
 time_consuming_tests() {
   $CARGO test -p demo-fungible-token --no-fail-fast --release -- --nocapture --ignored
   $CARGO test -p gear-wasm-builder --no-fail-fast "$@" -- --nocapture --ignored
+  LOOM_MAX_PREEMPTIONS=3 RUSTFLAGS="--cfg loom" $CARGO test -p gear-wasmer-cache --no-fail-fast --release -- --nocapture
 }
 
 typo_tests() {

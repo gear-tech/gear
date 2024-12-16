@@ -51,6 +51,7 @@ sp-timestamp = { workspace = true, features = ["std"] }
 
 # Substrate other (benchmarking etc)
 frame-system = { workspace = true, features = ["std"] }
+frame-metadata-hash-extension = { workspace = true, optional = true, features = ["std"] }
 frame-benchmarking = { workspace = true, optional = true, features = ["std"] }
 frame-benchmarking-cli = { workspace = true, optional = true }
 
@@ -72,9 +73,14 @@ runtime-benchmarks = [
 	"service/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-benchmarking-cli/runtime-benchmarks",
+	"frame-metadata-hash-extension",
 ]
 runtime-benchmarks-checkers = [
 	"vara-runtime?/runtime-benchmarks",
 	"service/runtime-benchmarks-checkers",
 ]
 cli = [ "gcli" ]
+metadata-hash = [
+	"service/metadata-hash",
+	"vara-runtime?/metadata-hash",
+]

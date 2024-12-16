@@ -337,9 +337,12 @@ impl ExtBuilder {
             })
             .collect();
 
-        pallet_session::GenesisConfig::<Test> { keys }
-            .assimilate_storage(&mut storage)
-            .unwrap();
+        pallet_session::GenesisConfig::<Test> {
+            keys,
+            ..Default::default()
+        }
+        .assimilate_storage(&mut storage)
+        .unwrap();
 
         let mut ext: sp_io::TestExternalities = storage.into();
 

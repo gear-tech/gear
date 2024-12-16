@@ -19,12 +19,12 @@
 //! Program's execution service for eGPU.
 
 use anyhow::{anyhow, ensure, Result};
-use ethexe_common::{mirror::RequestEvent as MirrorEvent, BlockRequestEvent};
+use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::{state::Storage, InBlockTransitions};
+use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
-use handling::run;
+use handling::{run, ProcessingHandler};
 use host::InstanceCreator;
 
 pub use common::LocalOutcome;
@@ -37,8 +37,24 @@ mod handling;
 #[cfg(test)]
 mod tests;
 
+#[derive(Clone, Debug)]
+pub struct ProcessorConfig {
+    pub worker_threads_override: Option<usize>,
+    pub virtual_threads: usize,
+}
+
+impl Default for ProcessorConfig {
+    fn default() -> Self {
+        Self {
+            worker_threads_override: None,
+            virtual_threads: 16,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Processor {
+    config: ProcessorConfig,
     db: Database,
     creator: InstanceCreator,
 }
@@ -46,9 +62,22 @@ pub struct Processor {
 /// TODO: consider avoiding re-instantiations on processing events.
 /// Maybe impl `struct EventProcessor`.
 impl Processor {
+    /// Creates processor with default config.
     pub fn new(db: Database) -> Result<Self> {
+        Self::with_config(Default::default(), db)
+    }
+
+    pub fn with_config(config: ProcessorConfig, db: Database) -> Result<Self> {
         let creator = InstanceCreator::new(host::runtime())?;
-        Ok(Self { db, creator })
+        Ok(Self {
+            config,
+            db,
+            creator,
+        })
+    }
+
+    pub fn config(&self) -> &ProcessorConfig {
+        &self.config
     }
 
     pub fn overlaid(mut self) -> OverlaidProcessor {
@@ -77,42 +106,26 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
-        let header = self
-            .db
-            .block_header(block_hash)
-            .ok_or_else(|| anyhow!("failed to get block header for under-processing block"))?;
-
-        let states = self
-            .db
-            .block_start_program_states(block_hash)
-            .ok_or_else(|| {
-                anyhow!("failed to get block start program states for under-processing block")
-            })?;
-
-        let schedule = self.db.block_start_schedule(block_hash).ok_or_else(|| {
-            anyhow!("failed to get block start schedule for under-processing block")
-        })?;
-
-        let mut in_block_transitions = InBlockTransitions::new(header, states, schedule);
+        let mut handler = self.handler(block_hash)?;
 
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
-                    self.handle_router_event(&mut in_block_transitions, event)?;
+                    handler.handle_router_event(event)?;
                 }
-                BlockRequestEvent::Mirror { address, event } => {
-                    self.handle_mirror_event(&mut in_block_transitions, address, event)?;
+                BlockRequestEvent::Mirror { actor_id, event } => {
+                    handler.handle_mirror_event(actor_id, event)?;
                 }
                 BlockRequestEvent::WVara(event) => {
-                    self.handle_wvara_event(&mut in_block_transitions, event)?;
+                    handler.handle_wvara_event(event);
                 }
             }
         }
 
-        self.run_schedule(&mut in_block_transitions);
-        self.run(block_hash, &mut in_block_transitions);
+        handler.run_schedule();
+        self.process_queue(&mut handler);
 
-        let (transitions, states, schedule) = in_block_transitions.finalize();
+        let (transitions, states, schedule) = handler.transitions.finalize();
 
         self.db.set_block_end_program_states(block_hash, states);
         self.db.set_block_end_schedule(block_hash, schedule);
@@ -125,14 +138,14 @@ impl Processor {
         Ok(outcomes)
     }
 
-    pub fn run(&mut self, chain_head: H256, in_block_transitions: &mut InBlockTransitions) {
-        self.creator.set_chain_head(chain_head);
+    pub fn process_queue(&mut self, handler: &mut ProcessingHandler) {
+        self.creator.set_chain_head(handler.block_hash);
 
         run::run(
-            8,
+            self.config(),
             self.db.clone(),
             self.creator.clone(),
-            in_block_transitions,
+            &mut handler.transitions,
         );
     }
 }
@@ -152,26 +165,14 @@ impl OverlaidProcessor {
     ) -> Result<ReplyInfo> {
         self.0.creator.set_chain_head(block_hash);
 
-        let header = self
-            .0
-            .db
-            .block_header(block_hash)
-            .ok_or_else(|| anyhow!("failed to find block header for given block hash"))?;
+        let mut handler = self.0.handler(block_hash)?;
 
-        let states = self
-            .0
-            .db
-            .block_start_program_states(block_hash)
-            .unwrap_or_default();
-
-        let mut in_block_transitions = InBlockTransitions::new(header, states, Default::default());
-
-        let state_hash = in_block_transitions
+        let state_hash = handler
+            .transitions
             .state_of(&program_id)
             .ok_or_else(|| anyhow!("unknown program at specified block hash"))?;
 
-        let state = self
-            .0
+        let state = handler
             .db
             .read_state(state_hash)
             .ok_or_else(|| anyhow!("unreachable: state partially presents in storage"))?;
@@ -181,10 +182,9 @@ impl OverlaidProcessor {
             "program isn't yet initialized"
         );
 
-        self.0.handle_mirror_event(
-            &mut in_block_transitions,
+        handler.handle_mirror_event(
             program_id,
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id: MessageId::zero(),
                 source,
                 payload,
@@ -192,14 +192,10 @@ impl OverlaidProcessor {
             },
         )?;
 
-        run::run(
-            8,
-            self.0.db.clone(),
-            self.0.creator.clone(),
-            &mut in_block_transitions,
-        );
+        self.0.process_queue(&mut handler);
 
-        let res = in_block_transitions
+        let res = handler
+            .transitions
             .current_messages()
             .into_iter()
             .find_map(|(_source, message)| {

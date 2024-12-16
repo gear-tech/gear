@@ -503,7 +503,7 @@ where
         );
 
         GasAllowanceOf::<T>::decrease(gas_burned);
-        // TODO: #3112. Rework requeueing logic to avoid blocked queue.
+        // TODO: #3112. Rework requeuing logic to avoid blocked queue.
         QueueOf::<T>::requeue(dispatch).unwrap_or_else(|e| {
             let err_msg = format!(
                 "JournalHandler::stop_processing: failed requeuing message. Got error - {e:?}"

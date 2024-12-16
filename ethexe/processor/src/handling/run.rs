@@ -16,10 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{InstanceCreator, InstanceWrapper};
+use crate::{
+    host::{InstanceCreator, InstanceWrapper},
+    ProcessorConfig,
+};
 use core_processor::common::JournalNote;
 use ethexe_db::{CodesStorage, Database};
-use ethexe_runtime_common::{InBlockTransitions, JournalHandler};
+use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use std::collections::BTreeMap;
@@ -34,36 +37,47 @@ enum Task {
 }
 
 pub fn run(
-    threads_amount: usize,
+    config: &ProcessorConfig,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
     tokio::task::block_in_place(|| {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(threads_amount)
-            .enable_all()
-            .build()
-            .unwrap();
+        let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
 
-        rt.block_on(async { run_in_async(db, instance_creator, in_block_transitions).await })
+        if let Some(worker_threads) = config.worker_threads_override {
+            rt_builder.worker_threads(worker_threads);
+        };
+
+        rt_builder.enable_all();
+
+        let rt = rt_builder.build().unwrap();
+
+        rt.block_on(async {
+            run_in_async(
+                config.virtual_threads,
+                db,
+                instance_creator,
+                in_block_transitions,
+            )
+            .await
+        })
     })
 }
 
 // TODO: Returning Vec<LocalOutcome> is a temporary solution.
 // In future need to send all messages to users and all state hashes changes to sequencer.
 async fn run_in_async(
+    virtual_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
-    let num_workers = 4;
-
     let mut task_senders = vec![];
     let mut handles = vec![];
 
     // create workers
-    for id in 0..num_workers {
+    for id in 0..virtual_threads {
         let (task_sender, task_receiver) = mpsc::channel(100);
         task_senders.push(task_sender);
         let handle = tokio::spawn(worker(
@@ -79,7 +93,7 @@ async fn run_in_async(
         // Send tasks to process programs in workers, until all queues are empty.
 
         let mut no_more_to_do = true;
-        for index in (0..in_block_transitions.states_amount()).step_by(num_workers) {
+        for index in (0..in_block_transitions.states_amount()).step_by(virtual_threads) {
             let result_receivers = one_batch(index, &task_senders, in_block_transitions).await;
 
             let mut super_journal = vec![];
@@ -94,8 +108,10 @@ async fn run_in_async(
             for (program_id, journal) in super_journal {
                 let mut handler = JournalHandler {
                     program_id,
-                    in_block_transitions,
-                    storage: &db,
+                    controller: TransitionController {
+                        transitions: in_block_transitions,
+                        storage: &db,
+                    },
                 };
                 core_processor::handle_journal(journal, &mut handler);
             }
@@ -124,14 +140,7 @@ async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
             let code_metadata = db.code_metadata(code_id);
 
             let journal = executor
-                .run(
-                    db,
-                    program_id,
-                    code_id,
-                    state_hash,
-                    instrumented_code,
-                    code_metadata,
-                )
+                .run(db, program_id, state_hash, instrumented_code, code_metadata)
                 .expect("Some error occurs while running program in instance");
 
             result_sender.send(journal).unwrap();

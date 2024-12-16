@@ -16,16 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod block_exec;
-mod expend;
-mod hold_bound;
-mod journal;
-mod memory;
-mod reservations;
-mod send_dispatch;
-mod task;
-mod wait_wake;
-
 use crate::{
     constants::Value,
     error::usage_panic,
@@ -44,11 +34,7 @@ use crate::{
     Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
     GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, RESERVE_FOR, VALUE_PER_GAS,
 };
-use core_processor::{
-    common::*,
-    configs::{BlockConfig, TESTS_MAX_PAGES_NUMBER},
-    Ext,
-};
+use core_processor::{common::*, configs::BlockConfig, Ext};
 use gear_common::{
     auxiliary::{
         gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
@@ -80,6 +66,16 @@ use std::{
     fmt::Debug,
     mem,
 };
+
+mod block_exec;
+mod expend;
+mod hold_bound;
+mod journal;
+mod memory;
+mod reservations;
+mod send_dispatch;
+mod task;
+mod wait_wake;
 
 const OUTGOING_LIMIT: u32 = 1024;
 const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;

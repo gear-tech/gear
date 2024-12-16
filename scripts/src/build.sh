@@ -26,11 +26,11 @@ EOF
 }
 
 gear_build() {
-  $CARGO build --workspace "$@" --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz
+  $CARGO build --workspace "$@"
 }
 
 fuzzer_build() {
-  $CARGO build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
+  RUSTFLAGS="--cfg fuzz" $CARGO build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
 
 node_build() {

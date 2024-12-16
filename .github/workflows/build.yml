@@ -126,7 +126,7 @@ jobs:
 
       - name: "Test: Benchmarks in WASM"
         # unoptimized benchmarks take a few hours to run
-        if: ${{ matrix.profile == 'release' }}
+        if: ${{ matrix.profiles.name == 'release' }}
         run: |
           cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.profiles.flags }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
@@ -218,6 +218,13 @@ jobs:
         run: |
           wineboot
           winetricks win10
+
+      - name: "Install: FireDaemon OpenSSL"
+        run: |
+          wget https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-3.4.0.zip
+          unzip openssl-3.4.0.zip "x64/*" -d openssl
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=$(pwd)/openssl/x64" >> $GITHUB_ENV
 
       - name: "Install: LLVM"
         run: |

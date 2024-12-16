@@ -22,18 +22,16 @@ use crate::{
     config::{Config, ConfigPublicKey, PrometheusConfig},
     metrics::MetricsService,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use ethexe_common::{
-    router::{
-        BlockCommitment, CodeCommitment, RequestEvent as RouterRequestEvent, StateTransition,
-    },
-    BlockRequestEvent,
+    events::{BlockRequestEvent, RouterRequestEvent},
+    gear::{BlockCommitment, CodeCommitment, StateTransition},
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::{primitives::U256, router::RouterQuery};
 use ethexe_network::{db_sync, NetworkReceiverEvent};
 use ethexe_observer::{RequestBlockData, RequestEvent};
-use ethexe_processor::LocalOutcome;
+use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
@@ -108,7 +106,16 @@ impl Service {
         let router_query = RouterQuery::new(&config.ethereum_rpc, ethereum_router_address).await?;
 
         let genesis_block_hash = router_query.genesis_block_hash().await?;
-        log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
+
+        if genesis_block_hash.is_zero() {
+            log::error!(
+                "👶 Genesis block hash wasn't found. Call router.lookupGenesisHash() first"
+            );
+
+            bail!("Failed to query valid genesis hash");
+        } else {
+            log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
+        }
 
         let validators = router_query.validators().await?;
         log::info!("👥 Validators set: {validators:?}");
@@ -126,7 +133,22 @@ impl Service {
         )
         .await?;
 
-        let processor = ethexe_processor::Processor::new(db.clone())?;
+        let processor = ethexe_processor::Processor::with_config(
+            ProcessorConfig {
+                worker_threads_override: config.worker_threads_override,
+                virtual_threads: config.virtual_threads,
+            },
+            db.clone(),
+        )?;
+
+        if let Some(worker_threads) = processor.config().worker_threads_override {
+            log::info!("🔧 Overriding amount of physical threads for runtime: {worker_threads}");
+        }
+
+        log::info!(
+            "🔧 Amount of virtual threads for programs processing: {}",
+            processor.config().virtual_threads
+        );
 
         let signer = ethexe_signer::Signer::new(config.key_path.clone())?;
 
@@ -179,8 +201,9 @@ impl Service {
             .transpose()?;
 
         let rpc = config
-            .rpc_port
-            .map(|port| ethexe_rpc::RpcService::new(port, db.clone()));
+            .rpc_config
+            .as_ref()
+            .map(|config| ethexe_rpc::RpcService::new(config.clone(), db.clone()));
 
         Ok(Self {
             db,
@@ -341,7 +364,9 @@ impl Service {
         db.set_block_header(block_data.hash, block_data.header);
 
         let mut commitments = vec![];
+
         let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
+
         for block_hash in last_committed_chain.into_iter().rev() {
             let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
 
@@ -350,12 +375,17 @@ impl Service {
                 continue;
             }
 
+            let header = db
+                .block_header(block_hash)
+                .ok_or_else(|| anyhow!("header not found, but most exist"))?;
+
             commitments.push(BlockCommitment {
-                block_hash,
-                pred_block_hash: block_data.hash,
-                prev_commitment_hash: db
-                    .block_prev_commitment(block_hash)
+                hash: block_hash,
+                timestamp: header.timestamp,
+                previous_committed_block: db
+                    .previous_committed_block(block_hash)
                     .ok_or_else(|| anyhow!("Prev commitment not found"))?,
+                predecessor_block: block_data.hash,
                 transitions,
             });
         }
@@ -402,6 +432,13 @@ impl Service {
         }
     }
 
+    pub async fn run(self) -> Result<()> {
+        self.run_inner().await.map_err(|err| {
+            log::error!("Service finished work with error: {err:?}");
+            err
+        })
+    }
+
     async fn run_inner(self) -> Result<()> {
         let Service {
             db,
@@ -440,8 +477,10 @@ impl Service {
             };
 
         let mut rpc_handle = if let Some(rpc) = rpc {
-            let (rpc_run, rpc_port) = rpc.run_server().await?;
-            log::info!("🌐 Rpc server started at: {}", rpc_port);
+            log::info!("🌐 Rpc server starting at: {}", rpc.port());
+
+            let rpc_run = rpc.run_server().await?;
+
             Some(tokio::spawn(rpc_run.stopped()))
         } else {
             None
@@ -559,13 +598,6 @@ impl Service {
         Ok(())
     }
 
-    pub async fn run(self) -> Result<()> {
-        self.run_inner().await.map_err(|err| {
-            log::error!("Service finished work with error: {:?}", err);
-            err
-        })
-    }
-
     async fn post_process_commitments(
         code_commitments: Vec<CodeCommitment>,
         block_commitments: Vec<BlockCommitment>,
@@ -650,7 +682,7 @@ impl Service {
         };
 
         let last_not_empty_block = match block_is_empty {
-            true => match db.block_prev_commitment(chain_head) {
+            true => match db.previous_committed_block(chain_head) {
                 Some(prev_commitment) => prev_commitment,
                 None => {
                     log::warn!("Failed to get previous commitment for {chain_head}");
@@ -879,6 +911,7 @@ mod utils {
 mod tests {
     use super::Service;
     use crate::config::{Config, PrometheusConfig};
+    use ethexe_rpc::RpcConfig;
     use std::{
         net::{Ipv4Addr, SocketAddr},
         time::Duration,
@@ -899,11 +932,13 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "ws://54.67.75.1:8546".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0xa9e7B594e18e28b1Cc0FA4000D92ded887CB356F"
+            ethereum_router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
                 .parse()
                 .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
+            worker_threads_override: None,
+            virtual_threads: 1,
             database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
             sequencer: Default::default(),
@@ -914,7 +949,10 @@ mod tests {
                 SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
                 "dev".to_string(),
             )),
-            rpc_port: Some(9090),
+            rpc_config: Some(RpcConfig {
+                listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
+                cors: None,
+            }),
         })
         .await
         .unwrap();
@@ -924,11 +962,13 @@ mod tests {
             node_name: "test".to_string(),
             ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0xa9e7B594e18e28b1Cc0FA4000D92ded887CB356F"
+            ethereum_router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
                 .parse()
                 .expect("infallible"),
             max_commitment_depth: 1000,
             block_time: Duration::from_secs(1),
+            worker_threads_override: None,
+            virtual_threads: 1,
             database_path: tmp_dir.join("db"),
             key_path: tmp_dir.join("key"),
             sequencer: Default::default(),
@@ -936,7 +976,7 @@ mod tests {
             sender_address: Default::default(),
             net_config: None,
             prometheus_config: None,
-            rpc_port: None,
+            rpc_config: None,
         })
         .await
         .unwrap();

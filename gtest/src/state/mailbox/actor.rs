@@ -20,7 +20,7 @@ use crate::{
     error::usage_panic,
     manager::ExtManager,
     state::{accounts::Accounts, actors::Actors},
-    Log, Value, GAS_ALLOWANCE,
+    Log, Value, MAX_USER_GAS_LIMIT,
 };
 use codec::Encode;
 use gear_common::{
@@ -96,7 +96,7 @@ impl<'a> ActorMailbox<'a> {
         {
             0
         } else {
-            GAS_ALLOWANCE
+            MAX_USER_GAS_LIMIT
         };
 
         // Build a reply message

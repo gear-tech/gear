@@ -20,15 +20,15 @@
 
 use crate::{
     config,
-    params::{NetworkParams, PrometheusParams},
+    params::{NetworkParams, PrometheusParams, RpcParams},
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail};
 use clap::{Parser, Subcommand};
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Address;
 use gprimitives::CodeId;
 use serde::Deserialize;
-use std::{fs, path::PathBuf};
+use std::{fs, num::NonZero, path::PathBuf};
 
 #[derive(Clone, Debug, Parser, Deserialize)]
 #[command(version, about, long_about = None)]
@@ -77,9 +77,6 @@ pub struct Args {
     #[arg(long = "validator-address")]
     pub sender_address: Option<String>,
 
-    #[arg(long = "rpc-port")]
-    pub rpc_port: Option<u16>,
-
     /// Max depth to discover last commitment.
     #[arg(long = "max-depth")]
     pub max_commitment_depth: Option<u32>,
@@ -88,6 +85,16 @@ pub struct Args {
     /// Ethexe uses it to estimate inner timeouts.
     #[arg(long, default_value = "12")]
     pub block_time: u64,
+
+    /// Amount of physical threads tokio runtime will use for program processing.
+    ///
+    /// The default value is the number of cores available to the system.
+    #[arg(long = "worker-threads")]
+    pub worker_threads_override: Option<NonZero<u8>>,
+
+    /// Amount of virtual threads (workers) for programs processing.
+    #[arg(long, default_value = "16")]
+    pub virtual_threads: NonZero<u8>,
 
     /// Run a temporary node.
     ///
@@ -107,6 +114,10 @@ pub struct Args {
     #[allow(missing_docs)]
     #[clap(flatten)]
     pub prometheus_params: Option<PrometheusParams>,
+
+    #[allow(missing_docs)]
+    #[clap(flatten)]
+    pub rpc_params: Option<RpcParams>,
 
     #[command(subcommand)]
     pub extra_command: Option<ExtraCommands>,
@@ -134,7 +145,6 @@ pub enum ExtraCommands {
     ClearKeys,
     InsertKey(InsertKeyArgs),
     Sign(SigningArgs),
-    UpdateValidators(UpdateValidatorsArgs),
     UploadCode(UploadCodeArgs),
     CreateProgram(CreateProgramArgs),
 }
@@ -150,11 +160,6 @@ pub struct InsertKeyArgs {
 }
 
 #[derive(Clone, Debug, Deserialize, Parser)]
-pub struct UpdateValidatorsArgs {
-    validators: Vec<String>,
-}
-
-#[derive(Clone, Debug, Deserialize, Parser)]
 pub struct UploadCodeArgs {
     path: PathBuf,
 }
@@ -162,9 +167,9 @@ pub struct UploadCodeArgs {
 #[derive(Clone, Debug, Deserialize, Parser)]
 pub struct CreateProgramArgs {
     code_id: String,
-    init_payload: String,
-    value: u128,
 }
+
+// TODO (breathx): support message sending here.
 
 impl ExtraCommands {
     pub async fn run(&self, config: &config::Config) -> anyhow::Result<()> {
@@ -247,33 +252,6 @@ impl ExtraCommands {
                 println!("Ethereum address: {}", pub_key.to_address());
             }
 
-            ExtraCommands::UpdateValidators(ref update_validators_args) => {
-                let validator_addresses = update_validators_args
-                    .validators
-                    .iter()
-                    .map(|validator| validator.parse::<Address>())
-                    .collect::<Result<Vec<_>>>()?;
-
-                let validators = validator_addresses
-                    .into_iter()
-                    .map(|address| address.0.into())
-                    .collect();
-
-                let Some((sender_address, ethexe_ethereum)) =
-                    maybe_sender_address.zip(maybe_ethereum)
-                else {
-                    bail!("please provide signer address");
-                };
-
-                println!("Updating validators for Router from {sender_address}...");
-
-                let tx = ethexe_ethereum
-                    .router()
-                    .update_validators(validators)
-                    .await?;
-                println!("Completed in transaction {tx:?}");
-            }
-
             ExtraCommands::UploadCode(ref upload_code_args) => {
                 let path = &upload_code_args.path;
 
@@ -310,15 +288,8 @@ impl ExtraCommands {
                     .code_id
                     .parse()
                     .map_err(|err| anyhow!("failed to parse code id: {err}"))?;
+
                 let salt = rand::random();
-                let init_payload = if let Some(init_payload) =
-                    create_program_args.init_payload.strip_prefix("0x")
-                {
-                    hex::decode(init_payload)?
-                } else {
-                    create_program_args.init_payload.clone().into_bytes()
-                };
-                let value = create_program_args.value;
 
                 let Some((sender_address, ethexe_ethereum)) =
                     maybe_sender_address.zip(maybe_ethereum)
@@ -330,13 +301,11 @@ impl ExtraCommands {
 
                 let router = ethexe_ethereum.router();
 
-                let (tx, actor_id) = router
-                    .create_program(code_id, salt, init_payload, value)
-                    .await?;
+                let (tx, actor_id) = router.create_program(code_id, salt).await?;
 
                 println!("Completed in transaction {tx:?}");
                 println!(
-                    "Waiting for state update of program {}...",
+                    "Program address on Ethereum {}",
                     actor_id.to_address_lossy()
                 );
 

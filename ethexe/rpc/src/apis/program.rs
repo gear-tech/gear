@@ -20,7 +20,7 @@ use crate::{common::block_header_at_or_latest, errors};
 use ethexe_db::{CodesStorage, Database};
 use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{
-    Mailbox, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
+    HashOf, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
 };
 use gear_core::message::ReplyInfo;
 use gprimitives::{H160, H256};
@@ -131,32 +131,32 @@ impl ProgramServer for ProgramApi {
 
     async fn read_queue(&self, hash: H256) -> RpcResult<MessageQueue> {
         self.db
-            .read_queue(hash)
+            .read_queue(unsafe { HashOf::new(hash) })
             .ok_or_else(|| errors::db("Failed to read queue by hash"))
     }
 
     async fn read_mailbox(&self, hash: H256) -> RpcResult<Mailbox> {
         self.db
-            .read_mailbox(hash)
+            .read_mailbox(unsafe { HashOf::new(hash) })
             .ok_or_else(|| errors::db("Failed to read mailbox by hash"))
     }
 
     async fn read_pages(&self, hash: H256) -> RpcResult<MemoryPages> {
         self.db
-            .read_pages(hash)
+            .read_pages(unsafe { HashOf::new(hash) })
             .ok_or_else(|| errors::db("Failed to read pages by hash"))
     }
 
     // TODO: read the whole program state in a single query
     async fn read_waitlist(&self, hash: H256) -> RpcResult<Waitlist> {
         self.db
-            .read_waitlist(hash)
+            .read_waitlist(unsafe { HashOf::new(hash) })
             .ok_or_else(|| errors::db("Failed to read waitlist by hash"))
     }
 
     async fn read_page_data(&self, hash: H256) -> RpcResult<Bytes> {
         self.db
-            .read_page_data(hash)
+            .read_page_data(unsafe { HashOf::new(hash) })
             .map(|buf| buf.encode().into())
             .ok_or_else(|| errors::db("Failed to read page data by hash"))
     }

@@ -391,7 +391,7 @@ impl<T: Numerated> IntervalsTree<T> {
     /// Iterating complexity: `O(n + m)`, where
     /// - `n` is amount of intervals in `self`
     /// - `m` is amount of intervals in `other`
-    pub fn difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = Interval<T>> + '_ {
+    pub fn difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = Interval<T>> + 'a {
         DifferenceIterator {
             iter1: self.iter(),
             iter2: other.iter(),

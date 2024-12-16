@@ -20,7 +20,7 @@ use core_processor::{
     common::SuccessfulDispatchResultKind, ContextCharged, ForProgram, ProcessExecutionContext,
 };
 use gear_core::{
-    code::{CodeMetadata, InstrumentedCodeAndMetadata},
+    code::{CodeMetadata, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
     gas::GasCounter,
     str::LimitedStr,
 };
@@ -542,7 +542,7 @@ impl ExtManager {
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: schedule.rent_weights.mailbox_threshold.ref_time,
             max_reservations: MAX_RESERVATIONS,
-            max_pages: TESTS_MAX_PAGES_NUMBER.into(),
+            max_pages: MAX_WASM_PAGES_AMOUNT.into(),
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         }

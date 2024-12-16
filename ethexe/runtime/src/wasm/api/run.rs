@@ -27,11 +27,10 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::ProgramId,
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::H256;
 
 pub fn run(
     program_id: ProgramId,
-    original_code_id: CodeId,
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
@@ -55,7 +54,6 @@ pub fn run(
         program_state,
         maybe_instrumented_code,
         code_metadata,
-        original_code_id,
         &ri,
     );
 

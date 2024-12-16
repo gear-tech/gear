@@ -7,8 +7,6 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 ethexe-common.workspace = true
 ethexe-runtime-common = { workspace = true, features = ["std"] }
@@ -19,10 +17,19 @@ anyhow.workspace = true
 dashmap = "5.5.3"
 parity-scale-codec.workspace = true
 log = { workspace = true, features = ["std"] }
-# TODO: jemalloc is not stable for OpenBSD and MSVC.
-rocksdb = { version = "0.21", features = ["snappy", "jemalloc"] }
 
-#[dev-dependencies]
+# TODO: remove when https://github.com/tikv/jemallocator/pull/99 merged
+[target.'cfg(target_env = "msvc")'.dependencies.rocksdb]
+default-features = false
+features = ["snappy"]
+version = "0.21"
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies.rocksdb]
+default-features = false
+features = ["snappy", "jemalloc"]
+version = "0.21"
+
+[dev-dependencies]
 scopeguard.workspace = true
-tempfile = "3.3.0"
+tempfile.workspace = true
 serde.workspace = true

@@ -17,15 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
-use ethexe_common::{
-    mirror::RequestEvent as MirrorEvent, router::RequestEvent as RouterEvent, BlockRequestEvent,
-};
+use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent};
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, ScheduledTask};
-use ethexe_runtime_common::state::{ComplexStorage, Dispatch};
-use gear_core::{
-    ids::{prelude::CodeIdExt, ProgramId},
-    message::DispatchKind,
-};
+use ethexe_runtime_common::state::ValueWithExpiry;
+use gear_core::ids::{prelude::CodeIdExt, ProgramId};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use std::collections::{BTreeMap, BTreeSet};
@@ -121,16 +116,16 @@ fn process_observer_event() {
     let actor_id = ActorId::from(42);
 
     let create_program_events = vec![
-        BlockRequestEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }),
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated { actor_id, code_id }),
         BlockRequestEvent::mirror(
             actor_id,
-            MirrorEvent::ExecutableBalanceTopUpRequested {
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
         ),
         BlockRequestEvent::mirror(
             actor_id,
-            MirrorEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested {
                 id: H256::random().0.into(),
                 source: H256::random().0.into(),
                 payload: b"PING".to_vec(),
@@ -149,7 +144,7 @@ fn process_observer_event() {
 
     let send_message_event = BlockRequestEvent::mirror(
         actor_id,
-        MirrorEvent::MessageQueueingRequested {
+        MirrorRequestEvent::MessageQueueingRequested {
             id: H256::random().0.into(),
             source: H256::random().0.into(),
             payload: b"PING".to_vec(),
@@ -261,56 +256,58 @@ fn ping_pong() {
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
-    init_new_block(&mut processor, Default::default());
+    let ch0 = init_new_block(&mut processor, Default::default());
 
     let user_id = ActorId::from(10);
-    let program_id = ProgramId::from(0x10000);
+    let actor_id = ProgramId::from(0x10000);
 
     let code_id = processor
         .handle_new_code(demo_ping::WASM_BINARY)
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    processor
-        .handle_new_program(program_id, code_id)
+    let mut handler = processor.handler(ch0).unwrap();
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
         .expect("failed to create new program");
 
-    let state_hash = processor
-        .handle_executable_balance_top_up(H256::zero(), 10_000_000_000)
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 10_000_000_000,
+            },
+        )
         .expect("failed to top up balance");
 
-    let messages = vec![
-        create_message_full(
-            &mut processor,
-            MessageId::from(1),
-            DispatchKind::Init,
-            user_id,
-            "PING",
-        ),
-        create_message_full(
-            &mut processor,
-            MessageId::from(2),
-            DispatchKind::Handle,
-            user_id,
-            "PING",
-        ),
-    ];
-    let state_hash = processor
-        .handle_messages_queueing(state_hash, messages)
-        .expect("failed to populate message queue");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(1),
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+            },
+        )
+        .expect("failed to send message");
 
-    let states = BTreeMap::from_iter([(program_id, state_hash)]);
-    let mut in_block_transitions =
-        InBlockTransitions::new(BlockHeader::dummy(0), states, Default::default());
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(2),
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+            },
+        )
+        .expect("failed to send message");
 
-    run::run(
-        8,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut in_block_transitions,
-    );
+    processor.process_queue(&mut handler);
 
-    let to_users = in_block_transitions.current_messages();
+    let to_users = handler.transitions.current_messages();
 
     assert_eq!(to_users.len(), 2);
 
@@ -321,42 +318,6 @@ fn ping_pong() {
     let message = &to_users[1].1;
     assert_eq!(message.destination, user_id);
     assert_eq!(message.payload, b"PONG");
-}
-
-#[allow(unused)]
-fn create_message(
-    processor: &mut Processor,
-    kind: DispatchKind,
-    payload: impl AsRef<[u8]>,
-) -> Dispatch {
-    create_message_full(
-        processor,
-        H256::random().into(),
-        kind,
-        H256::random().into(),
-        payload,
-    )
-}
-
-fn create_message_full(
-    processor: &mut Processor,
-    id: MessageId,
-    kind: DispatchKind,
-    source: ActorId,
-    payload: impl AsRef<[u8]>,
-) -> Dispatch {
-    let payload = payload.as_ref().to_vec();
-    let payload_hash = processor.db.store_payload(payload).unwrap();
-
-    Dispatch {
-        id,
-        kind,
-        source,
-        payload_hash,
-        value: 0,
-        details: None,
-        context: None,
-    }
 }
 
 #[test]
@@ -373,7 +334,7 @@ fn async_and_ping() {
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
-    init_new_block(&mut processor, Default::default());
+    let ch0 = init_new_block(&mut processor, Default::default());
 
     let ping_id = ProgramId::from(0x10000000);
     let async_id = ProgramId::from(0x20000000);
@@ -388,64 +349,81 @@ fn async_and_ping() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    processor
-        .handle_new_program(ping_id, ping_code_id)
+    let mut handler = processor.handler(ch0).unwrap();
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated {
+            actor_id: ping_id,
+            code_id: ping_code_id,
+        })
         .expect("failed to create new program");
 
-    let state_hash = processor
-        .handle_executable_balance_top_up(H256::zero(), 10_000_000_000)
+    handler
+        .handle_mirror_event(
+            ping_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 10_000_000_000,
+            },
+        )
         .expect("failed to top up balance");
 
-    let message = create_message_full(
-        &mut processor,
-        get_next_message_id(),
-        DispatchKind::Init,
-        user_id,
-        "PING",
-    );
-    let ping_state_hash = processor
-        .handle_message_queueing(state_hash, message)
-        .expect("failed to populate message queue");
+    handler
+        .handle_mirror_event(
+            ping_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: get_next_message_id(),
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+            },
+        )
+        .expect("failed to send message");
 
-    processor
-        .handle_new_program(async_id, upload_code_id)
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated {
+            actor_id: async_id,
+            code_id: upload_code_id,
+        })
         .expect("failed to create new program");
 
-    let message = create_message_full(
-        &mut processor,
-        get_next_message_id(),
-        DispatchKind::Init,
-        user_id,
-        ping_id.encode(),
-    );
-    let async_state_hash = processor
-        .handle_message_queueing(state_hash, message)
-        .expect("failed to populate message queue");
+    handler
+        .handle_mirror_event(
+            async_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 10_000_000_000,
+            },
+        )
+        .expect("failed to top up balance");
+
+    handler
+        .handle_mirror_event(
+            async_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: get_next_message_id(),
+                source: user_id,
+                payload: ping_id.encode(),
+                value: 0,
+            },
+        )
+        .expect("failed to send message");
 
     let wait_for_reply_to = get_next_message_id();
-    let message = create_message_full(
-        &mut processor,
-        wait_for_reply_to,
-        DispatchKind::Handle,
-        user_id,
-        demo_async::Command::Common.encode(),
-    );
-    let async_state_hash = processor
-        .handle_message_queueing(async_state_hash, message)
-        .expect("failed to populate message queue");
 
-    let states = BTreeMap::from_iter([(ping_id, ping_state_hash), (async_id, async_state_hash)]);
-    let mut in_block_transitions =
-        InBlockTransitions::new(BlockHeader::dummy(0), states, Default::default());
+    handler
+        .handle_mirror_event(
+            async_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: wait_for_reply_to,
+                source: user_id,
+                payload: demo_async::Command::Common.encode(),
+                value: 0,
+            },
+        )
+        .expect("failed to send message");
 
-    run::run(
-        8,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut in_block_transitions,
-    );
+    processor.process_queue(&mut handler);
 
-    let to_users = in_block_transitions.current_messages();
+    let to_users = handler.transitions.current_messages();
 
     assert_eq!(to_users.len(), 3);
 
@@ -465,8 +443,6 @@ fn async_and_ping() {
 #[test]
 fn many_waits() {
     init_logger();
-
-    let threads_amount = 8;
 
     let wat = r#"
         (module
@@ -509,75 +485,77 @@ fn many_waits() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
+    let mut handler = processor.handler(ch0).unwrap();
+
     let amount = 10000;
-    let mut states = BTreeMap::new();
     for i in 0..amount {
         let program_id = ProgramId::from(i);
 
-        processor
-            .handle_new_program(program_id, code_id)
+        handler
+            .handle_router_event(RouterRequestEvent::ProgramCreated {
+                actor_id: program_id,
+                code_id,
+            })
             .expect("failed to create new program");
 
-        let state_hash = processor
-            .handle_executable_balance_top_up(H256::zero(), 10_000_000_000)
+        handler
+            .handle_mirror_event(
+                program_id,
+                MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                    value: 10_000_000_000,
+                },
+            )
             .expect("failed to top up balance");
 
-        let message = create_message(&mut processor, DispatchKind::Init, b"");
-        let state_hash = processor
-            .handle_message_queueing(state_hash, message)
-            .expect("failed to populate message queue");
-
-        states.insert(program_id, state_hash);
+        handler
+            .handle_mirror_event(
+                program_id,
+                MirrorRequestEvent::MessageQueueingRequested {
+                    id: H256::random().0.into(),
+                    source: H256::random().0.into(),
+                    payload: Default::default(),
+                    value: 0,
+                },
+            )
+            .expect("failed to send message");
     }
 
-    let mut in_block_transitions =
-        InBlockTransitions::new(BlockHeader::dummy(1), states, Default::default());
+    handler.run_schedule();
+    processor.process_queue(&mut handler);
 
-    processor.run_schedule(&mut in_block_transitions);
-    run::run(
-        threads_amount,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut in_block_transitions,
-    );
     assert_eq!(
-        in_block_transitions.current_messages().len(),
+        handler.transitions.current_messages().len(),
         amount as usize
     );
 
-    let mut changes = BTreeMap::new();
-
-    for (pid, state_hash) in in_block_transitions.states_iter().clone() {
-        let message = create_message(&mut processor, DispatchKind::Handle, b"");
-        let new_state_hash = processor
-            .handle_message_queueing(*state_hash, message)
-            .expect("failed to populate message queue");
-        changes.insert(*pid, new_state_hash);
+    for pid in handler.transitions.known_programs() {
+        handler
+            .handle_mirror_event(
+                pid,
+                MirrorRequestEvent::MessageQueueingRequested {
+                    id: H256::random().0.into(),
+                    source: H256::random().0.into(),
+                    payload: Default::default(),
+                    value: 0,
+                },
+            )
+            .expect("failed to send message");
     }
 
-    for (pid, state_hash) in changes {
-        in_block_transitions.modify_state(pid, state_hash).unwrap();
-    }
+    processor.process_queue(&mut handler);
 
-    processor.run_schedule(&mut in_block_transitions);
-    run::run(
-        threads_amount,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut in_block_transitions,
-    );
     // unchanged
     assert_eq!(
-        in_block_transitions.current_messages().len(),
+        handler.transitions.current_messages().len(),
         amount as usize
     );
 
-    let (_outcomes, states, schedule) = in_block_transitions.finalize();
+    let (_outcomes, states, schedule) = handler.transitions.finalize();
     processor.db.set_block_end_program_states(ch0, states);
     processor.db.set_block_end_schedule(ch0, schedule);
 
     let mut parent = ch0;
-    for _ in 0..10 {
+    for _ in 0..9 {
         parent = init_new_block_from_parent(&mut processor, parent);
         let states = processor.db.block_start_program_states(parent).unwrap();
         processor.db.set_block_end_program_states(parent, states);
@@ -599,7 +577,14 @@ fn many_waits() {
             let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
 
-            for (mid, (dispatch, expiry)) in waitlist {
+            for (
+                mid,
+                ValueWithExpiry {
+                    value: dispatch,
+                    expiry,
+                },
+            ) in waitlist.into_inner()
+            {
                 assert_eq!(mid, dispatch.id);
                 expected_schedule
                     .entry(expiry)
@@ -612,23 +597,16 @@ fn many_waits() {
         assert_eq!(schedule, expected_schedule);
     }
 
-    let mut in_block_transitions =
-        InBlockTransitions::new(BlockHeader::dummy(11), states, schedule);
-
-    processor.run_schedule(&mut in_block_transitions);
-    run::run(
-        threads_amount,
-        processor.db.clone(),
-        processor.creator.clone(),
-        &mut in_block_transitions,
-    );
+    let mut handler = processor.handler(ch11).unwrap();
+    handler.run_schedule();
+    processor.process_queue(&mut handler);
 
     assert_eq!(
-        in_block_transitions.current_messages().len(),
+        handler.transitions.current_messages().len(),
         amount as usize
     );
 
-    for (_pid, message) in in_block_transitions.current_messages() {
+    for (_pid, message) in handler.transitions.current_messages() {
         assert_eq!(message.payload, b"Hello, world!");
     }
 }

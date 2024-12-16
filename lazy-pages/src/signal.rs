@@ -64,10 +64,8 @@ unsafe fn user_signal_handler_internal(
     info: ExceptionInfo,
 ) -> Result<(), Error> {
     let native_addr = info.fault_addr as usize;
-    let is_write = info.is_write.ok_or_else(|| Error::ReadOrWriteIsUnknown)?;
-    let wasm_mem_addr = exec_ctx
-        .wasm_mem_addr
-        .ok_or_else(|| Error::WasmMemAddrIsNotSet)?;
+    let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
+    let wasm_mem_addr = exec_ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
 
     if native_addr < wasm_mem_addr {
         return Err(Error::OutOfWasmMemoryAccess);

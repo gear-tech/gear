@@ -22,7 +22,7 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::ProgramId,
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
@@ -130,7 +130,6 @@ impl InstanceWrapper {
         &mut self,
         db: Database,
         program_id: ProgramId,
-        original_code_id: CodeId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
         maybe_code_metadata: Option<CodeMetadata>,
@@ -140,7 +139,6 @@ impl InstanceWrapper {
 
         let arg = (
             program_id,
-            original_code_id,
             state_hash,
             maybe_instrumented_code,
             maybe_code_metadata,
