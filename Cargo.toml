@@ -7,6 +7,9 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 rust-version = "1.81"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(force_wasmer_cranelift_i_know_what_i_do)'] }
+
 [workspace]
 resolver = "2"
 
@@ -554,9 +557,6 @@ fs4 = "0.11.1"                                               # utils/gear-wasmer
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
 
-[workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)'] }
-
 [profile.dev.package.corosensei]
 opt-level = 3
 
@@ -592,9 +592,10 @@ debug = true
 [patch.crates-io]
 # sp-io = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
 # sp-application-crypto = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409" }
+
+# these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
-# wasm-instrument = { version = "0.3.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.3.0-sign-ext" }
 wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
 
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230

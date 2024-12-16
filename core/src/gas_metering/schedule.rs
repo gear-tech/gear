@@ -117,6 +117,8 @@ pub struct Limits {
     #[doc = " is not weight metered its costs must be static (via this limit) and included in"]
     #[doc = " the costs of the instructions that cause them (call, call_indirect)."]
     pub parameters: u32,
+    #[doc = " Maximum numbers of parameters a function can have."]
+    pub results: u32,
     #[doc = " Maximum number of memory pages allowed for a program."]
     pub memory_pages: u16,
     #[doc = " Maximum number of elements allowed in a table."]
@@ -150,6 +152,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
+            results: 128,
             memory_pages: 32768,
             table_size: 4096,
             table_number: 100,
@@ -212,6 +215,7 @@ pub struct InstructionWeights {
     pub call: u32,
     pub call_indirect: u32,
     pub call_indirect_per_param: u32,
+    pub call_indirect_per_result: u32,
     pub call_per_local: u32,
     pub local_get: u32,
     pub local_set: u32,
@@ -305,6 +309,7 @@ impl Default for InstructionWeights {
             call: 5506,
             call_indirect: 24900,
             call_indirect_per_param: 1308,
+            call_indirect_per_result: 1104,
             call_per_local: 0,
             local_get: 714,
             local_set: 1386,
