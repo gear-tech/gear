@@ -52,6 +52,12 @@ pub struct CodeCommitment {
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct ValidatorsCommitment {
+    pub validators: Vec<ActorId>,
+    pub era_index: u64,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub enum CodeState {
     #[default]
     Unknown,

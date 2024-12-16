@@ -144,7 +144,17 @@ impl InstanceWrapper {
             maybe_code_metadata,
         );
 
-        self.call("run", arg.encode())
+        // Peaces of resulting journal. Hack to avoid single allocation limit.
+        let ptr_lens: Vec<i64> = self.call("run", arg.encode())?;
+
+        let mut journal = Vec::new();
+
+        for ptr_len in ptr_lens {
+            let journal_chunk: Vec<JournalNote> = self.get_call_output(ptr_len)?;
+            journal.extend(journal_chunk);
+        }
+
+        Ok(journal)
     }
 
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {
