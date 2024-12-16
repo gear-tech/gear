@@ -24,7 +24,7 @@ extern crate alloc;
 extern crate core;
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
-pub use module::Module;
+pub use module::{Module, ModuleError};
 
 use crate::{
     module::{ConstExpr, Export, Function, Global, ModuleBuilder},
@@ -36,12 +36,13 @@ use wasmparser::{
 };
 
 mod export_globals;
-mod gas_metering;
-mod module;
+
 mod stack_limiter;
 #[cfg(test)]
 mod tests;
 
+pub mod gas_metering;
+pub mod module;
 pub mod syscalls;
 
 // TODO #3057

@@ -25,7 +25,7 @@ use crate::{
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use gear_wasm_instrument::{parity_wasm, InstrumentationBuilder, Module};
+use gear_wasm_instrument::{InstrumentationBuilder, Module};
 
 mod errors;
 mod instrumented;
@@ -188,7 +188,7 @@ impl Code {
         let table_section_size = utils::get_instantiated_table_section_size(&module)?;
         let element_section_size = utils::get_instantiated_element_section_size(&module)?;
 
-        let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
+        let code = module.serialize().map_err(CodecError::Encode)?;
 
         // Use instrumented code to get section sizes.
         let CodeTypeSectionSizes {

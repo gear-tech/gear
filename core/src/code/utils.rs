@@ -23,12 +23,12 @@ use crate::{
     message::{DispatchKind, WasmEntryPoint},
     pages::{WasmPage, WasmPagesAmount},
 };
-use alloc::{collections::BTreeSet, vec::Vec};
-use gear_wasm_instrument::{Module, SyscallName, STACK_END_EXPORT_NAME};
-use wasmparser::{
-    ConstExpr, DataKind, ElementItems, Export, ExternalKind, Global, Operator, Payload, TypeRef,
-    ValType,
+use alloc::collections::BTreeSet;
+use gear_wasm_instrument::{
+    module::{ConstExpr, DataKind, ElementItems, Export, Global},
+    Module, SyscallName, STACK_END_EXPORT_NAME,
 };
+use wasmparser::{ExternalKind, Operator, Payload, TypeRef, ValType};
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGES_AMOUNT: u16 = u16::MAX / 2 + 1; // 2GB
@@ -80,7 +80,7 @@ pub fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
         .expect("Exports section has been checked for already")
     {
         if let ExternalKind::Func = entry.kind {
-            if let Some(entry) = DispatchKind::try_from_entry(entry.name) {
+            if let Some(entry) = DispatchKind::try_from_entry(&entry.name) {
                 entries.insert(entry);
             }
         }
@@ -126,7 +126,7 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
             .get(type_id)
             .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        if !ALLOWED_EXPORTS.contains(&export.name) {
+        if !ALLOWED_EXPORTS.contains(&&*export.name) {
             Err(ExportError::ExcessExport(export_index as u32))?;
         }
 
@@ -134,7 +134,7 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
             Err(ExportError::InvalidExportFnSignature(export_index as u32))?;
         }
 
-        if REQUIRED_EXPORTS.contains(&export.name) {
+        if REQUIRED_EXPORTS.contains(&&*export.name) {
             entry_point_found = true;
         }
     }
@@ -143,21 +143,6 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
         .then_some(())
         .ok_or(ExportError::RequiredExportNotFound)
         .map_err(CodeError::Export)
-}
-
-fn eq_parity_and_wasmparser(
-    parity: &gear_wasm_instrument::parity_wasm::elements::ValueType,
-    wasmparser: &ValType,
-) -> bool {
-    use gear_wasm_instrument::parity_wasm::elements::ValueType as ParityType;
-
-    match (parity, wasmparser) {
-        (ParityType::I32, ValType::I32)
-        | (ParityType::I64, ValType::I64)
-        | (ParityType::F32, ValType::F32)
-        | (ParityType::F64, ValType::F64) => true,
-        _ => false,
-    }
 }
 
 pub fn check_imports(module: &Module) -> Result<(), CodeError> {
@@ -203,10 +188,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
                 let results = signature.results().unwrap_or(&[]);
 
                 if !(params.eq(func_type.params().iter().copied())
-                    && results
-                        .iter()
-                        .zip(func_type.results())
-                        .all(|(a, b)| eq_parity_and_wasmparser(a, b)))
+                    && results == func_type.results())
                 {
                     Err(ImportError::InvalidImportFnSignature(import_index))?;
                 }
@@ -226,13 +208,13 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
     Ok(())
 }
 
-fn get_export_entry_with_index<'a>(module: &'a Module, name: &str) -> Option<(u32, Export<'a>)> {
+fn get_export_entry_with_index<'a>(module: &'a Module, name: &str) -> Option<(u32, &'a Export)> {
     module
         .export_section()?
         .iter()
         .enumerate()
         .find_map(|(export_index, export)| {
-            (export.name == name).then_some((export_index as u32, *export))
+            (export.name == name).then_some((export_index as u32, export))
         })
 }
 
@@ -245,12 +227,7 @@ fn get_export_global_with_index(module: &Module, name: &str) -> Option<(u32, u32
 }
 
 fn get_init_expr_const_i32(init_expr: &ConstExpr) -> Option<i32> {
-    let operators = init_expr
-        .get_operators_reader()
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()
-        .ok()?;
-    match operators.as_slice() {
+    match init_expr.instructions.as_slice() {
         [Operator::I32Const { value }, Operator::End] => Some(*value),
         _ => None,
     }
@@ -262,7 +239,7 @@ fn get_export_global_entry<'a>(
     global_index: u32,
 ) -> Result<&'a Global<'a>, CodeError> {
     let index = global_index
-        .checked_sub(module.import_count(|ty| matches!(ty, TypeRef::Global(_))))
+        .checked_sub(module.import_count(|ty| matches!(ty, TypeRef::Global(_))) as u32)
         .ok_or(ExportError::ExportReferencesToImportGlobal(
             export_index,
             global_index,
@@ -534,9 +511,9 @@ pub fn get_instantiated_element_section_size(module: &Module) -> Result<u32, Cod
 
     Ok(element_section.iter().fold(0, |total_bytes, segment| {
         let count = match &segment.items {
-            ElementItems::Functions(section) => section.count(),
-            ElementItems::Expressions(_ty, section) => section.count(),
-        };
+            ElementItems::Functions(section) => section.len(),
+            ElementItems::Expressions(_ty, section) => section.len(),
+        } as u32;
         // Tables may hold only reference types, which are 4 bytes long.
         total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
     }))

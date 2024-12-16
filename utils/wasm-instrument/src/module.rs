@@ -25,14 +25,14 @@ use wasm_encoder::{
     reencode::{Reencode, RoundtripReencoder},
 };
 use wasmparser::{
-    BinaryReaderError, Data, ElementKind, Encoding, ExternalKind, FuncType, FunctionBody,
-    GlobalType, Import, MemoryType, Operator, Payload, RefType, Table, TypeRef, ValType,
+    BinaryReaderError, ElementKind, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType,
+    Import, MemoryType, Operator, Payload, RefType, Table, TypeRef, ValType,
 };
 
-pub type Result<T, E = Error> = core::result::Result<T, E>;
+pub type Result<T, E = ModuleError> = core::result::Result<T, E>;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum Error {
+pub enum ModuleError {
     #[display(fmt = "Binary reader error: {}", _0)]
     BinaryReader(BinaryReaderError),
     #[display(fmt = "Reencode error: {}", _0)]
@@ -133,6 +133,37 @@ impl<'a> Element<'a> {
         Ok(Self {
             kind: element.kind,
             items: ElementItems::new(element.items)?,
+        })
+    }
+}
+
+pub enum DataKind<'a> {
+    Passive,
+    Active {
+        memory_index: u32,
+        offset_expr: ConstExpr<'a>,
+    },
+}
+
+pub struct Data<'a> {
+    pub kind: DataKind<'a>,
+    pub data: &'a [u8],
+}
+
+impl<'a> Data<'a> {
+    fn new(data: wasmparser::Data<'a>) -> Result<Self> {
+        Ok(Self {
+            kind: match data.kind {
+                wasmparser::DataKind::Passive => DataKind::Passive,
+                wasmparser::DataKind::Active {
+                    memory_index,
+                    offset_expr,
+                } => DataKind::Active {
+                    memory_index,
+                    offset_expr: ConstExpr::new(offset_expr)?,
+                },
+            },
+            data: data.data,
         })
     }
 }
@@ -301,6 +332,7 @@ impl<'a> ModuleBuilder<'a> {
 
 pub type TypeSection = Vec<FuncType>;
 pub type FuncSection = Vec<u32>;
+pub type DataSection<'a> = Vec<Data<'a>>;
 pub type CodeSection<'a> = Vec<Function<'a>>;
 
 #[derive(derive_more::DebugCustom, Default)]
@@ -315,7 +347,7 @@ pub struct Module<'a> {
     pub export_section: Option<Vec<Export>>,
     pub start_section: Option<u32>,
     pub element_section: Option<Vec<Element<'a>>>,
-    pub data_section: Option<Vec<Data<'a>>>,
+    pub data_section: Option<DataSection<'a>>,
     pub code_section: Option<CodeSection<'a>>,
 }
 
@@ -410,7 +442,7 @@ impl<'a> Module<'a> {
                         .unwrap_or_else(|| unreachable!("data count section missing"));
                     for data in section {
                         let data = data?;
-                        data_section.push(data);
+                        data_section.push(Data::new(data)?);
                     }
                 }
                 Payload::CodeSectionStart {
@@ -559,8 +591,22 @@ impl<'a> Module<'a> {
 
         if let Some(crate_section) = self.data_section() {
             let mut encoder_section = wasm_encoder::DataSection::new();
-            for data in crate_section.clone() {
-                RoundtripReencoder.parse_data(&mut encoder_section, data)?;
+            for data in crate_section {
+                match &data.kind {
+                    DataKind::Passive => {
+                        encoder_section.passive(data.data.iter().copied());
+                    }
+                    DataKind::Active {
+                        memory_index,
+                        offset_expr,
+                    } => {
+                        encoder_section.active(
+                            *memory_index,
+                            &offset_expr.reencode()?,
+                            data.data.iter().copied(),
+                        );
+                    }
+                }
             }
             module.section(&encoder_section);
         }
@@ -683,11 +729,11 @@ impl<'a> Module<'a> {
         self.element_section.as_mut()
     }
 
-    pub fn data_section(&self) -> Option<&Vec<Data<'a>>> {
+    pub fn data_section(&self) -> Option<&DataSection<'a>> {
         self.data_section.as_ref()
     }
 
-    pub fn data_section_mut(&mut self) -> Option<&mut Vec<Data<'a>>> {
+    pub fn data_section_mut(&mut self) -> Option<&mut DataSection<'a>> {
         self.data_section.as_mut()
     }
 

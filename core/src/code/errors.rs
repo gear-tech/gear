@@ -18,7 +18,7 @@
 
 //! Module that describes various code errors.
 
-pub use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationError};
+pub use gear_wasm_instrument::InstrumentationError;
 pub use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
@@ -180,10 +180,10 @@ pub enum ImportError {
 pub enum CodecError {
     /// The wasm bytecode is failed to be decoded
     #[display(fmt = "The wasm bytecode is failed to be decoded: {_0}")]
-    Decode(BinaryReaderError),
+    Decode(gear_wasm_instrument::ModuleError),
     /// Failed to encode instrumented program
     #[display(fmt = "Failed to encode instrumented program: {_0}")]
-    Encode(SerializationError),
+    Encode(gear_wasm_instrument::ModuleError),
 }
 
 /// Describes why the code is not valid Gear program.
