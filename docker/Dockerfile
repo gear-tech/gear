@@ -1,9 +1,8 @@
-# TODO: check if wasm32v1-none is needed
 # ===== BUILD STAGE ======
 FROM amazonlinux:2023 as builder
 
 ARG PROFILE=production
-ARG TOOLCHAIN=nightly-2023-04-25
+ARG TOOLCHAIN=nightly-2024-12-14
 
 RUN yum update -y && \
     yum install -y clang gcc git gzip make tar wget unzip && \

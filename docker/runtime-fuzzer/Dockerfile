@@ -1,4 +1,3 @@
-# TODO: check if wasm32v1-none is needed
 FROM ubuntu:22.04
 
 MAINTAINER GEAR

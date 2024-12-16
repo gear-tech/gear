@@ -1,4 +1,3 @@
-# TODO: check if wasm32v1-none is needed
 FROM --platform=linux/amd64 amazonlinux:2023 as builder
 LABEL description="This is the build stage for ethexe. Here we create the binary."
 
