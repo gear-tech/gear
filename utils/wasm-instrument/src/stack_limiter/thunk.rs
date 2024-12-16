@@ -86,7 +86,7 @@ where
                         maybe_context.expect("MaxStackHeightCounterContext must be initialized");
                     let thunk_cost =
                         MaxStackHeightCounter::new_with_context(context, &injection_fn)
-                            .compute_for_raw_func(&module, &signature, &thunk_body)?;
+                            .compute_for_raw_func(&signature, &thunk_body)?;
 
                     callee_stack_cost = callee_stack_cost
                         .checked_add(thunk_cost)

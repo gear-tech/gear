@@ -81,14 +81,14 @@ impl<'a> ElementItems<'a> {
                 for func in f {
                     funcs.push(func?);
                 }
-                Self::Functions(funcs.into())
+                Self::Functions(funcs)
             }
             wasmparser::ElementItems::Expressions(ty, e) => {
                 let mut exprs = Vec::new();
                 for expr in e {
                     exprs.push(ConstExpr::new(expr?)?);
                 }
-                Self::Expressions(RoundtripReencoder.ref_type(ty)?, exprs.into())
+                Self::Expressions(RoundtripReencoder.ref_type(ty)?, exprs)
             }
         })
     }
@@ -319,7 +319,6 @@ impl<'a> Module<'a> {
                     type_section = Some(
                         section
                             .into_iter_err_on_gc_types()
-                            .into_iter()
                             .collect::<Result<_, _>>()?,
                     );
                 }
@@ -518,7 +517,7 @@ impl<'a> Module<'a> {
         self.data_section.as_mut()
     }
 
-    pub fn code_section(&self) -> Option<&Vec<Function>> {
+    pub fn code_section(&self) -> Option<&Vec<Function<'a>>> {
         self.code_section.as_ref()
     }
 

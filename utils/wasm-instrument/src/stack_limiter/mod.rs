@@ -112,11 +112,12 @@ where
 
 /// Same as the [`inject`] function, but allows to configure exit instructions when the stack limit
 /// is reached and the export name of the stack height global.
-pub fn inject_with_config<'a, I: IntoIterator<Item = Operator<'a>>>(
-    module: Module<'a>,
-    injection_config: InjectionConfig<'a, I, impl Fn(&FuncType) -> I>,
-) -> Result<Module<'a>, &'static str>
+pub fn inject_with_config<'o, I>(
+    module: Module<'o>,
+    injection_config: InjectionConfig<'o, I, impl Fn(&FuncType) -> I>,
+) -> Result<Module<'o>, &'static str>
 where
+    I: IntoIterator<Item = Operator<'o>>,
     I::IntoIter: ExactSizeIterator + Clone,
 {
     let InjectionConfig {
@@ -173,12 +174,13 @@ fn generate_stack_height_global<'a>(
 /// Calculate stack costs for all functions.
 ///
 /// Returns a vector with a stack cost for each function, including imports.
-fn compute_stack_costs<'a, I: IntoIterator<Item = Operator<'a>>>(
-    module: &Module<'a>,
+fn compute_stack_costs<'m, 'o, I>(
+    module: &'m Module<'o>,
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<Vec<u32>, &'static str>
 where
     I::IntoIter: ExactSizeIterator + Clone,
+    I: IntoIterator<Item = Operator<'o>>,
 {
     let functions_space = module
         .functions_space()
@@ -192,7 +194,7 @@ where
 
     // This context already contains the module, number of imports and section references.
     // So we can use it to optimize access to these objects.
-    let context = MaxStackHeightCounterContext::new(&module)?;
+    let context = MaxStackHeightCounterContext::new(module)?;
 
     (0..functions_space)
         .map(|func_idx| {
@@ -200,7 +202,7 @@ where
                 // We can't calculate stack_cost of the import functions.
                 Ok(0)
             } else {
-                compute_stack_cost(context, module, func_idx, &injection_fn)
+                compute_stack_cost(context, func_idx, &injection_fn)
             }
         })
         .collect()
@@ -209,9 +211,8 @@ where
 /// Stack cost of the given *defined* function is the sum of it's locals count (that is,
 /// number of arguments plus number of local variables) and the maximal stack
 /// height.
-fn compute_stack_cost<'a, I: IntoIterator<Item = Operator<'a>>>(
-    context: MaxStackHeightCounterContext<'a>,
-    module: &Module<'a>,
+fn compute_stack_cost<'m, 'o, I: IntoIterator<Item = Operator<'o>>>(
+    context: MaxStackHeightCounterContext<'m, 'o>,
     func_idx: u32,
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<u32, &'static str>
@@ -238,7 +239,7 @@ where
 
     let max_stack_height = MaxStackHeightCounter::new_with_context(context, injection_fn)
         .count_instrumented_calls(true)
-        .compute_for_defined_func(module, defined_func_idx)?;
+        .compute_for_defined_func(defined_func_idx)?;
 
     locals_count
         .checked_add(max_stack_height)

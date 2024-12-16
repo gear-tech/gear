@@ -573,8 +573,7 @@ fn determine_metered_blocks<R: Rules>(
         .ok_or(())?;
     counter.increment(locals_init_cost)?;
 
-    for cursor in 0..instructions.len() {
-        let instruction = &instructions[cursor];
+    for (cursor, instruction) in instructions.iter().enumerate() {
         let instruction_cost = rules.instruction_cost(instruction).ok_or(())?;
         match instruction {
             Block { .. } => {
@@ -740,7 +739,10 @@ mod tests {
         };
     }
 
-    fn get_function_body<'a>(module: &Module<'a>, index: usize) -> Option<&'a [Operator<'a>]> {
+    fn get_function_body<'m: 'o, 'o>(
+        module: &'m Module<'o>,
+        index: usize,
+    ) -> Option<&'m [Operator<'o>]> {
         module
             .code_section()
             .and_then(|code_section| code_section.get(index))

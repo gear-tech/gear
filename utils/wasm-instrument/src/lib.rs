@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::items_after_test_module)]
+#![allow(clippy::result_large_err)]
 
 extern crate alloc;
 extern crate core;
