@@ -308,6 +308,8 @@ const TYPE_LIST: &[&str] = &[
     "MemoryCosts",
     "RentCosts",
     "InstantiationCosts",
+    "IoCosts",
+    "PagesCosts",
     "LazyPagesCosts",
 ];
 
