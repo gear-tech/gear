@@ -20,10 +20,9 @@ use crate::{
     gas_metering::ConstantCostRules,
     module::{ConstExpr, Function, Global, ModuleBuilder},
     syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
-    InstrumentationBuilder, InstrumentationError, Module, GLOBAL_NAME_GAS,
+    InstrumentationBuilder, InstrumentationError, Module, Rules, GLOBAL_NAME_GAS,
 };
 use alloc::format;
-use gwasm_instrument::gas_metering::Rules;
 use wasmparser::{BlockType, FuncType, GlobalType, Operator, Operator::*, ValType};
 
 macro_rules! parse_wat {

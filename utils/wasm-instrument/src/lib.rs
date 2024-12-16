@@ -23,16 +23,18 @@ extern crate alloc;
 extern crate core;
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
-pub use gwasm_instrument::{self as wasm_instrument, gas_metering, parity_wasm, utils};
 pub use module::Module;
 
-use crate::module::{ConstExpr, Function, Global, ModuleBuilder};
+use crate::{
+    module::{ConstExpr, Function, Global, ModuleBuilder},
+    stack_limiter::InjectionConfig,
+};
 use alloc::vec;
-use gwasm_instrument::InjectionConfig;
 use wasmparser::{
     BlockType, Export, ExternalKind, FuncType, GlobalType, Import, Operator, TypeRef, ValType,
 };
 
+mod gas_metering;
 mod module;
 mod stack_limiter;
 #[cfg(test)]

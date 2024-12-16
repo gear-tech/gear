@@ -28,6 +28,8 @@ gear-wasm = { version = "0.45.1", default-features = false, features = ["sign_ex
 
 [dev-dependencies]
 wat.workspace = true
+rand.workspace = true
+binaryen = "0.12"
 
 [features]
 default = ["std"]

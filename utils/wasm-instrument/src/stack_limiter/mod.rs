@@ -192,7 +192,7 @@ where
 
     // This context already contains the module, number of imports and section references.
     // So we can use it to optimize access to these objects.
-    let context: MaxStackHeightCounterContext = module.try_into()?;
+    let context = MaxStackHeightCounterContext::new(&module)?;
 
     (0..functions_space)
         .map(|func_idx| {
@@ -200,7 +200,7 @@ where
                 // We can't calculate stack_cost of the import functions.
                 Ok(0)
             } else {
-                compute_stack_cost(func_idx, context, &injection_fn)
+                compute_stack_cost(context, module, func_idx, &injection_fn)
             }
         })
         .collect()
@@ -210,8 +210,9 @@ where
 /// number of arguments plus number of local variables) and the maximal stack
 /// height.
 fn compute_stack_cost<'a, I: IntoIterator<Item = Operator<'a>>>(
-    func_idx: u32,
     context: MaxStackHeightCounterContext<'a>,
+    module: &Module<'a>,
+    func_idx: u32,
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<u32, &'static str>
 where
@@ -237,7 +238,7 @@ where
 
     let max_stack_height = MaxStackHeightCounter::new_with_context(context, injection_fn)
         .count_instrumented_calls(true)
-        .compute_for_defined_func(defined_func_idx)?;
+        .compute_for_defined_func(module, defined_func_idx)?;
 
     locals_count
         .checked_add(max_stack_height)
@@ -525,9 +526,11 @@ mod tests {
     use super::*;
     use parity_wasm::elements;
 
-    fn parse_wat(source: &str) -> Module {
-        elements::deserialize_buffer(&wat::parse_str(source).expect("Failed to wat2wasm"))
-            .expect("Failed to deserialize the module")
+    macro_rules! parse_wat {
+        ($module:ident = $source:expr) => {
+            let module_bytes = wat::parse_str($source).unwrap();
+            let $module = Module::new(&module_bytes).unwrap();
+        };
     }
 
     fn validate_module(module: Module) {
@@ -537,8 +540,8 @@ mod tests {
 
     #[test]
     fn test_with_params_and_result() {
-        let module = parse_wat(
-            r#"
+        parse_wat!(
+            module = r#"
 (module
 	(func (export "i32.add") (param i32 i32) (result i32)
 		local.get 0
@@ -546,7 +549,7 @@ mod tests {
 	i32.add
 	)
 )
-"#,
+"#
         );
 
         let module = inject(module, 1024).expect("Failed to inject stack counter");

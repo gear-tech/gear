@@ -159,19 +159,15 @@ impl Stack {
 /// This is a helper context that is used by [`MaxStackHeightCounter`].
 #[derive(Clone, Copy)]
 pub(crate) struct MaxStackHeightCounterContext<'a> {
-    pub module: &'a Module<'a>,
     pub func_imports: u32,
     pub func_section: &'a FuncSection,
     pub code_section: &'a CodeSection<'a>,
     pub type_section: &'a TypeSection,
 }
 
-impl<'a> TryFrom<&Module<'a>> for MaxStackHeightCounterContext<'a> {
-    type Error = &'static str;
-
-    fn try_from(module: &Module<'a>) -> Result<Self, Self::Error> {
+impl<'a> MaxStackHeightCounterContext<'a> {
+    pub fn new(module: &Module<'a>) -> Result<Self, &'static str> {
         Ok(Self {
-            module,
             func_imports: module
                 .import_count(|ty| matches!(ty, TypeRef::Func(_)))
                 .try_into()
@@ -225,7 +221,11 @@ where
     }
 
     /// Tries to calculate the maximum stack height for the `func_idx` defined in the wasm module.
-    pub fn compute_for_defined_func(&mut self, func_idx: u32) -> Result<u32, &'static str> {
+    pub fn compute_for_defined_func(
+        &mut self,
+        module: &Module<'a>,
+        func_idx: u32,
+    ) -> Result<u32, &'static str> {
         let MaxStackHeightCounterContext {
             func_section,
             code_section,
@@ -245,13 +245,14 @@ where
             .ok_or("Function body for the index isn't found")?;
         let instructions = &body.instructions;
 
-        self.compute_for_raw_func(func_signature, instructions)
+        self.compute_for_raw_func(module, func_signature, instructions)
     }
 
     /// Tries to calculate the maximum stack height for a raw function, which consists of
     /// `func_signature` and `instructions`.
     pub fn compute_for_raw_func(
         &mut self,
+        module: &Module<'a>,
         func_signature: &FuncType,
         instructions: &[Operator],
     ) -> Result<u32, &'static str> {
@@ -297,10 +298,10 @@ where
 
             if let Some(instructions) = maybe_instructions.as_ref() {
                 for instruction in instructions {
-                    self.process_instruction(instruction, func_arity)?;
+                    self.process_instruction(module, instruction, func_arity)?;
                 }
             } else {
-                self.process_instruction(instruction, func_arity)?;
+                self.process_instruction(module, instruction, func_arity)?;
             }
         }
 
@@ -310,6 +311,7 @@ where
     /// This function processes all incoming instructions and updates the `self.max_height` field.
     fn process_instruction(
         &mut self,
+        module: &Module<'a>,
         opcode: &Operator,
         func_arity: u32,
     ) -> Result<(), &'static str> {
@@ -318,11 +320,7 @@ where
         let Self {
             stack, max_height, ..
         } = self;
-        let MaxStackHeightCounterContext {
-            module,
-            type_section,
-            ..
-        } = self.context;
+        let MaxStackHeightCounterContext { type_section, .. } = self.context;
 
         // If current value stack is higher than maximal height observed so far,
         // save the new height.

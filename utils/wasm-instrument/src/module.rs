@@ -37,6 +37,7 @@ pub enum Error {
     Reencode(reencode::Error),
 }
 
+#[derive(Default)]
 pub struct ConstExpr<'a> {
     pub instructions: Vec<Operator<'a>>,
 }
@@ -107,7 +108,7 @@ impl<'a> Element<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Function<'a> {
     pub locals: Vec<(u32, ValType)>,
     pub instructions: Vec<Operator<'a>>,
