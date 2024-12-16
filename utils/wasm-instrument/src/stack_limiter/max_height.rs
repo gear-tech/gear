@@ -576,7 +576,7 @@ mod tests {
     use super::*;
 
     fn compute(func_idx: u32, module: &Module) -> Result<u32, &'static str> {
-        MaxStackHeightCounter::new_with_context(MaxStackHeightCounterContext::new(&module)?, |_| {
+        MaxStackHeightCounter::new_with_context(MaxStackHeightCounterContext::new(module)?, |_| {
             [Operator::Unreachable]
         })
         .count_instrumented_calls(true)

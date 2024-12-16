@@ -729,7 +729,6 @@ fn insert_gas_call(new_instrs: &mut Vec<Operator>, current_block: &MeteredBlock,
 mod tests {
     use super::*;
     use crate::module::{ConstExpr, Global};
-    use parity_wasm::serialize;
     use wasmparser::{BlockType, GlobalType, Operator::*};
 
     macro_rules! parse_wat {
@@ -824,7 +823,7 @@ mod tests {
             ]
         );
 
-        let binary = serialize(injected_module).expect("serialization failed");
+        let binary = injected_module.serialize().expect("serialization failed");
         wasmparser::validate(&binary).unwrap();
     }
 
@@ -855,7 +854,7 @@ mod tests {
 
         assert_eq!(injected_module.functions_space(), 2);
 
-        let binary = serialize(injected_module).expect("serialization failed");
+        let binary = injected_module.serialize().expect("serialization failed");
         wasmparser::validate(&binary).unwrap();
     }
 

@@ -525,7 +525,6 @@ fn resolve_func_type<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use parity_wasm::elements;
 
     macro_rules! parse_wat {
         ($module:ident = $source:expr) => {
@@ -535,7 +534,7 @@ mod tests {
     }
 
     fn validate_module(module: Module) {
-        let binary = elements::serialize(module).expect("Failed to serialize");
+        let binary = module.serialize().expect("Failed to serialize");
         wasmparser::validate(&binary).expect("Invalid module");
     }
 

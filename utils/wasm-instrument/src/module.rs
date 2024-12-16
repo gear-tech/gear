@@ -20,11 +20,10 @@ use alloc::vec::Vec;
 use wasm_encoder::{
     reencode,
     reencode::{Reencode, RoundtripReencoder},
-    RefType,
 };
 use wasmparser::{
     BinaryReaderError, Data, ElementKind, Encoding, Export, ExternalKind, FuncType, FunctionBody,
-    GlobalType, Import, MemoryType, Operator, Payload, Table, TypeRef, ValType,
+    GlobalType, Import, MemoryType, Operator, Payload, RefType, Table, TypeRef, ValType,
 };
 
 pub type Result<T, E = Error> = core::result::Result<T, E>;
@@ -37,7 +36,7 @@ pub enum Error {
     Reencode(reencode::Error),
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ConstExpr<'a> {
     pub instructions: Vec<Operator<'a>>,
 }
@@ -51,6 +50,15 @@ impl<'a> ConstExpr<'a> {
         }
 
         Ok(Self { instructions })
+    }
+
+    fn reencode(&self) -> Result<wasm_encoder::ConstExpr> {
+        Ok(wasm_encoder::ConstExpr::extended(
+            self.instructions
+                .iter()
+                .map(|op| RoundtripReencoder.instruction(op.clone()))
+                .collect::<Result<Vec<_>, reencode::Error>>()?,
+        ))
     }
 }
 
@@ -68,6 +76,7 @@ impl<'a> Global<'a> {
     }
 }
 
+#[derive(Clone)]
 pub enum ElementItems<'a> {
     Functions(Vec<u32>),
     Expressions(RefType, Vec<ConstExpr<'a>>),
@@ -88,12 +97,13 @@ impl<'a> ElementItems<'a> {
                 for expr in e {
                     exprs.push(ConstExpr::new(expr?)?);
                 }
-                Self::Expressions(RoundtripReencoder.ref_type(ty)?, exprs)
+                Self::Expressions(ty, exprs)
             }
         })
     }
 }
 
+#[derive(Clone)]
 pub struct Element<'a> {
     pub kind: ElementKind<'a>,
     pub items: ElementItems<'a>,
@@ -411,6 +421,142 @@ impl<'a> Module<'a> {
             data_section,
             code_section,
         })
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>> {
+        let mut module = wasm_encoder::Module::new();
+
+        if let Some(crate_section) = self.type_section() {
+            let mut encoder_section = wasm_encoder::TypeSection::new();
+            for func_type in crate_section.clone() {
+                encoder_section
+                    .ty()
+                    .func_type(&RoundtripReencoder.func_type(func_type)?);
+            }
+            module.section(&encoder_section);
+        }
+
+        if let Some(crate_section) = self.import_section() {
+            let mut encoder_section = wasm_encoder::ImportSection::new();
+            for import in crate_section.clone() {
+                RoundtripReencoder.parse_import(&mut encoder_section, import)?;
+            }
+            module.section(&encoder_section);
+        }
+
+        if let Some(crate_section) = self.function_section() {
+            let mut encoder_section = wasm_encoder::FunctionSection::new();
+            for &function in crate_section {
+                encoder_section.function(function);
+            }
+            module.section(&encoder_section);
+        }
+
+        if let Some(crate_section) = self.table_section() {
+            let mut encoder_section = wasm_encoder::TableSection::new();
+            for table in crate_section.clone() {
+                RoundtripReencoder.parse_table(&mut encoder_section, table)?;
+            }
+            module.section(&encoder_section);
+        }
+
+        if let Some(crate_section) = self.memory_section() {
+            let mut encoder_section = wasm_encoder::MemorySection::new();
+            for &memory_type in crate_section {
+                encoder_section.memory(RoundtripReencoder.memory_type(memory_type));
+            }
+            module.section(&encoder_section);
+        }
+
+        if let Some(crate_section) = self.global_section() {
+            let mut encoder_section = wasm_encoder::GlobalSection::new();
+            for global in crate_section {
+                encoder_section.global(
+                    RoundtripReencoder.global_type(global.ty)?,
+                    &global.init_expr.reencode()?,
+                );
+            }
+            module.section(&encoder_section);
+        }
+
+        if let Some(crate_section) = self.export_section() {
+            let mut encoder_section = wasm_encoder::ExportSection::new();
+            for &export in crate_section {
+                RoundtripReencoder.parse_export(&mut encoder_section, export);
+            }
+            module.section(&encoder_section);
+        }
+
+        if let Some(function_index) = self.start_section {
+            module.section(&wasm_encoder::StartSection { function_index });
+        }
+
+        if let Some(crate_section) = self.element_section() {
+            let mut encoder_section = wasm_encoder::ElementSection::new();
+            for element in crate_section {
+                let items = match &element.items {
+                    ElementItems::Functions(funcs) => {
+                        wasm_encoder::Elements::Functions(funcs.clone().into())
+                    }
+                    ElementItems::Expressions(ty, exprs) => wasm_encoder::Elements::Expressions(
+                        RoundtripReencoder.ref_type(*ty)?,
+                        exprs
+                            .iter()
+                            .map(ConstExpr::reencode)
+                            .collect::<Result<Vec<_>>>()?
+                            .into(),
+                    ),
+                };
+                match &element.kind {
+                    ElementKind::Passive => {
+                        encoder_section.passive(items);
+                    }
+                    ElementKind::Active {
+                        table_index,
+                        offset_expr,
+                    } => {
+                        encoder_section.active(
+                            *table_index,
+                            &RoundtripReencoder.const_expr(offset_expr.clone())?,
+                            items,
+                        );
+                    }
+                    ElementKind::Declared => {
+                        encoder_section.declared(items);
+                    }
+                }
+            }
+            module.section(&encoder_section);
+        }
+
+        if let Some(crate_section) = self.data_section() {
+            let mut encoder_section = wasm_encoder::DataSection::new();
+            for data in crate_section.clone() {
+                RoundtripReencoder.parse_data(&mut encoder_section, data)?;
+            }
+            module.section(&encoder_section);
+        }
+
+        if let Some(crate_section) = self.code_section() {
+            let mut encoder_section = wasm_encoder::CodeSection::new();
+            for function in crate_section {
+                let mut encoder_func = wasm_encoder::Function::new(
+                    function
+                        .locals
+                        .iter()
+                        .map(|&(cnt, ty)| Ok((cnt, RoundtripReencoder.val_type(ty)?)))
+                        .collect::<Result<Vec<_>, reencode::Error>>()?,
+                );
+                for op in function.instructions.clone() {
+                    encoder_func.instruction(&RoundtripReencoder.instruction(op)?);
+                }
+
+                encoder_section.function(&encoder_func);
+            }
+            module.section(&encoder_section);
+        }
+
+        Ok(module.finish())
     }
 
     pub fn import_count(&self, pred: impl Fn(&TypeRef) -> bool) -> usize {
