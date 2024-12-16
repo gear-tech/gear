@@ -461,4 +461,19 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         // Emit an event to indicate the slash request has been processed
         emit SlashRequestProcessed(middlewareAddress, slashData);
     }
+
+    function executeSlashCommitment(IMiddleware.SlashIdentifier[] calldata slashData) external {
+        Storage storage router = _router();
+
+        address middlewareAddress = router.implAddresses.middleware;
+        require(middlewareAddress != address(0), "Middleware address not set");
+
+        IMiddleware middlewareInstance = IMiddleware(middlewareAddress);
+
+        // Call the executeSlash function from the middleware
+        middlewareInstance.executeSlash(slashData);
+
+        // Emit an event to indicate the slash request has been processed
+        emit SlashRequestProcessed(middlewareAddress, slashData);
+    }
 }

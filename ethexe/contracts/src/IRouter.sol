@@ -73,6 +73,13 @@ interface IRouter {
      */
     event SlashRequestProcessed(address indexed middleware, IMiddleware.SlashData[] slashData);
 
+    /**
+     * @dev Emitted when a slash request is executed by the middleware.
+     * @param middleware The address of the middleware that processed the slash request.
+     * @param slashData An array of SlashIdentifier structures containing details of the slash execution.
+     */
+    event SlashRequestProcessed(address indexed middleware, IMiddleware.SlashIdentifier[] slashData);
+
     /// @notice Emitted when the router's storage slot has been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
     event StorageSlotChanged();
@@ -125,4 +132,5 @@ interface IRouter {
     function commitValidators(Gear.ValidatorsCommitment calldata validatorsCommitment, bytes[] calldata signatures)
         external;
     function requestSlashCommitment(IMiddleware.SlashData[] calldata slashData) external;
+    function executeSlashCommitment(IMiddleware.SlashIdentifier[] calldata slashData) external;
 }

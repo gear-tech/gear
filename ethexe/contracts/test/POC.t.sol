@@ -55,7 +55,6 @@ contract POCTest is Base {
         setUpRouter(_validators);
 
         // Change slash requester and executor to router
-        // Note: just to check that it is possible to change them for now and do not affect the poc test
         vm.startPrank(admin);
         {
             middleware.changeSlashRequester(address(router));
@@ -247,32 +246,20 @@ contract POCTest is Base {
         // Change validators stake and make re-election
         depositInto(vault1, 10_000);
         depositInto(vault2, 10_000);
-        
+
         rollBlocks((eraDuration - electionDuration) / blockDuration);
-        middleware.makeElectionAt(
-            uint48(vm.getBlockTimestamp()) - 1,
-            maxValidators
-        );
+        middleware.makeElectionAt(uint48(vm.getBlockTimestamp()) - 1, maxValidators);
 
         address middlewareAddress = address(middleware);
-        
-        // Middleware must be deployed and stored
-        assertEq(
-            router.middleware(),
-            middlewareAddress,
-            "Middleware address mismatch"
-        );
 
-        IMiddleware.VaultSlashData[]
-            memory vaultData = new IMiddleware.VaultSlashData[](1);
-        vaultData[0] = IMiddleware.VaultSlashData({
-            vault: vault1,
-            amount: 1000
-        });
+        // Middleware must be deployed and stored
+        assertEq(router.middleware(), middlewareAddress, "Middleware address mismatch");
+
+        IMiddleware.VaultSlashData[] memory vaultData = new IMiddleware.VaultSlashData[](1);
+        vaultData[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 1000});
 
         // Prepare SlashData with the registered operator and timestamp
-        IMiddleware.SlashData[]
-            memory slashDataArray = new IMiddleware.SlashData[](1);
+        IMiddleware.SlashData[] memory slashDataArray = new IMiddleware.SlashData[](1);
         slashDataArray[0] = IMiddleware.SlashData({
             operator: operator1, // The operator address
             ts: uint48(block.timestamp), // Current timestamp
@@ -280,19 +267,26 @@ contract POCTest is Base {
         });
 
         rollBlocks(1);
-        
-        vm.expectCall(
-            middlewareAddress,
-            abi.encodeWithSelector(
-                IMiddleware.requestSlash.selector,
-                slashDataArray
-            )
-        );
+
+        vm.expectCall(middlewareAddress, abi.encodeWithSelector(IMiddleware.requestSlash.selector, slashDataArray));
 
         router.requestSlashCommitment(slashDataArray);
 
-        // IVault(vault1).sla
+        uint48 _vetoDeadline = vetoDeadline(IVault(vault1).slasher(), 0);
 
-        console.log("requestSlashCommitment executed successfully.");
+        vm.warp(_vetoDeadline);
+
+        IMiddleware.SlashIdentifier[] memory slashIdArray = new IMiddleware.SlashIdentifier[](1);
+        slashIdArray[0] = IMiddleware.SlashIdentifier({vault: vault1, index: 0});
+
+        vm.expectCall(middlewareAddress, abi.encodeWithSelector(IMiddleware.executeSlash.selector, slashIdArray));
+
+        router.executeSlashCommitment(slashIdArray);
+    }
+
+    function vetoDeadline(address slasher, uint256 slash_index) private view returns (uint48) {
+        (, address operator,,, uint48 _vetoDeadline,) = IVetoSlasher(slasher).slashRequests(slash_index);
+        console.log("operator:", operator, _vetoDeadline);
+        return _vetoDeadline;
     }
 }
