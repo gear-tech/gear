@@ -778,7 +778,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>package = Table::new();
         <a href="#183">package</a>.insert(<span class="string">"name"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"{}-wasm"</span>, <span class="kw-2">&amp;</span>crate_info.name).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
         <a href="#183">package</a>.insert(<span class="string">"version"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#180">crate_info</a>.version.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
-        <a href="#183">package</a>.insert(<span class="string">"edition"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <span class="string">"2021"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
+        <a href="#183">package</a>.insert(<span class="string">"edition"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <span class="string">"2024"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
 
         <span class="kw">let </span><span class="kw-2">mut </span>lib = Table::new();
         <a href="#188">lib</a>.insert(<span class="string">"name"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#180">crate_info</a>.snake_case_name.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
@@ -866,7 +866,7 @@
                 <span class="string">r#"{source_code}
 #[allow(improper_ctypes)]
 mod fake_gsys {{
-    extern "C" {{
+    unsafe extern "C" {{
         pub fn gr_reply(
             payload: *const u8,
             len: u32,

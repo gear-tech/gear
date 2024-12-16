@@ -385,7 +385,7 @@
     },
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html">core::ops::Deref</a>;
-<span class="kw">use </span>gear_core_errors::{<a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode</a>, SignalCode};
+<span class="kw">use </span>gear_core_errors::{<a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode</a>, <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a>};
 <span class="kw">use </span>scale_info::{
     TypeInfo,
     scale::{Decode, Encode},
@@ -552,7 +552,7 @@
     <span class="doccomment">/// Returns bool defining if message is error reply.
     </span><span class="kw">pub fn </span>is_error_reply(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
         <a class="self" href="#192">self</a>.<a href="#204-209">to_reply_details</a>()
-            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|d| <a href="#194">d</a>.code.is_error())
+            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|d| <a href="#194">d</a>.code.<a href="../../../gear_core_errors/simple/enum.ReplyCode.html#method.is_error">is_error</a>())
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or">unwrap_or</a>(<span class="bool-val">false</span>)
     }
 
@@ -629,12 +629,12 @@
     <span class="doccomment">/// Message id, which issues signal.
     </span>to: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>,
     <span class="doccomment">/// Signal code.
-    </span>code: SignalCode,
+    </span>code: <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a>,
 }
 
 <span class="kw">impl </span><a href="#267-272">SignalDetails</a> {
     <span class="doccomment">/// Constructor for details.
-    </span><span class="kw">pub fn </span>new(to: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, code: SignalCode) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(to: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, code: <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a>) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ <a href="#276">to</a>, <a href="#276">code</a> }
     }
 
@@ -644,12 +644,12 @@
     }
 
     <span class="doccomment">/// Returns signal code of signal details.
-    </span><span class="kw">pub fn </span>to_signal_code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SignalCode {
+    </span><span class="kw">pub fn </span>to_signal_code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a> {
         <a class="self" href="#286">self</a>.code
     }
 
     <span class="doccomment">/// Destructs details into parts.
-    </span><span class="kw">pub fn </span>into_parts(<span class="self">self</span>) -&gt; (<a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, SignalCode) {
+    </span><span class="kw">pub fn </span>into_parts(<span class="self">self</span>) -&gt; (<a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a>) {
         (<a class="self" href="#291">self</a>.to, <a class="self" href="#291">self</a>.code)
     }
 }
