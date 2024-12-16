@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, bls12_381, proxy, ActorWithId, BuiltinActor, BuiltinActorError,
+    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, bls12_381, proxy,
 };
 use common::{GasProvider, GasTree};
 use core::cell::RefCell;
@@ -35,8 +35,8 @@ use gear_core::{
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_core::H256;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage, Perbill, Permill, RuntimeDebug,
+    traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 

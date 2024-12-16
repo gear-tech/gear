@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER,
+    INITIAL_RANDOM_SEED, MAX_RESERVATIONS, RESERVE_FOR, Result, TestError, VALUE_PER_GAS,
     constants::Value,
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
@@ -31,38 +33,36 @@ use crate::{
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{
-    common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
-    Ext,
+    ContextChargedForInstrumentation, ContextChargedForProgram, Ext, common::*,
+    configs::BlockConfig,
 };
 use gear_common::{
+    LockId, Origin,
     auxiliary::{
-        gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
-        BlockNumber,
+        BlockNumber, gas_provider::PlainNodeId, mailbox::MailboxErrorImpl,
+        waitlist::WaitlistErrorImpl,
     },
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
     scheduler::StorageType,
     storage::Interval,
-    LockId, Origin,
 };
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     gas_metering::{DbWeights, RentWeights, Schedule},
-    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId, prelude::*},
     memory::PageBuf,
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDelayedDispatch,
         StoredDispatch, StoredMessage, UserMessage, UserStoredMessage,
     },
-    pages::{num_traits::Zero, GearPage},
+    pages::{GearPage, num_traits::Zero},
     tasks::ScheduledTask,
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
-use rand::{rngs::StdRng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng, rngs::StdRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     convert::TryInto,

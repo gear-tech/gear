@@ -37,15 +37,16 @@ use crate::{
 
 use self::{
     wasmer_backend::{
-        get_global as wasmer_get_global, instantiate as wasmer_instantiate,
-        invoke as wasmer_invoke, new_memory as wasmer_new_memory, set_global as wasmer_set_global,
         Backend as WasmerBackend, MemoryWrapper as WasmerMemoryWrapper,
-        StoreRefCell as WasmerStoreRefCell,
+        StoreRefCell as WasmerStoreRefCell, get_global as wasmer_get_global,
+        instantiate as wasmer_instantiate, invoke as wasmer_invoke,
+        new_memory as wasmer_new_memory, set_global as wasmer_set_global,
     },
     wasmi_backend::{
-        get_global as wasmi_get_global, instantiate as wasmi_instantiate, invoke as wasmi_invoke,
-        new_memory as wasmi_new_memory, set_global as wasmi_set_global, Backend as WasmiBackend,
-        MemoryWrapper as WasmiMemoryWrapper, StoreRefCell as WasmiStoreRefCell,
+        Backend as WasmiBackend, MemoryWrapper as WasmiMemoryWrapper,
+        StoreRefCell as WasmiStoreRefCell, get_global as wasmi_get_global,
+        instantiate as wasmi_instantiate, invoke as wasmi_invoke, new_memory as wasmi_new_memory,
+        set_global as wasmi_set_global,
     },
 };
 

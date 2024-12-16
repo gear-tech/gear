@@ -19,14 +19,14 @@
 //! Syscalls invocator module.
 
 use crate::{
+    ActorKind, InvocableSyscall, MemoryLayout, PtrParamAllowedValues, RegularParamAllowedValues,
+    SyscallsConfig, SyscallsParamsConfig,
     generator::{
         CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector, FunctionIndex,
         ModuleWithCallIndexes,
     },
     utils::{self, MemcpyUnit, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
-    ActorKind, InvocableSyscall, MemoryLayout, PtrParamAllowedValues, RegularParamAllowedValues,
-    SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_core::ids::CodeId;
@@ -40,7 +40,7 @@ use gear_wasm_instrument::{
 };
 use gsys::{ErrorCode, Handle, Hash};
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
+    collections::{BTreeMap, BinaryHeap, HashSet, btree_map::Entry},
     fmt::{self, Debug, Display},
     iter,
     num::NonZero,
@@ -863,22 +863,19 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         } = MemoryLayout::from(self.memory_size_bytes());
 
         // add instructions before calling wait syscall
-        instructions.splice(
-            0..0,
-            [
-                Instruction::I32Const(init_called_ptr),
-                Instruction::I32Load8U(0, 0),
-                // if *init_called_ptr { .. }
-                Instruction::If(BlockType::NoResult),
-                Instruction::I32Const(wait_called_ptr),
-                Instruction::I32Load(2, 0),
-                Instruction::I32Const(waiting_probability as i32),
-                Instruction::I32RemU,
-                Instruction::I32Eqz,
-                // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
-                Instruction::If(BlockType::NoResult),
-            ],
-        );
+        instructions.splice(0..0, [
+            Instruction::I32Const(init_called_ptr),
+            Instruction::I32Load8U(0, 0),
+            // if *init_called_ptr { .. }
+            Instruction::If(BlockType::NoResult),
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(waiting_probability as i32),
+            Instruction::I32RemU,
+            Instruction::I32Eqz,
+            // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
+            Instruction::If(BlockType::NoResult),
+        ]);
 
         // add instructions after calling wait syscall
         instructions.extend_from_slice(&[

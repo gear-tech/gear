@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    GAS_MULTIPLIER, Value,
     error::usage_panic,
     program::{Gas, ProgramIdWrapper},
-    Value, GAS_MULTIPLIER,
 };
 use codec::{Codec, Encode};
 use core_processor::configs::BlockInfo;

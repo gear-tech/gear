@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Artifact;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use cargo_metadata::{CargoOpt, Message, MetadataCommand};
 use cargo_toml::Manifest;
 use gear_wasm_optimizer::OptType;

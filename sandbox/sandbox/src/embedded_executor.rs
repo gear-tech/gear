@@ -20,7 +20,7 @@
 
 use crate::{
     AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore,
-    Value, TARGET,
+    TARGET, Value,
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
@@ -30,13 +30,13 @@ use std::{
     sync::OnceLock,
 };
 use wasmer::{
+    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
+    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables, Value as RuntimeValue,
     sys::{BaseTunables, VMConfig},
     vm::{
         LinearMemory, MemoryStyle, TableStyle, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
         VMTableDefinition,
     },
-    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
-    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables, Value as RuntimeValue,
 };
 use wasmer_types::{ExternType, Target};
 
@@ -96,8 +96,10 @@ impl Tunables for CustomTunables {
         style: &MemoryStyle,
         vm_definition_location: NonNull<VMMemoryDefinition>,
     ) -> Result<VMMemory, MemoryError> {
-        unsafe { self.inner
-            .create_vm_memory(ty, style, vm_definition_location) }
+        unsafe {
+            self.inner
+                .create_vm_memory(ty, style, vm_definition_location)
+        }
     }
 
     fn create_host_table(&self, ty: &TableType, style: &TableStyle) -> Result<VMTable, String> {
@@ -110,8 +112,10 @@ impl Tunables for CustomTunables {
         style: &TableStyle,
         vm_definition_location: NonNull<VMTableDefinition>,
     ) -> Result<VMTable, String> {
-        unsafe { self.inner
-            .create_vm_table(ty, style, vm_definition_location) }
+        unsafe {
+            self.inner
+                .create_vm_table(ty, style, vm_definition_location)
+        }
     }
 
     fn create_global(&self, ty: GlobalType) -> Result<VMGlobal, String> {
@@ -131,8 +135,10 @@ impl Tunables for CustomTunables {
         >,
         wasmer_compiler::LinkError,
     > {
-        unsafe { self.inner
-            .create_memories(context, module, memory_styles, memory_definition_locations) }
+        unsafe {
+            self.inner
+                .create_memories(context, module, memory_styles, memory_definition_locations)
+        }
     }
 
     unsafe fn create_tables(
@@ -148,8 +154,10 @@ impl Tunables for CustomTunables {
         >,
         wasmer_compiler::LinkError,
     > {
-        unsafe { self.inner
-            .create_tables(context, module, table_styles, table_definition_locations) }
+        unsafe {
+            self.inner
+                .create_tables(context, module, table_styles, table_definition_locations)
+        }
     }
 
     fn create_globals(
@@ -648,11 +656,11 @@ fn to_interface(value: RuntimeValue) -> Option<Value> {
 mod tests {
     use super::{Caller, EnvironmentDefinitionBuilder, Instance};
     use crate::{
-        default_executor::Store, AsContextExt, Error, HostError, ReturnValue,
-        SandboxEnvironmentBuilder, SandboxInstance, SandboxStore, Value,
+        AsContextExt, Error, HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
+        SandboxStore, Value, default_executor::Store,
     };
     use assert_matches::assert_matches;
-    use gear_sandbox_env::{WasmReturnValue, GLOBAL_NAME_GAS};
+    use gear_sandbox_env::{GLOBAL_NAME_GAS, WasmReturnValue};
 
     fn execute_sandboxed(code: &[u8], args: &[Value]) -> Result<ReturnValue, Error> {
         struct State {
@@ -747,10 +755,10 @@ mod tests {
         ))
         .unwrap();
 
-        execute_sandboxed(
-            &code,
-            &[Value::I32(0x12345678), Value::I64(0x1234567887654321)],
-        )
+        execute_sandboxed(&code, &[
+            Value::I32(0x12345678),
+            Value::I64(0x1234567887654321),
+        ])
         .unwrap();
     }
 

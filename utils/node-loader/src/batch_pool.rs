@@ -2,15 +2,15 @@ use crate::{
     args::{LoadParams, SeedVariant},
     utils::{self, SwapResult},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use api::GearApiFacade;
 use context::Context;
-use futures::{stream::FuturesUnordered, Future, StreamExt};
+use futures::{Future, StreamExt, stream::FuturesUnordered};
 use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
-use gsdk::metadata::{gear::Event as GearEvent, Event};
+use gsdk::metadata::{Event, gear::Event as GearEvent};
 use primitive_types::H256;
 pub use report::CrashAlert;
 use report::{BatchRunReport, MailboxReport, Report};
@@ -326,9 +326,13 @@ async fn process_events(
 
         if let Some((pid, call_id)) = messages.remove(&mid) {
             if let Some(expl) = maybe_err {
-                tracing::debug!("[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'");
+                tracing::debug!(
+                    "[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'"
+                );
             } else {
-                tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'");
+                tracing::debug!(
+                    "[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'"
+                );
                 program_ids.insert(pid);
             }
         }
@@ -379,11 +383,11 @@ async fn create_renew_balance_task(
     let duration_millis = root_api.expected_block_time()? * 100;
 
     tracing::info!(
-                "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",
-                duration_millis / 1000,
-                user_target_balance,
-                root_target_balance
-            );
+        "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",
+        duration_millis / 1000,
+        user_target_balance,
+        root_target_balance
+    );
 
     // Every `duration_millis` milliseconds updates authority and user (batch sender) balances
     // to target values.

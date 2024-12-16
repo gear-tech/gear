@@ -194,7 +194,7 @@ impl ToDigest for BlockCommitment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gprimitives::{ActorId, CodeId, MessageId, H256};
+    use gprimitives::{ActorId, CodeId, H256, MessageId};
     use std::vec;
 
     #[test]

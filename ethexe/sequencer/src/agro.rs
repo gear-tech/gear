@@ -18,7 +18,7 @@
 
 //! Abstract commitment aggregator.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode};
@@ -176,8 +176,8 @@ fn to_router_digest(commitments_digest: Digest, router_address: Address) -> Dige
 mod tests {
     use super::*;
     use ethexe_signer::{
-        sha3::{Digest as _, Keccak256},
         PrivateKey,
+        sha3::{Digest as _, Keccak256},
     };
     use std::str::FromStr;
 

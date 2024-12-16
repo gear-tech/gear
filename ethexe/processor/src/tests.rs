@@ -20,7 +20,7 @@ use crate::*;
 use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent};
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, ScheduledTask};
 use ethexe_runtime_common::state::ValueWithExpiry;
-use gear_core::ids::{prelude::CodeIdExt, ProgramId};
+use gear_core::ids::{ProgramId, prelude::CodeIdExt};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use std::collections::{BTreeMap, BTreeSet};
@@ -45,14 +45,11 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
     let parent_block_header = processor.db.block_header(parent_hash).unwrap_or_default();
     let height = parent_block_header.height + 1;
     let timestamp = parent_block_header.timestamp + 12;
-    let chain_head = init_new_block(
-        processor,
-        BlockHeader {
-            height,
-            timestamp,
-            parent_hash,
-        },
-    );
+    let chain_head = init_new_block(processor, BlockHeader {
+        height,
+        timestamp,
+        parent_hash,
+    });
 
     let parent_out_program_hashes = processor
         .db
@@ -102,13 +99,10 @@ fn process_observer_event() {
         .process_upload_code(code_id, &code)
         .expect("failed to upload code");
     log::debug!("\n\nUpload code outcomes: {outcomes:?}\n\n");
-    assert_eq!(
-        outcomes,
-        vec![LocalOutcome::CodeValidated {
-            id: code_id,
-            valid: true
-        }]
-    );
+    assert_eq!(outcomes, vec![LocalOutcome::CodeValidated {
+        id: code_id,
+        valid: true
+    }]);
 
     let _ = processor.process_block_events(ch0, vec![]).unwrap();
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
@@ -123,15 +117,12 @@ fn process_observer_event() {
                 value: 10_000_000_000,
             },
         ),
-        BlockRequestEvent::mirror(
-            actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: H256::random().0.into(),
-                source: H256::random().0.into(),
-                payload: b"PING".to_vec(),
-                value: 0,
-            },
-        ),
+        BlockRequestEvent::mirror(actor_id, MirrorRequestEvent::MessageQueueingRequested {
+            id: H256::random().0.into(),
+            source: H256::random().0.into(),
+            payload: b"PING".to_vec(),
+            value: 0,
+        }),
     ];
 
     let outcomes = processor
@@ -142,15 +133,13 @@ fn process_observer_event() {
 
     let ch2 = init_new_block_from_parent(&mut processor, ch1);
 
-    let send_message_event = BlockRequestEvent::mirror(
-        actor_id,
-        MirrorRequestEvent::MessageQueueingRequested {
+    let send_message_event =
+        BlockRequestEvent::mirror(actor_id, MirrorRequestEvent::MessageQueueingRequested {
             id: H256::random().0.into(),
             source: H256::random().0.into(),
             payload: b"PING".to_vec(),
             value: 0,
-        },
-    );
+        });
 
     let outcomes = processor
         .process_block_events(ch2, vec![send_message_event])
@@ -173,10 +162,12 @@ fn handle_new_code_valid() {
     let original_code_len = original_code.len();
 
     assert!(processor.db.original_code(code_id).is_none());
-    assert!(processor
-        .db
-        .instrumented_code(ethexe_runtime::VERSION, code_id)
-        .is_none());
+    assert!(
+        processor
+            .db
+            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .is_none()
+    );
 
     let calculated_id = processor
         .handle_new_code(original_code.clone())
@@ -216,21 +207,27 @@ fn handle_new_code_invalid() {
     let (code_id, original_code) = utils::wat_to_wasm(utils::INVALID_PROGRAM);
 
     assert!(processor.db.original_code(code_id).is_none());
-    assert!(processor
-        .db
-        .instrumented_code(ethexe_runtime::VERSION, code_id)
-        .is_none());
+    assert!(
+        processor
+            .db
+            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .is_none()
+    );
 
-    assert!(processor
-        .handle_new_code(original_code.clone())
-        .expect("failed to call runtime api")
-        .is_none());
+    assert!(
+        processor
+            .handle_new_code(original_code.clone())
+            .expect("failed to call runtime api")
+            .is_none()
+    );
 
     assert!(processor.db.original_code(code_id).is_none());
-    assert!(processor
-        .db
-        .instrumented_code(ethexe_runtime::VERSION, code_id)
-        .is_none());
+    assert!(
+        processor
+            .db
+            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .is_none()
+    );
 }
 
 #[test]
@@ -266,27 +263,21 @@ fn ping_pong() {
         .expect("failed to top up balance");
 
     handler
-        .handle_mirror_event(
-            actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: MessageId::from(1),
-                source: user_id,
-                payload: b"PING".to_vec(),
-                value: 0,
-            },
-        )
+        .handle_mirror_event(actor_id, MirrorRequestEvent::MessageQueueingRequested {
+            id: MessageId::from(1),
+            source: user_id,
+            payload: b"PING".to_vec(),
+            value: 0,
+        })
         .expect("failed to send message");
 
     handler
-        .handle_mirror_event(
-            actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: MessageId::from(2),
-                source: user_id,
-                payload: b"PING".to_vec(),
-                value: 0,
-            },
-        )
+        .handle_mirror_event(actor_id, MirrorRequestEvent::MessageQueueingRequested {
+            id: MessageId::from(2),
+            source: user_id,
+            payload: b"PING".to_vec(),
+            value: 0,
+        })
         .expect("failed to send message");
 
     processor.process_queue(&mut handler);
@@ -352,15 +343,12 @@ fn async_and_ping() {
         .expect("failed to top up balance");
 
     handler
-        .handle_mirror_event(
-            ping_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: get_next_message_id(),
-                source: user_id,
-                payload: b"PING".to_vec(),
-                value: 0,
-            },
-        )
+        .handle_mirror_event(ping_id, MirrorRequestEvent::MessageQueueingRequested {
+            id: get_next_message_id(),
+            source: user_id,
+            payload: b"PING".to_vec(),
+            value: 0,
+        })
         .expect("failed to send message");
 
     handler
@@ -380,29 +368,23 @@ fn async_and_ping() {
         .expect("failed to top up balance");
 
     handler
-        .handle_mirror_event(
-            async_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: get_next_message_id(),
-                source: user_id,
-                payload: ping_id.encode(),
-                value: 0,
-            },
-        )
+        .handle_mirror_event(async_id, MirrorRequestEvent::MessageQueueingRequested {
+            id: get_next_message_id(),
+            source: user_id,
+            payload: ping_id.encode(),
+            value: 0,
+        })
         .expect("failed to send message");
 
     let wait_for_reply_to = get_next_message_id();
 
     handler
-        .handle_mirror_event(
-            async_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: wait_for_reply_to,
-                source: user_id,
-                payload: demo_async::Command::Common.encode(),
-                value: 0,
-            },
-        )
+        .handle_mirror_event(async_id, MirrorRequestEvent::MessageQueueingRequested {
+            id: wait_for_reply_to,
+            source: user_id,
+            payload: demo_async::Command::Common.encode(),
+            value: 0,
+        })
         .expect("failed to send message");
 
     processor.process_queue(&mut handler);
@@ -455,14 +437,11 @@ fn many_waits() {
     let db = MemDb::default();
     let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
 
-    let ch0 = init_new_block(
-        &mut processor,
-        BlockHeader {
-            height: 1,
-            timestamp: 1,
-            parent_hash: Default::default(),
-        },
-    );
+    let ch0 = init_new_block(&mut processor, BlockHeader {
+        height: 1,
+        timestamp: 1,
+        parent_hash: Default::default(),
+    });
 
     let code_id = processor
         .handle_new_code(code)
@@ -492,15 +471,12 @@ fn many_waits() {
             .expect("failed to top up balance");
 
         handler
-            .handle_mirror_event(
-                program_id,
-                MirrorRequestEvent::MessageQueueingRequested {
-                    id: H256::random().0.into(),
-                    source: H256::random().0.into(),
-                    payload: Default::default(),
-                    value: 0,
-                },
-            )
+            .handle_mirror_event(program_id, MirrorRequestEvent::MessageQueueingRequested {
+                id: H256::random().0.into(),
+                source: H256::random().0.into(),
+                payload: Default::default(),
+                value: 0,
+            })
             .expect("failed to send message");
     }
 
@@ -514,15 +490,12 @@ fn many_waits() {
 
     for pid in handler.transitions.known_programs() {
         handler
-            .handle_mirror_event(
-                pid,
-                MirrorRequestEvent::MessageQueueingRequested {
-                    id: H256::random().0.into(),
-                    source: H256::random().0.into(),
-                    payload: Default::default(),
-                    value: 0,
-                },
-            )
+            .handle_mirror_event(pid, MirrorRequestEvent::MessageQueueingRequested {
+                id: H256::random().0.into(),
+                source: H256::random().0.into(),
+                payload: Default::default(),
+                value: 0,
+            })
             .expect("failed to send message");
     }
 

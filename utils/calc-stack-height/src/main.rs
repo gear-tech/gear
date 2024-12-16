@@ -18,7 +18,7 @@
 
 use anyhow::{anyhow, ensure};
 use gear_core::code::{Code, TryNewCodeConfig};
-use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
+use gear_wasm_instrument::{STACK_HEIGHT_EXPORT_NAME, SystemBreakCode};
 use std::{env, fs};
 use wasmer::{
     Exports, Extern, Function, FunctionEnv, Imports, Instance, Memory, MemoryType, Module,

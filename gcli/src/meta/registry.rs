@@ -19,10 +19,10 @@
 //! Local type registry.
 use crate::result::{Error, Result};
 use scale_info::{
+    PortableRegistry, Type, TypeDef,
     form::{Form, PortableForm},
     interner::UntrackedSymbol,
     scale::Decode,
-    PortableRegistry, Type, TypeDef,
 };
 use std::{any::TypeId, fmt};
 

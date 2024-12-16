@@ -20,7 +20,7 @@
 // one command for now.
 
 use crate::utils;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
 use colored::Colorize;
 use std::{

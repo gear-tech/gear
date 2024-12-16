@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
     gear::{BlockCommitment, CodeCommitment},
 };
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
 use ethexe_signer::{
-    sha3::{self, Digest as _},
     Address, Digest, PublicKey, Signature, Signer, ToDigest,
+    sha3::{self, Digest as _},
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -307,32 +307,23 @@ mod tests {
 
         let code_id = CodeId::from(H256::random());
 
-        Validator::validate_code_commitment(
-            &db,
-            CodeCommitment {
-                id: code_id,
-                valid: true,
-            },
-        )
+        Validator::validate_code_commitment(&db, CodeCommitment {
+            id: code_id,
+            valid: true,
+        })
         .expect_err("Code is not in db");
 
         db.set_code_valid(code_id, true);
-        Validator::validate_code_commitment(
-            &db,
-            CodeCommitment {
-                id: code_id,
-                valid: false,
-            },
-        )
+        Validator::validate_code_commitment(&db, CodeCommitment {
+            id: code_id,
+            valid: false,
+        })
         .expect_err("Code validation result mismatch");
 
-        Validator::validate_code_commitment(
-            &db,
-            CodeCommitment {
-                id: code_id,
-                valid: true,
-            },
-        )
+        Validator::validate_code_commitment(&db, CodeCommitment {
+            id: code_id,
+            valid: true,
+        })
         .unwrap();
     }
 
@@ -350,85 +341,64 @@ mod tests {
         db.set_block_end_state_is_valid(block_hash, true);
         db.set_block_outcome(block_hash, transitions);
         db.set_previous_committed_block(block_hash, previous_committed_block);
-        db.set_block_header(
-            block_hash,
-            BlockHeader {
-                height: 100,
-                timestamp: block_timestamp,
-                parent_hash: pred_block_hash,
-            },
-        );
+        db.set_block_header(block_hash, BlockHeader {
+            height: 100,
+            timestamp: block_timestamp,
+            parent_hash: pred_block_hash,
+        });
 
-        Validator::validate_block_commitment(
-            &db,
-            BlockCommitmentValidationRequest {
-                block_hash,
-                block_timestamp,
-                previous_committed_block,
-                predecessor_block: block_hash,
-                transitions_digest,
-            },
-        )
+        Validator::validate_block_commitment(&db, BlockCommitmentValidationRequest {
+            block_hash,
+            block_timestamp,
+            previous_committed_block,
+            predecessor_block: block_hash,
+            transitions_digest,
+        })
         .unwrap();
 
-        Validator::validate_block_commitment(
-            &db,
-            BlockCommitmentValidationRequest {
-                block_hash,
-                block_timestamp: block_timestamp + 1,
-                previous_committed_block,
-                predecessor_block: block_hash,
-                transitions_digest,
-            },
-        )
+        Validator::validate_block_commitment(&db, BlockCommitmentValidationRequest {
+            block_hash,
+            block_timestamp: block_timestamp + 1,
+            previous_committed_block,
+            predecessor_block: block_hash,
+            transitions_digest,
+        })
         .expect_err("Timestamps mismatch");
 
-        Validator::validate_block_commitment(
-            &db,
-            BlockCommitmentValidationRequest {
-                block_hash,
-                block_timestamp,
-                previous_committed_block,
-                predecessor_block: H256::random(),
-                transitions_digest,
-            },
-        )
+        Validator::validate_block_commitment(&db, BlockCommitmentValidationRequest {
+            block_hash,
+            block_timestamp,
+            previous_committed_block,
+            predecessor_block: H256::random(),
+            transitions_digest,
+        })
         .expect_err("Unknown pred block is provided");
 
-        Validator::validate_block_commitment(
-            &db,
-            BlockCommitmentValidationRequest {
-                block_hash,
-                block_timestamp,
-                previous_committed_block: H256::random(),
-                predecessor_block: block_hash,
-                transitions_digest,
-            },
-        )
+        Validator::validate_block_commitment(&db, BlockCommitmentValidationRequest {
+            block_hash,
+            block_timestamp,
+            previous_committed_block: H256::random(),
+            predecessor_block: block_hash,
+            transitions_digest,
+        })
         .expect_err("Unknown prev commitment is provided");
 
-        Validator::validate_block_commitment(
-            &db,
-            BlockCommitmentValidationRequest {
-                block_hash,
-                block_timestamp,
-                previous_committed_block,
-                predecessor_block: block_hash,
-                transitions_digest: Digest::from([2; 32]),
-            },
-        )
+        Validator::validate_block_commitment(&db, BlockCommitmentValidationRequest {
+            block_hash,
+            block_timestamp,
+            previous_committed_block,
+            predecessor_block: block_hash,
+            transitions_digest: Digest::from([2; 32]),
+        })
         .expect_err("Transitions digest mismatch");
 
-        Validator::validate_block_commitment(
-            &db,
-            BlockCommitmentValidationRequest {
-                block_hash: H256::random(),
-                block_timestamp,
-                previous_committed_block,
-                predecessor_block: block_hash,
-                transitions_digest,
-            },
-        )
+        Validator::validate_block_commitment(&db, BlockCommitmentValidationRequest {
+            block_hash: H256::random(),
+            block_timestamp,
+            previous_committed_block,
+            predecessor_block: block_hash,
+            transitions_digest,
+        })
         .expect_err("Block is not processed by this node");
     }
 
@@ -437,30 +407,21 @@ mod tests {
         let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
 
         let blocks = [H256::random(), H256::random(), H256::random()];
-        db.set_block_header(
-            blocks[0],
-            BlockHeader {
-                height: 100,
-                timestamp: 100,
-                parent_hash: H256::zero(),
-            },
-        );
-        db.set_block_header(
-            blocks[1],
-            BlockHeader {
-                height: 101,
-                timestamp: 101,
-                parent_hash: blocks[0],
-            },
-        );
-        db.set_block_header(
-            blocks[2],
-            BlockHeader {
-                height: 102,
-                timestamp: 102,
-                parent_hash: blocks[1],
-            },
-        );
+        db.set_block_header(blocks[0], BlockHeader {
+            height: 100,
+            timestamp: 100,
+            parent_hash: H256::zero(),
+        });
+        db.set_block_header(blocks[1], BlockHeader {
+            height: 101,
+            timestamp: 101,
+            parent_hash: blocks[0],
+        });
+        db.set_block_header(blocks[2], BlockHeader {
+            height: 102,
+            timestamp: 102,
+            parent_hash: blocks[1],
+        });
 
         Validator::verify_is_predecessor(&db, blocks[1], H256::random(), None)
             .expect_err("Unknown pred block is provided");
@@ -473,14 +434,11 @@ mod tests {
 
         // Another chain block
         let block3 = H256::random();
-        db.set_block_header(
-            block3,
-            BlockHeader {
-                height: 1,
-                timestamp: 1,
-                parent_hash: blocks[0],
-            },
-        );
+        db.set_block_header(block3, BlockHeader {
+            height: 1,
+            timestamp: 1,
+            parent_hash: blocks[0],
+        });
         Validator::verify_is_predecessor(&db, blocks[2], block3, None)
             .expect_err("Block is from other chain with incorrect height");
 

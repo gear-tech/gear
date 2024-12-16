@@ -18,13 +18,13 @@
 
 //! Program's execution service for eGPU.
 
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
-use gprimitives::{ActorId, CodeId, MessageId, H256};
-use handling::{run, ProcessingHandler};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
+use handling::{ProcessingHandler, run};
 use host::InstanceCreator;
 
 pub use common::LocalOutcome;
@@ -182,15 +182,12 @@ impl OverlaidProcessor {
             "program isn't yet initialized"
         );
 
-        handler.handle_mirror_event(
-            program_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: MessageId::zero(),
-                source,
-                payload,
-                value,
-            },
-        )?;
+        handler.handle_mirror_event(program_id, MirrorRequestEvent::MessageQueueingRequested {
+            id: MessageId::zero(),
+            source,
+            payload,
+            value,
+        })?;
 
         self.0.process_queue(&mut handler);
 

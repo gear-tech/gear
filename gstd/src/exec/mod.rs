@@ -19,7 +19,7 @@
 //! Utility functions related to the current execution context or program
 //! execution flow.
 
-pub use gcore::exec::*;
 pub use r#async::*;
+pub use gcore::exec::*;
 
 mod r#async;

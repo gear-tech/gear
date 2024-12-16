@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api constants methods
-use crate::{result::Result, Api};
+use crate::{Api, result::Result};
 use parity_scale_codec::Decode;
 
 impl Api {

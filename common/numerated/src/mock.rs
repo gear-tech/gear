@@ -25,10 +25,10 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
 use core::ops::Range;
-use num_traits::{bounds::UpperBounded, One, Zero};
+use num_traits::{One, Zero, bounds::UpperBounded};
 use proptest::{
     collection,
-    prelude::{any, Arbitrary},
+    prelude::{Arbitrary, any},
     prop_oneof,
     strategy::{BoxedStrategy, Strategy},
 };

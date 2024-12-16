@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Command;
-use gstd::{msg, prelude::*, sync::Mutex, ActorId};
+use gstd::{ActorId, msg, prelude::*, sync::Mutex};
 
 static mut DESTINATION: ActorId = ActorId::zero();
 static MUTEX: Mutex<u32> = Mutex::new(0);

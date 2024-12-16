@@ -50,9 +50,9 @@ pub mod pallet {
     use super::*;
     use common::Origin;
     use frame_support::{
+        StorageHasher,
         pallet_prelude::*,
         traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
-        StorageHasher,
     };
     use frame_system::{
         ensure_root, ensure_signed,
@@ -60,8 +60,8 @@ pub mod pallet {
     };
     use gprimitives::{ActorId, H160, H256, U256};
     use sp_runtime::{
-        traits::{Keccak256, One, Saturating, Zero},
         BoundToRuntimeAppPublic, RuntimeAppPublic,
+        traits::{Keccak256, One, Saturating, Zero},
     };
     use sp_std::vec::Vec;
 

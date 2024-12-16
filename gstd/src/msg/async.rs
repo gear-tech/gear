@@ -17,11 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    async_runtime::{self, signals, Lock, ReplyPoll},
+    ActorId, Config, MessageId,
+    async_runtime::{self, Lock, ReplyPoll, signals},
     errors::{Error, Result},
     msg::macros::impl_futures,
     prelude::Vec,
-    ActorId, Config, MessageId,
 };
 use core::{
     future::Future,

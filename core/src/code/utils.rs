@@ -19,17 +19,17 @@
 //! Module that contains functions to check code.
 
 use crate::{
-    code::{errors::*, GENERIC_OS_PAGE_SIZE},
+    code::{GENERIC_OS_PAGE_SIZE, errors::*},
     message::{DispatchKind, WasmEntryPoint},
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
+    STACK_END_EXPORT_NAME, SyscallName,
     parity_wasm::elements::{
         ExportEntry, External, GlobalEntry, ImportCountType, InitExpr, Instruction, Internal,
         Module, Type, ValueType,
     },
-    SyscallName, STACK_END_EXPORT_NAME,
 };
 use wasmparser::Payload;
 

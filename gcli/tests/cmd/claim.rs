@@ -19,7 +19,7 @@
 //! Integration tests for command `send`
 
 use crate::common::{
-    self, node::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS, RENT_POOL_SS58_ADDRESS,
+    self, ALICE_SS58_ADDRESS as ADDRESS, Args, RENT_POOL_SS58_ADDRESS, Result, node::NodeExec,
 };
 use gsdk::Api;
 

@@ -19,14 +19,14 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        common::MessageDetails, ContextStore, DispatchKind, GasLimit, Payload, StoredDispatch,
-        StoredMessage, Value,
+        ContextStore, DispatchKind, GasLimit, Payload, StoredDispatch, StoredMessage, Value,
+        common::MessageDetails,
     },
 };
 use core::ops::Deref;
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Incoming message.

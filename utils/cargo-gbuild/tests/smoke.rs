@@ -18,7 +18,7 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use gtest::{constants::DEFAULT_USER_ALICE, state_args, Program, System};
+use gtest::{Program, System, constants::DEFAULT_USER_ALICE, state_args};
 use std::{fs, path::PathBuf, process::Command};
 
 fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
@@ -85,26 +85,30 @@ fn test_program_tests() {
             .stdout;
 
         if !String::from_utf8_lossy(&targets).contains("wasm32v1-none (installed)") {
-            assert!(Command::new("rustup")
-                .args([
-                    "toolchain",
-                    "install",
-                    "beta",
-                    "--component",
-                    "llvm-tools",
-                    "--target",
-                    "wasm32v1-none",
-                ])
-                .status()
-                .expect("Failed to install beta toolchain")
-                .success());
+            assert!(
+                Command::new("rustup")
+                    .args([
+                        "toolchain",
+                        "install",
+                        "beta",
+                        "--component",
+                        "llvm-tools",
+                        "--target",
+                        "wasm32v1-none",
+                    ])
+                    .status()
+                    .expect("Failed to install beta toolchain")
+                    .success()
+            );
         }
     }
 
-    assert!(Command::new("cargo")
-        .current_dir("test-program")
-        .args(["+beta", "test", "--manifest-path", "Cargo.toml"])
-        .status()
-        .expect("Failed to run the tests of cargo-gbuild/test-program")
-        .success());
+    assert!(
+        Command::new("cargo")
+            .current_dir("test-program")
+            .args(["+beta", "test", "--manifest-path", "Cargo.toml"])
+            .status()
+            .expect("Failed to run the tests of cargo-gbuild/test-program")
+            .success()
+    );
 }

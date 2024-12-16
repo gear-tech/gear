@@ -21,13 +21,13 @@ use gear_wasm_gen::{
     SyscallsConfigBuilder, SyscallsInjectionTypes,
 };
 use gear_wasm_instrument::{
-    gas_metering::MemoryGrowCost, parity_wasm::elements::Instruction, Rules,
+    Rules, gas_metering::MemoryGrowCost, parity_wasm::elements::Instruction,
 };
 use std::num::NonZero;
 
 use crate::{
-    generate::{InjectGlobalsConfig, InjectMemoryAccessesConfig},
     INITIAL_PAGES,
+    generate::{InjectGlobalsConfig, InjectMemoryAccessesConfig},
 };
 
 #[derive(Debug, Default, Clone)]

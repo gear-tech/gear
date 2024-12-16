@@ -18,16 +18,16 @@
 
 //! Wasm related entities.
 
-use crate::{config::WasmModuleConfig, EntryPointName};
+use crate::{EntryPointName, config::WasmModuleConfig};
 use arbitrary::{Arbitrary, Result, Unstructured};
 use core::mem;
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::{
+    STACK_END_EXPORT_NAME,
     parity_wasm::{
         self,
         elements::{External, Instruction, Internal, Module},
     },
-    STACK_END_EXPORT_NAME,
 };
 use gsys::{Handle, Hash};
 use wasm_smith::Module as WasmSmithModule;
@@ -61,7 +61,9 @@ impl WasmModule {
     ) -> Result<Self> {
         let pw_module = Self::generate_wasm_smith_module(config, u)?;
         if pw_module.function_section().is_none() {
-            panic!("WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!");
+            panic!(
+                "WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!"
+            );
         }
 
         Ok(Self(pw_module))

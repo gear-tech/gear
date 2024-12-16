@@ -17,21 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use hyper::{
+    Body, Request, Response,
     http::StatusCode,
     server::Server,
     service::{make_service_fn, service_fn},
-    Body, Request, Response,
 };
 pub use prometheus::{
-    self,
+    self, Error as PrometheusError, Histogram, HistogramOpts, HistogramVec, Opts, Registry,
     core::{
         AtomicF64 as F64, AtomicI64 as I64, AtomicU64 as U64, GenericCounter as Counter,
         GenericCounterVec as CounterVec, GenericGauge as Gauge, GenericGaugeVec as GaugeVec,
     },
-    exponential_buckets, Error as PrometheusError, Histogram, HistogramOpts, HistogramVec, Opts,
-    Registry,
+    exponential_buckets,
 };
-use prometheus::{core::Collector, Encoder, TextEncoder};
+use prometheus::{Encoder, TextEncoder, core::Collector};
 use std::net::SocketAddr;
 
 mod sourced;

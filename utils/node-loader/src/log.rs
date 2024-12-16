@@ -1,14 +1,13 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use tracing_appender::{non_blocking::WorkerGuard, rolling};
 use tracing_subscriber::{
-    fmt,
+    EnvFilter, Layer as LayerT, fmt,
     fmt::{
-        format::{Format, Pretty},
         Subscriber,
+        format::{Format, Pretty},
     },
     layer::SubscriberExt,
     util::SubscriberInitExt,
-    EnvFilter, Layer as LayerT,
 };
 
 type DefaultSubscriber = Subscriber<Pretty, Format<Pretty>, EnvFilter>;

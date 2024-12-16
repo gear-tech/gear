@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    host::{InstanceCreator, InstanceWrapper},
     ProcessorConfig,
+    host::{InstanceCreator, InstanceWrapper},
 };
 use core_processor::common::JournalNote;
 use ethexe_db::{CodesStorage, Database};

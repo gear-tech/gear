@@ -22,12 +22,12 @@ use core::fmt::Display;
 use gprimitives::ActorId;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use std::{collections::BTreeSet, str::FromStr};
 use syn::{
+    Path, Token,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
-    Path, Token,
 };
 
 mod utils;

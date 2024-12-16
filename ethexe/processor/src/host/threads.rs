@@ -22,11 +22,11 @@ use crate::Database;
 use core::fmt;
 use ethexe_db::BlockMetaStorage;
 use ethexe_runtime_common::{
+    BlockInfo,
     state::{
         ActiveProgram, HashOf, MemoryPages, MemoryPagesInner, MemoryPagesRegionInner, Program,
         ProgramState, RegionIdx, Storage,
     },
-    BlockInfo,
 };
 use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;

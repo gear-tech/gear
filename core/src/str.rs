@@ -98,7 +98,7 @@ impl From<String> for LimitedStr<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{distributions::Standard, Rng};
+    use rand::{Rng, distributions::Standard};
 
     fn assert_result(string: &'static str, max_bytes: usize, expectation: &'static str) {
         let mut string = string.into();
@@ -170,7 +170,7 @@ mod tests {
 
         // String for demonstration with mixed CJK and UTF-8 encoding.
         let mix = "你he好l吗lo"; // Chaotic sum of "hello" and "你好吗".
-                                 // Length in bytes.
+        // Length in bytes.
         assert_eq!(mix.len(), utf_8.len() + cjk.len());
         assert_eq!(mix.len(), 14);
         // Length in chars.

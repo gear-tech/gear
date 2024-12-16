@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{code_validator::CodeValidator, crate_info::CrateInfo, smart_fs};
-use anyhow::{anyhow, Context, Ok, Result};
+use anyhow::{Context, Ok, Result, anyhow};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, OptType, Optimizer};
 use gmeta::MetadataRepr;
@@ -459,7 +459,9 @@ extern "C" fn metahash() {{
                 .filter(|(target, _)| *target == PreProcessorTarget::Default)
                 .count();
             if default_targets > 1 {
-                return Err(anyhow!("Pre-processor \"{pre_processor_name}\" cannot have more than one default target."));
+                return Err(anyhow!(
+                    "Pre-processor \"{pre_processor_name}\" cannot have more than one default target."
+                ));
             }
 
             for (pre_processor_target, content) in pre_processor_output {

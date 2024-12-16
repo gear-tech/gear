@@ -1,6 +1,6 @@
 use crate::{
-    state::{ActiveProgram, Dispatch, Program, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
     TransitionController,
+    state::{ActiveProgram, Dispatch, MAILBOX_VALIDITY, Program, Storage, ValueWithExpiry},
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use anyhow::bail;
@@ -11,7 +11,7 @@ use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
     message::{Dispatch as CoreDispatch, MessageWaitedType, StoredDispatch},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
@@ -68,13 +68,11 @@ impl<S: Storage> Handler<'_, S> {
 
         self.update_state(dispatch.source(), |state, storage, transitions| {
             if let Ok(non_zero_delay) = delay.try_into() {
-                let expiry = transitions.schedule_task(
-                    non_zero_delay,
-                    ScheduledTask::SendUserMessage {
+                let expiry =
+                    transitions.schedule_task(non_zero_delay, ScheduledTask::SendUserMessage {
                         message_id: dispatch.id(),
                         to_mailbox: dispatch.source(),
-                    },
-                );
+                    });
 
                 let user_id = dispatch.destination();
                 let dispatch = Dispatch::from_stored(storage, dispatch);

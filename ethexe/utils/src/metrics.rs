@@ -19,8 +19,8 @@
 //! Metering primitives and globals
 
 use prometheus::{
-    core::{AtomicU64, GenericCounterVec, GenericGaugeVec},
     Error as PrometheusError, Opts, Registry,
+    core::{AtomicU64, GenericCounterVec, GenericGaugeVec},
 };
 use std::sync::LazyLock;
 

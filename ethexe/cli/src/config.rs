@@ -19,7 +19,7 @@
 //! Application config in one place.
 
 use crate::args::Args;
-use anyhow::{ensure, Context as _, Result};
+use anyhow::{Context as _, Result, ensure};
 use directories::ProjectDirs;
 use ethexe_network::NetworkEventLoopConfig;
 use ethexe_prometheus_endpoint::Registry;

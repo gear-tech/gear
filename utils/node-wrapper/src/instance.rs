@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Log;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::{net::SocketAddrV4, process::Child};
 
 /// The instance of the node

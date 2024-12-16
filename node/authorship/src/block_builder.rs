@@ -22,9 +22,8 @@ use sc_block_builder::{BlockBuilderApi, BuiltBlock};
 use sp_api::{ApiExt, ApiRef, CallApiAt, Core, ProvideRuntimeApi, TransactionOutcome};
 use sp_blockchain::{ApplyExtrinsicFailed, Error, HeaderBackend};
 use sp_runtime::{
-    legacy,
+    Digest, ExtrinsicInclusionMode, legacy,
     traits::{Block as BlockT, Hash, HashingFor, Header as HeaderT, NumberFor, One},
-    Digest, ExtrinsicInclusionMode,
 };
 use std::{marker::PhantomData, ops::DerefMut};
 

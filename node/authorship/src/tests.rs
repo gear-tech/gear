@@ -25,9 +25,9 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{
+    ProposerFactory,
     authorship::MAX_SKIPPED_TRANSACTIONS,
     block_builder::{BlockBuilder, BlockBuilderBuilder},
-    ProposerFactory,
 };
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
@@ -49,14 +49,14 @@ use sp_api::{ApiExt, Core, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::{BlockOrigin, Environment, Proposer};
 use sp_consensus_babe::{
+    BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
-    Slot, BABE_ENGINE_ID,
 };
 use sp_inherents::InherentDataProvider;
 use sp_runtime::{
+    Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
     generic::BlockId,
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
-    Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
 };
 use sp_state_machine::Backend;
 use sp_timestamp::Timestamp;
@@ -70,10 +70,10 @@ use testing::{
         Backend as TestBackend, Client as TestClient, ClientBlockImportExt, RuntimeExecutor,
         TestClientBuilder, TestClientBuilderExt,
     },
-    keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
+    keyring::{CheckedExtrinsic, alice, bob, sign, signed_extra},
 };
 use vara_runtime::{
-    AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
+    AccountId, Runtime, RuntimeApi as RA, RuntimeCall, SLOT_DURATION, UncheckedExtrinsic, VERSION,
 };
 
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
@@ -523,17 +523,19 @@ fn test_block_max_gas_works() {
 
     // Prepare block #1
     // Create an extrinsic that prefunds the bank account
-    let extrinsics = vec![sign(
-        CheckedExtrinsic {
-            signed: Some((alice(), signed_extra(0))),
-            function: CallBuilder::deposit_to_bank().build(),
-        },
-        VERSION.spec_version,
-        VERSION.transaction_version,
-        genesis_hash,
-        None,
-    )
-    .into()];
+    let extrinsics = vec![
+        sign(
+            CheckedExtrinsic {
+                signed: Some((alice(), signed_extra(0))),
+                function: CallBuilder::deposit_to_bank().build(),
+            },
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+            None,
+        )
+        .into(),
+    ];
     submit_and_maintain(client.clone(), txpool.clone(), extrinsics.clone());
 
     let current_block = client.info().best_number;

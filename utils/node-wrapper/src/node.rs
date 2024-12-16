@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear protocol node wrapper
-use crate::{utils, Log, NodeInstance};
+use crate::{Log, NodeInstance, utils};
 use anyhow::Result;
 use std::{
     env,

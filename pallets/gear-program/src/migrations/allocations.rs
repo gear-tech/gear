@@ -30,8 +30,8 @@ use sp_std::marker::PhantomData;
 use {
     frame_support::ensure,
     sp_runtime::{
-        codec::{Decode, Encode},
         TryRuntimeError,
+        codec::{Decode, Encode},
     },
     sp_std::vec::Vec,
 };
@@ -57,7 +57,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
             }
 
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
-            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+            log::info!(
+                "🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}."
+            );
 
             ProgramStorage::<T>::translate(|id, program: v9::Program<BlockNumberFor<T>>| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -90,7 +92,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
 
             log::info!("✅ Successfully migrates storage");
         } else {
-            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
+            log::info!(
+                "🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}"
+            );
         }
 
         weight
@@ -139,7 +143,7 @@ mod v9 {
     use gear_core::{
         ids::ProgramId,
         message::DispatchKind,
-        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+        pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
         program::{MemoryInfix, ProgramState},
         reservation::GasReservationMap,
     };
@@ -179,9 +183,9 @@ mod v9 {
     use {
         crate::{Config, Pallet},
         frame_support::{
+            Identity,
             storage::types::StorageMap,
             traits::{PalletInfo, StorageInstance},
-            Identity,
         },
         sp_std::marker::PhantomData,
     };
@@ -263,13 +267,10 @@ mod test {
             MigrateAllocations::<Test>::post_upgrade(state).unwrap();
 
             let allocations = AllocationsStorage::<Test>::get(active_program_id).unwrap();
-            assert_eq!(
-                allocations.to_vec(),
-                [
-                    WasmPage::from(1)..=WasmPage::from(5),
-                    WasmPage::from(101)..=WasmPage::from(102)
-                ]
-            );
+            assert_eq!(allocations.to_vec(), [
+                WasmPage::from(1)..=WasmPage::from(5),
+                WasmPage::from(101)..=WasmPage::from(102)
+            ]);
 
             let Some(Program::Active(program)) = ProgramStorage::<Test>::get(active_program_id)
             else {

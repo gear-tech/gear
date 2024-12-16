@@ -20,7 +20,7 @@
 
 use core::ops::Range;
 use gmeta::{In, InOut, Metadata, Out};
-use gstd::{prelude::*, ActorId};
+use gstd::{ActorId, prelude::*};
 
 pub struct FungibleTokenMetadata;
 

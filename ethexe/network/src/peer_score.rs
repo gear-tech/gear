@@ -19,7 +19,7 @@
 use crate::export::{Multiaddr, PeerId};
 use libp2p::{
     allow_block_list,
-    core::{transport::PortUse, Endpoint},
+    core::{Endpoint, transport::PortUse},
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
@@ -272,7 +272,7 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libp2p::{swarm::SwarmEvent, Swarm};
+    use libp2p::{Swarm, swarm::SwarmEvent};
     use libp2p_swarm_test::SwarmExt;
 
     async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {
@@ -300,37 +300,28 @@ mod tests {
         handle.excessive_data(chad_peer_id);
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::ScoreChanged {
-                peer_id: chad_peer_id,
-                reason: ScoreChangedReason::ExcessiveData,
-                score: u8::MAX - EXCESSIVE_DATA_ABS_DIFF,
-            }
-        );
+        assert_eq!(event, Event::ScoreChanged {
+            peer_id: chad_peer_id,
+            reason: ScoreChangedReason::ExcessiveData,
+            score: u8::MAX - EXCESSIVE_DATA_ABS_DIFF,
+        });
 
         handle.excessive_data(chad_peer_id);
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::ScoreChanged {
-                peer_id: chad_peer_id,
-                reason: ScoreChangedReason::ExcessiveData,
-                score: u8::MAX - 2 * EXCESSIVE_DATA_ABS_DIFF,
-            }
-        );
+        assert_eq!(event, Event::ScoreChanged {
+            peer_id: chad_peer_id,
+            reason: ScoreChangedReason::ExcessiveData,
+            score: u8::MAX - 2 * EXCESSIVE_DATA_ABS_DIFF,
+        });
 
         handle.excessive_data(chad_peer_id);
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::PeerBlocked {
-                peer_id: chad_peer_id,
-                last_reason: ScoreChangedReason::ExcessiveData
-            }
-        );
+        assert_eq!(event, Event::PeerBlocked {
+            peer_id: chad_peer_id,
+            last_reason: ScoreChangedReason::ExcessiveData
+        });
 
         let event = chad.next_swarm_event().await;
         assert!(

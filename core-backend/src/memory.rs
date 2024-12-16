@@ -19,13 +19,13 @@
 //! sp-sandbox extensions for memory.
 
 use crate::{
+    BackendExternalities,
     error::{
         BackendSyscallError, RunFallibleError, TrapExplanation, UndefinedTerminationReason,
         UnrecoverableMemoryError,
     },
     runtime::CallerWrap,
     state::HostState,
-    BackendExternalities,
 };
 use alloc::{format, vec::Vec};
 use codec::{Decode, DecodeAll, MaxEncodedLen};
@@ -348,7 +348,9 @@ where
             let err_msg = format!(
                 "MemoryAccessIo::write: Backend bug error, buffer size is not equal to registered buffer size. \
                 write.ptr - {}, write.size - {}, buff.len - {}",
-                write.ptr, write.size, buff.len()
+                write.ptr,
+                write.size,
+                buff.len()
             );
 
             log::error!("{err_msg}");
@@ -437,7 +439,7 @@ mod tests {
     };
     use codec::Encode;
     use gear_core::pages::WasmPage;
-    use gear_sandbox::{default_executor::Store, SandboxStore};
+    use gear_sandbox::{SandboxStore, default_executor::Store};
 
     type MemoryAccessRegistry =
         crate::memory::MemoryAccessRegistry<Store<HostState<MockExt, MockMemory>>>;
@@ -644,13 +646,10 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let _read = registry.register_read_decoded::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_decoded::<u64>(
-            &mut caller_wrap,
-            WasmMemoryReadDecoded {
-                ptr: u32::MAX,
-                _phantom: PhantomData,
-            },
-        )
+        io.read_decoded::<u64>(&mut caller_wrap, WasmMemoryReadDecoded {
+            ptr: u32::MAX,
+            _phantom: PhantomData,
+        })
         .unwrap_err();
     }
 
@@ -680,13 +679,10 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let _read = registry.register_read_as::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_as::<u128>(
-            &mut caller_wrap,
-            WasmMemoryReadAs {
-                ptr: u32::MAX,
-                _phantom: PhantomData,
-            },
-        )
+        io.read_as::<u128>(&mut caller_wrap, WasmMemoryReadAs {
+            ptr: u32::MAX,
+            _phantom: PhantomData,
+        })
         .unwrap_err();
     }
 

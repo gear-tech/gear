@@ -24,7 +24,7 @@ use core_processor::common::ExecutableActorData;
 use gear_common::{CodeId, GearPage, MessageId, PageBuf, ProgramId};
 use gear_core::{
     code::InstrumentedCode,
-    pages::{numerated::tree::IntervalsTree, WasmPage},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
     reservation::GasReservationMap,
 };
 

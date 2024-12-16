@@ -16,19 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use gear_wasm_gen::SyscallName;
-use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{GLOBAL_NAME_GAS, parity_wasm::elements::Module};
 use wasmer::{
     Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
     Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,
 };
 
 use crate::{
-    globals::{get_globals, globals_list, InstanceAccessGlobal},
+    INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS, RunResult, Runner,
+    globals::{InstanceAccessGlobal, get_globals, globals_list},
     lazy_pages::{self, FuzzerLazyPagesContext},
-    RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
 
 #[derive(Clone)]

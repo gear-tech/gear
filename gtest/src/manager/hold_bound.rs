@@ -21,7 +21,7 @@
 
 use super::ExtManager;
 use crate::RESERVE_FOR;
-use gear_common::{auxiliary::BlockNumber, scheduler::StorageType, LockId, MessageId};
+use gear_common::{LockId, MessageId, auxiliary::BlockNumber, scheduler::StorageType};
 use std::cmp::Ordering;
 
 /// Hold bound, specifying cost of storage, expected block number for task to

@@ -30,11 +30,11 @@
 //! executions.
 
 use crate::{
+    EntryPointName, InvocableSyscall, SyscallsConfig, WasmModule,
     generator::{
         CallIndexes, CallIndexesHandle, DisabledSyscallsImportsGenerator, ModuleWithCallIndexes,
         SyscallsImportsGenerationProof,
     },
-    EntryPointName, InvocableSyscall, SyscallsConfig, WasmModule,
 };
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
@@ -168,14 +168,11 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
                 .expect("index of existing export")
                 .code_mut()
                 .elements_mut()
-                .splice(
-                    0..0,
-                    [
-                        Instruction::I32Const(log_info_offset as i32),
-                        Instruction::I32Const(log_bytes_len as i32),
-                        Instruction::Call(debug_call_indexes_handle),
-                    ],
-                );
+                .splice(0..0, [
+                    Instruction::I32Const(log_info_offset as i32),
+                    Instruction::I32Const(log_bytes_len as i32),
+                    Instruction::Call(debug_call_indexes_handle),
+                ]);
 
             (module, ())
         });

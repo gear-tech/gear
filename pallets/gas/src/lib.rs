@@ -128,8 +128,8 @@
 #![allow(clippy::manual_inspect)]
 
 use common::{
-    storage::{MapStorage, ValueStorage},
     BlockLimiter, GasProvider,
+    storage::{MapStorage, ValueStorage},
 };
 use frame_support::{pallet_prelude::*, traits::StorageVersion};
 pub use pallet::*;

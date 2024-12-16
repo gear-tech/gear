@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::Future;
 use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};

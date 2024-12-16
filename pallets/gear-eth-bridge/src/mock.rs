@@ -26,11 +26,10 @@ use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
-use sp_core::{ed25519::Public, H256};
+use sp_core::{H256, ed25519::Public};
 use sp_runtime::{
-    impl_opaque_keys,
+    BuildStorage, Perbill, impl_opaque_keys,
     traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage, Perbill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -119,7 +118,9 @@ mod grandpa_keys_handler {
             let validators: Vec<_> = validators.collect();
             let queued_validators: Vec<_> = queued_validators.collect();
 
-            log::debug!("on_new_session(changed={changed}, validators={validators:?}, queued_validators={queued_validators:?})");
+            log::debug!(
+                "on_new_session(changed={changed}, validators={validators:?}, queued_validators={queued_validators:?})"
+            );
 
             Grandpa::on_new_session(
                 changed,

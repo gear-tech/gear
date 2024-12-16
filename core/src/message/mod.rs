@@ -46,8 +46,8 @@ use alloc::{collections::BTreeSet, string::String, vec::Vec};
 use core::fmt::Display;
 use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Max payload size which one message can have (8 MiB).

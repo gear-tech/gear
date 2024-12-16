@@ -219,11 +219,11 @@ pub use gmeta_codegen::metawasm;
 pub use scale_info::{MetaType, PortableRegistry, Registry};
 
 use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
-use blake2::{digest::typenum::U32, Blake2b, Digest};
+use blake2::{Blake2b, Digest, digest::typenum::U32};
 use core::any::TypeId;
 use scale_info::{
-    scale::{self, Decode, Encode},
     TypeInfo,
+    scale::{self, Decode, Encode},
 };
 
 /// BLAKE2b-256 hasher state.

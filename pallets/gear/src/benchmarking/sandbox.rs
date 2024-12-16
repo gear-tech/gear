@@ -20,14 +20,14 @@
 /// ! sandbox to execute the wasm code. This is because we do not need the full
 /// ! environment that provides the seal interface as imported functions.
 use super::{
-    code::{ModuleDefinition, WasmModule},
     Config,
+    code::{ModuleDefinition, WasmModule},
 };
 
 use common::Origin;
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Instance, Memory, Store},
     SandboxEnvironmentBuilder, SandboxInstance, SandboxStore,
+    default_executor::{EnvironmentDefinitionBuilder, Instance, Memory, Store},
 };
 
 /// Minimal execution environment without any exported functions.

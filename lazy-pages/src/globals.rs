@@ -117,15 +117,14 @@ pub(crate) unsafe fn apply_for_global(
 ) -> Result<u64, Error> {
     match globals_ctx.access_mod {
         GlobalsAccessMod::WasmRuntime => {
-            let instance = unsafe { (globals_ctx.access_ptr as *mut SandboxInstance)
-                .as_mut() }
+            let instance = unsafe { (globals_ctx.access_ptr as *mut SandboxInstance).as_mut() }
                 .ok_or(Error::HostInstancePointerIsInvalid)?;
             apply_for_global_internal(GlobalsAccessWasmRuntime { instance }, global_name, f)
         }
         GlobalsAccessMod::NativeRuntime => {
-            let inner_access_provider = unsafe { (globals_ctx.access_ptr as *mut &mut dyn GlobalsAccessor)
-                .as_mut() }
-                .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
+            let inner_access_provider =
+                unsafe { (globals_ctx.access_ptr as *mut &mut dyn GlobalsAccessor).as_mut() }
+                    .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
             apply_for_global_internal(
                 GlobalsAccessNativeRuntime {
                     inner_access_provider,

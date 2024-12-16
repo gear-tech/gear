@@ -23,7 +23,7 @@ use alloy::{
     providers::{Provider, ProviderBuilder},
     rpc::types::{beacon::sidecar::BeaconBlobBundle, eth::BlockTransactionsKind},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use gprimitives::H256;
 use reqwest::Client;

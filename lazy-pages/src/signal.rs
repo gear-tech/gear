@@ -19,11 +19,11 @@
 //! Lazy-pages system signals accesses support.
 
 use crate::{
+    LAZY_PAGES_CONTEXT,
     common::{CostNo, Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext},
     globals::{self, GlobalNo},
     pages::GearPage,
     process::{self, AccessHandler},
-    LAZY_PAGES_CONTEXT,
 };
 use gear_lazy_pages_common::Status;
 use std::convert::TryFrom;
@@ -83,11 +83,13 @@ unsafe fn user_signal_handler_internal(
             load_data_cost: exec_ctx.cost(CostNo::LoadPageDataFromStorage),
         };
 
-        let gas_counter = unsafe { globals::apply_for_global(
-            globals_config,
-            globals_config.names[GlobalNo::Gas as usize].as_str(),
-            |_| Ok(None),
-        ) }?;
+        let gas_counter = unsafe {
+            globals::apply_for_global(
+                globals_config,
+                globals_config.names[GlobalNo::Gas as usize].as_str(),
+                |_| Ok(None),
+            )
+        }?;
 
         Some((gas_counter, gas_charger))
     } else {

@@ -18,9 +18,8 @@
 
 //! Integration tests for command `program`
 use crate::common::{
-    self, env,
+    self, Args, Result, env,
     node::{Convert, NodeExec},
-    Args, Result,
 };
 use demo_new_meta::{MessageInitIn, Wallet};
 use scale_info::scale::Encode;

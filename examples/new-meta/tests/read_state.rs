@@ -1,8 +1,8 @@
 use demo_new_meta::{
-    MessageInitIn, Person, Wallet, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2,
+    META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2, MessageInitIn, Person, Wallet,
 };
 use gstd::Encode;
-use gtest::{constants::DEFAULT_USER_ALICE, state_args, state_args_encoded, Program, System};
+use gtest::{Program, System, constants::DEFAULT_USER_ALICE, state_args, state_args_encoded};
 
 #[test]
 fn read_state_bytes_returns_full_state() {
@@ -184,13 +184,10 @@ fn read_state_with_two_args_wasm_func_returns_transformed_state() {
 
 fn initialize_current_program(system: &System) -> Program {
     let program = Program::current(system);
-    program.send(
-        DEFAULT_USER_ALICE,
-        MessageInitIn {
-            amount: 123,
-            currency: "USD".into(),
-        },
-    );
+    program.send(DEFAULT_USER_ALICE, MessageInitIn {
+        amount: 123,
+        currency: "USD".into(),
+    });
     system.run_next_block();
     program
 }

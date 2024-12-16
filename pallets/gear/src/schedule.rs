@@ -19,7 +19,7 @@
 //! This module contains the cost schedule and supporting code that constructs a
 //! sane default schedule from a `WeightInfo` implementation.
 
-use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
+use crate::{Config, CostsPerBlockOf, DbWeightOf, weights::WeightInfo};
 use common::scheduler::SchedulingCostsPerBlock;
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
@@ -37,8 +37,8 @@ use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_runtime::{
-    codec::{Decode, Encode},
     RuntimeDebug,
+    codec::{Decode, Encode},
 };
 use sp_std::{marker::PhantomData, vec::Vec};
 

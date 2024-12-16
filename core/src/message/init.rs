@@ -17,15 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{prelude::*, CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, prelude::*},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, Salt, StoredDispatch,
         StoredMessage, Value,
     },
 };
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Message for Init entry point.

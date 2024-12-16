@@ -16,16 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use apis::{BlockApi, BlockServer, ProgramApi, ProgramServer};
 use ethexe_db::Database;
 use futures::FutureExt;
 use jsonrpsee::{
-    server::{
-        serve_with_graceful_shutdown, stop_channel, Server, ServerHandle, StopHandle,
-        TowerServiceBuilder,
-    },
     Methods, RpcModule as JsonrpcModule,
+    server::{
+        Server, ServerHandle, StopHandle, TowerServiceBuilder, serve_with_graceful_shutdown,
+        stop_channel,
+    },
 };
 use std::net::SocketAddr;
 use tokio::net::TcpListener;

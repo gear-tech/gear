@@ -37,7 +37,7 @@ use gear_core::{
 use gear_lazy_pages_common::{
     GlobalsAccessConfig, LazyPagesInitContext, ProcessAccessError, Status,
 };
-use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
+use gear_runtime_interface::{LazyPagesProgramContext, gear_ri};
 use sp_std::vec::Vec;
 
 pub struct LazyPagesRuntimeInterface;

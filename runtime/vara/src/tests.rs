@@ -24,8 +24,8 @@ use gear_core::costs::LazyPagesCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use pallet_staking::WeightInfo as _;
 use runtime_common::weights::{
-    check_instructions_weights, check_lazy_pages_costs, check_pages_costs, check_syscall_weights,
-    PagesCosts,
+    PagesCosts, check_instructions_weights, check_lazy_pages_costs, check_pages_costs,
+    check_syscall_weights,
 };
 use sp_runtime::AccountId32;
 

@@ -19,15 +19,15 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
-        IncomingMessage, Payload, ReplyDetails, Value,
+        ContextStore, DispatchKind, GasLimit, IncomingDispatch, IncomingMessage, Payload,
+        ReplyDetails, Value, common::MessageDetails,
     },
 };
 use core::ops::Deref;
 use gear_core_errors::ReplyCode;
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Stored message.

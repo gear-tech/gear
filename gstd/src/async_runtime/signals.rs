@@ -19,7 +19,7 @@
 //! Module for signal-management and waking concrete message based on reply
 //! received.
 
-use crate::{prelude::Vec, MessageId};
+use crate::{MessageId, prelude::Vec};
 use core::task::{Context, Waker};
 use gear_core_errors::ReplyCode;
 use hashbrown::HashMap;
@@ -53,14 +53,11 @@ impl WakeSignals {
     pub fn register_signal(&mut self, waiting_reply_to: MessageId) {
         let message_id = crate::msg::id();
 
-        self.signals.insert(
-            waiting_reply_to,
-            WakeSignal {
-                message_id,
-                payload: None,
-                waker: None,
-            },
-        );
+        self.signals.insert(waiting_reply_to, WakeSignal {
+            message_id,
+            payload: None,
+            waker: None,
+        });
 
         crate::async_runtime::locks().lock(message_id, waiting_reply_to, Default::default());
     }
@@ -81,7 +78,9 @@ impl WakeSignals {
 
             crate::exec::wake(signal.message_id).expect("Failed to wake the message")
         } else {
-            crate::debug!("A message has received a reply though it wasn't to receive one, or a processed message has received a reply");
+            crate::debug!(
+                "A message has received a reply though it wasn't to receive one, or a processed message has received a reply"
+            );
         }
     }
 

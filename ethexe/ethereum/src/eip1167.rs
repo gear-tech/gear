@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::primitives::{hex, Address, FixedBytes};
+use alloy::primitives::{Address, FixedBytes, hex};
 
 const INITIALIZATION_CODE: FixedBytes<10> = FixedBytes::new(hex!("3d602d80600a3d3981f3"));
 const RUNTIME_CODE_1: FixedBytes<10> = FixedBytes::new(hex!("363d3d373d3d3d363d73"));

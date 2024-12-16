@@ -290,13 +290,10 @@ where
             HVS::put(key.clone());
 
             Callbacks::OnPushFront::call(&value);
-            MS::insert(
-                key,
-                LinkedNode {
-                    next: Some(head_key),
-                    value,
-                },
-            );
+            MS::insert(key, LinkedNode {
+                next: Some(head_key),
+                value,
+            });
 
             Ok(())
         } else if TVS::exists() {

@@ -29,8 +29,8 @@ use frame_support::{
     parameter_types,
     traits::{Currency, Imbalance, OnUnbalanced},
     weights::{
-        constants::{BlockExecutionWeight, ExtrinsicBaseWeight},
         Weight,
+        constants::{BlockExecutionWeight, ExtrinsicBaseWeight},
     },
 };
 use frame_system::limits::BlockWeights;

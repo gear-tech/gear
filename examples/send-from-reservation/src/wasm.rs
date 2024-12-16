@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::HandleAction;
-use gstd::{msg, prelude::*, ReservationId};
+use gstd::{ReservationId, msg, prelude::*};
 
 #[derive(Debug, Encode, Decode)]
 pub struct Receive([u8; 32]);

@@ -27,7 +27,7 @@ use gear_core::{
     code::InstrumentedCode,
     ids::{ActorId, CodeId, ProgramId},
 };
-use gprimitives::{MessageId, H256};
+use gprimitives::{H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)

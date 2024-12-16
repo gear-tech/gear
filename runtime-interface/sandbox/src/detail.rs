@@ -21,9 +21,8 @@ use core::{cell::RefCell, sync::atomic::Ordering};
 use codec::{Decode, Encode};
 use gear_sandbox_host::sandbox::{self as sandbox_env, env::Instantiate};
 use sp_wasm_interface::{
-    util,
+    Caller, FunctionContext, HostPointer, Pointer, StoreData, Value, WordSize, util,
     wasmtime::{AsContext, AsContextMut, Func, Val},
-    Caller, FunctionContext, HostPointer, Pointer, StoreData, Value, WordSize,
 };
 
 struct Sandboxes {

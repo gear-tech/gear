@@ -16,16 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IMirror, AlloyProvider, AlloyTransport, TryGetReceipt};
+use crate::{AlloyProvider, AlloyTransport, TryGetReceipt, abi::IMirror};
 use alloy::{
     primitives::Address,
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::BoxTransport,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_signer::Address as LocalAddress;
 use events::signatures;
-use gprimitives::{MessageId, H256};
+use gprimitives::{H256, MessageId};
 use std::sync::Arc;
 
 pub mod events;

@@ -18,6 +18,7 @@
 
 //! Storage interfaces
 use crate::{
+    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages,
     metadata::{
         runtime_types::{
             frame_system::pallet::Call,
@@ -30,9 +31,8 @@ use crate::{
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
         vara_runtime::RuntimeCall,
     },
-    signer::{utils::EventsResult, Inner},
+    signer::{Inner, utils::EventsResult},
     utils::storage_address_bytes,
-    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages,
 };
 use gear_core::{
     ids::*,
@@ -119,19 +119,17 @@ impl SignerStorage {
 impl SignerStorage {
     /// Writes `InstrumentedCode` length into storage at `CodeId`
     pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> EventsResult {
-        let addr = Api::storage(
-            GearProgramStorage::CodeLenStorage,
-            vec![Value::from_bytes(code_id)],
-        );
+        let addr = Api::storage(GearProgramStorage::CodeLenStorage, vec![Value::from_bytes(
+            code_id,
+        )]);
         self.set_storage(&[(addr, code_len)]).await
     }
 
     /// Writes `InstrumentedCode` into storage at `CodeId`
     pub async fn set_code_storage(&self, code_id: CodeId, code: &InstrumentedCode) -> EventsResult {
-        let addr = Api::storage(
-            GearProgramStorage::CodeStorage,
-            vec![Value::from_bytes(code_id)],
-        );
+        let addr = Api::storage(GearProgramStorage::CodeStorage, vec![Value::from_bytes(
+            code_id,
+        )]);
         self.set_storage(&[(addr, code)]).await
     }
 
@@ -144,14 +142,11 @@ impl SignerStorage {
     ) -> EventsResult {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for program_page in program_pages {
-            let addr = Api::storage(
-                GearProgramStorage::MemoryPages,
-                vec![
-                    subxt::dynamic::Value::from_bytes(program_id),
-                    subxt::dynamic::Value::u128(memory_infix as u128),
-                    subxt::dynamic::Value::u128(*program_page.0 as u128),
-                ],
-            );
+            let addr = Api::storage(GearProgramStorage::MemoryPages, vec![
+                subxt::dynamic::Value::from_bytes(program_id),
+                subxt::dynamic::Value::u128(memory_infix as u128),
+                subxt::dynamic::Value::u128(*program_page.0 as u128),
+            ]);
             let page_buf_inner = PageBufInner::try_from(program_page.1.clone())
                 .map_err(|_| Error::PageInvalid(*program_page.0, program_id.encode_hex()))?;
             let value = PageBuf::from_inner(page_buf_inner);
@@ -166,10 +161,9 @@ impl SignerStorage {
         program_id: ProgramId,
         program: ActiveProgram<BlockNumber>,
     ) -> EventsResult {
-        let addr = Api::storage(
-            GearProgramStorage::ProgramStorage,
-            vec![Value::from_bytes(program_id)],
-        );
+        let addr = Api::storage(GearProgramStorage::ProgramStorage, vec![Value::from_bytes(
+            program_id,
+        )]);
         self.set_storage(&[(addr, &Program::Active(program))]).await
     }
 }

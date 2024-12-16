@@ -17,18 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    default_users_list,
+    MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
     error::usage_panic,
     manager::ExtManager,
     state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
     system::System,
-    Result, Value, MAX_USER_GAS_LIMIT,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     gas_metering::Schedule,
-    ids::{prelude::*, CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, prelude::*},
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
@@ -797,8 +796,8 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
 /// `cargo-gbuild` utils
 pub mod gbuild {
     use crate::{
-        error::{usage_panic, TestError as Error},
         Result,
+        error::{TestError as Error, usage_panic},
     };
     use cargo_toml::Manifest;
     use std::{path::PathBuf, process::Command};
@@ -867,7 +866,7 @@ pub mod gbuild {
 #[cfg(test)]
 mod tests {
     use super::Program;
-    use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
+    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value};
     use demo_constructor::{Arg, Scheme};
     use gear_core::ids::ActorId;
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
@@ -1059,10 +1058,11 @@ mod tests {
             core_log.id()
         };
 
-        assert!(sys
-            .get_mailbox(receiver)
-            .claim_value(Log::builder().reply_to(reply_to_id))
-            .is_ok());
+        assert!(
+            sys.get_mailbox(receiver)
+                .claim_value(Log::builder().reply_to(reply_to_id))
+                .is_ok()
+        );
         assert_eq!(
             sys.balance_of(receiver),
             (2 + 4 + 6) * EXISTENTIAL_DEPOSIT + receiver_expected_balance
@@ -1123,9 +1123,11 @@ mod tests {
         receiver_expected_balance -= sys.run_next_block().spent_value();
 
         let receiver_mailbox = sys.get_mailbox(receiver);
-        assert!(receiver_mailbox
-            .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
-            .is_ok());
+        assert!(
+            receiver_mailbox
+                .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
+                .is_ok()
+        );
         assert_eq!(sys.balance_of(receiver), receiver_expected_balance);
 
         // Get the value > ED to the receiver's mailbox
@@ -1135,9 +1137,11 @@ mod tests {
         receiver_expected_balance -= sys.run_next_block().spent_value();
 
         // Check receiver's balance
-        assert!(receiver_mailbox
-            .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
-            .is_ok());
+        assert!(
+            receiver_mailbox
+                .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
+                .is_ok()
+        );
         assert_eq!(
             sys.balance_of(receiver),
             2 * EXISTENTIAL_DEPOSIT + receiver_expected_balance
@@ -1271,7 +1275,7 @@ mod tests {
 
     #[test]
     fn test_handle_exit_with_zero_balance() {
-        use demo_constructor::{demo_exit_handle, WASM_BINARY};
+        use demo_constructor::{WASM_BINARY, demo_exit_handle};
 
         let sys = System::new();
         sys.init_logger();

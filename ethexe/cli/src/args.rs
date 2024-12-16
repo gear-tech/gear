@@ -297,7 +297,9 @@ impl ExtraCommands {
                     bail!("please provide signer address");
                 };
 
-                println!("Creating program on Ethereum from code id {code_id} and address {sender_address}...",);
+                println!(
+                    "Creating program on Ethereum from code id {code_id} and address {sender_address}...",
+                );
 
                 let router = ethexe_ethereum.router();
 

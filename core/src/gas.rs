@@ -21,8 +21,8 @@
 use crate::{costs::CostToken, reservation::UnreservedReimbursement};
 use enum_iterator::Sequence;
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// The id of the gas lock.

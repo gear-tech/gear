@@ -20,7 +20,7 @@
 
 use alloc::vec::Vec;
 use gear_core::message::{ReplyDetails, StoredMessage};
-use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
+use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 
 // TODO: support query from router.

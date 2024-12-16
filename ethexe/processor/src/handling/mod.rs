@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Processor;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::{
-    state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,
+    InBlockTransitions, ScheduleHandler, TransitionController, state::ProgramState,
 };
 use gprimitives::{ActorId, CodeId, H256};
 

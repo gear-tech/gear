@@ -27,9 +27,9 @@ use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::BlockStatus;
 use sp_core::H256;
 use sp_runtime::{
+    Justifications, OpaqueExtrinsic,
     generic::SignedBlock,
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
-    Justifications, OpaqueExtrinsic,
 };
 use sp_state_machine::Backend as StateBackend;
 use sp_storage::{ChildInfo, StorageData, StorageKey};

@@ -161,14 +161,16 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
         }
 
         // Alloc memory for new signal stack.
-        let ptr = unsafe { libc::mmap(
-            ptr::null_mut(),
-            SIGNAL_STACK_SIZE,
-            libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_PRIVATE | libc::MAP_ANON,
-            -1,
-            0,
-        ) };
+        let ptr = unsafe {
+            libc::mmap(
+                ptr::null_mut(),
+                SIGNAL_STACK_SIZE,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_PRIVATE | libc::MAP_ANON,
+                -1,
+                0,
+            )
+        };
         if ptr == libc::MAP_FAILED {
             return Err(ThreadInitError::Mmap(errno::errno()));
         }
@@ -232,7 +234,8 @@ where
         signal::SIGSEGV
     };
 
-    let old_sigaction = unsafe { signal::sigaction(signal, &sig_action) }.map_err(io::Error::from)?;
+    let old_sigaction =
+        unsafe { signal::sigaction(signal, &sig_action) }.map_err(io::Error::from)?;
     let handler = old_sigaction.handler();
     let _ = OLD_SIG_HANDLER
         .set(handler)

@@ -17,18 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    Log, MAX_USER_GAS_LIMIT, Value,
     error::usage_panic,
     manager::ExtManager,
     state::{accounts::Accounts, actors::Actors},
-    Log, Value, MAX_USER_GAS_LIMIT,
 };
 use codec::Encode;
 use gear_common::{
-    auxiliary::{mailbox::*, BlockNumber},
+    auxiliary::{BlockNumber, mailbox::*},
     storage::Interval,
 };
 use gear_core::{
-    ids::{prelude::MessageIdExt as _, MessageId, ProgramId},
+    ids::{MessageId, ProgramId, prelude::MessageIdExt as _},
     message::{ReplyMessage, ReplyPacket},
 };
 use std::cell::RefCell;
@@ -167,14 +167,16 @@ impl<'a> ActorMailbox<'a> {
             .find_map(|(msg, _)| log.eq(&msg).then_some(msg))
     }
 
-    fn get_user_mailbox(&self) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> + use<> {
+    fn get_user_mailbox(
+        &self,
+    ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> + use<> {
         self.manager.borrow().mailbox.iter_key(self.user_id)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
+    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER, Log, Program, System};
     use codec::Encode;
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     use gear_core::{gas_metering::RentWeights, ids::ProgramId};

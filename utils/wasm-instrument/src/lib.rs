@@ -23,13 +23,13 @@ extern crate alloc;
 
 use alloc::vec;
 use gwasm_instrument::{
+    InjectionConfig,
     parity_wasm::{
         builder,
         elements::{
             self, BlockType, ImportCountType, Instruction, Instructions, Local, Module, ValueType,
         },
     },
-    InjectionConfig,
 };
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
@@ -98,9 +98,7 @@ pub enum InstrumentationError {
     #[display(fmt = "The WASM module already has `gear_gas` global")]
     GasGlobalAlreadyExists,
     /// Error occurred during calculating the cost of the `gas_charge` function.
-    #[display(
-        fmt = "An overflow occurred while calculating the cost of the `gas_charge` function"
-    )]
+    #[display(fmt = "An overflow occurred while calculating the cost of the `gas_charge` function")]
     CostCalculationOverflow,
     /// Error occurred while trying to get the instruction cost.
     #[display(fmt = "Failed to get instruction cost")]

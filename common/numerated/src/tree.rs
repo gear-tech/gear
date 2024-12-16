@@ -27,8 +27,8 @@ use alloc::{collections::BTreeMap, fmt, fmt::Debug, vec::Vec};
 use core::{fmt::Formatter, ops::RangeInclusive};
 use num_traits::{CheckedAdd, Zero};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// # Non overlapping intervals tree

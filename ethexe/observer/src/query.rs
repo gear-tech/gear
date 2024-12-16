@@ -1,10 +1,9 @@
 use crate::{
-    observer::{
-        read_block_events, read_block_request_events, read_block_request_events_batch,
-        read_code_from_tx_hash, read_committed_blocks_batch, ObserverProvider,
-        MAX_QUERY_BLOCK_RANGE,
-    },
     BlobReader,
+    observer::{
+        MAX_QUERY_BLOCK_RANGE, ObserverProvider, read_block_events, read_block_request_events,
+        read_block_request_events_batch, read_code_from_tx_hash, read_committed_blocks_batch,
+    },
 };
 use alloy::{
     network::{Ethereum, Network},
@@ -12,7 +11,7 @@ use alloy::{
     providers::{Provider, ProviderBuilder},
     rpc::{client::BatchRequest, types::eth::BlockTransactionsKind},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
     events::{BlockEvent, BlockRequestEvent, RouterEvent},

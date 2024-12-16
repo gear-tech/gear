@@ -19,16 +19,16 @@
 //! Memory import generator module.
 
 use crate::{
-    generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
     MemoryPagesConfig, WasmModule,
+    generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
 };
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::{
+    STACK_END_EXPORT_NAME,
     parity_wasm::{
         builder,
         elements::{Instruction, Section},
     },
-    STACK_END_EXPORT_NAME,
 };
 
 /// Memory import generator.

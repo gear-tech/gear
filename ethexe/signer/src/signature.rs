@@ -22,8 +22,8 @@ use crate::{Digest, PrivateKey, PublicKey};
 use anyhow::{Context, Result};
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::{
-    ecdsa::{RecoverableSignature, RecoveryId},
     Message,
+    ecdsa::{RecoverableSignature, RecoveryId},
 };
 use std::fmt;
 

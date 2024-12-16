@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{prelude::*, MessageId, ProgramId, ReservationId},
+    ids::{MessageId, ProgramId, ReservationId, prelude::*},
     message::{
         Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
         ReplyMessage, ReplyPacket,
@@ -30,8 +30,8 @@ use alloc::{
 };
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 use super::{DispatchKind, IncomingDispatch, Packet};
@@ -709,10 +709,9 @@ mod tests {
         ));
 
         let messages = message_context.drain().0.drain().outgoing_dispatches;
-        assert_eq!(
-            messages[0].0.payload_bytes(),
-            [1, 2, 3, 4, 5, 1, 2, 3, 4, 5]
-        );
+        assert_eq!(messages[0].0.payload_bytes(), [
+            1, 2, 3, 4, 5, 1, 2, 3, 4, 5
+        ]);
     }
 
     #[test]
@@ -779,32 +778,23 @@ mod tests {
         let handle = message_context.send_init().unwrap();
 
         // push 5 bytes
-        assert_ok!(message_context.send_push_input(
-            handle,
-            CheckedRange {
-                offset: 0,
-                excluded_end: 5,
-            }
-        ));
+        assert_ok!(message_context.send_push_input(handle, CheckedRange {
+            offset: 0,
+            excluded_end: 5,
+        }));
 
         // push 5 bytes
-        assert_ok!(message_context.send_push_input(
-            handle,
-            CheckedRange {
-                offset: 0,
-                excluded_end: 5,
-            }
-        ));
+        assert_ok!(message_context.send_push_input(handle, CheckedRange {
+            offset: 0,
+            excluded_end: 5,
+        }));
 
         // push 1 byte should get error.
         assert_err!(
-            message_context.send_push_input(
-                handle,
-                CheckedRange {
-                    offset: 0,
-                    excluded_end: 1,
-                }
-            ),
+            message_context.send_push_input(handle, CheckedRange {
+                offset: 0,
+                excluded_end: 1,
+            }),
             Error::OutgoingMessagesBytesLimitExceeded,
         );
     }
@@ -998,12 +988,14 @@ mod tests {
         );
 
         // And checking that it is not formed
-        assert!(context
-            .outgoing_payloads
-            .handles
-            .get(&expected_handle)
-            .expect("This key should be")
-            .is_some());
+        assert!(
+            context
+                .outgoing_payloads
+                .handles
+                .get(&expected_handle)
+                .expect("This key should be")
+                .is_some()
+        );
 
         // Checking that we are able to push payload for the
         // message that we have not committed yet

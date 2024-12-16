@@ -18,8 +18,8 @@
 
 use crate::*;
 use common::{
-    storage::{Counter, CounterImpl, Mailbox},
     Origin,
+    storage::{Counter, CounterImpl, Mailbox},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::ids;

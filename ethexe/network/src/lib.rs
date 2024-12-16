@@ -22,25 +22,25 @@ pub mod peer_score;
 mod utils;
 
 pub mod export {
-    pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
+    pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
 use futures::future::Either;
 use libp2p::{
-    connection_limits,
+    Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, upgrade},
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
-        dial_opts::{DialOpts, PeerCondition},
         Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
+        dial_opts::{DialOpts, PeerCondition},
     },
-    yamux, Multiaddr, PeerId, Swarm, Transport,
+    yamux,
 };
 use std::{
     collections::HashSet,
@@ -604,7 +604,7 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
-    use tokio::time::{timeout, Duration};
+    use tokio::time::{Duration, timeout};
 
     #[tokio::test]
     async fn test_memory_transport() {

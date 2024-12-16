@@ -27,8 +27,8 @@
 //! message that consists at least from a payload and value.
 
 use crate::{
-    errors::{Error, Result, SyscallError},
     ActorId, CodeId, MessageId,
+    errors::{Error, Result, SyscallError},
 };
 use gsys::{ErrorWithTwoHashes, HashWithValue};
 
@@ -51,7 +51,7 @@ use gsys::{ErrorWithTwoHashes, HashWithValue};
 /// Basically we can use "automatic" salt generation ("nonce"):
 ///
 /// ```
-/// use gcore::{prog, CodeId};
+/// use gcore::{CodeId, prog};
 ///
 /// static mut NONCE: i32 = 0;
 ///

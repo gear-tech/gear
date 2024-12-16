@@ -32,7 +32,7 @@ use super::*;
 use crate::{BlockGasLimitOf, CurrencyOf, Event, String, WaitlistOf};
 use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
-use gear_core::ids::{prelude::*, CodeId, ReservationId};
+use gear_core::ids::{CodeId, ReservationId, prelude::*};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SyscallName;
 use pallet_timestamp::Pallet as TimestampPallet;

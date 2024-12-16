@@ -18,10 +18,10 @@
 
 //! Command `program`.
 //!
-use crate::{meta::Meta, result::Result, App};
+use crate::{App, meta::Meta, result::Result};
 use anyhow::anyhow;
 use clap::Parser;
-use gclient::{ext::sp_core::H256, GearApi};
+use gclient::{GearApi, ext::sp_core::H256};
 use std::{fs, path::PathBuf};
 
 /// Read program state, etc.

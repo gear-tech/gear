@@ -23,7 +23,7 @@ use core::{
     ptr,
     task::{Context, RawWaker, RawWakerVTable, Waker},
 };
-use gstd::{msg, prelude::*, sync::RwLock, ActorId};
+use gstd::{ActorId, msg, prelude::*, sync::RwLock};
 
 static mut DESTINATION: ActorId = ActorId::zero();
 static RW_LOCK: RwLock<u32> = RwLock::new(0);

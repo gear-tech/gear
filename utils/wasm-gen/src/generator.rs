@@ -46,7 +46,7 @@
 //! State machine named `(syscalls-module-state-machine)` can be started only with having proof of work from `MemoryGenerator` and `EntryPointsGenerator`.
 //! For more info about this state machine read docs of the [`syscalls`] mod.
 
-use crate::{utils, GearWasmGeneratorConfig, WasmModule};
+use crate::{GearWasmGeneratorConfig, WasmModule, utils};
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::parity_wasm::elements::Module;
 use std::{collections::HashSet, ops::RangeInclusive};

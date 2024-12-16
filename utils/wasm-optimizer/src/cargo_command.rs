@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::cargo_toolchain::Toolchain;
-use anyhow::{anyhow, ensure, Context, Result};
+use anyhow::{Context, Result, anyhow, ensure};
 use std::{env, path::PathBuf, process::Command};
 
 /// Helper to deal with the `cargo` command.

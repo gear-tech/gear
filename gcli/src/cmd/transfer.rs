@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `transfer`
-use crate::{result::Result, App};
+use crate::{App, result::Result};
 use clap::Parser;
 use gclient::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 

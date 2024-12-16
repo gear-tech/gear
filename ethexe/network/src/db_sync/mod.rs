@@ -33,14 +33,14 @@ use ethexe_db::Database;
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use libp2p::{
-    core::{transport::PortUse, Endpoint},
+    StreamProtocol,
+    core::{Endpoint, transport::PortUse},
     request_response,
     request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
     },
-    StreamProtocol,
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
@@ -415,7 +415,9 @@ impl Behaviour {
                 log::trace!("outbound failure for request {request_id} to {peer}: {error}");
 
                 if let OutboundFailure::UnsupportedProtocols = error {
-                    log::debug!("request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol");
+                    log::debug!(
+                        "request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
+                    );
                     self.peer_score_handle.unsupported_protocol(peer);
                 }
 
@@ -449,7 +451,9 @@ impl Behaviour {
                 request_id: _,
                 error: InboundFailure::UnsupportedProtocols,
             } => {
-                log::debug!("request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol");
+                log::debug!(
+                    "request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
+                );
                 self.peer_score_handle.unsupported_protocol(peer);
             }
             request_response::Event::InboundFailure { .. } => {}
@@ -603,7 +607,7 @@ mod tests {
     use crate::utils::tests::init_logger;
     use ethexe_db::{CodesStorage, MemDb};
     use gprimitives::CodeId;
-    use libp2p::{futures::StreamExt, swarm::SwarmEvent, Swarm};
+    use libp2p::{Swarm, futures::StreamExt, swarm::SwarmEvent};
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};
 
@@ -699,29 +703,23 @@ mod tests {
             .request(Request::DataForHashes([hello_hash, world_hash].into()));
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::NewRequestRound {
-                request_id,
-                peer_id: bob_peer_id,
-                reason: NewRequestRoundReason::FromQueue,
-            }
-        );
+        assert_eq!(event, Event::NewRequestRound {
+            request_id,
+            peer_id: bob_peer_id,
+            reason: NewRequestRoundReason::FromQueue,
+        });
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::RequestSucceed {
-                request_id,
-                response: Response::DataForHashes(
-                    [
-                        (hello_hash, b"hello".to_vec()),
-                        (world_hash, b"world".to_vec())
-                    ]
-                    .into()
-                )
-            }
-        )
+        assert_eq!(event, Event::RequestSucceed {
+            request_id,
+            response: Response::DataForHashes(
+                [
+                    (hello_hash, b"hello".to_vec()),
+                    (world_hash, b"world".to_vec())
+                ]
+                .into()
+            )
+        })
     }
 
     #[tokio::test]
@@ -744,14 +742,11 @@ mod tests {
             .request(Request::DataForHashes([].into()));
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::NewRequestRound {
-                request_id,
-                peer_id: *bob.local_peer_id(),
-                reason: NewRequestRoundReason::FromQueue,
-            }
-        );
+        assert_eq!(event, Event::NewRequestRound {
+            request_id,
+            peer_id: *bob.local_peer_id(),
+            reason: NewRequestRoundReason::FromQueue,
+        });
 
         tokio::spawn(async move {
             while let Some(event) = bob.next().await {
@@ -772,13 +767,10 @@ mod tests {
         });
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::RequestFailed {
-                request_id,
-                error: RequestFailure::OutOfRounds,
-            }
-        );
+        assert_eq!(event, Event::RequestFailed {
+            request_id,
+            error: RequestFailure::OutOfRounds,
+        });
     }
 
     #[tokio::test]
@@ -801,14 +793,11 @@ mod tests {
             .request(Request::DataForHashes([].into()));
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::NewRequestRound {
-                request_id,
-                peer_id: *bob.local_peer_id(),
-                reason: NewRequestRoundReason::FromQueue,
-            }
-        );
+        assert_eq!(event, Event::NewRequestRound {
+            request_id,
+            peer_id: *bob.local_peer_id(),
+            reason: NewRequestRoundReason::FromQueue,
+        });
 
         tokio::spawn(async move {
             while let Some(event) = bob.next().await {
@@ -828,13 +817,10 @@ mod tests {
         });
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::RequestFailed {
-                request_id,
-                error: RequestFailure::Timeout,
-            }
-        );
+        assert_eq!(event, Event::RequestFailed {
+            request_id,
+            error: RequestFailure::Timeout,
+        });
     }
 
     #[tokio::test]
@@ -862,14 +848,11 @@ mod tests {
             .request(Request::DataForHashes([data_0, data_1].into()));
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::NewRequestRound {
-                request_id,
-                peer_id: *bob.local_peer_id(),
-                reason: NewRequestRoundReason::FromQueue,
-            }
-        );
+        assert_eq!(event, Event::NewRequestRound {
+            request_id,
+            peer_id: *bob.local_peer_id(),
+            reason: NewRequestRoundReason::FromQueue,
+        });
 
         tokio::spawn(async move {
             while let Some(event) = bob.next().await {
@@ -900,15 +883,12 @@ mod tests {
         });
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::RequestSucceed {
-                request_id,
-                response: Response::DataForHashes(
-                    [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
-                ),
-            }
-        );
+        assert_eq!(event, Event::RequestSucceed {
+            request_id,
+            response: Response::DataForHashes(
+                [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
+            ),
+        });
     }
 
     #[tokio::test]
@@ -952,20 +932,17 @@ mod tests {
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::RequestSucceed {
-                request_id,
-                response: Response::DataForHashes(
-                    [
-                        (hello_hash, b"hello".to_vec()),
-                        (world_hash, b"world".to_vec()),
-                        (mark_hash, b"!".to_vec()),
-                    ]
-                    .into()
-                )
-            }
-        );
+        assert_eq!(event, Event::RequestSucceed {
+            request_id,
+            response: Response::DataForHashes(
+                [
+                    (hello_hash, b"hello".to_vec()),
+                    (world_hash, b"world".to_vec()),
+                    (mark_hash, b"!".to_vec()),
+                ]
+                .into()
+            )
+        });
     }
 
     #[tokio::test]
@@ -1008,19 +985,16 @@ mod tests {
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::RequestSucceed {
-                request_id,
-                response: Response::DataForHashes(
-                    [
-                        (hello_hash, b"hello".to_vec()),
-                        (world_hash, b"world".to_vec())
-                    ]
-                    .into()
-                )
-            }
-        )
+        assert_eq!(event, Event::RequestSucceed {
+            request_id,
+            response: Response::DataForHashes(
+                [
+                    (hello_hash, b"hello".to_vec()),
+                    (world_hash, b"world".to_vec())
+                ]
+                .into()
+            )
+        })
     }
 
     #[tokio::test]
@@ -1040,14 +1014,11 @@ mod tests {
         let request_id = alice.behaviour_mut().request(Request::ProgramIds);
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::NewRequestRound {
-                request_id,
-                peer_id: bob_peer_id,
-                reason: NewRequestRoundReason::FromQueue
-            }
-        );
+        assert_eq!(event, Event::NewRequestRound {
+            request_id,
+            peer_id: bob_peer_id,
+            reason: NewRequestRoundReason::FromQueue
+        });
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(event, Event::PendingStateRequest { request_id });
@@ -1120,14 +1091,11 @@ mod tests {
         let request_id = alice.behaviour_mut().request(Request::ProgramIds);
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::NewRequestRound {
-                request_id,
-                peer_id: bob_peer_id,
-                reason: NewRequestRoundReason::FromQueue,
-            }
-        );
+        assert_eq!(event, Event::NewRequestRound {
+            request_id,
+            peer_id: bob_peer_id,
+            reason: NewRequestRoundReason::FromQueue,
+        });
 
         let event = alice.next_behaviour_event().await;
         if let Event::ExternalValidation(validating_response) = event {
@@ -1159,12 +1127,9 @@ mod tests {
         }
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::RequestSucceed {
-                request_id,
-                response: Response::ProgramIds([PID1, PID2].into()),
-            }
-        );
+        assert_eq!(event, Event::RequestSucceed {
+            request_id,
+            response: Response::ProgramIds([PID1, PID2].into()),
+        });
     }
 }

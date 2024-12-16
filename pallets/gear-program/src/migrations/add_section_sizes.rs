@@ -25,8 +25,8 @@ use sp_std::marker::PhantomData;
 use {
     frame_support::ensure,
     sp_runtime::{
-        codec::{Decode, Encode},
         TryRuntimeError,
+        codec::{Decode, Encode},
     },
     sp_std::vec::Vec,
 };
@@ -56,7 +56,9 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
             }
 
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
-            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+            log::info!(
+                "🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}."
+            );
 
             CodeStorage::<T>::translate(|_, code: v8::InstrumentedCode| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -88,7 +90,9 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
 
             log::info!("✅ Successfully migrated storage. {counter} codes have been migrated");
         } else {
-            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
+            log::info!(
+                "🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}"
+            );
         }
 
         weight
@@ -151,9 +155,9 @@ mod v8 {
     use {
         crate::{Config, Pallet},
         frame_support::{
+            Identity,
             storage::types::StorageMap,
             traits::{PalletInfo, StorageInstance},
-            Identity,
         },
         gear_core::ids::CodeId,
         sp_std::marker::PhantomData,

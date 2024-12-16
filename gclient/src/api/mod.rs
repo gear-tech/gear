@@ -23,13 +23,13 @@ mod rpc;
 pub mod storage;
 pub mod voucher;
 
-use crate::{ws::WSAddress, EventListener};
+use crate::{EventListener, ws::WSAddress};
 use error::*;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{
+    Api, ApiBuilder,
     ext::{sp_core::sr25519, sp_runtime::AccountId32},
     signer::Signer,
-    Api, ApiBuilder,
 };
 use std::{ffi::OsStr, sync::Arc};
 

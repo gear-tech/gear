@@ -23,7 +23,7 @@
 // Effectively, this procedure executes a composition of `MAX_ITER` programs `f`
 // where the output of the previous call is fed to the input of the next call.
 
-use gstd::{debug, exec, msg, prelude::*, ActorId};
+use gstd::{ActorId, debug, exec, msg, prelude::*};
 
 static mut STATE: State = State {
     iter: 0,
@@ -60,10 +60,10 @@ impl State {
     async fn compose_with_self(&mut self, input: Vec<u8>) -> Result<Vec<u8>, &'static str> {
         if self.iter >= self.max_iter {
             debug!(
-                    "[0x{} ncompose::compose_with_self] Max number of iterations {} reached; no further progress is possible",
-                    hex::encode(self.me.handle),
-                    self.max_iter
-                );
+                "[0x{} ncompose::compose_with_self] Max number of iterations {} reached; no further progress is possible",
+                hex::encode(self.me.handle),
+                self.max_iter
+            );
             return Err("Max iteration reached");
         }
         // Increase iter

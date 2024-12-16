@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
 use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
-use sc_client_api::{backend::StateBackend, AuxStore, Backend, BlockBackend, StorageProvider};
+use sc_client_api::{AuxStore, Backend, BlockBackend, StorageProvider, backend::StateBackend};
 use sc_consensus_babe::BabeWorkerHandle;
 use sc_consensus_grandpa::{
     FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,

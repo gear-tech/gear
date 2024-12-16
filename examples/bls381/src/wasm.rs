@@ -21,10 +21,10 @@ use ark_bls12_381::{Bls12_381, G1Affine, G2Affine};
 use ark_ec::pairing::Pairing;
 use gbuiltin_bls381::*;
 use gstd::{
+    ActorId,
     codec::{Decode, Encode},
     msg,
     prelude::*,
-    ActorId,
 };
 use hex_literal::hex;
 

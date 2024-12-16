@@ -21,8 +21,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
-pub use gear_sandbox_host::sandbox::{env::Instantiate, SandboxBackend};
-use sp_runtime_interface::{runtime_interface, Pointer};
+pub use gear_sandbox_host::sandbox::{SandboxBackend, env::Instantiate};
+use sp_runtime_interface::{Pointer, runtime_interface};
 use sp_wasm_interface::HostPointer;
 
 #[cfg(feature = "std")]

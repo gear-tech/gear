@@ -21,7 +21,7 @@
 use crate::host::{api::MemoryWrap, threads::EthexeHostLazyPages};
 use anyhow::Result;
 use gear_lazy_pages::LazyPagesVersion;
-use gear_runtime_interface::{lazy_pages_detail, LazyPagesInitContext};
+use gear_runtime_interface::{LazyPagesInitContext, lazy_pages_detail};
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 

@@ -29,8 +29,8 @@ use gear_core::{
 };
 use sp_core::H256;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage, Perbill, Permill,
+    traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 

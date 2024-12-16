@@ -17,17 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, weights::WeightInfo, Config, DispatchStashOf, Event, Pallet, QueueOf,
+    Config, DispatchStashOf, Event, Pallet, QueueOf, manager::ExtManager, weights::WeightInfo,
 };
 use alloc::{format, string::ToString};
 use common::{
+    Gas, Origin,
     event::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
         UserMessageReadSystemReason,
     },
     scheduler::*,
     storage::*,
-    Gas, Origin,
 };
 use core::cmp;
 use gear_core::{

@@ -19,11 +19,11 @@
 //! Command line application abstraction
 
 use clap::Parser;
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{Result, eyre::eyre};
 use env_logger::{Builder, Env};
 use gclient::{
-    ext::sp_core::{self, crypto::Ss58Codec, sr25519::Pair, Pair as _},
     GearApi,
+    ext::sp_core::{self, Pair as _, crypto::Ss58Codec, sr25519::Pair},
 };
 use gring::Keyring;
 use gsdk::Api;

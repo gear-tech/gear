@@ -21,8 +21,8 @@ use enum_iterator::Sequence;
 
 #[cfg(feature = "codec")]
 use scale_info::{
-    scale::{self, Decode, Encode},
     TypeInfo,
+    scale::{self, Decode, Encode},
 };
 
 #[repr(u8)]

@@ -20,14 +20,14 @@
 
 use super::Inner;
 use crate::{
+    TxInBlock, TxStatus,
     backtrace::BacktraceStatus,
     config::GearConfig,
     metadata::{
-        calls::SudoCall, sudo::Event as SudoEvent, vara_runtime::RuntimeCall, CallInfo, Event,
+        CallInfo, Event, calls::SudoCall, sudo::Event as SudoEvent, vara_runtime::RuntimeCall,
     },
     result::Result,
     signer::SignerRpc,
-    TxInBlock, TxStatus,
 };
 use anyhow::anyhow;
 use colored::Colorize;
@@ -35,11 +35,11 @@ use scale_value::Composite;
 use sp_core::H256;
 use std::sync::Arc;
 use subxt::{
+    Error as SubxtError, OnlineClient,
     blocks::ExtrinsicEvents,
     config::polkadot::PolkadotExtrinsicParamsBuilder,
     dynamic::Value,
     tx::{DynamicPayload, TxProgress},
-    Error as SubxtError, OnlineClient,
 };
 
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
@@ -113,13 +113,11 @@ impl Inner {
                 Validated | Broadcasted { .. } | NoLongerInBestBlock => (),
                 InBestBlock(b) => {
                     hash = Some(b.extrinsic_hash());
-                    self.backtrace.append(
-                        b.extrinsic_hash(),
-                        BacktraceStatus::InBestBlock {
+                    self.backtrace
+                        .append(b.extrinsic_hash(), BacktraceStatus::InBestBlock {
                             block_hash: b.block_hash(),
                             extrinsic_hash: b.extrinsic_hash(),
-                        },
-                    );
+                        });
                 }
                 InFinalizedBlock(b) => {
                     log::info!("Submitted {extrinsic} !");

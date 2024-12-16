@@ -69,7 +69,7 @@ mod wasm;
 mod tests {
     use crate::InitAction;
     use alloc::vec;
-    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
+    use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn program_can_be_initialized() {

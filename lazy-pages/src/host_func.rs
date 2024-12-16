@@ -19,10 +19,10 @@
 //! Host function call `pre_process_memory_accesses` support in lazy-pages.
 
 use crate::{
+    LAZY_PAGES_CONTEXT,
     common::{CostNo, Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext},
     pages::GearPage,
     process::{self, AccessHandler},
-    LAZY_PAGES_CONTEXT,
 };
 use gear_core::{self, memory::MemoryInterval};
 use gear_lazy_pages_common::{ProcessAccessError, Status};

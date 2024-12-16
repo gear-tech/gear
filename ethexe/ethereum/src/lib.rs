@@ -27,24 +27,24 @@ use abi::{
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, Bytes, ChainId, PrimitiveSignature as Signature, B256, U256},
+    primitives::{Address, B256, Bytes, ChainId, PrimitiveSignature as Signature, U256},
     providers::{
+        Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
+        RootProvider,
         fillers::{
             BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
             WalletFiller,
         },
-        Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
-        RootProvider,
     },
     rpc::types::eth::Log,
     signers::{
-        self as alloy_signer, sign_transaction_with_chain_id, Error as SignerError,
-        Result as SignerResult, Signer, SignerSync,
+        self as alloy_signer, Error as SignerError, Result as SignerResult, Signer, SignerSync,
+        sign_transaction_with_chain_id,
     },
     sol_types::{SolCall, SolEvent},
     transports::{BoxTransport, RpcError, Transport},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
 use mirror::Mirror;

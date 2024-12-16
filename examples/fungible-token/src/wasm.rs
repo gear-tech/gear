@@ -18,7 +18,7 @@
 
 use core::ops::Range;
 use ft_io::*;
-use gstd::{msg, prelude::*, ActorId};
+use gstd::{ActorId, msg, prelude::*};
 use hashbrown::HashMap;
 
 const ZERO_ID: ActorId = ActorId::new([0u8; 32]);

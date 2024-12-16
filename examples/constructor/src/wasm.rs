@@ -1,5 +1,5 @@
 use crate::{Call, Scheme};
-use gstd::{collections::BTreeMap, msg, prelude::*, String, Vec};
+use gstd::{String, Vec, collections::BTreeMap, msg, prelude::*};
 
 pub(crate) static mut DATA: BTreeMap<String, Vec<u8>> = BTreeMap::new();
 static mut SCHEME: Option<Scheme> = None;
