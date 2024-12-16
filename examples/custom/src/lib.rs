@@ -72,7 +72,7 @@ mod wasm {
 
     static mut STATE: Option<State> = None;
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn init() {
         let init_message: InitMessage = msg::load().expect("Failed to load payload bytes");
         let state = match init_message {
@@ -89,7 +89,7 @@ mod wasm {
         unsafe { STATE = Some(state) };
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle() {
         let state = unsafe { static_mut!(STATE).as_mut().expect("State must be set") };
         match state {
@@ -101,7 +101,7 @@ mod wasm {
         }
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle_reply() {
         let state = unsafe { static_mut!(STATE).as_mut().expect("State must be set") };
         if let State::WakeAfterExit = state {
@@ -109,7 +109,7 @@ mod wasm {
         }
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn state() {
         let state = unsafe { static_mut!(STATE).take().expect("State must be set") };
         if let State::BTree(state) = state {

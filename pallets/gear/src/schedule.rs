@@ -1529,7 +1529,7 @@ impl<T: Config> Rules for ScheduleRules<'_, T> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &Module) -> impl Rules + '_ {
+    pub fn rules(&self, module: &Module) -> impl Rules + use<'_, T> {
         ScheduleRules {
             schedule: self,
             params: module

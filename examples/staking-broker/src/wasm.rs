@@ -260,7 +260,7 @@ async fn main() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let sb: StakingBroker = Default::default();
     unsafe { STATE = Some(sb) };

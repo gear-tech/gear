@@ -56,7 +56,7 @@
 //!     answer: u8,
 //! }
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! extern "C" fn handle() {
 //!     let payload: Payload = msg::load().expect("Unable to decode payload");
 //!     if payload.question == "life-universe-everything" {

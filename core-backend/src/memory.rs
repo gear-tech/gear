@@ -88,7 +88,7 @@ where
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&self, ctx: &Caller) -> HostPointer {
-        self.inner.get_buff(ctx) as HostPointer
+        unsafe { self.inner.get_buff(ctx) as HostPointer }
     }
 }
 

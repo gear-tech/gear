@@ -149,7 +149,7 @@ pub fn new_partial<RuntimeApi>(
         (
             impl Fn(
                 sc_rpc::SubscriptionTaskExecutor,
-            ) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>,
+            ) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error> + use<RuntimeApi>,
             (
                 sc_consensus_babe::BabeBlockImport<
                     Block,

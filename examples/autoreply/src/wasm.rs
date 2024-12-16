@@ -21,7 +21,7 @@ use gstd::{debug, exec, msg, prelude::*, ActorId};
 static mut DESTINATION: ActorId = ActorId::zero();
 static mut RECEIVED_AUTO_REPLY: bool = false;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     debug!("init()");
     let destination = msg::load().expect("Failed to load destination");
@@ -29,7 +29,7 @@ extern "C" fn init() {
     unsafe { DESTINATION = destination };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     debug!("handle()");
     let destination = unsafe { DESTINATION };
@@ -41,13 +41,13 @@ extern "C" fn handle() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     debug!("handle_reply()");
     unsafe { RECEIVED_AUTO_REPLY = true };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn state() {
     debug!("state()");
     msg::reply(unsafe { RECEIVED_AUTO_REPLY }, 0).expect("Failed to load reply");

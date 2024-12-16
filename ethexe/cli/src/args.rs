@@ -193,16 +193,16 @@ impl ExtraCommands {
             None
         };
 
-        match self {
+        match *self {
             ExtraCommands::GenerateKey {
                 secp256k1,
                 ethereum,
             } => {
                 let new_pub = signer.generate_key()?;
 
-                if *secp256k1 {
+                if secp256k1 {
                     println!("{new_pub}");
-                } else if *ethereum {
+                } else if ethereum {
                     println!("{}", new_pub.to_address())
                 } else {
                     println!("New public key stored: {}", new_pub);

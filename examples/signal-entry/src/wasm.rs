@@ -41,12 +41,12 @@ enum HandleSignalState {
     Assert(SignalCode),
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { INITIATOR = msg::source() };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     unsafe { HANDLE_MSG = Some(msg::id()) };
     let do_panic = unsafe { static_mut!(DO_PANIC) };
@@ -205,7 +205,7 @@ extern "C" fn handle() {
         HandleAction::IncorrectFree => {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
-            extern "C" {
+            unsafe extern "C" {
                 fn free(ptr: *mut u8) -> *mut u8;
             }
 
@@ -232,7 +232,7 @@ extern "C" fn handle() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_signal() {
     match unsafe { static_ref!(HANDLE_SIGNAL_STATE) } {
         HandleSignalState::Normal => {
@@ -277,7 +277,7 @@ extern "C" fn handle_signal() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     let handle_msg = unsafe { HANDLE_MSG.unwrap() };
     exec::wake(handle_msg).unwrap();

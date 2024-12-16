@@ -38,7 +38,7 @@ enum WakeState {
     Exit,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { INIT_MSG = msg::id() };
 
@@ -126,7 +126,7 @@ extern "C" fn init() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let action: HandleAction = msg::load().unwrap();
     match action {
@@ -184,7 +184,7 @@ extern "C" fn handle() {
 }
 
 // must be called after `InitAction::Wait`
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     let action: ReplyAction = msg::load().unwrap();
     unsafe {

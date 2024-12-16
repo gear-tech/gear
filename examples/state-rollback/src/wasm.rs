@@ -20,7 +20,7 @@ use gstd::{exec, msg, prelude::*};
 
 static mut PAYLOAD: Option<Vec<u8>> = None;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let payload = msg::load_bytes().expect("Failed to load payload");
 

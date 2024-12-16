@@ -54,7 +54,7 @@ pub mod ext {
     /// ```
     /// use gcore::ext;
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     ext::debug("Hello, world!");
     /// }
@@ -113,7 +113,7 @@ pub mod ext {
     /// ```
     /// use gcore::ext;
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     ext::panic("I decided to panic");
     /// }
@@ -143,7 +143,7 @@ pub mod ext {
     ///     ext::oom_panic()
     /// }
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     let layout = Layout::new::<[u8; 64 * 1024]>();
     ///     if Global.allocate(layout).is_err() {
@@ -181,7 +181,7 @@ pub mod ext {
 /// ```
 /// use gcore::debug;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     debug!("String literal");
 ///

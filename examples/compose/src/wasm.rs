@@ -122,7 +122,7 @@ async fn main() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let (program_a, program_b): (ActorId, ActorId) =
         msg::load().expect("Expecting two program addresses");

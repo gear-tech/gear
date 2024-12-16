@@ -68,7 +68,7 @@ impl MutexId {
 /// static mut DEST: ActorId = ActorId::zero();
 /// static MUTEX: Mutex<()> = Mutex::new(());
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn init() {
 ///     // `some_address` can be obtained from the init payload
 ///     # let some_address = ActorId::zero();

@@ -91,7 +91,7 @@ pub fn set_hook<F: FnMut() + 'static>(f: F) {
 /// ```rust,no_run
 /// use gstd::critical;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     critical::set_hook(|| {
 ///         // some code...
@@ -117,7 +117,7 @@ pub fn take_hook() -> Option<Box<dyn FnMut()>> {
 /// ```rust,no_run
 /// use gstd::critical;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle_signal() {
 ///     critical::take_and_execute();
 /// }

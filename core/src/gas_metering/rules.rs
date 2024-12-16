@@ -188,7 +188,7 @@ pub struct ScheduleRules<'a> {
 
 impl Schedule {
     /// Returns real gas rules that are used by pallet gear.
-    pub fn rules(&self, module: &Module) -> impl Rules + '_ {
+    pub fn rules(&self, module: &Module) -> impl Rules + use<'_> {
         ScheduleRules {
             schedule: self,
             params: module

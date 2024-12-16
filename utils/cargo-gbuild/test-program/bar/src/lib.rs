@@ -22,7 +22,7 @@ use gstd::{msg, prelude::*};
 
 static mut STATE: bool = false;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let payload = msg::load_bytes().expect("Failed to load payload");
     gstd::debug!("Received payload: {payload:?}");
@@ -31,7 +31,7 @@ extern "C" fn init() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let payload = msg::load_bytes().expect("Failed to load payload");
 
@@ -43,7 +43,7 @@ extern "C" fn handle() {
 }
 
 // State-sharing function
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn state() {
     msg::reply(unsafe { static_ref!(STATE).clone() }, 0).expect("Failed to share state");
 }

@@ -399,7 +399,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
         });
 
         extern_functions.push(quote! {
-            #[no_mangle]
+            #[unsafe(no_mangle)]
             extern "C" fn #function_identifier() {
                 let #variables: #variables_types = ::gstd::msg::load()
                     .expect("Failed to load or decode a payload");
@@ -424,7 +424,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
             mod r#extern {
                 use super::*;
 
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 extern "C" fn metadata() {
                     let mut funcs = ::gstd::collections::BTreeMap::new();
                     let mut registry = ::gmeta::Registry::new();

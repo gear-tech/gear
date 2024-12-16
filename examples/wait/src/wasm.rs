@@ -24,7 +24,7 @@ static mut STATE: u32 = 0;
 static mut MSG_ID_1: MessageId = MessageId::zero();
 static mut MSG_ID_2: MessageId = MessageId::zero();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let state = unsafe { static_mut!(STATE) };
     debug!("{state}");

@@ -17,7 +17,7 @@ fn process_fn<'a>(f: impl Fn(&'a Scheme) -> Option<&'a Vec<Call>>) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let scheme = msg::load().expect("Failed to load payload");
     unsafe { SCHEME = Some(scheme) };
@@ -25,17 +25,17 @@ extern "C" fn init() {
     process_fn(|scheme| Some(scheme.init()));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     process_fn(Scheme::handle);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     process_fn(Scheme::handle_reply);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_signal() {
     process_fn(Scheme::handle_signal);
 }

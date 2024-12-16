@@ -21,7 +21,7 @@ use gstd::{msg, prelude::*, Reservations};
 
 static mut RESERVATIONS: Reservations = Reservations::new();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let action: Action = msg::load().expect("Failed to load message");
 

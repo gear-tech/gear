@@ -58,7 +58,7 @@ const READERS_LIMIT: ReadersCount = 32;
 /// static mut DEST: ActorId = ActorId::zero();
 /// static RWLOCK: RwLock<u32> = RwLock::new(0);
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn init() {
 ///     // `some_address` can be obtained from the init payload
 ///     # let some_address = ActorId::zero();

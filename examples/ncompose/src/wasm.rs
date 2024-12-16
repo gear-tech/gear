@@ -139,7 +139,7 @@ async fn main() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let (actor, max_iter): (ActorId, u16) =
         msg::load().expect("Malformed input: expecting a program ID and a number");

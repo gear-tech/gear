@@ -62,7 +62,7 @@ unsafe fn sys_mprotect_interval(
     if allow_exec {
         mask |= region::Protection::EXECUTE;
     }
-    let res = region::protect(addr as *mut (), size, mask);
+    let res = unsafe { region::protect(addr as *mut (), size, mask) };
     if let Err(reason) = res {
         return Err(MprotectError::SyscallError {
             interval: addr..=addr + size,

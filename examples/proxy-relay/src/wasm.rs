@@ -66,7 +66,7 @@ fn resend_push(resend_pushes: &[ResendPushData], size: usize) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     use RelayCall::*;
     let relay_call = unsafe {
@@ -99,7 +99,7 @@ extern "C" fn handle() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { RELAY_CALL = Some(msg::load().expect("Failed to decode `RelayCall'")) };
 }

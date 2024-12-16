@@ -5,7 +5,7 @@ use gstd::{msg, prelude::*};
 static mut WALLETS: Vec<Wallet> = Vec::new();
 
 // Init function
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { WALLETS = Wallet::test_sequence() };
 
@@ -20,7 +20,7 @@ extern "C" fn init() {
 }
 
 // Handle function
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let message_in: MessageIn = msg::load().unwrap();
 
@@ -35,7 +35,7 @@ extern "C" fn handle() {
 }
 
 // State-sharing function
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn state() {
     msg::reply(unsafe { static_ref!(WALLETS).clone() }, 0).expect("Failed to share state");
 }

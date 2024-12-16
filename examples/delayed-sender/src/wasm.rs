@@ -32,7 +32,7 @@ fn send_delayed_to_self() -> bool {
     to_self
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     // Send message to self
     if send_delayed_to_self() {
@@ -44,7 +44,7 @@ extern "C" fn init() {
     msg::send_bytes_delayed(msg::source(), "Delayed hello!", 0, delay).unwrap();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     if send_delayed_to_self() {
         return;

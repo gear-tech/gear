@@ -55,14 +55,14 @@ impl State {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let x: u64 = msg::load().expect("Expecting a u64 number");
 
     msg::reply(unsafe { static_mut!(STATE).unchecked_mul(x) }, 0).unwrap();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let val: u64 = msg::load().expect("Expecting a u64 number");
     unsafe {

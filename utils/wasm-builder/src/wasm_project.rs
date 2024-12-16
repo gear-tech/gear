@@ -281,7 +281,7 @@ mod fake_gsys {{
     }}
 }}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn metahash() {{
     const METAHASH: [u8; 32] = {:?};
     let mut res: [u8; 36] = [0; 36];

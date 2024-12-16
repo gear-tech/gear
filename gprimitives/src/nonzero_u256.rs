@@ -167,7 +167,7 @@ impl NonZeroU256 {
     #[inline]
     pub const unsafe fn new_unchecked(n: U256) -> Self {
         // SAFETY: The caller guarantees that `n` is non-zero
-        transmute(n)
+        unsafe { transmute(n) }
     }
 
     /// Returns the contained value as a primitive type.

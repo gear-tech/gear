@@ -22,7 +22,7 @@ static mut DST_PROGRAM_ID: ActorId = ActorId::new([0u8; 32]);
 
 type HandleParams = ([u8; 32], u128);
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let program_id: [u8; 32] = msg::load().expect("internal error: invalid payload");
     debug!(

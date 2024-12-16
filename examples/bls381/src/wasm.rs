@@ -49,7 +49,7 @@ pub struct Contract {
 
 static mut CONTRACT: Option<Contract> = None;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let init_msg: InitMessage = msg::load().expect("Unable to decode `InitMessage`");
 

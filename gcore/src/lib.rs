@@ -37,7 +37,7 @@
 //!
 //! use gcore::msg;
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! extern "C" fn handle() {
 //!     let mut bytes = [0; 64];
 //!     msg::read(&mut bytes).expect("Unable to read");

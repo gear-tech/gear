@@ -769,7 +769,7 @@ fn value_counter_set_correctly_for_interruptions() {
     //
     // use gstd::{msg, exec};
     //
-    // #[no_mangle]
+    // #[unsafe(no_mangle)]
     // extern "C" fn handle() {
     //     msg::send(msg::source(), exec::value_available(), 0).unwrap();
     //     msg::send_bytes(Default::default(), [], msg::value()).unwrap();

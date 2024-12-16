@@ -20,7 +20,7 @@ use gstd::{debug, msg, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let size = msg::load::<i32>().expect("Failed to load `i32`") as usize;
 
@@ -54,7 +54,7 @@ extern "C" fn handle() {
 }
 
 // State-sharing function
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn state() {
     msg::reply(unsafe { static_ref!(MESSAGE_LOG).clone() }, 0).expect("Failed to share state");
 }

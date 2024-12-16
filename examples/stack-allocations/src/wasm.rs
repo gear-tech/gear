@@ -48,13 +48,13 @@ fn do_actions(mut actions: Vec<Action>) -> u32 {
     check_sum + do_actions(actions)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let check_sum = do_actions(unsafe { static_mut!(STATE).actions.clone() });
     msg::reply(ReplyData { check_sum }, 0).expect("Failed to reply");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe {
         STATE.actions = msg::load().expect("Failed to load init config");
