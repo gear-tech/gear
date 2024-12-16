@@ -25,9 +25,9 @@ use abi::{
     IWrappedVara::{self, initializeCall as WrappedVaraInitializeCall},
 };
 use alloy::{
-    consensus::{self as alloy_consensus, SignableTransaction},
+    consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, Bytes, ChainId, Signature, B256, U256},
+    primitives::{Address, Bytes, ChainId, PrimitiveSignature as Signature, B256, U256},
     providers::{
         fillers::{
             BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
@@ -154,6 +154,8 @@ impl Ethereum {
                     _mirror: mirror_address,
                     _mirrorProxy: mirror_proxy_address,
                     _wrappedVara: wvara_address,
+                    _eraDuration: U256::from(24 * 60 * 60),
+                    _electionDuration: U256::from(2 * 60 * 60),
                     _validators: validators,
                 }
                 .abi_encode(),
@@ -290,7 +292,7 @@ trait TryGetReceipt<T: Transport + Clone, N: Network> {
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
 }
 
-impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactionBuilder<'_, T, N> {
+impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactionBuilder<T, N> {
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse> {
         let tx_hash = *self.tx_hash();
         let provider = self.provider().clone();

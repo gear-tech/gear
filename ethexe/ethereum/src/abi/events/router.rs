@@ -69,8 +69,13 @@ impl From<IRouter::StorageSlotChanged> for RouterEvent {
     }
 }
 
-impl From<IRouter::ValidatorsChanged> for RouterEvent {
-    fn from(_value: IRouter::ValidatorsChanged) -> Self {
-        Self::ValidatorsChanged
+impl From<IRouter::NextEraValidatorsCommitted> for RouterEvent {
+    fn from(value: IRouter::NextEraValidatorsCommitted) -> Self {
+        Self::NextEraValidatorsCommitted {
+            next_era_start: value
+                .startTimestamp
+                .try_into()
+                .expect("next era start timestamp is too large"),
+        }
     }
 }
