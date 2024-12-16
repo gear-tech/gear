@@ -46,7 +46,7 @@ extern "C" fn handle() {
             exec::wake(unsafe { MSG_ID_2 }).unwrap();
         }
         _ => {
-            msg::send(msg::source(), msg::id().as_ref(), 0).unwrap();
+            msg::send_bytes(msg::source(), msg::id(), 0).unwrap();
         }
     }
 }
