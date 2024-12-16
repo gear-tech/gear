@@ -223,7 +223,7 @@ impl StakingBroker {
 
 #[gstd::async_main]
 async fn main() {
-    let broker = unsafe { STATE.get_or_insert(Default::default()) };
+    let broker = unsafe { static_mut!(STATE).get_or_insert(Default::default()) };
 
     let request: Request = msg::load().expect("Expecting a valid payload");
     match request {

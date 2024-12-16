@@ -22,7 +22,7 @@ use gstd::{msg, prelude::*};
 static mut STATE: Option<State> = None;
 
 fn state_mut() -> &'static mut State {
-    unsafe { STATE.get_or_insert_with(State::new) }
+    unsafe { static_mut!(STATE).get_or_insert_with(State::new) }
 }
 
 #[no_mangle]

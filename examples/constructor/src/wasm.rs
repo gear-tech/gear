@@ -1,11 +1,11 @@
 use crate::{Call, Scheme};
-use gstd::{collections::BTreeMap, msg, String, Vec};
+use gstd::{collections::BTreeMap, msg, prelude::*, String, Vec};
 
 pub(crate) static mut DATA: BTreeMap<String, Vec<u8>> = BTreeMap::new();
 static mut SCHEME: Option<Scheme> = None;
 
 fn process_fn<'a>(f: impl Fn(&'a Scheme) -> Option<&'a Vec<Call>>) {
-    let scheme = unsafe { SCHEME.as_ref() }.expect("Should be set before access");
+    let scheme = unsafe { static_ref!(SCHEME).as_ref() }.expect("Should be set before access");
     let calls = f(scheme)
         .cloned()
         .unwrap_or_else(|| msg::load().expect("Failed to load payload"));

@@ -1,5 +1,5 @@
 use crate::Method;
-use gstd::{exec, msg};
+use gstd::{exec, msg, prelude::*};
 use types::Package;
 
 #[no_mangle]
@@ -11,7 +11,7 @@ extern "C" fn init() {
 extern "C" fn handle() {
     let threshold = unsafe { state::THRESHOLD.expect("Threshold has not been set.") };
     let method = msg::load::<Method>().expect("Invalid program method.");
-    let registry = unsafe { &mut state::REGISTRY };
+    let registry = unsafe { static_mut!(state::REGISTRY) };
 
     match method {
         Method::Start { expected, id, src } => {

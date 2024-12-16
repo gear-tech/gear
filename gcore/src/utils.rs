@@ -209,3 +209,41 @@ macro_rules! debug {
     ($fmt:expr) => {};
     ($fmt:expr, $($args:tt)*) => {};
 }
+
+/// Get mutable reference to `static mut`.
+///
+/// Note that getting two mutable references to `static mut` is UB.
+///
+/// ```
+/// use gcore::static_mut;
+///
+/// static mut X: usize = 0;
+///
+/// let _: &mut usize = unsafe { static_mut!(X) };
+/// ```
+#[macro_export]
+macro_rules! static_mut {
+    ($expr:expr) => {{
+        #[allow(clippy::deref_addrof)] // https://github.com/rust-lang/rust-clippy/issues/13783
+        let ret: &mut _ = (&mut *&raw mut $expr);
+        ret
+    }};
+}
+
+/// Get shared reference to `static mut`.
+///
+/// ```
+/// use gcore::static_ref;
+///
+/// static mut X: usize = 0;
+///
+/// let _: &usize = unsafe { static_ref!(X) };
+/// ```
+#[macro_export]
+macro_rules! static_ref {
+    ($expr:expr) => {{
+        #[allow(clippy::deref_addrof)] // https://github.com/rust-lang/rust-clippy/issues/13783
+        let ret: &_ = (&*&raw const $expr);
+        ret
+    }};
+}

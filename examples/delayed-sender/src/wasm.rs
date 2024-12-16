@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::DELAY;
-use gstd::{exec, msg, MessageId};
+use gstd::{exec, msg, prelude::*, MessageId};
 
 static mut MID: Option<MessageId> = None;
 static mut DONE: bool = false;
@@ -63,7 +63,7 @@ extern "C" fn handle() {
     }
 
     // Common delayed sender case.
-    if let Some(message_id) = unsafe { MID.take() } {
+    if let Some(message_id) = unsafe { static_mut!(MID).take() } {
         let delay: u32 = msg::load().unwrap();
 
         unsafe {

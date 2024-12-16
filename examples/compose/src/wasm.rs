@@ -113,7 +113,7 @@ async fn main() {
         exec::gas_available()
     );
 
-    if let Ok(outcome) = (unsafe { STATE.compose(input) }).await {
+    if let Ok(outcome) = (unsafe { static_mut!(STATE).compose(input) }).await {
         debug!(
             "[0x{} compose::handle] Composition output: {outcome:?}",
             hex::encode(exec::program_id()),

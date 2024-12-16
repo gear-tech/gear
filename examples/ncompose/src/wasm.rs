@@ -23,8 +23,6 @@
 // Effectively, this procedure executes a composition of `MAX_ITER` programs `f`
 // where the output of the previous call is fed to the input of the next call.
 
-extern crate alloc;
-
 use gstd::{debug, exec, msg, prelude::*, ActorId};
 
 static mut STATE: State = State {
@@ -132,7 +130,7 @@ async fn main() {
         hex::encode(unsafe { STATE.me.handle }),
     );
 
-    if let Ok(outcome) = (unsafe { STATE.compose_with_self(input) }).await {
+    if let Ok(outcome) = (unsafe { static_mut!(STATE).compose_with_self(input) }).await {
         debug!(
             "[0x{} ncompose::handle] Composition output: {outcome:?}",
             hex::encode(exec::program_id()),

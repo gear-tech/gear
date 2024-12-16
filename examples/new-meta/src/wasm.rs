@@ -24,7 +24,7 @@ extern "C" fn init() {
 extern "C" fn handle() {
     let message_in: MessageIn = msg::load().unwrap();
 
-    let res = unsafe { &WALLETS }
+    let res = unsafe { static_ref!(WALLETS) }
         .iter()
         .find(|w| w.id.decimal == message_in.id.decimal)
         .cloned();
@@ -37,5 +37,5 @@ extern "C" fn handle() {
 // State-sharing function
 #[no_mangle]
 extern "C" fn state() {
-    msg::reply(unsafe { WALLETS.clone() }, 0).expect("Failed to share state");
+    msg::reply(unsafe { static_ref!(WALLETS).clone() }, 0).expect("Failed to share state");
 }

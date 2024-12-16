@@ -83,7 +83,11 @@ extern "C" fn init() {
 #[gstd::async_main]
 async fn main() {
     let msg: HandleMessage = msg::load().expect("Unable to decode `HandleMessage`");
-    let contract = unsafe { CONTRACT.as_mut().expect("The contract is not initialized") };
+    let contract = unsafe {
+        static_mut!(CONTRACT)
+            .as_mut()
+            .expect("The contract is not initialized")
+    };
 
     match msg {
         HandleMessage::MillerLoop {

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{collections::BTreeMap, exec, msg, MessageId};
+use gstd::{collections::BTreeMap, exec, msg, prelude::*, MessageId};
 
 #[derive(PartialEq, Debug)]
 enum State {
@@ -31,11 +31,11 @@ static mut TEST_DYNAMIC_MEMORY: BTreeMap<u32, ()> = BTreeMap::new();
 
 #[no_mangle]
 extern "C" fn init() {
-    let state = unsafe { &mut STATE };
+    let state = unsafe { static_mut!(STATE) };
     match state {
         State::NotInited => {
             for k in 0..20 {
-                unsafe { TEST_DYNAMIC_MEMORY.insert(k, ()) };
+                unsafe { static_mut!(TEST_DYNAMIC_MEMORY).insert(k, ()) };
             }
 
             unsafe { INIT_MESSAGE = msg::id() };
@@ -45,10 +45,10 @@ extern "C" fn init() {
         }
         State::WaitForReply => {
             for k in 0..20 {
-                unsafe { TEST_DYNAMIC_MEMORY.insert(k, ()) };
+                unsafe { static_mut!(TEST_DYNAMIC_MEMORY).insert(k, ()) };
             }
             for k in 0..25 {
-                let _ = unsafe { TEST_DYNAMIC_MEMORY.remove(&k) };
+                let _ = unsafe { static_mut!(TEST_DYNAMIC_MEMORY).remove(&k) };
             }
 
             *state = State::Inited;
@@ -70,7 +70,7 @@ extern "C" fn handle() {
 extern "C" fn handle_reply() {
     if unsafe { STATE == State::WaitForReply } {
         for k in 20..40 {
-            unsafe { TEST_DYNAMIC_MEMORY.insert(k, ()) };
+            unsafe { static_mut!(TEST_DYNAMIC_MEMORY).insert(k, ()) };
         }
         exec::wake(unsafe { INIT_MESSAGE }).expect("Failed to wake message");
     }

@@ -59,7 +59,7 @@ extern "C" fn handle() {
 }
 
 fn state() -> &'static mut NodeState {
-    unsafe { STATE.as_mut().unwrap() }
+    unsafe { static_mut!(STATE).as_mut().unwrap() }
 }
 
 fn process(request: Request) -> Reply {

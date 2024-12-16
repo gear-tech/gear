@@ -27,7 +27,7 @@ extern "C" fn handle() {
     let request = format!("Request: size = {size}");
 
     debug!("{request}");
-    unsafe { MESSAGE_LOG.push(request) };
+    unsafe { static_mut!(MESSAGE_LOG).push(request) };
 
     let vec = vec![42u8; size];
     let last_idx = size - 1;
@@ -44,15 +44,17 @@ extern "C" fn handle() {
     // so we must skip `v` destruction.
     core::mem::forget(vec);
 
-    let requests_amount = unsafe { MESSAGE_LOG.len() };
+    let requests_amount = unsafe { static_ref!(MESSAGE_LOG).len() };
     debug!("Total requests amount: {requests_amount}");
     unsafe {
-        MESSAGE_LOG.iter().for_each(|log| debug!("{log}"));
+        static_ref!(MESSAGE_LOG)
+            .iter()
+            .for_each(|log| debug!("{log}"));
     }
 }
 
 // State-sharing function
 #[no_mangle]
 extern "C" fn state() {
-    msg::reply(unsafe { MESSAGE_LOG.clone() }, 0).expect("Failed to share state");
+    msg::reply(unsafe { static_ref!(MESSAGE_LOG).clone() }, 0).expect("Failed to share state");
 }

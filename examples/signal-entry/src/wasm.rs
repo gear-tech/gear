@@ -49,7 +49,7 @@ extern "C" fn init() {
 #[no_mangle]
 extern "C" fn handle() {
     unsafe { HANDLE_MSG = Some(msg::id()) };
-    let do_panic = unsafe { &mut DO_PANIC };
+    let do_panic = unsafe { static_mut!(DO_PANIC) };
 
     let action: HandleAction = msg::load().unwrap();
     match action {
@@ -234,7 +234,7 @@ extern "C" fn handle() {
 
 #[no_mangle]
 extern "C" fn handle_signal() {
-    match unsafe { &HANDLE_SIGNAL_STATE } {
+    match unsafe { static_ref!(HANDLE_SIGNAL_STATE) } {
         HandleSignalState::Normal => {
             msg::send(unsafe { INITIATOR }, b"handle_signal", 0).unwrap();
             let signal_code = msg::signal_code()

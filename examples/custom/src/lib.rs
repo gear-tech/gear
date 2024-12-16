@@ -59,7 +59,7 @@ mod wasm {
         reserver::wasm as reserver, simple_waiter::wasm as simple_waiter,
         wake_after_exit::wasm as wake_after_exit, InitMessage,
     };
-    use gstd::msg;
+    use gstd::{msg, prelude::*};
 
     enum State {
         Capacitor(capacitor::State),
@@ -91,7 +91,7 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle() {
-        let state = unsafe { STATE.as_mut().expect("State must be set") };
+        let state = unsafe { static_mut!(STATE).as_mut().expect("State must be set") };
         match state {
             State::Capacitor(state) => capacitor::handle(state),
             State::BTree(state) => btree::handle(state),
@@ -103,7 +103,7 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle_reply() {
-        let state = unsafe { STATE.as_mut().expect("State must be set") };
+        let state = unsafe { static_mut!(STATE).as_mut().expect("State must be set") };
         if let State::WakeAfterExit = state {
             wake_after_exit::handle_reply();
         }
@@ -111,7 +111,7 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn state() {
-        let state = unsafe { STATE.take().expect("State must be set") };
+        let state = unsafe { static_mut!(STATE).take().expect("State must be set") };
         if let State::BTree(state) = state {
             btree::state(state);
         }

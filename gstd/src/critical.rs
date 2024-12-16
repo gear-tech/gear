@@ -63,7 +63,7 @@ type HooksMap = HashMap<MessageId, Box<dyn FnMut()>>;
 static mut HOOKS: Option<HooksMap> = None;
 
 fn hooks() -> &'static mut HooksMap {
-    unsafe { HOOKS.get_or_insert_with(HashMap::new) }
+    unsafe { crate::static_mut!(HOOKS).get_or_insert_with(HashMap::new) }
 }
 
 /// Sets critical hook.

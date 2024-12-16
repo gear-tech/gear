@@ -25,7 +25,7 @@ extern "C" fn handle() {
     let payload = msg::load_bytes().expect("Failed to load payload");
 
     // Previous value
-    msg::send(msg::source(), unsafe { &PAYLOAD }, 0).expect("Failed to send message");
+    msg::send(msg::source(), unsafe { static_ref!(PAYLOAD) }, 0).expect("Failed to send message");
 
     let is_panic = payload == b"panic";
     let is_leave = payload == b"leave";
@@ -34,7 +34,7 @@ extern "C" fn handle() {
     unsafe { PAYLOAD = Some(payload) };
 
     // Newly set value
-    msg::reply(unsafe { &PAYLOAD }, 0).expect("Failed to send reply");
+    msg::reply(unsafe { static_ref!(PAYLOAD) }, 0).expect("Failed to send reply");
 
     // Stop execution with panic.
     is_panic.then(|| panic!());

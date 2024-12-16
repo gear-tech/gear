@@ -76,11 +76,21 @@ impl Program {
     }
 
     fn nodes() -> &'static Mutex<BTreeSet<Program>> {
-        unsafe { &mut STATE.as_mut().expect("STATE UNINITIALIZED!").nodes }
+        unsafe {
+            &static_mut!(STATE)
+                .as_mut()
+                .expect("STATE UNINITIALIZED!")
+                .nodes
+        }
     }
 
     fn amount() -> &'static mut u64 {
-        unsafe { &mut STATE.as_mut().expect("STATE UNINITIALIZED!").amount }
+        unsafe {
+            &mut static_mut!(STATE)
+                .as_mut()
+                .expect("STATE UNINITIALIZED!")
+                .amount
+        }
     }
 
     async fn handle_request() {

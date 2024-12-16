@@ -18,7 +18,7 @@
 
 #![no_std]
 
-use gstd::msg;
+use gstd::{msg, prelude::*};
 
 static mut STATE: bool = false;
 
@@ -45,5 +45,5 @@ extern "C" fn handle() {
 // State-sharing function
 #[no_mangle]
 extern "C" fn state() {
-    msg::reply(unsafe { STATE.clone() }, 0).expect("Failed to share state");
+    msg::reply(unsafe { static_ref!(STATE).clone() }, 0).expect("Failed to share state");
 }

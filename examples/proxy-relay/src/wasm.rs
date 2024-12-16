@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{RelayCall, ResendPushData};
-use gstd::msg::{self, MessageHandle};
+use gstd::{
+    msg::{self, MessageHandle},
+    prelude::*,
+};
 
 static mut RELAY_CALL: Option<RelayCall> = None;
 
@@ -66,7 +69,11 @@ fn resend_push(resend_pushes: &[ResendPushData], size: usize) {
 #[no_mangle]
 extern "C" fn handle() {
     use RelayCall::*;
-    let relay_call = unsafe { RELAY_CALL.as_ref().expect("Relay call is not initialized") };
+    let relay_call = unsafe {
+        static_ref!(RELAY_CALL)
+            .as_ref()
+            .expect("Relay call is not initialized")
+    };
     let size = msg::size();
 
     match relay_call {
