@@ -183,7 +183,7 @@ impl WasmProject {
         let mut package = Table::new();
         package.insert("name".into(), format!("{}-wasm", &crate_info.name).into());
         package.insert("version".into(), crate_info.version.into());
-        package.insert("edition".into(), "2024".into());
+        package.insert("edition".into(), "2021".into());
 
         let mut lib = Table::new();
         lib.insert("name".into(), crate_info.snake_case_name.into());
@@ -271,7 +271,7 @@ impl WasmProject {
                 r#"{source_code}
 #[allow(improper_ctypes)]
 mod fake_gsys {{
-    unsafe extern "C" {{
+    extern "C" {{
         pub fn gr_reply(
             payload: *const u8,
             len: u32,

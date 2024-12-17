@@ -53,7 +53,7 @@
 //! name = "my-gear-app"
 //! version = "0.1.0"
 //! authors = ["Your Name"]
-//! edition = "2024"
+//! edition = "2021"
 //!
 //! [dependencies]
 //! gstd = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.1" }
