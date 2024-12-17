@@ -16,22 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use jsonrpsee::types::ErrorObject;
+//! Private key type.
 
-// TODO #4364: https://github.com/gear-tech/gear/issues/4364
+use crate::utils;
+use anyhow::{Error, Result};
+use parity_scale_codec::{Decode, Encode};
+use secp256k1::SecretKey as Secp256k1SecretKey;
+use std::str::FromStr;
 
-pub fn db(err: &'static str) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Database error", Some(err))
+/// Private key.
+///
+/// Private key type used for elliptic curves maths for secp256k1 standard
+/// is a 256 bits unsigned integer, which the type stores as a 32 bytes array.
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PrivateKey(pub [u8; 32]);
+
+impl From<PrivateKey> for Secp256k1SecretKey {
+    fn from(key: PrivateKey) -> Self {
+        Secp256k1SecretKey::from_byte_array(&key.0).expect("32 bytes; within curve order")
+    }
 }
 
-pub fn runtime(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
-}
+impl FromStr for PrivateKey {
+    type Err = Error;
 
-pub fn internal() -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Internal error", None::<&str>)
-}
-
-pub fn tx_pool(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Transaction pool error", Some(format!("{err}")))
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(utils::decode_to_array(s)?))
+    }
 }

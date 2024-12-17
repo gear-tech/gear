@@ -10,12 +10,13 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 anyhow.workspace = true
 futures.workspace = true
 gprimitives = { workspace = true, features = ["serde"] }
 ethexe-db.workspace = true
 ethexe-processor.workspace = true
+ethexe-tx-pool.workspace = true
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors"] }
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
