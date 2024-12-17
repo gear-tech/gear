@@ -68,17 +68,15 @@ interface IRouter {
 
     /**
      * @dev Emitted when a slash request is processed by the middleware.
-     * @param middleware The address of the middleware that processed the slash request.
      * @param slashData An array of SlashData structures containing details of the slash request.
      */
-    event SlashRequestProcessed(address indexed middleware, IMiddleware.SlashData[] slashData);
+    event RequestSlashCommitmentProcessed(bytes32 indexed commitmentHash, IMiddleware.SlashData[] slashData);
 
     /**
      * @dev Emitted when a slash request is executed by the middleware.
-     * @param middleware The address of the middleware that processed the slash request.
-     * @param slashData An array of SlashIdentifier structures containing details of the slash execution.
+     * @param slashId An array of SlashIdentifier structures containing details of the slash execution.
      */
-    event SlashRequestProcessed(address indexed middleware, IMiddleware.SlashIdentifier[] slashData);
+    event ExecuteSlashCommitmentProcessed(bytes32 indexed commitmentHash, IMiddleware.SlashIdentifier[] slashId);
 
     /// @notice Emitted when the router's storage slot has been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
@@ -131,6 +129,12 @@ interface IRouter {
     /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(Gear.ValidatorsCommitment calldata validatorsCommitment, bytes[] calldata signatures)
         external;
-    function requestSlashCommitment(IMiddleware.SlashData[] calldata slashData) external;
-    function executeSlashCommitment(IMiddleware.SlashIdentifier[] calldata slashData) external;
+    function commitRequestSlash(
+        Gear.RequestSlashCommitment calldata requestSlashCommitment,
+        bytes[] calldata signatures
+    ) external;
+    function commitExecuteSlash(
+        Gear.ExecuteSlashCommitment calldata executeSlashCommitment,
+        bytes[] calldata signatures
+    ) external;
 }

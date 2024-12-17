@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IMiddleware} from "../IMiddleware.sol";
 import {IRouter} from "../IRouter.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
@@ -102,6 +103,16 @@ library Gear {
         Message[] messages;
     }
 
+    struct RequestSlashCommitment {
+        uint256 eraIndex;
+        IMiddleware.SlashData[] slashes;
+    }
+
+    struct ExecuteSlashCommitment {
+        uint256 eraIndex;
+        IMiddleware.SlashIdentifier[] slashIdentifiers;
+    }
+
     struct Timelines {
         uint256 era;
         uint256 election;
@@ -117,6 +128,73 @@ library Gear {
         bytes32 messageId;
         address destination;
         uint128 value;
+    }
+
+    /**
+     * @dev Computes the commitment hash for a request to slash operators.
+     * @param commitment The RequestSlashCommitment struct containing eraIndex and slashes.
+     * @return bytes32 The keccak256 hash of the request slash commitment.
+     */
+    function requestSlashCommitmentHash(RequestSlashCommitment memory commitment) internal pure returns (bytes32) {
+        bytes32 slashesHash = _hashSlashData(commitment.slashes);
+        return keccak256(abi.encodePacked(commitment.eraIndex, slashesHash));
+    }
+
+    /**
+     * @dev Computes the commitment hash for executing slashes.
+     * @param commitment The ExecuteSlashCommitment struct containing eraIndex and slashIdentifiers.
+     * @return bytes32 The keccak256 hash of the execute slash commitment.
+     */
+    function executeSlashCommitmentHash(ExecuteSlashCommitment memory commitment) internal pure returns (bytes32) {
+        bytes32 slashIdentifiersHash = _hashSlashIdentifiers(commitment.slashIdentifiers);
+        return keccak256(abi.encodePacked(commitment.eraIndex, slashIdentifiersHash));
+    }
+
+    /**
+     * @dev Internal helper to hash an array of SlashData structs.
+     * @param slashes The array of SlashData structs.
+     * @return bytes32 The keccak256 hash of the slash data.
+     */
+    function _hashSlashData(IMiddleware.SlashData[] memory slashes) private pure returns (bytes32) {
+        bytes memory encodedSlashes;
+        for (uint256 i = 0; i < slashes.length; i++) {
+            IMiddleware.SlashData memory slash = slashes[i];
+            encodedSlashes =
+                abi.encodePacked(encodedSlashes, slash.operator, slash.ts, _hashVaultSlashData(slash.vaults));
+        }
+        return keccak256(encodedSlashes);
+    }
+
+    /**
+     * @dev Internal helper to hash an array of VaultSlashData structs.
+     * @param vaults The array of VaultSlashData structs.
+     * @return bytes32 The keccak256 hash of the vault slash data.
+     */
+    function _hashVaultSlashData(IMiddleware.VaultSlashData[] memory vaults) private pure returns (bytes32) {
+        bytes memory encodedVaults;
+        for (uint256 i = 0; i < vaults.length; i++) {
+            IMiddleware.VaultSlashData memory vault = vaults[i];
+            encodedVaults = abi.encodePacked(encodedVaults, vault.vault, vault.amount);
+        }
+        return keccak256(encodedVaults);
+    }
+
+    /**
+     * @dev Internal helper to hash an array of SlashIdentifier structs.
+     * @param slashIdentifiers The array of SlashIdentifier structs.
+     * @return bytes32 The keccak256 hash of the slash identifiers.
+     */
+    function _hashSlashIdentifiers(IMiddleware.SlashIdentifier[] memory slashIdentifiers)
+        private
+        pure
+        returns (bytes32)
+    {
+        bytes memory encodedIdentifiers;
+        for (uint256 i = 0; i < slashIdentifiers.length; i++) {
+            IMiddleware.SlashIdentifier memory identifier = slashIdentifiers[i];
+            encodedIdentifiers = abi.encodePacked(encodedIdentifiers, identifier.vault, identifier.index);
+        }
+        return keccak256(encodedIdentifiers);
     }
 
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {

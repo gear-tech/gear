@@ -329,6 +329,72 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         );
     }
 
+    function commitRequestSlash(Gear.RequestSlashCommitment calldata commitment, bytes[] calldata signatures)
+        external
+    {
+        Storage storage router = _router();
+
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+
+        // Validate the era index
+        require(commitment.eraIndex == currentEraIndex, "commitment era index is invalid");
+
+        // Ensure the commitment window is valid
+        uint256 eraStart = router.genesisBlock.timestamp + router.timelines.era * currentEraIndex;
+        require(block.timestamp >= eraStart, "current era has not started yet");
+
+        // Validate signatures
+        bytes32 commitmentHash = Gear.requestSlashCommitmentHash(commitment);
+        require(
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), signatures),
+            "request slash commitment signatures verification failed"
+        );
+
+        // Ensure middleware is set
+        address middlewareAddress = router.implAddresses.middleware;
+        require(middlewareAddress != address(0), "Middleware address not set");
+
+        IMiddleware middlewareInstance = IMiddleware(middlewareAddress);
+
+        // Call the middleware's `requestSlash` function
+        middlewareInstance.requestSlash(commitment.slashes);
+
+        emit RequestSlashCommitmentProcessed(commitmentHash);
+    }
+
+    function commitExecuteSlash(Gear.ExecuteSlashCommitment calldata commitment, bytes[] calldata signatures)
+        external
+    {
+        Storage storage router = _router();
+
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+
+        // Validate the era index
+        require(commitment.eraIndex == currentEraIndex, "commitment era index is invalid");
+
+        // Ensure the commitment window is valid
+        uint256 eraStart = router.genesisBlock.timestamp + router.timelines.era * currentEraIndex;
+        require(block.timestamp >= eraStart, "current era has not started yet");
+
+        // Validate signatures
+        bytes32 commitmentHash = Gear.executeSlashCommitmentHash(commitment);
+        require(
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), signatures),
+            "execute slash commitment signatures verification failed"
+        );
+
+        // Ensure middleware is set
+        address middlewareAddress = router.implAddresses.middleware;
+        require(middlewareAddress != address(0), "Middleware address not set");
+
+        IMiddleware middlewareInstance = IMiddleware(middlewareAddress);
+
+        // Call the middleware's `executeSlash` function
+        middlewareInstance.executeSlash(commitment.slashIdentifiers);
+
+        emit ExecuteSlashCommitmentProcessed(commitmentHash);
+    }
+
     /* Helper private functions */
 
     function _createProgram(bytes32 _codeId, bytes32 _salt) private returns (address) {
@@ -445,35 +511,5 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function _setStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
-    }
-
-    function requestSlashCommitment(IMiddleware.SlashData[] calldata slashData) external {
-        Storage storage router = _router();
-
-        address middlewareAddress = router.implAddresses.middleware;
-        require(middlewareAddress != address(0), "Middleware address not set");
-
-        IMiddleware middlewareInstance = IMiddleware(middlewareAddress);
-
-        // Call the requestSlash function from the middleware
-        middlewareInstance.requestSlash(slashData);
-
-        // Emit an event to indicate the slash request has been processed
-        emit SlashRequestProcessed(middlewareAddress, slashData);
-    }
-
-    function executeSlashCommitment(IMiddleware.SlashIdentifier[] calldata slashData) external {
-        Storage storage router = _router();
-
-        address middlewareAddress = router.implAddresses.middleware;
-        require(middlewareAddress != address(0), "Middleware address not set");
-
-        IMiddleware middlewareInstance = IMiddleware(middlewareAddress);
-
-        // Call the executeSlash function from the middleware
-        middlewareInstance.executeSlash(slashData);
-
-        // Emit an event to indicate the slash request has been processed
-        emit SlashRequestProcessed(middlewareAddress, slashData);
     }
 }
