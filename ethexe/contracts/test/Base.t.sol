@@ -188,6 +188,20 @@ contract Base is POCBaseTest {
         router.commitValidators(commitment, signBytes(_privateKeys, message));
     }
 
+    function commitRequestSlash(uint256[] memory _privateKeys, Gear.RequestSlashCommitment memory commitment)
+        internal
+    {
+        bytes memory message = bytes.concat(Gear.requestSlashCommitmentHash(commitment));
+        router.commitRequestSlash(commitment, signBytes(_privateKeys, message));
+    }
+
+    function commitExecuteSlash(uint256[] memory _privateKeys, Gear.ExecuteSlashCommitment memory commitment)
+        internal
+    {
+        bytes memory message = bytes.concat(Gear.executeSlashCommitmentHash(commitment));
+        router.commitExecuteSlash(commitment, signBytes(_privateKeys, message));
+    }
+
     function commitCode(uint256[] memory _privateKeys, Gear.CodeCommitment memory _commitment) internal {
         Gear.CodeCommitment[] memory _commitments = new Gear.CodeCommitment[](1);
         _commitments[0] = _commitment;

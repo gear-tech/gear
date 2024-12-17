@@ -231,62 +231,56 @@ contract POCTest is Base {
         );
     }
 
-    function test_requestSlash() public {
+    function vetoDeadline(address slasher, uint256 slash_index) private view returns (uint48) {
+        (, address operator,,, uint48 _vetoDeadline,) = IVetoSlasher(slasher).slashRequests(slash_index);
+        console.log("operator:", operator, _vetoDeadline);
+        return _vetoDeadline;
+    }
+
+    function test_requestAndExecuteSlashCommitment() public {
         address operator1 = address(0x1);
-        address operator2 = address(0x2);
-
         uint256 stake1 = 1_000;
-        uint256 stake2 = 2_000;
-
         address vault1 = createOperatorWithStake(operator1, stake1);
-        address vault2 = createOperatorWithStake(operator2, stake2);
 
-        rollBlocks(1);
+        // Calculate the current era and increment for next era
+        uint256 currentEraIndex = (block.timestamp - router.genesisTimestamp()) / eraDuration;
+        uint256 nextEraIndex = currentEraIndex + 1;
 
-        // Change validators stake and make re-election
-        depositInto(vault1, 10_000);
-        depositInto(vault2, 10_000);
+        // Move to the election period for the next era
+        uint256 nextEraStart = router.genesisTimestamp() + eraDuration * nextEraIndex;
+        vm.warp(nextEraStart);
 
-        rollBlocks((eraDuration - electionDuration) / blockDuration);
-        middleware.makeElectionAt(uint48(vm.getBlockTimestamp()) - 1, maxValidators);
+        address[] memory _validators = router.validators();
+        uint256[] memory _privateKeys = new uint256[](_validators.length);
+        for (uint256 i = 0; i < _validators.length; i++) {
+            address _operator = _validators[i];
+            _privateKeys[i] = operators.get(_operator);
+        }
 
-        address middlewareAddress = address(middleware);
-
-        // Middleware must be deployed and stored
-        assertEq(router.middleware(), middlewareAddress, "Middleware address mismatch");
-
+        // Set up slash request commitment
         IMiddleware.VaultSlashData[] memory vaultData = new IMiddleware.VaultSlashData[](1);
-        vaultData[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 1000});
+        vaultData[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 500});
 
-        // Prepare SlashData with the registered operator and timestamp
         IMiddleware.SlashData[] memory slashDataArray = new IMiddleware.SlashData[](1);
-        slashDataArray[0] = IMiddleware.SlashData({
-            operator: operator1, // The operator address
-            ts: uint48(block.timestamp), // Current timestamp
-            vaults: vaultData // Vault data prepared earlier
-        });
+        slashDataArray[0] =
+            IMiddleware.SlashData({operator: operator1, ts: uint48(block.timestamp - 1), vaults: vaultData});
 
-        rollBlocks(1);
+        Gear.RequestSlashCommitment memory requestCommitment =
+            Gear.RequestSlashCommitment({eraIndex: nextEraIndex, slashes: slashDataArray});
 
-        vm.expectCall(middlewareAddress, abi.encodeWithSelector(IMiddleware.requestSlash.selector, slashDataArray));
-
-        router.requestSlashCommitment(slashDataArray);
+        commitRequestSlash(_privateKeys, requestCommitment);
 
         uint48 _vetoDeadline = vetoDeadline(IVault(vault1).slasher(), 0);
 
         vm.warp(_vetoDeadline);
 
+        // Execute Slash Commitment
         IMiddleware.SlashIdentifier[] memory slashIdArray = new IMiddleware.SlashIdentifier[](1);
         slashIdArray[0] = IMiddleware.SlashIdentifier({vault: vault1, index: 0});
 
-        vm.expectCall(middlewareAddress, abi.encodeWithSelector(IMiddleware.executeSlash.selector, slashIdArray));
+        Gear.ExecuteSlashCommitment memory executeCommitment =
+            Gear.ExecuteSlashCommitment({eraIndex: nextEraIndex, slashIdentifiers: slashIdArray});
 
-        router.executeSlashCommitment(slashIdArray);
-    }
-
-    function vetoDeadline(address slasher, uint256 slash_index) private view returns (uint48) {
-        (, address operator,,, uint48 _vetoDeadline,) = IVetoSlasher(slasher).slashRequests(slash_index);
-        console.log("operator:", operator, _vetoDeadline);
-        return _vetoDeadline;
+        commitExecuteSlash(_privateKeys, executeCommitment);
     }
 }
