@@ -329,12 +329,12 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
 
     /// Get's a mutable access to node's inner gas balance, if it can have any
     pub fn value_mut(&mut self) -> Option<&mut Balance> {
-        match self {
-            &mut Self::External { ref mut value, .. }
-            | &mut Self::Cut { ref mut value, .. }
-            | &mut Self::Reserved { ref mut value, .. }
-            | &mut Self::SpecifiedLocal { ref mut value, .. } => Some(value),
-            &mut Self::UnspecifiedLocal { .. } => None,
+        match *self {
+            Self::External { ref mut value, .. }
+            | Self::Cut { ref mut value, .. }
+            | Self::Reserved { ref mut value, .. }
+            | Self::SpecifiedLocal { ref mut value, .. } => Some(value),
+            Self::UnspecifiedLocal { .. } => None,
         }
     }
 
@@ -351,12 +351,12 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
 
     /// Get's a mutable access to node's locked gas balance, if it can have any.
     pub fn lock_mut(&mut self) -> &mut NodeLock<Balance> {
-        match self {
-            &mut Self::External { ref mut lock, .. }
-            | &mut Self::UnspecifiedLocal { ref mut lock, .. }
-            | &mut Self::SpecifiedLocal { ref mut lock, .. }
-            | &mut Self::Reserved { ref mut lock, .. }
-            | &mut Self::Cut { ref mut lock, .. } => lock,
+        match *self {
+            Self::External { ref mut lock, .. }
+            | Self::UnspecifiedLocal { ref mut lock, .. }
+            | Self::SpecifiedLocal { ref mut lock, .. }
+            | Self::Reserved { ref mut lock, .. }
+            | Self::Cut { ref mut lock, .. } => lock,
         }
     }
 
