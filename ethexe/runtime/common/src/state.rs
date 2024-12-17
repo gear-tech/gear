@@ -25,7 +25,12 @@ use alloc::{
     vec::Vec,
 };
 use anyhow::{anyhow, Result};
-use core::{any::Any, marker::PhantomData, mem};
+use core::{
+    any::Any,
+    marker::PhantomData,
+    mem,
+    ops::{Index, IndexMut},
+};
 use ethexe_common::gear::Message;
 use gear_core::{
     ids::{prelude::MessageIdExt as _, ProgramId},
@@ -40,6 +45,8 @@ use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
+#[cfg(feature = "std")]
+use serde::{de::Visitor, ser::SerializeTuple};
 
 pub use gear_core::program::ProgramState as InitStatus;
 
@@ -239,6 +246,14 @@ impl<S: Sealed> MaybeHashOf<S> {
         if let Some(other) = other {
             *self = other;
         }
+    }
+
+    pub fn map<T>(&self, f: impl FnOnce(HashOf<S>) -> T) -> Option<T> {
+        self.0.map(f)
+    }
+
+    pub fn take(&mut self) -> Self {
+        Self(self.0.take())
     }
 }
 
@@ -812,12 +827,79 @@ impl Mailbox {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 pub struct MemoryPages(MemoryPagesInner);
 
-// TODO (breathx): replace BTreeMap here with fixed size array.
-pub type MemoryPagesInner = BTreeMap<RegionIdx, HashOf<MemoryPagesRegion>>;
+impl Default for MemoryPages {
+    fn default() -> Self {
+        Self([MaybeHashOf::empty(); 256])
+    }
+}
+// implemented manually because serde_derive does not work with arrays larger than 32 elements
+#[cfg(feature = "std")]
+impl serde::Serialize for MemoryPages {
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq = serializer.serialize_tuple(self.0.len())?;
+        for elem in &self.0[..] {
+            seq.serialize_element(elem)?;
+        }
+
+        seq.end()
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'a> serde::Deserialize<'a> for MemoryPages {
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'a>,
+    {
+        struct ArrayVisitor {}
+
+        impl<'de> Visitor<'de> for ArrayVisitor {
+            type Value = MemoryPagesInner;
+
+            fn expecting(&self, formatter: &mut alloc::fmt::Formatter) -> alloc::fmt::Result {
+                formatter.write_str("an array of length 256")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> core::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut arr = [MaybeHashOf::empty(); 256];
+                for (i, hash) in arr.iter_mut().enumerate() {
+                    *hash = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
+                }
+                Ok(arr)
+            }
+        }
+
+        let visitor = ArrayVisitor {};
+        deserializer.deserialize_tuple(256, visitor).map(Self)
+    }
+}
+
+impl Index<RegionIdx> for MemoryPages {
+    type Output = MaybeHashOf<MemoryPagesRegion>;
+
+    fn index(&self, idx: RegionIdx) -> &Self::Output {
+        &self.0[idx.0 as usize]
+    }
+}
+
+impl IndexMut<RegionIdx> for MemoryPages {
+    fn index_mut(&mut self, index: RegionIdx) -> &mut Self::Output {
+        &mut self.0[index.0 as usize]
+    }
+}
+
+pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; 256];
 
 impl MemoryPages {
     /// Granularity parameter of how memory pages hashes are stored.
@@ -852,8 +934,8 @@ impl MemoryPages {
 
             if current_region_idx != Some(region_idx) {
                 let region_entry = updated_regions.entry(region_idx).or_insert_with(|| {
-                    self.0
-                        .remove(&region_idx)
+                    self[region_idx]
+                        .take()
                         .map(|region_hash| {
                             storage
                                 .read_pages_region(region_hash)
@@ -879,7 +961,7 @@ impl MemoryPages {
                 .hash()
                 .expect("infallible; pages are only appended here, none are removed");
 
-            self.0.insert(region_idx, region_hash);
+            self[region_idx] = region_hash.into();
         }
     }
 
@@ -894,8 +976,8 @@ impl MemoryPages {
 
             if current_region_idx != Some(region_idx) {
                 let region_entry = updated_regions.entry(region_idx).or_insert_with(|| {
-                    self.0
-                        .remove(&region_idx)
+                    self[region_idx]
+                        .take()
                         .map(|region_hash| {
                             storage
                                 .read_pages_region(region_hash)
@@ -917,7 +999,7 @@ impl MemoryPages {
 
         for (region_idx, region) in updated_regions {
             if let Some(region_hash) = region.store(storage).hash() {
-                self.0.insert(region_idx, region_hash);
+                self[region_idx] = region_hash.into();
             }
         }
     }
