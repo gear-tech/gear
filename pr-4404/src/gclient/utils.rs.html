@@ -114,12 +114,12 @@
 /// let wasm_path = gclient::wasm_target(".", "demo_ping");
 /// assert_eq!(
 ///     wasm_path,
-///     "./target/wasm32v1-none/release/demo_ping.opt.wasm"
+///     "./target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 /// );
 /// ```
 </span><span class="kw">pub fn </span><a href="../../gclient/fn.wasm_target.html">wasm_target</a>(root_path: <span class="kw">impl </span><a href="../../gclient/ext/sp_core/sp_std/convert/trait.AsRef.html">AsRef</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;, demo_name: <span class="kw">impl </span><a href="../../gclient/ext/sp_core/sp_std/convert/trait.AsRef.html">AsRef</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;) -&gt; <a href="../../gclient/ext/sp_core/bounded/alloc/string/struct.String.html">String</a> {
     <a class="macro" href="../../gclient/ext/sp_runtime/scale_info/prelude/macro.format.html">format!</a>(
-        <span class="string">"{}/target/wasm32v1-none/release/{}.opt.wasm"</span>,
+        <span class="string">"{}/target/wasm32-unknown-unknown/release/{}.opt.wasm"</span>,
         root_path.as_ref(),
         demo_name.as_ref()
     )

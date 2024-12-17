@@ -38,7 +38,7 @@ we assume the node is running in developer mode:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gclient::{EventProcessor, GearApi, <span class="prelude-ty">Result</span>};
 
-<span class="kw">const </span>WASM_PATH: <span class="kw-2">&amp;</span>str = <span class="string">"./target/wasm32v1-none/release/first_gear_app.opt.wasm"</span>;
+<span class="kw">const </span>WASM_PATH: <span class="kw-2">&amp;</span>str = <span class="string">"./target/wasm32-unknown-unknown/release/first_gear_app.opt.wasm"</span>;
 
 <span class="attr">#[tokio::test]
 </span><span class="kw">async fn </span>test_example() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {

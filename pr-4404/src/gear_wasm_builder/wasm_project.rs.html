@@ -722,7 +722,7 @@
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.expect">expect</a>(<span class="string">"Could not find target directory"</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>wasm_target_dir = <a href="#122">target_dir</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>();
-        <a href="#129">wasm_target_dir</a>.<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html#method.push">push</a>(<span class="string">"wasm32v1-none"</span>);
+        <a href="#129">wasm_target_dir</a>.<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html#method.push">push</a>(<span class="string">"wasm32-unknown-unknown"</span>);
         <a href="#129">wasm_target_dir</a>.<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html#method.push">push</a>(<span class="kw-2">&amp;</span><a href="#108">profile</a>);
 
         <a href="#122">target_dir</a>.<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html#method.push">push</a>(<span class="string">"wasm-projects"</span>);
@@ -1025,7 +1025,7 @@ extern "C" fn metahash() {{
     <span class="doccomment">/// Post-processing after the WASM binary has been built.
     ///
     /// - Copy WASM binary from `OUT_DIR` to
-    ///   `target/wasm32v1-none/&lt;profile&gt;`
+    ///   `target/wasm32-unknown-unknown/&lt;profile&gt;`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     </span><span class="kw">pub fn </span>postprocess(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>, <a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>)&gt;&gt; {
@@ -1035,7 +1035,7 @@ extern "C" fn metahash() {{
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.expect">expect</a>(<span class="string">"Run `WasmProject::generate()` first"</span>);
 
         <span class="kw">let </span>original_wasm_path = <a class="self" href="#436">self</a>.target_dir.<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.join">join</a>(<a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
-            <span class="string">"wasm32v1-none/{}/{file_base_name}.wasm"</span>,
+            <span class="string">"wasm32-unknown-unknown/{}/{file_base_name}.wasm"</span>,
             <span class="self">self</span>.profile
         ));
 
