@@ -111,7 +111,7 @@ binary with the optional <code>argument</code>.</p>
 <p>You can pass arguments as <code>Option&lt;(arg1, arg2, ...)&gt;</code> or by
 using <a href="macro.state_args.html" title="macro gtest::state_args"><code>state_args</code></a> macro.</p>
 <h5 id="examples-1"><a class="doc-anchor" href="#examples-1">§</a>Examples</h5>
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">//Read state bytes with no arguments passed to wasm.
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">//Read state bytes with no arguments passed to wasm.
 </span><span class="kw">let _ </span>= program.read_state_using_wasm(Vec::&lt;u8&gt;::default(), <span class="string">"fn_name"</span>, WASM, <span class="prelude-ty">Option</span>::&lt;()&gt;::None)<span class="question-mark">?</span>;
 <span class="kw">let _ </span>= program.read_state_using_wasm(Vec::&lt;u8&gt;::default(), <span class="string">"fn_name"</span>, WASM, <span class="macro">state_args!</span>())<span class="question-mark">?</span>;
 <span class="comment">// Read state bytes with one argument passed to wasm.

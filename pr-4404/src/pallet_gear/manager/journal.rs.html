@@ -722,7 +722,7 @@
     scheduler::{SchedulingCostsPerBlock, StorageType, TaskPool},
     storage::<span class="kw-2">*</span>,
 };
-<span class="kw">use </span>core_processor::common::{<a href="../../../gear_core_processor/common/enum.DispatchOutcome.html">DispatchOutcome</a> <span class="kw">as </span>CoreDispatchOutcome, <a href="../../../gear_core_processor/common/trait.JournalHandler.html">JournalHandler</a>};
+<span class="kw">use </span>core_processor::common::{DispatchOutcome <span class="kw">as </span>CoreDispatchOutcome, JournalHandler};
 <span class="kw">use </span>frame_support::{
     sp_runtime::Saturating,
     traits::{Currency, ExistenceRequirement, LockableCurrency, WithdrawReasons},
@@ -741,7 +741,7 @@
 <span class="kw">use </span>sp_runtime::traits::{UniqueSaturatedInto, <a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">Zero</a>};
 <span class="kw">use </span>sp_std::{<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">collections::btree_map::BTreeMap</a>, prelude::<span class="kw-2">*</span>};
 
-<span class="kw">impl</span>&lt;T&gt; <a href="../../../gear_core_processor/common/trait.JournalHandler.html">JournalHandler</a> <span class="kw">for </span><a href="mod.rs.html#138-151">ExtManager</a>&lt;T&gt;
+<span class="kw">impl</span>&lt;T&gt; JournalHandler <span class="kw">for </span><a href="mod.rs.html#138-151">ExtManager</a>&lt;T&gt;
 <span class="kw">where
     </span>T: <a href="../lib.rs.html#164-292">Config</a>,
     T::AccountId: Origin,
@@ -750,12 +750,12 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         message_id: MessageId,
         source: ProgramId,
-        outcome: <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html">CoreDispatchOutcome</a>,
+        outcome: CoreDispatchOutcome,
     ) {
-        <span class="kw">use </span><a href="../../../gear_core_processor/common/enum.DispatchOutcome.html">CoreDispatchOutcome</a>::<span class="kw-2">*</span>;
+        <span class="kw">use </span>CoreDispatchOutcome::<span class="kw-2">*</span>;
 
         <span class="kw">let </span>status = <span class="kw">match </span><a href="#60">outcome</a> {
-            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.Exit">Exit</a> { program_id } =&gt; {
+            Exit { program_id } =&gt; {
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Dispatch outcome exit: {:?}"</span>, message_id);
 
                 <a href="../lib.rs.html#297">Pallet</a>::&lt;T&gt;::deposit_event(<a href="../lib.rs.html#399-406">Event::ProgramChanged</a> {
@@ -765,12 +765,12 @@
 
                 DispatchStatus::Success
             }
-            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.Success">Success</a> =&gt; {
+            Success =&gt; {
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Dispatch outcome success: {:?}"</span>, message_id);
 
                 DispatchStatus::Success
             }
-            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.MessageTrap">MessageTrap</a> { program_id, trap } =&gt; {
+            MessageTrap { program_id, trap } =&gt; {
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Dispatch outcome trap: {:?}"</span>, message_id);
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(
                     <span class="string">"🪤 Program {} terminated with a trap: {}"</span>,
@@ -780,7 +780,7 @@
 
                 DispatchStatus::Failed
             }
-            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.InitSuccess">InitSuccess</a> { program_id, .. } =&gt; {
+            InitSuccess { program_id, .. } =&gt; {
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(
                     <span class="string">"Dispatch ({:?}) init success for program {:?}"</span>,
                     message_id,
@@ -820,7 +820,7 @@
 
                 DispatchStatus::Success
             }
-            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.InitFailure">InitFailure</a> {
+            InitFailure {
                 program_id,
                 origin,
                 reason,
@@ -833,7 +833,7 @@
 
                 DispatchStatus::Failed
             }
-            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.NoExecution">NoExecution</a> =&gt; {
+            NoExecution =&gt; {
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Dispatch ({:?}) for program wasn't executed"</span>, message_id);
 
                 DispatchStatus::NotExecuted
