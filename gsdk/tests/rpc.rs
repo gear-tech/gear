@@ -19,7 +19,7 @@
 //! Requires node to be built in release mode
 
 use gear_core::{
-    ids::{CodeId, ProgramId, prelude::*},
+    ids::{prelude::*, CodeId, ProgramId},
     message::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
@@ -27,7 +27,7 @@ use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::ErrorObject;
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
-use subxt::{Error as SubxtError, error::RpcError, utils::H256};
+use subxt::{error::RpcError, utils::H256, Error as SubxtError};
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -410,11 +410,14 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
         .await?;
 
     // 3. assert
-    assert_eq!(reply_info, ReplyInfo {
-        payload: message_out.encode(),
-        value: 0,
-        code: ReplyCode::Success(SuccessReplyReason::Manual)
-    });
+    assert_eq!(
+        reply_info,
+        ReplyInfo {
+            payload: message_out.encode(),
+            value: 0,
+            code: ReplyCode::Success(SuccessReplyReason::Manual)
+        }
+    );
 
     Ok(())
 }
@@ -458,11 +461,14 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
         .await?;
 
     // 4. assert that calculated result correct
-    assert_eq!(reply_info, ReplyInfo {
-        payload: 42i32.encode(),
-        value: 0,
-        code: ReplyCode::Success(SuccessReplyReason::Manual)
-    });
+    assert_eq!(
+        reply_info,
+        ReplyInfo {
+            payload: 42i32.encode(),
+            value: 0,
+            code: ReplyCode::Success(SuccessReplyReason::Manual)
+        }
+    );
 
     // 5. read state after calculate
     let calculated_state = signer.api().read_state(pid_h256, vec![], None).await?;
@@ -490,8 +496,8 @@ async fn query_program_counters(
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
     use gsdk::{
-        BlockNumber,
         metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
+        BlockNumber,
     };
     use parity_scale_codec::Decode;
     use subxt::dynamic::Value;

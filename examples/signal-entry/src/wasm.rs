@@ -17,14 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS};
-use gear_core::ids::{ProgramId, prelude::*};
+use gear_core::ids::{prelude::*, ProgramId};
 use gstd::{
-    ActorId, MessageId, debug,
+    debug,
     errors::{ExtError, ReservationError, SignalCode, SimpleExecutionError},
     exec,
     ext::oom_panic,
     msg,
     prelude::*,
+    ActorId, MessageId,
 };
 
 static mut INITIATOR: ActorId = ActorId::zero();

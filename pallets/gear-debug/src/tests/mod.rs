@@ -18,10 +18,10 @@
 
 use super::*;
 use crate::mock::*;
-use common::{self, CodeStorage, Origin, event::MessageEntry};
+use common::{self, event::MessageEntry, CodeStorage, Origin};
 use frame_support::assert_ok;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId, prelude::*},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
     pages::{GearPage, WasmPage},

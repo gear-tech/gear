@@ -2,15 +2,15 @@ use crate::{
     args::{LoadParams, SeedVariant},
     utils::{self, SwapResult},
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use api::GearApiFacade;
 use context::Context;
-use futures::{Future, StreamExt, stream::FuturesUnordered};
+use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
-use gsdk::metadata::{Event, gear::Event as GearEvent};
+use gsdk::metadata::{gear::Event as GearEvent, Event};
 use primitive_types::H256;
 pub use report::CrashAlert;
 use report::{BatchRunReport, MailboxReport, Report};

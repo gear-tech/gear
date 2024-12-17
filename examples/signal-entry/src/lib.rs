@@ -66,7 +66,7 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use crate::HandleAction;
-    use gtest::{Log, Program, System, constants::DEFAULT_USER_ALICE};
+    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
 
     #[test]
     fn signal_can_be_sent() {

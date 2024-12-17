@@ -24,9 +24,9 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use core_processor::{
-    ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
+    ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
 use gear_core::{
     code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},

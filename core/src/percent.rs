@@ -19,7 +19,7 @@
 //! Basic struct for working with integer percentages.
 
 use core::cmp::Ord;
-use num_traits::{Num, cast::NumCast};
+use num_traits::{cast::NumCast, Num};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 

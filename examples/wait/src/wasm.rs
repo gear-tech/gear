@@ -18,7 +18,7 @@
 
 // for panic/oom handlers
 
-use gstd::{MessageId, debug, exec, msg, prelude::*};
+use gstd::{debug, exec, msg, prelude::*, MessageId};
 
 static mut STATE: u32 = 0;
 static mut MSG_ID_1: MessageId = MessageId::zero();

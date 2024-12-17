@@ -22,8 +22,8 @@ use gear_core::ids::ProgramId;
 use gsdk::{
     ext::sp_core::H256,
     metadata::{
-        Event,
         runtime_types::pallet_gear_voucher::{internal::VoucherId, pallet::Event as VoucherEvent},
+        Event,
     },
 };
 

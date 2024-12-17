@@ -51,9 +51,9 @@ mod mock;
 mod tests;
 
 use frame_support::{
-    PalletId,
     pallet_prelude::*,
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
+    PalletId,
 };
 use gear_core::ids::{MessageId, ProgramId};
 pub use primitive_types::H256;
@@ -74,14 +74,14 @@ const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 pub mod pallet {
     use super::*;
     use common::{
-        Origin,
         storage::{Mailbox, ValueStorage},
+        Origin,
     };
     use frame_system::pallet_prelude::*;
     use gear_core::message::UserStoredMessage;
     use sp_runtime::{
-        SaturatedConversion, Saturating,
         traits::{CheckedSub, One, Zero},
+        SaturatedConversion, Saturating,
     };
     use sp_std::collections::btree_set::BTreeSet;
 
@@ -101,7 +101,10 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
 
         /// Prepaid calls executor.
-        type CallsDispatcher: PrepaidCallsDispatcher<AccountId = Self::AccountId, Balance = BalanceOf<Self>>;
+        type CallsDispatcher: PrepaidCallsDispatcher<
+            AccountId = Self::AccountId,
+            Balance = BalanceOf<Self>,
+        >;
 
         /// Mailbox to extract destination for some prepaid cases (e.g. `Gear::send_reply`).
         type Mailbox: Mailbox<Key1 = Self::AccountId, Key2 = MessageId, Value = UserStoredMessage>;

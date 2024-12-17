@@ -18,8 +18,8 @@
 
 use crate::{Config, Pallet, Waitlist};
 use common::{
-    MessageId,
     storage::{Interval, LinkedNode},
+    MessageId,
 };
 use core::marker::PhantomData;
 
@@ -27,8 +27,8 @@ use core::marker::PhantomData;
 use {
     frame_support::ensure,
     sp_runtime::{
-        TryRuntimeError,
         codec::{Decode, Encode},
+        TryRuntimeError,
     },
     sp_std::vec::Vec,
 };
@@ -164,8 +164,8 @@ mod v3 {
     };
 
     use scale_info::{
-        TypeInfo,
         scale::{Decode, Encode},
+        TypeInfo,
     };
 
     use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};

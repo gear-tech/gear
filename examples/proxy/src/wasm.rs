@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{HANDLE_REPLY_EXPECT, InputArgs};
-use gstd::{ActorId, msg};
+use crate::{InputArgs, HANDLE_REPLY_EXPECT};
+use gstd::{msg, ActorId};
 
 static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 

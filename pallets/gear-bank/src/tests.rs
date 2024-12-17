@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{GasMultiplier, OnFinalizeValue, UnusedValue, mock::*, *};
+use crate::{mock::*, GasMultiplier, OnFinalizeValue, UnusedValue, *};
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
-use sp_runtime::{StateVersion, traits::Zero};
+use sp_runtime::{traits::Zero, StateVersion};
 use utils::*;
 
 #[test]

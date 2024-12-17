@@ -19,7 +19,7 @@
 //! Benchmarks for Pallet Gear Eth Bridge.
 
 use crate::{Call, Config, Pallet};
-use common::{Origin, benchmarking};
+use common::{benchmarking, Origin};
 use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
 use sp_runtime::traits::Get;

@@ -18,8 +18,8 @@
 
 use clap::Parser;
 use sc_cli::{
-    DEFAULT_WASM_EXECUTION_METHOD, DEFAULT_WASMTIME_INSTANTIATION_STRATEGY, WasmExecutionMethod,
-    WasmtimeInstantiationStrategy,
+    WasmExecutionMethod, WasmtimeInstantiationStrategy, DEFAULT_WASMTIME_INSTANTIATION_STRATEGY,
+    DEFAULT_WASM_EXECUTION_METHOD,
 };
 use std::fmt::Debug;
 

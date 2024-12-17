@@ -24,7 +24,7 @@ use crate::mock::*;
 use common::Origin;
 use demo_waiting_proxy::WASM_BINARY;
 use frame_support::assert_ok;
-use gear_core::ids::{CodeId, ProgramId, prelude::*};
+use gear_core::ids::{prelude::*, CodeId, ProgramId};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use parity_scale_codec::Encode;
 use primitive_types::H256;

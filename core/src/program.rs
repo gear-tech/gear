@@ -27,8 +27,8 @@ use crate::{
 use alloc::collections::BTreeSet;
 use primitive_types::H256;
 use scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 /// Program in different states in storage.

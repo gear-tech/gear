@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Action;
-use gstd::{Reservations, msg, prelude::*};
+use gstd::{msg, prelude::*, Reservations};
 
 static mut RESERVATIONS: Reservations = Reservations::new();
 

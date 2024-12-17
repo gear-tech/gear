@@ -28,7 +28,7 @@
 
 use crate::InputArgs;
 use futures::future;
-use gstd::{ActorId, msg, prelude::*};
+use gstd::{msg, prelude::*, ActorId};
 
 // One of the addresses supposed to be non-program.
 static mut ARGUMENTS: InputArgs = InputArgs {

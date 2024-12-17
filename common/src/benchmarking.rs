@@ -77,9 +77,10 @@ pub fn create_module(num_pages: WasmPage) -> parity_wasm::elements::Module {
 pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     let module = parity_wasm::elements::Module::new(vec![
         Section::Type(TypeSection::with_types(vec![
-            Type::Function(FunctionType::new(vec![ValueType::I32], vec![
-                ValueType::I32,
-            ])),
+            Type::Function(FunctionType::new(
+                vec![ValueType::I32],
+                vec![ValueType::I32],
+            )),
             Type::Function(FunctionType::new(vec![], vec![])),
         ])),
         Section::Import(ImportSection::with_entries(vec![
@@ -124,15 +125,18 @@ pub fn set_program<ProgramStorage, BlockNumber>(
     ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
     BlockNumber: Zero + Copy + Saturating,
 {
-    ProgramStorage::add_program(program_id, ActiveProgram {
-        allocations_tree_len: 0,
-        code_hash: CodeId::generate(&code).into_origin(),
-        code_exports: Default::default(),
-        static_pages,
-        state: ProgramState::Initialized,
-        gas_reservation_map: GasReservationMap::default(),
-        expiration_block: Zero::zero(),
-        memory_infix: MemoryInfix::new(1u32),
-    })
+    ProgramStorage::add_program(
+        program_id,
+        ActiveProgram {
+            allocations_tree_len: 0,
+            code_hash: CodeId::generate(&code).into_origin(),
+            code_exports: Default::default(),
+            static_pages,
+            state: ProgramState::Initialized,
+            gas_reservation_map: GasReservationMap::default(),
+            expiration_block: Zero::zero(),
+            memory_infix: MemoryInfix::new(1u32),
+        },
+    )
     .expect("benchmarking; program duplicates should not exist");
 }

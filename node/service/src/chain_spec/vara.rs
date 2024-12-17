@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::chain_spec::{AccountId, Extensions, get_account_id_from_seed, get_from_seed};
+use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
 use gear_runtime_common::{
     self,
     constants::{BANK_ADDRESS, VARA_DECIMAL, VARA_SS58PREFIX, VARA_TESTNET_TOKEN_SYMBOL},
@@ -31,8 +31,8 @@ use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::sr25519;
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    SessionKeys, StakerStatus, WASM_BINARY,
     constants::currency::{ECONOMIC_UNITS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
+    SessionKeys, StakerStatus, WASM_BINARY,
 };
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.

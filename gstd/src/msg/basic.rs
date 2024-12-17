@@ -19,9 +19,9 @@
 #[cfg(not(feature = "ethexe"))]
 use crate::ReservationId;
 use crate::{
-    ActorId, MessageId,
     msg::{self, utils},
-    prelude::{Vec, ops::RangeBounds, vec},
+    prelude::{ops::RangeBounds, vec, Vec},
+    ActorId, MessageId,
 };
 use gcore::errors::Result;
 use gstd_codegen::wait_for_reply;
@@ -183,9 +183,9 @@ impl MessageHandle {
     ///
     /// ```
     /// use gstd::{
-    ///     ReservationId,
     ///     msg::{self, MessageHandle},
     ///     prelude::*,
+    ///     ReservationId,
     /// };
     ///
     /// #[unsafe(no_mangle)]
@@ -321,7 +321,7 @@ pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> 
 /// # Examples
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
@@ -410,7 +410,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// # Examples
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
@@ -524,7 +524,7 @@ pub fn reply_push_input(range: impl RangeBounds<usize>) -> Result<()> {
 /// program!):
 ///
 /// ```
-/// use gstd::{ActorId, msg};
+/// use gstd::{msg, ActorId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
@@ -565,7 +565,7 @@ pub fn send_bytes_delayed<T: AsRef<[u8]>>(
 /// repeat it in your program!):
 ///
 /// ```
-/// use gstd::{ActorId, msg};
+/// use gstd::{msg, ActorId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
@@ -621,7 +621,7 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
 /// Send a message with value to the sender's address:
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {

@@ -20,7 +20,7 @@ use std::time::SystemTime;
 
 use crate::config::Config;
 use ethexe_observer::ObserverStatus;
-use ethexe_prometheus_endpoint::{Gauge, Opts, PrometheusError, Registry, U64, register};
+use ethexe_prometheus_endpoint::{register, Gauge, Opts, PrometheusError, Registry, U64};
 use ethexe_sequencer::SequencerStatus;
 use ethexe_utils::metrics::register_globals;
 use futures_timer::Delay;

@@ -29,7 +29,7 @@ pub use self::{
     manifest::{LockFile, Manifest, Workspace},
     publisher::Publisher,
     simulator::Simulator,
-    version::{PackageStatus, verify, verify_owners},
+    version::{verify, verify_owners, PackageStatus},
 };
 use anyhow::Result;
 use std::process::{Command, ExitStatus};

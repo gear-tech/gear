@@ -17,24 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
-    Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
-    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
     builtin::BuiltinDispatcherFactory,
     internal::{HoldBound, HoldBoundBuilder, InheritorForError},
     manager::{CodeInfo, HandleKind},
     mock::{
-        self, BLOCK_AUTHOR, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
-        LOW_BALANCE_USER, RENT_POOL, RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test,
-        Timestamp, USER_1, USER_2, USER_3, new_test_ext, run_for_blocks, run_to_block,
-        run_to_block_maybe_with_queue, run_to_next_block,
+        self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
+        run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
+        RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
+        LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
+    AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
+    Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
+    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    CodeStorage, GasTree, GearPage, LockId, LockableTree, Origin as _, Program, ProgramStorage,
-    ReservableTree, event::*, scheduler::*, storage::*,
+    event::*, scheduler::*, storage::*, CodeStorage, GasTree, GearPage, LockId, LockableTree,
+    Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use demo_constructor::{Calls, Scheme};
@@ -50,14 +50,14 @@ use gear_core::{
         InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
-    ids::{CodeId, MessageId, ProgramId, prelude::*},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
     pages::{
-        WasmPage,
         numerated::{self, tree::IntervalsTree},
+        WasmPage,
     },
     program::ActiveProgram,
     tasks::ScheduledTask,
@@ -73,9 +73,9 @@ use gstd::{
 };
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{
-    SaturatedConversion,
     codec::{Decode, Encode},
     traits::{Dispatchable, One, UniqueSaturatedInto},
+    SaturatedConversion,
 };
 use sp_std::convert::TryFrom;
 use std::{collections::BTreeSet, num::NonZero};
@@ -104,26 +104,32 @@ fn calculate_reply_for_handle_works() {
         )
         .expect("Failed to query reply");
 
-        assert_eq!(res, ReplyInfo {
-            payload: b"PONG".to_vec(),
-            value: 0,
-            code: ReplyCode::Success(SuccessReplyReason::Manual)
-        });
+        assert_eq!(
+            res,
+            ReplyInfo {
+                payload: b"PONG".to_vec(),
+                value: 0,
+                code: ReplyCode::Success(SuccessReplyReason::Manual)
+            }
+        );
 
         // Out of gas panic case.
         let res =
             Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 800_000_000, 0)
                 .expect("Failed to query reply");
 
-        assert_eq!(res, ReplyInfo {
-            payload: ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
-                .to_string()
-                .into_bytes(),
-            value: 0,
-            code: ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::RanOutOfGas
-            ))
-        });
+        assert_eq!(
+            res,
+            ReplyInfo {
+                payload: ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
+                    .to_string()
+                    .into_bytes(),
+                value: 0,
+                code: ReplyCode::Error(ErrorReplyReason::Execution(
+                    SimpleExecutionError::RanOutOfGas
+                ))
+            }
+        );
 
         // TODO: uncomment code below (issue #3804).
         // // Value returned in case of error.
@@ -180,7 +186,7 @@ fn calculate_gas_results_in_finite_wait() {
 
 #[test]
 fn state_rpc_calls_trigger_reinstrumentation() {
-    use demo_new_meta::{META_WASM_V1, MessageInitIn, WASM_BINARY};
+    use demo_new_meta::{MessageInitIn, META_WASM_V1, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -491,41 +497,37 @@ fn calculate_gas_delayed_reservations_sending() {
         assert!(Gear::is_initialized(pid));
 
         // I. In-place case
-        assert!(
-            Gear::calculate_gas_info(
-                USER_1.into_origin(),
-                HandleKind::Handle(pid),
-                ReservationSendingShowcase::ToSourceInPlace {
-                    reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
-                    reservation_delay: 1_000,
-                    sending_delay: 10,
-                }
-                .encode(),
-                0,
-                true,
-                true,
-            )
-            .is_ok()
-        );
+        assert!(Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            ReservationSendingShowcase::ToSourceInPlace {
+                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_delay: 1_000,
+                sending_delay: 10,
+            }
+            .encode(),
+            0,
+            true,
+            true,
+        )
+        .is_ok());
 
         // II. After-wait case (never failed before, added for test coverage).
-        assert!(
-            Gear::calculate_gas_info(
-                USER_1.into_origin(),
-                HandleKind::Handle(pid),
-                ReservationSendingShowcase::ToSourceAfterWait {
-                    reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
-                    reservation_delay: 1_000,
-                    wait_for: 3,
-                    sending_delay: 10,
-                }
-                .encode(),
-                0,
-                true,
-                true,
-            )
-            .is_ok()
-        );
+        assert!(Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            ReservationSendingShowcase::ToSourceAfterWait {
+                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_delay: 1_000,
+                wait_for: 3,
+                sending_delay: 10,
+            }
+            .encode(),
+            0,
+            true,
+            true,
+        )
+        .is_ok());
     });
 }
 
@@ -1050,7 +1052,7 @@ fn auto_reply_from_user_no_mailbox() {
 #[test]
 fn auto_reply_out_of_rent_waitlist() {
     use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY as PROXY_WASM_BINARY};
-    use demo_waiter::{Command, WASM_BINARY as WAITER_WASM_BINARY, WaitSubcommand};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY as WAITER_WASM_BINARY};
 
     init_logger();
 
@@ -1874,7 +1876,7 @@ fn terminated_program_zero_gas() {
 
 #[test]
 fn exited_program_zero_gas_and_value() {
-    use crate::{Fortitude, Preservation, fungible};
+    use crate::{fungible, Fortitude, Preservation};
 
     init_logger();
 
@@ -2588,7 +2590,7 @@ fn unstoppable_block_execution_works() {
 
 #[test]
 fn read_state_works() {
-    use demo_new_meta::{MessageInitIn, WASM_BINARY, Wallet};
+    use demo_new_meta::{MessageInitIn, Wallet, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2620,8 +2622,8 @@ fn read_state_works() {
 #[test]
 fn read_state_using_wasm_works() {
     use demo_new_meta::{
-        Id, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2, MessageInitIn,
-        WASM_BINARY, Wallet,
+        Id, MessageInitIn, Wallet, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2,
+        WASM_BINARY,
     };
 
     init_logger();
@@ -2689,7 +2691,7 @@ fn read_state_using_wasm_works() {
 
 #[test]
 fn read_state_bn_and_timestamp_works() {
-    use demo_new_meta::{META_WASM_V3, MessageInitIn, WASM_BINARY};
+    use demo_new_meta::{MessageInitIn, META_WASM_V3, WASM_BINARY};
 
     let check = |program_id: ProgramId| {
         let expected: u32 = Gear::block_number().unique_saturated_into();
@@ -2752,7 +2754,7 @@ fn read_state_bn_and_timestamp_works() {
 #[test]
 fn wasm_metadata_generation_works() {
     use demo_new_meta::{
-        META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2, MessageInitIn, WASM_BINARY,
+        MessageInitIn, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2, WASM_BINARY,
     };
 
     init_logger();
@@ -2847,47 +2849,41 @@ fn read_state_using_wasm_errors() {
         assert!(Gear::is_initialized(program_id));
 
         // Inexistent function
-        assert!(
-            Gear::read_state_using_wasm_impl(
-                program_id,
-                Default::default(),
-                "inexistent",
-                meta_wasm.clone(),
-                None,
-                None,
-            )
-            .is_err()
-        );
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "inexistent",
+            meta_wasm.clone(),
+            None,
+            None,
+        )
+        .is_err());
         // Empty function
-        assert!(
-            Gear::read_state_using_wasm_impl(
-                program_id,
-                Default::default(),
-                "empty",
-                meta_wasm.clone(),
-                None,
-                None,
-            )
-            .is_err()
-        );
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "empty",
+            meta_wasm.clone(),
+            None,
+            None,
+        )
+        .is_err());
         // Greed function
-        assert!(
-            Gear::read_state_using_wasm_impl(
-                program_id,
-                Default::default(),
-                "loop",
-                meta_wasm,
-                None,
-                None,
-            )
-            .is_err()
-        );
+        assert!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "loop",
+            meta_wasm,
+            None,
+            None,
+        )
+        .is_err());
     });
 }
 
 #[test]
 fn mailbox_rent_out_of_rent() {
-    use demo_constructor::{Scheme, demo_value_sender::TestData};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2977,7 +2973,7 @@ fn mailbox_rent_out_of_rent() {
 
 #[test]
 fn mailbox_rent_claimed() {
-    use demo_constructor::{Scheme, demo_value_sender::TestData};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -3067,7 +3063,7 @@ fn mailbox_rent_claimed() {
 
 #[test]
 fn mailbox_sending_instant_transfer() {
-    use demo_constructor::{Scheme, demo_value_sender::TestData};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5402,7 +5398,7 @@ fn wake_messages_after_program_inited() {
 
 #[test]
 fn test_different_waits_success() {
-    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5556,7 +5552,7 @@ fn test_different_waits_success() {
 
 #[test]
 fn test_different_waits_fail() {
-    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5769,7 +5765,7 @@ fn test_different_waits_fail() {
 
 #[test]
 fn wait_after_reply() {
-    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     let test = |subcommand: WaitSubcommand| {
         new_test_ext().execute_with(|| {
@@ -6045,10 +6041,8 @@ fn test_wait_timeout() {
         run_to_next_block(None);
 
         // Timeout still works.
-        assert!(
-            MailboxOf::<Test>::iter_key(USER_1)
-                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
-        );
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
     })
 }
 
@@ -6105,19 +6099,15 @@ fn test_join_wait_timeout() {
         //
         // The timeout message has not been triggered yet.
         run_to_target(targets[0]);
-        assert!(
-            !MailboxOf::<Test>::iter_key(USER_1)
-                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
-        );
+        assert!(!MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
 
         // Run to the end of the second duration.
         //
         // The timeout message has been triggered.
         run_to_target(targets[1]);
-        assert!(
-            MailboxOf::<Test>::iter_key(USER_1)
-                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
-        );
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
     })
 }
 
@@ -6170,10 +6160,8 @@ fn test_select_wait_timeout() {
         Gear::set_block_number(target);
         run_to_next_block(None);
 
-        assert!(
-            MailboxOf::<Test>::iter_key(USER_1)
-                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
-        );
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
     })
 }
 
@@ -6239,10 +6227,8 @@ fn test_wait_lost() {
         //
         // The timeout message has been triggered.
         run_to_target(targets[0]);
-        assert!(
-            !MailboxOf::<Test>::iter_key(USER_1)
-                .any(|(msg, _bn)| msg.payload_bytes() == b"unreachable")
-        );
+        assert!(!MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload_bytes() == b"unreachable"));
 
         // Run to the end of the second duration.
         //
@@ -6251,10 +6237,8 @@ fn test_wait_lost() {
         assert!(
             MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload_bytes() == b"timeout")
         );
-        assert!(
-            MailboxOf::<Test>::iter_key(USER_1)
-                .any(|(msg, _bn)| msg.payload_bytes() == b"timeout2")
-        );
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload_bytes() == b"timeout2"));
         assert!(
             MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload_bytes() == b"success")
         );
@@ -6364,7 +6348,7 @@ fn exit_locking_funds() {
 
 #[test]
 fn frozen_funds_remain_on_exit() {
-    use crate::{Fortitude, Preservation, fungible};
+    use crate::{fungible, Fortitude, Preservation};
     use demo_constructor::{Calls, Scheme};
     use frame_support::traits::{LockableCurrency, WithdrawReasons};
 
@@ -7255,8 +7239,8 @@ fn state_request() {
     init_logger();
     new_test_ext().execute_with(|| {
         use demo_custom::{
-            InitMessage, WASM_BINARY,
             btree::{Request, StateRequest},
+            InitMessage, WASM_BINARY,
         };
 
         let code = WASM_BINARY;
@@ -7570,7 +7554,7 @@ fn test_create_program_miscellaneous() {
 
 #[test]
 fn exit_handle() {
-    use demo_constructor::{WASM_BINARY, demo_exit_handle};
+    use demo_constructor::{demo_exit_handle, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7880,7 +7864,7 @@ fn calculate_init_gas() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use demo_custom::{InitMessage, WASM_BINARY, btree::Request};
+    use demo_custom::{btree::Request, InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8105,11 +8089,14 @@ fn gas_spent_precalculated() {
             .expect("failed to get cost of `gas_charge()` function");
 
         let handle_export_instructions = handle_export_func_body.code().elements();
-        assert!(matches!(handle_export_instructions, [
-            Instruction::I32Const(_), //stack check limit cost
-            Instruction::Call(_),     //call to `gas_charge()`
-            ..
-        ]));
+        assert!(matches!(
+            handle_export_instructions,
+            [
+                Instruction::I32Const(_), //stack check limit cost
+                Instruction::Call(_),     //call to `gas_charge()`
+                ..
+            ]
+        ));
 
         macro_rules! cost {
             ($name:ident) => {
@@ -8860,7 +8847,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 #[test]
 fn free_storage_hold_on_scheduler_overwhelm() {
-    use demo_constructor::{Scheme, demo_value_sender::TestData};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -12990,12 +12977,15 @@ fn async_init() {
 
         run_to_next_block(None);
 
-        assert_responses_to_user(USER_1, vec![
-            // `demo_async_init` sent error reply on "PING" message
-            Assertion::ReplyCode(ErrorReplyReason::InactiveActor.into()),
-            // `demo_async_init`'s `init` was successful
-            Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
-        ]);
+        assert_responses_to_user(
+            USER_1,
+            vec![
+                // `demo_async_init` sent error reply on "PING" message
+                Assertion::ReplyCode(ErrorReplyReason::InactiveActor.into()),
+                // `demo_async_init`'s `init` was successful
+                Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
+            ],
+        );
 
         print_gear_events();
 
@@ -13006,10 +12996,13 @@ fn async_init() {
 
         run_to_next_block(None);
 
-        assert_responses_to_user(USER_1, vec![
-            // `demo_async_init` sent amount of responses it got from `demo_ping`
-            Assertion::Payload(2u8.encode()),
-        ]);
+        assert_responses_to_user(
+            USER_1,
+            vec![
+                // `demo_async_init` sent amount of responses it got from `demo_ping`
+                Assertion::Payload(2u8.encode()),
+            ],
+        );
     });
 }
 
@@ -13153,7 +13146,7 @@ fn check_reply_push_payload_exceed() {
 /// Check that random works and it's changing on next epoch.
 #[test]
 fn check_random_works() {
-    use blake2::{Blake2b, Digest, digest::typenum::U32};
+    use blake2::{digest::typenum::U32, Blake2b, Digest};
 
     /// BLAKE2b-256 hasher state.
     type Blake2b256 = Blake2b<U32>;
@@ -13482,10 +13475,14 @@ fn relay_messages() {
         test(call, payload, vec![expectation]);
     }
 
-    test(RelayCall::Resend(USER_3.cast()), payload, vec![Expected {
-        user: USER_3,
-        payload: payload.to_vec(),
-    }]);
+    test(
+        RelayCall::Resend(USER_3.cast()),
+        payload,
+        vec![Expected {
+            user: USER_3,
+            payload: payload.to_vec(),
+        }],
+    );
     test(
         RelayCall::ResendWithGas(USER_3.cast(), 50_000),
         payload,
@@ -13495,18 +13492,30 @@ fn relay_messages() {
         }],
     );
 
-    test(RelayCall::Rereply, payload, vec![Expected {
-        user: source,
-        payload: payload.to_vec(),
-    }]);
-    test(RelayCall::RereplyPush, payload, vec![Expected {
-        user: source,
-        payload: payload.to_vec(),
-    }]);
-    test(RelayCall::RereplyWithGas(60_000), payload, vec![Expected {
-        user: source,
-        payload: payload.to_vec(),
-    }]);
+    test(
+        RelayCall::Rereply,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyPush,
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
+    test(
+        RelayCall::RereplyWithGas(60_000),
+        payload,
+        vec![Expected {
+            user: source,
+            payload: payload.to_vec(),
+        }],
+    );
 }
 
 #[test]
@@ -14233,9 +14242,10 @@ fn double_read_works() {
 
         run_to_next_block(None);
 
-        assert_responses_to_user(USER_1, vec![Assertion::ReplyCode(
-            SuccessReplyReason::Auto.into(),
-        )]);
+        assert_responses_to_user(
+            USER_1,
+            vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
+        );
     });
 }
 
@@ -15222,15 +15232,18 @@ fn handle_reply_hook() {
             })
             .collect();
         // Hook executed after completed
-        assert_eq!(vec, [
-            "for_reply_1",
-            "for_reply_2",
-            "for_reply_3",
-            "for_reply_4",
-            "saw_reply_3",
-            "completed",
-            "saw_reply_4"
-        ]);
+        assert_eq!(
+            vec,
+            [
+                "for_reply_1",
+                "for_reply_2",
+                "for_reply_3",
+                "for_reply_4",
+                "saw_reply_3",
+                "completed",
+                "saw_reply_4"
+            ]
+        );
     });
 }
 
@@ -15473,7 +15486,7 @@ fn allocate_in_init_free_in_handle() {
 
 #[test]
 fn create_program_with_reentrance_works() {
-    use crate::{Fortitude, Preservation, fungible};
+    use crate::{fungible, Fortitude, Preservation};
     use demo_constructor::demo_ping;
     use demo_create_program_reentrance::WASM_BINARY;
     use demo_distributor::WASM_BINARY as CHILD_WASM_BINARY;
@@ -15781,11 +15794,14 @@ fn use_big_memory() {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(pages_with_data, vec![
-            GearPage::from_offset(0),
-            GearPage::from_offset(middle_4_bytes_offset),
-            GearPage::from_offset(last_4_bytes_offset)
-        ]);
+        assert_eq!(
+            pages_with_data,
+            vec![
+                GearPage::from_offset(0),
+                GearPage::from_offset(middle_4_bytes_offset),
+                GearPage::from_offset(last_4_bytes_offset)
+            ]
+        );
 
         Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -15820,30 +15836,29 @@ pub(crate) mod utils {
     #![allow(unused)]
 
     use super::{
-        BlockNumber, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test, assert_ok, pallet,
-        run_to_block,
+        assert_ok, pallet, run_to_block, BlockNumber, Event, MailboxOf, MockRuntimeEvent,
+        RuntimeOrigin, Test,
     };
     use crate::{
-        BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, CurrencyOf,
-        EXISTENTIAL_DEPOSIT_LOCK_ID, GasHandlerOf, GasInfo, GearBank, HandleKind, ProgramStorageOf,
-        SentOf,
-        mock::{Balances, Gear, System, USER_1, run_to_next_block},
+        mock::{run_to_next_block, Balances, Gear, System, USER_1},
+        BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, CurrencyOf, GasHandlerOf, GasInfo,
+        GearBank, HandleKind, ProgramStorageOf, SentOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
     };
     use common::{
-        Origin, ProgramStorage, ReservableTree,
         event::*,
         storage::{CountedByKey, Counter, IterableByKeyMap},
+        Origin, ProgramStorage, ReservableTree,
     };
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReplyReason;
     use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
-        traits::tokens::{Balance, currency::Currency},
+        traits::tokens::{currency::Currency, Balance},
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_core::{
-        ids::{CodeId, MessageId, ProgramId, prelude::*},
+        ids::{prelude::*, CodeId, MessageId, ProgramId},
         message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
         program::{ActiveProgram, Program},
         reservation::GasReservationMap,

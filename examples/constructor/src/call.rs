@@ -60,7 +60,7 @@ pub enum Call {
 mod wasm {
     use super::*;
     use crate::DATA;
-    use gstd::{String, Vec, debug, exec, msg, prog};
+    use gstd::{debug, exec, msg, prog, String, Vec};
 
     type CallResult = (Call, Option<Vec<u8>>);
 

@@ -18,7 +18,7 @@
 
 //! Module for pages which size can be different for different runtime versions.
 
-use numerated::{Bound, Numerated, OptionBound, interval::Interval, iterators::IntervalIterator};
+use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated, OptionBound};
 use std::{cmp::Ordering, marker::PhantomData, num::NonZero};
 
 /// Size number for dyn-size pages.
@@ -390,7 +390,7 @@ mod property_tests {
     use super::{tests::PageSizeManager, *};
     use numerated::mock;
     use proptest::{
-        prelude::{Arbitrary, any},
+        prelude::{any, Arbitrary},
         proptest,
         strategy::{BoxedStrategy, Strategy},
         test_runner::Config as ProptestConfig,

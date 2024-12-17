@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::ProcessingHandler;
-use anyhow::{Result, ensure};
+use anyhow::{ensure, Result};
 use ethexe_common::{
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::ValueClaim,

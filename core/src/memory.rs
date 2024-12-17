@@ -35,8 +35,8 @@ use numerated::{
     tree::IntervalsTree,
 };
 use scale_info::{
-    TypeInfo,
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
+    TypeInfo,
 };
 
 /// Interval in wasm program memory.

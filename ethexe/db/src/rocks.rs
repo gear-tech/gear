@@ -19,7 +19,7 @@
 use crate::{CASDatabase, KVDatabase};
 use anyhow::Result;
 use gprimitives::H256;
-use rocksdb::{DB, DBIteratorWithThreadMode, Options};
+use rocksdb::{DBIteratorWithThreadMode, Options, DB};
 use std::{path::PathBuf, sync::Arc};
 
 /// Database for storing states and codes in memory.

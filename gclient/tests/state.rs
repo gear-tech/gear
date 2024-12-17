@@ -84,7 +84,7 @@ async fn get_state() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn get_state_request() -> anyhow::Result<()> {
-    use demo_custom::{InitMessage, WASM_BINARY, btree};
+    use demo_custom::{btree, InitMessage, WASM_BINARY};
 
     let gas_limit = 100_000_000_000;
 

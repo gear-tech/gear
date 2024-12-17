@@ -19,7 +19,7 @@
 #![no_main]
 
 use lazy_pages_fuzzer::GeneratedModule;
-use libfuzzer_sys::{Corpus, fuzz_target};
+use libfuzzer_sys::{fuzz_target, Corpus};
 
 fuzz_target!(|generated_module: GeneratedModule<'_>| -> Corpus {
     gear_utils::init_default_logger();

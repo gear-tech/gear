@@ -18,8 +18,8 @@
 
 //! Keyring implementation based on the polkadot-js keystore.
 
-use crate::{Keystore, ss58};
-use anyhow::{Result, anyhow};
+use crate::{ss58, Keystore};
+use anyhow::{anyhow, Result};
 use colored::Colorize;
 use schnorrkel::Keypair;
 use serde::{Deserialize, Serialize};

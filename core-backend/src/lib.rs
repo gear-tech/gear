@@ -61,8 +61,8 @@ mod tests {
     };
     use gear_core::{gas_metering::CustomConstantCostRules, message::DispatchKind};
     use gear_wasm_instrument::{
-        InstrumentationBuilder, SyscallName,
         parity_wasm::{self, builder},
+        InstrumentationBuilder, SyscallName,
     };
 
     /// Check that all syscalls are supported by backend.

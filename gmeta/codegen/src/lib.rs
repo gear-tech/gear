@@ -17,11 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use proc_macro::TokenStream;
-use quote::{ToTokens, quote};
+use quote::{quote, ToTokens};
 use std::{borrow::Borrow, fmt::Display, iter};
 use syn::{
-    Attribute, Error, FnArg, Item, ItemMod, Pat, ReturnType, Type, TypePath, Visibility,
-    parse_macro_input, spanned::Spanned,
+    parse_macro_input, spanned::Spanned, Attribute, Error, FnArg, Item, ItemMod, Pat, ReturnType,
+    Type, TypePath, Visibility,
 };
 
 static MODULE_NAME: &str = "metafns";

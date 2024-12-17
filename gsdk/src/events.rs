@@ -18,17 +18,17 @@
 
 //! Events api
 use crate::{
-    Api,
     config::GearConfig,
-    metadata::{Event, system::Event as SystemEvent},
+    metadata::{system::Event as SystemEvent, Event},
     result::{Error, Result},
+    Api,
 };
 use subxt::{
-    OnlineClient,
     blocks::ExtrinsicEvents as TxEvents,
     error::{DispatchError, Error as SubxtError},
     events::EventDetails,
     tx::TxInBlock,
+    OnlineClient,
 };
 
 impl Api {

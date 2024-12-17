@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use async_recursion::async_recursion;
-use gstd::{ActorId, msg, prelude::*};
+use gstd::{msg, prelude::*, ActorId};
 
 static mut DESTINATION: ActorId = ActorId::zero();
 

@@ -25,7 +25,7 @@ use ethexe_runtime_common::state::{
 use gear_core::message::ReplyInfo;
 use gprimitives::{H160, H256};
 use jsonrpsee::{
-    core::{RpcResult, async_trait},
+    core::{async_trait, RpcResult},
     proc_macros::rpc,
 };
 use parity_scale_codec::Encode;

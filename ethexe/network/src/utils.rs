@@ -18,9 +18,8 @@
 
 use async_trait::async_trait;
 use libp2p::{
-    StreamProtocol,
     futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    request_response,
+    request_response, StreamProtocol,
 };
 use parity_scale_codec::{Decode, DecodeAll, Encode};
 use std::{io, marker::PhantomData};

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{ActorId, debug, exec, msg, prelude::*};
+use gstd::{debug, exec, msg, prelude::*, ActorId};
 
 static mut DESTINATION: ActorId = ActorId::zero();
 static mut RECEIVED_AUTO_REPLY: bool = false;

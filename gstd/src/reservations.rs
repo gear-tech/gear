@@ -99,7 +99,7 @@ impl Reservation {
 /// Create gas reservations inside `init` and use them inside `handle`.
 ///
 /// ```
-/// use gstd::{Reservations, msg, prelude::*};
+/// use gstd::{msg, prelude::*, Reservations};
 ///
 /// static mut RESERVATIONS: Reservations = Reservations::new();
 ///
@@ -279,7 +279,7 @@ impl Reservations {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Reservations, prelude::*};
+    use crate::{prelude::*, Reservations};
     use gcore::errors::Result;
     use parity_scale_codec::{Decode, Encode};
 

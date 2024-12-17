@@ -22,9 +22,9 @@ use crate::keyring::*;
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    AccountId, BABE_GENESIS_EPOCH_CONFIG, BabeConfig, BalancesConfig, GrandpaConfig,
+    constants::currency::*, AccountId, BabeConfig, BalancesConfig, GrandpaConfig,
     RuntimeGenesisConfig, SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig,
-    SudoConfig, constants::currency::*,
+    SudoConfig, BABE_GENESIS_EPOCH_CONFIG,
 };
 
 /// Create genesis runtime configuration for tests.

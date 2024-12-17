@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Blocks, Events, TxInBlock, client::Rpc, config::GearConfig, metadata::Event, signer::Signer,
+    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, Blocks, Events, TxInBlock,
 };
 use anyhow::Result;
 use core::ops::{Deref, DerefMut};

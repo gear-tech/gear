@@ -20,14 +20,14 @@
 
 use crate::{
     gas_metering::{CustomConstantCostRules, Rules},
-    ids::{CodeId, prelude::*},
+    ids::{prelude::*, CodeId},
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{
-    InstrumentationBuilder,
     parity_wasm::{self, elements::Module},
+    InstrumentationBuilder,
 };
 
 mod errors;
@@ -306,13 +306,17 @@ impl Code {
         R: Rules,
         GetRulesFn: FnMut(&Module) -> R,
     {
-        Self::try_new_internal(original_code, Some(get_gas_rules), TryNewCodeConfig {
-            version,
-            stack_height,
-            data_segments_amount_limit,
-            table_number_limit,
-            ..Default::default()
-        })
+        Self::try_new_internal(
+            original_code,
+            Some(get_gas_rules),
+            TryNewCodeConfig {
+                version,
+                stack_height,
+                data_segments_amount_limit,
+                table_number_limit,
+                ..Default::default()
+            },
+        )
     }
 
     /// Create new code for mock goals with const or no instrumentation rules.
@@ -430,8 +434,8 @@ impl CodeAndId {
 mod tests {
     use crate::{
         code::{
-            Code, CodeError, DataSectionError, ExportError, GENERIC_OS_PAGE_SIZE, ImportError,
-            StackEndError, TableSectionError, utils::REF_TYPE_SIZE,
+            utils::REF_TYPE_SIZE, Code, CodeError, DataSectionError, ExportError, ImportError,
+            StackEndError, TableSectionError, GENERIC_OS_PAGE_SIZE,
         },
         gas_metering::CustomConstantCostRules,
     };

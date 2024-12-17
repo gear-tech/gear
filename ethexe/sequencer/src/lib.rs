@@ -21,7 +21,7 @@
 pub mod agro;
 
 use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::{RequestBlockData, RequestEvent};
@@ -464,7 +464,7 @@ impl Sequencer {
 mod tests {
     use super::*;
     use anyhow::Ok;
-    use ethexe_signer::{PrivateKey, sha3};
+    use ethexe_signer::{sha3, PrivateKey};
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct TestComm([u8; 2]);
@@ -626,14 +626,20 @@ mod tests {
         )
         .unwrap();
 
-        expected_commitments_storage.insert(commitments[0].to_digest(), CommitmentAndOrigins {
-            commitment: commitments[0],
-            origins: [validator1].iter().cloned().collect(),
-        });
-        expected_commitments_storage.insert(commitments[1].to_digest(), CommitmentAndOrigins {
-            commitment: commitments[1],
-            origins: [validator1].iter().cloned().collect(),
-        });
+        expected_commitments_storage.insert(
+            commitments[0].to_digest(),
+            CommitmentAndOrigins {
+                commitment: commitments[0],
+                origins: [validator1].iter().cloned().collect(),
+            },
+        );
+        expected_commitments_storage.insert(
+            commitments[1].to_digest(),
+            CommitmentAndOrigins {
+                commitment: commitments[1],
+                origins: [validator1].iter().cloned().collect(),
+            },
+        );
         assert_eq!(expected_commitments_storage, commitments_storage);
 
         let validator2_private_key = validators_private_keys[1];
@@ -703,10 +709,13 @@ mod tests {
             Sequencer::block_commitments_candidate(&commitments, commitment1.hash, threshold);
         assert!(candidate.is_none());
 
-        commitments.insert(commitment1.to_digest(), CommitmentAndOrigins {
-            commitment: commitment1.clone(),
-            origins: Default::default(),
-        });
+        commitments.insert(
+            commitment1.to_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment1.clone(),
+                origins: Default::default(),
+            },
+        );
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, H256::random(), threshold);
         assert!(candidate.is_none());
@@ -721,14 +730,20 @@ mod tests {
             .unwrap()
             .origins
             .extend([Address([1; 20]), Address([2; 20])]);
-        commitments.insert(commitment2.to_digest(), CommitmentAndOrigins {
-            commitment: commitment2.clone(),
-            origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
-        });
-        commitments.insert(commitment3.to_digest(), CommitmentAndOrigins {
-            commitment: commitment3.clone(),
-            origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
-        });
+        commitments.insert(
+            commitment2.to_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment2.clone(),
+                origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
+            },
+        );
+        commitments.insert(
+            commitment3.to_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment3.clone(),
+                origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
+            },
+        );
 
         let candidate =
             Sequencer::block_commitments_candidate(&commitments, commitment1.hash, threshold)
@@ -771,10 +786,13 @@ mod tests {
         let candidate = Sequencer::code_commitments_candidate(&commitments, threshold);
         assert!(candidate.is_none());
 
-        commitments.insert(commitment1.to_digest(), CommitmentAndOrigins {
-            commitment: commitment1.clone(),
-            origins: Default::default(),
-        });
+        commitments.insert(
+            commitment1.to_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment1.clone(),
+                origins: Default::default(),
+            },
+        );
         let candidate = Sequencer::code_commitments_candidate(&commitments, threshold);
         assert!(candidate.is_none());
 
@@ -797,13 +815,16 @@ mod tests {
         assert_eq!(candidate.digests(), &expected_digests);
         assert!(candidate.signatures().is_empty());
 
-        commitments.insert(commitment2.to_digest(), CommitmentAndOrigins {
-            commitment: commitment2.clone(),
-            origins: [Address([3; 20]), Address([4; 20])]
-                .iter()
-                .cloned()
-                .collect(),
-        });
+        commitments.insert(
+            commitment2.to_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment2.clone(),
+                origins: [Address([3; 20]), Address([4; 20])]
+                    .iter()
+                    .cloned()
+                    .collect(),
+            },
+        );
         let candidate = Sequencer::code_commitments_candidate(&commitments, threshold)
             .expect("Must have candidate");
         let mut expected_digests: IndexSet<_> = [commitment1.to_digest(), commitment2.to_digest()]
@@ -813,10 +834,13 @@ mod tests {
         assert_eq!(candidate.digests(), &expected_digests);
         assert!(candidate.signatures().is_empty());
 
-        commitments.insert(commitment3.to_digest(), CommitmentAndOrigins {
-            commitment: commitment3,
-            origins: [Address([5; 20])].iter().cloned().collect(),
-        });
+        commitments.insert(
+            commitment3.to_digest(),
+            CommitmentAndOrigins {
+                commitment: commitment3,
+                origins: [Address([5; 20])].iter().cloned().collect(),
+            },
+        );
         let candidate = Sequencer::code_commitments_candidate(&commitments, threshold)
             .expect("Must have candidate");
         assert_eq!(candidate.digests(), &expected_digests);
@@ -841,27 +865,23 @@ mod tests {
         let signer = Signer::tmp();
 
         // Test candidate is None
-        assert!(
-            Sequencer::process_multisigned_candidate::<TestComm>(
-                &mut None,
-                &mut Default::default(),
-                0
-            )
-            .is_none()
-        );
+        assert!(Sequencer::process_multisigned_candidate::<TestComm>(
+            &mut None,
+            &mut Default::default(),
+            0
+        )
+        .is_none());
 
         // Test not enough signatures
         let mut candidate = Some(
             MultisignedCommitmentDigests::new([b"gear".to_digest()].into_iter().collect()).unwrap(),
         );
-        assert!(
-            Sequencer::process_multisigned_candidate(
-                &mut candidate,
-                &mut CommitmentsMap::<TestComm>::new(),
-                2
-            )
-            .is_none()
-        );
+        assert!(Sequencer::process_multisigned_candidate(
+            &mut candidate,
+            &mut CommitmentsMap::<TestComm>::new(),
+            2
+        )
+        .is_none());
 
         let validators_private_keys = [PrivateKey([1; 32]), PrivateKey([2; 32])];
         let validators_pub_keys = validators_private_keys.map(|key| signer.add_key(key).unwrap());
@@ -874,10 +894,13 @@ mod tests {
         let mut commitments_map = commitments
             .iter()
             .map(|commitment| {
-                (commitment.to_digest(), CommitmentAndOrigins {
-                    commitment: *commitment,
-                    origins: origins.clone(),
-                })
+                (
+                    commitment.to_digest(),
+                    CommitmentAndOrigins {
+                        commitment: *commitment,
+                        origins: origins.clone(),
+                    },
+                )
             })
             .collect();
 

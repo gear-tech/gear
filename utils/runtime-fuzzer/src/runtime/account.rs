@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    EXHAUST_MESSAGES_RUNS,
     data::FulfilledDataRequirement,
-    generator::{AUXILIARY_SIZE, GearCallsGenerator},
-    runtime,
+    generator::{GearCallsGenerator, AUXILIARY_SIZE},
+    runtime, EXHAUST_MESSAGES_RUNS,
 };
 use gear_common::{Gas, Origin};
 use gear_wasm_gen::{Result, Unstructured};
@@ -32,9 +31,9 @@ use runtime_primitives::{AccountId, AccountPublic, Balance};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_core::{Pair, Public as TPublic, sr25519::Public};
+use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
-use vara_runtime::{EXISTENTIAL_DEPOSIT, Runtime};
+use vara_runtime::{Runtime, EXISTENTIAL_DEPOSIT};
 
 /// Get account from [`gear_common::Origin`] implementor.
 pub fn account<T: Origin>(v: T) -> AccountId {

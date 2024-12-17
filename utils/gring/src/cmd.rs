@@ -20,8 +20,8 @@
 
 #![cfg(feature = "cli")]
 
-use crate::{Keyring, Keystore, ss58};
-use anyhow::{Result, anyhow};
+use crate::{ss58, Keyring, Keystore};
+use anyhow::{anyhow, Result};
 use clap::Parser;
 use colored::{ColoredString, Colorize};
 use schnorrkel::{PublicKey, Signature};

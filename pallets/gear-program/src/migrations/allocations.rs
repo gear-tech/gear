@@ -30,8 +30,8 @@ use sp_std::marker::PhantomData;
 use {
     frame_support::ensure,
     sp_runtime::{
-        TryRuntimeError,
         codec::{Decode, Encode},
+        TryRuntimeError,
     },
     sp_std::vec::Vec,
 };
@@ -143,7 +143,7 @@ mod v9 {
     use gear_core::{
         ids::ProgramId,
         message::DispatchKind,
-        pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
+        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::{MemoryInfix, ProgramState},
         reservation::GasReservationMap,
     };
@@ -183,9 +183,9 @@ mod v9 {
     use {
         crate::{Config, Pallet},
         frame_support::{
-            Identity,
             storage::types::StorageMap,
             traits::{PalletInfo, StorageInstance},
+            Identity,
         },
         sp_std::marker::PhantomData,
     };
@@ -267,10 +267,13 @@ mod test {
             MigrateAllocations::<Test>::post_upgrade(state).unwrap();
 
             let allocations = AllocationsStorage::<Test>::get(active_program_id).unwrap();
-            assert_eq!(allocations.to_vec(), [
-                WasmPage::from(1)..=WasmPage::from(5),
-                WasmPage::from(101)..=WasmPage::from(102)
-            ]);
+            assert_eq!(
+                allocations.to_vec(),
+                [
+                    WasmPage::from(1)..=WasmPage::from(5),
+                    WasmPage::from(101)..=WasmPage::from(102)
+                ]
+            );
 
             let Some(Program::Active(program)) = ProgramStorage::<Test>::get(active_program_id)
             else {

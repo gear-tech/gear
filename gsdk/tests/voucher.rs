@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::ids::{CodeId, MessageId, ProgramId, prelude::CodeIdExt};
+use gear_core::ids::{prelude::CodeIdExt, CodeId, MessageId, ProgramId};
 use gsdk::{
-    Api, Event, Result, TxInBlock,
-    metadata::runtime_types::pallet_gear_voucher::internal::VoucherId,
+    metadata::runtime_types::pallet_gear_voucher::internal::VoucherId, Api, Event, Result,
+    TxInBlock,
 };
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;

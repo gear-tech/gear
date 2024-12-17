@@ -19,8 +19,8 @@
 use anyhow::Context;
 use clap::Args;
 use ethexe_network::{
-    NetworkEventLoopConfig,
     export::{Multiaddr, Protocol},
+    NetworkEventLoopConfig,
 };
 use serde::Deserialize;
 use std::path::PathBuf;

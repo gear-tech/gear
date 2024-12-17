@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{
-    collections::{BTreeMap, BTreeSet, btree_map::Iter},
+    collections::{btree_map::Iter, BTreeMap, BTreeSet},
     vec::Vec,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use core::num::NonZero;
 use ethexe_common::{
     db::{BlockHeader, Schedule, ScheduledTask},

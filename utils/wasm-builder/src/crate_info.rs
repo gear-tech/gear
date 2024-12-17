@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{builder_error::BuilderError, multiple_crate_versions};
-use anyhow::{Context, Result, ensure};
+use anyhow::{ensure, Context, Result};
 use cargo_metadata::{CrateType, Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
 

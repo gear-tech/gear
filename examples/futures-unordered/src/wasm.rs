@@ -21,7 +21,7 @@ use futures::{
     join, select_biased,
     stream::{FuturesUnordered, StreamExt},
 };
-use gstd::{ActorId, debug, msg, prelude::*};
+use gstd::{debug, msg, prelude::*, ActorId};
 
 static mut DEMO_ASYNC: ActorId = ActorId::new([0u8; 32]);
 static mut DEMO_PING: ActorId = ActorId::new([0u8; 32]);

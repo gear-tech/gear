@@ -21,7 +21,7 @@
 use crate::service::Service;
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
-    providers::{Provider, ext::AnvilApi},
+    providers::{ext::AnvilApi, Provider},
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Result;
@@ -30,7 +30,7 @@ use ethexe_common::{
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
-use ethexe_ethereum::{Ethereum, router::RouterQuery};
+use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
@@ -41,7 +41,7 @@ use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
-use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
+use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -787,7 +787,7 @@ mod utils {
     use ethexe_observer::SimpleBlockData;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
-    use tokio::sync::{Mutex, broadcast::Sender};
+    use tokio::sync::{broadcast::Sender, Mutex};
 
     pub struct TestEnv {
         pub rpc_url: String,

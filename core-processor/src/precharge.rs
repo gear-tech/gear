@@ -15,7 +15,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ContextChargedForCode, ContextChargedForInstrumentation,
     common::{ActorExecutionErrorReplyReason, DispatchResult, ExecutableActorData, JournalNote},
     configs::BlockConfig,
     context::{
@@ -23,6 +22,7 @@ use crate::{
         ContextChargedForProgram, ContextData, SystemReservationContext,
     },
     processing::{process_allowance_exceed, process_execution_error, process_success},
+    ContextChargedForCode, ContextChargedForInstrumentation,
 };
 use alloc::vec::Vec;
 use gear_core::{

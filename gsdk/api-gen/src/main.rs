@@ -21,14 +21,14 @@ use gear_utils::codegen::LICENSE;
 use heck::ToSnakeCase as _;
 use parity_scale_codec::Decode;
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{ToTokens, format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use std::{
     collections::BTreeMap,
     env, fs,
     io::{self, Write},
 };
 use subxt_codegen::{CodegenBuilder, Metadata};
-use syn::{Fields, ItemEnum, ItemImpl, ItemMod, Variant, parse_quote};
+use syn::{parse_quote, Fields, ItemEnum, ItemImpl, ItemMod, Variant};
 
 const RUNTIME_WASM: &str = "RUNTIME_WASM";
 const PRINT_SCALE: &str = "PRINT_SCALE";
@@ -335,13 +335,16 @@ fn generate_impls(metadata: &Metadata) -> TokenStream {
 
             let export = {
                 let pallet_name = variant_name_str.to_snake_case();
-                let pallet = format_ident!("{}", match pallet_name.as_str() {
-                    "system" => "frame_system".into(),
-                    "fellowship_collective" => "pallet_ranked_collective".into(),
-                    "fellowship_referenda" => "pallet_referenda".into(),
-                    "staking_rewards" => "pallet_gear_staking_rewards".into(),
-                    _ => "pallet_".to_string() + &pallet_name,
-                });
+                let pallet = format_ident!(
+                    "{}",
+                    match pallet_name.as_str() {
+                        "system" => "frame_system".into(),
+                        "fellowship_collective" => "pallet_ranked_collective".into(),
+                        "fellowship_referenda" => "pallet_referenda".into(),
+                        "staking_rewards" => "pallet_gear_staking_rewards".into(),
+                        _ => "pallet_".to_string() + &pallet_name,
+                    }
+                );
 
                 let export = match pallet_name.as_str() {
                     "staking" => quote! {

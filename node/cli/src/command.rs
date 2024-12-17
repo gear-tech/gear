@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    SandboxBackend,
     cli::{Cli, Subcommand},
+    SandboxBackend,
 };
 use runtime_primitives::Block;
 use sc_cli::{ChainSpec, SubstrateCli};
 use sc_service::config::BasePath;
-use service::{IdentifyVariant, chain_spec};
+use service::{chain_spec, IdentifyVariant};
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
@@ -215,7 +215,7 @@ pub fn run() -> sc_cli::Result<()> {
         }
         #[cfg(feature = "runtime-benchmarks")]
         Some(Subcommand::Benchmark(cmd)) => {
-            use crate::{RemarkBuilder, TransferKeepAliveBuilder, inherent_benchmark_data};
+            use crate::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder};
             use frame_benchmarking_cli::{
                 BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE,
             };

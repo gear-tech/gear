@@ -46,30 +46,31 @@ use tests::syscalls_integrity;
 
 use self::{
     code::{
-        ImportedMemory, Location, ModuleDefinition, OFFSET_AUX, TableSegment, WasmModule,
         body::{self, DynInstr::*},
-        max_pages,
+        max_pages, ImportedMemory, Location, ModuleDefinition, TableSegment, WasmModule,
+        OFFSET_AUX,
     },
     sandbox::Sandbox,
 };
 use crate::{
-    BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event, Ext,
-    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
-    TaskPoolOf,
     builtin::BuiltinDispatcherFactory,
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
+    BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event, Ext,
+    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
+    TaskPoolOf,
 };
 use ::alloc::{collections::BTreeMap, vec};
 use common::{
-    self, CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree, benchmarking,
+    self, benchmarking,
     storage::{Counter, *},
+    CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::{
-    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
     common::{DispatchOutcome, JournalNote},
     configs::BlockConfig,
+    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use gear_core::tasks::{ScheduledTask, TaskHandler};
 use parity_scale_codec::Encode;
@@ -79,7 +80,7 @@ use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{CodeId, MessageId, ProgramId, prelude::*},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     memory::Memory,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
@@ -92,20 +93,20 @@ use gear_core_backend::{
     state::HostState,
 };
 use gear_core_errors::*;
-use gear_sandbox::{SandboxMemory, SandboxStore, default_executor::Store};
+use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, BrTableData, Instruction, SignExtInstruction, ValueType},
     syscalls::SyscallName,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
-    BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
+    Slot, BABE_ENGINE_ID,
 };
 use sp_core::H256;
 use sp_runtime::{
-    Digest, DigestItem, Perbill, Saturating,
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
+    Digest, DigestItem, Perbill, Saturating,
 };
 use sp_std::{num::NonZero, prelude::*};
 

@@ -18,15 +18,16 @@
 
 use crate as pallet_gear_bank;
 use frame_support::{
-    PalletId, construct_runtime, parameter_types,
+    construct_runtime, parameter_types,
     traits::{ConstU32, FindAuthor},
     weights::constants::RocksDbWeight,
+    PalletId,
 };
 use primitive_types::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
-    BuildStorage, Perbill,
     traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
+    BuildStorage, Perbill,
 };
 
 pub type AccountId = u8;

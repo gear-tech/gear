@@ -17,17 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Config, CostsPerBlockOf, CurrencyOf, EXISTENTIAL_DEPOSIT_LOCK_ID, Event, GasAllowanceOf,
-    GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
+    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank,
+    Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
 use alloc::format;
 use common::{
-    CodeStorage, LockableTree, Origin, ProgramStorage, ReservableTree,
     event::*,
     scheduler::{SchedulingCostsPerBlock, StorageType, TaskPool},
     storage::*,
+    CodeStorage, LockableTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
@@ -39,7 +39,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, StoredDispatch},
-    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::{Program, ProgramState},
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},

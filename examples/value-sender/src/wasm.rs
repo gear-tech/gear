@@ -1,4 +1,4 @@
-use gstd::{ActorId, msg};
+use gstd::{msg, ActorId};
 
 static mut BENEFICIARY: ActorId = ActorId::zero();
 

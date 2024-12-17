@@ -19,9 +19,9 @@
 //! Implementation of the `TaskHandler` trait for the `ExtManager`.
 
 use super::ExtManager;
-use crate::{Gas, state::actors::Actors};
+use crate::{state::actors::Actors, Gas};
 use core_processor::common::JournalHandler;
-use gear_common::{Gas as GearCommonGas, scheduler::StorageType};
+use gear_common::{scheduler::StorageType, Gas as GearCommonGas};
 use gear_core::{
     gas_metering::TaskWeights,
     ids::{CodeId, MessageId, ProgramId, ReservationId},

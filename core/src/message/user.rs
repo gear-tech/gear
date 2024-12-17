@@ -23,8 +23,8 @@ use crate::{
 use core::convert::TryFrom;
 use gear_core_errors::ReplyCode;
 use scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 use super::{MessageDetails, StoredMessage};

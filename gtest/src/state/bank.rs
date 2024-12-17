@@ -18,7 +18,7 @@
 
 //! `gtest` bank
 
-use crate::{GAS_MULTIPLIER, constants::Value, state::accounts::Accounts};
+use crate::{constants::Value, state::accounts::Accounts, GAS_MULTIPLIER};
 use gear_common::{Gas, GasMultiplier, ProgramId};
 use std::collections::HashMap;
 

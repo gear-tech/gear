@@ -64,7 +64,7 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
+    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
     use parity_scale_codec::Decode;
     use rand::{Rng, SeedableRng};
 
@@ -111,9 +111,12 @@ mod tests {
             let expected_check_sum = actions_amount * number as usize * HANDLE_DATA_SIZE;
 
             // Send data to handle
-            program.send(from, HandleData {
-                data: [number; HANDLE_DATA_SIZE],
-            });
+            program.send(
+                from,
+                HandleData {
+                    data: [number; HANDLE_DATA_SIZE],
+                },
+            );
             let res = system.run_next_block();
 
             assert_eq!(

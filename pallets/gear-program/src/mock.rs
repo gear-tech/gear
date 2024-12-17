@@ -22,20 +22,21 @@ use crate as pallet_gear_program;
 use crate::*;
 use common::pallet_tests::MAX_BLOCK;
 use frame_support::{
-    PalletId, construct_runtime,
+    construct_runtime,
     pallet_prelude::*,
     parameter_types,
     traits::{
-        ConstU32, ConstU64, FindAuthor, NeverEnsureOrigin,
         tokens::{PayFromAccount, UnityAssetBalanceConversion},
+        ConstU32, ConstU64, FindAuthor, NeverEnsureOrigin,
     },
     weights::RuntimeDbWeight,
+    PalletId,
 };
-use frame_system::{self as system, EnsureRoot, pallet_prelude::BlockNumberFor};
+use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
 use sp_core::H256;
 use sp_runtime::{
-    BuildStorage, Perbill, Permill,
     traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage, Perbill, Permill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 

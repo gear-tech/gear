@@ -18,8 +18,8 @@
 
 //! Crate verifier
 
-use crate::{EXPECTED_OWNERS, Simulator, handler};
-use anyhow::{Result, anyhow};
+use crate::{handler, Simulator, EXPECTED_OWNERS};
+use anyhow::{anyhow, Result};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::process::Command;

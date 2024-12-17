@@ -19,14 +19,14 @@
 //! Gas reservation structures.
 
 use crate::{
-    ids::{MessageId, ReservationId, prelude::*},
+    ids::{prelude::*, MessageId, ReservationId},
     message::IncomingDispatch,
 };
 use alloc::{collections::BTreeMap, format};
 use gear_core_errors::ReservationError;
 use scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 /// An unchangeable wrapper over u64 value, which is required
@@ -179,11 +179,14 @@ impl GasReserver {
 
         let id = ReservationId::generate(self.message_id, self.nonce.fetch_inc());
 
-        let maybe_reservation = self.states.insert(id, GasReservationState::Created {
-            amount,
-            duration,
-            used: false,
-        });
+        let maybe_reservation = self.states.insert(
+            id,
+            GasReservationState::Created {
+                amount,
+                duration,
+                used: false,
+            },
+        );
 
         if maybe_reservation.is_some() {
             let err_msg = format!(
@@ -304,20 +307,26 @@ impl GasReserver {
                     start,
                     finish,
                     ..
-                } => Some((id, GasReservationSlot {
-                    amount,
-                    start,
-                    finish,
-                })),
+                } => Some((
+                    id,
+                    GasReservationSlot {
+                        amount,
+                        start,
+                        finish,
+                    },
+                )),
                 GasReservationState::Created {
                     amount, duration, ..
                 } => {
                     let expiration = duration_into_expiration(duration);
-                    Some((id, GasReservationSlot {
-                        amount,
-                        start: current_block_height,
-                        finish: expiration,
-                    }))
+                    Some((
+                        id,
+                        GasReservationSlot {
+                            amount,
+                            start: current_block_height,
+                            finish: expiration,
+                        },
+                    ))
                 }
                 GasReservationState::Removed { .. } => None,
             })
@@ -469,11 +478,14 @@ mod tests {
         let id = ReservationId::from([0xff; 32]);
 
         let mut map = GasReservationMap::new();
-        map.insert(id, GasReservationSlot {
-            amount: 1,
-            start: 1,
-            finish: 100,
-        });
+        map.insert(
+            id,
+            GasReservationSlot {
+                amount: 1,
+                start: 1,
+                finish: 100,
+            },
+        );
 
         let mut reserver = GasReserver::new(&Default::default(), map, 256);
         reserver.unreserve(id).unwrap();
@@ -500,11 +512,14 @@ mod tests {
         let id = ReservationId::from([0xff; 32]);
 
         let mut map = GasReservationMap::new();
-        map.insert(id, GasReservationSlot {
-            amount: 1,
-            start: 1,
-            finish: 100,
-        });
+        map.insert(
+            id,
+            GasReservationSlot {
+                amount: 1,
+                start: 1,
+                finish: 100,
+            },
+        );
 
         let mut reserver = GasReserver::new(&Default::default(), map, 256);
         reserver.mark_used(id).unwrap();

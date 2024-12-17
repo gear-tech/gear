@@ -23,8 +23,8 @@
 #[cfg(not(feature = "ethexe"))]
 use crate::ReservationId;
 use crate::{
-    ActorId, MessageId, errors::Error, msg::utils, prelude::ops::RangeBounds,
-    util::with_optimized_encode,
+    errors::Error, msg::utils, prelude::ops::RangeBounds, util::with_optimized_encode, ActorId,
+    MessageId,
 };
 use gcore::errors::Result;
 use gstd_codegen::wait_for_reply;
@@ -129,7 +129,7 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
 /// # Examples
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[derive(Encode)]
 /// #[codec(crate = gstd::codec)]
@@ -337,7 +337,7 @@ pub fn send_input_with_gas_delayed(
 /// Send a message to the arbitrary address:
 ///
 /// ```
-/// use gstd::{ActorId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ActorId};
 ///
 /// #[derive(Encode)]
 /// #[codec(crate = gstd::codec)]
@@ -428,7 +428,7 @@ pub fn send_with_gas_delayed<E: Encode>(
 /// Send a message to the sender's address:
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[derive(Encode)]
 /// #[codec(crate = gstd::codec)]

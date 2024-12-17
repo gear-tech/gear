@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};

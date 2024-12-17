@@ -41,7 +41,7 @@ use {
     ark_bls12_381::{G1Projective as G1, G2Affine, G2Projective as G2},
     ark_ec::{
         bls12::Bls12Config,
-        hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
+        hashing::{curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
     },
     ark_ff::fields::field_hashers::DefaultFieldHasher,
     ark_scale::ArkScale,
@@ -51,7 +51,7 @@ use {
 pub use gear_sandbox_interface::sandbox;
 #[cfg(feature = "std")]
 pub use gear_sandbox_interface::{
-    Instantiate, SandboxBackend, detail as sandbox_detail, init as sandbox_init,
+    detail as sandbox_detail, init as sandbox_init, Instantiate, SandboxBackend,
 };
 
 const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());

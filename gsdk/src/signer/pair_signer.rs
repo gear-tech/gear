@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sp_core::{Pair as PairT, sr25519};
+use sp_core::{sr25519, Pair as PairT};
 use sp_runtime::{
-    AccountId32 as SpAccountId32, MultiSignature as SpMultiSignature,
     traits::{IdentifyAccount, Verify},
+    AccountId32 as SpAccountId32, MultiSignature as SpMultiSignature,
 };
-use subxt::{Config, tx::Signer};
+use subxt::{tx::Signer, Config};
 
 use crate::GearConfig;
 

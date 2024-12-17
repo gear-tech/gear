@@ -60,8 +60,8 @@ use alloc::{
     string::{String, ToString},
 };
 use common::{
-    self, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin, Program,
-    ProgramStorage, QueueRunner, event::*, gas_provider::GasNodeId, scheduler::*, storage::*,
+    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
+    CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
 };
 use core::{marker::PhantomData, num::NonZero};
 use core_processor::{
@@ -73,19 +73,20 @@ use frame_support::{
     ensure,
     pallet_prelude::*,
     traits::{
-        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
-        StorageVersion, WithdrawReasons, fungible,
+        fungible,
         tokens::{Fortitude, Preservation},
+        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
+        StorageVersion, WithdrawReasons,
     },
     weights::Weight,
 };
 use frame_system::{
-    Pallet as System, RawOrigin,
     pallet_prelude::{BlockNumberFor, *},
+    Pallet as System, RawOrigin,
 };
 use gear_core::{
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId, ReservationId, prelude::*},
+    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
     tasks::VaraScheduledTask,
@@ -96,8 +97,8 @@ use manager::{CodeInfo, QueuePostProcessingData};
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
 use sp_runtime::{
-    DispatchError, SaturatedConversion,
     traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
+    DispatchError, SaturatedConversion,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -201,10 +202,10 @@ pub mod pallet {
 
         /// Implementation of a storage for programs.
         type ProgramStorage: ProgramStorage<
-                BlockNumber = BlockNumberFor<Self>,
-                Error = DispatchError,
-                AccountId = Self::AccountId,
-            >;
+            BlockNumber = BlockNumberFor<Self>,
+            Error = DispatchError,
+            AccountId = Self::AccountId,
+        >;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -222,38 +223,38 @@ pub mod pallet {
 
         /// Messenger.
         type Messenger: Messenger<
-                BlockNumber = BlockNumberFor<Self>,
-                Capacity = u32,
-                OutputError = DispatchError,
-                MailboxFirstKey = Self::AccountId,
-                MailboxSecondKey = MessageId,
-                MailboxedMessage = UserStoredMessage,
-                QueuedDispatch = StoredDispatch,
-                DelayedDispatch = StoredDelayedDispatch,
-                WaitlistFirstKey = ProgramId,
-                WaitlistSecondKey = MessageId,
-                WaitlistedMessage = StoredDispatch,
-                DispatchStashKey = MessageId,
-            >;
+            BlockNumber = BlockNumberFor<Self>,
+            Capacity = u32,
+            OutputError = DispatchError,
+            MailboxFirstKey = Self::AccountId,
+            MailboxSecondKey = MessageId,
+            MailboxedMessage = UserStoredMessage,
+            QueuedDispatch = StoredDispatch,
+            DelayedDispatch = StoredDelayedDispatch,
+            WaitlistFirstKey = ProgramId,
+            WaitlistSecondKey = MessageId,
+            WaitlistedMessage = StoredDispatch,
+            DispatchStashKey = MessageId,
+        >;
 
         /// Implementation of a ledger to account for gas creation and consumption
         type GasProvider: GasProvider<
-                ExternalOrigin = Self::AccountId,
-                NodeId = GasNodeId<MessageId, ReservationId>,
-                Balance = u64,
-                Funds = BalanceOf<Self>,
-                Error = DispatchError,
-            >;
+            ExternalOrigin = Self::AccountId,
+            NodeId = GasNodeId<MessageId, ReservationId>,
+            Balance = u64,
+            Funds = BalanceOf<Self>,
+            Error = DispatchError,
+        >;
 
         /// Block limits.
         type BlockLimiter: BlockLimiter<Balance = GasBalanceOf<Self>>;
 
         /// Scheduler.
         type Scheduler: Scheduler<
-                BlockNumber = BlockNumberFor<Self>,
-                Cost = u64,
-                Task = VaraScheduledTask<Self::AccountId>,
-            >;
+            BlockNumber = BlockNumberFor<Self>,
+            Cost = u64,
+            Task = VaraScheduledTask<Self::AccountId>,
+        >;
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;

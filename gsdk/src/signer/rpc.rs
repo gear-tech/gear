@@ -18,7 +18,7 @@
 
 //! RPC calls with signer
 
-use crate::{GasInfo, result::Result, signer::Inner};
+use crate::{result::Result, signer::Inner, GasInfo};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::ReplyInfo,

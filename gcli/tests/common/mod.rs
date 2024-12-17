@@ -18,7 +18,7 @@
 
 //! Common utils for integration tests
 pub use self::{args::Args, node::NodeExec, result::Result};
-use gear_core::ids::{CodeId, ProgramId, prelude::*};
+use gear_core::ids::{prelude::*, CodeId, ProgramId};
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::{

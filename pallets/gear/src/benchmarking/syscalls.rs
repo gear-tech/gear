@@ -19,31 +19,31 @@
 //! Benchmarks for gear syscalls.
 
 use super::{
-    API_BENCHMARK_BATCHES, Exec, Program,
     code::{
+        body::{self, unreachable_condition_i32, DynInstr::*},
         DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
-        body::{self, DynInstr::*, unreachable_condition_i32},
     },
     utils::{self, PrepareConfig},
+    Exec, Program, API_BENCHMARK_BATCHES,
 };
 use crate::{
-    Config, MailboxOf, Pallet as Gear, ProgramStorageOf, benchmarking::MAX_PAYLOAD_LEN,
-    manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE,
+    benchmarking::MAX_PAYLOAD_LEN, manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config,
+    MailboxOf, Pallet as Gear, ProgramStorageOf,
 };
 use alloc::{vec, vec::Vec};
-use common::{Origin, ProgramStorage, benchmarking, storage::*};
+use common::{benchmarking, storage::*, Origin, ProgramStorage};
 use core::marker::PhantomData;
 use frame_system::RawOrigin;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
-    pages::{GearPage, WasmPage, WasmPagesAmount, numerated::iterators::IntervalIterator},
+    pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage, WasmPagesAmount},
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
-use rand::{SeedableRng, seq::SliceRandom};
+use rand::{seq::SliceRandom, SeedableRng};
 use rand_pcg::Pcg64;
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
@@ -322,12 +322,16 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SyscallName::ReserveGas],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // gas amount
-                InstrI64Const(mailbox_threshold),
-                // duration
-                InstrI32Const(1),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // gas amount
+                    InstrI64Const(mailbox_threshold),
+                    // duration
+                    InstrI32Const(1),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -354,10 +358,14 @@ where
                 offset: reservation_id_offset,
                 value: reservation_id_bytes,
             }],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // reservation id offset
-                Counter(reservation_id_offset, RID_SIZE),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // reservation id offset
+                    Counter(reservation_id_offset, RID_SIZE),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -371,10 +379,14 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SyscallName::SystemReserveGas],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // gas amount
-                InstrI64Const(50_000_000),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // gas amount
+                    InstrI64Const(50_000_000),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -388,10 +400,13 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![name],
-            handle_body: Some(body::syscall(repetitions, &[
-                // offset where to write taken data
-                InstrI32Const(res_offset),
-            ])),
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // offset where to write taken data
+                    InstrI32Const(res_offset),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -405,12 +420,15 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SyscallName::EnvVars],
-            handle_body: Some(body::syscall(repetitions, &[
-                // version. TODO: Should it be benched based on version?
-                InstrI32Const(1),
-                // offset where to write settings
-                InstrI32Const(settings_offset),
-            ])),
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // version. TODO: Should it be benched based on version?
+                    InstrI32Const(1),
+                    // offset where to write settings
+                    InstrI32Const(settings_offset),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -428,14 +446,18 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SyscallName::Read],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // at
-                InstrI32Const(0),
-                // len
-                InstrI32Const(buffer_len),
-                // buffer offset
-                InstrI32Const(buffer_offset),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // at
+                    InstrI32Const(0),
+                    // len
+                    InstrI32Const(buffer_len),
+                    // buffer offset
+                    InstrI32Const(buffer_offset),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -453,14 +475,18 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::Read],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // at
-                InstrI32Const(0),
-                // len
-                InstrI32Const(buffer_len),
-                // buffer offset
-                InstrI32Const(buffer_offset),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // at
+                    InstrI32Const(0),
+                    // len
+                    InstrI32Const(buffer_len),
+                    // buffer offset
+                    InstrI32Const(buffer_offset),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -475,12 +501,15 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SyscallName::Random],
-            handle_body: Some(body::syscall(repetitions, &[
-                // subject offset
-                InstrI32Const(subject_offset),
-                // bn random offset
-                InstrI32Const(bn_random_offset),
-            ])),
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // subject offset
+                    InstrI32Const(subject_offset),
+                    // bn random offset
+                    InstrI32Const(bn_random_offset),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -499,24 +528,28 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReplyDeposit, SyscallName::Send],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // pid value offset
-                InstrI32Const(pid_value_offset),
-                // payload offset
-                InstrI32Const(COMMON_OFFSET),
-                // payload len
-                InstrI32Const(0),
-                // delay
-                InstrI32Const(0),
-                // res ptr
-                InstrI32Const(send_res_offset),
-                // call send
-                InstrCall(1),
-                // mid ptr
-                InstrI32Const(mid_offset),
-                // gas
-                InstrI64Const(10_000),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // pid value offset
+                    InstrI32Const(pid_value_offset),
+                    // payload offset
+                    InstrI32Const(COMMON_OFFSET),
+                    // payload len
+                    InstrI32Const(0),
+                    // delay
+                    InstrI32Const(0),
+                    // res ptr
+                    InstrI32Const(send_res_offset),
+                    // call send
+                    InstrCall(1),
+                    // mid ptr
+                    InstrI32Const(mid_offset),
+                    // gas
+                    InstrI64Const(10_000),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -734,16 +767,20 @@ where
                 offset: rid_pid_value_offset,
                 value: rid_pid_values,
             }],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // rid pid value offset
-                Counter(rid_pid_value_offset, RID_PID_VALUE_SIZE),
-                // payload offset
-                InstrI32Const(payload_offset),
-                // payload len
-                InstrI32Const(payload_len),
-                // delay
-                InstrI32Const(10),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // rid pid value offset
+                    Counter(rid_pid_value_offset, RID_PID_VALUE_SIZE),
+                    // payload offset
+                    InstrI32Const(payload_offset),
+                    // payload len
+                    InstrI32Const(payload_len),
+                    // delay
+                    InstrI32Const(10),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -889,12 +926,16 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SyscallName::ReplyPush],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // payload ptr
-                InstrI32Const(payload_offset),
-                // payload len
-                InstrI32Const(payload_len),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // payload ptr
+                    InstrI32Const(payload_offset),
+                    // payload len
+                    InstrI32Const(payload_len),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -910,12 +951,16 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReplyPush],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // payload ptr
-                InstrI32Const(payload_offset),
-                // payload len
-                InstrI32Const(payload_len),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // payload ptr
+                    InstrI32Const(payload_offset),
+                    // payload len
+                    InstrI32Const(payload_len),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -952,14 +997,18 @@ where
                 offset: rid_value_offset,
                 value: rid_values,
             }],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // rid value offset
-                Counter(rid_value_offset, RID_VALUE_SIZE),
-                // payload offset
-                InstrI32Const(payload_offset),
-                // payload len
-                InstrI32Const(payload_len),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // rid value offset
+                    Counter(rid_value_offset, RID_VALUE_SIZE),
+                    // payload offset
+                    InstrI32Const(payload_offset),
+                    // payload len
+                    InstrI32Const(payload_len),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -989,10 +1038,14 @@ where
                 offset: rid_value_offset,
                 value: rid_values,
             }],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // rid_value ptr
-                Counter(rid_value_offset, RID_VALUE_SIZE),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // rid_value ptr
+                    Counter(rid_value_offset, RID_VALUE_SIZE),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -1009,14 +1062,18 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReservationReply],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // rid_value ptr
-                InstrI32Const(rid_value_offset),
-                // payload ptr
-                InstrI32Const(payload_offset),
-                // payload len
-                InstrI32Const(payload_len),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // rid_value ptr
+                    InstrI32Const(rid_value_offset),
+                    // payload ptr
+                    InstrI32Const(payload_offset),
+                    // payload len
+                    InstrI32Const(payload_len),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -1148,12 +1205,16 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReplyPushInput],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // input at
-                InstrI32Const(input_at),
-                // input len
-                InstrI32Const(input_len),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // input at
+                    InstrI32Const(input_at),
+                    // input len
+                    InstrI32Const(input_len),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -1290,12 +1351,15 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SyscallName::Debug],
-            handle_body: Some(body::syscall(repetitions, &[
-                // payload ptr
-                InstrI32Const(string_offset),
-                // payload len
-                InstrI32Const(string_len),
-            ])),
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // payload ptr
+                    InstrI32Const(string_offset),
+                    // payload len
+                    InstrI32Const(string_len),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -1310,12 +1374,15 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::Debug],
-            handle_body: Some(body::syscall(repetitions, &[
-                // payload ptr
-                InstrI32Const(string_offset),
-                // payload len
-                InstrI32Const(string_len),
-            ])),
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // payload ptr
+                    InstrI32Const(string_offset),
+                    // payload len
+                    InstrI32Const(string_len),
+                ],
+            )),
             ..Default::default()
         };
 
@@ -1366,12 +1433,16 @@ where
                 offset: message_id_offset,
                 value: message_ids,
             }],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[
-                // message id offset
-                Counter(message_id_offset, MID_SIZE),
-                // delay
-                InstrI32Const(10),
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // message id offset
+                    Counter(message_id_offset, MID_SIZE),
+                    // delay
+                    InstrI32Const(10),
+                ],
+            )),
             ..Default::default()
         };
 

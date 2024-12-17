@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{ActorId, critical, debug, exec, msg, prelude::*};
+use gstd::{critical, debug, exec, msg, prelude::*, ActorId};
 
 #[gstd::async_main]
 async fn main() {

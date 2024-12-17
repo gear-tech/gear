@@ -34,8 +34,8 @@ use std::{
     backtrace::Backtrace,
     pin::Pin,
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
 };
 

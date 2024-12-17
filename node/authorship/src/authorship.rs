@@ -28,7 +28,7 @@ use futures_timer::Delay;
 use log::{debug, error, info, trace, warn};
 use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use sc_block_builder::BlockBuilderApi;
-use sc_telemetry::{CONSENSUS_INFO, TelemetryHandle, telemetry};
+use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::{ApiExt, ApiRef, CallApiAt, ProvideRuntimeApi};
 use sp_blockchain::{ApplyExtrinsicFailed::Validity, Error::ApplyExtrinsicFailed, HeaderBackend};
@@ -36,8 +36,8 @@ use sp_consensus::{DisableProofRecording, EnableProofRecording, ProofRecording, 
 use sp_core::traits::SpawnNamed;
 use sp_inherents::InherentData;
 use sp_runtime::{
-    Digest, Percent, SaturatedConversion,
     traits::{BlakeTwo256, Block as BlockT, Hash as HashT, Header as HeaderT},
+    Digest, Percent, SaturatedConversion,
 };
 use std::{
     marker::PhantomData,

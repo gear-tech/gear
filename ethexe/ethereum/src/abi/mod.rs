@@ -61,7 +61,7 @@ sol!(
 
 pub(crate) mod utils {
     use alloy::primitives::{FixedBytes, Uint};
-    use gprimitives::{ActorId, CodeId, H256, MessageId};
+    use gprimitives::{ActorId, CodeId, MessageId, H256};
 
     pub type Bytes32 = FixedBytes<32>;
     pub type Uint256 = Uint<256, 4>;

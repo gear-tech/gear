@@ -26,10 +26,11 @@ use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
-use sp_core::{H256, ed25519::Public};
+use sp_core::{ed25519::Public, H256};
 use sp_runtime::{
-    BuildStorage, Perbill, impl_opaque_keys,
+    impl_opaque_keys,
     traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage, Perbill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 

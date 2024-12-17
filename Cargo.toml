@@ -1,11 +1,11 @@
 [workspace.package]
 version = "1.7.0"
 authors = ["Gear Technologies"]
-edition = "2024"
+edition = "2021"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.85"
+rust-version = "1.84"
 
 [workspace]
 resolver = "2"

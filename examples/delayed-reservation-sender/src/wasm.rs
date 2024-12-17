@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{ReservationSendingShowcase, SENDING_EXPECT};
-use gstd::{ReservationId, exec, msg, prelude::*};
+use gstd::{exec, msg, prelude::*, ReservationId};
 
 static mut CALLED_BEFORE: bool = false;
 static mut RESERVATION_ID: Option<ReservationId> = None;

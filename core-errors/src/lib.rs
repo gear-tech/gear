@@ -140,7 +140,9 @@ pub enum MessageError {
     /// not inserted in mailbox.
     ///
     /// Gas limit between 0 and mailbox threshold cannot be inserted in mailbox.
-    #[display(fmt = "In case of non-zero message gas limit must be greater than mailbox threshold")]
+    #[display(
+        fmt = "In case of non-zero message gas limit must be greater than mailbox threshold"
+    )]
     InsufficientGasLimit = 308,
 
     /// The error occurs when program tries to create reply deposit for message

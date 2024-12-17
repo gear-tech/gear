@@ -19,8 +19,8 @@
 //! Send message args generator.
 
 use crate::{
-    CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs, Seed,
-    impl_convert_traits,
+    impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
+    Seed,
 };
 use gear_core::ids::ProgramId;
 use gear_utils::{NonEmpty, RingGet};

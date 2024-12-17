@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use clap::Parser;
 use colored::Colorize;
-use gring::{Keyring, SecretKey, cmd::Command};
-use gsdk::ext::sp_core::{Pair, sr25519};
+use gring::{cmd::Command, Keyring, SecretKey};
+use gsdk::ext::sp_core::{sr25519, Pair};
 
 const DEFAULT_DEV: &str = "//Alice";
 

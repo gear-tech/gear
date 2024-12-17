@@ -26,7 +26,7 @@ use alloc::string::ToString;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, quote_spanned};
-use syn::{Data, DeriveInput, Ident, parse_macro_input, spanned::Spanned};
+use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput, Ident};
 /// This derives `Debug` for a struct where each field must be of some numeric type.
 /// It interprets each field as its represents some weight and formats it as times so that
 /// it is readable by humans.

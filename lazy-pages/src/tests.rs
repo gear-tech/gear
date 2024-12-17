@@ -17,11 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    LazyPagesStorage, LazyPagesVersion, UserSignalHandler,
     common::Error,
     init_with_handler, mprotect,
-    pages::{GearPage, tests::PageSizeManager},
+    pages::{tests::PageSizeManager, GearPage},
     signal::ExceptionInfo,
+    LazyPagesStorage, LazyPagesVersion, UserSignalHandler,
 };
 use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::LazyPagesInitContext;

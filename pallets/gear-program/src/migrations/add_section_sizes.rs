@@ -25,8 +25,8 @@ use sp_std::marker::PhantomData;
 use {
     frame_support::ensure,
     sp_runtime::{
-        TryRuntimeError,
         codec::{Decode, Encode},
+        TryRuntimeError,
     },
     sp_std::vec::Vec,
 };
@@ -155,9 +155,9 @@ mod v8 {
     use {
         crate::{Config, Pallet},
         frame_support::{
-            Identity,
             storage::types::StorageMap,
             traits::{PalletInfo, StorageInstance},
+            Identity,
         },
         gear_core::ids::CodeId,
         sp_std::marker::PhantomData,

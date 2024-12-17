@@ -1,13 +1,13 @@
 use crate::utils;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use gclient::{Error as GClientError, Result as GClientResult};
 use parking_lot::{Mutex, MutexGuard};
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,
     sync::{
-        OnceLock,
         atomic::{AtomicU64, Ordering},
+        OnceLock,
     },
 };
 

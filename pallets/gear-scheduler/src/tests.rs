@@ -21,7 +21,7 @@
 extern crate alloc;
 
 use crate::{mock::*, *};
-use common::{GasTree, LockId, LockableTree as _, Origin, scheduler::*, storage::*};
+use common::{scheduler::*, storage::*, GasTree, LockId, LockableTree as _, Origin};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{ids::*, message::*, tasks::*};
 use gear_core_errors::ErrorReplyReason;

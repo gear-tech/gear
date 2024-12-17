@@ -18,10 +18,11 @@
 
 //! Integration tests for command `upload`
 use crate::common::{
-    self, Args, Result, env,
+    self, env,
     node::{Convert, NodeExec},
+    Args, Result,
 };
-use gear_core::ids::{CodeId, prelude::*};
+use gear_core::ids::{prelude::*, CodeId};
 use gsdk::Api;
 
 #[tokio::test]

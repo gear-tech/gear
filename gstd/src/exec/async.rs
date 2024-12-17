@@ -19,7 +19,7 @@
 //! Module for asynchronous execution control functions which can be used
 //! during message handling.
 
-use crate::{MessageId, async_runtime, msg};
+use crate::{async_runtime, msg, MessageId};
 use core::{
     future::Future,
     pin::Pin,

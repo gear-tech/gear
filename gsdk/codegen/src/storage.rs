@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{ToTokens, quote};
+use quote::{quote, ToTokens};
 use syn::{
-    Expr, ExprLit, FnArg, Ident, ItemFn, Lit, LitStr, Meta, MetaNameValue, PatType, parse_quote,
-    punctuated::Punctuated,
+    parse_quote, punctuated::Punctuated, Expr, ExprLit, FnArg, Ident, ItemFn, Lit, LitStr, Meta,
+    MetaNameValue, PatType,
 };
 
 const AT_DOC_SUFFIX: &str = " at specified block";

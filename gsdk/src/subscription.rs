@@ -23,7 +23,7 @@ use anyhow::Result;
 use futures::{Stream, StreamExt};
 use sp_core::H256;
 use std::{marker::Unpin, ops::Deref, pin::Pin, task::Poll};
-use subxt::{OnlineClient, backend::StreamOfResults, blocks::Block, events::Events as SubxtEvents};
+use subxt::{backend::StreamOfResults, blocks::Block, events::Events as SubxtEvents, OnlineClient};
 
 type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
 type BlockSubscription = StreamOfResults<SubxtBlock>;

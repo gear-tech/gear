@@ -20,7 +20,7 @@
 
 use std::{cell::RefCell, collections::HashMap, fmt};
 
-use crate::{DEFAULT_USERS_INITIAL_BALANCE, EXISTENTIAL_DEPOSIT, Value, default_users_list};
+use crate::{default_users_list, Value, DEFAULT_USERS_INITIAL_BALANCE, EXISTENTIAL_DEPOSIT};
 use gear_common::ProgramId;
 
 fn init_default_accounts(storage: &mut HashMap<ProgramId, Balance>) {

@@ -18,20 +18,20 @@
 
 use std::slice;
 
-use anyhow::{Context, anyhow, bail};
+use anyhow::{anyhow, bail, Context};
 
 use gear_wasm_gen::SyscallName;
-use gear_wasm_instrument::{GLOBAL_NAME_GAS, parity_wasm::elements::Module};
+use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
 use region::{Allocation, Protection};
 use wasmi::{
-    Caller, Config, Engine, Error, Instance, Linker, Memory, MemoryType, Module as WasmiModule,
-    StackLimits, Store, Val, core::UntypedVal,
+    core::UntypedVal, Caller, Config, Engine, Error, Instance, Linker, Memory, MemoryType,
+    Module as WasmiModule, StackLimits, Store, Val,
 };
 
 use crate::{
-    INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS, RunResult, Runner,
-    globals::{InstanceAccessGlobal, get_globals, globals_list},
+    globals::{get_globals, globals_list, InstanceAccessGlobal},
     lazy_pages::{self, FuzzerLazyPagesContext},
+    RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
 
 use error::CustomHostError;

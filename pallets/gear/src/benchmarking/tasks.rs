@@ -179,7 +179,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
     let _ =
@@ -231,7 +231,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
     let _ =

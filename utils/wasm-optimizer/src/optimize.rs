@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::stack_end;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;

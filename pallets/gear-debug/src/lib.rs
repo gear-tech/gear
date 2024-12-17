@@ -37,7 +37,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, CodeStorage, Origin, ProgramStorage, storage::*};
+    use common::{self, storage::*, CodeStorage, Origin, ProgramStorage};
     use core::fmt;
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
@@ -68,7 +68,10 @@ pub mod pallet {
         /// Storage with codes for programs.
         type CodeStorage: CodeStorage;
 
-        type Messenger: Messenger<QueuedDispatch = StoredDispatch, DelayedDispatch = StoredDelayedDispatch>;
+        type Messenger: Messenger<
+            QueuedDispatch = StoredDispatch,
+            DelayedDispatch = StoredDelayedDispatch,
+        >;
 
         type ProgramStorage: ProgramStorage
             + IterableMap<(ProgramId, Program<BlockNumberFor<Self>>)>;

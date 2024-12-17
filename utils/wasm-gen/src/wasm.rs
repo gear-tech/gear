@@ -18,16 +18,16 @@
 
 //! Wasm related entities.
 
-use crate::{EntryPointName, config::WasmModuleConfig};
+use crate::{config::WasmModuleConfig, EntryPointName};
 use arbitrary::{Arbitrary, Result, Unstructured};
 use core::mem;
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::{
-    STACK_END_EXPORT_NAME,
     parity_wasm::{
         self,
         elements::{External, Instruction, Internal, Module},
     },
+    STACK_END_EXPORT_NAME,
 };
 use gsys::{Handle, Hash};
 use wasm_smith::Module as WasmSmithModule;

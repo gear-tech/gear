@@ -29,15 +29,14 @@ use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
-    ids::{CodeId, prelude::*},
+    ids::{prelude::*, CodeId},
     pages::{WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{
-    SandboxEnvironmentBuilder, SandboxMemory,
     default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
+    SandboxEnvironmentBuilder, SandboxMemory,
 };
 use gear_wasm_instrument::{
-    STACK_END_EXPORT_NAME,
     parity_wasm::{
         builder,
         elements::{
@@ -46,6 +45,7 @@ use gear_wasm_instrument::{
         },
     },
     syscalls::SyscallName,
+    STACK_END_EXPORT_NAME,
 };
 use sp_std::{borrow::ToOwned, convert::TryFrom, marker::PhantomData, prelude::*};
 
@@ -544,11 +544,14 @@ where
     fn unary_instr_for_bit_width(instr: Instruction, bit_width: BitWidth, repeat: u32) -> Self {
         use body::DynInstr::Regular;
         ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(repeat, vec![
-                bit_width.random_repeated(1),
-                Regular(instr),
-                Regular(Instruction::Drop),
-            ])),
+            handle_body: Some(body::repeated_dyn(
+                repeat,
+                vec![
+                    bit_width.random_repeated(1),
+                    Regular(instr),
+                    Regular(Instruction::Drop),
+                ],
+            )),
             ..Default::default()
         }
         .into()
@@ -565,11 +568,14 @@ where
     fn binary_instr_for_bit_width(instr: Instruction, bit_width: BitWidth, repeat: u32) -> Self {
         use body::DynInstr::Regular;
         ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(repeat, vec![
-                bit_width.random_repeated(2),
-                Regular(instr),
-                Regular(Instruction::Drop),
-            ])),
+            handle_body: Some(body::repeated_dyn(
+                repeat,
+                vec![
+                    bit_width.random_repeated(2),
+                    Regular(instr),
+                    Regular(Instruction::Drop),
+                ],
+            )),
             ..Default::default()
         }
         .into()
@@ -578,7 +584,7 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::pages::{GearPage, WasmPage, numerated::iterators::IntervalIterator};
+    use gear_core::pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage};
 
     use super::*;
 

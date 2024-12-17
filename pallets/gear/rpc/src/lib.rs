@@ -25,9 +25,9 @@
 use gear_common::Origin;
 use gear_core_errors::*;
 use jsonrpsee::{
-    core::{RpcResult, async_trait},
+    core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::{ErrorObjectOwned, error::ErrorObject},
+    types::{error::ErrorObject, ErrorObjectOwned},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};

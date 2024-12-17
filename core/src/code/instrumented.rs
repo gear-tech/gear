@@ -26,8 +26,8 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 /// Instantiated section sizes for charging during module instantiation.

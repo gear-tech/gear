@@ -28,8 +28,8 @@ use frame_support::{
     parameter_types,
     traits::{Currency, Imbalance, OnUnbalanced},
     weights::{
-        Weight,
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight},
+        Weight,
     },
 };
 use frame_system::limits::BlockWeights;

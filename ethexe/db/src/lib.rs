@@ -121,10 +121,10 @@ mod tests {
         db.put(b"prefix_foo", b"hello".to_vec());
         db.put(b"prefix_bar", b"world".to_vec());
 
-        testcase("prefix_", &[
-            ("prefix_foo", "hello"),
-            ("prefix_bar", "world"),
-        ]);
+        testcase(
+            "prefix_",
+            &[("prefix_foo", "hello"), ("prefix_bar", "world")],
+        );
 
         testcase("", &[("prefix_foo", "hello"), ("prefix_bar", "world")]);
 

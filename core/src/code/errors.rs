@@ -18,7 +18,7 @@
 
 //! Module that describes various code errors.
 
-pub use gear_wasm_instrument::{InstrumentationError, parity_wasm::SerializationError};
+pub use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationError};
 pub use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.

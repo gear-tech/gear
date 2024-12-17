@@ -16,20 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{AlloyProvider, AlloyTransport, TryGetReceipt, abi::IRouter, wvara::WVara};
+use crate::{abi::IRouter, wvara::WVara, AlloyProvider, AlloyTransport, TryGetReceipt};
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{Address, B256, Bytes, U256},
+    primitives::{Address, Bytes, B256, U256},
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::Filter,
     transports::BoxTransport,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
-use gear_core::ids::{ProgramId, prelude::CodeIdExt as _};
+use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
 use gprimitives::{ActorId, CodeId, H256};
 use std::sync::Arc;
 

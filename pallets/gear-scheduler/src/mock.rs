@@ -31,8 +31,8 @@ use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNu
 use pallet_gear::GasAllowanceOf;
 use sp_core::{ConstBool, H256};
 use sp_runtime::{
-    BuildStorage, Perbill,
     traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage, Perbill,
 };
 
 use sp_std::convert::{TryFrom, TryInto};

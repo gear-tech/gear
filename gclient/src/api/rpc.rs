@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![allow(clippy::too_many_arguments)]
 
-use crate::{GearApi, api::Result};
+use crate::{api::Result, GearApi};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::ReplyInfo,
 };
-use gsdk::{GasInfo, ext::sp_core::H256};
+use gsdk::{ext::sp_core::H256, GasInfo};
 use parity_scale_codec::{Decode, Encode};
 use std::path::Path;
 

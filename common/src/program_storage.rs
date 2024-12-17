@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::pages::{WasmPage, numerated::tree::IntervalsTree};
+use gear_core::pages::{numerated::tree::IntervalsTree, WasmPage};
 
 use super::*;
 use crate::storage::{MapStorage, TripleMapStorage};
@@ -52,7 +52,12 @@ pub trait ProgramStorage {
     type AccountId: Eq + PartialEq;
 
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program<Self::BlockNumber>>;
-    type MemoryPageMap: TripleMapStorage<Key1 = ProgramId, Key2 = MemoryInfix, Key3 = GearPage, Value = PageBuf>;
+    type MemoryPageMap: TripleMapStorage<
+        Key1 = ProgramId,
+        Key2 = MemoryInfix,
+        Key3 = GearPage,
+        Value = PageBuf,
+    >;
     type AllocationsMap: MapStorage<Key = ProgramId, Value = IntervalsTree<WasmPage>>;
 
     /// Attempt to remove all items from all the associated maps.

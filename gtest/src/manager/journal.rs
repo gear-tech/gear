@@ -20,10 +20,10 @@
 
 use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
 use crate::{
-    EXISTENTIAL_DEPOSIT, Value,
     manager::hold_bound::HoldBoundBuilder,
     program::ProgramBuilder,
     state::{accounts::Accounts, actors::Actors},
+    Value, EXISTENTIAL_DEPOSIT,
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
@@ -35,9 +35,9 @@ use gear_core::{
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
     pages::{
-        GearPage, WasmPage,
         num_traits::Zero,
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
+        GearPage, WasmPage,
     },
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},

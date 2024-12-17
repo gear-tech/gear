@@ -26,7 +26,7 @@ use secp256k1::hashes::hex::{Case, DisplayHex};
 pub use sha3;
 pub use signature::Signature;
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
@@ -296,7 +296,7 @@ impl Signer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{PrimitiveSignature as Signature, keccak256};
+    use alloy::primitives::{keccak256, PrimitiveSignature as Signature};
     use std::env::temp_dir;
 
     #[test]

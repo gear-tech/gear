@@ -19,24 +19,25 @@
 use crate::{self as pallet_gear_staking_rewards, CurrencyOf};
 use core::marker::PhantomData;
 use frame_election_provider_support::{
-    ElectionDataProvider, SequentialPhragmen, bounds::ElectionBoundsBuilder, onchain,
+    bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, SequentialPhragmen,
 };
 use frame_support::{
-    PalletId, construct_runtime, parameter_types,
+    construct_runtime, parameter_types,
     traits::{
-        ConstU32, ConstU64, Contains, Currency, FindAuthor, Hooks, NeverEnsureOrigin,
         tokens::{PayFromAccount, UnityAssetBalanceConversion},
+        ConstU32, ConstU64, Contains, Currency, FindAuthor, Hooks, NeverEnsureOrigin,
     },
-    weights::{Weight, constants::RocksDbWeight},
+    weights::{constants::RocksDbWeight, Weight},
+    PalletId,
 };
-use frame_system::{self as system, EnsureRoot, pallet_prelude::BlockNumberFor};
+use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
 use pallet_election_provider_multi_phase::{self as multi_phase};
 use pallet_session::historical::{self as pallet_session_historical};
-use sp_core::{H256, crypto::key_types};
+use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
-    BuildStorage, KeyTypeId, Perbill, Percent, Permill, Perquintill,
     testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, One, OpaqueKeys, Scale},
+    BuildStorage, KeyTypeId, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 

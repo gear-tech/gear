@@ -53,16 +53,15 @@ use gear_core_errors::{ReplyCode, SignalCode};
 pub use task::*;
 
 use crate::{
-    BuiltinDispatcherFactory, Config, CurrencyOf, EXISTENTIAL_DEPOSIT_LOCK_ID, Event, Fortitude,
-    GasHandlerOf, Pallet, Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
-    fungible,
+    fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
+    Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
 use alloc::format;
 use common::{
-    CodeStorage, Origin, ProgramStorage, ReservableTree,
     event::*,
     scheduler::{StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
+    CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::{fmt, mem};
 use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};

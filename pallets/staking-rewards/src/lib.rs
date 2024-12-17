@@ -53,18 +53,18 @@ mod mock;
 mod tests;
 
 use frame_support::{
-    PalletId,
     traits::{
-        Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced, WithdrawReasons,
-        fungible,
+        fungible, Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced,
+        WithdrawReasons,
     },
     weights::Weight,
+    PalletId,
 };
 use pallet_staking::{ActiveEraInfo, EraPayout};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::{
-    PerThing, Perquintill,
     traits::{AccountIdConversion, Saturating, StaticLookup, UniqueSaturatedInto},
+    PerThing, Perquintill,
 };
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 

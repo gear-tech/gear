@@ -1,5 +1,5 @@
 //! Log filter for the node
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use smallvec::SmallVec;
 use std::{
     io::{BufRead, BufReader, Read},

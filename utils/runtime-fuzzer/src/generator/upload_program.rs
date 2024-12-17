@@ -17,16 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    AUXILIARY_SIZE, GAS_SIZE, MAX_CODE_SIZE, MAX_PAYLOAD_SIZE, MAX_SALT_SIZE, RuntimeStateView,
+    RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, MAX_CODE_SIZE, MAX_PAYLOAD_SIZE, MAX_SALT_SIZE,
     VALUE_SIZE,
 };
 use gear_call_gen::{GearCall, UploadProgramArgs};
-use gear_core::ids::{CodeId, ProgramId, prelude::*};
+use gear_core::ids::{prelude::*, CodeId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
+    wasm_gen_arbitrary::{Result, Unstructured},
     ActorKind, PtrParamAllowedValues, RandomizedGearWasmConfigBundle, RegularParamType,
     SyscallsParamsConfig,
-    wasm_gen_arbitrary::{Result, Unstructured},
 };
 use runtime_primitives::Balance;
 use vara_runtime::EXISTENTIAL_DEPOSIT;

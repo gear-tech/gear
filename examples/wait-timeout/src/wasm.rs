@@ -18,7 +18,7 @@
 
 use crate::Command;
 use futures::future;
-use gstd::{MessageId, exec, msg};
+use gstd::{exec, msg, MessageId};
 
 static mut TIMEOUT_MESSAGE_ID: Option<MessageId> = None;
 

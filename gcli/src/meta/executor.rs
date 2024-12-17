@@ -20,7 +20,7 @@
 //! of gear programs, some of the host functions are missing logics that
 //! is because they are for the on-chain environment data.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use wasmer::{Engine, FunctionEnv, Imports, Instance, Memory, MemoryType, Module, Store};
 
 /// HostState for the WASM executor
@@ -75,7 +75,7 @@ fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
 
 mod env {
     use super::HostState;
-    use anyhow::{Result, anyhow};
+    use anyhow::{anyhow, Result};
     use wasmer::{Extern, Function, FunctionEnv, FunctionEnvMut, Imports, Memory, Pages, Store};
     use wasmer_types::TrapCode;
 

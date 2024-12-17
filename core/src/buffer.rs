@@ -26,8 +26,8 @@ use core::{
 
 use alloc::{vec, vec::Vec};
 use scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 /// Limited len vector.

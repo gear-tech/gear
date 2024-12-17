@@ -19,13 +19,13 @@
 //! Lazy-pages wasm runtime tests.
 
 use crate::{
-    Config, Ext, HandleKind, LazyPagesInterface, LazyPagesRuntimeInterface, ProgramStorageOf,
     benchmarking::{
-        Program,
-        code::{ImportedMemory, ModuleDefinition, body},
+        code::{body, ImportedMemory, ModuleDefinition},
         utils as common_utils,
         utils::PrepareConfig,
+        Program,
     },
+    Config, Ext, HandleKind, LazyPagesInterface, LazyPagesRuntimeInterface, ProgramStorageOf,
 };
 use ::alloc::{collections::BTreeSet, format, vec};
 use common::{Origin, ProgramStorage};
@@ -34,7 +34,7 @@ use core_processor::common::{DispatchOutcome, JournalNote};
 use gear_core::{
     costs::LazyPagesCosts,
     memory::{MemoryInterval, PageBuf},
-    pages::{GearPage, GearPagesAmount, numerated::iterators::IntervalIterator},
+    pages::{numerated::iterators::IntervalIterator, GearPage, GearPagesAmount},
 };
 use gear_lazy_pages_common::Status;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};

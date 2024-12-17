@@ -27,9 +27,9 @@ use frame_system::EnsureRootWithSuccess;
 
 mod origins;
 pub use origins::{
-    Fellows, FellowshipAdmin, FellowshipExperts, FellowshipInitiates, FellowshipMasters,
-    GeneralAdmin, ReferendumCanceller, ReferendumKiller, Spender, StakingAdmin, Treasurer,
-    WhitelistedCaller, pallet_custom_origins,
+    pallet_custom_origins, Fellows, FellowshipAdmin, FellowshipExperts, FellowshipInitiates,
+    FellowshipMasters, GeneralAdmin, ReferendumCanceller, ReferendumKiller, Spender, StakingAdmin,
+    Treasurer, WhitelistedCaller,
 };
 mod tracks;
 pub use tracks::TracksInfo;

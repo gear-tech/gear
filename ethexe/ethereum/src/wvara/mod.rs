@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyProvider, AlloyTransport, TryGetReceipt,
     abi::{self, IWrappedVara},
+    AlloyProvider, AlloyTransport, TryGetReceipt,
 };
 use alloy::{
     primitives::{Address, U256 as AlloyU256},

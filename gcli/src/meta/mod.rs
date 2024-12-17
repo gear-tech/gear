@@ -26,7 +26,7 @@ use crate::result::{Error, Result};
 use gear_core::code::{Code, CodeAndId, InstrumentedCodeAndId, TryNewCodeConfig};
 use gmeta::{MetadataRepr, MetawasmData, TypesRepr};
 use registry::LocalRegistry as _;
-use scale_info::{PortableRegistry, scale::Decode};
+use scale_info::{scale::Decode, PortableRegistry};
 use std::fmt;
 
 struct Io<'d> {

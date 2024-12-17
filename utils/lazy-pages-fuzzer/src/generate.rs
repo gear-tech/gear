@@ -21,15 +21,15 @@ use std::fmt;
 use anyhow::{Context as _, Result};
 use arbitrary::{Arbitrary, Unstructured};
 use gear_wasm_gen::generate_gear_program_module;
-use gear_wasm_instrument::{InstrumentationBuilder, parity_wasm::elements::Module};
+use gear_wasm_instrument::{parity_wasm::elements::Module, InstrumentationBuilder};
 
 use crate::{
-    MODULE_ENV,
     config::{DummyCostRules, FuzzerConfigBundle},
+    MODULE_ENV,
 };
 
 use globals::InjectGlobals;
-pub use globals::{GLOBAL_NAME_PREFIX, InjectGlobalsConfig};
+pub use globals::{InjectGlobalsConfig, GLOBAL_NAME_PREFIX};
 mod globals;
 
 use mem_accesses::InjectMemoryAccesses;

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{ActorId, msg};
+use gstd::{msg, ActorId};
 
 static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 static mut REPLY_DEPOSIT: u64 = 0;

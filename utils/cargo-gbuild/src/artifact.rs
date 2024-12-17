@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::metadata::Metadata;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use colored::Colorize;
 use gear_wasm_optimizer::{self as optimize, CargoCommand, OptType, Optimizer};

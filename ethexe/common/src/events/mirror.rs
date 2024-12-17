@@ -18,7 +18,7 @@
 
 use alloc::vec::Vec;
 use gear_core::message::ReplyCode;
-use gprimitives::{ActorId, H256, MessageId};
+use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 

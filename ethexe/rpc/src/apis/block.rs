@@ -21,7 +21,7 @@ use ethexe_common::events::BlockRequestEvent;
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
 use gprimitives::H256;
 use jsonrpsee::{
-    core::{RpcResult, async_trait},
+    core::{async_trait, RpcResult},
     proc_macros::rpc,
 };
 use std::collections::VecDeque;

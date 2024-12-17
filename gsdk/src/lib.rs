@@ -40,8 +40,8 @@ use parity_scale_codec::Decode;
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
 use subxt::{
-    OnlineClient,
     tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
+    OnlineClient,
 };
 
 mod api;

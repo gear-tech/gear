@@ -42,7 +42,7 @@ mod tests {
     extern crate std;
 
     use super::Request;
-    use gtest::{Log, Program, System, constants::DEFAULT_USER_ALICE};
+    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
 
     #[test]
     fn program_can_be_initialized() {

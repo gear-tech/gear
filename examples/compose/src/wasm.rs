@@ -25,7 +25,7 @@
 
 extern crate alloc;
 
-use gstd::{ActorId, debug, exec, msg, prelude::*};
+use gstd::{debug, exec, msg, prelude::*, ActorId};
 
 static mut STATE: State = State {
     program_a: Program {

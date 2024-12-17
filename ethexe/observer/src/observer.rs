@@ -1,6 +1,6 @@
 use crate::{
-    BlobReader,
     event::{BlockData, Event, RequestBlockData, RequestEvent},
+    BlobReader,
 };
 use alloy::{
     primitives::Address as AlloyAddress,
@@ -9,7 +9,7 @@ use alloy::{
     rpc::types::eth::{Filter, Header, Topic},
     transports::BoxTransport,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent, RouterRequestEvent};
 use ethexe_db::BlockHeader;
 use ethexe_ethereum::{
@@ -18,7 +18,7 @@ use ethexe_ethereum::{
     wvara,
 };
 use ethexe_signer::Address;
-use futures::{Stream, StreamExt, future, stream::FuturesUnordered};
+use futures::{future, stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
 use std::{collections::HashMap, sync::Arc};

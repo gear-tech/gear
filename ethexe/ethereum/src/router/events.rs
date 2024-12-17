@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{IRouter, abi::utils::bytes32_to_h256, decode_log};
+use crate::{abi::utils::bytes32_to_h256, decode_log, IRouter};
 use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use ethexe_common::events::{RouterEvent, RouterRequestEvent};
 use gprimitives::H256;
 use signatures::*;

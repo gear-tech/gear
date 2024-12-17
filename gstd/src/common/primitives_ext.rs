@@ -35,7 +35,7 @@ mod private {
 /// # Examples
 ///
 /// ```
-/// use gstd::{ReservationId, prelude::*};
+/// use gstd::{prelude::*, ReservationId};
 ///
 /// static mut RESERVED: Option<ReservationId> = None;
 ///
@@ -65,7 +65,7 @@ pub trait ReservationIdExt: private::Sealed + Sized {
     /// gas back:
     ///
     /// ```
-    /// use gstd::{ReservationId, msg, prelude::*};
+    /// use gstd::{msg, prelude::*, ReservationId};
     ///
     /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {

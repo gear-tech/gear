@@ -20,17 +20,18 @@ use crate as pallet_gear;
 use crate::*;
 use common::pallet_tests::MAX_BLOCK;
 use frame_support::{
-    PalletId, construct_runtime,
+    construct_runtime,
     pallet_prelude::*,
     parameter_types,
     traits::{ConstU64, FindAuthor, Get},
+    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, mocking, pallet_prelude::BlockNumberFor};
 use sp_core::{ConstU8, H256};
 use sp_runtime::{
-    BuildStorage, Perbill,
     traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage, Perbill,
 };
 use sp_std::{
     cell::RefCell,

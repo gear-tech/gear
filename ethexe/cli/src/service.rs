@@ -22,20 +22,20 @@ use crate::{
     config::{Config, ConfigPublicKey, PrometheusConfig},
     metrics::MetricsService,
 };
-use anyhow::{Result, anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use ethexe_common::{
     events::{BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::{primitives::U256, router::RouterQuery};
-use ethexe_network::{NetworkReceiverEvent, db_sync};
+use ethexe_network::{db_sync, NetworkReceiverEvent};
 use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
-use futures::{FutureExt, future, stream::StreamExt};
+use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::{

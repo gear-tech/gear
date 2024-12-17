@@ -17,15 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use libp2p::{
-    Multiaddr, PeerId,
-    core::{ConnectedPoint, Endpoint, transport::PortUse},
+    core::{transport::PortUse, ConnectedPoint, Endpoint},
     swarm::{
-        ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler,
-        THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
+        dummy, ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour,
+        THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
     },
+    Multiaddr, PeerId,
 };
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{hash_map::Entry, HashMap, HashSet},
     fmt,
     task::{Context, Poll},
 };
@@ -234,12 +234,12 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use libp2p::{
-        Swarm,
-        futures::{StreamExt, stream},
+        futures::{stream, StreamExt},
         swarm::{
-            DialError, ListenError, SwarmEvent,
             dial_opts::{DialOpts, PeerCondition},
+            DialError, ListenError, SwarmEvent,
         },
+        Swarm,
     };
     use libp2p_swarm_test::SwarmExt;
 
@@ -386,10 +386,13 @@ mod tests {
                     } = event
                     {
                         let exceeded = cause.downcast::<LimitExceeded>().unwrap();
-                        assert_eq!(exceeded, LimitExceeded {
-                            limit: 5,
-                            kind: LimitExceededKind::EstablishedIncomingPerPeer,
-                        });
+                        assert_eq!(
+                            exceeded,
+                            LimitExceeded {
+                                limit: 5,
+                                kind: LimitExceededKind::EstablishedIncomingPerPeer,
+                            }
+                        );
                     } else {
                         unreachable!("{event:?}");
                     }
@@ -450,10 +453,13 @@ mod tests {
                     } = event
                     {
                         let exceeded = cause.downcast::<LimitExceeded>().unwrap();
-                        assert_eq!(exceeded, LimitExceeded {
-                            limit: 5,
-                            kind: LimitExceededKind::EstablishedOutboundPerPeer,
-                        });
+                        assert_eq!(
+                            exceeded,
+                            LimitExceeded {
+                                limit: 5,
+                                kind: LimitExceededKind::EstablishedOutboundPerPeer,
+                            }
+                        );
                         assert_eq!(peer_id, unlimited_peer_id);
                     } else {
                         unreachable!("{event:?}");

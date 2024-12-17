@@ -17,18 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Log, MAX_USER_GAS_LIMIT, Value,
     error::usage_panic,
     manager::ExtManager,
     state::{accounts::Accounts, actors::Actors},
+    Log, Value, MAX_USER_GAS_LIMIT,
 };
 use codec::Encode;
 use gear_common::{
-    auxiliary::{BlockNumber, mailbox::*},
+    auxiliary::{mailbox::*, BlockNumber},
     storage::Interval,
 };
 use gear_core::{
-    ids::{MessageId, ProgramId, prelude::MessageIdExt as _},
+    ids::{prelude::MessageIdExt as _, MessageId, ProgramId},
     message::{ReplyMessage, ReplyPacket},
 };
 use std::cell::RefCell;
@@ -176,7 +176,7 @@ impl<'a> ActorMailbox<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER, Log, Program, System};
+    use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
     use codec::Encode;
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     use gear_core::{gas_metering::RentWeights, ids::ProgramId};

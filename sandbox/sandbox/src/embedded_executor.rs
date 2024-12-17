@@ -20,7 +20,7 @@
 
 use crate::{
     AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore,
-    TARGET, Value,
+    Value, TARGET,
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
@@ -30,13 +30,13 @@ use std::{
     sync::OnceLock,
 };
 use wasmer::{
-    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
-    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables, Value as RuntimeValue,
     sys::{BaseTunables, VMConfig},
     vm::{
         LinearMemory, MemoryStyle, TableStyle, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
         VMTableDefinition,
     },
+    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
+    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables, Value as RuntimeValue,
 };
 use wasmer_types::{ExternType, Target};
 
@@ -656,11 +656,11 @@ fn to_interface(value: RuntimeValue) -> Option<Value> {
 mod tests {
     use super::{Caller, EnvironmentDefinitionBuilder, Instance};
     use crate::{
-        AsContextExt, Error, HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
-        SandboxStore, Value, default_executor::Store,
+        default_executor::Store, AsContextExt, Error, HostError, ReturnValue,
+        SandboxEnvironmentBuilder, SandboxInstance, SandboxStore, Value,
     };
     use assert_matches::assert_matches;
-    use gear_sandbox_env::{GLOBAL_NAME_GAS, WasmReturnValue};
+    use gear_sandbox_env::{WasmReturnValue, GLOBAL_NAME_GAS};
 
     fn execute_sandboxed(code: &[u8], args: &[Value]) -> Result<ReturnValue, Error> {
         struct State {
@@ -755,10 +755,10 @@ mod tests {
         ))
         .unwrap();
 
-        execute_sandboxed(&code, &[
-            Value::I32(0x12345678),
-            Value::I64(0x1234567887654321),
-        ])
+        execute_sandboxed(
+            &code,
+            &[Value::I32(0x12345678), Value::I64(0x1234567887654321)],
+        )
         .unwrap();
     }
 

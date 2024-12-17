@@ -18,7 +18,7 @@
 
 use crate::{Program, Reply, Request};
 use core::future::Future;
-use gstd::{ActorId, collections::BTreeSet, debug, msg, prelude::*, sync::Mutex};
+use gstd::{collections::BTreeSet, debug, msg, prelude::*, sync::Mutex, ActorId};
 use parity_scale_codec::{Decode, Encode};
 
 static mut STATE: Option<ProgramState> = None;

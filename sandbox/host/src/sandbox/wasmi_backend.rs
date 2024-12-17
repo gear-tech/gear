@@ -24,7 +24,7 @@ use std::{
 };
 
 use codec::{Decode, Encode};
-use gear_sandbox_env::{GLOBAL_NAME_GAS, HostError, Instantiate, WasmReturnValue};
+use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
 use region::{Allocation, Protection};
 use wasmi::{
     AsContext, AsContextMut, Engine, ExternType, Linker, MemoryType, Module, StackLimits, Val,

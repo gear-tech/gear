@@ -18,7 +18,7 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use gtest::{Program, System, constants::DEFAULT_USER_ALICE, state_args};
+use gtest::{constants::DEFAULT_USER_ALICE, state_args, Program, System};
 use std::{fs, path::PathBuf, process::Command};
 
 fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
@@ -85,35 +85,31 @@ fn test_program_tests() {
             .stdout;
 
         if !String::from_utf8_lossy(&targets).contains("wasm32v1-none (installed)") {
-            assert!(
-                Command::new("rustup")
-                    .args([
-                        "toolchain",
-                        "install",
-                        "nightly-2024-12-14",
-                        "--component",
-                        "llvm-tools",
-                        "--target",
-                        "wasm32v1-none",
-                    ])
-                    .status()
-                    .expect("Failed to install nightly-2024-12-14 toolchain")
-                    .success()
-            );
+            assert!(Command::new("rustup")
+                .args([
+                    "toolchain",
+                    "install",
+                    "nightly-2024-12-14",
+                    "--component",
+                    "llvm-tools",
+                    "--target",
+                    "wasm32v1-none",
+                ])
+                .status()
+                .expect("Failed to install nightly-2024-12-14 toolchain")
+                .success());
         }
     }
 
-    assert!(
-        Command::new("cargo")
-            .current_dir("test-program")
-            .args([
-                "+nightly-2024-12-14",
-                "test",
-                "--manifest-path",
-                "Cargo.toml"
-            ])
-            .status()
-            .expect("Failed to run the tests of cargo-gbuild/test-program")
-            .success()
-    );
+    assert!(Command::new("cargo")
+        .current_dir("test-program")
+        .args([
+            "+nightly-2024-12-14",
+            "test",
+            "--manifest-path",
+            "Cargo.toml"
+        ])
+        .status()
+        .expect("Failed to run the tests of cargo-gbuild/test-program")
+        .success());
 }
