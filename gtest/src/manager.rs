@@ -34,10 +34,7 @@ use crate::{
     Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
     GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, RESERVE_FOR, VALUE_PER_GAS,
 };
-use core_processor::{
-    common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
-    Ext,
-};
+use core_processor::{common::*, configs::BlockConfig, Ext};
 use gear_common::{
     auxiliary::{
         gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
@@ -49,7 +46,7 @@ use gear_common::{
     LockId, Origin,
 };
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
+    code::{Code, CodeAndId, InstrumentedCode, TryNewCodeConfig},
     gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,

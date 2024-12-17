@@ -26,19 +26,19 @@ use alloc::vec::Vec;
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
-    ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
+    ContextCharged, Ext, ProcessExecutionContext,
 };
 use gear_core::{
-    code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
+    code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     ids::ProgramId,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::CodeId;
 use gsys::{GasMultiplier, Percent};
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
+use gear_core::code::InstrumentedCodeAndMetadata;
 pub use journal::Handler as JournalHandler;
 pub use schedule::Handler as ScheduleHandler;
 pub use transitions::{InBlockTransitions, NonFinalTransition};
@@ -97,7 +97,7 @@ pub fn process_next_message<S, RI>(
     program_id: ProgramId,
     program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
-    code_id: CodeId,
+    code_metadata: Option<CodeMetadata>,
     ri: &RI,
 ) -> Vec<JournalNote>
 where
@@ -206,17 +206,26 @@ where
 
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
-    let context = match core_processor::precharge_for_program(
-        &block_config,
-        1_000_000_000_000,
-        dispatch,
-        program_id,
-    ) {
-        Ok(dispatch) => dispatch,
+    let context = ContextCharged::new(program_id, dispatch, 1_000_000_000_000);
+
+    let context = match context.charge_for_program(&block_config) {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
+
+    let context = match context.charge_for_code_metadata(&block_config) {
+        Ok(context) => context,
         Err(journal) => return journal,
     };
 
     let code = instrumented_code.expect("Instrumented code must be provided if program is active");
+    let code_metadata = code_metadata.expect("Code metadata must be provided if program is active");
+
+    let context =
+        match context.charge_for_instrumented_code(&block_config, code.bytes().len() as u32) {
+            Ok(context) => context,
+            Err(journal) => return journal,
+        };
 
     // TODO: support normal allocations len #4068
     let allocations = active_state.allocations_hash.with_hash_or_default(|hash| {
@@ -225,42 +234,35 @@ where
             .expect("Cannot get allocations")
     });
 
-    let context = match core_processor::precharge_for_allocations(
-        &block_config,
-        context,
-        allocations.tree_len(),
-    ) {
+    let context = match context.charge_for_allocations(&block_config, allocations.tree_len()) {
         Ok(context) => context,
         Err(journal) => return journal,
     };
 
     let actor_data = ExecutableActorData {
         allocations: allocations.into(),
-        code_id,
-        code_exports: code.exports().clone(),
-        static_pages: code.static_pages(),
         gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
         memory_infix: active_state.memory_infix,
     };
 
-    let context =
-        match core_processor::precharge_for_code_length(&block_config, context, actor_data) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
-
-    let context = ContextChargedForCode::from(context);
-    let context = ContextChargedForInstrumentation::from(context);
-    let context = match core_processor::precharge_for_module_instantiation(
+    let context = match context.charge_for_module_instantiation(
         &block_config,
-        context,
+        actor_data,
         code.instantiated_section_sizes(),
+        &code_metadata,
     ) {
         Ok(context) => context,
         Err(journal) => return journal,
     };
 
-    let execution_context = ProcessExecutionContext::from((context, code, program_state.balance));
+    let execution_context = ProcessExecutionContext::new(
+        context,
+        InstrumentedCodeAndMetadata {
+            instrumented_code: code,
+            metadata: code_metadata,
+        },
+        program_state.balance,
+    );
 
     let random_data = ri.random_data();
 
