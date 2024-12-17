@@ -359,7 +359,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         // Call the middleware's `requestSlash` function
         middlewareInstance.requestSlash(commitment.slashes);
 
-        emit RequestSlashCommitmentProcessed(commitmentHash);
+        emit RequestSlashCommitmentProcessed(commitmentHash, commitment.slashes);
     }
 
     function commitExecuteSlash(Gear.ExecuteSlashCommitment calldata commitment, bytes[] calldata signatures)
@@ -392,7 +392,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         // Call the middleware's `executeSlash` function
         middlewareInstance.executeSlash(commitment.slashIdentifiers);
 
-        emit ExecuteSlashCommitmentProcessed(commitmentHash);
+        emit ExecuteSlashCommitmentProcessed(commitmentHash, commitment.slashIdentifiers);
     }
 
     /* Helper private functions */
