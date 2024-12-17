@@ -99,13 +99,13 @@
 
 </span><span class="kw">use super</span>::{<a href="mod.rs.html#152-163">AuxiliaryDoubleStorageWrap</a>, <a href="mod.rs.html#35">BlockNumber</a>, <a href="mod.rs.html#40-42">DoubleBTreeMap</a>};
 <span class="kw">use </span><a href="../scheduler.rs.html#167-174"><span class="kw">crate</span>::scheduler::TaskPoolImpl</a>;
-<span class="kw">use </span>gear_core::{<a href="../../../gear_common/type.ProgramId.html">ids::ProgramId</a>, <a href="../../../gear_core/tasks/type.VaraScheduledTask.html">tasks::VaraScheduledTask</a>};
+<span class="kw">use </span>gear_core::{<a href="../../../gear_common/type.ProgramId.html">ids::ProgramId</a>, tasks::VaraScheduledTask};
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html">std::cell::RefCell</a>;
 
 <span class="doccomment">/// Task pool implementation that can be used in a native, non-wasm runtimes.
 </span><span class="kw">pub type </span><a href="../../../gear_common/auxiliary/task_pool/type.AuxiliaryTaskpool.html">AuxiliaryTaskpool</a>&lt;TaskPoolCallbacks&gt; = <a href="../scheduler.rs.html#167-174">TaskPoolImpl</a>&lt;
     <a href="#40">TaskPoolStorageWrap</a>,
-    <a href="../../../gear_core/tasks/type.VaraScheduledTask.html">VaraScheduledTask</a>&lt;<a href="../../../gear_common/type.ProgramId.html">ProgramId</a>&gt;,
+    VaraScheduledTask&lt;<a href="../../../gear_common/type.ProgramId.html">ProgramId</a>&gt;,
     <a href="#64-69">TaskPoolErrorImpl</a>,
     <a href="#64-69">TaskPoolErrorImpl</a>,
     TaskPoolCallbacks,
@@ -120,7 +120,7 @@
 
 <span class="kw">impl </span><a href="mod.rs.html#152-163">AuxiliaryDoubleStorageWrap</a> <span class="kw">for </span><a href="#40">TaskPoolStorageWrap</a> {
     <span class="kw">type </span>Key1 = <a href="mod.rs.html#35">BlockNumber</a>;
-    <span class="kw">type </span>Key2 = <a href="../../../gear_core/tasks/type.VaraScheduledTask.html">VaraScheduledTask</a>&lt;<a href="../../../gear_common/type.ProgramId.html">ProgramId</a>&gt;;
+    <span class="kw">type </span>Key2 = VaraScheduledTask&lt;<a href="../../../gear_common/type.ProgramId.html">ProgramId</a>&gt;;
     <span class="kw">type </span>Value = ();
 
     <span class="kw">fn </span>with_storage&lt;F, R&gt;(f: F) -&gt; R

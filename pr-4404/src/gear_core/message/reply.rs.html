@@ -467,7 +467,7 @@
     </span><span class="kw">pub fn </span>system(payload: <a href="mod.rs.html#79">Payload</a>, err: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="../../../gear_core/message/enum.ErrorReplyReason.html">ErrorReplyReason</a>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             <a href="#207">payload</a>,
-            code: ReplyCode::error(<a href="#207">err</a>),
+            code: <a href="../../../gear_core_errors/simple/enum.ReplyCode.html#method.error">ReplyCode::error</a>(<a href="#207">err</a>),
             ..<a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
         }
     }
