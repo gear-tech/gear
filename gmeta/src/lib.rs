@@ -172,7 +172,7 @@
 //! # }
 //! #
 //! let metadata_hex = ProgramMetadata::repr().hex();
-//! assert_eq!(metadata_hex.len(), 178);
+//! assert_eq!(metadata_hex.len(), 146);
 //! fs::write("ping.meta.txt", metadata_hex).expect("Unable to write");
 //! ```
 //!

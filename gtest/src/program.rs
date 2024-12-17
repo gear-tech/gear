@@ -690,7 +690,7 @@ impl<'a> Program<'a> {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// # use gtest::{state_args, Program, System, WasmProgram, Result};
     /// # fn doctest() -> Result<()> {
     /// # #[derive(Debug)]
