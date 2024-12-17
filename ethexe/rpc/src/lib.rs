@@ -16,10 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::anyhow;
-use apis::{
-    BlockApi, BlockServer, ProgramApi, ProgramServer, TransactionPoolApi, TransactionPoolServer,
-};
+use anyhow::{anyhow, Result};
+use apis::{BlockApi, BlockServer, ProgramApi, ProgramServer, TransactionPoolApi, TransactionPoolServer,};
 use ethexe_db::Database;
 use futures::FutureExt;
 use jsonrpsee::{
@@ -37,6 +35,8 @@ mod apis;
 mod common;
 mod errors;
 
+pub(crate) mod util;
+
 #[derive(Clone)]
 struct PerConnection<RpcMiddleware, HttpMiddleware> {
     methods: Methods,
@@ -49,6 +49,8 @@ struct PerConnection<RpcMiddleware, HttpMiddleware> {
 pub struct RpcConfig {
     /// Listen address.
     pub listen_addr: SocketAddr,
+    /// CORS.
+    pub cors: Option<Vec<String>>,
 }
 
 pub struct RpcService {
@@ -74,10 +76,17 @@ impl RpcService {
         self.config.listen_addr.port()
     }
 
-    pub async fn run_server(self) -> anyhow::Result<ServerHandle> {
+    pub async fn run_server(self) -> Result<ServerHandle> {
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
-        let service_builder = Server::builder().to_service_builder();
+        let cors = util::try_into_cors(self.config.cors)?;
+
+        let http_middleware = tower::ServiceBuilder::new().layer(cors);
+
+        let service_builder = Server::builder()
+            .set_http_middleware(http_middleware)
+            .to_service_builder();
+
         let mut module = JsonrpcModule::new(());
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;

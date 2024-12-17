@@ -195,7 +195,7 @@ impl Signer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{keccak256, Signature as AlloySignature};
+    use alloy::primitives::{keccak256, PrimitiveSignature as AlloySignature};
     use gprimitives::ActorId;
     use std::env::temp_dir;
 

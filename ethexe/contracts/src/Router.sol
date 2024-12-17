@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {IRouter} from "./IRouter.sol";
-import {IMirror} from "./IMirror.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Gear} from "./libraries/Gear.sol";
+import {IMirror} from "./IMirror.sol";
+import {IMirrorDecoder} from "./IMirrorDecoder.sol";
+import {IRouter} from "./IRouter.sol";
+import {IWrappedVara} from "./IWrappedVara.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
+// TODO (gsobol): append middleware for slashing support.
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
@@ -26,9 +26,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address _mirror,
         address _mirrorProxy,
         address _wrappedVara,
+        uint256 _eraDuration,
+        uint256 _electionDuration,
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
+
+        // Because of validator storages impl we have to check, that current timestamp is greater than 0.
+        require(block.timestamp > 0, "current timestamp must be greater than 0");
+        require(_electionDuration > 0, "election duration must be greater than 0");
+        require(_eraDuration > _electionDuration, "era duration must be greater than election duration");
 
         _setStorageSlot("router.storage.RouterV1");
         Storage storage router = _router();
@@ -36,8 +43,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.genesisBlock = Gear.newGenesis();
         router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
-        _setValidators(router, _validators);
         router.computeSettings = Gear.defaultComputationSettings();
+        router.timelines = Gear.Timelines(_eraDuration, _electionDuration);
+
+        // Set validators for the era 0.
+        _resetValidators(router.validationSettings.validators0, _validators, block.timestamp);
     }
 
     function reinitialize() public onlyOwner reinitializer(2) {
@@ -46,19 +56,42 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         _setStorageSlot("router.storage.RouterV2");
         Storage storage newRouter = _router();
 
+        // Set current block as genesis.
         newRouter.genesisBlock = Gear.newGenesis();
+
+        // New router latestCommittedBlock is already zeroed.
+
+        // Copy impl addresses from the old router.
         newRouter.implAddresses = oldRouter.implAddresses;
 
+        // Copy signing threshold percentage from the old router.
         newRouter.validationSettings.signingThresholdPercentage =
             oldRouter.validationSettings.signingThresholdPercentage;
-        _setValidators(newRouter, oldRouter.validationSettings.validators);
 
+        // Copy validators from the old router.
+        // TODO (gsobol): consider what to do. Maybe we should start reelection process.
+        // Skipping validators1 copying - means we forget election results
+        // if an election is already done for the next era.
+        _resetValidators(
+            newRouter.validationSettings.validators0, Gear.currentEraValidators(oldRouter).list, block.timestamp
+        );
+
+        // Copy computation settings from the old router.
         newRouter.computeSettings = oldRouter.computeSettings;
+
+        // Copy timelines from the old router.
+        newRouter.timelines = oldRouter.timelines;
+
+        // All protocol data must be removed - so leave it zeroed in new router.
     }
 
     // # Views.
     function genesisBlockHash() public view returns (bytes32) {
         return _router().genesisBlock.hash;
+    }
+
+    function genesisTimestamp() public view returns (uint48) {
+        return _router().genesisBlock.timestamp;
     }
 
     function latestCommittedBlockHash() public view returns (bytes32) {
@@ -78,10 +111,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function areValidators(address[] calldata _validators) public view returns (bool) {
-        Storage storage router = _router();
+        Gear.Validators storage _currentValidators = Gear.currentEraValidators(_router());
 
         for (uint256 i = 0; i < _validators.length; i++) {
-            if (!router.validationSettings.validatorsKeyMap[_validators[i]]) {
+            if (!_currentValidators.map[_validators[i]]) {
                 return false;
             }
         }
@@ -90,7 +123,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function isValidator(address _validator) public view returns (bool) {
-        return _router().validationSettings.validatorsKeyMap[_validator];
+        return Gear.currentEraValidators(_router()).map[_validator];
     }
 
     function signingThresholdPercentage() public view returns (uint16) {
@@ -98,15 +131,18 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function validators() public view returns (address[] memory) {
-        return _router().validationSettings.validators;
+        return Gear.currentEraValidators(_router()).list;
     }
 
     function validatorsCount() public view returns (uint256) {
-        return _router().validationSettings.validators.length;
+        return Gear.currentEraValidators(_router()).list.length;
     }
 
     function validatorsThreshold() public view returns (uint256) {
-        return Gear.validatorsThresholdOf(_router().validationSettings);
+        IRouter.Storage storage router = _router();
+        return Gear.validatorsThreshold(
+            Gear.currentEraValidators(router).list.length, router.validationSettings.signingThresholdPercentage
+        );
     }
 
     function computeSettings() public view returns (Gear.ComputationSettings memory) {
@@ -187,36 +223,54 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         emit CodeValidationRequested(_codeId, _blobTxHash);
     }
 
-    function createProgram(bytes32 _codeId, bytes32 _salt, bytes calldata _payload, uint128 _value)
+    function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {
+        address mirror = _createProgram(_codeId, _salt);
+
+        IMirror(mirror).initialize(msg.sender, address(0));
+
+        return mirror;
+    }
+
+    function createProgramWithDecoder(address _decoderImpl, bytes32 _codeId, bytes32 _salt)
         external
         returns (address)
     {
-        (address actorId, uint128 executableBalance) = _createProgramWithoutMessage(_codeId, _salt, _value);
+        address mirror = _createProgram(_codeId, _salt);
+        address decoder = _createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)), mirror);
 
-        IMirror(actorId).initMessage(msg.sender, _payload, _value, executableBalance);
+        IMirror(mirror).initialize(msg.sender, decoder);
 
-        return actorId;
-    }
-
-    function createProgramWithDecoder(
-        address _decoderImpl,
-        bytes32 _codeId,
-        bytes32 _salt,
-        bytes calldata _payload,
-        uint128 _value
-    ) external returns (address) {
-        (address actorId, uint128 executableBalance) = _createProgramWithoutMessage(_codeId, _salt, _value);
-
-        IMirror mirrorInstance = IMirror(actorId);
-
-        mirrorInstance.createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)));
-
-        mirrorInstance.initMessage(msg.sender, _payload, _value, executableBalance);
-
-        return actorId;
+        return mirror;
     }
 
     // # Validators calls.
+
+    /// @dev Set validators for the next era.
+    function commitValidators(Gear.ValidatorsCommitment calldata commitment, bytes[] calldata signatures) external {
+        Storage storage router = _router();
+
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+
+        require(commitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
+
+        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * commitment.eraIndex;
+        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
+
+        // Maybe free slot for new validators:
+        Gear.Validators storage _validators = Gear.previousEraValidators(router);
+        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
+
+        bytes32 commitmentHash = Gear.validatorsCommitmentHash(commitment);
+        require(
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), signatures),
+            "next era validators signatures verification failed"
+        );
+
+        _resetValidators(_validators, commitment.validators, nextEraStart);
+
+        emit NextEraValidatorsCommitted(nextEraStart);
+    }
+
     function commitCodes(Gear.CodeCommitment[] calldata _codeCommitments, bytes[] calldata _signatures) external {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
@@ -271,10 +325,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     /* Helper private functions */
 
-    function _createProgramWithoutMessage(bytes32 _codeId, bytes32 _salt, uint128 _value)
-        private
-        returns (address, uint128)
-    {
+    function _createProgram(bytes32 _codeId, bytes32 _salt) private returns (address) {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
@@ -282,11 +333,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             router.protocolData.codes[_codeId] == Gear.CodeState.Validated,
             "code must be validated before program creation"
         );
-
-        // By default get 10 WVara for executable balance.
-        uint128 executableBalance = 10_000_000_000_000;
-
-        _retrieveValue(router, executableBalance + _value);
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
@@ -298,7 +344,15 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         emit ProgramCreated(actorId, _codeId);
 
-        return (actorId, executableBalance);
+        return actorId;
+    }
+
+    function _createDecoder(address _implementation, bytes32 _salt, address _mirror) private returns (address) {
+        address decoder = Clones.cloneDeterministic(_implementation, _salt);
+
+        IMirrorDecoder(decoder).initialize(_mirror);
+
+        return decoder;
     }
 
     function _commitBlock(Storage storage router, Gear.BlockCommitment calldata _blockCommitment)
@@ -317,13 +371,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
          */
         router.latestCommittedBlock = Gear.CommittedBlockInfo(_blockCommitment.hash, _blockCommitment.timestamp);
 
-        bytes memory transitionsHashes;
-
-        for (uint256 i = 0; i < _blockCommitment.transitions.length; i++) {
-            Gear.StateTransition calldata stateTransition = _blockCommitment.transitions[i];
-
-            transitionsHashes = bytes.concat(transitionsHashes, _doStateTransition(stateTransition));
-        }
+        bytes32 transitionsHashesHash = _commitTransitions(router, _blockCommitment.transitions);
 
         emit BlockCommitted(_blockCommitment.hash);
 
@@ -332,91 +380,48 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             _blockCommitment.timestamp,
             _blockCommitment.previousCommittedBlock,
             _blockCommitment.predecessorBlock,
-            keccak256(transitionsHashes)
+            transitionsHashesHash
         );
     }
 
-    function _doStateTransition(Gear.StateTransition calldata _stateTransition) private returns (bytes32) {
-        Storage storage router = _router();
+    function _commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
+        private
+        returns (bytes32)
+    {
+        bytes memory transitionsHashes;
 
-        require(
-            router.protocolData.programs[_stateTransition.actorId] != 0,
-            "couldn't perform transition for unknown program"
-        );
+        for (uint256 i = 0; i < _transitions.length; i++) {
+            Gear.StateTransition calldata transition = _transitions[i];
 
-        IWrappedVara wrappedVaraActor = IWrappedVara(router.implAddresses.wrappedVara);
-        wrappedVaraActor.transfer(_stateTransition.actorId, _stateTransition.valueToReceive);
+            require(
+                router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
+            );
 
-        IMirror mirrorActor = IMirror(_stateTransition.actorId);
+            IWrappedVara(router.implAddresses.wrappedVara).transfer(transition.actorId, transition.valueToReceive);
 
-        bytes memory valueClaimsBytes;
+            bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);
 
-        for (uint256 i = 0; i < _stateTransition.valueClaims.length; i++) {
-            Gear.ValueClaim calldata claim = _stateTransition.valueClaims[i];
-
-            mirrorActor.valueClaimed(claim.messageId, claim.destination, claim.value);
-
-            valueClaimsBytes = bytes.concat(valueClaimsBytes, Gear.valueClaimBytes(claim));
+            transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
         }
 
-        bytes memory messagesHashes;
-
-        for (uint256 i = 0; i < _stateTransition.messages.length; i++) {
-            Gear.Message calldata message = _stateTransition.messages[i];
-
-            if (message.replyDetails.to == 0) {
-                mirrorActor.messageSent(message.id, message.destination, message.payload, message.value);
-            } else {
-                mirrorActor.replySent(
-                    message.destination,
-                    message.payload,
-                    message.value,
-                    message.replyDetails.to,
-                    message.replyDetails.code
-                );
-            }
-
-            messagesHashes = bytes.concat(messagesHashes, Gear.messageHash(message));
-        }
-
-        if (_stateTransition.inheritor != address(0)) {
-            mirrorActor.setInheritor(_stateTransition.inheritor);
-        }
-
-        mirrorActor.updateState(_stateTransition.newStateHash);
-
-        return Gear.stateTransitionHash(
-            _stateTransition.actorId,
-            _stateTransition.newStateHash,
-            _stateTransition.inheritor,
-            _stateTransition.valueToReceive,
-            keccak256(valueClaimsBytes),
-            keccak256(messagesHashes)
-        );
+        return keccak256(transitionsHashes);
     }
 
-    function _retrieveValue(Storage storage router, uint128 _value) private {
-        bool success = IERC20(router.implAddresses.wrappedVara).transferFrom(msg.sender, address(this), _value);
-
-        require(success, "failed to retrieve WVara");
-    }
-
-    function _setValidators(Storage storage router, address[] memory _validators) private {
-        require(router.validationSettings.validators.length == 0, "remove previous validators first");
-
-        for (uint256 i = 0; i < _validators.length; i++) {
-            router.validationSettings.validatorsKeyMap[_validators[i]] = true;
+    function _resetValidators(
+        Gear.Validators storage _validators,
+        address[] memory _newValidators,
+        uint256 _useFromTimestamp
+    ) private {
+        for (uint256 i = 0; i < _validators.list.length; i++) {
+            address _validator = _validators.list[i];
+            _validators.map[_validator] = false;
         }
-
-        router.validationSettings.validators = _validators;
-    }
-
-    function _removeValidators(Storage storage router) private {
-        for (uint256 i = 0; i < router.validationSettings.validators.length; i++) {
-            delete router.validationSettings.validatorsKeyMap[router.validationSettings.validators[i]];
+        for (uint256 i = 0; i < _newValidators.length; i++) {
+            address _validator = _newValidators[i];
+            _validators.map[_validator] = true;
         }
-
-        delete router.validationSettings.validators;
+        _validators.list = _newValidators;
+        _validators.useFromTimestamp = _useFromTimestamp;
     }
 
     function _router() private view returns (Storage storage router) {

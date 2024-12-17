@@ -17,9 +17,10 @@ gprimitives = { workspace = true, features = ["serde"] }
 ethexe-db.workspace = true
 ethexe-processor.workspace = true
 ethexe-tx-pool.workspace = true
-jsonrpsee = { version = "0.24", features = ["server", "macros"] }
-tower = { version = "0.4.13", features = ["full"] }
-hyper = { version = "1.4.1", features = ["server"] }
+tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true, features = ["cors"] }
+jsonrpsee = { workspace = true, features = ["server", "macros"] }
+hyper = { workspace = true, features = ["server"] }
 log.workspace = true
 parity-scale-codec.workspace = true
 hex.workspace = true

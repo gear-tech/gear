@@ -77,6 +77,7 @@ pub use gas_provider::{
 /// Type alias for gas entity.
 pub type Gas = u64;
 
+/// NOTE: Implementation of this for `u64` places bytes from idx=0.
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
     fn from_origin(val: H256) -> Self;

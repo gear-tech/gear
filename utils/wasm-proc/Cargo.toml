@@ -4,10 +4,12 @@ description = "Gear wasm processor"
 keywords = ["gear", "cli", "wasm"]
 categories = ["command-line-interface", "command-line-utilities", "wasm"]
 documentation = "https://docs.rs/wasm-proc"
+edition.workspace = true
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]

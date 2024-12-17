@@ -28,8 +28,8 @@ use ethexe_common::{
     gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
-    Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage,
-    Waitlist,
+    Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
+    ProgramState, Storage, Waitlist,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -540,8 +540,19 @@ impl Storage for Database {
         })
     }
 
+    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+        self.cas.read(&hash.hash()).map(|data| {
+            MemoryPagesRegion::decode(&mut &data[..])
+                .expect("Failed to decode data into `MemoryPagesRegion`")
+        })
+    }
+
     fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
         unsafe { HashOf::new(self.cas.write(&pages.encode())) }
+    }
+
+    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+        unsafe { HashOf::new(self.cas.write(&pages_region.encode())) }
     }
 
     fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {

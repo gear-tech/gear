@@ -43,7 +43,9 @@ pub enum Event {
         code_id: CodeId,
     },
     StorageSlotChanged,
-    ValidatorsChanged,
+    NextEraValidatorsCommitted {
+        next_era_start: u64,
+    },
 }
 
 impl Event {
@@ -67,7 +69,9 @@ impl Event {
                 RequestEvent::ProgramCreated { actor_id, code_id }
             }
             Self::StorageSlotChanged => RequestEvent::StorageSlotChanged,
-            Self::ValidatorsChanged => RequestEvent::ValidatorsChanged,
+            Self::NextEraValidatorsCommitted { next_era_start } => {
+                RequestEvent::NextEraValidatorsCommitted { next_era_start }
+            }
             Self::BlockCommitted { .. } | Self::CodeGotValidated { .. } => return None,
         })
     }
@@ -90,5 +94,7 @@ pub enum RequestEvent {
         code_id: CodeId,
     },
     StorageSlotChanged,
-    ValidatorsChanged,
+    NextEraValidatorsCommitted {
+        next_era_start: u64,
+    },
 }
