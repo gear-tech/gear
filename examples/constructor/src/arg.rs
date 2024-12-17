@@ -2,6 +2,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use gstd::prelude::*;
 use parity_scale_codec::{Codec, Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -99,7 +100,7 @@ mod wasm {
             match self {
                 Self::New(value) => value,
                 Self::Get(key) => {
-                    let value = unsafe { crate::DATA.get(&key) }
+                    let value = unsafe { static_ref!(crate::DATA).get(&key) }
                         .unwrap_or_else(|| panic!("Value in key {key} doesn't exist"));
                     T::decode(&mut value.as_ref())
                         .unwrap_or_else(|_| panic!("Value in key {key} failed decode"))

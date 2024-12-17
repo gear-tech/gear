@@ -39,7 +39,7 @@ pub(crate) struct DefaultUserSignalHandler;
 
 impl UserSignalHandler for DefaultUserSignalHandler {
     unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
-        user_signal_handler(info)
+        unsafe { user_signal_handler(info) }
     }
 }
 
@@ -83,11 +83,13 @@ unsafe fn user_signal_handler_internal(
             load_data_cost: exec_ctx.cost(CostNo::LoadPageDataFromStorage),
         };
 
-        let gas_counter = globals::apply_for_global(
-            globals_config,
-            globals_config.names[GlobalNo::Gas as usize].as_str(),
-            |_| Ok(None),
-        )?;
+        let gas_counter = unsafe {
+            globals::apply_for_global(
+                globals_config,
+                globals_config.names[GlobalNo::Gas as usize].as_str(),
+                |_| Ok(None),
+            )
+        }?;
 
         Some((gas_counter, gas_charger))
     } else {
@@ -105,7 +107,7 @@ pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Erro
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
         let (rt_ctx, exec_ctx) = ctx.contexts_mut()?;
-        user_signal_handler_internal(rt_ctx, exec_ctx, info)
+        unsafe { user_signal_handler_internal(rt_ctx, exec_ctx, info) }
     })
 }
 

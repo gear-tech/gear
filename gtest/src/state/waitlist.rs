@@ -72,7 +72,7 @@ impl WaitlistManager {
     pub(crate) fn drain_key(
         &self,
         program_id: ProgramId,
-    ) -> impl Iterator<Item = (StoredDispatch, Interval<BlockNumber>)> {
+    ) -> impl Iterator<Item = (StoredDispatch, Interval<BlockNumber>)> + use<> {
         <AuxiliaryWaitlist<WaitlistCallbacksImpl> as IterableByKeyMap<(
             StoredDispatch,
             Interval<BlockNumber>,

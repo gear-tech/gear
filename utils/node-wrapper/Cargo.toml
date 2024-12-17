@@ -11,7 +11,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-anyhow.workspace = true
+anyhow = { workspace = true, features = ["std"] }
 rand = { workspace = true, features = [ "getrandom" ] }
 which.workspace = true
 smallvec.workspace = true

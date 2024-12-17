@@ -326,9 +326,13 @@ async fn process_events(
 
         if let Some((pid, call_id)) = messages.remove(&mid) {
             if let Some(expl) = maybe_err {
-                tracing::debug!("[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'");
+                tracing::debug!(
+                    "[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'"
+                );
             } else {
-                tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'");
+                tracing::debug!(
+                    "[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'"
+                );
                 program_ids.insert(pid);
             }
         }
@@ -379,11 +383,11 @@ async fn create_renew_balance_task(
     let duration_millis = root_api.expected_block_time()? * 100;
 
     tracing::info!(
-                "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",
-                duration_millis / 1000,
-                user_target_balance,
-                root_target_balance
-            );
+        "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",
+        duration_millis / 1000,
+        user_target_balance,
+        root_target_balance
+    );
 
     // Every `duration_millis` milliseconds updates authority and user (batch sender) balances
     // to target values.

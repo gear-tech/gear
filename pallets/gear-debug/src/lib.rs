@@ -219,7 +219,7 @@ pub mod pallet {
                             return ProgramDetails {
                                 id,
                                 state: ProgramState::Terminated,
-                            }
+                            };
                         }
                     };
                     let static_pages = match T::CodeStorage::get_code(active.code_hash.cast()) {

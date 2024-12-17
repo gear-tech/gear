@@ -5,7 +5,7 @@ use gstd::{
     prog::ProgramGenerator,
 };
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {}
 
 #[gstd::async_main]

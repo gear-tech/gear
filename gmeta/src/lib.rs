@@ -105,7 +105,7 @@
 //! #     Pong,
 //! # }
 //! #
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! extern "C" fn handle() {
 //!     // Load incoming message of `PingPong` type.
 //!     let payload: PingPong = msg::load().expect("Unable to load");
@@ -117,7 +117,7 @@
 //!     }
 //! }
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! extern "C" fn state() {
 //!     msg::reply(unsafe { COUNTER }, 0).expect("Unable to reply");
 //! }

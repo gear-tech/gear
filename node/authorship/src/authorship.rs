@@ -762,12 +762,12 @@ where
         };
 
         info!(
-			"🎁 Prepared block for proposing at {} ({} ms) [hash: {:?}; parent_hash: {}; {extrinsics_summary}",
-			block.header().number(),
-			block_took.as_millis(),
-			<Block as BlockT>::Hash::from(block.header().hash()),
-			block.header().parent_hash(),
-		);
+            "🎁 Prepared block for proposing at {} ({} ms) [hash: {:?}; parent_hash: {}; {extrinsics_summary}",
+            block.header().number(),
+            block_took.as_millis(),
+            <Block as BlockT>::Hash::from(block.header().hash()),
+            block.header().parent_hash(),
+        );
         telemetry!(
             self.telemetry;
             CONSENSUS_INFO;

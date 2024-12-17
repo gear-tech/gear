@@ -146,7 +146,7 @@ fn multi_miller_loop<T: Config>(
                     "Multi Miller loop: non equal item count",
                 ))),
                 gas_spent,
-            )
+            );
         }
         Err(_) => return (Err(BuiltinActorError::DecodingError), gas_spent),
         Ok(_) => (),
@@ -241,7 +241,7 @@ fn msm<T: Config>(
                     "Multi scalar multiplication: non equal item count",
                 ))),
                 gas_spent,
-            )
+            );
         }
         Err(_) => {
             log::debug!(

@@ -64,7 +64,7 @@ impl KVDatabase for MemDb {
     fn iter_prefix<'a>(
         &'a self,
         prefix: &'a [u8],
-    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + '_> {
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
         Box::new(
             self.inner
                 .iter()

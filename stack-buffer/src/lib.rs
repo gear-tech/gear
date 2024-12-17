@@ -38,7 +38,7 @@ pub const MAX_BUFFER_SIZE: usize = 64 * 1024;
 type Callback = unsafe extern "C" fn(ptr: *mut MaybeUninit<u8>, data: *mut c_void);
 
 #[cfg(any(feature = "compile-alloca", target_arch = "wasm32"))]
-extern "C" {
+unsafe extern "C" {
     /// Function from the native library that manipulates the stack pointer directly.
     /// Can be used to dynamically allocate stack space.
     fn c_with_alloca(size: usize, callback: Callback, data: *mut c_void);
@@ -50,7 +50,7 @@ extern "C" {
 #[cfg(not(any(feature = "compile-alloca", target_arch = "wasm32")))]
 unsafe extern "C" fn c_with_alloca(_size: usize, callback: Callback, data: *mut c_void) {
     let mut buffer = [MaybeUninit::uninit(); MAX_BUFFER_SIZE];
-    callback(buffer.as_mut_ptr(), data);
+    unsafe { callback(buffer.as_mut_ptr(), data) };
 }
 
 /// Helper function to create a trampoline between C and Rust code.
@@ -68,7 +68,7 @@ unsafe extern "C" fn trampoline<F: FnOnce(*mut MaybeUninit<u8>)>(
 ) {
     // This code gets `*mut ManuallyDrop<F>`, then takes ownership of the `F` function
     // and executes it with a pointer to the allocated stack memory.
-    let f = ManuallyDrop::take(&mut *(data as *mut ManuallyDrop<F>));
+    let f = unsafe { ManuallyDrop::take(&mut *(data as *mut ManuallyDrop<F>)) };
     f(ptr);
 }
 

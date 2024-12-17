@@ -15,7 +15,7 @@ pub struct Handler<'a, S: Storage> {
     pub controller: TransitionController<'a, S>,
 }
 
-impl<'a, S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'a, S> {
+impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn remove_from_mailbox(
         &mut self,
         (program_id, user_id): (ProgramId, ActorId),

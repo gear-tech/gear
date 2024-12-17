@@ -32,7 +32,7 @@ pub struct LocalType<'t, T: Form> {
     pub registry: &'t PortableRegistry,
 }
 
-impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T> {
+impl<T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'_, T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match &self.ty.type_def {
             TypeDef::Array(array) => fmt.write_str(&format!(
@@ -121,7 +121,7 @@ impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T
     }
 }
 
-impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Display for LocalType<'t, T> {
+impl<T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Display for LocalType<'_, T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self, fmt)
     }

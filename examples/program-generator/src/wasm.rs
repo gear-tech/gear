@@ -28,7 +28,7 @@ fn check_salt_uniqueness() {
     assert_eq!(salts_len, salts_set.len());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let submitted_code: CodeId =
         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")

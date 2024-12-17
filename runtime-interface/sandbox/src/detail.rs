@@ -85,7 +85,7 @@ struct SupervisorContext<'a, 'b> {
     state: u32,
 }
 
-impl<'a, 'b> sandbox_env::SupervisorContext for SupervisorContext<'a, 'b> {
+impl sandbox_env::SupervisorContext for SupervisorContext<'_, '_> {
     fn invoke(
         &mut self,
         invoke_args_ptr: Pointer<u8>,

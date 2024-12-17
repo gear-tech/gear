@@ -61,7 +61,9 @@ impl WasmModule {
     ) -> Result<Self> {
         let pw_module = Self::generate_wasm_smith_module(config, u)?;
         if pw_module.function_section().is_none() {
-            panic!("WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!");
+            panic!(
+                "WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!"
+            );
         }
 
         Ok(Self(pw_module))

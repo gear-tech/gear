@@ -63,6 +63,7 @@ pub struct EthMessage {
 }
 
 impl EthMessage {
+    /// Creates a new [`EthMessage`].
     #[cfg(test)]
     pub fn new(nonce: U256, source: ActorId, destination: H160, payload: Vec<u8>) -> Self {
         Self {
