@@ -104,12 +104,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
-</span><span class="kw">use </span>sp_core::{Pair <span class="kw">as </span>PairT, sr25519};
+</span><span class="kw">use </span>sp_core::{sr25519, Pair <span class="kw">as </span>PairT};
 <span class="kw">use </span>sp_runtime::{
-    AccountId32 <span class="kw">as </span>SpAccountId32, MultiSignature <span class="kw">as </span>SpMultiSignature,
     traits::{IdentifyAccount, Verify},
+    AccountId32 <span class="kw">as </span>SpAccountId32, MultiSignature <span class="kw">as </span>SpMultiSignature,
 };
-<span class="kw">use </span>subxt::{Config, tx::Signer};
+<span class="kw">use </span>subxt::{tx::Signer, Config};
 
 <span class="kw">use </span><a href="../config.rs.html#36"><span class="kw">crate</span>::GearConfig</a>;
 

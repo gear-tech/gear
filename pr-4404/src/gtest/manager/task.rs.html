@@ -236,9 +236,9 @@
 </span><span class="doccomment">//! Implementation of the `TaskHandler` trait for the `ExtManager`.
 
 </span><span class="kw">use </span><a href="../manager.rs.html#87-115"><span class="kw">super</span>::ExtManager</a>;
-<span class="kw">use crate</span>::{<a href="../program.rs.html#66">Gas</a>, <a href="../state/actors.rs.html#37">state::actors::Actors</a>};
+<span class="kw">use crate</span>::{<a href="../state/actors.rs.html#37">state::actors::Actors</a>, <a href="../program.rs.html#67">Gas</a>};
 <span class="kw">use </span>core_processor::common::JournalHandler;
-<span class="kw">use </span>gear_common::{Gas <span class="kw">as </span>GearCommonGas, scheduler::StorageType};
+<span class="kw">use </span>gear_common::{scheduler::StorageType, Gas <span class="kw">as </span>GearCommonGas};
 <span class="kw">use </span>gear_core::{
     gas_metering::TaskWeights,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -247,28 +247,28 @@
 };
 <span class="kw">use </span>gear_core_errors::{ErrorReplyReason, SignalCode};
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_maximum_task_gas(task: <span class="kw-2">&amp;</span>VaraScheduledTask&lt;ProgramId&gt;) -&gt; <a href="../program.rs.html#66">Gas</a> {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_maximum_task_gas(task: <span class="kw-2">&amp;</span>VaraScheduledTask&lt;ProgramId&gt;) -&gt; <a href="../program.rs.html#67">Gas</a> {
     <span class="kw">use </span>ScheduledTask::<span class="kw-2">*</span>;
     <span class="kw">let </span>weights = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">TaskWeights::default</a>();
     <span class="kw">match </span><a href="#33">task</a> {
-        PauseProgram(<span class="kw">_</span>) =&gt; <a href="../program.rs.html#66">Gas</a>(<span class="number">0</span>),
+        PauseProgram(<span class="kw">_</span>) =&gt; <a href="../program.rs.html#67">Gas</a>(<span class="number">0</span>),
         <span class="attr">#[allow(deprecated)]
-        </span>RemoveResumeSession(<span class="kw">_</span>) =&gt; <a href="../program.rs.html#66">Gas</a>(<span class="number">0</span>),
+        </span>RemoveResumeSession(<span class="kw">_</span>) =&gt; <a href="../program.rs.html#67">Gas</a>(<span class="number">0</span>),
 
-        RemoveFromMailbox(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <a href="../program.rs.html#66">Gas</a>(<a href="#35">weights</a>.remove_from_mailbox.ref_time),
-        RemoveFromWaitlist(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <a href="../program.rs.html#66">Gas</a>(<a href="#35">weights</a>.remove_from_waitlist.ref_time),
+        RemoveFromMailbox(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <a href="../program.rs.html#67">Gas</a>(<a href="#35">weights</a>.remove_from_mailbox.ref_time),
+        RemoveFromWaitlist(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <a href="../program.rs.html#67">Gas</a>(<a href="#35">weights</a>.remove_from_waitlist.ref_time),
         RemovePausedProgram(<span class="kw">_</span>) =&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.todo.html">todo!</a>(<span class="string">"#646"</span>),
         RemoveCode(<span class="kw">_</span>) =&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.todo.html">todo!</a>(<span class="string">"#646"</span>),
-        WakeMessage(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <a href="../program.rs.html#66">Gas</a>(<a href="#35">weights</a>
+        WakeMessage(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <a href="../program.rs.html#67">Gas</a>(<a href="#35">weights</a>
             .wake_message
             .ref_time
             .<a href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html#tymethod.max">max</a>(<a href="#35">weights</a>.wake_message_no_wake.ref_time)),
-        SendDispatch(<span class="kw">_</span>) =&gt; <a href="../program.rs.html#66">Gas</a>(<a href="#35">weights</a>.send_dispatch.ref_time),
-        SendUserMessage { .. } =&gt; <a href="../program.rs.html#66">Gas</a>(<a href="#35">weights</a>
+        SendDispatch(<span class="kw">_</span>) =&gt; <a href="../program.rs.html#67">Gas</a>(<a href="#35">weights</a>.send_dispatch.ref_time),
+        SendUserMessage { .. } =&gt; <a href="../program.rs.html#67">Gas</a>(<a href="#35">weights</a>
             .send_user_message_to_mailbox
             .ref_time
             .<a href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html#tymethod.max">max</a>(<a href="#35">weights</a>.send_user_message.ref_time)),
-        RemoveGasReservation(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <a href="../program.rs.html#66">Gas</a>(<a href="#35">weights</a>.remove_gas_reservation.ref_time),
+        RemoveGasReservation(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <a href="../program.rs.html#67">Gas</a>(<a href="#35">weights</a>.remove_gas_reservation.ref_time),
     }
 }
 

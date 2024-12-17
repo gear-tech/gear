@@ -275,31 +275,31 @@
 </span><span class="kw">use </span>{
     frame_support::ensure,
     sp_runtime::{
-        TryRuntimeError,
         codec::{Decode, Encode},
+        TryRuntimeError,
     },
     sp_std::vec::Vec,
 };
 
-<span class="kw">use crate</span>::{<a href="../lib.rs.html#217">CodeStorage</a>, <a href="../lib.rs.html#172-178">Config</a>, <a href="../lib.rs.html#182">Pallet</a>};
+<span class="kw">use crate</span>::{<a href="../lib.rs.html#220">CodeStorage</a>, <a href="../lib.rs.html#172-181">Config</a>, <a href="../lib.rs.html#185">Pallet</a>};
 <span class="kw">use </span>gear_core::code::{InstantiatedSectionSizes, InstrumentedCode};
 
 <span class="kw">const </span>MIGRATE_FROM_VERSION: <a href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a> = <span class="number">8</span>;
 <span class="kw">const </span>MIGRATE_TO_VERSION: <a href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a> = <span class="number">9</span>;
 <span class="kw">const </span>ALLOWED_CURRENT_STORAGE_VERSION: <a href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a> = <span class="number">10</span>;
 
-<span class="kw">pub struct </span><a href="../../../pallet_gear_program/migrations/add_section_sizes/struct.AddSectionSizesMigration.html">AddSectionSizesMigration</a>&lt;T: <a href="../lib.rs.html#172-178">Config</a>&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;);
+<span class="kw">pub struct </span><a href="../../../pallet_gear_program/migrations/add_section_sizes/struct.AddSectionSizesMigration.html">AddSectionSizesMigration</a>&lt;T: <a href="../lib.rs.html#172-181">Config</a>&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;);
 
-<span class="kw">impl</span>&lt;T: <a href="../lib.rs.html#172-178">Config</a>&gt; OnRuntimeUpgrade <span class="kw">for </span><a href="#41">AddSectionSizesMigration</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="../lib.rs.html#172-181">Config</a>&gt; OnRuntimeUpgrade <span class="kw">for </span><a href="#41">AddSectionSizesMigration</a>&lt;T&gt; {
     <span class="kw">fn </span>on_runtime_upgrade() -&gt; Weight {
-        <span class="kw">let </span>onchain = <a href="../lib.rs.html#182">Pallet</a>::&lt;T&gt;::on_chain_storage_version();
+        <span class="kw">let </span>onchain = <a href="../lib.rs.html#185">Pallet</a>::&lt;T&gt;::on_chain_storage_version();
 
         <span class="comment">// 1 read for onchain storage version
         </span><span class="kw">let </span><span class="kw-2">mut </span>weight = T::DbWeight::get().reads(<span class="number">1</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>counter = <span class="number">0</span>;
 
         <span class="kw">if </span>onchain == MIGRATE_FROM_VERSION {
-            <span class="kw">let </span>current = <a href="../lib.rs.html#182">Pallet</a>::&lt;T&gt;::in_code_storage_version();
+            <span class="kw">let </span>current = <a href="../lib.rs.html#185">Pallet</a>::&lt;T&gt;::in_code_storage_version();
             <span class="kw">if </span>current != ALLOWED_CURRENT_STORAGE_VERSION {
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.error.html">log::error!</a>(<span class="string">"❌ Migration is not allowed for current storage version {current:?}."</span>);
                 <span class="kw">return </span><a href="#48">weight</a>;
@@ -310,7 +310,7 @@
                 <span class="string">"🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}."
             </span>);
 
-            <a href="../lib.rs.html#217">CodeStorage</a>::&lt;T&gt;::translate(|<span class="kw">_</span>, code: <a href="#145-152">v8::InstrumentedCode</a>| {
+            <a href="../lib.rs.html#220">CodeStorage</a>::&lt;T&gt;::translate(|<span class="kw">_</span>, code: <a href="#145-152">v8::InstrumentedCode</a>| {
                 <a href="#48">weight</a> = <a href="#48">weight</a>.saturating_add(T::DbWeight::get().reads_writes(<span class="number">1</span>, <span class="number">1</span>));
 
                 <a href="#49">counter</a> += <span class="number">1</span>;
@@ -336,7 +336,7 @@
             <span class="comment">// Put new storage version
             </span><a href="#48">weight</a> = <a href="#48">weight</a>.saturating_add(T::DbWeight::get().writes(<span class="number">1</span>));
 
-            <a href="#58">update_to</a>.put::&lt;<a href="../lib.rs.html#182">Pallet</a>&lt;T&gt;&gt;();
+            <a href="#58">update_to</a>.put::&lt;<a href="../lib.rs.html#185">Pallet</a>&lt;T&gt;&gt;();
 
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.info.html">log::info!</a>(<span class="string">"✅ Successfully migrated storage. {counter} codes have been migrated"</span>);
         } <span class="kw">else </span>{
@@ -405,9 +405,9 @@
     </span><span class="kw">use </span>{
         <span class="kw">crate</span>::{Config, Pallet},
         frame_support::{
-            Identity,
             storage::types::StorageMap,
             traits::{PalletInfo, StorageInstance},
+            Identity,
         },
         gear_core::ids::CodeId,
         sp_std::marker::PhantomData,

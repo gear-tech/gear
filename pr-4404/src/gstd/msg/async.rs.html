@@ -312,11 +312,11 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use crate</span>::{
-    <a href="../../../gstd/struct.ActorId.html">ActorId</a>, <a href="../config.rs.html#44-68">Config</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>,
-    async_runtime::{<a class="self" href="../lib.rs.html#149">self</a>, <a href="../async_runtime/locks.rs.html#39-44">Lock</a>, <a href="../async_runtime/signals.rs.html#30-34">ReplyPoll</a>, <a href="../async_runtime/mod.rs.html#49-51">signals</a>},
+    async_runtime::{<a class="self" href="../lib.rs.html#149">self</a>, <a href="../async_runtime/mod.rs.html#49-51">signals</a>, <a href="../async_runtime/locks.rs.html#39-44">Lock</a>, <a href="../async_runtime/signals.rs.html#30-34">ReplyPoll</a>},
     errors::{<a href="../common/errors.rs.html#36-75">Error</a>, <a class="prelude-ty" href="../common/errors.rs.html#32">Result</a>},
     <a href="macros.rs.html#19-116">msg::macros::impl_futures</a>,
     <a href="../../../gstd/prelude/struct.Vec.html">prelude::Vec</a>,
+    <a href="../../../gstd/struct.ActorId.html">ActorId</a>, <a href="../config.rs.html#44-68">Config</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>,
 };
 <span class="kw">use </span>core::{
     <a href="../../../gstd/prelude/future/trait.Future.html">future::Future</a>,
@@ -342,7 +342,7 @@
         <span class="kw">return </span><a href="../../../gstd/prelude/task/enum.Poll.html">Poll::Ready</a>(<span class="prelude-val">Err</span>(<a href="../common/errors.rs.html#74">Error::Timeout</a>(<a href="#43">expected</a>, <a href="#43">now</a>)));
     }
 
-    <span class="kw">match </span><a href="../async_runtime/mod.rs.html#49-51">signals</a>().<a href="../async_runtime/signals.rs.html#91-104">poll</a>(<a href="#36">waiting_reply_to</a>, <a href="#36">cx</a>) {
+    <span class="kw">match </span><a href="../async_runtime/mod.rs.html#49-51">signals</a>().<a href="../async_runtime/signals.rs.html#94-107">poll</a>(<a href="#36">waiting_reply_to</a>, <a href="#36">cx</a>) {
         <a href="../async_runtime/signals.rs.html#31">ReplyPoll::None</a> =&gt; <a class="macro" href="../../../gstd/prelude/macro.panic.html">panic!</a>(
             <span class="string">"Somebody created a future with the MessageId that never ended in static replies!"
         </span>),

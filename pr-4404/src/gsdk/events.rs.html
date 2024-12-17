@@ -95,17 +95,17 @@
 
 </span><span class="doccomment">//! Events api
 </span><span class="kw">use crate</span>::{
-    <a href="api.rs.html#32-38">Api</a>,
     <a href="config.rs.html#36">config::GearConfig</a>,
-    metadata::{<a href="metadata/generated.rs.html#10438-10505">Event</a>, <a href="metadata/generated.rs.html#408-445">system::Event</a> <span class="kw">as </span>SystemEvent},
+    metadata::{<a href="metadata/generated.rs.html#408-445">system::Event</a> <span class="kw">as </span>SystemEvent, <a href="metadata/generated.rs.html#10438-10505">Event</a>},
     result::{<a href="result.rs.html#52-103">Error</a>, <a class="prelude-ty" href="result.rs.html#106">Result</a>},
+    <a href="api.rs.html#32-38">Api</a>,
 };
 <span class="kw">use </span>subxt::{
-    OnlineClient,
     blocks::ExtrinsicEvents <span class="kw">as </span>TxEvents,
     error::{DispatchError, Error <span class="kw">as </span>SubxtError},
     events::EventDetails,
     tx::TxInBlock,
+    OnlineClient,
 };
 
 <span class="kw">impl </span><a href="api.rs.html#32-38">Api</a> {

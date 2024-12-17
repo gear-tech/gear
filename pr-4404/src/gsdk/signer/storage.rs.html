@@ -167,7 +167,13 @@
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 //
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -187,7 +193,6 @@
 
 </span><span class="doccomment">//! Storage interfaces
 </span><span class="kw">use crate</span>::{
-    <a href="../api.rs.html#32-38">Api</a>, <a href="../lib.rs.html#74">BlockNumber</a>, <a href="../result.rs.html#52-103">Error</a>, <a href="../lib.rs.html#80">GearGasNode</a>, <a href="../lib.rs.html#77">GearGasNodeId</a>, <a href="../lib.rs.html#83">GearPages</a>,
     metadata::{
         runtime_types::{
             <a href="../metadata/generated.rs.html#284-370">frame_system::pallet::Call</a>,
@@ -200,8 +205,9 @@
         storage::{<a href="../metadata/generated.rs.html#11598-11603">GearBankStorage</a>, <a href="../metadata/generated.rs.html#11660-11664">GearGasStorage</a>, <a href="../metadata/generated.rs.html#11706-11714">GearProgramStorage</a>},
         <a href="../metadata/generated.rs.html#10292-10359">vara_runtime::RuntimeCall</a>,
     },
-    signer::{<a href="mod.rs.html#60-66">Inner</a>, <a href="utils.rs.html#46">utils::EventsResult</a>},
+    signer::{<a href="utils.rs.html#46">utils::EventsResult</a>, <a href="mod.rs.html#60-66">Inner</a>},
     <a href="../utils.rs.html#97-105">utils::storage_address_bytes</a>,
+    <a href="../api.rs.html#32-38">Api</a>, <a href="../lib.rs.html#74">BlockNumber</a>, <a href="../result.rs.html#52-103">Error</a>, <a href="../lib.rs.html#80">GearGasNode</a>, <a href="../lib.rs.html#77">GearGasNodeId</a>, <a href="../lib.rs.html#83">GearPages</a>,
 };
 <span class="kw">use </span>gear_core::{
     ids::<span class="kw-2">*</span>,
@@ -288,17 +294,19 @@
 </span><span class="kw">impl </span><a href="#54">SignerStorage</a> {
     <span class="doccomment">/// Writes `InstrumentedCode` length into storage at `CodeId`
     </span><span class="kw">pub async fn </span>set_code_len_storage(<span class="kw-2">&amp;</span><span class="self">self</span>, code_id: CodeId, code_len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; EventsResult {
-        <span class="kw">let </span>addr = Api::storage(GearProgramStorage::CodeLenStorage, <span class="macro">vec!</span>[Value::from_bytes(
-            code_id,
-        )]);
+        <span class="kw">let </span>addr = Api::storage(
+            GearProgramStorage::CodeLenStorage,
+            <span class="macro">vec!</span>[Value::from_bytes(code_id)],
+        );
         <span class="self">self</span>.set_storage(<span class="kw-2">&amp;</span>[(addr, code_len)]).<span class="kw">await
     </span>}
 
     <span class="doccomment">/// Writes `InstrumentedCode` into storage at `CodeId`
     </span><span class="kw">pub async fn </span>set_code_storage(<span class="kw-2">&amp;</span><span class="self">self</span>, code_id: CodeId, code: <span class="kw-2">&amp;</span><a href="../metadata/generated.rs.html#722-734">InstrumentedCode</a>) -&gt; EventsResult {
-        <span class="kw">let </span>addr = Api::storage(GearProgramStorage::CodeStorage, <span class="macro">vec!</span>[Value::from_bytes(
-            code_id,
-        )]);
+        <span class="kw">let </span>addr = Api::storage(
+            GearProgramStorage::CodeStorage,
+            <span class="macro">vec!</span>[Value::from_bytes(code_id)],
+        );
         <span class="self">self</span>.set_storage(<span class="kw-2">&amp;</span>[(addr, code)]).<span class="kw">await
     </span>}
 
@@ -311,11 +319,14 @@
     ) -&gt; EventsResult {
         <span class="kw">let </span><span class="kw-2">mut </span>program_pages_to_set = Vec::with_capacity(program_pages.len());
         <span class="kw">for </span>program_page <span class="kw">in </span>program_pages {
-            <span class="kw">let </span>addr = Api::storage(GearProgramStorage::MemoryPages, <span class="macro">vec!</span>[
-                subxt::dynamic::Value::from_bytes(program_id),
-                subxt::dynamic::Value::u128(memory_infix <span class="kw">as </span>u128),
-                subxt::dynamic::Value::u128(<span class="kw-2">*</span>program_page.<span class="number">0 </span><span class="kw">as </span>u128),
-            ]);
+            <span class="kw">let </span>addr = Api::storage(
+                GearProgramStorage::MemoryPages,
+                <span class="macro">vec!</span>[
+                    subxt::dynamic::Value::from_bytes(program_id),
+                    subxt::dynamic::Value::u128(memory_infix <span class="kw">as </span>u128),
+                    subxt::dynamic::Value::u128(<span class="kw-2">*</span>program_page.<span class="number">0 </span><span class="kw">as </span>u128),
+                ],
+            );
             <span class="kw">let </span>page_buf_inner = PageBufInner::try_from(program_page.<span class="number">1</span>.clone())
                 .map_err(|<span class="kw">_</span>| Error::PageInvalid(<span class="kw-2">*</span>program_page.<span class="number">0</span>, program_id.encode_hex()))<span class="question-mark">?</span>;
             <span class="kw">let </span>value = PageBuf::from_inner(page_buf_inner);
@@ -330,9 +341,10 @@
         program_id: ProgramId,
         program: <a href="../metadata/generated.rs.html#910-924">ActiveProgram</a>&lt;<a href="../lib.rs.html#74">BlockNumber</a>&gt;,
     ) -&gt; EventsResult {
-        <span class="kw">let </span>addr = Api::storage(GearProgramStorage::ProgramStorage, <span class="macro">vec!</span>[Value::from_bytes(
-            program_id,
-        )]);
+        <span class="kw">let </span>addr = Api::storage(
+            GearProgramStorage::ProgramStorage,
+            <span class="macro">vec!</span>[Value::from_bytes(program_id)],
+        );
         <span class="self">self</span>.set_storage(<span class="kw-2">&amp;</span>[(addr, <span class="kw-2">&amp;</span>Program::Active(program))]).<span class="kw">await
     </span>}
 }

@@ -757,11 +757,11 @@
 }
 
 <span class="kw">impl</span>&lt;
-    ExternalId: <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a>,
-    Id: <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a> + <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html">Copy</a>,
-    Balance: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> + <a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">Zero</a> + <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a> + <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html">Copy</a> + sp_runtime::traits::Saturating,
-    Funds: <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a>,
-&gt; <a href="#137-203">GasNode</a>&lt;ExternalId, Id, Balance, Funds&gt;
+        ExternalId: <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a>,
+        Id: <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a> + <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html">Copy</a>,
+        Balance: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> + <a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">Zero</a> + <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a> + <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html">Copy</a> + sp_runtime::traits::Saturating,
+        Funds: <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a>,
+    &gt; <a href="#137-203">GasNode</a>&lt;ExternalId, Id, Balance, Funds&gt;
 {
     <span class="doccomment">/// Returns total gas value inside GasNode.
     </span><span class="kw">pub fn </span>total_value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Balance {

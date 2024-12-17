@@ -2076,7 +2076,8 @@
 <a href="#2075" id="2075">2075</a>
 <a href="#2076" id="2076">2076</a>
 <a href="#2077" id="2077">2077</a>
-<a href="#2078" id="2078">2078</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#2078" id="2078">2078</a>
+<a href="#2079" id="2079">2079</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -2111,7 +2112,7 @@
 <span class="kw">mod </span><a href="runtime_api.rs.html#19-710">runtime_api</a>;
 <span class="kw">mod </span><a href="schedule.rs.html#19-1644">schedule</a>;
 
-<span class="kw">pub mod </span><a href="manager/mod.rs.html#19-430">manager</a>;
+<span class="kw">pub mod </span><a href="manager/mod.rs.html#19-429">manager</a>;
 <span class="kw">pub mod </span><a href="weights.rs.html#19-4115">weights</a>;
 
 <span class="attr">#[cfg(test)]
@@ -2125,8 +2126,8 @@
 
 <span class="kw">pub use crate</span>::{
     builtin::{<a href="builtin.rs.html#29-41">BuiltinDispatcher</a>, <a href="builtin.rs.html#61-66">BuiltinDispatcherFactory</a>, <a href="builtin.rs.html#26">HandleFn</a>},
-    manager::{<a href="manager/mod.rs.html#138-151">ExtManager</a>, <a href="manager/mod.rs.html#92-98">HandleKind</a>},
-    <a href="#160-2078">pallet</a>::<span class="kw-2">*</span>,
+    manager::{<a href="manager/mod.rs.html#137-150">ExtManager</a>, <a href="manager/mod.rs.html#91-97">HandleKind</a>},
+    <a href="#161-2079">pallet</a>::<span class="kw-2">*</span>,
     schedule::{<a href="schedule.rs.html#253-358">InstructionWeights</a>, <a href="schedule.rs.html#161-228">Limits</a>, <a href="schedule.rs.html#594-638">MemoryWeights</a>, <a href="schedule.rs.html#117-150">Schedule</a>, <a href="schedule.rs.html#364-579">SyscallWeights</a>},
 };
 <span class="kw">pub use </span>gear_core::{<a href="../../pallet_gear/struct.GasInfo.html">gas::GasInfo</a>, <a href="../../pallet_gear/struct.ReplyInfo.html">message::ReplyInfo</a>};
@@ -2138,8 +2139,8 @@
     string::{<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html">ToString</a>},
 };
 <span class="kw">use </span>common::{
-    <span class="self">self</span>, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin, Program,
-    ProgramStorage, QueueRunner, event::<span class="kw-2">*</span>, gas_provider::GasNodeId, scheduler::<span class="kw-2">*</span>, storage::<span class="kw-2">*</span>,
+    <span class="self">self</span>, event::<span class="kw-2">*</span>, gas_provider::GasNodeId, scheduler::<span class="kw-2">*</span>, storage::<span class="kw-2">*</span>, BlockLimiter, CodeMetadata,
+    CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
 };
 <span class="kw">use </span>core::{<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">marker::PhantomData</a>, <a href="https://doc.rust-lang.org/nightly/core/num/nonzero/struct.NonZero.html">num::NonZero</a>};
 <span class="kw">use </span>core_processor::{
@@ -2151,31 +2152,32 @@
     ensure,
     pallet_prelude::<span class="kw-2">*</span>,
     traits::{
-        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
-        StorageVersion, WithdrawReasons, fungible,
+        fungible,
         tokens::{Fortitude, Preservation},
+        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
+        StorageVersion, WithdrawReasons,
     },
     weights::Weight,
 };
 <span class="kw">use </span>frame_system::{
-    Pallet <span class="kw">as </span>System, RawOrigin,
     pallet_prelude::{BlockNumberFor, <span class="kw-2">*</span>},
+    Pallet <span class="kw">as </span>System, RawOrigin,
 };
 <span class="kw">use </span>gear_core::{
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId, ReservationId, prelude::<span class="kw-2">*</span>},
+    ids::{prelude::<span class="kw-2">*</span>, CodeId, MessageId, ProgramId, ReservationId},
     message::<span class="kw-2">*</span>,
     percent::Percent,
     tasks::VaraScheduledTask,
 };
 <span class="kw">use </span>gear_lazy_pages_common::LazyPagesInterface;
 <span class="kw">use </span>gear_lazy_pages_interface::LazyPagesRuntimeInterface;
-<span class="kw">use </span>manager::{<a href="manager/mod.rs.html#113-117">CodeInfo</a>, <a href="manager/mod.rs.html#154-159">QueuePostProcessingData</a>};
+<span class="kw">use </span>manager::{<a href="manager/mod.rs.html#112-116">CodeInfo</a>, <a href="manager/mod.rs.html#153-158">QueuePostProcessingData</a>};
 <span class="kw">use </span>pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo <span class="kw">as _</span>};
 <span class="kw">use </span>primitive_types::H256;
 <span class="kw">use </span>sp_runtime::{
-    DispatchError, SaturatedConversion,
     traits::{<a href="https://docs.rs/num-traits/0.2/num_traits/bounds/trait.Bounded.html">Bounded</a>, <a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.One.html">One</a>, Saturating, UniqueSaturatedInto, <a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">Zero</a>},
+    DispatchError, SaturatedConversion,
 };
 <span class="kw">use </span>sp_std::{
     collections::{<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">btree_map::BTreeMap</a>, <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">btree_set::BTreeSet</a>},
@@ -2187,7 +2189,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>AccountIdOf&lt;T&gt; = &lt;T <span class="kw">as </span>frame_system::Config&gt;::AccountId;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>CurrencyOf&lt;T&gt; = &lt;T <span class="kw">as </span>pallet_gear_bank::Config&gt;::Currency;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>BalanceOf&lt;T&gt; = &lt;<a href="#111">CurrencyOf</a>&lt;T&gt; <span class="kw">as </span>Currency&lt;<a href="#110">AccountIdOf</a>&lt;T&gt;&gt;&gt;::Balance;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>BalanceOf&lt;T&gt; = &lt;<a href="#112">CurrencyOf</a>&lt;T&gt; <span class="kw">as </span>Currency&lt;<a href="#111">AccountIdOf</a>&lt;T&gt;&gt;&gt;::Balance;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>SentOf&lt;T&gt; = &lt;&lt;T <span class="kw">as </span>Config&gt;::Messenger <span class="kw">as </span>Messenger&gt;::Sent;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>DbWeightOf&lt;T&gt; = &lt;T <span class="kw">as </span>frame_system::Config&gt;::DbWeight;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>DequeuedOf&lt;T&gt; = &lt;&lt;T <span class="kw">as </span>Config&gt;::Messenger <span class="kw">as </span>Messenger&gt;::Dequeued;
@@ -2206,7 +2208,7 @@
 <span class="kw">pub type </span><a href="../../pallet_gear/type.Authorship.html">Authorship</a>&lt;T&gt; = pallet_authorship::Pallet&lt;T&gt;;
 <span class="kw">pub type </span><a href="../../pallet_gear/type.GasAllowanceOf.html">GasAllowanceOf</a>&lt;T&gt; = &lt;&lt;T <span class="kw">as </span>Config&gt;::BlockLimiter <span class="kw">as </span>BlockLimiter&gt;::GasAllowance;
 <span class="kw">pub type </span><a href="../../pallet_gear/type.GasHandlerOf.html">GasHandlerOf</a>&lt;T&gt; = &lt;&lt;T <span class="kw">as </span>Config&gt;::GasProvider <span class="kw">as </span>GasProvider&gt;::GasTree;
-<span class="kw">pub type </span><a href="../../pallet_gear/type.GasNodeIdOf.html">GasNodeIdOf</a>&lt;T&gt; = &lt;<a href="#130">GasHandlerOf</a>&lt;T&gt; <span class="kw">as </span>GasTree&gt;::NodeId;
+<span class="kw">pub type </span><a href="../../pallet_gear/type.GasNodeIdOf.html">GasNodeIdOf</a>&lt;T&gt; = &lt;<a href="#131">GasHandlerOf</a>&lt;T&gt; <span class="kw">as </span>GasTree&gt;::NodeId;
 <span class="kw">pub type </span><a href="../../pallet_gear/type.BlockGasLimitOf.html">BlockGasLimitOf</a>&lt;T&gt; = &lt;&lt;T <span class="kw">as </span>Config&gt;::BlockLimiter <span class="kw">as </span>BlockLimiter&gt;::BlockGasLimit;
 <span class="kw">pub type </span><a href="../../pallet_gear/type.GasBalanceOf.html">GasBalanceOf</a>&lt;T&gt; = &lt;&lt;T <span class="kw">as </span>Config&gt;::GasProvider <span class="kw">as </span>GasProvider&gt;::Balance;
 <span class="kw">pub type </span><a href="../../pallet_gear/type.ProgramStorageOf.html">ProgramStorageOf</a>&lt;T&gt; = &lt;T <span class="kw">as </span>Config&gt;::ProgramStorage;
@@ -2223,7 +2225,7 @@
     <span class="kw">fn </span>is_enabled() -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>;
 }
 
-<span class="kw">impl </span><a href="#141-146">DebugInfo</a> <span class="kw">for </span>() {
+<span class="kw">impl </span><a href="#142-147">DebugInfo</a> <span class="kw">for </span>() {
     <span class="kw">fn </span>is_remap_id_enabled() -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
         <span class="bool-val">false
     </span>}
@@ -2246,8 +2248,8 @@
         + pallet_gear_bank::Config
     {
         <span class="doccomment">/// Because this pallet emits events, it depends on the runtime's definition of an event.
-        </span><span class="kw">type </span>RuntimeEvent: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#301-410">Event</a>&lt;<span class="self">Self</span>&gt;&gt;
-            + <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html">TryInto</a>&lt;<a href="#301-410">Event</a>&lt;<span class="self">Self</span>&gt;&gt;
+        </span><span class="kw">type </span>RuntimeEvent: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#302-411">Event</a>&lt;<span class="self">Self</span>&gt;&gt;
+            + <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html">TryInto</a>&lt;<a href="#302-411">Event</a>&lt;<span class="self">Self</span>&gt;&gt;
             + IsType&lt;&lt;<span class="self">Self </span><span class="kw">as </span>frame_system::Config&gt;::RuntimeEvent&gt;;
 
         <span class="doccomment">/// The generator used to supply randomness to programs through `seal_random`
@@ -2272,17 +2274,17 @@
         </span><span class="attr">#[pallet::constant]
         </span><span class="kw">type </span>PerformanceMultiplier: Get&lt;Percent&gt;;
 
-        <span class="kw">type </span>DebugInfo: <a href="#141-146">DebugInfo</a>;
+        <span class="kw">type </span>DebugInfo: <a href="#142-147">DebugInfo</a>;
 
         <span class="doccomment">/// Implementation of a storage for program binary codes.
         </span><span class="kw">type </span>CodeStorage: CodeStorage;
 
         <span class="doccomment">/// Implementation of a storage for programs.
         </span><span class="kw">type </span>ProgramStorage: ProgramStorage&lt;
-                BlockNumber = BlockNumberFor&lt;<span class="self">Self</span>&gt;,
-                Error = DispatchError,
-                AccountId = <span class="self">Self</span>::AccountId,
-            &gt;;
+            BlockNumber = BlockNumberFor&lt;<span class="self">Self</span>&gt;,
+            Error = DispatchError,
+            AccountId = <span class="self">Self</span>::AccountId,
+        &gt;;
 
         <span class="doccomment">/// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -2300,41 +2302,41 @@
 
         <span class="doccomment">/// Messenger.
         </span><span class="kw">type </span>Messenger: Messenger&lt;
-                BlockNumber = BlockNumberFor&lt;<span class="self">Self</span>&gt;,
-                Capacity = <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
-                OutputError = DispatchError,
-                MailboxFirstKey = <span class="self">Self</span>::AccountId,
-                MailboxSecondKey = MessageId,
-                MailboxedMessage = UserStoredMessage,
-                QueuedDispatch = StoredDispatch,
-                DelayedDispatch = StoredDelayedDispatch,
-                WaitlistFirstKey = ProgramId,
-                WaitlistSecondKey = MessageId,
-                WaitlistedMessage = StoredDispatch,
-                DispatchStashKey = MessageId,
-            &gt;;
+            BlockNumber = BlockNumberFor&lt;<span class="self">Self</span>&gt;,
+            Capacity = <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+            OutputError = DispatchError,
+            MailboxFirstKey = <span class="self">Self</span>::AccountId,
+            MailboxSecondKey = MessageId,
+            MailboxedMessage = UserStoredMessage,
+            QueuedDispatch = StoredDispatch,
+            DelayedDispatch = StoredDelayedDispatch,
+            WaitlistFirstKey = ProgramId,
+            WaitlistSecondKey = MessageId,
+            WaitlistedMessage = StoredDispatch,
+            DispatchStashKey = MessageId,
+        &gt;;
 
         <span class="doccomment">/// Implementation of a ledger to account for gas creation and consumption
         </span><span class="kw">type </span>GasProvider: GasProvider&lt;
-                ExternalOrigin = <span class="self">Self</span>::AccountId,
-                NodeId = GasNodeId&lt;MessageId, ReservationId&gt;,
-                Balance = <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-                Funds = <a href="#112">BalanceOf</a>&lt;<span class="self">Self</span>&gt;,
-                Error = DispatchError,
-            &gt;;
+            ExternalOrigin = <span class="self">Self</span>::AccountId,
+            NodeId = GasNodeId&lt;MessageId, ReservationId&gt;,
+            Balance = <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+            Funds = <a href="#113">BalanceOf</a>&lt;<span class="self">Self</span>&gt;,
+            Error = DispatchError,
+        &gt;;
 
         <span class="doccomment">/// Block limits.
-        </span><span class="kw">type </span>BlockLimiter: BlockLimiter&lt;Balance = <a href="#133">GasBalanceOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
+        </span><span class="kw">type </span>BlockLimiter: BlockLimiter&lt;Balance = <a href="#134">GasBalanceOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
 
         <span class="doccomment">/// Scheduler.
         </span><span class="kw">type </span>Scheduler: Scheduler&lt;
-                BlockNumber = BlockNumberFor&lt;<span class="self">Self</span>&gt;,
-                Cost = <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-                Task = VaraScheduledTask&lt;<span class="self">Self</span>::AccountId&gt;,
-            &gt;;
+            BlockNumber = BlockNumberFor&lt;<span class="self">Self</span>&gt;,
+            Cost = <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+            Task = VaraScheduledTask&lt;<span class="self">Self</span>::AccountId&gt;,
+        &gt;;
 
         <span class="doccomment">/// Message Queue processing routing provider.
-        </span><span class="kw">type </span>QueueRunner: QueueRunner&lt;Gas = <a href="#133">GasBalanceOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
+        </span><span class="kw">type </span>QueueRunner: QueueRunner&lt;Gas = <a href="#134">GasBalanceOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
 
         <span class="doccomment">/// The free of charge period of rent.
         </span><span class="attr">#[pallet::constant]
@@ -2346,7 +2348,7 @@
 
         <span class="doccomment">/// The program rent cost per block.
         </span><span class="attr">#[pallet::constant]
-        </span><span class="kw">type </span>ProgramRentCostPerBlock: Get&lt;<a href="#112">BalanceOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
+        </span><span class="kw">type </span>ProgramRentCostPerBlock: Get&lt;<a href="#113">BalanceOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
 
         <span class="doccomment">/// The amount of blocks for processing resume session.
         </span><span class="attr">#[pallet::constant]
@@ -2366,17 +2368,17 @@
 
         <span class="doccomment">/// The account id of the rent pool if any.
         </span><span class="attr">#[pallet::constant]
-        </span><span class="kw">type </span>RentPoolId: Get&lt;<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#110">AccountIdOf</a>&lt;<span class="self">Self</span>&gt;&gt;&gt;;
+        </span><span class="kw">type </span>RentPoolId: Get&lt;<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#111">AccountIdOf</a>&lt;<span class="self">Self</span>&gt;&gt;&gt;;
     }
 
     <span class="attr">#[pallet::pallet]
-    #[pallet::storage_version(<a href="#138">GEAR_STORAGE_VERSION</a>)]
+    #[pallet::storage_version(<a href="#139">GEAR_STORAGE_VERSION</a>)]
     #[pallet::without_storage_info]
-    </span><span class="kw">pub struct </span><a href="#297">Pallet</a>&lt;T&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;);
+    </span><span class="kw">pub struct </span><a href="#298">Pallet</a>&lt;T&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;);
 
     <span class="attr">#[pallet::event]
-    #[pallet::generate_deposit(<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span><a href="#300">deposit_event</a>)]
-    </span><span class="kw">pub enum </span><a href="#301-410">Event</a>&lt;T: <a href="#164-292">Config</a>&gt; {
+    #[pallet::generate_deposit(<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span><a href="#301">deposit_event</a>)]
+    </span><span class="kw">pub enum </span><a href="#302-411">Event</a>&lt;T: <a href="#165-293">Config</a>&gt; {
         <span class="doccomment">/// User sends message to program, which was successfully
         /// added to the Gear message queue.
         </span>MessageQueued {
@@ -2422,7 +2424,7 @@
         <span class="doccomment">/// The result of processing the messages within the block.
         </span>MessagesDispatched {
             <span class="doccomment">/// Total amount of messages removed from message queue.
-            </span>total: <a href="#121">MessengerCapacityOf</a>&lt;T&gt;,
+            </span>total: <a href="#122">MessengerCapacityOf</a>&lt;T&gt;,
             <span class="doccomment">/// Execution statuses of the messages, which were already known
             /// by `Event::MessageQueued` (sent from user to program).
             </span>statuses: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;MessageId, DispatchStatus&gt;,
@@ -2555,11 +2557,11 @@
     /// It shows block number in which queue is processed.
     /// May be less than system pallet block number if panic occurred previously.
     </span><span class="attr">#[pallet::storage]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear/pallet/storage_types/struct.BlockNumber.html">BlockNumber</a>&lt;T: <a href="#164-292">Config</a>&gt; = StorageValue&lt;<span class="kw">_</span>, BlockNumberFor&lt;T&gt;, ValueQuery&gt;;
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear/pallet/storage_types/struct.BlockNumber.html">BlockNumber</a>&lt;T: <a href="#165-293">Config</a>&gt; = StorageValue&lt;<span class="kw">_</span>, BlockNumberFor&lt;T&gt;, ValueQuery&gt;;
 
-    <span class="kw">impl</span>&lt;T: <a href="#164-292">Config</a>&gt; Get&lt;BlockNumberFor&lt;T&gt;&gt; <span class="kw">for </span><a href="#297">Pallet</a>&lt;T&gt; {
+    <span class="kw">impl</span>&lt;T: <a href="#165-293">Config</a>&gt; Get&lt;BlockNumberFor&lt;T&gt;&gt; <span class="kw">for </span><a href="#298">Pallet</a>&lt;T&gt; {
         <span class="kw">fn </span>get() -&gt; BlockNumberFor&lt;T&gt; {
-            <a href="#531-533"><span class="self">Self</span>::block_number</a>()
+            <a href="#532-534"><span class="self">Self</span>::block_number</a>()
         }
     }
 
@@ -2572,15 +2574,15 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear/pallet/storage_types/struct.GearRunInBlock.html">GearRunInBlock</a>&lt;T&gt; = StorageValue&lt;<span class="kw">_</span>, ()&gt;;
 
     <span class="attr">#[pallet::hooks]
-    </span><span class="kw">impl</span>&lt;T: <a href="#164-292">Config</a>&gt; Hooks&lt;BlockNumberFor&lt;T&gt;&gt; <span class="kw">for </span><a href="#297">Pallet</a>&lt;T&gt;
+    </span><span class="kw">impl</span>&lt;T: <a href="#165-293">Config</a>&gt; Hooks&lt;BlockNumberFor&lt;T&gt;&gt; <span class="kw">for </span><a href="#298">Pallet</a>&lt;T&gt;
     <span class="kw">where
         </span>T::AccountId: Origin,
     {
         <span class="doccomment">/// Initialization
         </span><span class="kw">fn </span>on_initialize(bn: BlockNumberFor&lt;T&gt;) -&gt; Weight {
             <span class="comment">// Incrementing Gear block number
-            </span><a href="#480">BlockNumber</a>::&lt;T&gt;::mutate(|bn| {
-                <span class="kw-2">*</span><a href="#504">bn</a> = <a href="#504">bn</a>.saturating_add(<a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.One.html#tymethod.one">One::one</a>());
+            </span><a href="#481">BlockNumber</a>::&lt;T&gt;::mutate(|bn| {
+                <span class="kw-2">*</span><a href="#505">bn</a> = <a href="#505">bn</a>.saturating_add(<a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.One.html#tymethod.one">One::one</a>());
             });
 
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(target: <span class="string">"gear::runtime"</span>, <span class="string">"⚙️  Initialization of block #{bn:?} (gear #{:?})"</span>, <span class="self">Self</span>::block_number());
@@ -2594,9 +2596,9 @@
             // If not (while the queue processing enabled), fire an event and revert
             // the Gear internal block number increment made in `on_initialize()`.
             </span><span class="kw">if </span>GearRunInBlock::&lt;T&gt;::take().is_none() &amp;&amp; ExecuteInherent::&lt;T&gt;::get() {
-                <a href="#300"><span class="self">Self</span>::deposit_event</a>(<a href="#409">Event::QueueNotProcessed</a>);
-                <a href="#480">BlockNumber</a>::&lt;T&gt;::mutate(|bn| {
-                    <span class="kw-2">*</span><a href="#520">bn</a> = <a href="#520">bn</a>.saturating_sub(<a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.One.html#tymethod.one">One::one</a>());
+                <a href="#301"><span class="self">Self</span>::deposit_event</a>(<a href="#410">Event::QueueNotProcessed</a>);
+                <a href="#481">BlockNumber</a>::&lt;T&gt;::mutate(|bn| {
+                    <span class="kw-2">*</span><a href="#521">bn</a> = <a href="#521">bn</a>.saturating_sub(<a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.One.html#tymethod.one">One::one</a>());
                 });
             }
 
@@ -2604,14 +2606,14 @@
         }
     }
 
-    <span class="kw">impl</span>&lt;T: <a href="#164-292">Config</a>&gt; <a href="#297">Pallet</a>&lt;T&gt; {
+    <span class="kw">impl</span>&lt;T: <a href="#165-293">Config</a>&gt; <a href="#298">Pallet</a>&lt;T&gt; {
         <span class="doccomment">/// Getter for [`BlockNumberFor&lt;T&gt;`] (BlockNumberFor)
         </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_number() -&gt; BlockNumberFor&lt;T&gt; {
-            <a href="#480">BlockNumber</a>::&lt;T&gt;::get()
+            <a href="#481">BlockNumber</a>::&lt;T&gt;::get()
         }
     }
 
-    <span class="kw">impl</span>&lt;T: <a href="#164-292">Config</a>&gt; <a href="#297">Pallet</a>&lt;T&gt;
+    <span class="kw">impl</span>&lt;T: <a href="#165-293">Config</a>&gt; <a href="#298">Pallet</a>&lt;T&gt;
     <span class="kw">where
         </span>T::AccountId: Origin,
     {
@@ -2620,7 +2622,7 @@
         /// For tests only.
         </span><span class="attr">#[cfg(any(feature = <span class="string">"std"</span>, feature = <span class="string">"runtime-benchmarks"</span>, test))]
         </span><span class="kw">pub fn </span>set_block_number(bn: BlockNumberFor&lt;T&gt;) {
-            &lt;<a href="#480">BlockNumber</a>&lt;T&gt;&gt;::put(<a href="#544">bn</a>);
+            &lt;<a href="#481">BlockNumber</a>&lt;T&gt;&gt;::put(<a href="#545">bn</a>);
         }
 
         <span class="doccomment">/// Upload program to the chain without stack limit injection and
@@ -2771,16 +2773,16 @@
             argument: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt;,
             gas_allowance: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;,
         ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt; {
-            <span class="kw">let </span>fn_name = <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.from_utf8">String::from_utf8</a>(<a href="#691">fn_name</a>)
+            <span class="kw">let </span>fn_name = <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.from_utf8">String::from_utf8</a>(<a href="#692">fn_name</a>)
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| <span class="string">"Non-utf8 function name"</span>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.str.html#method.as_bytes">as_bytes</a>().<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>())<span class="question-mark">?</span>;
 
             <a href="runtime_api.rs.html#382-442"><span class="self">Self</span>::read_state_using_wasm_impl</a>(
-                <a href="#689">program_id</a>.cast(),
-                <a href="#690">payload</a>,
-                <a href="#696">fn_name</a>,
-                <a href="#692">wasm</a>,
-                <a href="#693">argument</a>,
-                <a href="#694">gas_allowance</a>,
+                <a href="#690">program_id</a>.cast(),
+                <a href="#691">payload</a>,
+                <a href="#697">fn_name</a>,
+                <a href="#693">wasm</a>,
+                <a href="#694">argument</a>,
+                <a href="#695">gas_allowance</a>,
             )
             .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(String::into_bytes)
         }
@@ -2790,7 +2792,7 @@
             payload: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
             gas_allowance: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;,
         ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt; {
-            <a href="runtime_api.rs.html#444-479"><span class="self">Self</span>::read_state_impl</a>(<a href="#711">program_id</a>.cast(), <a href="#712">payload</a>, <a href="#713">gas_allowance</a>)
+            <a href="runtime_api.rs.html#444-479"><span class="self">Self</span>::read_state_impl</a>(<a href="#712">program_id</a>.cast(), <a href="#713">payload</a>, <a href="#714">gas_allowance</a>)
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(String::into_bytes)
         }
 
@@ -2798,13 +2800,13 @@
             program_id: H256,
             gas_allowance: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;,
         ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;H256, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt; {
-            <a href="runtime_api.rs.html#481-518"><span class="self">Self</span>::read_metahash_impl</a>(<a href="#720">program_id</a>.cast(), <a href="#721">gas_allowance</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(String::into_bytes)
+            <a href="runtime_api.rs.html#481-518"><span class="self">Self</span>::read_metahash_impl</a>(<a href="#721">program_id</a>.cast(), <a href="#722">gas_allowance</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(String::into_bytes)
         }
 
         <span class="attr">#[cfg(not(test))]
         </span><span class="kw">pub fn </span>calculate_gas_info(
             source: H256,
-            kind: <a href="manager/mod.rs.html#92-98">HandleKind</a>,
+            kind: <a href="manager/mod.rs.html#91-97">HandleKind</a>,
             payload: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
             value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
             allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
@@ -2812,16 +2814,16 @@
             gas_allowance: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;,
         ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="../../pallet_gear/struct.GasInfo.html">GasInfo</a>, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt; {
             <a href="runtime_api.rs.html#135-380"><span class="self">Self</span>::calculate_gas_info_impl</a>(
-                <a href="#728">source</a>,
-                <a href="#729">kind</a>,
-                <a href="#733">initial_gas</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(<a href="#132">BlockGasLimitOf</a>::&lt;T&gt;::get),
-                <a href="#730">payload</a>,
-                <a href="#731">value</a>,
-                <a href="#732">allow_other_panics</a>,
+                <a href="#729">source</a>,
+                <a href="#730">kind</a>,
+                <a href="#734">initial_gas</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(<a href="#133">BlockGasLimitOf</a>::&lt;T&gt;::get),
+                <a href="#731">payload</a>,
+                <a href="#732">value</a>,
+                <a href="#733">allow_other_panics</a>,
                 <span class="bool-val">false</span>,
-                <a href="#734">gas_allowance</a>,
+                <a href="#735">gas_allowance</a>,
             )
-            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|e| <a href="#746">e</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.into_bytes">into_bytes</a>())
+            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|e| <a href="#747">e</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.into_bytes">into_bytes</a>())
         }
 
         <span class="attr">#[cfg(test)]
@@ -2899,14 +2901,14 @@
             allowance_multiplier: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
         ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="../../pallet_gear/struct.ReplyInfo.html">ReplyInfo</a>, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt; {
             <a href="runtime_api.rs.html#51-128"><span class="self">Self</span>::calculate_reply_for_handle_impl</a>(
-                <a href="#816">origin</a>,
-                <a href="#817">destination</a>.cast(),
-                <a href="#818">payload</a>,
-                <a href="#819">gas_limit</a>,
-                <a href="#820">value</a>,
-                <a href="#821">allowance_multiplier</a>,
+                <a href="#817">origin</a>,
+                <a href="#818">destination</a>.cast(),
+                <a href="#819">payload</a>,
+                <a href="#820">gas_limit</a>,
+                <a href="#821">value</a>,
+                <a href="#822">allowance_multiplier</a>,
             )
-            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|v| <a href="#831">v</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.into_bytes">into_bytes</a>())
+            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|v| <a href="#832">v</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.into_bytes">into_bytes</a>())
         }
 
         <span class="attr">#[cfg(test)]
@@ -2931,79 +2933,79 @@
 
         <span class="kw">pub fn </span>run_with_ext_copy&lt;R, F: <a href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html">FnOnce</a>() -&gt; R&gt;(f: F) -&gt; R {
             sp_externalities::with_externalities(|ext| {
-                <a href="#855">ext</a>.storage_start_transaction();
+                <a href="#856">ext</a>.storage_start_transaction();
             })
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.expect">expect</a>(<span class="string">"externalities should be set"</span>);
 
-            <span class="kw">let </span>result = <a href="#854">f</a>();
+            <span class="kw">let </span>result = <a href="#855">f</a>();
 
             sp_externalities::with_externalities(|ext| {
-                <a href="#862">ext</a>.storage_rollback_transaction()
+                <a href="#863">ext</a>.storage_rollback_transaction()
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.expect">expect</a>(<span class="string">"transaction was started"</span>);
             })
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.expect">expect</a>(<span class="string">"externalities should be set"</span>);
 
-            <a href="#860">result</a>
+            <a href="#861">result</a>
         }
 
         <span class="doccomment">/// Returns true if a program has been successfully initialized
         </span><span class="kw">pub fn </span>is_initialized(program_id: ProgramId) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
-            <a href="#134">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#872">program_id</a>)
-                .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <a href="#874">program</a>.is_initialized())
+            <a href="#135">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#873">program_id</a>)
+                .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <a href="#875">program</a>.is_initialized())
                 .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or">unwrap_or</a>(<span class="bool-val">false</span>)
         }
 
         <span class="doccomment">/// Returns true if `program_id` is that of a in active status or the builtin actor.
         </span><span class="kw">pub fn </span>is_active(builtins: <span class="kw-2">&amp;</span><span class="kw">impl </span><a href="builtin.rs.html#29-41">BuiltinDispatcher</a>, program_id: ProgramId) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
-            <a href="#879">builtins</a>.<a href="builtin.rs.html#33">lookup</a>(<span class="kw-2">&amp;</span><a href="#879">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.is_some">is_some</a>()
-                || <a href="#134">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#879">program_id</a>)
-                    .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <a href="#882">program</a>.is_active())
+            <a href="#880">builtins</a>.<a href="builtin.rs.html#33">lookup</a>(<span class="kw-2">&amp;</span><a href="#880">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.is_some">is_some</a>()
+                || <a href="#135">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#880">program_id</a>)
+                    .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <a href="#883">program</a>.is_active())
                     .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_default">unwrap_or_default</a>()
         }
 
         <span class="doccomment">/// Returns true if id is a program and the program has terminated status.
         </span><span class="kw">pub fn </span>is_terminated(program_id: ProgramId) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
-            <a href="#134">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#887">program_id</a>)
-                .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <a href="#889">program</a>.is_terminated())
+            <a href="#135">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#888">program_id</a>)
+                .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <a href="#890">program</a>.is_terminated())
                 .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_default">unwrap_or_default</a>()
         }
 
         <span class="doccomment">/// Returns true if id is a program and the program has exited status.
         </span><span class="kw">pub fn </span>is_exited(program_id: ProgramId) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
-            <a href="#134">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#894">program_id</a>)
-                .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <a href="#896">program</a>.is_exited())
+            <a href="#135">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#895">program_id</a>)
+                .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <a href="#897">program</a>.is_exited())
                 .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_default">unwrap_or_default</a>()
         }
 
         <span class="doccomment">/// Returns true if there is a program with the specified `program_id`` (it may be paused)
         /// or this `program_id` belongs to the built-in actor.
         </span><span class="kw">pub fn </span>program_exists(builtins: <span class="kw-2">&amp;</span><span class="kw">impl </span><a href="builtin.rs.html#29-41">BuiltinDispatcher</a>, program_id: ProgramId) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
-            <a href="#902">builtins</a>.<a href="builtin.rs.html#33">lookup</a>(<span class="kw-2">&amp;</span><a href="#902">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.is_some">is_some</a>()
-                || <a href="#134">ProgramStorageOf</a>::&lt;T&gt;::program_exists(<a href="#902">program_id</a>)
+            <a href="#903">builtins</a>.<a href="builtin.rs.html#33">lookup</a>(<span class="kw-2">&amp;</span><a href="#903">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.is_some">is_some</a>()
+                || <a href="#135">ProgramStorageOf</a>::&lt;T&gt;::program_exists(<a href="#903">program_id</a>)
         }
 
         <span class="doccomment">/// Returns inheritor of an exited/terminated program.
         </span><span class="kw">pub fn </span>first_inheritor_of(program_id: ProgramId) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;ProgramId&gt; {
-            <a href="#134">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#908">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.and_then">and_then</a>(|program| <span class="kw">match </span><a href="#909">program</a> {
+            <a href="#135">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#909">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.and_then">and_then</a>(|program| <span class="kw">match </span><a href="#910">program</a> {
                 Program::Active(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-                Program::Exited(id) =&gt; <span class="prelude-val">Some</span>(<a href="#911">id</a>),
-                Program::Terminated(id) =&gt; <span class="prelude-val">Some</span>(<a href="#912">id</a>),
+                Program::Exited(id) =&gt; <span class="prelude-val">Some</span>(<a href="#912">id</a>),
+                Program::Terminated(id) =&gt; <span class="prelude-val">Some</span>(<a href="#913">id</a>),
             })
         }
 
         <span class="doccomment">/// Returns MessageId for newly created user message.
         </span><span class="kw">pub fn </span>next_message_id(user_id: H256) -&gt; MessageId {
-            <span class="kw">let </span>nonce = <a href="#113">SentOf</a>::&lt;T&gt;::get();
-            <a href="#113">SentOf</a>::&lt;T&gt;::increase();
+            <span class="kw">let </span>nonce = <a href="#114">SentOf</a>::&lt;T&gt;::get();
+            <a href="#114">SentOf</a>::&lt;T&gt;::increase();
             <span class="kw">let </span>block_number = System::&lt;T&gt;::block_number().unique_saturated_into();
 
-            MessageId::generate_from_user(<a href="#920">block_number</a>, <a href="#917">user_id</a>.cast(), <a href="#918">nonce</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
+            MessageId::generate_from_user(<a href="#921">block_number</a>, <a href="#918">user_id</a>.cast(), <a href="#919">nonce</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
         }
 
         <span class="doccomment">/// Delayed tasks processing.
-        </span><span class="kw">pub fn </span>process_tasks(ext_manager: <span class="kw-2">&amp;mut </span><a href="manager/mod.rs.html#138-151">ExtManager</a>&lt;T&gt;) {
+        </span><span class="kw">pub fn </span>process_tasks(ext_manager: <span class="kw-2">&amp;mut </span><a href="manager/mod.rs.html#137-150">ExtManager</a>&lt;T&gt;) {
             <span class="comment">// Current block number.
-            </span><span class="kw">let </span>current_bn = <a href="#531-533"><span class="self">Self</span>::block_number</a>();
+            </span><span class="kw">let </span>current_bn = <a href="#532-534"><span class="self">Self</span>::block_number</a>();
 
             <span class="comment">// Taking the first block number, where some incomplete tasks held.
             // If there is no such value, we charge for single read, because
@@ -3011,23 +3013,23 @@
             // value and charge for single write.
             //
             // We also iterate up to current bn (including) to process it together
-            </span><span class="kw">let </span>(first_incomplete_block, were_empty) = <a href="#123-124">FirstIncompleteTasksBlockOf</a>::&lt;T&gt;::take()
+            </span><span class="kw">let </span>(first_incomplete_block, were_empty) = <a href="#124-125">FirstIncompleteTasksBlockOf</a>::&lt;T&gt;::take()
                 .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|block| {
-                    <a href="#129">GasAllowanceOf</a>::&lt;T&gt;::decrease(<a href="#114">DbWeightOf</a>::&lt;T&gt;::get().writes(<span class="number">1</span>).ref_time());
-                    (<a href="#937">block</a>, <span class="bool-val">false</span>)
+                    <a href="#130">GasAllowanceOf</a>::&lt;T&gt;::decrease(<a href="#115">DbWeightOf</a>::&lt;T&gt;::get().writes(<span class="number">1</span>).ref_time());
+                    (<a href="#938">block</a>, <span class="bool-val">false</span>)
                 })
                 .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| {
-                    <a href="#129">GasAllowanceOf</a>::&lt;T&gt;::decrease(<a href="#114">DbWeightOf</a>::&lt;T&gt;::get().reads(<span class="number">1</span>).ref_time());
-                    (<a href="#928">current_bn</a>, <span class="bool-val">true</span>)
+                    <a href="#130">GasAllowanceOf</a>::&lt;T&gt;::decrease(<a href="#115">DbWeightOf</a>::&lt;T&gt;::get().reads(<span class="number">1</span>).ref_time());
+                    (<a href="#929">current_bn</a>, <span class="bool-val">true</span>)
                 });
 
             <span class="comment">// When we had to stop processing due to insufficient gas allowance.
             </span><span class="kw">let </span><span class="kw-2">mut </span>stopped_at = <span class="prelude-val">None</span>;
 
             <span class="comment">// Iterating over blocks.
-            </span><span class="kw">let </span>missing_blocks = (<a href="#936">first_incomplete_block</a>.saturated_into::&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;()
-                ..=<a href="#928">current_bn</a>.saturated_into())
-                .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.map">map</a>(|block| <a href="#952">block</a>.saturated_into::&lt;BlockNumberFor&lt;T&gt;&gt;());
+            </span><span class="kw">let </span>missing_blocks = (<a href="#937">first_incomplete_block</a>.saturated_into::&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;()
+                ..=<a href="#929">current_bn</a>.saturated_into())
+                .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.map">map</a>(|block| <a href="#953">block</a>.saturated_into::&lt;BlockNumberFor&lt;T&gt;&gt;());
             <span class="kw">for </span>bn <span class="kw">in </span>missing_blocks {
                 <span class="kw">let </span>tasks = TaskPoolOf::&lt;T&gt;::drain_prefix_keys(bn);
 
@@ -3114,19 +3116,19 @@
 
             <span class="comment">// If we didn't process all tasks and stopped at some block number,
             // then there are missed blocks set we should handle in next time.
-            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(stopped_at) = <a href="#947">stopped_at</a> {
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(stopped_at) = <a href="#948">stopped_at</a> {
                 <span class="comment">// Charging for inserting into storage of the first block of incomplete tasks,
                 // if we were reading it only (they were empty).
                 </span><span class="kw">if </span>were_empty {
-                    <a href="#129">GasAllowanceOf</a>::&lt;T&gt;::decrease(<a href="#114">DbWeightOf</a>::&lt;T&gt;::get().writes(<span class="number">1</span>).ref_time());
+                    <a href="#130">GasAllowanceOf</a>::&lt;T&gt;::decrease(<a href="#115">DbWeightOf</a>::&lt;T&gt;::get().writes(<span class="number">1</span>).ref_time());
                 }
 
-                <a href="#123-124">FirstIncompleteTasksBlockOf</a>::&lt;T&gt;::put(<a href="#1039">stopped_at</a>);
+                <a href="#124-125">FirstIncompleteTasksBlockOf</a>::&lt;T&gt;::put(<a href="#1040">stopped_at</a>);
             }
         }
 
         <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>enable_lazy_pages() {
-            <span class="kw">let </span>prefix = <a href="#134">ProgramStorageOf</a>::&lt;T&gt;::pages_final_prefix();
+            <span class="kw">let </span>prefix = <a href="#135">ProgramStorageOf</a>::&lt;T&gt;::pages_final_prefix();
             <span class="kw">if </span>!LazyPagesRuntimeInterface::try_to_enable_lazy_pages(prefix) {
                 <span class="kw">let </span>err_msg =
                     <span class="string">"enable_lazy_pages: By some reasons we cannot run lazy-pages on this machine"</span>;
@@ -3138,23 +3140,23 @@
 
         <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_config() -&gt; BlockConfig {
             <span class="kw">let </span>block_info = BlockInfo {
-                height: <a href="#531-533"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
+                height: <a href="#532-534"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
                 timestamp: &lt;pallet_timestamp::Pallet&lt;T&gt;&gt;::get().unique_saturated_into(),
             };
 
             <span class="kw">let </span>schedule = T::Schedule::get();
 
             BlockConfig {
-                <a href="#1062">block_info</a>,
+                <a href="#1063">block_info</a>,
                 performance_multiplier: T::PerformanceMultiplier::get().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                 forbidden_funcs: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
-                reserve_for: <a href="#125">CostsPerBlockOf</a>::&lt;T&gt;::reserve_for().unique_saturated_into(),
+                reserve_for: <a href="#126">CostsPerBlockOf</a>::&lt;T&gt;::reserve_for().unique_saturated_into(),
                 gas_multiplier: &lt;T <span class="kw">as </span>pallet_gear_bank::Config&gt;::GasMultiplier::get().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
-                costs: <a href="#1067">schedule</a>.<a href="schedule.rs.html#1571-1588">process_costs</a>(),
-                existential_deposit: <a href="#111">CurrencyOf</a>::&lt;T&gt;::minimum_balance().unique_saturated_into(),
+                costs: <a href="#1068">schedule</a>.<a href="schedule.rs.html#1571-1588">process_costs</a>(),
+                existential_deposit: <a href="#112">CurrencyOf</a>::&lt;T&gt;::minimum_balance().unique_saturated_into(),
                 mailbox_threshold: T::MailboxThreshold::get(),
                 max_reservations: T::ReservationsLimit::get(),
-                max_pages: <a href="#1067">schedule</a>.limits.memory_pages.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
+                max_pages: <a href="#1068">schedule</a>.limits.memory_pages.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                 outgoing_limit: T::OutgoingLimit::get(),
                 outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
             }
@@ -3170,18 +3172,18 @@
         </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>set_code_with_metadata(
             code_and_id: CodeAndId,
             who: H256,
-        ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;CodeId, <a href="#414-462">Error</a>&lt;T&gt;&gt; {
-            <span class="kw">let </span>code_id = <a href="#1093">code_and_id</a>.code_id();
+        ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;CodeId, <a href="#415-463">Error</a>&lt;T&gt;&gt; {
+            <span class="kw">let </span>code_id = <a href="#1094">code_and_id</a>.code_id();
 
             <span class="kw">let </span>metadata = {
-                <span class="kw">let </span>block_number = <a href="#531-533"><span class="self">Self</span>::block_number</a>().unique_saturated_into();
-                CodeMetadata::new(<a href="#1094">who</a>, <a href="#1099">block_number</a>)
+                <span class="kw">let </span>block_number = <a href="#532-534"><span class="self">Self</span>::block_number</a>().unique_saturated_into();
+                CodeMetadata::new(<a href="#1095">who</a>, <a href="#1100">block_number</a>)
             };
 
-            T::CodeStorage::add_code(<a href="#1093">code_and_id</a>, <a href="#1098">metadata</a>)
+            T::CodeStorage::add_code(<a href="#1094">code_and_id</a>, <a href="#1099">metadata</a>)
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| Error::&lt;T&gt;::CodeAlreadyExists)<span class="question-mark">?</span>;
 
-            <span class="prelude-val">Ok</span>(<a href="#1096">code_id</a>)
+            <span class="prelude-val">Ok</span>(<a href="#1097">code_id</a>)
         }
 
         <span class="doccomment">/// Re - instruments the code under `code_id` with new gas costs for instructions
@@ -3201,7 +3203,7 @@
 
             <span class="comment">// By the invariant set in CodeStorage trait, original code can't exist in storage
             // without the instrumented code
-            </span><span class="kw">let </span>original_code = T::CodeStorage::get_original_code(<a href="#1119">code_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| {
+            </span><span class="kw">let </span>original_code = T::CodeStorage::get_original_code(<a href="#1120">code_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| {
                 <span class="kw">let </span>err_msg = <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
                     <span class="string">"reinstrument_code: failed to get original code, while instrumented exists. \
                     Code id - {code_id}"
@@ -3212,20 +3214,20 @@
             });
 
             <span class="kw">let </span>code = Code::try_new(
-                <a href="#1126">original_code</a>,
-                <a href="#1120">schedule</a>.instruction_weights.version,
-                |module| <a href="#1120">schedule</a>.<a href="schedule.rs.html#1556-1569">rules</a>(<a href="#1139">module</a>),
-                <a href="#1120">schedule</a>.limits.stack_height,
-                <a href="#1120">schedule</a>.limits.data_segments_amount.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
-                <a href="#1120">schedule</a>.limits.table_number.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
+                <a href="#1127">original_code</a>,
+                <a href="#1121">schedule</a>.instruction_weights.version,
+                |module| <a href="#1121">schedule</a>.<a href="schedule.rs.html#1556-1569">rules</a>(<a href="#1140">module</a>),
+                <a href="#1121">schedule</a>.limits.stack_height,
+                <a href="#1121">schedule</a>.limits.data_segments_amount.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
+                <a href="#1121">schedule</a>.limits.table_number.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
             )<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>code_and_id = CodeAndId::from_parts_unchecked(<a href="#1136">code</a>, <a href="#1119">code_id</a>);
-            <span class="kw">let </span>code_and_id = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">InstrumentedCodeAndId::from</a>(<a href="#1145">code_and_id</a>);
-            T::CodeStorage::update_code(<a href="#1146">code_and_id</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
-            <span class="kw">let </span>(code, <span class="kw">_</span>) = <a href="#1146">code_and_id</a>.into_parts();
+            <span class="kw">let </span>code_and_id = CodeAndId::from_parts_unchecked(<a href="#1137">code</a>, <a href="#1120">code_id</a>);
+            <span class="kw">let </span>code_and_id = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">InstrumentedCodeAndId::from</a>(<a href="#1146">code_and_id</a>);
+            T::CodeStorage::update_code(<a href="#1147">code_and_id</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
+            <span class="kw">let </span>(code, <span class="kw">_</span>) = <a href="#1147">code_and_id</a>.into_parts();
 
-            <span class="prelude-val">Ok</span>(<a href="#1148">code</a>)
+            <span class="prelude-val">Ok</span>(<a href="#1149">code</a>)
         }
 
         <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>try_new_code(code: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;CodeAndId, DispatchError&gt; {
@@ -3237,12 +3239,12 @@
             );
 
             <span class="kw">let </span>code = Code::try_new(
-                <a href="#1153">code</a>,
-                <a href="#1154">schedule</a>.instruction_weights.version,
-                |module| <a href="#1154">schedule</a>.<a href="schedule.rs.html#1556-1569">rules</a>(<a href="#1164">module</a>),
-                <a href="#1154">schedule</a>.limits.stack_height,
-                <a href="#1154">schedule</a>.limits.data_segments_amount.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
-                <a href="#1154">schedule</a>.limits.table_number.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
+                <a href="#1154">code</a>,
+                <a href="#1155">schedule</a>.instruction_weights.version,
+                |module| <a href="#1155">schedule</a>.<a href="schedule.rs.html#1556-1569">rules</a>(<a href="#1165">module</a>),
+                <a href="#1155">schedule</a>.limits.stack_height,
+                <a href="#1155">schedule</a>.limits.data_segments_amount.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
+                <a href="#1155">schedule</a>.limits.table_number.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
             )
             .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|e| {
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(<span class="string">"Code checking or instrumentation failed: {e}"</span>);
@@ -3254,7 +3256,7 @@
                 Error::&lt;T&gt;::CodeTooLarge
             );
 
-            <span class="prelude-val">Ok</span>(CodeAndId::new(<a href="#1161">code</a>))
+            <span class="prelude-val">Ok</span>(CodeAndId::new(<a href="#1162">code</a>))
         }
 
         <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_gas_limit(gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), DispatchError&gt; {
@@ -3273,21 +3275,21 @@
             salt: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
             init_payload: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
             gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-            value: <a href="#112">BalanceOf</a>&lt;T&gt;,
+            value: <a href="#113">BalanceOf</a>&lt;T&gt;,
             keep_alive: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
         ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;InitPacket, DispatchError&gt; {
             <span class="kw">let </span>packet = InitPacket::new_from_user(
-                <a href="#1194">code_id</a>,
-                <a href="#1195">salt</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
-                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|err: PayloadSizeError| DispatchError::Other(<a href="#1204">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))<span class="question-mark">?</span>,
-                <a href="#1196">init_payload</a>
+                <a href="#1195">code_id</a>,
+                <a href="#1196">salt</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
+                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|err: PayloadSizeError| DispatchError::Other(<a href="#1205">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))<span class="question-mark">?</span>,
+                <a href="#1197">init_payload</a>
                     .<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
-                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|err: PayloadSizeError| DispatchError::Other(<a href="#1207">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))<span class="question-mark">?</span>,
-                <a href="#1197">gas_limit</a>,
-                <a href="#1198">value</a>.unique_saturated_into(),
+                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|err: PayloadSizeError| DispatchError::Other(<a href="#1208">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))<span class="question-mark">?</span>,
+                <a href="#1198">gas_limit</a>,
+                <a href="#1199">value</a>.unique_saturated_into(),
             );
 
-            <span class="kw">let </span>program_id = <a href="#1201">packet</a>.destination();
+            <span class="kw">let </span>program_id = <a href="#1202">packet</a>.destination();
             <span class="kw">let </span>(builtins, <span class="kw">_</span>) = <a href="builtin.rs.html#65">T::BuiltinDispatcherFactory::create</a>();
             <span class="comment">// Make sure there is no program with such id in program storage
             </span><span class="macro">ensure!</span>(
@@ -3297,75 +3299,75 @@
 
             <span class="comment">// First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            </span><a href="#135">GearBank</a>::&lt;T&gt;::deposit_gas(<span class="kw-2">&amp;</span><a href="#1193">who</a>, <a href="#1197">gas_limit</a>, <a href="#1199">keep_alive</a>)<span class="question-mark">?</span>;
-            <a href="#135">GearBank</a>::&lt;T&gt;::deposit_value(<span class="kw-2">&amp;</span><a href="#1193">who</a>, <a href="#1198">value</a>, <a href="#1199">keep_alive</a>)<span class="question-mark">?</span>;
+            </span><a href="#136">GearBank</a>::&lt;T&gt;::deposit_gas(<span class="kw-2">&amp;</span><a href="#1194">who</a>, <a href="#1198">gas_limit</a>, <a href="#1200">keep_alive</a>)<span class="question-mark">?</span>;
+            <a href="#136">GearBank</a>::&lt;T&gt;::deposit_value(<span class="kw-2">&amp;</span><a href="#1194">who</a>, <a href="#1199">value</a>, <a href="#1200">keep_alive</a>)<span class="question-mark">?</span>;
 
-            <span class="prelude-val">Ok</span>(<a href="#1201">packet</a>)
+            <span class="prelude-val">Ok</span>(<a href="#1202">packet</a>)
         }
 
         <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>do_create_program(
             who: T::AccountId,
             packet: InitPacket,
-            code_info: <a href="manager/mod.rs.html#113-117">CodeInfo</a>,
+            code_info: <a href="manager/mod.rs.html#112-116">CodeInfo</a>,
         ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), DispatchError&gt; {
-            <span class="kw">let </span>origin = <a href="#1229">who</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>().into_origin();
+            <span class="kw">let </span>origin = <a href="#1230">who</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>().into_origin();
 
-            <span class="kw">let </span>message_id = <a href="#917-923"><span class="self">Self</span>::next_message_id</a>(<a href="#1233">origin</a>);
-            <span class="kw">let </span>block_number = <a href="#531-533"><span class="self">Self</span>::block_number</a>();
+            <span class="kw">let </span>message_id = <a href="#918-924"><span class="self">Self</span>::next_message_id</a>(<a href="#1234">origin</a>);
+            <span class="kw">let </span>block_number = <a href="#532-534"><span class="self">Self</span>::block_number</a>();
 
             <span class="kw">let </span>(builtins, <span class="kw">_</span>) = <a href="builtin.rs.html#65">T::BuiltinDispatcherFactory::create</a>();
-            <span class="kw">let </span>ext_manager = <a href="manager/mod.rs.html#138-151">ExtManager</a>::&lt;T&gt;::new(<a href="#1238">builtins</a>);
+            <span class="kw">let </span>ext_manager = <a href="manager/mod.rs.html#137-150">ExtManager</a>::&lt;T&gt;::new(<a href="#1239">builtins</a>);
 
-            <span class="kw">let </span>program_id = <a href="#1230">packet</a>.destination();
+            <span class="kw">let </span>program_id = <a href="#1231">packet</a>.destination();
 
             <span class="comment">// Before storing the program to `ProgramStorage` we need to make sure that an account
             // can be created for the program.
             // Note: making a transfer outside of the `Ext::set_program()` because here a transfer
             // is allowed to fail (as opposed to creating a program by a program).
-            </span><span class="kw">let </span>program_account = <a href="#1241">program_id</a>.cast();
-            <span class="kw">let </span>ed = <a href="#111">CurrencyOf</a>::&lt;T&gt;::minimum_balance();
-            <a href="#111">CurrencyOf</a>::&lt;T&gt;::transfer(
-                <span class="kw-2">&amp;</span><a href="#1229">who</a>,
-                <span class="kw-2">&amp;</span><a href="#1247">program_account</a>,
-                <a href="#1248">ed</a>,
+            </span><span class="kw">let </span>program_account = <a href="#1242">program_id</a>.cast();
+            <span class="kw">let </span>ed = <a href="#112">CurrencyOf</a>::&lt;T&gt;::minimum_balance();
+            <a href="#112">CurrencyOf</a>::&lt;T&gt;::transfer(
+                <span class="kw-2">&amp;</span><a href="#1230">who</a>,
+                <span class="kw-2">&amp;</span><a href="#1248">program_account</a>,
+                <a href="#1249">ed</a>,
                 ExistenceRequirement::AllowDeath,
             )<span class="question-mark">?</span>;
 
             <span class="comment">// Set lock to avoid accidental account removal by the runtime.
-            </span><a href="#111">CurrencyOf</a>::&lt;T&gt;::set_lock(
-                <a href="#139">EXISTENTIAL_DEPOSIT_LOCK_ID</a>,
-                <span class="kw-2">&amp;</span><a href="#1247">program_account</a>,
-                <a href="#1248">ed</a>,
+            </span><a href="#112">CurrencyOf</a>::&lt;T&gt;::set_lock(
+                <a href="#140">EXISTENTIAL_DEPOSIT_LOCK_ID</a>,
+                <span class="kw-2">&amp;</span><a href="#1248">program_account</a>,
+                <a href="#1249">ed</a>,
                 WithdrawReasons::all(),
             );
 
-            <a href="#1239">ext_manager</a>.<a href="manager/mod.rs.html#212-242">set_program</a>(<a href="#1241">program_id</a>, <span class="kw-2">&amp;</span><a href="#1231">code_info</a>, <a href="#1235">message_id</a>, <a href="#1236">block_number</a>);
+            <a href="#1240">ext_manager</a>.<a href="manager/mod.rs.html#211-241">set_program</a>(<a href="#1242">program_id</a>, <span class="kw-2">&amp;</span><a href="#1232">code_info</a>, <a href="#1236">message_id</a>, <a href="#1237">block_number</a>);
 
-            <span class="kw">let </span>program_event = <a href="#399-406">Event::ProgramChanged</a> {
-                id: <a href="#1241">program_id</a>,
+            <span class="kw">let </span>program_event = <a href="#400-407">Event::ProgramChanged</a> {
+                id: <a href="#1242">program_id</a>,
                 change: ProgramChangeKind::ProgramSet {
                     expiration: BlockNumberFor::&lt;T&gt;::max_value(),
                 },
             };
 
             <a href="internal.rs.html#1365-1385"><span class="self">Self</span>::create</a>(
-                <a href="#1229">who</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
-                <a href="#1235">message_id</a>,
-                <a href="#1230">packet</a>.gas_limit().<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.expect">expect</a>(<span class="string">"Infallible"</span>),
+                <a href="#1230">who</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
+                <a href="#1236">message_id</a>,
+                <a href="#1231">packet</a>.gas_limit().<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.expect">expect</a>(<span class="string">"Infallible"</span>),
                 <span class="bool-val">false</span>,
             );
 
-            <span class="kw">let </span>message = InitMessage::from_packet(<a href="#1235">message_id</a>, <a href="#1230">packet</a>);
-            <span class="kw">let </span>dispatch = <a href="#1280">message</a>.into_dispatch(<a href="#1233">origin</a>.cast()).into_stored();
+            <span class="kw">let </span>message = InitMessage::from_packet(<a href="#1236">message_id</a>, <a href="#1231">packet</a>);
+            <span class="kw">let </span>dispatch = <a href="#1281">message</a>.into_dispatch(<a href="#1234">origin</a>.cast()).into_stored();
 
-            <span class="kw">let </span>event = <a href="#304-315">Event::MessageQueued</a> {
-                id: <a href="#1281">dispatch</a>.id(),
-                source: <a href="#1229">who</a>,
-                destination: <a href="#1281">dispatch</a>.destination(),
+            <span class="kw">let </span>event = <a href="#305-316">Event::MessageQueued</a> {
+                id: <a href="#1282">dispatch</a>.id(),
+                source: <a href="#1230">who</a>,
+                destination: <a href="#1282">dispatch</a>.destination(),
                 entry: MessageEntry::Init,
             };
 
-            <a href="#118">QueueOf</a>::&lt;T&gt;::queue(<a href="#1281">dispatch</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
+            <a href="#119">QueueOf</a>::&lt;T&gt;::queue(<a href="#1282">dispatch</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
                 <span class="kw">let </span>err_msg =
                     <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"do_create_program: failed queuing message. Got error - {e:?}"</span>);
 
@@ -3373,19 +3375,19 @@
                 <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"{err_msg}"</span>);
             });
 
-            <a href="#300"><span class="self">Self</span>::deposit_event</a>(<a href="#1266">program_event</a>);
-            <a href="#300"><span class="self">Self</span>::deposit_event</a>(<a href="#1283">event</a>);
+            <a href="#301"><span class="self">Self</span>::deposit_event</a>(<a href="#1267">program_event</a>);
+            <a href="#301"><span class="self">Self</span>::deposit_event</a>(<a href="#1284">event</a>);
 
             <span class="prelude-val">Ok</span>(())
         }
 
-        <span class="kw">pub fn </span>run_call(max_gas: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#133">GasBalanceOf</a>&lt;T&gt;&gt;) -&gt; <a href="#1309">Call</a>&lt;T&gt; {
-            <a href="#1309-1615">Call::run</a> { <a href="#1304">max_gas</a> }
+        <span class="kw">pub fn </span>run_call(max_gas: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#134">GasBalanceOf</a>&lt;T&gt;&gt;) -&gt; <a href="#1310">Call</a>&lt;T&gt; {
+            <a href="#1310-1616">Call::run</a> { <a href="#1305">max_gas</a> }
         }
     }
 
     <span class="attr">#[pallet::call]
-    </span><span class="kw">impl</span>&lt;T: <a href="#164-292">Config</a>&gt; <a href="#297">Pallet</a>&lt;T&gt;
+    </span><span class="kw">impl</span>&lt;T: <a href="#165-293">Config</a>&gt; <a href="#298">Pallet</a>&lt;T&gt;
     <span class="kw">where
         </span>T::AccountId: Origin,
     {
@@ -3406,8 +3408,8 @@
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
         </span><span class="attr">#[pallet::call_index(<span class="number">0</span>)]
-        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::upload_code((<a href="#159">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) / <span class="number">1024</span>))]
-        </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.upload_code.html">upload_code</a>(origin: OriginFor&lt;T&gt;, <a href="#1332">code</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;) -&gt; DispatchResultWithPostInfo {
+        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::upload_code((<a href="#160">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) / <span class="number">1024</span>))]
+        </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.upload_code.html">upload_code</a>(origin: OriginFor&lt;T&gt;, <a href="#1333">code</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;) -&gt; DispatchResultWithPostInfo {
             <span class="kw">let </span>who = ensure_signed(origin)<span class="question-mark">?</span>;
 
             <span class="self">Self</span>::upload_code_impl(who, code)
@@ -3462,16 +3464,16 @@
         /// has been removed.
         </span><span class="attr">#[pallet::call_index(<span class="number">1</span>)]
         #[pallet::weight(
-            &lt;T <span class="kw">as </span>Config&gt;::WeightInfo::upload_program((<a href="#159">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) / <span class="number">1024</span>, <a href="#159">salt</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>)
+            &lt;T <span class="kw">as </span>Config&gt;::WeightInfo::upload_program((<a href="#160">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) / <span class="number">1024</span>, <a href="#160">salt</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>)
         )]
         </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.upload_program.html">upload_program</a>(
             origin: OriginFor&lt;T&gt;,
-            <a href="#1391">code</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
-            <a href="#1392">salt</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
-            <a href="#1393">init_payload</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
-            <a href="#1394">gas_limit</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-            <a href="#1395">value</a>: <a href="#112">BalanceOf</a>&lt;T&gt;,
-            <a href="#1396">keep_alive</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+            <a href="#1392">code</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
+            <a href="#1393">salt</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
+            <a href="#1394">init_payload</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
+            <a href="#1395">gas_limit</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+            <a href="#1396">value</a>: <a href="#113">BalanceOf</a>&lt;T&gt;,
+            <a href="#1397">keep_alive</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
         ) -&gt; DispatchResultWithPostInfo {
             <span class="kw">let </span>who = ensure_signed(origin)<span class="question-mark">?</span>;
 
@@ -3526,15 +3528,15 @@
         ///
         /// For the details of this extrinsic, see `upload_code`.
         </span><span class="attr">#[pallet::call_index(<span class="number">2</span>)]
-        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::create_program(<a href="#159">salt</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>))]
+        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::create_program(<a href="#160">salt</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>))]
         </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.create_program.html">create_program</a>(
             origin: OriginFor&lt;T&gt;,
-            <a href="#1454">code_id</a>: CodeId,
-            <a href="#1455">salt</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
-            <a href="#1456">init_payload</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
-            <a href="#1457">gas_limit</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-            <a href="#1458">value</a>: <a href="#112">BalanceOf</a>&lt;T&gt;,
-            <a href="#1459">keep_alive</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+            <a href="#1455">code_id</a>: CodeId,
+            <a href="#1456">salt</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
+            <a href="#1457">init_payload</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
+            <a href="#1458">gas_limit</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+            <a href="#1459">value</a>: <a href="#113">BalanceOf</a>&lt;T&gt;,
+            <a href="#1460">keep_alive</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
         ) -&gt; DispatchResultWithPostInfo {
             <span class="kw">let </span>who = ensure_signed(origin)<span class="question-mark">?</span>;
 
@@ -3577,14 +3579,14 @@
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         </span><span class="attr">#[pallet::call_index(<span class="number">3</span>)]
-        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::send_message(<a href="#159">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>))]
+        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::send_message(<a href="#160">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>))]
         </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.send_message.html">send_message</a>(
             origin: OriginFor&lt;T&gt;,
-            <a href="#1505">destination</a>: ProgramId,
-            <a href="#1506">payload</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
-            <a href="#1507">gas_limit</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-            <a href="#1508">value</a>: <a href="#112">BalanceOf</a>&lt;T&gt;,
-            <a href="#1509">keep_alive</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+            <a href="#1506">destination</a>: ProgramId,
+            <a href="#1507">payload</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
+            <a href="#1508">gas_limit</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+            <a href="#1509">value</a>: <a href="#113">BalanceOf</a>&lt;T&gt;,
+            <a href="#1510">keep_alive</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
         ) -&gt; DispatchResultWithPostInfo {
             <span class="comment">// Validating origin.
             </span><span class="kw">let </span>who = ensure_signed(origin)<span class="question-mark">?</span>;
@@ -3614,14 +3616,14 @@
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
         </span><span class="attr">#[pallet::call_index(<span class="number">4</span>)]
-        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::send_reply(<a href="#159">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>))]
+        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::send_reply(<a href="#160">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>))]
         </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.send_reply.html">send_reply</a>(
             origin: OriginFor&lt;T&gt;,
-            <a href="#1542">reply_to_id</a>: MessageId,
-            <a href="#1543">payload</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
-            <a href="#1544">gas_limit</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-            <a href="#1545">value</a>: <a href="#112">BalanceOf</a>&lt;T&gt;,
-            <a href="#1546">keep_alive</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+            <a href="#1543">reply_to_id</a>: MessageId,
+            <a href="#1544">payload</a>: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
+            <a href="#1545">gas_limit</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+            <a href="#1546">value</a>: <a href="#113">BalanceOf</a>&lt;T&gt;,
+            <a href="#1547">keep_alive</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
         ) -&gt; DispatchResultWithPostInfo {
             <span class="comment">// Validating origin.
             </span><span class="kw">let </span>who = ensure_signed(origin)<span class="question-mark">?</span>;
@@ -3649,7 +3651,7 @@
         #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::claim_value())]
         </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.claim_value.html">claim_value</a>(
             origin: OriginFor&lt;T&gt;,
-            <a href="#1574">message_id</a>: MessageId,
+            <a href="#1575">message_id</a>: MessageId,
         ) -&gt; DispatchResultWithPostInfo {
             <span class="comment">// Validating origin.
             </span><span class="kw">let </span>origin = ensure_signed(origin)<span class="question-mark">?</span>;
@@ -3692,7 +3694,7 @@
         ))]
         </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.run.html">run</a>(
             origin: OriginFor&lt;T&gt;,
-            <a href="#1617">max_gas</a>: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#133">GasBalanceOf</a>&lt;T&gt;&gt;,
+            <a href="#1618">max_gas</a>: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#134">GasBalanceOf</a>&lt;T&gt;&gt;,
         ) -&gt; DispatchResultWithPostInfo {
             ensure_none(origin)<span class="question-mark">?</span>;
 
@@ -3753,8 +3755,8 @@
         ///
         /// Requires root origin (eventually, will only be set via referendum)
         </span><span class="attr">#[pallet::call_index(<span class="number">7</span>)]
-        #[pallet::weight(<a href="#114">DbWeightOf</a>::&lt;T&gt;::get().writes(<span class="number">1</span>))]
-        </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.set_execute_inherent.html">set_execute_inherent</a>(origin: OriginFor&lt;T&gt;, <a href="#1679">value</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; DispatchResult {
+        #[pallet::weight(<a href="#115">DbWeightOf</a>::&lt;T&gt;::get().writes(<span class="number">1</span>))]
+        </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.set_execute_inherent.html">set_execute_inherent</a>(origin: OriginFor&lt;T&gt;, <a href="#1680">value</a>: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; DispatchResult {
             ensure_root(origin)<span class="question-mark">?</span>;
 
             <span class="macro">log::debug!</span>(target: <span class="string">"gear::runtime"</span>, <span class="string">"⚙️  Set ExecuteInherent flag to {}"</span>, value);
@@ -3783,11 +3785,11 @@
         /// The balances should've been transferred to user (final inheritor) according to the chain.
         /// But protocol doesn't traverse the chain automatically, so user have to call this extrinsic.
         </span><span class="attr">#[pallet::call_index(<span class="number">8</span>)]
-        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::claim_value_to_inheritor(<a href="#159">depth</a>.<a href="https://doc.rust-lang.org/nightly/core/num/nonzero/struct.NonZero.html#method.get">get</a>()))]
+        #[pallet::weight(&lt;T <span class="kw">as </span>Config&gt;::WeightInfo::claim_value_to_inheritor(<a href="#160">depth</a>.<a href="https://doc.rust-lang.org/nightly/core/num/nonzero/struct.NonZero.html#method.get">get</a>()))]
         </span><span class="kw">pub fn </span><a href="../../pallet_gear/pallet/dispatchables/fn.claim_value_to_inheritor.html">claim_value_to_inheritor</a>(
             origin: OriginFor&lt;T&gt;,
-            <a href="#1711">program_id</a>: ProgramId,
-            <a href="#1712">depth</a>: <a href="https://doc.rust-lang.org/nightly/core/num/nonzero/struct.NonZero.html">NonZero</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;,
+            <a href="#1712">program_id</a>: ProgramId,
+            <a href="#1713">depth</a>: <a href="https://doc.rust-lang.org/nightly/core/num/nonzero/struct.NonZero.html">NonZero</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;,
         ) -&gt; DispatchResultWithPostInfo {
             ensure_signed(origin)<span class="question-mark">?</span>;
 
@@ -3839,34 +3841,34 @@
         }
     }
 
-    <span class="kw">impl</span>&lt;T: <a href="#164-292">Config</a>&gt; <a href="#297">Pallet</a>&lt;T&gt;
+    <span class="kw">impl</span>&lt;T: <a href="#165-293">Config</a>&gt; <a href="#298">Pallet</a>&lt;T&gt;
     <span class="kw">where
         </span>T::AccountId: Origin,
     {
         <span class="doccomment">/// Underlying implementation of `GearPallet::send_message`.
         </span><span class="kw">pub fn </span>send_message_impl(
-            origin: <a href="#110">AccountIdOf</a>&lt;T&gt;,
+            origin: <a href="#111">AccountIdOf</a>&lt;T&gt;,
             destination: ProgramId,
             payload: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
             gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-            value: <a href="#112">BalanceOf</a>&lt;T&gt;,
+            value: <a href="#113">BalanceOf</a>&lt;T&gt;,
             keep_alive: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
-            gas_sponsor: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#110">AccountIdOf</a>&lt;T&gt;&gt;,
+            gas_sponsor: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#111">AccountIdOf</a>&lt;T&gt;&gt;,
         ) -&gt; DispatchResultWithPostInfo {
-            <span class="kw">let </span>payload = <a href="#1772">payload</a>
+            <span class="kw">let </span>payload = <a href="#1773">payload</a>
                 .<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
-                .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|err: PayloadSizeError| DispatchError::Other(<a href="#1780">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))<span class="question-mark">?</span>;
+                .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|err: PayloadSizeError| DispatchError::Other(<a href="#1781">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>who = <a href="#1770">origin</a>;
-            <span class="kw">let </span>origin = <a href="#1782">who</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>().into_origin();
+            <span class="kw">let </span>who = <a href="#1771">origin</a>;
+            <span class="kw">let </span>origin = <a href="#1783">who</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>().into_origin();
 
             <span class="kw">let </span>message = HandleMessage::from_packet(
-                <a href="#917-923"><span class="self">Self</span>::next_message_id</a>(<a href="#1783">origin</a>),
+                <a href="#918-924"><span class="self">Self</span>::next_message_id</a>(<a href="#1784">origin</a>),
                 HandlePacket::new_with_gas(
-                    <a href="#1771">destination</a>,
-                    <a href="#1778">payload</a>,
-                    <a href="#1773">gas_limit</a>,
-                    <a href="#1774">value</a>.unique_saturated_into(),
+                    <a href="#1772">destination</a>,
+                    <a href="#1779">payload</a>,
+                    <a href="#1774">gas_limit</a>,
+                    <a href="#1775">value</a>.unique_saturated_into(),
                 ),
             );
 
@@ -3877,31 +3879,31 @@
                     Error::&lt;T&gt;::InactiveProgram
                 );
 
-                <a href="#1182-1190"><span class="self">Self</span>::check_gas_limit</a>(<a href="#1773">gas_limit</a>)<span class="question-mark">?</span>;
+                <a href="#1183-1191"><span class="self">Self</span>::check_gas_limit</a>(<a href="#1774">gas_limit</a>)<span class="question-mark">?</span>;
 
                 <span class="comment">// Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
                 // in the queue.
                 // Note: reservation is always made against the user's account regardless whether
                 // a voucher exists. The latter can only be used to pay for gas or transaction fee.
-                </span><a href="#135">GearBank</a>::&lt;T&gt;::deposit_value(<span class="kw-2">&amp;</span><a href="#1782">who</a>, <a href="#1774">value</a>, <a href="#1775">keep_alive</a>)<span class="question-mark">?</span>;
+                </span><a href="#136">GearBank</a>::&lt;T&gt;::deposit_value(<span class="kw-2">&amp;</span><a href="#1783">who</a>, <a href="#1775">value</a>, <a href="#1776">keep_alive</a>)<span class="question-mark">?</span>;
 
                 <span class="comment">// If voucher or any other prepaid mechanism is not used,
                 // gas limit is taken from user's account.
-                </span><span class="kw">let </span>gas_sponsor = <a href="#1776">gas_sponsor</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a href="#1782">who</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
-                <a href="#135">GearBank</a>::&lt;T&gt;::deposit_gas(<span class="kw-2">&amp;</span><a href="#1813">gas_sponsor</a>, <a href="#1773">gas_limit</a>, <a href="#1775">keep_alive</a>)<span class="question-mark">?</span>;
-                <a href="internal.rs.html#1365-1385"><span class="self">Self</span>::create</a>(<a href="#1813">gas_sponsor</a>, <a href="#1785">message</a>.id(), <a href="#1773">gas_limit</a>, <span class="bool-val">false</span>);
+                </span><span class="kw">let </span>gas_sponsor = <a href="#1777">gas_sponsor</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a href="#1783">who</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
+                <a href="#136">GearBank</a>::&lt;T&gt;::deposit_gas(<span class="kw-2">&amp;</span><a href="#1814">gas_sponsor</a>, <a href="#1774">gas_limit</a>, <a href="#1776">keep_alive</a>)<span class="question-mark">?</span>;
+                <a href="internal.rs.html#1365-1385"><span class="self">Self</span>::create</a>(<a href="#1814">gas_sponsor</a>, <a href="#1786">message</a>.id(), <a href="#1774">gas_limit</a>, <span class="bool-val">false</span>);
 
-                <span class="kw">let </span>message = <a href="#1785">message</a>.into_stored_dispatch(<a href="#1783">origin</a>.cast());
+                <span class="kw">let </span>message = <a href="#1786">message</a>.into_stored_dispatch(<a href="#1784">origin</a>.cast());
 
-                <a href="#300"><span class="self">Self</span>::deposit_event</a>(<a href="#304-315">Event::MessageQueued</a> {
-                    id: <a href="#1817">message</a>.id(),
-                    source: <a href="#1782">who</a>,
-                    destination: <a href="#1817">message</a>.destination(),
+                <a href="#301"><span class="self">Self</span>::deposit_event</a>(<a href="#305-316">Event::MessageQueued</a> {
+                    id: <a href="#1818">message</a>.id(),
+                    source: <a href="#1783">who</a>,
+                    destination: <a href="#1818">message</a>.destination(),
                     entry: MessageEntry::Handle,
                 });
 
-                <a href="#118">QueueOf</a>::&lt;T&gt;::queue(<a href="#1817">message</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
+                <a href="#119">QueueOf</a>::&lt;T&gt;::queue(<a href="#1818">message</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
                     <span class="kw">let </span>err_msg =
                         <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"send_message_impl: failed queuing message. Got error - {e:?}"</span>);
 
@@ -3910,12 +3912,12 @@
                 });
             } <span class="kw">else </span>{
                 <span class="comment">// Take data for the error log
-                </span><span class="kw">let </span>message_id = <a href="#1785">message</a>.id();
-                <span class="kw">let </span>source = <a href="#1783">origin</a>.cast::&lt;ProgramId&gt;();
-                <span class="kw">let </span>destination = <a href="#1785">message</a>.destination();
+                </span><span class="kw">let </span>message_id = <a href="#1786">message</a>.id();
+                <span class="kw">let </span>source = <a href="#1784">origin</a>.cast::&lt;ProgramId&gt;();
+                <span class="kw">let </span>destination = <a href="#1786">message</a>.destination();
 
-                <span class="kw">let </span>message = <a href="#1785">message</a>.into_stored(<a href="#1836">source</a>);
-                <span class="kw">let </span>message: UserMessage = <a href="#1839">message</a>
+                <span class="kw">let </span>message = <a href="#1786">message</a>.into_stored(<a href="#1837">source</a>);
+                <span class="kw">let </span>message: UserMessage = <a href="#1840">message</a>
                     .<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|<span class="kw">_</span>| {
                         <span class="comment">// Signal message sent to user
@@ -3934,15 +3936,15 @@
                     ExistenceRequirement::AllowDeath
                 };
 
-                <a href="#111">CurrencyOf</a>::&lt;T&gt;::transfer(
-                    <span class="kw-2">&amp;</span><a href="#1782">who</a>,
-                    <span class="kw-2">&amp;</span><a href="#1840">message</a>.destination().cast(),
-                    <a href="#1774">value</a>.unique_saturated_into(),
-                    <a href="#1853">existence_requirement</a>,
+                <a href="#112">CurrencyOf</a>::&lt;T&gt;::transfer(
+                    <span class="kw-2">&amp;</span><a href="#1783">who</a>,
+                    <span class="kw-2">&amp;</span><a href="#1841">message</a>.destination().cast(),
+                    <a href="#1775">value</a>.unique_saturated_into(),
+                    <a href="#1854">existence_requirement</a>,
                 )<span class="question-mark">?</span>;
 
-                <a href="#297">Pallet</a>::&lt;T&gt;::deposit_event(<a href="#318-330">Event::UserMessageSent</a> {
-                    <a href="#1840">message</a>,
+                <a href="#298">Pallet</a>::&lt;T&gt;::deposit_event(<a href="#319-331">Event::UserMessageSent</a> {
+                    <a href="#1841">message</a>,
                     expiration: <span class="prelude-val">None</span>,
                 });
             }
@@ -3952,28 +3954,28 @@
 
         <span class="doccomment">/// Underlying implementation of `GearPallet::send_reply`.
         </span><span class="kw">pub fn </span>send_reply_impl(
-            origin: <a href="#110">AccountIdOf</a>&lt;T&gt;,
+            origin: <a href="#111">AccountIdOf</a>&lt;T&gt;,
             reply_to_id: MessageId,
             payload: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
             gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-            value: <a href="#112">BalanceOf</a>&lt;T&gt;,
+            value: <a href="#113">BalanceOf</a>&lt;T&gt;,
             keep_alive: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
-            gas_sponsor: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#110">AccountIdOf</a>&lt;T&gt;&gt;,
+            gas_sponsor: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#111">AccountIdOf</a>&lt;T&gt;&gt;,
         ) -&gt; DispatchResultWithPostInfo {
-            <span class="kw">let </span>payload = <a href="#1879">payload</a>
+            <span class="kw">let </span>payload = <a href="#1880">payload</a>
                 .<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
-                .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|err: PayloadSizeError| DispatchError::Other(<a href="#1887">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))<span class="question-mark">?</span>;
+                .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|err: PayloadSizeError| DispatchError::Other(<a href="#1888">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))<span class="question-mark">?</span>;
 
             <span class="comment">// Reason for reading from mailbox.
             </span><span class="kw">let </span>reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
 
             <span class="comment">// Reading message, if found, or failing extrinsic.
-            </span><span class="kw">let </span>mailboxed = <a href="internal.rs.html#573-581"><span class="self">Self</span>::read_message</a>(<a href="#1877">origin</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(), <a href="#1878">reply_to_id</a>, <a href="#1890">reason</a>)
+            </span><span class="kw">let </span>mailboxed = <a href="internal.rs.html#573-581"><span class="self">Self</span>::read_message</a>(<a href="#1878">origin</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(), <a href="#1879">reply_to_id</a>, <a href="#1891">reason</a>)
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| Error::&lt;T&gt;::MessageNotFound)<span class="question-mark">?</span>;
 
-            <a href="#1182-1190"><span class="self">Self</span>::check_gas_limit</a>(<a href="#1880">gas_limit</a>)<span class="question-mark">?</span>;
+            <a href="#1183-1191"><span class="self">Self</span>::check_gas_limit</a>(<a href="#1881">gas_limit</a>)<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>destination = <a href="#1893">mailboxed</a>.source();
+            <span class="kw">let </span>destination = <a href="#1894">mailboxed</a>.source();
 
             <span class="comment">// Checking that program, origin replies to, is not terminated.
             </span><span class="kw">let </span>(builtins, <span class="kw">_</span>) = <a href="builtin.rs.html#65">T::BuiltinDispatcherFactory::create</a>();
@@ -3982,43 +3984,43 @@
                 Error::&lt;T&gt;::InactiveProgram
             );
 
-            <span class="kw">let </span>reply_id = MessageId::generate_reply(<a href="#1893">mailboxed</a>.id());
+            <span class="kw">let </span>reply_id = MessageId::generate_reply(<a href="#1894">mailboxed</a>.id());
 
             <span class="comment">// Set zero gas limit if reply deposit exists.
             </span><span class="kw">let </span>gas_limit = <span class="kw">if </span>GasHandlerOf::&lt;T&gt;::exists_and_deposit(reply_id) {
                 <span class="number">0
             </span>} <span class="kw">else </span>{
-                <a href="#1880">gas_limit</a>
+                <a href="#1881">gas_limit</a>
             };
 
-            <a href="#135">GearBank</a>::&lt;T&gt;::deposit_value(<span class="kw-2">&amp;</span><a href="#1877">origin</a>, <a href="#1881">value</a>, <a href="#1882">keep_alive</a>)<span class="question-mark">?</span>;
+            <a href="#136">GearBank</a>::&lt;T&gt;::deposit_value(<span class="kw-2">&amp;</span><a href="#1878">origin</a>, <a href="#1882">value</a>, <a href="#1883">keep_alive</a>)<span class="question-mark">?</span>;
 
             <span class="comment">// If voucher or any other prepaid mechanism is not used,
             // gas limit is taken from user's account.
-            </span><span class="kw">let </span>gas_sponsor = <a href="#1883">gas_sponsor</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a href="#1877">origin</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
-            <a href="#135">GearBank</a>::&lt;T&gt;::deposit_gas(<span class="kw-2">&amp;</span><a href="#1920">gas_sponsor</a>, <a href="#1910">gas_limit</a>, <a href="#1882">keep_alive</a>)<span class="question-mark">?</span>;
-            <a href="internal.rs.html#1365-1385"><span class="self">Self</span>::create</a>(<a href="#1920">gas_sponsor</a>, <a href="#1907">reply_id</a>, <a href="#1910">gas_limit</a>, <span class="bool-val">true</span>);
+            </span><span class="kw">let </span>gas_sponsor = <a href="#1884">gas_sponsor</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a href="#1878">origin</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
+            <a href="#136">GearBank</a>::&lt;T&gt;::deposit_gas(<span class="kw-2">&amp;</span><a href="#1921">gas_sponsor</a>, <a href="#1911">gas_limit</a>, <a href="#1883">keep_alive</a>)<span class="question-mark">?</span>;
+            <a href="internal.rs.html#1365-1385"><span class="self">Self</span>::create</a>(<a href="#1921">gas_sponsor</a>, <a href="#1908">reply_id</a>, <a href="#1911">gas_limit</a>, <span class="bool-val">true</span>);
 
             <span class="comment">// Creating reply message.
             </span><span class="kw">let </span>message = ReplyMessage::from_packet(
-                <a href="#1907">reply_id</a>,
-                ReplyPacket::new_with_gas(<a href="#1885">payload</a>, <a href="#1910">gas_limit</a>, <a href="#1881">value</a>.unique_saturated_into()),
+                <a href="#1908">reply_id</a>,
+                ReplyPacket::new_with_gas(<a href="#1886">payload</a>, <a href="#1911">gas_limit</a>, <a href="#1882">value</a>.unique_saturated_into()),
             );
 
             <span class="comment">// Converting reply message into appropriate type for queueing.
             </span><span class="kw">let </span>dispatch =
-                <a href="#1925">message</a>.into_stored_dispatch(<a href="#1877">origin</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>().cast(), <a href="#1898">destination</a>, <a href="#1893">mailboxed</a>.id());
+                <a href="#1926">message</a>.into_stored_dispatch(<a href="#1878">origin</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>().cast(), <a href="#1899">destination</a>, <a href="#1894">mailboxed</a>.id());
 
             <span class="comment">// Pre-generating appropriate event to avoid dispatch cloning.
-            </span><span class="kw">let </span>event = <a href="#304-315">Event::MessageQueued</a> {
-                id: <a href="#1931">dispatch</a>.id(),
-                source: <a href="#1877">origin</a>,
-                destination: <a href="#1931">dispatch</a>.destination(),
-                entry: MessageEntry::Reply(<a href="#1893">mailboxed</a>.id()),
+            </span><span class="kw">let </span>event = <a href="#305-316">Event::MessageQueued</a> {
+                id: <a href="#1932">dispatch</a>.id(),
+                source: <a href="#1878">origin</a>,
+                destination: <a href="#1932">dispatch</a>.destination(),
+                entry: MessageEntry::Reply(<a href="#1894">mailboxed</a>.id()),
             };
 
             <span class="comment">// Queueing dispatch.
-            </span><a href="#118">QueueOf</a>::&lt;T&gt;::queue(<a href="#1931">dispatch</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
+            </span><a href="#119">QueueOf</a>::&lt;T&gt;::queue(<a href="#1932">dispatch</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
                 <span class="kw">let </span>err_msg = <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"send_reply_impl: failed queuing message. Got error - {e:?}"</span>);
 
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.error.html">log::error!</a>(<span class="string">"{err_msg}"</span>);
@@ -4026,24 +4028,24 @@
             });
 
             <span class="comment">// Depositing pre-generated event.
-            </span><a href="#300"><span class="self">Self</span>::deposit_event</a>(<a href="#1935">event</a>);
+            </span><a href="#301"><span class="self">Self</span>::deposit_event</a>(<a href="#1936">event</a>);
 
             <span class="prelude-val">Ok</span>(().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
         }
 
         <span class="doccomment">/// Underlying implementation of `GearPallet::upload_code`.
         </span><span class="kw">pub fn </span>upload_code_impl(
-            origin: <a href="#110">AccountIdOf</a>&lt;T&gt;,
+            origin: <a href="#111">AccountIdOf</a>&lt;T&gt;,
             code: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
         ) -&gt; DispatchResultWithPostInfo {
             <span class="kw">let </span>code_id =
-                <a href="#1092-1107"><span class="self">Self</span>::set_code_with_metadata</a>(<a href="#1153-1180"><span class="self">Self</span>::try_new_code</a>(<a href="#1959">code</a>)<span class="question-mark">?</span>, <a href="#1958">origin</a>.into_origin())<span class="question-mark">?</span>;
+                <a href="#1093-1108"><span class="self">Self</span>::set_code_with_metadata</a>(<a href="#1154-1181"><span class="self">Self</span>::try_new_code</a>(<a href="#1960">code</a>)<span class="question-mark">?</span>, <a href="#1959">origin</a>.into_origin())<span class="question-mark">?</span>;
 
             <span class="comment">// TODO: replace this temporary (`None`) value
             // for expiration block number with properly
             // calculated one (issues #646 and #969).
-            </span><a href="#300"><span class="self">Self</span>::deposit_event</a>(<a href="#389-396">Event::CodeChanged</a> {
-                id: <a href="#1961">code_id</a>,
+            </span><a href="#301"><span class="self">Self</span>::deposit_event</a>(<a href="#390-397">Event::CodeChanged</a> {
+                id: <a href="#1962">code_id</a>,
                 change: CodeChangeKind::Active { expiration: <span class="prelude-val">None </span>},
             });
 
@@ -4052,25 +4054,25 @@
     }
 
     <span class="doccomment">/// Dispatcher for all types of prepaid calls: gear or gear-voucher pallets.
-    </span><span class="kw">pub struct </span><a href="../../pallet_gear/pallet/struct.PrepaidCallDispatcher.html">PrepaidCallDispatcher</a>&lt;T: <a href="#164-292">Config</a> + pallet_gear_voucher::Config&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;);
+    </span><span class="kw">pub struct </span><a href="../../pallet_gear/pallet/struct.PrepaidCallDispatcher.html">PrepaidCallDispatcher</a>&lt;T: <a href="#165-293">Config</a> + pallet_gear_voucher::Config&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;);
 
-    <span class="kw">impl</span>&lt;T: <a href="#164-292">Config</a> + pallet_gear_voucher::Config&gt; PrepaidCallsDispatcher <span class="kw">for </span><a href="#1977">PrepaidCallDispatcher</a>&lt;T&gt;
+    <span class="kw">impl</span>&lt;T: <a href="#165-293">Config</a> + pallet_gear_voucher::Config&gt; PrepaidCallsDispatcher <span class="kw">for </span><a href="#1978">PrepaidCallDispatcher</a>&lt;T&gt;
     <span class="kw">where
         </span>T::AccountId: Origin,
     {
-        <span class="kw">type </span>AccountId = <a href="#110">AccountIdOf</a>&lt;T&gt;;
-        <span class="kw">type </span>Balance = <a href="#112">BalanceOf</a>&lt;T&gt;;
+        <span class="kw">type </span>AccountId = <a href="#111">AccountIdOf</a>&lt;T&gt;;
+        <span class="kw">type </span>Balance = <a href="#113">BalanceOf</a>&lt;T&gt;;
 
         <span class="kw">fn </span>weight(call: <span class="kw-2">&amp;</span>PrepaidCall&lt;<span class="self">Self</span>::Balance&gt;) -&gt; Weight {
-            <span class="kw">match </span><a href="#1986">call</a> {
+            <span class="kw">match </span><a href="#1987">call</a> {
                 PrepaidCall::SendMessage { payload, .. } =&gt; {
-                    &lt;T <span class="kw">as </span>Config&gt;::WeightInfo::send_message(<a href="#1988">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>)
+                    &lt;T <span class="kw">as </span>Config&gt;::WeightInfo::send_message(<a href="#1989">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>)
                 }
                 PrepaidCall::SendReply { payload, .. } =&gt; {
-                    &lt;T <span class="kw">as </span>Config&gt;::WeightInfo::send_reply(<a href="#1991">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>)
+                    &lt;T <span class="kw">as </span>Config&gt;::WeightInfo::send_reply(<a href="#1992">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>)
                 }
                 PrepaidCall::UploadCode { code } =&gt; {
-                    &lt;T <span class="kw">as </span>Config&gt;::WeightInfo::upload_code((<a href="#1994">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) / <span class="number">1024</span>)
+                    &lt;T <span class="kw">as </span>Config&gt;::WeightInfo::upload_code((<a href="#1995">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) / <span class="number">1024</span>)
                 }
                 PrepaidCall::DeclineVoucher =&gt; {
                     &lt;T <span class="kw">as </span>pallet_gear_voucher::Config&gt;::WeightInfo::decline()
@@ -4084,21 +4086,21 @@
             voucher_id: VoucherId,
             call: PrepaidCall&lt;<span class="self">Self</span>::Balance&gt;,
         ) -&gt; DispatchResultWithPostInfo {
-            <span class="kw">match </span><a href="#2007">call</a> {
+            <span class="kw">match </span><a href="#2008">call</a> {
                 PrepaidCall::SendMessage {
                     destination,
                     payload,
                     gas_limit,
                     value,
                     keep_alive,
-                } =&gt; <a href="#297">Pallet</a>::&lt;T&gt;::send_message_impl(
-                    <a href="#2004">account_id</a>,
-                    <a href="#2011">destination</a>,
-                    <a href="#2012">payload</a>,
-                    <a href="#2013">gas_limit</a>,
-                    <a href="#2014">value</a>,
-                    <a href="#2015">keep_alive</a>,
-                    <span class="prelude-val">Some</span>(<a href="#2005">sponsor_id</a>),
+                } =&gt; <a href="#298">Pallet</a>::&lt;T&gt;::send_message_impl(
+                    <a href="#2005">account_id</a>,
+                    <a href="#2012">destination</a>,
+                    <a href="#2013">payload</a>,
+                    <a href="#2014">gas_limit</a>,
+                    <a href="#2015">value</a>,
+                    <a href="#2016">keep_alive</a>,
+                    <span class="prelude-val">Some</span>(<a href="#2006">sponsor_id</a>),
                 ),
                 PrepaidCall::SendReply {
                     reply_to_id,
@@ -4106,51 +4108,51 @@
                     gas_limit,
                     value,
                     keep_alive,
-                } =&gt; <a href="#297">Pallet</a>::&lt;T&gt;::send_reply_impl(
-                    <a href="#2004">account_id</a>,
-                    <a href="#2026">reply_to_id</a>,
-                    <a href="#2027">payload</a>,
-                    <a href="#2028">gas_limit</a>,
-                    <a href="#2029">value</a>,
-                    <a href="#2030">keep_alive</a>,
-                    <span class="prelude-val">Some</span>(<a href="#2005">sponsor_id</a>),
+                } =&gt; <a href="#298">Pallet</a>::&lt;T&gt;::send_reply_impl(
+                    <a href="#2005">account_id</a>,
+                    <a href="#2027">reply_to_id</a>,
+                    <a href="#2028">payload</a>,
+                    <a href="#2029">gas_limit</a>,
+                    <a href="#2030">value</a>,
+                    <a href="#2031">keep_alive</a>,
+                    <span class="prelude-val">Some</span>(<a href="#2006">sponsor_id</a>),
                 ),
-                PrepaidCall::UploadCode { code } =&gt; <a href="#297">Pallet</a>::&lt;T&gt;::upload_code_impl(<a href="#2004">account_id</a>, <a href="#2040">code</a>),
+                PrepaidCall::UploadCode { code } =&gt; <a href="#298">Pallet</a>::&lt;T&gt;::upload_code_impl(<a href="#2005">account_id</a>, <a href="#2041">code</a>),
                 PrepaidCall::DeclineVoucher =&gt; pallet_gear_voucher::Pallet::&lt;T&gt;::decline(
-                    RawOrigin::Signed(<a href="#2004">account_id</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
-                    <a href="#2006">voucher_id</a>,
+                    RawOrigin::Signed(<a href="#2005">account_id</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
+                    <a href="#2007">voucher_id</a>,
                 ),
             }
         }
     }
 
-    <span class="kw">impl</span>&lt;T: <a href="#164-292">Config</a>&gt; QueueRunner <span class="kw">for </span><a href="#297">Pallet</a>&lt;T&gt;
+    <span class="kw">impl</span>&lt;T: <a href="#165-293">Config</a>&gt; QueueRunner <span class="kw">for </span><a href="#298">Pallet</a>&lt;T&gt;
     <span class="kw">where
         </span>T::AccountId: Origin,
     {
-        <span class="kw">type </span>Gas = <a href="#133">GasBalanceOf</a>&lt;T&gt;;
+        <span class="kw">type </span>Gas = <a href="#134">GasBalanceOf</a>&lt;T&gt;;
 
         <span class="kw">fn </span>run_queue(initial_gas: <span class="self">Self</span>::Gas) -&gt; <span class="self">Self</span>::Gas {
             <span class="comment">// Create an instance of a builtin dispatcher.
             </span><span class="kw">let </span>(builtin_dispatcher, gas_cost) = <a href="builtin.rs.html#65">T::BuiltinDispatcherFactory::create</a>();
 
             <span class="comment">// Setting initial gas allowance adjusted for builtin dispatcher creation cost.
-            </span><a href="#129">GasAllowanceOf</a>::&lt;T&gt;::put(<a href="#2055">initial_gas</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.saturating_sub">saturating_sub</a>(<a href="#2057">gas_cost</a>));
+            </span><a href="#130">GasAllowanceOf</a>::&lt;T&gt;::put(<a href="#2056">initial_gas</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.saturating_sub">saturating_sub</a>(<a href="#2058">gas_cost</a>));
 
             <span class="comment">// Ext manager creation.
             // It will be processing messages execution results following its `JournalHandler`
             // trait implementation.
             // It also will handle delayed tasks following `TasksHandler`.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>ext_manager = <a href="manager/mod.rs.html#138-151">ExtManager</a>::&lt;T&gt;::new(<a href="#2057">builtin_dispatcher</a>);
+            </span><span class="kw">let </span><span class="kw-2">mut </span>ext_manager = <a href="manager/mod.rs.html#137-150">ExtManager</a>::&lt;T&gt;::new(<a href="#2058">builtin_dispatcher</a>);
 
             <span class="comment">// Processing regular and delayed tasks.
-            </span><a href="#926-1048"><span class="self">Self</span>::process_tasks</a>(<span class="kw-2">&amp;mut </span><a href="#2066">ext_manager</a>);
+            </span><a href="#927-1049"><span class="self">Self</span>::process_tasks</a>(<span class="kw-2">&amp;mut </span><a href="#2067">ext_manager</a>);
 
             <span class="comment">// Processing message queue.
-            </span><a href="queue.rs.html#222-315"><span class="self">Self</span>::process_queue</a>(<a href="#2066">ext_manager</a>);
+            </span><a href="queue.rs.html#222-315"><span class="self">Self</span>::process_queue</a>(<a href="#2067">ext_manager</a>);
 
             <span class="comment">// Calculating weight burned within the block.
-            </span><a href="#2055">initial_gas</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.saturating_sub">saturating_sub</a>(<a href="#129">GasAllowanceOf</a>::&lt;T&gt;::get())
+            </span><a href="#2056">initial_gas</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.saturating_sub">saturating_sub</a>(<a href="#130">GasAllowanceOf</a>::&lt;T&gt;::get())
         }
     }
 }

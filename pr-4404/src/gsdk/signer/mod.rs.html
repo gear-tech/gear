@@ -197,25 +197,25 @@
 </span><span class="doccomment">//! Gear api with signer
 
 </span><span class="kw">use crate</span>::{
-    <a href="../api.rs.html#32-38">Api</a>,
     <a href="../backtrace.rs.html#85-87">backtrace::Backtrace</a>,
     <a href="../config.rs.html#36">config::GearConfig</a>,
     result::{<a href="../result.rs.html#52-103">Error</a>, <a class="prelude-ty" href="../result.rs.html#106">Result</a>},
+    <a href="../api.rs.html#32-38">Api</a>,
 };
 <span class="kw">use </span><a href="calls.rs.html#41">calls::SignerCalls</a>;
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html">core::ops::Deref</a>;
 <span class="kw">pub use </span><a href="pair_signer.rs.html#30-33">pair_signer::PairSigner</a>;
 <span class="kw">use </span><a href="rpc.rs.html#31">rpc::SignerRpc</a>;
-<span class="kw">use </span>sp_core::{Pair <span class="kw">as </span>PairT, crypto::Ss58Codec, sr25519::Pair};
+<span class="kw">use </span>sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair <span class="kw">as </span>PairT};
 <span class="kw">use </span>sp_runtime::AccountId32;
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/alloc/sync/struct.Arc.html">std::sync::Arc</a>;
 <span class="kw">use </span><a href="storage.rs.html#54">storage::SignerStorage</a>;
 
-<span class="kw">mod </span><a href="calls.rs.html#19-385">calls</a>;
+<span class="kw">mod </span><a href="calls.rs.html#19-417">calls</a>;
 <span class="kw">mod </span><a href="pair_signer.rs.html#19-88">pair_signer</a>;
 <span class="kw">mod </span><a href="rpc.rs.html#19-162">rpc</a>;
-<span class="kw">mod </span><a href="storage.rs.html#19-169">storage</a>;
-<span class="kw">mod </span><a href="utils.rs.html#19-245">utils</a>;
+<span class="kw">mod </span><a href="storage.rs.html#19-175">storage</a>;
+<span class="kw">mod </span><a href="utils.rs.html#19-247">utils</a>;
 
 <span class="doccomment">/// Signer representation that provides access to gear API.
 /// Implements low-level methods such as [`run_tx`](`Inner::run_tx`)

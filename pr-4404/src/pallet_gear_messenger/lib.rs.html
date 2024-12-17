@@ -836,7 +836,7 @@
 </span><span class="kw">pub mod </span><a href="../../pallet_gear_messenger/pallet/index.html">pallet</a> {
     <span class="kw">pub use </span><a href="../../pallet_gear_messenger/pallet/struct.Weight.html">frame_support::weights::Weight</a>;
 
-    <span class="kw">use </span>common::{BlockLimiter, Origin, storage::<span class="kw-2">*</span>};
+    <span class="kw">use </span>common::{storage::<span class="kw-2">*</span>, BlockLimiter, Origin};
     <span class="kw">use </span>frame_support::{pallet_prelude::<span class="kw-2">*</span>, storage::PrefixIterator, traits::StorageVersion};
     <span class="kw">use </span>frame_system::pallet_prelude::BlockNumberFor;
     <span class="kw">use </span>gear_core::{

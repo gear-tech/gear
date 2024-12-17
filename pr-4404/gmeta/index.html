@@ -105,7 +105,7 @@ using <code>build.rs</code>:</p>
 <span class="kw">use </span>std::fs;
 
 <span class="kw">let </span>metadata_hex = ProgramMetadata::repr().hex();
-<span class="macro">assert_eq!</span>(metadata_hex.len(), <span class="number">178</span>);
+<span class="macro">assert_eq!</span>(metadata_hex.len(), <span class="number">146</span>);
 fs::write(<span class="string">"ping.meta.txt"</span>, metadata_hex).expect(<span class="string">"Unable to write"</span>);</code></pre></div>
 <p>You can parse generated metadata file using <code>gear-js</code> API in JavaScript:</p>
 <div class="example-wrap"><pre class="language-javascript"><code>import { getProgramMetadata } from &#39;@gear-js/api&#39;;

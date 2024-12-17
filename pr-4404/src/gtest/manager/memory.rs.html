@@ -157,7 +157,7 @@
             <a href="#48">actor</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.expect">expect</a>(<span class="string">"Checked before"</span>).<a href="../state/actors.rs.html#182-188">take_mock</a>()
         }) {
             <a href="#48">program_mock</a>
-                .<a href="../program.rs.html#119">state</a>()
+                .<a href="../program.rs.html#120">state</a>()
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|err| <a href="../error.rs.html#84">TestError::ReadStateError</a>(<a href="#53">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()))
         } <span class="kw">else </span>{
             <span class="prelude-val">Err</span>(<a href="../error.rs.html#46">TestError::ActorIsNotExecutable</a>(<span class="kw-2">*</span><a href="#27">program_id</a>))

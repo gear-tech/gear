@@ -9,7 +9,7 @@ by calling the corresponding API. The second argument is the encodable
 payload. The last argument is the value to be transferred from the current
 program account to the reply message target account.</p>
 <h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{ReservationId, msg, prelude::<span class="kw-2">*</span>};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{msg, prelude::<span class="kw-2">*</span>, ReservationId};
 
 <span class="attr">#[derive(Encode)]
 #[codec(<span class="kw">crate </span>= gstd::codec)]

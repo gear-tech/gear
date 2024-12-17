@@ -392,7 +392,29 @@
 <a href="#391" id="391">391</a>
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 //
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -563,10 +585,10 @@
 <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#10292-10359">RuntimeCall</a>&gt; <span class="kw">for </span><a href="../../../gsdk/struct.Value.html">Value</a> {
     <span class="kw">fn </span>from(call: <a href="generated.rs.html#10292-10359">RuntimeCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
         <span class="kw">match </span><a href="#170">call</a> {
-            <a href="generated.rs.html#10350">RuntimeCall::Gear</a>(gear_call) =&gt; <a href="#181-252">gear_call_to_scale_value</a>(<a href="#172">gear_call</a>),
-            <a href="generated.rs.html#10348">RuntimeCall::Sudo</a>(sudo_call) =&gt; <a href="#254-272">sudo_call_to_scale_value</a>(<a href="#173">sudo_call</a>),
-            <a href="generated.rs.html#10302">RuntimeCall::Balances</a>(balances_call) =&gt; <a href="#274-290">balances_call_to_scale_value</a>(<a href="#174">balances_call</a>),
-            <a href="generated.rs.html#10294">RuntimeCall::System</a>(system_call) =&gt; <a href="#292-317">system_call_to_scale_value</a>(<a href="#175">system_call</a>),
+            <a href="generated.rs.html#10350">RuntimeCall::Gear</a>(gear_call) =&gt; <a href="#181-264">gear_call_to_scale_value</a>(<a href="#172">gear_call</a>),
+            <a href="generated.rs.html#10348">RuntimeCall::Sudo</a>(sudo_call) =&gt; <a href="#266-285">sudo_call_to_scale_value</a>(<a href="#173">sudo_call</a>),
+            <a href="generated.rs.html#10302">RuntimeCall::Balances</a>(balances_call) =&gt; <a href="#287-306">balances_call_to_scale_value</a>(<a href="#174">balances_call</a>),
+            <a href="generated.rs.html#10294">RuntimeCall::System</a>(system_call) =&gt; <a href="#308-333">system_call_to_scale_value</a>(<a href="#175">system_call</a>),
             <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unimplemented.html">unimplemented!</a>(<span class="string">"other calls aren't supported for now."</span>),
         }
     }
@@ -584,14 +606,17 @@
             gas_limit,
             value,
             keep_alive,
-        } =&gt; Value::named_variant(<span class="string">"upload_program"</span>, [
-            (<span class="string">"code"</span>, Value::from_bytes(<a href="#187">code</a>)),
-            (<span class="string">"salt"</span>, Value::from_bytes(<a href="#188">salt</a>)),
-            (<span class="string">"init_payload"</span>, Value::from_bytes(<a href="#189">init_payload</a>)),
-            (<span class="string">"gas_limit"</span>, Value::u128(<a href="#190">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"value"</span>, Value::u128(<a href="#191">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"keep_alive"</span>, Value::bool(<a href="#192">keep_alive</a>)),
-        ]),
+        } =&gt; Value::named_variant(
+            <span class="string">"upload_program"</span>,
+            [
+                (<span class="string">"code"</span>, Value::from_bytes(<a href="#187">code</a>)),
+                (<span class="string">"salt"</span>, Value::from_bytes(<a href="#188">salt</a>)),
+                (<span class="string">"init_payload"</span>, Value::from_bytes(<a href="#189">init_payload</a>)),
+                (<span class="string">"gas_limit"</span>, Value::u128(<a href="#190">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"value"</span>, Value::u128(<a href="#191">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"keep_alive"</span>, Value::bool(<a href="#192">keep_alive</a>)),
+            ],
+        ),
         <a href="generated.rs.html#2790-2798">GearCall::create_program</a> {
             code_id,
             salt,
@@ -599,44 +624,53 @@
             gas_limit,
             value,
             keep_alive,
-        } =&gt; Value::named_variant(<span class="string">"create_program"</span>, [
-            (<span class="string">"code_id"</span>, Value::from_bytes(<a href="#202">code_id</a>.<span class="number">0</span>)),
-            (<span class="string">"salt"</span>, Value::from_bytes(<a href="#203">salt</a>)),
-            (<span class="string">"init_payload"</span>, Value::from_bytes(<a href="#204">init_payload</a>)),
-            (<span class="string">"gas_limit"</span>, Value::u128(<a href="#205">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"value"</span>, Value::u128(<a href="#206">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"keep_alive"</span>, Value::bool(<a href="#207">keep_alive</a>)),
-        ]),
+        } =&gt; Value::named_variant(
+            <span class="string">"create_program"</span>,
+            [
+                (<span class="string">"code_id"</span>, Value::from_bytes(<a href="#205">code_id</a>.<span class="number">0</span>)),
+                (<span class="string">"salt"</span>, Value::from_bytes(<a href="#206">salt</a>)),
+                (<span class="string">"init_payload"</span>, Value::from_bytes(<a href="#207">init_payload</a>)),
+                (<span class="string">"gas_limit"</span>, Value::u128(<a href="#208">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"value"</span>, Value::u128(<a href="#209">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"keep_alive"</span>, Value::bool(<a href="#210">keep_alive</a>)),
+            ],
+        ),
         <a href="generated.rs.html#2817-2823">GearCall::send_message</a> {
             destination,
             payload,
             gas_limit,
             value,
             keep_alive,
-        } =&gt; Value::named_variant(<span class="string">"send_message"</span>, [
-            (<span class="string">"destination"</span>, Value::from_bytes(<a href="#217">destination</a>.<span class="number">0</span>)),
-            (<span class="string">"payload"</span>, Value::from_bytes(<a href="#218">payload</a>)),
-            (<span class="string">"gas_limit"</span>, Value::u128(<a href="#219">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"value"</span>, Value::u128(<a href="#220">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"keep_alive"</span>, Value::bool(<a href="#221">keep_alive</a>)),
-        ]),
+        } =&gt; Value::named_variant(
+            <span class="string">"send_message"</span>,
+            [
+                (<span class="string">"destination"</span>, Value::from_bytes(<a href="#223">destination</a>.<span class="number">0</span>)),
+                (<span class="string">"payload"</span>, Value::from_bytes(<a href="#224">payload</a>)),
+                (<span class="string">"gas_limit"</span>, Value::u128(<a href="#225">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"value"</span>, Value::u128(<a href="#226">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"keep_alive"</span>, Value::bool(<a href="#227">keep_alive</a>)),
+            ],
+        ),
         <a href="generated.rs.html#2838-2844">GearCall::send_reply</a> {
             reply_to_id,
             payload,
             gas_limit,
             value,
             keep_alive,
-        } =&gt; Value::named_variant(<span class="string">"send_reply"</span>, [
-            (<span class="string">"reply_to_id"</span>, Value::from_bytes(<a href="#230">reply_to_id</a>.<span class="number">0</span>)),
-            (<span class="string">"payload"</span>, Value::from_bytes(<a href="#231">payload</a>)),
-            (<span class="string">"gas_limit"</span>, Value::u128(<a href="#232">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"value"</span>, Value::u128(<a href="#233">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"keep_alive"</span>, Value::bool(<a href="#234">keep_alive</a>)),
-        ]),
-        <a href="generated.rs.html#2854-2856">GearCall::claim_value</a> { message_id } =&gt; Value::named_variant(<span class="string">"claim_value"</span>, [(
-            <span class="string">"message_id"</span>,
-            Value::from_bytes(<a href="#242">message_id</a>.<span class="number">0</span>),
-        )]),
+        } =&gt; Value::named_variant(
+            <span class="string">"send_reply"</span>,
+            [
+                (<span class="string">"reply_to_id"</span>, Value::from_bytes(<a href="#239">reply_to_id</a>.<span class="number">0</span>)),
+                (<span class="string">"payload"</span>, Value::from_bytes(<a href="#240">payload</a>)),
+                (<span class="string">"gas_limit"</span>, Value::u128(<a href="#241">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"value"</span>, Value::u128(<a href="#242">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"keep_alive"</span>, Value::bool(<a href="#243">keep_alive</a>)),
+            ],
+        ),
+        <a href="generated.rs.html#2854-2856">GearCall::claim_value</a> { message_id } =&gt; Value::named_variant(
+            <span class="string">"claim_value"</span>,
+            [(<span class="string">"message_id"</span>, Value::from_bytes(<a href="#254">message_id</a>.<span class="number">0</span>))],
+        ),
         <span class="kw">_ </span>=&gt; {
             <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unimplemented.html">unimplemented!</a>(<span class="string">"calls that won't be used in batch call"</span>);
         }
@@ -646,68 +680,72 @@
 }
 
 <span class="kw">fn </span>sudo_call_to_scale_value(call: <a href="generated.rs.html#8201-8249">SudoCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
-    <span class="kw">let </span>variant = <span class="kw">match </span><a href="#254">call</a> {
-        <a href="generated.rs.html#8215-8220">SudoCall::sudo_unchecked_weight</a> { call, weight } =&gt; {
-            Value::named_variant(<span class="string">"sudo_unchecked_weight"</span>, [
-                (<span class="string">"call"</span>, (<span class="kw-2">*</span><a href="#256">call</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+    <span class="kw">let </span>variant = <span class="kw">match </span><a href="#266">call</a> {
+        <a href="generated.rs.html#8215-8220">SudoCall::sudo_unchecked_weight</a> { call, weight } =&gt; Value::named_variant(
+            <span class="string">"sudo_unchecked_weight"</span>,
+            [
+                (<span class="string">"call"</span>, (<span class="kw-2">*</span><a href="#268">call</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
                 (
                     <span class="string">"weight"</span>,
                     Value::named_composite([
-                        (<span class="string">"ref_time"</span>, Value::u128(<a href="#256">weight</a>.ref_time <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-                        (<span class="string">"proof_size"</span>, Value::u128(<a href="#256">weight</a>.proof_size <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                        (<span class="string">"ref_time"</span>, Value::u128(<a href="#268">weight</a>.ref_time <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                        (<span class="string">"proof_size"</span>, Value::u128(<a href="#268">weight</a>.proof_size <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
                     ]),
                 ),
-            ])
-        }
+            ],
+        ),
         <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unimplemented.html">unimplemented!</a>(<span class="string">"calls that won't be used in batch call"</span>),
     };
 
-    Value::unnamed_variant(<span class="string">"Sudo"</span>, [<a href="#255">variant</a>])
+    Value::unnamed_variant(<span class="string">"Sudo"</span>, [<a href="#267">variant</a>])
 }
 
 <span class="kw">fn </span>balances_call_to_scale_value(call: <a href="generated.rs.html#1294-1425">BalancesCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
-    <span class="kw">let </span>variant = <span class="kw">match </span><a href="#274">call</a> {
+    <span class="kw">let </span>variant = <span class="kw">match </span><a href="#287">call</a> {
         <a href="generated.rs.html#1393-1400">BalancesCall::force_set_balance</a> { who, new_free } =&gt; {
-            <span class="kw">let </span>id = <span class="kw">match </span><a href="#276">who</a> {
-                MultiAddress::Id(id) =&gt; <a href="#278">id</a>,
+            <span class="kw">let </span>id = <span class="kw">match </span><a href="#289">who</a> {
+                MultiAddress::Id(id) =&gt; <a href="#291">id</a>,
                 <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"internal error: unused multi-address variant occurred"</span>),
             };
-            Value::named_variant(<span class="string">"force_set_balance"</span>, [
-                (<span class="string">"who"</span>, Value::unnamed_variant(<span class="string">"Id"</span>, [Value::from_bytes(<a href="#277">id</a>)])),
-                (<span class="string">"new_free"</span>, Value::u128(<a href="#276">new_free</a>)),
-            ])
+            Value::named_variant(
+                <span class="string">"force_set_balance"</span>,
+                [
+                    (<span class="string">"who"</span>, Value::unnamed_variant(<span class="string">"Id"</span>, [Value::from_bytes(<a href="#290">id</a>)])),
+                    (<span class="string">"new_free"</span>, Value::u128(<a href="#289">new_free</a>)),
+                ],
+            )
         }
         <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"calls that won't be used in batch call"</span>),
     };
 
-    Value::unnamed_variant(<span class="string">"Balances"</span>, [<a href="#275">variant</a>])
+    Value::unnamed_variant(<span class="string">"Balances"</span>, [<a href="#288">variant</a>])
 }
 
 <span class="kw">fn </span>system_call_to_scale_value(call: <a href="generated.rs.html#284-370">SystemCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
-    <span class="kw">let </span>variant = <span class="kw">match </span><a href="#292">call</a> {
+    <span class="kw">let </span>variant = <span class="kw">match </span><a href="#308">call</a> {
         <a href="generated.rs.html#310-315">SystemCall::set_storage</a> { items } =&gt; {
-            <span class="kw">let </span>items_as_values: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../../gsdk/struct.Value.html">Value</a>&gt; = <a href="#294">items</a>
+            <span class="kw">let </span>items_as_values: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../../gsdk/struct.Value.html">Value</a>&gt; = <a href="#310">items</a>
                 .<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.iter">iter</a>()
                 .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.map">map</a>(|i| {
-                    Value::unnamed_composite([Value::from_bytes(<span class="kw-2">&amp;</span><a href="#297">i</a>.<span class="number">0</span>), Value::from_bytes(<span class="kw-2">&amp;</span><a href="#297">i</a>.<span class="number">1</span>)])
+                    Value::unnamed_composite([Value::from_bytes(<span class="kw-2">&amp;</span><a href="#313">i</a>.<span class="number">0</span>), Value::from_bytes(<span class="kw-2">&amp;</span><a href="#313">i</a>.<span class="number">1</span>)])
                 })
                 .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.collect">collect</a>();
-            Value::named_variant(<span class="string">"set_storage"</span>, [(
-                <span class="string">"items"</span>,
-                Value::unnamed_composite(<a href="#295">items_as_values</a>),
-            )])
+            Value::named_variant(
+                <span class="string">"set_storage"</span>,
+                [(<span class="string">"items"</span>, Value::unnamed_composite(<a href="#311">items_as_values</a>))],
+            )
         }
         <a href="generated.rs.html#297-299">SystemCall::set_code</a> { code } =&gt; {
-            Value::named_variant(<span class="string">"set_code"</span>, [(<span class="string">"code"</span>, Value::from_bytes(<a href="#306">code</a>))])
+            Value::named_variant(<span class="string">"set_code"</span>, [(<span class="string">"code"</span>, Value::from_bytes(<a href="#322">code</a>))])
         }
         <a href="generated.rs.html#305-307">SystemCall::set_code_without_checks</a> { code } =&gt; Value::named_variant(
             <span class="string">"set_code_without_checks"</span>,
-            [(<span class="string">"code"</span>, Value::from_bytes(<a href="#309">code</a>))],
+            [(<span class="string">"code"</span>, Value::from_bytes(<a href="#325">code</a>))],
         ),
         <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"other calls aren't supported for now."</span>),
     };
 
-    Value::unnamed_variant(<span class="string">"System"</span>, [<a href="#293">variant</a>])
+    Value::unnamed_variant(<span class="string">"System"</span>, [<a href="#309">variant</a>])
 }
 
 <span class="doccomment">/// Convert to type.
@@ -715,73 +753,79 @@
     <span class="kw">fn </span>convert(<span class="self">self</span>) -&gt; T;
 }
 
-<span class="kw">impl </span><a href="#320-322">Convert</a>&lt;subxt::utils::AccountId32&gt; <span class="kw">for </span>sp_runtime::AccountId32 {
+<span class="kw">impl </span><a href="#336-338">Convert</a>&lt;subxt::utils::AccountId32&gt; <span class="kw">for </span>sp_runtime::AccountId32 {
     <span class="kw">fn </span>convert(<span class="self">self</span>) -&gt; subxt::utils::AccountId32 {
-        <span class="kw">let </span>hash: <span class="kw-2">&amp;</span>[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>; <span class="number">32</span>] = <a class="self" href="#325">self</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html#tymethod.as_ref">as_ref</a>();
-        <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">subxt::utils::AccountId32::from</a>(<span class="kw-2">*</span><a href="#326">hash</a>)
+        <span class="kw">let </span>hash: <span class="kw-2">&amp;</span>[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>; <span class="number">32</span>] = <a class="self" href="#341">self</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html#tymethod.as_ref">as_ref</a>();
+        <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">subxt::utils::AccountId32::from</a>(<span class="kw-2">*</span><a href="#342">hash</a>)
     }
 }
 
-<span class="kw">impl </span><a href="#320-322">Convert</a>&lt;subxt::utils::MultiAddress&lt;subxt::utils::AccountId32, ()&gt;&gt;
+<span class="kw">impl </span><a href="#336-338">Convert</a>&lt;subxt::utils::MultiAddress&lt;subxt::utils::AccountId32, ()&gt;&gt;
     <span class="kw">for </span>sp_runtime::MultiAddress&lt;sp_runtime::AccountId32, ()&gt;
 {
     <span class="kw">fn </span>convert(<span class="self">self</span>) -&gt; subxt::utils::MultiAddress&lt;subxt::utils::AccountId32, ()&gt; {
-        <span class="kw">match </span><span class="self"><a href="#334">self</a> </span>{
-            sp_runtime::MultiAddress::Address20(id) =&gt; subxt::utils::MultiAddress::Address20(<a href="#336">id</a>),
-            sp_runtime::MultiAddress::Address32(id) =&gt; subxt::utils::MultiAddress::Address32(<a href="#337">id</a>),
-            sp_runtime::MultiAddress::Id(id) =&gt; subxt::utils::MultiAddress::Id(<a href="#338">id</a>.<a href="#321">convert</a>()),
-            sp_runtime::MultiAddress::Index(index) =&gt; subxt::utils::MultiAddress::Index(<a href="#339">index</a>),
-            sp_runtime::MultiAddress::Raw(raw) =&gt; subxt::utils::MultiAddress::Raw(<a href="#340">raw</a>),
+        <span class="kw">match </span><span class="self"><a href="#350">self</a> </span>{
+            sp_runtime::MultiAddress::Address20(id) =&gt; subxt::utils::MultiAddress::Address20(<a href="#352">id</a>),
+            sp_runtime::MultiAddress::Address32(id) =&gt; subxt::utils::MultiAddress::Address32(<a href="#353">id</a>),
+            sp_runtime::MultiAddress::Id(id) =&gt; subxt::utils::MultiAddress::Id(<a href="#354">id</a>.<a href="#337">convert</a>()),
+            sp_runtime::MultiAddress::Index(index) =&gt; subxt::utils::MultiAddress::Index(<a href="#355">index</a>),
+            sp_runtime::MultiAddress::Raw(raw) =&gt; subxt::utils::MultiAddress::Raw(<a href="#356">raw</a>),
         }
     }
 }
 
 <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#3723-3746">PrepaidCall</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;&gt; <span class="kw">for </span><a href="../../../gsdk/struct.Value.html">Value</a> {
     <span class="kw">fn </span>from(call: <a href="generated.rs.html#3723-3746">PrepaidCall</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
-        <a href="#351-385">prepaid_call_to_scale_value</a>(<a href="#346">call</a>)
+        <a href="#367-407">prepaid_call_to_scale_value</a>(<a href="#362">call</a>)
     }
 }
 
 <span class="kw">fn </span>prepaid_call_to_scale_value(call: <a href="generated.rs.html#3723-3746">PrepaidCall</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
-    <span class="kw">match </span><a href="#351">call</a> {
+    <span class="kw">match </span><a href="#367">call</a> {
         <a href="generated.rs.html#3725-3731">PrepaidCall::SendMessage</a> {
             destination,
             payload,
             gas_limit,
             value,
             keep_alive,
-        } =&gt; Value::named_variant(<span class="string">"SendMessage"</span>, [
-            (<span class="string">"destination"</span>, Value::from_bytes(<a href="#354">destination</a>.<span class="number">0</span>)),
-            (<span class="string">"payload"</span>, Value::from_bytes(<a href="#355">payload</a>)),
-            (<span class="string">"gas_limit"</span>, Value::u128(<a href="#356">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"value"</span>, Value::u128(<a href="#357">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"keep_alive"</span>, Value::bool(<a href="#358">keep_alive</a>)),
-        ]),
+        } =&gt; Value::named_variant(
+            <span class="string">"SendMessage"</span>,
+            [
+                (<span class="string">"destination"</span>, Value::from_bytes(<a href="#370">destination</a>.<span class="number">0</span>)),
+                (<span class="string">"payload"</span>, Value::from_bytes(<a href="#371">payload</a>)),
+                (<span class="string">"gas_limit"</span>, Value::u128(<a href="#372">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"value"</span>, Value::u128(<a href="#373">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"keep_alive"</span>, Value::bool(<a href="#374">keep_alive</a>)),
+            ],
+        ),
         <a href="generated.rs.html#3733-3739">PrepaidCall::SendReply</a> {
             reply_to_id,
             payload,
             gas_limit,
             value,
             keep_alive,
-        } =&gt; Value::named_variant(<span class="string">"SendReply"</span>, [
-            (<span class="string">"reply_to_id"</span>, Value::from_bytes(<a href="#367">reply_to_id</a>.<span class="number">0</span>)),
-            (<span class="string">"payload"</span>, Value::from_bytes(<a href="#368">payload</a>)),
-            (<span class="string">"gas_limit"</span>, Value::u128(<a href="#369">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"value"</span>, Value::u128(<a href="#370">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
-            (<span class="string">"keep_alive"</span>, Value::bool(<a href="#371">keep_alive</a>)),
-        ]),
+        } =&gt; Value::named_variant(
+            <span class="string">"SendReply"</span>,
+            [
+                (<span class="string">"reply_to_id"</span>, Value::from_bytes(<a href="#386">reply_to_id</a>.<span class="number">0</span>)),
+                (<span class="string">"payload"</span>, Value::from_bytes(<a href="#387">payload</a>)),
+                (<span class="string">"gas_limit"</span>, Value::u128(<a href="#388">gas_limit</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"value"</span>, Value::u128(<a href="#389">value</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>)),
+                (<span class="string">"keep_alive"</span>, Value::bool(<a href="#390">keep_alive</a>)),
+            ],
+        ),
         <a href="generated.rs.html#3741-3743">PrepaidCall::UploadCode</a> { code } =&gt; {
-            Value::named_variant(<span class="string">"UploadCode"</span>, [(<span class="string">"code"</span>, Value::from_bytes(<a href="#379">code</a>))])
+            Value::named_variant(<span class="string">"UploadCode"</span>, [(<span class="string">"code"</span>, Value::from_bytes(<a href="#401">code</a>))])
         }
         <a href="generated.rs.html#3745">PrepaidCall::DeclineVoucher</a> =&gt; Value::unnamed_variant(<span class="string">"DeclineVoucher"</span>, []),
         <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"other prepaid calls aren't supported"</span>),
     }
 }
 
-<span class="kw">impl </span><a href="#320-322">Convert</a>&lt;<a href="../../../gsdk/struct.Value.html">Value</a>&lt;()&gt;&gt; <span class="kw">for </span><a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="../../../gsdk/struct.Value.html">Value</a>&lt;()&gt;&gt; {
+<span class="kw">impl </span><a href="#336-338">Convert</a>&lt;<a href="../../../gsdk/struct.Value.html">Value</a>&lt;()&gt;&gt; <span class="kw">for </span><a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="../../../gsdk/struct.Value.html">Value</a>&lt;()&gt;&gt; {
     <span class="kw">fn </span>convert(<span class="self">self</span>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a>&lt;()&gt; {
-        <span class="kw">match </span><span class="self"><a href="#388">self</a> </span>{
-            <span class="prelude-val">Some</span>(v) =&gt; Value::unnamed_variant(<span class="string">"Some"</span>, [<a href="#390">v</a>]),
+        <span class="kw">match </span><span class="self"><a href="#410">self</a> </span>{
+            <span class="prelude-val">Some</span>(v) =&gt; Value::unnamed_variant(<span class="string">"Some"</span>, [<a href="#412">v</a>]),
             <span class="prelude-val">None </span>=&gt; Value::unnamed_variant(<span class="string">"None"</span>, []),
         }
     }

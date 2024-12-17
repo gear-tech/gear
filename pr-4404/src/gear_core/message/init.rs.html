@@ -224,15 +224,15 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use crate</span>::{
-    ids::{<a href="../../../gear_core/ids/struct.CodeId.html">CodeId</a>, <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../ids.rs.html#48">ProgramId</a>, <a href="../ids.rs.html#50-169">prelude</a>::<span class="kw-2">*</span>},
+    ids::{<a href="../ids.rs.html#50-169">prelude</a>::<span class="kw-2">*</span>, <a href="../../../gear_core/ids/struct.CodeId.html">CodeId</a>, <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../ids.rs.html#48">ProgramId</a>},
     message::{
         <a href="common.rs.html#298-303">Dispatch</a>, <a href="mod.rs.html#118-128">DispatchKind</a>, <a href="mod.rs.html#90">GasLimit</a>, <a href="common.rs.html#36-51">Message</a>, <a href="mod.rs.html#222-237">Packet</a>, <a href="mod.rs.html#79">Payload</a>, <a href="mod.rs.html#96">Salt</a>, <a href="stored.rs.html#160-167">StoredDispatch</a>,
         <a href="stored.rs.html#37-51">StoredMessage</a>, <a href="mod.rs.html#93">Value</a>,
     },
 };
 <span class="kw">use </span>scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 <span class="doccomment">/// Message for Init entry point.

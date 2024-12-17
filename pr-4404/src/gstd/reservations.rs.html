@@ -476,7 +476,7 @@
 /// Create gas reservations inside `init` and use them inside `handle`.
 ///
 /// ```
-/// use gstd::{Reservations, msg, prelude::*};
+/// use gstd::{msg, prelude::*, Reservations};
 ///
 /// static mut RESERVATIONS: Reservations = Reservations::new();
 ///
@@ -656,7 +656,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use crate</span>::{Reservations, prelude::<span class="kw-2">*</span>};
+    <span class="kw">use crate</span>::{prelude::<span class="kw-2">*</span>, Reservations};
     <span class="kw">use </span>gcore::errors::Result;
     <span class="kw">use </span>parity_scale_codec::{Decode, Encode};
 

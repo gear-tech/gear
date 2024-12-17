@@ -198,7 +198,24 @@
 <a href="#197" id="197">197</a>
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 //
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -218,7 +235,7 @@
 
 </span><span class="doccomment">//! Gear API RPC methods
 
-</span><span class="kw">use crate</span>::{<a href="api.rs.html#32-38">Api</a>, <a href="../../gsdk/struct.GasInfo.html">GasInfo</a>, <a href="result.rs.html#106">result::Result</a>};
+</span><span class="kw">use crate</span>::{<a href="result.rs.html#106">result::Result</a>, <a href="api.rs.html#32-38">Api</a>, <a href="../../gsdk/struct.GasInfo.html">GasInfo</a>};
 <span class="kw">use </span>gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::ReplyInfo,
@@ -238,14 +255,17 @@
         at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;H256&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;GasInfo&gt; {
         <span class="self">self</span>.rpc()
-            .request(<span class="string">"gear_calculateInitCreateGas"</span>, <span class="macro">rpc_params!</span>[
-                origin,
-                H256(code_id.into()),
-                hex::encode(payload),
-                value,
-                allow_other_panics,
-                at
-            ])
+            .request(
+                <span class="string">"gear_calculateInitCreateGas"</span>,
+                <span class="macro">rpc_params!</span>[
+                    origin,
+                    H256(code_id.into()),
+                    hex::encode(payload),
+                    value,
+                    allow_other_panics,
+                    at
+                ],
+            )
             .<span class="kw">await
             </span>.map_err(Into::into)
     }
@@ -261,14 +281,17 @@
         at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;H256&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;GasInfo&gt; {
         <span class="self">self</span>.rpc()
-            .request(<span class="string">"gear_calculateInitUploadGas"</span>, <span class="macro">rpc_params!</span>[
-                origin,
-                hex::encode(code),
-                hex::encode(payload),
-                value,
-                allow_other_panics,
-                at
-            ])
+            .request(
+                <span class="string">"gear_calculateInitUploadGas"</span>,
+                <span class="macro">rpc_params!</span>[
+                    origin,
+                    hex::encode(code),
+                    hex::encode(payload),
+                    value,
+                    allow_other_panics,
+                    at
+                ],
+            )
             .<span class="kw">await
             </span>.map_err(Into::into)
     }
@@ -284,14 +307,17 @@
         at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;H256&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;GasInfo&gt; {
         <span class="self">self</span>.rpc()
-            .request(<span class="string">"gear_calculateHandleGas"</span>, <span class="macro">rpc_params!</span>[
-                origin,
-                H256(destination.into()),
-                hex::encode(payload),
-                value,
-                allow_other_panics,
-                at
-            ])
+            .request(
+                <span class="string">"gear_calculateHandleGas"</span>,
+                <span class="macro">rpc_params!</span>[
+                    origin,
+                    H256(destination.into()),
+                    hex::encode(payload),
+                    value,
+                    allow_other_panics,
+                    at
+                ],
+            )
             .<span class="kw">await
             </span>.map_err(Into::into)
     }
@@ -307,14 +333,17 @@
         at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;H256&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;GasInfo&gt; {
         <span class="self">self</span>.rpc()
-            .request(<span class="string">"gear_calculateReplyGas"</span>, <span class="macro">rpc_params!</span>[
-                origin,
-                H256(message_id.into()),
-                hex::encode(payload),
-                value,
-                allow_other_panics,
-                at
-            ])
+            .request(
+                <span class="string">"gear_calculateReplyGas"</span>,
+                <span class="macro">rpc_params!</span>[
+                    origin,
+                    H256(message_id.into()),
+                    hex::encode(payload),
+                    value,
+                    allow_other_panics,
+                    at
+                ],
+            )
             .<span class="kw">await
             </span>.map_err(Into::into)
     }
@@ -335,11 +364,10 @@
         at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;H256&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;String&gt; {
         <span class="self">self</span>.rpc()
-            .request(<span class="string">"gear_readState"</span>, <span class="macro">rpc_params!</span>[
-                H256(pid.into()),
-                hex::encode(payload),
-                at
-            ])
+            .request(
+                <span class="string">"gear_readState"</span>,
+                <span class="macro">rpc_params!</span>[H256(pid.into()), hex::encode(payload), at],
+            )
             .<span class="kw">await
             </span>.map_err(Into::into)
     }
@@ -355,14 +383,17 @@
         at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;H256&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;String&gt; {
         <span class="self">self</span>.rpc()
-            .request(<span class="string">"gear_readStateUsingWasm"</span>, <span class="macro">rpc_params!</span>[
-                pid,
-                hex::encode(payload),
-                hex::encode(method),
-                hex::encode(wasm),
-                args.map(hex::encode),
-                at
-            ])
+            .request(
+                <span class="string">"gear_readStateUsingWasm"</span>,
+                <span class="macro">rpc_params!</span>[
+                    pid,
+                    hex::encode(payload),
+                    hex::encode(method),
+                    hex::encode(wasm),
+                    args.map(hex::encode),
+                    at
+                ],
+            )
             .<span class="kw">await
             </span>.map_err(Into::into)
     }
@@ -386,14 +417,17 @@
         at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;H256&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ReplyInfo&gt; {
         <span class="self">self</span>.rpc()
-            .request(<span class="string">"gear_calculateReplyForHandle"</span>, <span class="macro">rpc_params!</span>[
-                origin,
-                H256(destination.into()),
-                hex::encode(payload),
-                gas_limit,
-                value,
-                at
-            ])
+            .request(
+                <span class="string">"gear_calculateReplyForHandle"</span>,
+                <span class="macro">rpc_params!</span>[
+                    origin,
+                    H256(destination.into()),
+                    hex::encode(payload),
+                    gas_limit,
+                    value,
+                    at
+                ],
+            )
             .<span class="kw">await
             </span>.map_err(Into::into)
     }

@@ -383,7 +383,39 @@
 <a href="#382" id="382">382</a>
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 //
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -404,17 +436,17 @@
 </span><span class="doccomment">//! gear api calls
 </span><span class="kw">use </span><a href="mod.rs.html#60-66"><span class="kw">super</span>::Inner</a>;
 <span class="kw">use crate</span>::{
-    <a class="prelude-ty" href="../result.rs.html#106">Result</a>, <a href="../lib.rs.html#86">TxInBlock</a>,
     metadata::{
-        <a href="../metadata/impls.rs.html#320-322">Convert</a>,
         calls::{<a href="../metadata/generated.rs.html#10566-10576">BalancesCall</a>, <a href="../metadata/generated.rs.html#10740-10750">GearCall</a>, <a href="../metadata/generated.rs.html#10798-10804">GearVoucherCall</a>, <a href="../metadata/generated.rs.html#11190-11196">SudoCall</a>, <a href="../metadata/generated.rs.html#11276-11283">UtilityCall</a>},
         runtime_types::{
             pallet_gear_voucher::internal::{<a href="../metadata/generated.rs.html#3723-3746">PrepaidCall</a>, <a href="../metadata/generated.rs.html#3748">VoucherId</a>},
             <a href="../metadata/generated.rs.html#10021-10026">sp_weights::weight_v2::Weight</a>,
         },
         <a href="../metadata/generated.rs.html#10292-10359">vara_runtime::RuntimeCall</a>,
+        <a href="../metadata/impls.rs.html#336-338">Convert</a>,
     },
     <a href="utils.rs.html#46">signer::utils::EventsResult</a>,
+    <a class="prelude-ty" href="../result.rs.html#106">Result</a>, <a href="../lib.rs.html#86">TxInBlock</a>,
 };
 <span class="kw">use </span>gear_core::ids::<span class="kw-2">*</span>;
 <span class="kw">use </span>sp_runtime::AccountId32;
@@ -434,10 +466,13 @@
         value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(BalancesCall::TransferKeepAlive, <span class="macro">vec!</span>[
-                Value::unnamed_variant(<span class="string">"Id"</span>, [Value::from_bytes(dest.into())]),
-                Value::u128(value),
-            ])
+            </span>.run_tx(
+                BalancesCall::TransferKeepAlive,
+                <span class="macro">vec!</span>[
+                    Value::unnamed_variant(<span class="string">"Id"</span>, [Value::from_bytes(dest.into())]),
+                    Value::u128(value),
+                ],
+            )
             .<span class="kw">await
     </span>}
 
@@ -448,10 +483,13 @@
         value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(BalancesCall::TransferAllowDeath, <span class="macro">vec!</span>[
-                Value::unnamed_variant(<span class="string">"Id"</span>, [Value::from_bytes(dest.into())]),
-                Value::u128(value),
-            ])
+            </span>.run_tx(
+                BalancesCall::TransferAllowDeath,
+                <span class="macro">vec!</span>[
+                    Value::unnamed_variant(<span class="string">"Id"</span>, [Value::from_bytes(dest.into())]),
+                    Value::u128(value),
+                ],
+            )
             .<span class="kw">await
     </span>}
 
@@ -462,10 +500,13 @@
         keep_alive: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(BalancesCall::TransferAll, <span class="macro">vec!</span>[
-                Value::unnamed_variant(<span class="string">"Id"</span>, [Value::from_bytes(dest.into())]),
-                Value::bool(keep_alive),
-            ])
+            </span>.run_tx(
+                BalancesCall::TransferAll,
+                <span class="macro">vec!</span>[
+                    Value::unnamed_variant(<span class="string">"Id"</span>, [Value::from_bytes(dest.into())]),
+                    Value::bool(keep_alive),
+                ],
+            )
             .<span class="kw">await
     </span>}
 }
@@ -482,14 +523,17 @@
         value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearCall::CreateProgram, <span class="macro">vec!</span>[
-                Value::from_bytes(code_id),
-                Value::from_bytes(salt),
-                Value::from_bytes(payload),
-                Value::u128(gas_limit <span class="kw">as </span>u128),
-                Value::u128(value),
-                Value::bool(<span class="bool-val">false</span>),
-            ])
+            </span>.run_tx(
+                GearCall::CreateProgram,
+                <span class="macro">vec!</span>[
+                    Value::from_bytes(code_id),
+                    Value::from_bytes(salt),
+                    Value::from_bytes(payload),
+                    Value::u128(gas_limit <span class="kw">as </span>u128),
+                    Value::u128(value),
+                    Value::bool(<span class="bool-val">false</span>),
+                ],
+            )
             .<span class="kw">await
     </span>}
 
@@ -509,13 +553,16 @@
         value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearCall::SendMessage, <span class="macro">vec!</span>[
-                Value::from_bytes(destination),
-                Value::from_bytes(payload),
-                Value::u128(gas_limit <span class="kw">as </span>u128),
-                Value::u128(value),
-                Value::bool(<span class="bool-val">false</span>),
-            ])
+            </span>.run_tx(
+                GearCall::SendMessage,
+                <span class="macro">vec!</span>[
+                    Value::from_bytes(destination),
+                    Value::from_bytes(payload),
+                    Value::u128(gas_limit <span class="kw">as </span>u128),
+                    Value::u128(value),
+                    Value::bool(<span class="bool-val">false</span>),
+                ],
+            )
             .<span class="kw">await
     </span>}
 
@@ -528,13 +575,16 @@
         value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearCall::SendReply, <span class="macro">vec!</span>[
-                Value::from_bytes(reply_to_id),
-                Value::from_bytes(payload),
-                Value::u128(gas_limit <span class="kw">as </span>u128),
-                Value::u128(value),
-                Value::bool(<span class="bool-val">false</span>),
-            ])
+            </span>.run_tx(
+                GearCall::SendReply,
+                <span class="macro">vec!</span>[
+                    Value::from_bytes(reply_to_id),
+                    Value::from_bytes(payload),
+                    Value::u128(gas_limit <span class="kw">as </span>u128),
+                    Value::u128(value),
+                    Value::bool(<span class="bool-val">false</span>),
+                ],
+            )
             .<span class="kw">await
     </span>}
 
@@ -555,14 +605,17 @@
         value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearCall::UploadProgram, <span class="macro">vec!</span>[
-                Value::from_bytes(code),
-                Value::from_bytes(salt),
-                Value::from_bytes(payload),
-                Value::u128(gas_limit <span class="kw">as </span>u128),
-                Value::u128(value),
-                Value::bool(<span class="bool-val">false</span>),
-            ])
+            </span>.run_tx(
+                GearCall::UploadProgram,
+                <span class="macro">vec!</span>[
+                    Value::from_bytes(code),
+                    Value::from_bytes(salt),
+                    Value::from_bytes(payload),
+                    Value::u128(gas_limit <span class="kw">as </span>u128),
+                    Value::u128(value),
+                    Value::bool(<span class="bool-val">false</span>),
+                ],
+            )
             .<span class="kw">await
     </span>}
 }
@@ -572,9 +625,10 @@
     <span class="doccomment">/// `pallet_utility::force_batch`
     </span><span class="kw">pub async fn </span>force_batch(<span class="kw-2">&amp;</span><span class="self">self</span>, calls: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../metadata/generated.rs.html#10292-10359">RuntimeCall</a>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(UtilityCall::ForceBatch, <span class="macro">vec!</span>[
-                calls.into_iter().map(Value::from).collect::&lt;Vec&lt;Value&gt;&gt;(),
-            ])
+            </span>.run_tx(
+                UtilityCall::ForceBatch,
+                <span class="macro">vec!</span>[calls.into_iter().map(Value::from).collect::&lt;Vec&lt;Value&gt;&gt;()],
+            )
             .<span class="kw">await
     </span>}
 }
@@ -617,13 +671,16 @@
             .convert();
 
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearVoucherCall::Issue, <span class="macro">vec!</span>[
-                Value::from_bytes(spender.into()),
-                Value::u128(balance),
-                programs_value,
-                Value::bool(code_uploading),
-                Value::from(duration),
-            ])
+            </span>.run_tx(
+                GearVoucherCall::Issue,
+                <span class="macro">vec!</span>[
+                    Value::from_bytes(spender.into()),
+                    Value::u128(balance),
+                    programs_value,
+                    Value::bool(code_uploading),
+                    Value::from(duration),
+                ],
+            )
             .<span class="kw">await
     </span>}
 
@@ -651,17 +708,20 @@
             .convert();
 
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearVoucherCall::Update, <span class="macro">vec!</span>[
-                Value::from_bytes(spender.into()),
-                Value::from_bytes(voucher_id.<span class="number">0</span>),
-                move_ownership
-                    .map(|v| Value::from_bytes(v.into()))
-                    .convert(),
-                balance_top_up.map(Value::u128).convert(),
-                append_programs_value,
-                code_uploading.map(Value::bool).convert(),
-                Value::from(prolong_duration),
-            ])
+            </span>.run_tx(
+                GearVoucherCall::Update,
+                <span class="macro">vec!</span>[
+                    Value::from_bytes(spender.into()),
+                    Value::from_bytes(voucher_id.<span class="number">0</span>),
+                    move_ownership
+                        .map(|v| Value::from_bytes(v.into()))
+                        .convert(),
+                    balance_top_up.map(Value::u128).convert(),
+                    append_programs_value,
+                    code_uploading.map(Value::bool).convert(),
+                    Value::from(prolong_duration),
+                ],
+            )
             .<span class="kw">await
     </span>}
 
@@ -672,19 +732,23 @@
         voucher_id: <a href="../metadata/generated.rs.html#3748">VoucherId</a>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearVoucherCall::Revoke, <span class="macro">vec!</span>[
-                Value::from_bytes(spender.into()),
-                Value::from_bytes(voucher_id.<span class="number">0</span>),
-            ])
+            </span>.run_tx(
+                GearVoucherCall::Revoke,
+                <span class="macro">vec!</span>[
+                    Value::from_bytes(spender.into()),
+                    Value::from_bytes(voucher_id.<span class="number">0</span>),
+                ],
+            )
             .<span class="kw">await
     </span>}
 
     <span class="doccomment">/// `pallet_gear_voucher::decline`
     </span><span class="kw">pub async fn </span>decline_voucher(<span class="kw-2">&amp;</span><span class="self">self</span>, voucher_id: <a href="../metadata/generated.rs.html#3748">VoucherId</a>) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearVoucherCall::Decline, <span class="macro">vec!</span>[Value::from_bytes(
-                voucher_id.<span class="number">0</span>,
-            )])
+            </span>.run_tx(
+                GearVoucherCall::Decline,
+                <span class="macro">vec!</span>[Value::from_bytes(voucher_id.<span class="number">0</span>)],
+            )
             .<span class="kw">await
     </span>}
 
@@ -697,10 +761,10 @@
         <span class="kw">let </span>call = PrepaidCall::&lt;u128&gt;::UploadCode { code };
 
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearVoucherCall::Call, <span class="macro">vec!</span>[
-                Value::from_bytes(voucher_id.<span class="number">0</span>),
-                call.into(),
-            ])
+            </span>.run_tx(
+                GearVoucherCall::Call,
+                <span class="macro">vec!</span>[Value::from_bytes(voucher_id.<span class="number">0</span>), call.into()],
+            )
             .<span class="kw">await
     </span>}
 
@@ -723,10 +787,10 @@
         };
 
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearVoucherCall::Call, <span class="macro">vec!</span>[
-                Value::from_bytes(voucher_id.<span class="number">0</span>),
-                call.into(),
-            ])
+            </span>.run_tx(
+                GearVoucherCall::Call,
+                <span class="macro">vec!</span>[Value::from_bytes(voucher_id.<span class="number">0</span>), call.into()],
+            )
             .<span class="kw">await
     </span>}
 
@@ -749,10 +813,10 @@
         };
 
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearVoucherCall::Call, <span class="macro">vec!</span>[
-                Value::from_bytes(voucher_id.<span class="number">0</span>),
-                call.into(),
-            ])
+            </span>.run_tx(
+                GearVoucherCall::Call,
+                <span class="macro">vec!</span>[Value::from_bytes(voucher_id.<span class="number">0</span>), call.into()],
+            )
             .<span class="kw">await
     </span>}
 
@@ -761,10 +825,10 @@
         <span class="kw">let </span>call = PrepaidCall::&lt;u128&gt;::DeclineVoucher;
 
         <span class="self">self</span>.<span class="number">0
-            </span>.run_tx(GearVoucherCall::Call, <span class="macro">vec!</span>[
-                Value::from_bytes(voucher_id.<span class="number">0</span>),
-                call.into(),
-            ])
+            </span>.run_tx(
+                GearVoucherCall::Call,
+                <span class="macro">vec!</span>[Value::from_bytes(voucher_id.<span class="number">0</span>), call.into()],
+            )
             .<span class="kw">await
     </span>}
 }

@@ -456,7 +456,7 @@
 
 </span><span class="doccomment">//! Module for pages which size can be different for different runtime versions.
 
-</span><span class="kw">use </span>numerated::{Bound, Numerated, OptionBound, interval::Interval, iterators::IntervalIterator};
+</span><span class="kw">use </span>numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated, OptionBound};
 <span class="kw">use </span>std::{<a href="https://doc.rust-lang.org/nightly/core/cmp/enum.Ordering.html">cmp::Ordering</a>, <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">marker::PhantomData</a>, <a href="https://doc.rust-lang.org/nightly/core/num/nonzero/struct.NonZero.html">num::NonZero</a>};
 
 <span class="doccomment">/// Size number for dyn-size pages.
@@ -828,7 +828,7 @@
     <span class="kw">use super</span>::{tests::PageSizeManager, <span class="kw-2">*</span>};
     <span class="kw">use </span>numerated::mock;
     <span class="kw">use </span>proptest::{
-        prelude::{Arbitrary, any},
+        prelude::{any, Arbitrary},
         proptest,
         strategy::{BoxedStrategy, Strategy},
         test_runner::Config <span class="kw">as </span>ProptestConfig,

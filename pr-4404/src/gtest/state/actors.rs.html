@@ -269,11 +269,11 @@
 <span class="kw">use </span>gear_common::{CodeId, GearPage, MessageId, PageBuf, ProgramId};
 <span class="kw">use </span>gear_core::{
     code::InstrumentedCode,
-    pages::{WasmPage, numerated::tree::IntervalsTree},
+    pages::{numerated::tree::IntervalsTree, WasmPage},
     reservation::GasReservationMap,
 };
 
-<span class="kw">use </span><a href="../program.rs.html#98-126"><span class="kw">crate</span>::WasmProgram</a>;
+<span class="kw">use </span><a href="../program.rs.html#99-127"><span class="kw">crate</span>::WasmProgram</a>;
 
 <a class="macro" href="https://doc.rust-lang.org/nightly/std/macro.thread_local.html">thread_local!</a> {
     <span class="kw">static </span>ACTORS_STORAGE: RefCell&lt;BTreeMap&lt;ProgramId, TestActor&gt;&gt; = RefCell::new(Default::default());
@@ -424,7 +424,7 @@
     }
 
     <span class="comment">// Takes ownership over mock program, putting `None` value instead of it.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>take_mock(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../program.rs.html#98-126">WasmProgram</a>&gt;&gt; {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>take_mock(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../program.rs.html#99-127">WasmProgram</a>&gt;&gt; {
         <span class="kw">match </span><span class="self"><a href="#182">self</a> </span>{
             <a href="#108">TestActor::Initialized</a>(<a href="#238">Program::Mock</a>(mock))
             | <a href="#110">TestActor::Uninitialized</a>(<span class="kw">_</span>, <span class="prelude-val">Some</span>(<a href="#238">Program::Mock</a>(mock))) =&gt; <a href="#184">mock</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.take">take</a>(),
@@ -432,7 +432,7 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>set_mock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, mock: <a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../program.rs.html#98-126">WasmProgram</a>&gt;) {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>set_mock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, mock: <a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../program.rs.html#99-127">WasmProgram</a>&gt;) {
         <span class="kw">match </span><span class="self"><a href="#190">self</a> </span>{
             <a href="#108">TestActor::Initialized</a>(<a href="#238">Program::Mock</a>(maybe_mock_none))
             | <a href="#110">TestActor::Uninitialized</a>(<span class="kw">_</span>, <span class="prelude-val">Some</span>(<a href="#238">Program::Mock</a>(maybe_mock_none))) =&gt; {
@@ -480,11 +480,11 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>Program {
     Genuine(<a href="#210-216">GenuineProgram</a>),
     <span class="comment">// Contract: is always `Some`, option is used to take ownership
-    </span>Mock(<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../program.rs.html#98-126">WasmProgram</a>&gt;&gt;),
+    </span>Mock(<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../program.rs.html#99-127">WasmProgram</a>&gt;&gt;),
 }
 
 <span class="kw">impl </span><a href="#235-239">Program</a> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new_mock(mock: <span class="kw">impl </span><a href="../program.rs.html#98-126">WasmProgram</a> + <span class="lifetime">'static</span>) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new_mock(mock: <span class="kw">impl </span><a href="../program.rs.html#99-127">WasmProgram</a> + <span class="lifetime">'static</span>) -&gt; <span class="self">Self </span>{
         <a href="#238">Program::Mock</a>(<span class="prelude-val">Some</span>(<a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html#method.new">Box::new</a>(<a href="#242">mock</a>)))
     }
 }

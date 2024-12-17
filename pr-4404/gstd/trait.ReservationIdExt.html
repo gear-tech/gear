@@ -6,7 +6,7 @@
 <p>The identifier is used to reserve and unreserve gas amount for program
 execution later.</p>
 <h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{ReservationId, prelude::<span class="kw-2">*</span>};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{prelude::<span class="kw-2">*</span>, ReservationId};
 
 <span class="kw">static </span><span class="kw-2">mut </span>RESERVED: <span class="prelude-ty">Option</span>&lt;ReservationId&gt; = <span class="prelude-val">None</span>;
 
@@ -29,7 +29,7 @@ unreserving.</p>
 <p>Reserve 50 million of gas for one block, send a reply, then unreserve
 gas back:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{ReservationId, msg, prelude::<span class="kw-2">*</span>};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{msg, prelude::<span class="kw-2">*</span>, ReservationId};
 
 <span class="attr">#[<span class="kw">unsafe</span>(no_mangle)]
 </span><span class="kw">extern </span><span class="string">"C" </span><span class="kw">fn </span>handle() {

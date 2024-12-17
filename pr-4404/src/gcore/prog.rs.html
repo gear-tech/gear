@@ -235,8 +235,8 @@
 //! message that consists at least from a payload and value.
 
 </span><span class="kw">use crate</span>::{
-    <a href="../../gcore/struct.ActorId.html">ActorId</a>, <a href="../../gcore/struct.CodeId.html">CodeId</a>, <a href="../../gcore/struct.MessageId.html">MessageId</a>,
     errors::{<a href="errors.rs.html#31-36">Error</a>, <a class="prelude-ty" href="errors.rs.html#27">Result</a>, <a href="errors.rs.html#59">SyscallError</a>},
+    <a href="../../gcore/struct.ActorId.html">ActorId</a>, <a href="../../gcore/struct.CodeId.html">CodeId</a>, <a href="../../gcore/struct.MessageId.html">MessageId</a>,
 };
 <span class="kw">use </span>gsys::{ErrorWithTwoHashes, HashWithValue};
 
@@ -259,7 +259,7 @@
 /// Basically we can use "automatic" salt generation ("nonce"):
 ///
 /// ```
-/// use gcore::{CodeId, prog};
+/// use gcore::{prog, CodeId};
 ///
 /// static mut NONCE: i32 = 0;
 ///

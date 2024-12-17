@@ -112,7 +112,7 @@
 
 </span><span class="kw">mod </span><a href="futures.rs.html#19-100">futures</a>;
 <span class="kw">mod </span><a href="locks.rs.html#19-261">locks</a>;
-<span class="kw">mod </span><a href="signals.rs.html#19-105">signals</a>;
+<span class="kw">mod </span><a href="signals.rs.html#19-108">signals</a>;
 
 <span class="attr">#[cfg(not(feature = <span class="string">"ethexe"</span>))]
 </span><span class="kw">mod </span><a href="reply_hooks.rs.html#19-49">reply_hooks</a>;
@@ -125,7 +125,7 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span><a href="reply_hooks.rs.html#23">reply_hooks::HooksMap</a>;
 
 <span class="kw">use </span><a href="futures.rs.html#32"><span class="self">self</span>::futures::FuturesMap</a>;
-<span class="kw">use </span><a href="../../../gstd/prelude/collections/hash_map/struct.HashMap.html">hashbrown::HashMap</a>;
+<span class="kw">use </span><a href="../../../gstd/prelude/collections/struct.HashMap.html">hashbrown::HashMap</a>;
 <span class="kw">use </span><a href="locks.rs.html#150">locks::LocksMap</a>;
 <span class="kw">use </span><a href="signals.rs.html#42-44">signals::WakeSignals</a>;
 
@@ -160,7 +160,7 @@
 
 <span class="doccomment">/// Default reply handler.
 </span><span class="kw">pub fn </span><a href="../../../gstd/fn.handle_reply_with_hook.html">handle_reply_with_hook</a>() {
-    <a href="#49-51">signals</a>().<a href="signals.rs.html#65-85">record_reply</a>();
+    <a href="#49-51">signals</a>().<a href="signals.rs.html#68-88">record_reply</a>();
 
     <span class="comment">// Execute reply hook (if it was registered)
     </span><span class="kw">let </span>replied_to =

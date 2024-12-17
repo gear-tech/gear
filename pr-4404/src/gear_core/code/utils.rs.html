@@ -575,17 +575,17 @@
 </span><span class="doccomment">//! Module that contains functions to check code.
 
 </span><span class="kw">use crate</span>::{
-    code::{<a href="mod.rs.html#44">GENERIC_OS_PAGE_SIZE</a>, <a href="mod.rs.html#33">errors</a>::<span class="kw-2">*</span>},
+    code::{<a href="mod.rs.html#33">errors</a>::<span class="kw-2">*</span>, <a href="mod.rs.html#44">GENERIC_OS_PAGE_SIZE</a>},
     message::{<a href="../message/mod.rs.html#118-128">DispatchKind</a>, <a href="../message/mod.rs.html#131-142">WasmEntryPoint</a>},
     pages::{<a href="../pages.rs.html#307">WasmPage</a>, <a href="../pages.rs.html#311">WasmPagesAmount</a>},
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">alloc::collections::BTreeSet</a>;
 <span class="kw">use </span>gear_wasm_instrument::{
-    STACK_END_EXPORT_NAME, SyscallName,
     parity_wasm::elements::{
         ExportEntry, External, GlobalEntry, ImportCountType, InitExpr, Instruction, Internal,
         Module, Type, ValueType,
     },
+    SyscallName, STACK_END_EXPORT_NAME,
 };
 <span class="kw">use </span>wasmparser::Payload;
 

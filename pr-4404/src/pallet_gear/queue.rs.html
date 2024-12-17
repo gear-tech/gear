@@ -336,14 +336,14 @@
 <span class="kw">use </span>core_processor::ContextChargedForInstrumentation;
 <span class="kw">use </span>gear_core::program::ProgramState;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>QueueStep&lt;<span class="lifetime">'a</span>, T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>QueueStep&lt;<span class="lifetime">'a</span>, T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     <span class="kw">pub </span>block_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BlockConfig,
-    <span class="kw">pub </span>gas_limit: <a href="lib.rs.html#133">GasBalanceOf</a>&lt;T&gt;,
+    <span class="kw">pub </span>gas_limit: <a href="lib.rs.html#134">GasBalanceOf</a>&lt;T&gt;,
     <span class="kw">pub </span>dispatch: StoredDispatch,
     <span class="kw">pub </span>balance: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="lib.rs.html#297">pallet::Pallet</a>&lt;T&gt;
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="lib.rs.html#298">pallet::Pallet</a>&lt;T&gt;
 <span class="kw">where
     </span>T::AccountId: Origin,
 {
@@ -364,7 +364,7 @@
         // The first step is to get program data so charge gas for the operation.
         </span><span class="kw">let </span>context = <span class="kw">match </span>core_processor::precharge_for_program(
             <a href="#36">block_config</a>,
-            <a href="lib.rs.html#129">GasAllowanceOf</a>::&lt;T&gt;::get(),
+            <a href="lib.rs.html#130">GasAllowanceOf</a>::&lt;T&gt;::get(),
             <a href="#38">dispatch</a>.into_incoming(<a href="#37">gas_limit</a>),
             <a href="#42">destination_id</a>,
         ) {
@@ -372,7 +372,7 @@
             <span class="prelude-val">Err</span>(journal) =&gt; <span class="kw">return </span><a href="#56">journal</a>,
         };
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(Program::Active(program)) = <a href="lib.rs.html#134">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#42">destination_id</a>)
+        <span class="kw">let </span><span class="prelude-val">Some</span>(Program::Active(program)) = <a href="lib.rs.html#135">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#42">destination_id</a>)
         <span class="kw">else </span>{
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Message {dispatch_id} is sent to non-active program {destination_id}"</span>);
             <span class="kw">return </span>core_processor::process_non_executable(<a href="#49">context</a>);
@@ -421,7 +421,7 @@
         };
 
         <span class="kw">let </span>allocations = (<a href="#59">program</a>.allocations_tree_len != <span class="number">0</span>).<a href="https://doc.rust-lang.org/nightly/core/foreigntype.bool.html#method.then">then</a>(|| {
-            <a href="lib.rs.html#134">ProgramStorageOf</a>::&lt;T&gt;::allocations(<a href="#42">destination_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| {
+            <a href="lib.rs.html#135">ProgramStorageOf</a>::&lt;T&gt;::allocations(<a href="#42">destination_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| {
                 <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(
                     <span class="string">"`allocations_tree_len` {} is not zero, so program {destination_id:?} must have allocations"</span>,
                     program.allocations_tree_len,
@@ -495,7 +495,7 @@
                     <span class="prelude-val">Err</span>(journal) =&gt; <span class="kw">return </span><a href="#179">journal</a>,
                 };
 
-                <span class="kw">let </span>code = <span class="kw">match </span><a href="lib.rs.html#297">Pallet</a>::&lt;T&gt;::reinstrument_code(<a href="#134">code_id</a>, <span class="kw-2">&amp;</span><a href="#166">schedule</a>) {
+                <span class="kw">let </span>code = <span class="kw">match </span><a href="lib.rs.html#298">Pallet</a>::&lt;T&gt;::reinstrument_code(<a href="#134">code_id</a>, <span class="kw-2">&amp;</span><a href="#166">schedule</a>) {
                     <span class="prelude-val">Ok</span>(code) =&gt; <a href="#183">code</a>,
                     <span class="prelude-val">Err</span>(e) =&gt; {
                         <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(<span class="string">"Re-instrumentation error for code {code_id:?}: {e:?}"</span>);
@@ -518,7 +518,7 @@
 
         <span class="kw">let </span>(random, bn) = T::Randomness::random(<a href="#43">dispatch_id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html#tymethod.as_ref">as_ref</a>());
 
-        core_processor::process::&lt;<a href="lib.rs.html#108">Ext</a>&gt;(
+        core_processor::process::&lt;<a href="lib.rs.html#109">Ext</a>&gt;(
             <a href="#36">block_config</a>,
             (<a href="#194">context</a>, <a href="#167">code</a>, <a href="#39">balance</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
             (<a href="#203">random</a>.encode(), <a href="#203">bn</a>.unique_saturated_into()),
@@ -535,13 +535,13 @@
     }
 
     <span class="doccomment">/// Message Queue processing.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>process_queue(<span class="kw-2">mut </span>ext_manager: <a href="manager/mod.rs.html#138-151">ExtManager</a>&lt;T&gt;) {
-        <a href="lib.rs.html#1050-1059"><span class="self">Self</span>::enable_lazy_pages</a>();
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>process_queue(<span class="kw-2">mut </span>ext_manager: <a href="manager/mod.rs.html#137-150">ExtManager</a>&lt;T&gt;) {
+        <a href="lib.rs.html#1051-1060"><span class="self">Self</span>::enable_lazy_pages</a>();
 
-        <span class="kw">let </span>block_config = <a href="lib.rs.html#1061-1083"><span class="self">Self</span>::block_config</a>();
+        <span class="kw">let </span>block_config = <a href="lib.rs.html#1062-1084"><span class="self">Self</span>::block_config</a>();
 
         <span class="kw">if </span>T::DebugInfo::is_remap_id_enabled() {
-            <a href="lib.rs.html#143">T::DebugInfo::remap_id</a>();
+            <a href="lib.rs.html#144">T::DebugInfo::remap_id</a>();
         }
 
         <span class="kw">while </span>QueueProcessingOf::&lt;T&gt;::allowed() {
@@ -618,11 +618,11 @@
             core_processor::handle_journal(journal, <span class="kw-2">&amp;mut </span>ext_manager);
         }
 
-        <span class="kw">let </span>post_data: <a href="manager/mod.rs.html#154-159">QueuePostProcessingData</a> = <a href="#222">ext_manager</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>();
-        <span class="kw">let </span>total_handled = <a href="lib.rs.html#115">DequeuedOf</a>::&lt;T&gt;::get();
+        <span class="kw">let </span>post_data: <a href="manager/mod.rs.html#153-158">QueuePostProcessingData</a> = <a href="#222">ext_manager</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>();
+        <span class="kw">let </span>total_handled = <a href="lib.rs.html#116">DequeuedOf</a>::&lt;T&gt;::get();
 
         <span class="kw">if </span>total_handled &gt; <span class="number">0 </span>{
-            <a href="lib.rs.html#300"><span class="self">Self</span>::deposit_event</a>(<a href="lib.rs.html#345-353">Event::MessagesDispatched</a> {
+            <a href="lib.rs.html#301"><span class="self">Self</span>::deposit_event</a>(<a href="lib.rs.html#346-354">Event::MessagesDispatched</a> {
                 total: <a href="#306">total_handled</a>,
                 statuses: <a href="#305">post_data</a>.dispatch_statuses,
                 state_changes: <a href="#305">post_data</a>.state_changes,

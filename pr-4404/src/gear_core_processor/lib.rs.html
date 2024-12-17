@@ -88,10 +88,10 @@
 <span class="kw">pub mod </span><a href="configs.rs.html#19-92">configs</a>;
 <span class="kw">mod </span><a href="context.rs.html#19-202">context</a>;
 <span class="kw">mod </span><a href="executor.rs.html#19-415">executor</a>;
-<span class="kw">mod </span><a href="ext.rs.html#19-2355">ext</a>;
+<span class="kw">mod </span><a href="ext.rs.html#19-2357">ext</a>;
 <span class="kw">mod </span><a href="handler.rs.html#19-131">handler</a>;
 <span class="kw">mod </span><a href="precharge.rs.html#17-482">precharge</a>;
-<span class="kw">mod </span><a href="processing.rs.html#19-608">processing</a>;
+<span class="kw">mod </span><a href="processing.rs.html#19-607">processing</a>;
 
 <span class="kw">pub use </span>context::{
     <a href="context.rs.html#73-75">ContextChargedForCode</a>, <a href="context.rs.html#86-88">ContextChargedForInstrumentation</a>, <a href="context.rs.html#34-39">ContextChargedForProgram</a>,
@@ -103,13 +103,13 @@
 };
 <span class="kw">pub use </span><a href="handler.rs.html#23-131">handler::handle_journal</a>;
 <span class="kw">pub use </span>precharge::{
-    <a href="precharge.rs.html#170-174">SuccessfulDispatchResultKind</a>, <a href="precharge.rs.html#224-267">precharge_for_allocations</a>, <a href="precharge.rs.html#330-360">precharge_for_code</a>,
-    <a href="precharge.rs.html#277-327">precharge_for_code_length</a>, <a href="precharge.rs.html#363-393">precharge_for_instrumentation</a>, <a href="precharge.rs.html#396-482">precharge_for_module_instantiation</a>,
-    <a href="precharge.rs.html#180-221">precharge_for_program</a>,
+    <a href="precharge.rs.html#224-267">precharge_for_allocations</a>, <a href="precharge.rs.html#330-360">precharge_for_code</a>, <a href="precharge.rs.html#277-327">precharge_for_code_length</a>,
+    <a href="precharge.rs.html#363-393">precharge_for_instrumentation</a>, <a href="precharge.rs.html#396-482">precharge_for_module_instantiation</a>, <a href="precharge.rs.html#180-221">precharge_for_program</a>,
+    <a href="precharge.rs.html#170-174">SuccessfulDispatchResultKind</a>,
 };
 <span class="kw">pub use </span>processing::{
-    <a href="processing.rs.html#48-200">process</a>, <a href="processing.rs.html#348-362">process_execution_error</a>, <a href="processing.rs.html#383-400">process_non_executable</a>, <a href="processing.rs.html#365-380">process_reinstrumentation_error</a>,
-    <a href="processing.rs.html#403-589">process_success</a>,
+    <a href="processing.rs.html#48-199">process</a>, <a href="processing.rs.html#347-361">process_execution_error</a>, <a href="processing.rs.html#382-399">process_non_executable</a>, <a href="processing.rs.html#364-379">process_reinstrumentation_error</a>,
+    <a href="processing.rs.html#402-588">process_success</a>,
 };
 
 <span class="doccomment">/// Informational functions for core-processor and executor.

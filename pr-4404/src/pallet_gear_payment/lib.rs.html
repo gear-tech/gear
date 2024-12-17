@@ -384,7 +384,7 @@
 #![doc(html_favicon_url = <span class="string">"https://gear-tech.io/favicons/favicon.ico"</span>)]
 #![allow(clippy::manual_inspect)]
 
-</span><span class="kw">use </span>common::{DelegateFee, ExtractCall, storage::<span class="kw-2">*</span>};
+</span><span class="kw">use </span>common::{storage::<span class="kw-2">*</span>, DelegateFee, ExtractCall};
 <span class="kw">use </span>frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     pallet_prelude::<span class="kw-2">*</span>,
@@ -395,9 +395,9 @@
     RuntimeDispatchInfo,
 };
 <span class="kw">use </span>sp_runtime::{
-    FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
     traits::{<a href="https://docs.rs/num-traits/0.2/num_traits/bounds/trait.Bounded.html">Bounded</a>, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
     transaction_validity::TransactionValidityError,
+    FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html">sp_std::borrow::Cow</a>;
 

@@ -5,7 +5,7 @@ reserved amounts and not concrete <a href="struct.ReservationId.html" title="str
 <h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
 <p>Create gas reservations inside <code>init</code> and use them inside <code>handle</code>.</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{Reservations, msg, prelude::<span class="kw-2">*</span>};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{msg, prelude::<span class="kw-2">*</span>, Reservations};
 
 <span class="kw">static </span><span class="kw-2">mut </span>RESERVATIONS: Reservations = Reservations::new();
 

@@ -67,9 +67,9 @@
 
 </span><span class="kw">use </span><a href="../../../gstd/struct.MessageId.html"><span class="kw">crate</span>::MessageId</a>;
 <span class="kw">use </span><a href="../../../gstd/prelude/struct.Box.html">alloc::boxed::Box</a>;
-<span class="kw">use </span><a href="../../../gstd/prelude/collections/hash_map/struct.HashMap.html">hashbrown::HashMap</a>;
+<span class="kw">use </span><a href="../../../gstd/prelude/collections/struct.HashMap.html">hashbrown::HashMap</a>;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>HooksMap(<a href="../../../gstd/prelude/collections/hash_map/struct.HashMap.html">HashMap</a>&lt;<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="../../../gstd/prelude/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../../../gstd/prelude/trait.FnOnce.html">FnOnce</a>()&gt;&gt;);
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>HooksMap(<a href="../../../gstd/prelude/collections/struct.HashMap.html">HashMap</a>&lt;<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="../../../gstd/prelude/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../../../gstd/prelude/trait.FnOnce.html">FnOnce</a>()&gt;&gt;);
 
 <span class="kw">impl </span><a href="#23">HooksMap</a> {
     <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{

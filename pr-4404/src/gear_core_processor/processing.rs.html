@@ -605,8 +605,7 @@
 <a href="#604" id="604">604</a>
 <a href="#605" id="605">605</a>
 <a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#607" id="607">607</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -642,13 +641,13 @@
 };
 <span class="kw">use </span>gear_core::{
     env::Externalities,
-    ids::{MessageId, ProgramId, prelude::<span class="kw-2">*</span>},
+    ids::{prelude::<span class="kw-2">*</span>, MessageId, ProgramId},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
 <span class="kw">use </span>gear_core_backend::{
-    BackendExternalities,
     error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
+    BackendExternalities,
 };
 <span class="kw">use </span>gear_core_errors::{ErrorReplyReason, SignalCode};
 
@@ -765,45 +764,44 @@
                         system_reservation_ctx.previous_reservation
                             == res.system_reservation_context.previous_reservation
                     );
-                    <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.debug_assert.html">debug_assert!</a>(
-                        res.gas_reserver
-                            .as_ref()
-                            .map(|reserver| initial_reservations_amount &lt;= reserver.states().len())
-                            .unwrap_or(<span class="bool-val">true</span>)
-                    );
+                    <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.debug_assert.html">debug_assert!</a>(res
+                        .gas_reserver
+                        .as_ref()
+                        .map(|reserver| initial_reservations_amount &lt;= reserver.states().len())
+                        .unwrap_or(<span class="bool-val">true</span>));
                 }
                 <span class="comment">// reservation does not change in case of failure
                 </span><span class="kw">_ </span>=&gt; (),
             }
             <span class="prelude-val">Ok</span>(<span class="kw">match </span><a href="#144">res</a>.kind {
-                <a href="common.rs.html#51">DispatchResultKind::Trap</a>(reason) =&gt; <a href="#348-362">process_execution_error</a>(
+                <a href="common.rs.html#51">DispatchResultKind::Trap</a>(reason) =&gt; <a href="#347-361">process_execution_error</a>(
                     <a href="#144">res</a>.dispatch,
                     <a href="#93">program_id</a>,
                     <a href="#144">res</a>.gas_amount.burned(),
                     <a href="#144">res</a>.system_reservation_context,
-                    <a href="common.rs.html#456">ActorExecutionErrorReplyReason::Trap</a>(<a href="#171">reason</a>),
+                    <a href="common.rs.html#456">ActorExecutionErrorReplyReason::Trap</a>(<a href="#170">reason</a>),
                 ),
 
-                <a href="common.rs.html#49">DispatchResultKind::Success</a> =&gt; <a href="#403-589">process_success</a>(<a href="precharge.rs.html#173">Success</a>, <a href="#144">res</a>),
+                <a href="common.rs.html#49">DispatchResultKind::Success</a> =&gt; <a href="#402-588">process_success</a>(<a href="precharge.rs.html#173">Success</a>, <a href="#144">res</a>),
                 <a href="common.rs.html#53">DispatchResultKind::Wait</a>(duration, <span class="kw-2">ref </span>waited_type) =&gt; {
-                    <a href="#403-589">process_success</a>(<a href="precharge.rs.html#172">Wait</a>(<a href="#180">duration</a>, <a href="#180">waited_type</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>()), <a href="#144">res</a>)
+                    <a href="#402-588">process_success</a>(<a href="precharge.rs.html#172">Wait</a>(<a href="#179">duration</a>, <a href="#179">waited_type</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>()), <a href="#144">res</a>)
                 }
                 <a href="common.rs.html#55">DispatchResultKind::Exit</a>(value_destination) =&gt; {
-                    <a href="#403-589">process_success</a>(<a href="precharge.rs.html#171">Exit</a>(<a href="#183">value_destination</a>), <a href="#144">res</a>)
+                    <a href="#402-588">process_success</a>(<a href="precharge.rs.html#171">Exit</a>(<a href="#182">value_destination</a>), <a href="#144">res</a>)
                 }
                 <a href="common.rs.html#57">DispatchResultKind::GasAllowanceExceed</a> =&gt; {
-                    <a href="#591-608">process_allowance_exceed</a>(<a href="#91">dispatch</a>, <a href="#93">program_id</a>, <a href="#144">res</a>.gas_amount.burned())
+                    <a href="#590-607">process_allowance_exceed</a>(<a href="#91">dispatch</a>, <a href="#93">program_id</a>, <a href="#144">res</a>.gas_amount.burned())
                 }
             })
         }
-        <span class="prelude-val">Err</span>(ExecutionError::Actor(e)) =&gt; <span class="prelude-val">Ok</span>(<a href="#348-362">process_execution_error</a>(
+        <span class="prelude-val">Err</span>(ExecutionError::Actor(e)) =&gt; <span class="prelude-val">Ok</span>(<a href="#347-361">process_execution_error</a>(
             <a href="#91">dispatch</a>,
             <a href="#93">program_id</a>,
-            <a href="#191">e</a>.gas_amount.burned(),
+            <a href="#190">e</a>.gas_amount.burned(),
             <a href="#129">system_reservation_ctx</a>,
-            <a href="#191">e</a>.reason,
+            <a href="#190">e</a>.reason,
         )),
-        <span class="prelude-val">Err</span>(ExecutionError::System(e)) =&gt; <span class="prelude-val">Err</span>(<a href="#198">e</a>),
+        <span class="prelude-val">Err</span>(ExecutionError::System(e)) =&gt; <span class="prelude-val">Err</span>(<a href="#197">e</a>),
     }
 }
 
@@ -816,19 +814,19 @@
     </span>ReinstrumentationFailed,
 }
 
-<span class="kw">impl </span><a href="#202-209">ProcessErrorCase</a> {
+<span class="kw">impl </span><a href="#201-208">ProcessErrorCase</a> {
     <span class="kw">pub fn </span>to_reason_and_payload(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (ErrorReplyReason, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>) {
-        <span class="kw">match </span><span class="self"><a href="#212">self</a> </span>{
-            <a href="#204">ProcessErrorCase::NonExecutable</a> =&gt; {
+        <span class="kw">match </span><span class="self"><a href="#211">self</a> </span>{
+            <a href="#203">ProcessErrorCase::NonExecutable</a> =&gt; {
                 <span class="kw">let </span>reason = ErrorReplyReason::InactiveActor;
-                (<a href="#215">reason</a>, <a href="#215">reason</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>())
+                (<a href="#214">reason</a>, <a href="#214">reason</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>())
             }
-            <a href="#206">ProcessErrorCase::ExecutionFailed</a>(reason) =&gt; {
-                (<a href="#218">reason</a>.<a href="common.rs.html#468-483">as_simple</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#218">reason</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>())
+            <a href="#205">ProcessErrorCase::ExecutionFailed</a>(reason) =&gt; {
+                (<a href="#217">reason</a>.<a href="common.rs.html#468-483">as_simple</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#217">reason</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>())
             }
-            <a href="#208">ProcessErrorCase::ReinstrumentationFailed</a> =&gt; {
+            <a href="#207">ProcessErrorCase::ReinstrumentationFailed</a> =&gt; {
                 <span class="kw">let </span>err = ErrorReplyReason::ReinstrumentationFailure;
-                (<a href="#222">err</a>, <a href="#222">err</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>())
+                (<a href="#221">err</a>, <a href="#221">err</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>())
             }
         }
     }
@@ -839,17 +837,17 @@
     program_id: ProgramId,
     gas_burned: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
     system_reservation_ctx: <a href="context.rs.html#179-184">SystemReservationContext</a>,
-    case: <a href="#202-209">ProcessErrorCase</a>,
+    case: <a href="#201-208">ProcessErrorCase</a>,
 ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="common.rs.html#180-341">JournalNote</a>&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>journal = <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.new">Vec::new</a>();
 
-    <span class="kw">let </span>message_id = <a href="#230">dispatch</a>.id();
-    <span class="kw">let </span>origin = <a href="#230">dispatch</a>.source();
-    <span class="kw">let </span>value = <a href="#230">dispatch</a>.value();
+    <span class="kw">let </span>message_id = <a href="#229">dispatch</a>.id();
+    <span class="kw">let </span>origin = <a href="#229">dispatch</a>.source();
+    <span class="kw">let </span>value = <a href="#229">dispatch</a>.value();
 
-    <a href="#236">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#191-196">JournalNote::GasBurned</a> {
-        <a href="#238">message_id</a>,
-        amount: <a href="#232">gas_burned</a>,
+    <a href="#235">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#191-196">JournalNote::GasBurned</a> {
+        <a href="#237">message_id</a>,
+        amount: <a href="#231">gas_burned</a>,
     });
 
     <span class="comment">// We check if value is greater than zero to don't provide
@@ -861,41 +859,41 @@
     // execution, where `gr_wait` was called.
     </span><span class="kw">if </span>dispatch.context().is_none() &amp;&amp; value != <span class="number">0 </span>{
         <span class="comment">// Send back value
-        </span><a href="#236">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#258-265">JournalNote::SendValue</a> {
-            from: <a href="#239">origin</a>,
+        </span><a href="#235">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#258-265">JournalNote::SendValue</a> {
+            from: <a href="#238">origin</a>,
             to: <span class="prelude-val">None</span>,
-            <a href="#240">value</a>,
+            <a href="#239">value</a>,
         });
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(amount) = <a href="#233">system_reservation_ctx</a>.current_reservation {
-        <a href="#236">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#312-317">JournalNote::SystemReserveGas</a> { <a href="#238">message_id</a>, <a href="#263">amount</a> });
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(amount) = <a href="#232">system_reservation_ctx</a>.current_reservation {
+        <a href="#235">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#312-317">JournalNote::SystemReserveGas</a> { <a href="#237">message_id</a>, <a href="#262">amount</a> });
     }
 
-    <span class="kw">if let </span><a href="#206">ProcessErrorCase::ExecutionFailed</a>(reason) = <span class="kw-2">&amp;</span><a href="#234">case</a> {
+    <span class="kw">if let </span><a href="#205">ProcessErrorCase::ExecutionFailed</a>(reason) = <span class="kw-2">&amp;</span><a href="#233">case</a> {
         <span class="comment">// TODO: consider to handle error reply and init #3701
         </span><span class="kw">if </span>system_reservation_ctx.has_any()
             &amp;&amp; !dispatch.is_error_reply()
             &amp;&amp; !<span class="macro">matches!</span>(dispatch.kind(), DispatchKind::Signal | DispatchKind::Init)
         {
-            <a href="#236">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#324-331">JournalNote::SendSignal</a> {
-                <a href="#238">message_id</a>,
-                destination: <a href="#231">program_id</a>,
-                code: SignalCode::Execution(<a href="#267">reason</a>.<a href="common.rs.html#468-483">as_simple</a>()),
+            <a href="#235">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#324-331">JournalNote::SendSignal</a> {
+                <a href="#237">message_id</a>,
+                destination: <a href="#230">program_id</a>,
+                code: SignalCode::Execution(<a href="#266">reason</a>.<a href="common.rs.html#468-483">as_simple</a>()),
             });
         }
     }
 
     <span class="kw">if </span>system_reservation_ctx.has_any() {
-        <a href="#236">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#319-322">JournalNote::SystemUnreserveGas</a> { <a href="#238">message_id</a> });
+        <a href="#235">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#319-322">JournalNote::SystemUnreserveGas</a> { <a href="#237">message_id</a> });
     }
 
     <span class="kw">if </span>!dispatch.is_reply() &amp;&amp; dispatch.kind() != DispatchKind::Signal {
-        <span class="kw">let </span>(err, err_payload) = <a href="#234">case</a>.<a href="#212-226">to_reason_and_payload</a>();
+        <span class="kw">let </span>(err, err_payload) = <a href="#233">case</a>.<a href="#211-225">to_reason_and_payload</a>();
 
         <span class="comment">// Panic is impossible, unless error message is too large or [Payload] max size is too small.
-        </span><span class="kw">let </span>err_payload = <a href="#286">err_payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.into_bytes">into_bytes</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|<span class="kw">_</span>| {
-            <span class="kw">let </span>(<span class="kw">_</span>, err_payload) = <a href="#234">case</a>.<a href="#212-226">to_reason_and_payload</a>();
+        </span><span class="kw">let </span>err_payload = <a href="#285">err_payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.into_bytes">into_bytes</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|<span class="kw">_</span>| {
+            <span class="kw">let </span>(<span class="kw">_</span>, err_payload) = <a href="#233">case</a>.<a href="#211-225">to_reason_and_payload</a>();
             <span class="kw">let </span>err_msg =
                 <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}"</span>,
             );
@@ -910,46 +908,46 @@
         // 2. This reply message is generated by our system
         //
         // So, the message id of this reply message will not be duplicated.
-        </span><span class="kw">let </span>dispatch = ReplyMessage::system(<a href="#230">dispatch</a>.id(), <a href="#289">err_payload</a>, <a href="#286">err</a>).into_dispatch(
-            <a href="#231">program_id</a>,
-            <a href="#230">dispatch</a>.source(),
-            <a href="#230">dispatch</a>.id(),
+        </span><span class="kw">let </span>dispatch = ReplyMessage::system(<a href="#229">dispatch</a>.id(), <a href="#288">err_payload</a>, <a href="#285">err</a>).into_dispatch(
+            <a href="#230">program_id</a>,
+            <a href="#229">dispatch</a>.source(),
+            <a href="#229">dispatch</a>.id(),
         );
 
-        <a href="#236">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#210-219">JournalNote::SendDispatch</a> {
-            <a href="#238">message_id</a>,
-            <a href="#305">dispatch</a>,
+        <a href="#235">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#210-219">JournalNote::SendDispatch</a> {
+            <a href="#237">message_id</a>,
+            <a href="#304">dispatch</a>,
             delay: <span class="number">0</span>,
             reservation: <span class="prelude-val">None</span>,
         });
     }
 
-    <span class="kw">let </span>outcome = <span class="kw">match </span><a href="#234">case</a> {
-        <a href="#206">ProcessErrorCase::ExecutionFailed</a> { .. } | <a href="#208">ProcessErrorCase::ReinstrumentationFailed</a> =&gt; {
-            <span class="kw">let </span>(<span class="kw">_</span>, err_payload) = <a href="#234">case</a>.<a href="#212-226">to_reason_and_payload</a>();
-            <span class="kw">match </span><a href="#230">dispatch</a>.kind() {
+    <span class="kw">let </span>outcome = <span class="kw">match </span><a href="#233">case</a> {
+        <a href="#205">ProcessErrorCase::ExecutionFailed</a> { .. } | <a href="#207">ProcessErrorCase::ReinstrumentationFailed</a> =&gt; {
+            <span class="kw">let </span>(<span class="kw">_</span>, err_payload) = <a href="#233">case</a>.<a href="#211-225">to_reason_and_payload</a>();
+            <span class="kw">match </span><a href="#229">dispatch</a>.kind() {
                 DispatchKind::Init =&gt; <a href="common.rs.html#157-164">DispatchOutcome::InitFailure</a> {
-                    <a href="#231">program_id</a>,
-                    <a href="#239">origin</a>,
-                    reason: <a href="#321">err_payload</a>,
+                    <a href="#230">program_id</a>,
+                    <a href="#238">origin</a>,
+                    reason: <a href="#320">err_payload</a>,
                 },
                 <span class="kw">_ </span>=&gt; <a href="common.rs.html#166-171">DispatchOutcome::MessageTrap</a> {
-                    <a href="#231">program_id</a>,
-                    trap: <a href="#321">err_payload</a>,
+                    <a href="#230">program_id</a>,
+                    trap: <a href="#320">err_payload</a>,
                 },
             }
         }
-        <a href="#204">ProcessErrorCase::NonExecutable</a> =&gt; <a href="common.rs.html#175">DispatchOutcome::NoExecution</a>,
+        <a href="#203">ProcessErrorCase::NonExecutable</a> =&gt; <a href="common.rs.html#175">DispatchOutcome::NoExecution</a>,
     };
 
-    <a href="#236">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#182-189">JournalNote::MessageDispatched</a> {
-        <a href="#238">message_id</a>,
-        source: <a href="#239">origin</a>,
-        <a href="#319">outcome</a>,
+    <a href="#235">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#182-189">JournalNote::MessageDispatched</a> {
+        <a href="#237">message_id</a>,
+        source: <a href="#238">origin</a>,
+        <a href="#318">outcome</a>,
     });
-    <a href="#236">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#208">JournalNote::MessageConsumed</a>(<a href="#238">message_id</a>));
+    <a href="#235">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#208">JournalNote::MessageConsumed</a>(<a href="#237">message_id</a>));
 
-    <a href="#236">journal</a>
+    <a href="#235">journal</a>
 }
 
 <span class="doccomment">/// Helper function for journal creation in trap/error case.
@@ -960,12 +958,12 @@
     system_reservation_ctx: <a href="context.rs.html#179-184">SystemReservationContext</a>,
     err: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="common.rs.html#447-464">ActorExecutionErrorReplyReason</a>&gt;,
 ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="common.rs.html#180-341">JournalNote</a>&gt; {
-    <a href="#229-345">process_error</a>(
-        <a href="#349">dispatch</a>,
-        <a href="#350">program_id</a>,
-        <a href="#351">gas_burned</a>,
-        <a href="#352">system_reservation_ctx</a>,
-        <a href="#206">ProcessErrorCase::ExecutionFailed</a>(<a href="#353">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+    <a href="#228-344">process_error</a>(
+        <a href="#348">dispatch</a>,
+        <a href="#349">program_id</a>,
+        <a href="#350">gas_burned</a>,
+        <a href="#351">system_reservation_ctx</a>,
+        <a href="#205">ProcessErrorCase::ExecutionFailed</a>(<a href="#352">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
     )
 }
 
@@ -973,17 +971,17 @@
 </span><span class="kw">pub fn </span><a href="../../gear_core_processor/fn.process_reinstrumentation_error.html">process_reinstrumentation_error</a>(
     context: <a href="context.rs.html#86-88">ContextChargedForInstrumentation</a>,
 ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="common.rs.html#180-341">JournalNote</a>&gt; {
-    <span class="kw">let </span>dispatch = <a href="#366">context</a>.data.dispatch;
-    <span class="kw">let </span>program_id = <a href="#366">context</a>.data.destination_id;
-    <span class="kw">let </span>gas_burned = <a href="#366">context</a>.data.gas_counter.burned();
-    <span class="kw">let </span>system_reservation_ctx = <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#368">dispatch</a>);
+    <span class="kw">let </span>dispatch = <a href="#365">context</a>.data.dispatch;
+    <span class="kw">let </span>program_id = <a href="#365">context</a>.data.destination_id;
+    <span class="kw">let </span>gas_burned = <a href="#365">context</a>.data.gas_counter.burned();
+    <span class="kw">let </span>system_reservation_ctx = <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#367">dispatch</a>);
 
-    <a href="#229-345">process_error</a>(
-        <a href="#368">dispatch</a>,
-        <a href="#369">program_id</a>,
-        <a href="#370">gas_burned</a>,
-        <a href="#371">system_reservation_ctx</a>,
-        <a href="#208">ProcessErrorCase::ReinstrumentationFailed</a>,
+    <a href="#228-344">process_error</a>(
+        <a href="#367">dispatch</a>,
+        <a href="#368">program_id</a>,
+        <a href="#369">gas_burned</a>,
+        <a href="#370">system_reservation_ctx</a>,
+        <a href="#207">ProcessErrorCase::ReinstrumentationFailed</a>,
     )
 }
 
@@ -994,16 +992,16 @@
         gas_counter,
         destination_id,
         ..
-    } = <a href="#383">context</a>;
+    } = <a href="#382">context</a>;
 
-    <span class="kw">let </span>system_reservation_ctx = <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#385">dispatch</a>);
+    <span class="kw">let </span>system_reservation_ctx = <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#384">dispatch</a>);
 
-    <a href="#229-345">process_error</a>(
-        <a href="#385">dispatch</a>,
-        <a href="#387">destination_id</a>,
-        <a href="#386">gas_counter</a>.burned(),
-        <a href="#391">system_reservation_ctx</a>,
-        <a href="#204">ProcessErrorCase::NonExecutable</a>,
+    <a href="#228-344">process_error</a>(
+        <a href="#384">dispatch</a>,
+        <a href="#386">destination_id</a>,
+        <a href="#385">gas_counter</a>.burned(),
+        <a href="#390">system_reservation_ctx</a>,
+        <a href="#203">ProcessErrorCase::NonExecutable</a>,
     )
 }
 
@@ -1029,48 +1027,48 @@
         reply_deposits,
         reply_sent,
         ..
-    } = <a href="#405">dispatch_result</a>;
+    } = <a href="#404">dispatch_result</a>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>journal = <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.new">Vec::new</a>();
 
-    <span class="kw">let </span>message_id = <a href="#410">dispatch</a>.id();
-    <span class="kw">let </span>origin = <a href="#410">dispatch</a>.source();
-    <span class="kw">let </span>value = <a href="#410">dispatch</a>.value();
+    <span class="kw">let </span>message_id = <a href="#409">dispatch</a>.id();
+    <span class="kw">let </span>origin = <a href="#409">dispatch</a>.source();
+    <span class="kw">let </span>value = <a href="#409">dispatch</a>.value();
 
-    <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#191-196">JournalNote::GasBurned</a> {
-        <a href="#428">message_id</a>,
-        amount: <a href="#414">gas_amount</a>.burned(),
+    <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#191-196">JournalNote::GasBurned</a> {
+        <a href="#427">message_id</a>,
+        amount: <a href="#413">gas_amount</a>.burned(),
     });
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(gas_reserver) = <a href="#415">gas_reserver</a> {
-        <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/core/iter/traits/collect/trait.Extend.html#tymethod.extend">extend</a>(<a href="#437">gas_reserver</a>.states().<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.iter">iter</a>().<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.flat_map">flat_map</a>(
-            |(<span class="kw-2">&amp;</span>reservation_id, <span class="kw-2">&amp;</span>state)| <span class="kw">match </span><a href="#439">state</a> {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(gas_reserver) = <a href="#414">gas_reserver</a> {
+        <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/core/iter/traits/collect/trait.Extend.html#tymethod.extend">extend</a>(<a href="#436">gas_reserver</a>.states().<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.iter">iter</a>().<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.flat_map">flat_map</a>(
+            |(<span class="kw-2">&amp;</span>reservation_id, <span class="kw-2">&amp;</span>state)| <span class="kw">match </span><a href="#438">state</a> {
                 GasReservationState::Exists { .. } =&gt; <span class="prelude-val">None</span>,
                 GasReservationState::Created {
                     amount, duration, ..
                 } =&gt; <span class="prelude-val">Some</span>(<a href="common.rs.html#283-294">JournalNote::ReserveGas</a> {
-                    <a href="#428">message_id</a>,
-                    <a href="#439">reservation_id</a>,
-                    <a href="#418">program_id</a>,
-                    <a href="#442">amount</a>,
-                    <a href="#442">duration</a>,
+                    <a href="#427">message_id</a>,
+                    <a href="#438">reservation_id</a>,
+                    <a href="#417">program_id</a>,
+                    <a href="#441">amount</a>,
+                    <a href="#441">duration</a>,
                 }),
                 GasReservationState::Removed { expiration } =&gt; <span class="prelude-val">Some</span>(<a href="common.rs.html#296-303">JournalNote::UnreserveGas</a> {
-                    <a href="#439">reservation_id</a>,
-                    <a href="#418">program_id</a>,
-                    <a href="#450">expiration</a>,
+                    <a href="#438">reservation_id</a>,
+                    <a href="#417">program_id</a>,
+                    <a href="#449">expiration</a>,
                 }),
             },
         ));
 
-        <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#305-310">JournalNote::UpdateGasReservations</a> {
-            <a href="#418">program_id</a>,
-            reserver: <a href="#437">gas_reserver</a>,
+        <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#305-310">JournalNote::UpdateGasReservations</a> {
+            <a href="#417">program_id</a>,
+            reserver: <a href="#436">gas_reserver</a>,
         });
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(amount) = <a href="#416">system_reservation_context</a>.current_reservation {
-        <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#312-317">JournalNote::SystemReserveGas</a> { <a href="#428">message_id</a>, <a href="#464">amount</a> });
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(amount) = <a href="#415">system_reservation_context</a>.current_reservation {
+        <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#312-317">JournalNote::SystemReserveGas</a> { <a href="#427">message_id</a>, <a href="#463">amount</a> });
     }
 
     <span class="comment">// We check if value is greater than zero to don't provide
@@ -1082,10 +1080,10 @@
     // execution, where `gr_wait` was called.
     </span><span class="kw">if </span>dispatch.context().is_none() &amp;&amp; value != <span class="number">0 </span>{
         <span class="comment">// Send value further
-        </span><a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#258-265">JournalNote::SendValue</a> {
-            from: <a href="#429">origin</a>,
-            to: <span class="prelude-val">Some</span>(<a href="#418">program_id</a>),
-            <a href="#430">value</a>,
+        </span><a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#258-265">JournalNote::SendValue</a> {
+            from: <a href="#428">origin</a>,
+            to: <span class="prelude-val">Some</span>(<a href="#417">program_id</a>),
+            <a href="#429">value</a>,
         });
     }
 
@@ -1104,15 +1102,15 @@
         &amp;&amp; !dispatch.is_reply()
         &amp;&amp; dispatch.kind() != DispatchKind::Signal
     {
-        <span class="kw">let </span>auto_reply = ReplyMessage::auto(<a href="#410">dispatch</a>.id()).into_dispatch(
-            <a href="#418">program_id</a>,
-            <a href="#410">dispatch</a>.source(),
-            <a href="#410">dispatch</a>.id(),
+        <span class="kw">let </span>auto_reply = ReplyMessage::auto(<a href="#409">dispatch</a>.id()).into_dispatch(
+            <a href="#417">program_id</a>,
+            <a href="#409">dispatch</a>.source(),
+            <a href="#409">dispatch</a>.id(),
         );
 
-        <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#210-219">JournalNote::SendDispatch</a> {
-            <a href="#428">message_id</a>,
-            dispatch: <a href="#499">auto_reply</a>,
+        <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#210-219">JournalNote::SendDispatch</a> {
+            <a href="#427">message_id</a>,
+            dispatch: <a href="#498">auto_reply</a>,
             delay: <span class="number">0</span>,
             reservation: <span class="prelude-val">None</span>,
         });
@@ -1152,48 +1150,48 @@
         })
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(allocations) = <a href="#420">allocations</a> {
-        <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#251-256">JournalNote::UpdateAllocations</a> {
-            <a href="#418">program_id</a>,
-            <a href="#547">allocations</a>,
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(allocations) = <a href="#419">allocations</a> {
+        <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#251-256">JournalNote::UpdateAllocations</a> {
+            <a href="#417">program_id</a>,
+            <a href="#546">allocations</a>,
         });
     }
 
-    <span class="kw">let </span>outcome = <span class="kw">match </span><a href="#404">kind</a> {
+    <span class="kw">let </span>outcome = <span class="kw">match </span><a href="#403">kind</a> {
         <a href="precharge.rs.html#172">Wait</a>(duration, waited_type) =&gt; {
-            <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#221-228">JournalNote::WaitDispatch</a> {
-                dispatch: <a href="#410">dispatch</a>.into_stored(<a href="#418">program_id</a>, <a href="#419">context_store</a>),
-                <a href="#555">duration</a>,
-                <a href="#555">waited_type</a>,
+            <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#221-228">JournalNote::WaitDispatch</a> {
+                dispatch: <a href="#409">dispatch</a>.into_stored(<a href="#417">program_id</a>, <a href="#418">context_store</a>),
+                <a href="#554">duration</a>,
+                <a href="#554">waited_type</a>,
             });
 
-            <span class="kw">return </span><a href="#426">journal</a>;
+            <span class="kw">return </span><a href="#425">journal</a>;
         }
-        <a href="precharge.rs.html#173">Success</a> =&gt; <span class="kw">match </span><a href="#410">dispatch</a>.kind() {
-            DispatchKind::Init =&gt; <a href="common.rs.html#152-155">DispatchOutcome::InitSuccess</a> { <a href="#418">program_id</a> },
+        <a href="precharge.rs.html#173">Success</a> =&gt; <span class="kw">match </span><a href="#409">dispatch</a>.kind() {
+            DispatchKind::Init =&gt; <a href="common.rs.html#152-155">DispatchOutcome::InitSuccess</a> { <a href="#417">program_id</a> },
             <span class="kw">_ </span>=&gt; <a href="common.rs.html#173">DispatchOutcome::Success</a>,
         },
         <a href="precharge.rs.html#171">Exit</a>(value_destination) =&gt; {
-            <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#198-204">JournalNote::ExitDispatch</a> {
-                id_exited: <a href="#418">program_id</a>,
-                <a href="#568">value_destination</a>,
+            <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#198-204">JournalNote::ExitDispatch</a> {
+                id_exited: <a href="#417">program_id</a>,
+                <a href="#567">value_destination</a>,
             });
 
-            <a href="common.rs.html#147-150">DispatchOutcome::Exit</a> { <a href="#418">program_id</a> }
+            <a href="common.rs.html#147-150">DispatchOutcome::Exit</a> { <a href="#417">program_id</a> }
         }
     };
 
     <span class="kw">if </span>system_reservation_context.has_any() {
-        <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#319-322">JournalNote::SystemUnreserveGas</a> { <a href="#428">message_id</a> });
+        <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#319-322">JournalNote::SystemUnreserveGas</a> { <a href="#427">message_id</a> });
     }
 
-    <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#182-189">JournalNote::MessageDispatched</a> {
-        <a href="#428">message_id</a>,
-        source: <a href="#429">origin</a>,
-        <a href="#554">outcome</a>,
+    <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#182-189">JournalNote::MessageDispatched</a> {
+        <a href="#427">message_id</a>,
+        source: <a href="#428">origin</a>,
+        <a href="#553">outcome</a>,
     });
-    <a href="#426">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#208">JournalNote::MessageConsumed</a>(<a href="#428">message_id</a>));
-    <a href="#426">journal</a>
+    <a href="#425">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#208">JournalNote::MessageConsumed</a>(<a href="#427">message_id</a>));
+    <a href="#425">journal</a>
 }
 
 <span class="kw">pub fn </span>process_allowance_exceed(
@@ -1203,15 +1201,15 @@
 ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="common.rs.html#180-341">JournalNote</a>&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>journal = <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.with_capacity">Vec::with_capacity</a>(<span class="number">1</span>);
 
-    <span class="kw">let </span>(kind, message, opt_context) = <a href="#592">dispatch</a>.into_parts();
+    <span class="kw">let </span>(kind, message, opt_context) = <a href="#591">dispatch</a>.into_parts();
 
-    <span class="kw">let </span>dispatch = StoredDispatch::new(<a href="#598">kind</a>, <a href="#598">message</a>.into_stored(<a href="#593">program_id</a>), <a href="#598">opt_context</a>);
+    <span class="kw">let </span>dispatch = StoredDispatch::new(<a href="#597">kind</a>, <a href="#597">message</a>.into_stored(<a href="#592">program_id</a>), <a href="#597">opt_context</a>);
 
-    <a href="#596">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#276-281">JournalNote::StopProcessing</a> {
-        <a href="#600">dispatch</a>,
-        <a href="#594">gas_burned</a>,
+    <a href="#595">journal</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="common.rs.html#276-281">JournalNote::StopProcessing</a> {
+        <a href="#599">dispatch</a>,
+        <a href="#593">gas_burned</a>,
     });
 
-    <a href="#596">journal</a>
+    <a href="#595">journal</a>
 }
 </code></pre></div></section></main></body></html>

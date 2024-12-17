@@ -162,13 +162,13 @@
     ids::{<a href="../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="ids.rs.html#48">ProgramId</a>},
     <a href="message/mod.rs.html#118-128">message::DispatchKind</a>,
     <a href="pages.rs.html#311">pages::WasmPagesAmount</a>,
-    <a href="reservation.rs.html#390">reservation::GasReservationMap</a>,
+    <a href="reservation.rs.html#399">reservation::GasReservationMap</a>,
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">alloc::collections::BTreeSet</a>;
 <span class="kw">use </span>primitive_types::H256;
 <span class="kw">use </span>scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 <span class="doccomment">/// Program in different states in storage.
@@ -236,7 +236,7 @@
     <span class="doccomment">/// Infix of memory pages storage (is used for memory wake after pausing)
     </span><span class="kw">pub </span>memory_infix: <a href="#128">MemoryInfix</a>,
     <span class="doccomment">/// Gas reservation map.
-    </span><span class="kw">pub </span>gas_reservation_map: <a href="reservation.rs.html#390">GasReservationMap</a>,
+    </span><span class="kw">pub </span>gas_reservation_map: <a href="reservation.rs.html#399">GasReservationMap</a>,
     <span class="doccomment">/// Code hash of the program.
     </span><span class="kw">pub </span>code_hash: H256,
     <span class="doccomment">/// Set of supported dispatch kinds.

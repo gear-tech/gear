@@ -198,7 +198,12 @@
 <a href="#197" id="197">197</a>
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -216,7 +221,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
-</span><span class="kw">use </span>gear_core::pages::{WasmPage, numerated::tree::IntervalsTree};
+</span><span class="kw">use </span>gear_core::pages::{numerated::tree::IntervalsTree, <a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>};
 
 <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <span class="kw">use </span><span class="kw">crate</span>::storage::{<a href="storage/primitives/map.rs.html#30-68">MapStorage</a>, <a href="storage/primitives/triple_map.rs.html#29-89">TripleMapStorage</a>};
@@ -252,8 +257,13 @@
     <span class="kw">type </span>AccountId: <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.Eq.html">Eq</a> + <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html">PartialEq</a>;
 
     <span class="kw">type </span>ProgramMap: <a href="storage/primitives/map.rs.html#30-68">MapStorage</a>&lt;Key = <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, Value = <a href="../../gear_common/enum.Program.html">Program</a>&lt;<span class="self">Self</span>::BlockNumber&gt;&gt;;
-    <span class="kw">type </span>MemoryPageMap: <a href="storage/primitives/triple_map.rs.html#29-89">TripleMapStorage</a>&lt;Key1 = <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, Key2 = <a href="../../gear_common/struct.MemoryInfix.html">MemoryInfix</a>, Key3 = <a href="../../gear_common/type.GearPage.html">GearPage</a>, Value = <a href="../../gear_common/struct.PageBuf.html">PageBuf</a>&gt;;
-    <span class="kw">type </span>AllocationsMap: <a href="storage/primitives/map.rs.html#30-68">MapStorage</a>&lt;Key = <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, Value = IntervalsTree&lt;WasmPage&gt;&gt;;
+    <span class="kw">type </span>MemoryPageMap: <a href="storage/primitives/triple_map.rs.html#29-89">TripleMapStorage</a>&lt;
+        Key1 = <a href="../../gear_common/type.ProgramId.html">ProgramId</a>,
+        Key2 = <a href="../../gear_common/struct.MemoryInfix.html">MemoryInfix</a>,
+        Key3 = <a href="../../gear_common/type.GearPage.html">GearPage</a>,
+        Value = <a href="../../gear_common/struct.PageBuf.html">PageBuf</a>,
+    &gt;;
+    <span class="kw">type </span>AllocationsMap: <a href="storage/primitives/map.rs.html#30-68">MapStorage</a>&lt;Key = <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, Value = IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;&gt;;
 
     <span class="doccomment">/// Attempt to remove all items from all the associated maps.
     </span><span class="kw">fn </span>reset() {
@@ -267,24 +277,24 @@
         program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>,
         program: <a href="../../gear_common/struct.ActiveProgram.html">ActiveProgram</a>&lt;<span class="self">Self</span>::BlockNumber&gt;,
     ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <span class="self">Self</span>::Error&gt; {
-        <a href="storage/primitives/map.rs.html#49"><span class="self">Self</span>::ProgramMap::mutate</a>(<a href="#67">program_id</a>, |maybe| {
+        <a href="storage/primitives/map.rs.html#49"><span class="self">Self</span>::ProgramMap::mutate</a>(<a href="#72">program_id</a>, |maybe| {
             <span class="kw">if </span>maybe.is_some() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<a href="#30"><span class="self">Self</span>::InternalError::duplicate_item</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
             }
 
-            <span class="kw-2">*</span><a href="#70">maybe</a> = <span class="prelude-val">Some</span>(<a href="../../gear_common/enum.Program.html">Program::Active</a>(<a href="#68">program</a>));
+            <span class="kw-2">*</span><a href="#75">maybe</a> = <span class="prelude-val">Some</span>(<a href="../../gear_common/enum.Program.html">Program::Active</a>(<a href="#73">program</a>));
             <span class="prelude-val">Ok</span>(())
         })
     }
 
     <span class="doccomment">/// Load the program associated with the given key `program_id` from the map.
     </span><span class="kw">fn </span>get_program(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="../../gear_common/enum.Program.html">Program</a>&lt;<span class="self">Self</span>::BlockNumber&gt;&gt; {
-        <a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::ProgramMap::get</a>(<span class="kw-2">&amp;</span><a href="#81">program_id</a>)
+        <a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::ProgramMap::get</a>(<span class="kw-2">&amp;</span><a href="#86">program_id</a>)
     }
 
     <span class="doccomment">/// Does the program (explicitly) exist in storage?
     </span><span class="kw">fn </span>program_exists(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
-        <a href="storage/primitives/map.rs.html#37"><span class="self">Self</span>::ProgramMap::contains_key</a>(<span class="kw-2">&amp;</span><a href="#86">program_id</a>)
+        <a href="storage/primitives/map.rs.html#37"><span class="self">Self</span>::ProgramMap::contains_key</a>(<span class="kw-2">&amp;</span><a href="#91">program_id</a>)
     }
 
     <span class="doccomment">/// Update the active program under the given key `program_id`.
@@ -295,8 +305,8 @@
     <span class="kw">where
         </span>F: <a href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html">FnOnce</a>(<span class="kw-2">&amp;mut </span><a href="../../gear_common/struct.ActiveProgram.html">ActiveProgram</a>&lt;<span class="self">Self</span>::BlockNumber&gt;) -&gt; ReturnType,
     {
-        <a href="#146-164"><span class="self">Self</span>::update_program_if_active</a>(<a href="#92">program_id</a>, |program, _bn| <span class="kw">match </span><a href="#98">program</a> {
-            <a href="../../gear_common/enum.Program.html">Program::Active</a>(active_program) =&gt; <a href="#93">update_action</a>(<a href="#99">active_program</a>),
+        <a href="#151-169"><span class="self">Self</span>::update_program_if_active</a>(<a href="#97">program_id</a>, |program, _bn| <span class="kw">match </span><a href="#103">program</a> {
+            <a href="../../gear_common/enum.Program.html">Program::Active</a>(active_program) =&gt; <a href="#98">update_action</a>(<a href="#104">active_program</a>),
             <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"invariant kept by update_program_if_active"</span>),
         })
     }
@@ -311,13 +321,13 @@
         }
     }
 
-    <span class="kw">fn </span>allocations(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;IntervalsTree&lt;WasmPage&gt;&gt; {
-        <a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::AllocationsMap::get</a>(<span class="kw-2">&amp;</span><a href="#114">program_id</a>)
+    <span class="kw">fn </span>allocations(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;&gt; {
+        <a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::AllocationsMap::get</a>(<span class="kw-2">&amp;</span><a href="#119">program_id</a>)
     }
 
-    <span class="kw">fn </span>set_allocations(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, allocations: IntervalsTree&lt;WasmPage&gt;) {
-        <a href="#91-102"><span class="self">Self</span>::update_active_program</a>(<a href="#118">program_id</a>, |program| {
-            <a href="#119">program</a>.allocations_tree_len = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from">u32::try_from</a>(<a href="#118">allocations</a>.intervals_amount())
+    <span class="kw">fn </span>set_allocations(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, allocations: IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;) {
+        <a href="#96-107"><span class="self">Self</span>::update_active_program</a>(<a href="#123">program_id</a>, |program| {
+            <a href="#124">program</a>.allocations_tree_len = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from">u32::try_from</a>(<a href="#123">allocations</a>.intervals_amount())
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|err| {
                     <span class="comment">// This panic is impossible because page numbers are u32.
                     </span><a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"allocations tree length is too big to fit into u32: {err}"</span>)
@@ -327,16 +337,16 @@
             <span class="comment">// set_allocations must be called only for active programs.
             </span><a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"Failed to update program allocations: {err:?}"</span>)
         });
-        <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::AllocationsMap::insert</a>(<a href="#118">program_id</a>, <a href="#118">allocations</a>);
+        <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::AllocationsMap::insert</a>(<a href="#123">program_id</a>, <a href="#123">allocations</a>);
     }
 
     <span class="kw">fn </span>clear_allocations(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>) {
-        <a href="storage/primitives/map.rs.html#60"><span class="self">Self</span>::AllocationsMap::remove</a>(<a href="#133">program_id</a>);
+        <a href="storage/primitives/map.rs.html#60"><span class="self">Self</span>::AllocationsMap::remove</a>(<a href="#138">program_id</a>);
     }
 
     <span class="kw">fn </span>memory_infix(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="../../gear_common/struct.MemoryInfix.html">MemoryInfix</a>&gt; {
-        <span class="kw">match </span><a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::ProgramMap::get</a>(<span class="kw-2">&amp;</span><a href="#137">program_id</a>) {
-            <span class="prelude-val">Some</span>(<a href="../../gear_common/enum.Program.html">Program::Active</a>(program)) =&gt; <span class="prelude-val">Some</span>(<a href="#139">program</a>.memory_infix),
+        <span class="kw">match </span><a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::ProgramMap::get</a>(<span class="kw-2">&amp;</span><a href="#142">program_id</a>) {
+            <span class="prelude-val">Some</span>(<a href="../../gear_common/enum.Program.html">Program::Active</a>(program)) =&gt; <span class="prelude-val">Some</span>(<a href="#144">program</a>.memory_infix),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -351,16 +361,16 @@
         </span>F: <a href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html">FnOnce</a>(<span class="kw-2">&amp;mut </span><a href="../../gear_common/enum.Program.html">Program</a>&lt;<span class="self">Self</span>::BlockNumber&gt;, <span class="self">Self</span>::BlockNumber) -&gt; ReturnType,
     {
         <span class="kw">let </span><span class="kw-2">mut </span>program =
-            <a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::ProgramMap::get</a>(<span class="kw-2">&amp;</span><a href="#147">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a href="#33"><span class="self">Self</span>::InternalError::program_not_found</a>())<span class="question-mark">?</span>;
-        <span class="kw">let </span>bn = <span class="kw">match </span><a href="#153">program</a> {
-            <a href="../../gear_common/enum.Program.html">Program::Active</a>(<span class="kw-2">ref </span>p) =&gt; <a href="#156">p</a>.expiration_block,
+            <a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::ProgramMap::get</a>(<span class="kw-2">&amp;</span><a href="#152">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a href="#33"><span class="self">Self</span>::InternalError::program_not_found</a>())<span class="question-mark">?</span>;
+        <span class="kw">let </span>bn = <span class="kw">match </span><a href="#158">program</a> {
+            <a href="../../gear_common/enum.Program.html">Program::Active</a>(<span class="kw-2">ref </span>p) =&gt; <a href="#161">p</a>.expiration_block,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<a href="#36"><span class="self">Self</span>::InternalError::not_active_program</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
         };
 
-        <span class="kw">let </span>result = <a href="#148">update_action</a>(<span class="kw-2">&amp;mut </span><a href="#153">program</a>, <a href="#155">bn</a>);
-        <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::ProgramMap::insert</a>(<a href="#147">program_id</a>, <a href="#153">program</a>);
+        <span class="kw">let </span>result = <a href="#153">update_action</a>(<span class="kw-2">&amp;mut </span><a href="#158">program</a>, <a href="#160">bn</a>);
+        <a href="storage/primitives/map.rs.html#43"><span class="self">Self</span>::ProgramMap::insert</a>(<a href="#152">program_id</a>, <a href="#158">program</a>);
 
-        <span class="prelude-val">Ok</span>(<a href="#160">result</a>)
+        <span class="prelude-val">Ok</span>(<a href="#165">result</a>)
     }
 
     <span class="doccomment">/// Return data buffer for each memory page, which has data.
@@ -368,7 +378,7 @@
         program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>,
         memory_infix: <a href="../../gear_common/struct.MemoryInfix.html">MemoryInfix</a>,
     ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="#45">MemoryMap</a>, <span class="self">Self</span>::Error&gt; {
-        <span class="prelude-val">Ok</span>(<a href="storage/primitives/triple_map.rs.html#85-88"><span class="self">Self</span>::MemoryPageMap::iter_prefix</a>(<span class="kw-2">&amp;</span><a href="#168">program_id</a>, <span class="kw-2">&amp;</span><a href="#169">memory_infix</a>).<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.collect">collect</a>())
+        <span class="prelude-val">Ok</span>(<a href="storage/primitives/triple_map.rs.html#85-88"><span class="self">Self</span>::MemoryPageMap::iter_prefix</a>(<span class="kw-2">&amp;</span><a href="#173">program_id</a>, <span class="kw-2">&amp;</span><a href="#174">memory_infix</a>).<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.collect">collect</a>())
     }
 
     <span class="doccomment">/// Store a memory page buffer to be associated with the given keys `program_id`, `memory_infix` and `page` from the map.
@@ -378,7 +388,7 @@
         page: <a href="../../gear_common/type.GearPage.html">GearPage</a>,
         page_buf: <a href="../../gear_common/struct.PageBuf.html">PageBuf</a>,
     ) {
-        <a href="storage/primitives/triple_map.rs.html#46"><span class="self">Self</span>::MemoryPageMap::insert</a>(<a href="#176">program_id</a>, <a href="#177">memory_infix</a>, <a href="#178">page</a>, <a href="#179">page_buf</a>);
+        <a href="storage/primitives/triple_map.rs.html#46"><span class="self">Self</span>::MemoryPageMap::insert</a>(<a href="#181">program_id</a>, <a href="#182">memory_infix</a>, <a href="#183">page</a>, <a href="#184">page_buf</a>);
     }
 
     <span class="doccomment">/// Remove a memory page buffer under the given keys `program_id`, `memory_infix` and `page`.
@@ -387,12 +397,12 @@
         memory_infix: <a href="../../gear_common/struct.MemoryInfix.html">MemoryInfix</a>,
         page_num: <a href="../../gear_common/type.GearPage.html">GearPage</a>,
     ) {
-        <a href="storage/primitives/triple_map.rs.html#73"><span class="self">Self</span>::MemoryPageMap::remove</a>(<a href="#186">program_id</a>, <a href="#187">memory_infix</a>, <a href="#188">page_num</a>);
+        <a href="storage/primitives/triple_map.rs.html#73"><span class="self">Self</span>::MemoryPageMap::remove</a>(<a href="#191">program_id</a>, <a href="#192">memory_infix</a>, <a href="#193">page_num</a>);
     }
 
     <span class="doccomment">/// Remove all memory page buffers under the given keys `program_id` and `memory_infix`.
     </span><span class="kw">fn </span>clear_program_memory(program_id: <a href="../../gear_common/type.ProgramId.html">ProgramId</a>, memory_infix: <a href="../../gear_common/struct.MemoryInfix.html">MemoryInfix</a>) {
-        <a href="storage/primitives/triple_map.rs.html#83"><span class="self">Self</span>::MemoryPageMap::clear_prefix</a>(<a href="#194">program_id</a>, <a href="#194">memory_infix</a>);
+        <a href="storage/primitives/triple_map.rs.html#83"><span class="self">Self</span>::MemoryPageMap::clear_prefix</a>(<a href="#199">program_id</a>, <a href="#199">memory_infix</a>);
     }
 
     <span class="doccomment">/// Final full prefix that prefixes all keys of memory pages.

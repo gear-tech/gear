@@ -103,7 +103,10 @@
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -124,10 +127,10 @@
 </span><span class="doccomment">//! Module for signal-management and waking concrete message based on reply
 //! received.
 
-</span><span class="kw">use crate</span>::{<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="../../../gstd/prelude/struct.Vec.html">prelude::Vec</a>};
+</span><span class="kw">use crate</span>::{<a href="../../../gstd/prelude/struct.Vec.html">prelude::Vec</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>};
 <span class="kw">use </span>core::task::{<a href="../../../gstd/prelude/task/struct.Context.html">Context</a>, <a href="../../../gstd/prelude/task/struct.Waker.html">Waker</a>};
 <span class="kw">use </span><a href="../../../gstd/errors/enum.ReplyCode.html">gear_core_errors::ReplyCode</a>;
-<span class="kw">use </span><a href="../../../gstd/prelude/collections/hash_map/struct.HashMap.html">hashbrown::HashMap</a>;
+<span class="kw">use </span><a href="../../../gstd/prelude/collections/struct.HashMap.html">hashbrown::HashMap</a>;
 
 <span class="kw">pub type </span>Payload = <a href="../../../gstd/prelude/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/core/primitive.u8.html">u8</a>&gt;;
 
@@ -145,7 +148,7 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>WakeSignals {
-    signals: <a href="../../../gstd/prelude/collections/hash_map/struct.HashMap.html">HashMap</a>&lt;<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="#36-40">WakeSignal</a>&gt;,
+    signals: <a href="../../../gstd/prelude/collections/struct.HashMap.html">HashMap</a>&lt;<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="#36-40">WakeSignal</a>&gt;,
 }
 
 <span class="kw">impl </span><a href="#42-44">WakeSignals</a> {
@@ -158,30 +161,33 @@
     <span class="kw">pub fn </span>register_signal(<span class="kw-2">&amp;mut </span><span class="self">self</span>, waiting_reply_to: <a href="../../../gstd/struct.MessageId.html">MessageId</a>) {
         <span class="kw">let </span>message_id = <a href="../../../gstd/msg/fn.id.html"><span class="kw">crate</span>::msg::id</a>();
 
-        <a class="self" href="#53">self</a>.signals.insert(<a href="#53">waiting_reply_to</a>, <a href="#36-40">WakeSignal</a> {
-            <a href="#54">message_id</a>,
-            payload: <span class="prelude-val">None</span>,
-            waker: <span class="prelude-val">None</span>,
-        });
+        <a class="self" href="#53">self</a>.signals.insert(
+            <a href="#53">waiting_reply_to</a>,
+            <a href="#36-40">WakeSignal</a> {
+                <a href="#54">message_id</a>,
+                payload: <span class="prelude-val">None</span>,
+                waker: <span class="prelude-val">None</span>,
+            },
+        );
 
         <a href="mod.rs.html#55-57"><span class="kw">crate</span>::async_runtime::locks</a>().<a href="locks.rs.html#181-184">lock</a>(<a href="#54">message_id</a>, <a href="#53">waiting_reply_to</a>, <a href="../../../gstd/prelude/trait.Default.html">Default::default</a>());
     }
 
     <span class="kw">pub fn </span>record_reply(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(signal) = <span class="self"><a href="#65">self</a>
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(signal) = <span class="self"><a href="#68">self</a>
             </span>.signals
             .get_mut(<span class="kw-2">&amp;</span><a href="../../../gstd/msg/fn.reply_to.html"><span class="kw">crate</span>::msg::reply_to</a>().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.expect">expect</a>(<span class="string">"Shouldn't be called with incorrect context"</span>))
         {
-            <a href="#66">signal</a>.payload = <span class="prelude-val">Some</span>((
+            <a href="#69">signal</a>.payload = <span class="prelude-val">Some</span>((
                 <a href="../msg/basic.rs.html#269-273"><span class="kw">crate</span>::msg::load_bytes</a>().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.expect">expect</a>(<span class="string">"Failed to load bytes"</span>),
                 <a href="../../../gstd/msg/fn.reply_code.html"><span class="kw">crate</span>::msg::reply_code</a>().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.expect">expect</a>(<span class="string">"Shouldn't be called with incorrect context"</span>),
             ));
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(waker) = <span class="kw-2">&amp;</span><a href="#66">signal</a>.waker {
-                <a href="#75">waker</a>.<a href="https://doc.rust-lang.org/nightly/core/task/wake/struct.Waker.html#method.wake_by_ref">wake_by_ref</a>();
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(waker) = <span class="kw-2">&amp;</span><a href="#69">signal</a>.waker {
+                <a href="#78">waker</a>.<a href="https://doc.rust-lang.org/nightly/core/task/wake/struct.Waker.html#method.wake_by_ref">wake_by_ref</a>();
             }
 
-            <a href="../../../gstd/exec/fn.wake.html"><span class="kw">crate</span>::exec::wake</a>(<a href="#66">signal</a>.message_id).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.expect">expect</a>(<span class="string">"Failed to wake the message"</span>)
+            <a href="../../../gstd/exec/fn.wake.html"><span class="kw">crate</span>::exec::wake</a>(<a href="#69">signal</a>.message_id).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.expect">expect</a>(<span class="string">"Failed to wake the message"</span>)
         } <span class="kw">else </span>{
             <a class="macro" href="../../../gstd/macro.debug.html">crate::debug!</a>(
                 <span class="string">"A message has received a reply though it wasn't to receive one, or a processed message has received a reply"
@@ -190,21 +196,21 @@
     }
 
     <span class="kw">pub fn </span>waits_for(<span class="kw-2">&amp;</span><span class="self">self</span>, reply_to: <a href="../../../gstd/struct.MessageId.html">MessageId</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/core/primitive.bool.html">bool</a> {
-        <a class="self" href="#87">self</a>.signals.contains_key(<span class="kw-2">&amp;</span><a href="#87">reply_to</a>)
+        <a class="self" href="#90">self</a>.signals.contains_key(<span class="kw-2">&amp;</span><a href="#90">reply_to</a>)
     }
 
     <span class="kw">pub fn </span>poll(<span class="kw-2">&amp;mut </span><span class="self">self</span>, reply_to: <a href="../../../gstd/struct.MessageId.html">MessageId</a>, cx: <span class="kw-2">&amp;mut </span><a href="../../../gstd/prelude/task/struct.Context.html">Context</a>&lt;<span class="lifetime">'_</span>&gt;) -&gt; <a href="#30-34">ReplyPoll</a> {
-        <span class="kw">match </span><a class="self" href="#91">self</a>.signals.remove(<span class="kw-2">&amp;</span><a href="#91">reply_to</a>) {
+        <span class="kw">match </span><a class="self" href="#94">self</a>.signals.remove(<span class="kw-2">&amp;</span><a href="#94">reply_to</a>) {
             <span class="prelude-val">None </span>=&gt; <a href="#31">ReplyPoll::None</a>,
             <span class="prelude-val">Some</span>(<span class="kw-2">mut </span>signal @ <a href="#36-40">WakeSignal</a> { payload: <span class="prelude-val">None</span>, .. }) =&gt; {
-                <a href="#94">signal</a>.waker = <span class="prelude-val">Some</span>(<a href="#91">cx</a>.<a href="https://doc.rust-lang.org/nightly/core/task/wake/struct.Context.html#method.waker">waker</a>().<a href="../../../gstd/prelude/trait.Clone.html">clone</a>());
-                <a class="self" href="#91">self</a>.signals.insert(<a href="#91">reply_to</a>, <a href="#94">signal</a>);
+                <a href="#97">signal</a>.waker = <span class="prelude-val">Some</span>(<a href="#94">cx</a>.<a href="https://doc.rust-lang.org/nightly/core/task/wake/struct.Context.html#method.waker">waker</a>().<a href="../../../gstd/prelude/trait.Clone.html">clone</a>());
+                <a class="self" href="#94">self</a>.signals.insert(<a href="#94">reply_to</a>, <a href="#97">signal</a>);
                 <a href="#32">ReplyPoll::Pending</a>
             }
             <span class="prelude-val">Some</span>(<a href="#36-40">WakeSignal</a> {
                 payload: <span class="prelude-val">Some</span>(payload),
                 ..
-            }) =&gt; <a href="#33">ReplyPoll::Some</a>(<a href="#100">payload</a>),
+            }) =&gt; <a href="#33">ReplyPoll::Some</a>(<a href="#103">payload</a>),
         }
     }
 }

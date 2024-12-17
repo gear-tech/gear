@@ -540,7 +540,22 @@
 <a href="#539" id="539">539</a>
 <a href="#540" id="540">540</a>
 <a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -561,14 +576,14 @@
 </span><span class="doccomment">//! Gas reservation structures.
 
 </span><span class="kw">use crate</span>::{
-    ids::{<a href="../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>, <a href="ids.rs.html#50-169">prelude</a>::<span class="kw-2">*</span>},
+    ids::{<a href="ids.rs.html#50-169">prelude</a>::<span class="kw-2">*</span>, <a href="../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>},
     <a href="message/incoming.rs.html#131-138">message::IncomingDispatch</a>,
 };
 <span class="kw">use </span>alloc::{<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">collections::BTreeMap</a>, <a href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format</a>};
-<span class="kw">use </span><a href="../../gear_core_errors/enum.ReservationError.html">gear_core_errors::ReservationError</a>;
+<span class="kw">use </span>gear_core_errors::ReservationError;
 <span class="kw">use </span>scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 <span class="doccomment">/// An unchangeable wrapper over u64 value, which is required
@@ -629,7 +644,7 @@
     /// gas reserver from the [`IncomingDispatch`].
     </span>nonce: <a href="#55">InnerNonce</a>,
     <span class="doccomment">/// Gas reservations states.
-    </span>states: <a href="#342">GasReservationStates</a>,
+    </span>states: <a href="#351">GasReservationStates</a>,
     <span class="doccomment">/// Maximum allowed reservations to be stored in `states`.
     ///
     /// This field is used not only to control `states` during
@@ -647,7 +662,7 @@
     /// will be converted to the [`BTreeMap`] of [`GasReservationState`]s.
     </span><span class="kw">pub fn </span>new(
         incoming_dispatch: <span class="kw-2">&amp;</span><a href="message/incoming.rs.html#131-138">IncomingDispatch</a>,
-        map: <a href="#390">GasReservationMap</a>,
+        map: <a href="#399">GasReservationMap</a>,
         max_reservations: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>message_id = <a href="#107">incoming_dispatch</a>.<a href="message/incoming.rs.html#84-86">id</a>();
@@ -678,7 +693,7 @@
     /// in the `states` is less than `max_reservations`. Removed reservations,
     /// which are stored with the [`GasReservationState::Removed`] state in the
     /// `states`, aren't excluded from the check.
-    </span><span class="kw">fn </span>check_execution_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
+    </span><span class="kw">fn </span>check_execution_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), ReservationError&gt; {
         <span class="comment">// operation might very expensive in the future
         // so we will store 2 numerics to optimize it maybe
         </span><span class="kw">let </span>current_reservations = <span class="self"><a href="#139">self</a>
@@ -692,7 +707,7 @@
             })
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.sum">sum</a>::&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;();
         <span class="kw">if </span>current_reservations &gt; <span class="self">self</span>.max_reservations {
-            <span class="prelude-val">Err</span>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.ReservationsLimitReached">ReservationError::ReservationsLimitReached</a>)
+            <span class="prelude-val">Err</span>(ReservationError::ReservationsLimitReached)
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(())
         }
@@ -701,8 +716,8 @@
     <span class="doccomment">/// Returns amount of gas in reservation, if exists.
     </span><span class="kw">pub fn </span>limit_of(<span class="kw-2">&amp;</span><span class="self">self</span>, reservation_id: <span class="kw-2">&amp;</span><a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt; {
         <a class="self" href="#160">self</a>.states.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.get">get</a>(<a href="#160">reservation_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.and_then">and_then</a>(|v| <span class="kw">match </span><a href="#161">v</a> {
-            <a href="#350-359">GasReservationState::Exists</a> { amount, .. }
-            | <a href="#361-368">GasReservationState::Created</a> { amount, .. } =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span><a href="#162">amount</a>),
+            <a href="#359-368">GasReservationState::Exists</a> { amount, .. }
+            | <a href="#370-377">GasReservationState::Created</a> { amount, .. } =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span><a href="#162">amount</a>),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         })
     }
@@ -716,16 +731,19 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         amount: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
         duration: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
-    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>, <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
+    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>, ReservationError&gt; {
         <a class="self" href="#174">self</a>.<a href="#139-157">check_execution_limit</a>()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>id = <a href="ids.rs.html#160">ReservationId::generate</a>(<a class="self" href="#174">self</a>.message_id, <a class="self" href="#174">self</a>.nonce.<a href="#60-65">fetch_inc</a>());
 
-        <span class="kw">let </span>maybe_reservation = <a class="self" href="#174">self</a>.states.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.insert">insert</a>(<a href="#180">id</a>, <a href="#361-368">GasReservationState::Created</a> {
-            <a href="#175">amount</a>,
-            <a href="#176">duration</a>,
-            used: <span class="bool-val">false</span>,
-        });
+        <span class="kw">let </span>maybe_reservation = <a class="self" href="#174">self</a>.states.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.insert">insert</a>(
+            <a href="#180">id</a>,
+            <a href="#370-377">GasReservationState::Created</a> {
+                <a href="#175">amount</a>,
+                <a href="#176">duration</a>,
+                used: <span class="bool-val">false</span>,
+            },
+        );
 
         <span class="kw">if </span>maybe_reservation.is_some() {
             <span class="kw">let </span>err_msg = <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
@@ -751,12 +769,12 @@
     </span><span class="kw">pub fn </span>unreserve(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>,
-    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#332">UnreservedReimbursement</a>&gt;), <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
+    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#341">UnreservedReimbursement</a>&gt;), ReservationError&gt; {
         <span class="comment">// Docs error case #1.
-        </span><span class="kw">let </span>state = <span class="self"><a href="#210">self</a>
+        </span><span class="kw">let </span>state = <span class="self"><a href="#213">self</a>
             </span>.states
-            .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.get">get</a>(<span class="kw-2">&amp;</span><a href="#211">id</a>)
-            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.InvalidReservationId">ReservationError::InvalidReservationId</a>)<span class="question-mark">?</span>;
+            .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.get">get</a>(<span class="kw-2">&amp;</span><a href="#214">id</a>)
+            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(ReservationError::InvalidReservationId)<span class="question-mark">?</span>;
 
         <span class="kw">if </span><a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.matches.html">matches!</a>(
             state,
@@ -766,21 +784,21 @@
             </span>GasReservationState::Exists { used: <span class="bool-val">true</span>, .. } |
             GasReservationState::Created { used: <span class="bool-val">true</span>, .. }
         ) {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.InvalidReservationId">ReservationError::InvalidReservationId</a>);
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ReservationError::InvalidReservationId);
         }
 
-        <span class="kw">let </span>state = <a class="self" href="#210">self</a>.states.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.remove">remove</a>(<span class="kw-2">&amp;</span><a href="#211">id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap">unwrap</a>();
+        <span class="kw">let </span>state = <a class="self" href="#213">self</a>.states.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.remove">remove</a>(<span class="kw-2">&amp;</span><a href="#214">id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap">unwrap</a>();
 
-        <span class="prelude-val">Ok</span>(<span class="kw">match </span><a href="#230">state</a> {
-            <a href="#350-359">GasReservationState::Exists</a> { amount, finish, .. } =&gt; {
-                <a class="self" href="#210">self</a>.states
-                    .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.insert">insert</a>(<a href="#211">id</a>, <a href="#370-373">GasReservationState::Removed</a> { expiration: <a href="#233">finish</a> });
-                (<a href="#233">amount</a>, <span class="prelude-val">None</span>)
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span><a href="#233">state</a> {
+            <a href="#359-368">GasReservationState::Exists</a> { amount, finish, .. } =&gt; {
+                <a class="self" href="#213">self</a>.states
+                    .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.insert">insert</a>(<a href="#214">id</a>, <a href="#379-382">GasReservationState::Removed</a> { expiration: <a href="#236">finish</a> });
+                (<a href="#236">amount</a>, <span class="prelude-val">None</span>)
             }
-            <a href="#361-368">GasReservationState::Created</a> {
+            <a href="#370-377">GasReservationState::Created</a> {
                 amount, duration, ..
-            } =&gt; (<a href="#239">amount</a>, <span class="prelude-val">Some</span>(<a href="#332">UnreservedReimbursement</a>(<a href="#239">duration</a>))),
-            <a href="#370-373">GasReservationState::Removed</a> { .. } =&gt; {
+            } =&gt; (<a href="#242">amount</a>, <span class="prelude-val">Some</span>(<a href="#341">UnreservedReimbursement</a>(<a href="#242">duration</a>))),
+            <a href="#379-382">GasReservationState::Removed</a> { .. } =&gt; {
                 <span class="kw">let </span>err_msg =
                     <span class="string">"GasReserver::unreserve: `Removed` variant is unreachable, checked above"</span>;
 
@@ -795,38 +813,38 @@
     /// This allows to avoid double usage of the reservation
     /// for sending a new message from execution of `message_id`
     /// of current gas reserver.
-    </span><span class="kw">pub fn </span>mark_used(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
-        <span class="kw">let </span>used = <a class="self" href="#256">self</a>.<a href="#265-278">check_not_used</a>(<a href="#256">id</a>)<span class="question-mark">?</span>;
-        <span class="kw-2">*</span><a href="#257">used</a> = <span class="bool-val">true</span>;
+    </span><span class="kw">pub fn </span>mark_used(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), ReservationError&gt; {
+        <span class="kw">let </span>used = <a class="self" href="#259">self</a>.<a href="#268-281">check_not_used</a>(<a href="#259">id</a>)<span class="question-mark">?</span>;
+        <span class="kw-2">*</span><a href="#260">used</a> = <span class="bool-val">true</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// Check if reservation is not used.
     ///
     /// If reservation does not exist returns `InvalidReservationId` error.
-    </span><span class="kw">pub fn </span>check_not_used(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>, <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
+    </span><span class="kw">pub fn </span>check_not_used(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>, ReservationError&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(
-            <a href="#361-368">GasReservationState::Created</a> { used, .. } | <a href="#350-359">GasReservationState::Exists</a> { used, .. },
-        ) = <a class="self" href="#265">self</a>.states.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.get_mut">get_mut</a>(<span class="kw-2">&amp;</span><a href="#265">id</a>)
+            <a href="#370-377">GasReservationState::Created</a> { used, .. } | <a href="#359-368">GasReservationState::Exists</a> { used, .. },
+        ) = <a class="self" href="#268">self</a>.states.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.get_mut">get_mut</a>(<span class="kw-2">&amp;</span><a href="#268">id</a>)
         {
             <span class="kw">if </span><span class="kw-2">*</span>used {
-                <span class="prelude-val">Err</span>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.InvalidReservationId">ReservationError::InvalidReservationId</a>)
+                <span class="prelude-val">Err</span>(ReservationError::InvalidReservationId)
             } <span class="kw">else </span>{
-                <span class="prelude-val">Ok</span>(<a href="#267">used</a>)
+                <span class="prelude-val">Ok</span>(<a href="#270">used</a>)
             }
         } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.InvalidReservationId">ReservationError::InvalidReservationId</a>)
+            <span class="prelude-val">Err</span>(ReservationError::InvalidReservationId)
         }
     }
 
     <span class="doccomment">/// Returns gas reservations current nonce.
     </span><span class="kw">pub fn </span>nonce(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="#44">ReservationNonce</a> {
-        (<span class="kw-2">&amp;</span><a class="self" href="#281">self</a>.nonce).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
+        (<span class="kw-2">&amp;</span><a class="self" href="#284">self</a>.nonce).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
     }
 
     <span class="doccomment">/// Gets gas reservations states.
-    </span><span class="kw">pub fn </span>states(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><a href="#342">GasReservationStates</a> {
-        <span class="kw-2">&amp;</span><a class="self" href="#286">self</a>.states
+    </span><span class="kw">pub fn </span>states(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><a href="#351">GasReservationStates</a> {
+        <span class="kw-2">&amp;</span><a class="self" href="#289">self</a>.states
     }
 
     <span class="doccomment">/// Converts current gas reserver into gas reservation map.
@@ -834,34 +852,40 @@
         <span class="self">self</span>,
         current_block_height: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
         duration_into_expiration: F,
-    ) -&gt; <a href="#390">GasReservationMap</a>
+    ) -&gt; <a href="#399">GasReservationMap</a>
     <span class="kw">where
         </span>F: <a href="https://doc.rust-lang.org/nightly/core/ops/function/trait.Fn.html">Fn</a>(<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     {
-        <a class="self" href="#292">self</a>.states
+        <a class="self" href="#295">self</a>.states
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/collect/trait.IntoIterator.html#tymethod.into_iter">into_iter</a>()
-            .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.flat_map">flat_map</a>(|(id, state)| <span class="kw">match </span><a href="#301">state</a> {
-                <a href="#350-359">GasReservationState::Exists</a> {
+            .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.flat_map">flat_map</a>(|(id, state)| <span class="kw">match </span><a href="#304">state</a> {
+                <a href="#359-368">GasReservationState::Exists</a> {
                     amount,
                     start,
                     finish,
                     ..
-                } =&gt; <span class="prelude-val">Some</span>((<a href="#301">id</a>, <a href="#394-401">GasReservationSlot</a> {
-                    <a href="#303">amount</a>,
-                    <a href="#304">start</a>,
-                    <a href="#305">finish</a>,
-                })),
-                <a href="#361-368">GasReservationState::Created</a> {
+                } =&gt; <span class="prelude-val">Some</span>((
+                    <a href="#304">id</a>,
+                    <a href="#403-410">GasReservationSlot</a> {
+                        <a href="#306">amount</a>,
+                        <a href="#307">start</a>,
+                        <a href="#308">finish</a>,
+                    },
+                )),
+                <a href="#370-377">GasReservationState::Created</a> {
                     amount, duration, ..
                 } =&gt; {
-                    <span class="kw">let </span>expiration = <a href="#294">duration_into_expiration</a>(<a href="#313">duration</a>);
-                    <span class="prelude-val">Some</span>((<a href="#301">id</a>, <a href="#394-401">GasReservationSlot</a> {
-                        <a href="#313">amount</a>,
-                        start: <a href="#293">current_block_height</a>,
-                        finish: <a href="#315">expiration</a>,
-                    }))
+                    <span class="kw">let </span>expiration = <a href="#297">duration_into_expiration</a>(<a href="#319">duration</a>);
+                    <span class="prelude-val">Some</span>((
+                        <a href="#304">id</a>,
+                        <a href="#403-410">GasReservationSlot</a> {
+                            <a href="#319">amount</a>,
+                            start: <a href="#296">current_block_height</a>,
+                            finish: <a href="#321">expiration</a>,
+                        },
+                    ))
                 }
-                <a href="#370-373">GasReservationState::Removed</a> { .. } =&gt; <span class="prelude-val">None</span>,
+                <a href="#379-382">GasReservationState::Removed</a> { .. } =&gt; <span class="prelude-val">None</span>,
             })
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.collect">collect</a>()
     }
@@ -873,15 +897,15 @@
 </span><span class="attr">#[derive(Debug, PartialEq, Eq)]
 </span><span class="kw">pub struct </span><a href="../../gear_core/reservation/struct.UnreservedReimbursement.html">UnreservedReimbursement</a>(<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>);
 
-<span class="kw">impl </span><a href="#332">UnreservedReimbursement</a> {
+<span class="kw">impl </span><a href="#341">UnreservedReimbursement</a> {
     <span class="doccomment">/// Returns duration for the newly created unreserved reservation.
     </span><span class="kw">pub fn </span>duration(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a> {
-        <a class="self" href="#336">self</a>.<span class="number">0
+        <a class="self" href="#345">self</a>.<span class="number">0
     </span>}
 }
 
 <span class="doccomment">/// Gas reservations states.
-</span><span class="kw">pub type </span><a href="../../gear_core/reservation/type.GasReservationStates.html">GasReservationStates</a> = <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>, <a href="#348-374">GasReservationState</a>&gt;;
+</span><span class="kw">pub type </span><a href="../../gear_core/reservation/type.GasReservationStates.html">GasReservationStates</a> = <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>, <a href="#357-383">GasReservationState</a>&gt;;
 
 <span class="doccomment">/// Gas reservation state.
 ///
@@ -915,12 +939,12 @@
     },
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#394-401">GasReservationSlot</a>&gt; <span class="kw">for </span><a href="#348-374">GasReservationState</a> {
-    <span class="kw">fn </span>from(slot: <a href="#394-401">GasReservationSlot</a>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#403-410">GasReservationSlot</a>&gt; <span class="kw">for </span><a href="#357-383">GasReservationState</a> {
+    <span class="kw">fn </span>from(slot: <a href="#403-410">GasReservationSlot</a>) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Exists {
-            amount: <a href="#377">slot</a>.amount,
-            start: <a href="#377">slot</a>.start,
-            finish: <a href="#377">slot</a>.finish,
+            amount: <a href="#386">slot</a>.amount,
+            start: <a href="#386">slot</a>.start,
+            finish: <a href="#386">slot</a>.finish,
             used: <span class="bool-val">false</span>,
         }
     }
@@ -929,7 +953,7 @@
 <span class="doccomment">/// Gas reservations map.
 ///
 /// Used across execution and is stored to storage.
-</span><span class="kw">pub type </span><a href="../../gear_core/reservation/type.GasReservationMap.html">GasReservationMap</a> = <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>, <a href="#394-401">GasReservationSlot</a>&gt;;
+</span><span class="kw">pub type </span><a href="../../gear_core/reservation/type.GasReservationMap.html">GasReservationMap</a> = <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>, <a href="#403-410">GasReservationSlot</a>&gt;;
 
 <span class="doccomment">/// Gas reservation slot.
 </span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
@@ -1011,11 +1035,14 @@
         <span class="kw">let </span>id = ReservationId::from([<span class="number">0xff</span>; <span class="number">32</span>]);
 
         <span class="kw">let </span><span class="kw-2">mut </span>map = GasReservationMap::new();
-        map.insert(id, GasReservationSlot {
-            amount: <span class="number">1</span>,
-            start: <span class="number">1</span>,
-            finish: <span class="number">100</span>,
-        });
+        map.insert(
+            id,
+            GasReservationSlot {
+                amount: <span class="number">1</span>,
+                start: <span class="number">1</span>,
+                finish: <span class="number">100</span>,
+            },
+        );
 
         <span class="kw">let </span><span class="kw-2">mut </span>reserver = GasReserver::new(<span class="kw-2">&amp;</span>Default::default(), map, <span class="number">256</span>);
         reserver.unreserve(id).unwrap();
@@ -1042,11 +1069,14 @@
         <span class="kw">let </span>id = ReservationId::from([<span class="number">0xff</span>; <span class="number">32</span>]);
 
         <span class="kw">let </span><span class="kw-2">mut </span>map = GasReservationMap::new();
-        map.insert(id, GasReservationSlot {
-            amount: <span class="number">1</span>,
-            start: <span class="number">1</span>,
-            finish: <span class="number">100</span>,
-        });
+        map.insert(
+            id,
+            GasReservationSlot {
+                amount: <span class="number">1</span>,
+                start: <span class="number">1</span>,
+                finish: <span class="number">100</span>,
+            },
+        );
 
         <span class="kw">let </span><span class="kw-2">mut </span>reserver = GasReserver::new(<span class="kw-2">&amp;</span>Default::default(), map, <span class="number">256</span>);
         reserver.mark_used(id).unwrap();

@@ -517,12 +517,12 @@
 
 </span><span class="doccomment">//! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
-</span><span class="kw">use super</span>::{<a href="../manager.rs.html#87-115">ExtManager</a>, <a href="../program.rs.html#66">Gas</a>, <a href="../state/actors.rs.html#210-216">GenuineProgram</a>, <a href="../state/actors.rs.html#235-239">Program</a>, <a href="../state/actors.rs.html#107-112">TestActor</a>};
+</span><span class="kw">use super</span>::{<a href="../manager.rs.html#87-115">ExtManager</a>, <a href="../program.rs.html#67">Gas</a>, <a href="../state/actors.rs.html#210-216">GenuineProgram</a>, <a href="../state/actors.rs.html#235-239">Program</a>, <a href="../state/actors.rs.html#107-112">TestActor</a>};
 <span class="kw">use crate</span>::{
-    <a href="../lib.rs.html#548">EXISTENTIAL_DEPOSIT</a>, <a href="../lib.rs.html#522">Value</a>,
     <a href="hold_bound.rs.html#80-83">manager::hold_bound::HoldBoundBuilder</a>,
-    <a href="../program.rs.html#233-237">program::ProgramBuilder</a>,
+    <a href="../program.rs.html#234-238">program::ProgramBuilder</a>,
     state::{<a href="../state/accounts.rs.html#75">accounts::Accounts</a>, <a href="../state/actors.rs.html#37">actors::Actors</a>},
+    <a href="../lib.rs.html#522">Value</a>, <a href="../lib.rs.html#548">EXISTENTIAL_DEPOSIT</a>,
 };
 <span class="kw">use </span>core_processor::common::{DispatchOutcome, JournalHandler};
 <span class="kw">use </span>gear_common::{
@@ -534,9 +534,9 @@
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
     pages::{
-        GearPage, WasmPage,
         <a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">num_traits::Zero</a>,
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
+        GearPage, WasmPage,
     },
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},
@@ -578,7 +578,7 @@
     <span class="kw">fn </span>gas_burned(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message_id: MessageId, amount: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>) {
         <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(<span class="string">"Burned: {:?} from: {:?}"</span>, amount, message_id);
 
-        <a class="self" href="#79">self</a>.gas_allowance = <a class="self" href="#79">self</a>.gas_allowance.<a href="../program.rs.html#80-82">saturating_sub</a>(<a href="../program.rs.html#66">Gas</a>(<a href="#79">amount</a>));
+        <a class="self" href="#79">self</a>.gas_allowance = <a class="self" href="#79">self</a>.gas_allowance.<a href="../program.rs.html#81-83">saturating_sub</a>(<a href="../program.rs.html#67">Gas</a>(<a href="#79">amount</a>));
         <a class="self" href="#79">self</a>.<a href="expend.rs.html#50-56">spend_burned</a>(<a href="#79">message_id</a>, <a href="#79">amount</a>);
     }
 
@@ -830,7 +830,7 @@
             <span class="self">self</span>.gas_allowance,
             gas_burned,
         );
-        <a class="self" href="#327">self</a>.gas_allowance = <a class="self" href="#327">self</a>.gas_allowance.<a href="../program.rs.html#80-82">saturating_sub</a>(<a href="../program.rs.html#66">Gas</a>(<a href="#327">gas_burned</a>));
+        <a class="self" href="#327">self</a>.gas_allowance = <a class="self" href="#327">self</a>.gas_allowance.<a href="../program.rs.html#81-83">saturating_sub</a>(<a href="../program.rs.html#67">Gas</a>(<a href="#327">gas_burned</a>));
         <a class="self" href="#327">self</a>.messages_processing_enabled = <span class="bool-val">false</span>;
         <a class="self" href="#327">self</a>.dispatches.<a href="https://doc.rust-lang.org/nightly/alloc/collections/vec_deque/struct.VecDeque.html#method.push_front">push_front</a>(<a href="#327">dispatch</a>);
     }

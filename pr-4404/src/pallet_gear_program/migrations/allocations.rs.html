@@ -292,7 +292,10 @@
 <a href="#291" id="291">291</a>
 <a href="#292" id="292">292</a>
 <a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -310,7 +313,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
-</span><span class="kw">use crate</span>::{<a href="../lib.rs.html#260-261">AllocationsStorage</a>, <a href="../lib.rs.html#172-178">Config</a>, <a href="../lib.rs.html#182">Pallet</a>, <a href="../lib.rs.html#272-273">ProgramStorage</a>};
+</span><span class="kw">use crate</span>::{<a href="../lib.rs.html#263-264">AllocationsStorage</a>, <a href="../lib.rs.html#172-181">Config</a>, <a href="../lib.rs.html#185">Pallet</a>, <a href="../lib.rs.html#275-276">ProgramStorage</a>};
 <span class="kw">use </span>frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
@@ -324,8 +327,8 @@
 </span><span class="kw">use </span>{
     frame_support::ensure,
     sp_runtime::{
-        TryRuntimeError,
         codec::{Decode, Encode},
+        TryRuntimeError,
     },
     sp_std::vec::Vec,
 };
@@ -334,17 +337,17 @@
 <span class="kw">const </span>MIGRATE_TO_VERSION: <a href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a> = <span class="number">10</span>;
 <span class="kw">const </span>ALLOWED_CURRENT_STORAGE_VERSION: <a href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a> = <span class="number">10</span>;
 
-<span class="kw">pub struct </span><a href="../../../pallet_gear_program/migrations/allocations/struct.MigrateAllocations.html">MigrateAllocations</a>&lt;T: <a href="../lib.rs.html#172-178">Config</a>&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;);
+<span class="kw">pub struct </span><a href="../../../pallet_gear_program/migrations/allocations/struct.MigrateAllocations.html">MigrateAllocations</a>&lt;T: <a href="../lib.rs.html#172-181">Config</a>&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;);
 
-<span class="kw">impl</span>&lt;T: <a href="../lib.rs.html#172-178">Config</a>&gt; OnRuntimeUpgrade <span class="kw">for </span><a href="#43">MigrateAllocations</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="../lib.rs.html#172-181">Config</a>&gt; OnRuntimeUpgrade <span class="kw">for </span><a href="#43">MigrateAllocations</a>&lt;T&gt; {
     <span class="kw">fn </span>on_runtime_upgrade() -&gt; Weight {
-        <span class="kw">let </span>onchain = <a href="../lib.rs.html#182">Pallet</a>::&lt;T&gt;::on_chain_storage_version();
+        <span class="kw">let </span>onchain = <a href="../lib.rs.html#185">Pallet</a>::&lt;T&gt;::on_chain_storage_version();
 
         <span class="comment">// 1 read for on chain storage version
         </span><span class="kw">let </span><span class="kw-2">mut </span>weight = T::DbWeight::get().reads(<span class="number">1</span>);
 
         <span class="kw">if </span>onchain == MIGRATE_FROM_VERSION {
-            <span class="kw">let </span>current = <a href="../lib.rs.html#182">Pallet</a>::&lt;T&gt;::in_code_storage_version();
+            <span class="kw">let </span>current = <a href="../lib.rs.html#185">Pallet</a>::&lt;T&gt;::in_code_storage_version();
             <span class="kw">if </span>current != ALLOWED_CURRENT_STORAGE_VERSION {
                 <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.error.html">log::error!</a>(<span class="string">"❌ Migration is not allowed for current storage version {current:?}."</span>);
                 <span class="kw">return </span><a href="#50">weight</a>;
@@ -355,14 +358,14 @@
                 <span class="string">"🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}."
             </span>);
 
-            <a href="../lib.rs.html#272-273">ProgramStorage</a>::&lt;T&gt;::translate(|id, program: <a href="#176-180">v9::Program</a>&lt;BlockNumberFor&lt;T&gt;&gt;| {
+            <a href="../lib.rs.html#275-276">ProgramStorage</a>::&lt;T&gt;::translate(|id, program: <a href="#176-180">v9::Program</a>&lt;BlockNumberFor&lt;T&gt;&gt;| {
                 <a href="#50">weight</a> = <a href="#50">weight</a>.saturating_add(T::DbWeight::get().reads_writes(<span class="number">1</span>, <span class="number">1</span>));
 
                 <span class="prelude-val">Some</span>(<span class="kw">match </span><a href="#64">program</a> {
                     <a href="#177">v9::Program::Active</a>(p) =&gt; {
                         <span class="kw">let </span>allocations_tree_len =
                             <a href="#68">p</a>.allocations.intervals_amount().saturated_into();
-                        <a href="../lib.rs.html#260-261">AllocationsStorage</a>::&lt;T&gt;::insert(<a href="#64">id</a>, <a href="#68">p</a>.allocations);
+                        <a href="../lib.rs.html#263-264">AllocationsStorage</a>::&lt;T&gt;::insert(<a href="#64">id</a>, <a href="#68">p</a>.allocations);
 
                         <span class="comment">// NOTE: p.pages_with_data is removed from the program
 
@@ -382,7 +385,7 @@
                 })
             });
 
-            <a href="#59">update_to</a>.put::&lt;<a href="../lib.rs.html#182">Pallet</a>&lt;T&gt;&gt;();
+            <a href="#59">update_to</a>.put::&lt;<a href="../lib.rs.html#185">Pallet</a>&lt;T&gt;&gt;();
 
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.info.html">log::info!</a>(<span class="string">"✅ Successfully migrates storage"</span>);
         } <span class="kw">else </span>{
@@ -437,7 +440,7 @@
     <span class="kw">use </span>gear_core::{
         ids::ProgramId,
         message::DispatchKind,
-        pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
+        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::{MemoryInfix, ProgramState},
         reservation::GasReservationMap,
     };
@@ -477,9 +480,9 @@
     </span><span class="kw">use </span>{
         <span class="kw">crate</span>::{Config, Pallet},
         frame_support::{
-            Identity,
             storage::types::StorageMap,
             traits::{PalletInfo, StorageInstance},
+            Identity,
         },
         sp_std::marker::PhantomData,
     };
@@ -561,10 +564,13 @@
             MigrateAllocations::&lt;Test&gt;::post_upgrade(state).unwrap();
 
             <span class="kw">let </span>allocations = AllocationsStorage::&lt;Test&gt;::get(active_program_id).unwrap();
-            <span class="macro">assert_eq!</span>(allocations.to_vec(), [
-                WasmPage::from(<span class="number">1</span>)..=WasmPage::from(<span class="number">5</span>),
-                WasmPage::from(<span class="number">101</span>)..=WasmPage::from(<span class="number">102</span>)
-            ]);
+            <span class="macro">assert_eq!</span>(
+                allocations.to_vec(),
+                [
+                    WasmPage::from(<span class="number">1</span>)..=WasmPage::from(<span class="number">5</span>),
+                    WasmPage::from(<span class="number">101</span>)..=WasmPage::from(<span class="number">102</span>)
+                ]
+            );
 
             <span class="kw">let </span><span class="prelude-val">Some</span>(Program::Active(program)) = ProgramStorage::&lt;Test&gt;::get(active_program_id)
             <span class="kw">else </span>{

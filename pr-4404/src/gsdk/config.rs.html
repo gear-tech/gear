@@ -67,11 +67,11 @@
 //!
 //! see &lt;https://github.com/gear-tech/gear/blob/f48450dd9bad2efb9cb3fb13353464ca73e7b7f9/runtime/src/lib.rs#L183&gt;
 </span><span class="kw">use </span>subxt::{
-    Config,
     config::{
         polkadot::PolkadotExtrinsicParams,
         substrate::{BlakeTwo256, SubstrateHeader},
     },
+    Config,
 };
 
 <span class="kw">pub type </span><a href="../../gsdk/config/type.Header.html">Header</a> = SubstrateHeader&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, BlakeTwo256&gt;;

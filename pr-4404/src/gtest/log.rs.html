@@ -529,9 +529,9 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use crate</span>::{
-    <a href="lib.rs.html#540">GAS_MULTIPLIER</a>, <a href="lib.rs.html#522">Value</a>,
     <a href="error.rs.html#92-98">error::usage_panic</a>,
-    program::{<a href="program.rs.html#66">Gas</a>, <a href="program.rs.html#130">ProgramIdWrapper</a>},
+    program::{<a href="program.rs.html#67">Gas</a>, <a href="program.rs.html#131">ProgramIdWrapper</a>},
+    <a href="lib.rs.html#522">Value</a>, <a href="lib.rs.html#540">GAS_MULTIPLIER</a>,
 };
 <span class="kw">use </span>codec::{Codec, Encode};
 <span class="kw">use </span>core_processor::configs::BlockInfo;
@@ -705,7 +705,7 @@
 
 <span class="kw">impl</span>&lt;ID, T&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;(ID, T)&gt; <span class="kw">for </span><a href="#186-192">Log</a>
 <span class="kw">where
-    </span>ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;,
+    </span>ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;,
     T: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html">AsRef</a>&lt;[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>]&gt;,
 {
     <span class="kw">fn </span>from(other: (ID, T)) -&gt; <span class="self">Self </span>{
@@ -715,8 +715,8 @@
 
 <span class="kw">impl</span>&lt;ID1, ID2, T&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;(ID1, ID2, T)&gt; <span class="kw">for </span><a href="#186-192">Log</a>
 <span class="kw">where
-    </span>ID1: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;,
-    ID2: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;,
+    </span>ID1: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;,
+    ID2: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;,
     T: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html">AsRef</a>&lt;[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>]&gt;,
 {
     <span class="kw">fn </span>from(other: (ID1, ID2, T)) -&gt; <span class="self">Self </span>{
@@ -777,7 +777,7 @@
     </span>}
 
     <span class="doccomment">/// Set the source of the log.
-    </span><span class="kw">pub fn </span>source(<span class="kw-2">mut </span><span class="self">self</span>, source: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>source(<span class="kw-2">mut </span><span class="self">self</span>, source: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span><span class="self">self</span>.source.is_some() {
             <a class="macro" href="error.rs.html#92-98">usage_panic!</a>(<span class="string">"Source was already set for this log"</span>);
         }
@@ -788,7 +788,7 @@
     </span>}
 
     <span class="doccomment">/// Set the destination of the log.
-    </span><span class="kw">pub fn </span>dest(<span class="kw-2">mut </span><span class="self">self</span>, dest: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>dest(<span class="kw-2">mut </span><span class="self">self</span>, dest: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span><span class="self">self</span>.destination.is_some() {
             <a class="macro" href="error.rs.html#92-98">usage_panic!</a>(<span class="string">"Destination was already set for this log"</span>);
         }
@@ -918,7 +918,7 @@
     <span class="doccomment">/// Executed block info.
     </span><span class="kw">pub </span>block_info: BlockInfo,
     <span class="doccomment">/// Gas allowance spent during the execution.
-    </span><span class="kw">pub </span>gas_allowance_spent: <a href="program.rs.html#66">Gas</a>,
+    </span><span class="kw">pub </span>gas_allowance_spent: <a href="program.rs.html#67">Gas</a>,
     <span class="doccomment">/// Set of successfully executed messages
     /// during the current block execution.
     </span><span class="kw">pub </span>succeed: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">BTreeSet</a>&lt;MessageId&gt;,
@@ -935,7 +935,7 @@
     </span><span class="kw">pub </span>log: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="#40-47">CoreLog</a>&gt;,
     <span class="doccomment">/// Mapping gas burned for each message during
     /// the current block execution.
-    </span><span class="kw">pub </span>gas_burned: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;MessageId, <a href="program.rs.html#66">Gas</a>&gt;,
+    </span><span class="kw">pub </span>gas_burned: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;MessageId, <a href="program.rs.html#67">Gas</a>&gt;,
 }
 
 <span class="kw">impl </span><a href="#405-427">BlockRunResult</a> {
@@ -985,7 +985,7 @@
         <span class="kw">let </span>spent_gas = <span class="self"><a href="#472">self</a>
             </span>.gas_burned
             .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.values">values</a>()
-            .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.fold">fold</a>(<a href="program.rs.html#70-72">Gas::zero</a>(), |acc, <span class="kw-2">&amp;</span>x| <a href="#476">acc</a>.<a href="program.rs.html#75-77">saturating_add</a>(<a href="#476">x</a>));
+            .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.fold">fold</a>(<a href="program.rs.html#71-73">Gas::zero</a>(), |acc, <span class="kw-2">&amp;</span>x| <a href="#476">acc</a>.<a href="program.rs.html#76-78">saturating_add</a>(<a href="#476">x</a>));
 
         <a href="lib.rs.html#540">GAS_MULTIPLIER</a>.gas_to_value(<a href="#473">spent_gas</a>.<span class="number">0</span>)
     }

@@ -644,9 +644,9 @@
 </span><span class="kw">use </span>gear_common::Origin;
 <span class="kw">use </span>gear_core_errors::<span class="kw-2">*</span>;
 <span class="kw">use </span>jsonrpsee::{
-    core::{RpcResult, <a href="https://docs.rs/async-trait/0.1.81/async_trait/attr.async_trait.html">async_trait</a>},
+    core::{<a href="https://docs.rs/async-trait/0.1.81/async_trait/attr.async_trait.html">async_trait</a>, RpcResult},
     proc_macros::rpc,
-    types::{ErrorObjectOwned, error::ErrorObject},
+    types::{error::ErrorObject, ErrorObjectOwned},
 };
 <span class="kw">pub use </span><a href="../../pallet_gear_rpc/trait.GearRuntimeApi.html">pallet_gear_rpc_runtime_api::GearApi</a> <span class="kw">as </span>GearRuntimeApi;
 <span class="kw">use </span>pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};

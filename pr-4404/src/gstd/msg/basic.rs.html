@@ -684,9 +684,9 @@
 </span><span class="attr">#[cfg(not(feature = <span class="string">"ethexe"</span>))]
 </span><span class="kw">use </span><a href="../../../gstd/struct.ReservationId.html"><span class="kw">crate</span>::ReservationId</a>;
 <span class="kw">use crate</span>::{
-    <a href="../../../gstd/struct.ActorId.html">ActorId</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>,
     msg::{<a class="self" href="../lib.rs.html#156">self</a>, <a href="mod.rs.html#60">utils</a>},
-    prelude::{<a href="../../../gstd/prelude/struct.Vec.html">Vec</a>, <a href="../../../gstd/prelude/ops/trait.RangeBounds.html">ops::RangeBounds</a>, <a href="../../../gstd/prelude/macro.vec.html">vec</a>},
+    prelude::{<a href="../../../gstd/prelude/ops/trait.RangeBounds.html">ops::RangeBounds</a>, <a href="../../../gstd/prelude/macro.vec.html">vec</a>, <a href="../../../gstd/prelude/struct.Vec.html">Vec</a>},
+    <a href="../../../gstd/struct.ActorId.html">ActorId</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>,
 };
 <span class="kw">use </span><a href="../../../gcore/errors/type.Result.html">gcore::errors::Result</a>;
 <span class="kw">use </span>gstd_codegen::wait_for_reply;
@@ -848,9 +848,9 @@
     ///
     /// ```
     /// use gstd::{
-    ///     ReservationId,
     ///     msg::{self, MessageHandle},
     ///     prelude::*,
+    ///     ReservationId,
     /// };
     ///
     /// #[unsafe(no_mangle)]
@@ -986,7 +986,7 @@
 /// # Examples
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
@@ -1075,7 +1075,7 @@
 /// # Examples
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
@@ -1189,7 +1189,7 @@
 /// program!):
 ///
 /// ```
-/// use gstd::{ActorId, msg};
+/// use gstd::{msg, ActorId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
@@ -1230,7 +1230,7 @@
 /// repeat it in your program!):
 ///
 /// ```
-/// use gstd::{ActorId, msg};
+/// use gstd::{msg, ActorId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
@@ -1286,7 +1286,7 @@
 /// Send a message with value to the sender's address:
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {

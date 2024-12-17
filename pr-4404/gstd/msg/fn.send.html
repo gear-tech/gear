@@ -14,7 +14,7 @@ reply message <a href="fn.reply.html" title="fn gstd::msg::reply"><code>reply</c
 <h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
 <p>Send a message to the arbitrary address:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{ActorId, msg, prelude::<span class="kw-2">*</span>};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{msg, prelude::<span class="kw-2">*</span>, ActorId};
 
 <span class="attr">#[derive(Encode)]
 #[codec(<span class="kw">crate </span>= gstd::codec)]

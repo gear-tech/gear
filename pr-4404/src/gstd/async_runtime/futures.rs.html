@@ -120,16 +120,16 @@
 
 </span><span class="attr">#[cfg(not(feature = <span class="string">"ethexe"</span>))]
 </span><span class="kw">use </span><a href="../lib.rs.html#153"><span class="kw">crate</span>::critical</a>;
-<span class="kw">use crate</span>::{<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="../../../gstd/prelude/struct.Box.html">prelude::Box</a>};
+<span class="kw">use crate</span>::{<a href="../../../gstd/prelude/struct.Box.html">prelude::Box</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>};
 <span class="kw">use </span>core::{
     <a href="../../../gstd/prelude/future/trait.Future.html">future::Future</a>,
     <a href="../../../gstd/prelude/pin/struct.Pin.html">pin::Pin</a>,
     task::{<a href="../../../gstd/prelude/task/struct.Context.html">Context</a>, <a href="../../../gstd/prelude/task/struct.Waker.html">Waker</a>},
 };
 <span class="kw">use </span>futures::FutureExt;
-<span class="kw">use </span><a href="../../../gstd/prelude/collections/hash_map/struct.HashMap.html">hashbrown::HashMap</a>;
+<span class="kw">use </span><a href="../../../gstd/prelude/collections/struct.HashMap.html">hashbrown::HashMap</a>;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>FuturesMap = <a href="../../../gstd/prelude/collections/hash_map/struct.HashMap.html">HashMap</a>&lt;<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="#38-42">Task</a>&gt;;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>FuturesMap = <a href="../../../gstd/prelude/collections/struct.HashMap.html">HashMap</a>&lt;<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="#38-42">Task</a>&gt;;
 
 <span class="kw">type </span>PinnedFuture = <a href="../../../gstd/prelude/pin/struct.Pin.html">Pin</a>&lt;<a href="../../../gstd/prelude/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../../../gstd/prelude/future/trait.Future.html">Future</a>&lt;Output = ()&gt; + <span class="lifetime">'static</span>&gt;&gt;;
 

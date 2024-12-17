@@ -427,8 +427,7 @@
 <a href="#426" id="426">426</a>
 <a href="#427" id="427">427</a>
 <a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#429" id="429">429</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -483,16 +482,15 @@
 <span class="kw">pub use </span><a href="#50">task</a>::<span class="kw-2">*</span>;
 
 <span class="kw">use crate</span>::{
-    <a href="../builtin.rs.html#61-66">BuiltinDispatcherFactory</a>, <a href="../lib.rs.html#164-292">Config</a>, <a href="../lib.rs.html#111">CurrencyOf</a>, <a href="../lib.rs.html#139">EXISTENTIAL_DEPOSIT_LOCK_ID</a>, <a href="../lib.rs.html#301-410">Event</a>, Fortitude,
-    <a href="../lib.rs.html#130">GasHandlerOf</a>, <a href="../lib.rs.html#297">Pallet</a>, Preservation, <a href="../lib.rs.html#134">ProgramStorageOf</a>, <a href="../lib.rs.html#118">QueueOf</a>, <a href="../lib.rs.html#122">TaskPoolOf</a>, <a href="../lib.rs.html#120">WaitlistOf</a>,
-    fungible,
+    fungible, <a href="../builtin.rs.html#61-66">BuiltinDispatcherFactory</a>, <a href="../lib.rs.html#165-293">Config</a>, <a href="../lib.rs.html#112">CurrencyOf</a>, <a href="../lib.rs.html#302-411">Event</a>, Fortitude, <a href="../lib.rs.html#131">GasHandlerOf</a>, <a href="../lib.rs.html#298">Pallet</a>,
+    Preservation, <a href="../lib.rs.html#135">ProgramStorageOf</a>, <a href="../lib.rs.html#119">QueueOf</a>, <a href="../lib.rs.html#123">TaskPoolOf</a>, <a href="../lib.rs.html#121">WaitlistOf</a>, <a href="../lib.rs.html#140">EXISTENTIAL_DEPOSIT_LOCK_ID</a>,
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">alloc::format</a>;
 <span class="kw">use </span>common::{
-    CodeStorage, Origin, ProgramStorage, ReservableTree,
     event::<span class="kw-2">*</span>,
     scheduler::{StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
+    CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 <span class="kw">use </span>core::{<a href="https://doc.rust-lang.org/nightly/core/fmt/index.html">fmt</a>, <a href="https://doc.rust-lang.org/nightly/core/mem/index.html">mem</a>};
 <span class="kw">use </span>frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
@@ -527,14 +525,14 @@
     Signal(MessageId, SignalCode),
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html">fmt::Debug</a> <span class="kw">for </span><a href="#92-98">HandleKind</a> {
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html">fmt::Debug</a> <span class="kw">for </span><a href="#91-97">HandleKind</a> {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html">fmt::Formatter</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html">fmt::Result</a> {
-        <span class="kw">match </span><span class="self"><a href="#101">self</a> </span>{
-            <a href="#93">HandleKind::Init</a>(<span class="kw">_</span>) =&gt; <a href="#101">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"Init"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<span class="kw-2">&amp;</span><a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.format_args.html">format_args!</a>(<span class="string">"[...]"</span>)).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
-            <a href="#94">HandleKind::InitByHash</a>(id) =&gt; <a href="#101">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"InitByHash"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#104">id</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
-            <a href="#95">HandleKind::Handle</a>(id) =&gt; <a href="#101">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"Handle"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#105">id</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
-            <a href="#96">HandleKind::Reply</a>(id, code) =&gt; <a href="#101">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"Reply"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#106">id</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#106">code</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
-            <a href="#97">HandleKind::Signal</a>(id, code) =&gt; <a href="#101">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"Signal"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#107">id</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#107">code</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
+        <span class="kw">match </span><span class="self"><a href="#100">self</a> </span>{
+            <a href="#92">HandleKind::Init</a>(<span class="kw">_</span>) =&gt; <a href="#100">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"Init"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<span class="kw-2">&amp;</span><a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.format_args.html">format_args!</a>(<span class="string">"[...]"</span>)).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
+            <a href="#93">HandleKind::InitByHash</a>(id) =&gt; <a href="#100">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"InitByHash"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#103">id</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
+            <a href="#94">HandleKind::Handle</a>(id) =&gt; <a href="#100">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"Handle"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#104">id</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
+            <a href="#95">HandleKind::Reply</a>(id, code) =&gt; <a href="#100">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"Reply"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#105">id</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#105">code</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
+            <a href="#96">HandleKind::Signal</a>(id, code) =&gt; <a href="#100">f</a>.<a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html#method.debug_tuple">debug_tuple</a>(<span class="string">"Signal"</span>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#106">id</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.field">field</a>(<a href="#106">code</a>).<a href="https://doc.rust-lang.org/nightly/core/fmt/builders/struct.DebugTuple.html#method.finish">finish</a>(),
         }
     }
 }
@@ -546,26 +544,26 @@
     static_pages: WasmPagesAmount,
 }
 
-<span class="kw">impl </span><a href="#113-117">CodeInfo</a> {
+<span class="kw">impl </span><a href="#112-116">CodeInfo</a> {
     <span class="kw">pub fn </span>from_code_and_id(code: <span class="kw-2">&amp;</span>CodeAndId) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            id: <a href="#120">code</a>.code_id().into_origin(),
-            exports: <a href="#120">code</a>.code().exports().<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
-            static_pages: <a href="#120">code</a>.code().static_pages(),
+            id: <a href="#119">code</a>.code_id().into_origin(),
+            exports: <a href="#119">code</a>.code().exports().<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
+            static_pages: <a href="#119">code</a>.code().static_pages(),
         }
     }
 
     <span class="kw">pub fn </span>from_code(id: <span class="kw-2">&amp;</span>CodeId, code: <span class="kw-2">&amp;</span>InstrumentedCode) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            id: <a href="#128">id</a>.into_origin(),
-            exports: <a href="#128">code</a>.exports().<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
-            static_pages: <a href="#128">code</a>.static_pages(),
+            id: <a href="#127">id</a>.into_origin(),
+            exports: <a href="#127">code</a>.exports().<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
+            static_pages: <a href="#127">code</a>.static_pages(),
         }
     }
 }
 
 <span class="doccomment">/// Journal handler implementation for `pallet_gear`.
-</span><span class="kw">pub struct </span><a href="../../../pallet_gear/manager/struct.ExtManager.html">ExtManager</a>&lt;T: <a href="../lib.rs.html#164-292">Config</a>&gt; {
+</span><span class="kw">pub struct </span><a href="../../../pallet_gear/manager/struct.ExtManager.html">ExtManager</a>&lt;T: <a href="../lib.rs.html#165-293">Config</a>&gt; {
     <span class="doccomment">/// Ids checked that they are users.
     </span>users: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">BTreeSet</a>&lt;ProgramId&gt;,
     <span class="doccomment">/// Ids checked that they are programs.
@@ -588,16 +586,16 @@
     </span><span class="kw">pub </span>state_changes: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">BTreeSet</a>&lt;ProgramId&gt;,
 }
 
-<span class="kw">impl</span>&lt;T: <a href="../lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#138-151">ExtManager</a>&lt;T&gt;&gt; <span class="kw">for </span><a href="#154-159">QueuePostProcessingData</a> {
-    <span class="kw">fn </span>from(ext_manager: <a href="#138-151">ExtManager</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;T: <a href="../lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#137-150">ExtManager</a>&lt;T&gt;&gt; <span class="kw">for </span><a href="#153-158">QueuePostProcessingData</a> {
+    <span class="kw">fn </span>from(ext_manager: <a href="#137-150">ExtManager</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            dispatch_statuses: <a href="#162">ext_manager</a>.dispatch_statuses,
-            state_changes: <a href="#162">ext_manager</a>.state_changes,
+            dispatch_statuses: <a href="#161">ext_manager</a>.dispatch_statuses,
+            state_changes: <a href="#161">ext_manager</a>.state_changes,
         }
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="../lib.rs.html#164-292">Config</a>&gt; <a href="#138-151">ExtManager</a>&lt;T&gt;
+<span class="kw">impl</span>&lt;T: <a href="../lib.rs.html#165-293">Config</a>&gt; <a href="#137-150">ExtManager</a>&lt;T&gt;
 <span class="kw">where
     </span>T::AccountId: Origin,
 {
@@ -610,12 +608,12 @@
             programs: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
             dispatch_statuses: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
             state_changes: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
-            <a href="#175">builtins</a>,
+            <a href="#174">builtins</a>,
         }
     }
 
     <span class="kw">pub fn </span>builtins(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>&lt;T::BuiltinDispatcherFactory <span class="kw">as </span>BuiltinDispatcherFactory&gt;::Output {
-        <span class="kw-2">&amp;</span><a class="self" href="#187">self</a>.builtins
+        <span class="kw-2">&amp;</span><a class="self" href="#186">self</a>.builtins
     }
 
     <span class="doccomment">/// Check if id is program and save result.
@@ -626,23 +624,23 @@
         </span>} <span class="kw">else if </span><span class="self">self</span>.users.contains(id) {
             <span class="bool-val">false
         </span>} <span class="kw">else if </span>Pallet::&lt;T&gt;::program_exists(<span class="kw-2">&amp;</span><span class="self">self</span>.builtins, <span class="kw-2">*</span>id) {
-            <a class="self" href="#192">self</a>.programs.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html#method.insert">insert</a>(<span class="kw-2">*</span><a href="#192">id</a>);
+            <a class="self" href="#191">self</a>.programs.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html#method.insert">insert</a>(<span class="kw-2">*</span><a href="#191">id</a>);
             <span class="bool-val">true
         </span>} <span class="kw">else </span>{
-            <a class="self" href="#192">self</a>.users.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html#method.insert">insert</a>(<span class="kw-2">*</span><a href="#192">id</a>);
+            <a class="self" href="#191">self</a>.users.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html#method.insert">insert</a>(<span class="kw-2">*</span><a href="#191">id</a>);
             <span class="bool-val">false
         </span>}
     }
 
     <span class="doccomment">/// Check if id is user and save result.
     </span><span class="kw">pub fn </span>check_user_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: <span class="kw-2">&amp;</span>ProgramId) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
-        !<a class="self" href="#208">self</a>.<a href="#192-205">check_program_id</a>(<a href="#208">id</a>)
+        !<a class="self" href="#207">self</a>.<a href="#191-204">check_program_id</a>(<a href="#207">id</a>)
     }
 
     <span class="kw">pub fn </span>set_program(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         program_id: ProgramId,
-        code_info: <span class="kw-2">&amp;</span><a href="#113-117">CodeInfo</a>,
+        code_info: <span class="kw-2">&amp;</span><a href="#112-116">CodeInfo</a>,
         message_id: MessageId,
         expiration_block: BlockNumberFor&lt;T&gt;,
     ) {
@@ -658,16 +656,16 @@
         <span class="comment">// An empty program has been just constructed: it contains no mem allocations.
         </span><span class="kw">let </span>program = ActiveProgram {
             allocations_tree_len: <span class="number">0</span>,
-            code_hash: <a href="#215">code_info</a>.id,
-            code_exports: <a href="#215">code_info</a>.exports.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
-            static_pages: <a href="#215">code_info</a>.static_pages,
-            state: ProgramState::Uninitialized { <a href="#216">message_id</a> },
+            code_hash: <a href="#214">code_info</a>.id,
+            code_exports: <a href="#214">code_info</a>.exports.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
+            static_pages: <a href="#214">code_info</a>.static_pages,
+            state: ProgramState::Uninitialized { <a href="#215">message_id</a> },
             gas_reservation_map: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
-            <a href="#217">expiration_block</a>,
+            <a href="#216">expiration_block</a>,
             memory_infix: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
         };
 
-        <a href="../lib.rs.html#134">ProgramStorageOf</a>::&lt;T&gt;::add_program(<a href="#214">program_id</a>, <a href="#229">program</a>)
+        <a href="../lib.rs.html#135">ProgramStorageOf</a>::&lt;T&gt;::add_program(<a href="#213">program_id</a>, <a href="#228">program</a>)
             .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.expect">expect</a>(<span class="string">"set_program shouldn't be called for the existing id"</span>);
     }
 
@@ -676,24 +674,24 @@
         slot: GasReservationSlot,
     ) -&gt; GasReservationSlot {
         <span class="kw">let </span>interval = Interval {
-            start: BlockNumberFor::&lt;T&gt;::from(<a href="#246">slot</a>.start),
-            finish: BlockNumberFor::&lt;T&gt;::from(<a href="#246">slot</a>.finish),
+            start: BlockNumberFor::&lt;T&gt;::from(<a href="#245">slot</a>.start),
+            finish: BlockNumberFor::&lt;T&gt;::from(<a href="#245">slot</a>.finish),
         };
 
-        <a href="../lib.rs.html#297">Pallet</a>::&lt;T&gt;::charge_for_hold(<a href="#245">reservation_id</a>, <a href="#248">interval</a>, StorageType::Reservation);
+        <a href="../lib.rs.html#298">Pallet</a>::&lt;T&gt;::charge_for_hold(<a href="#244">reservation_id</a>, <a href="#247">interval</a>, StorageType::Reservation);
 
-        <a href="../lib.rs.html#297">Pallet</a>::&lt;T&gt;::consume_and_retrieve(<a href="#245">reservation_id</a>);
+        <a href="../lib.rs.html#298">Pallet</a>::&lt;T&gt;::consume_and_retrieve(<a href="#244">reservation_id</a>);
 
-        <a href="#246">slot</a>
+        <a href="#245">slot</a>
     }
 
     <span class="kw">pub fn </span>remove_gas_reservation_impl(
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -&gt; GasReservationSlot {
-        <span class="kw">let </span>slot = <a href="../lib.rs.html#134">ProgramStorageOf</a>::&lt;T&gt;::update_active_program(<a href="#261">program_id</a>, |p| {
-            <a href="#264">p</a>.gas_reservation_map
-                .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.remove">remove</a>(<span class="kw-2">&amp;</span><a href="#262">reservation_id</a>)
+        <span class="kw">let </span>slot = <a href="../lib.rs.html#135">ProgramStorageOf</a>::&lt;T&gt;::update_active_program(<a href="#260">program_id</a>, |p| {
+            <a href="#263">p</a>.gas_reservation_map
+                .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.remove">remove</a>(<span class="kw-2">&amp;</span><a href="#261">reservation_id</a>)
                 .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| {
                     <span class="kw">let </span>err_msg = <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
                         <span class="string">"ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \
@@ -715,7 +713,7 @@
             <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"{err_msg}"</span>)
         });
 
-        <a href="#244-258"><span class="self">Self</span>::remove_gas_reservation_slot</a>(<a href="#262">reservation_id</a>, <a href="#264">slot</a>)
+        <a href="#243-257"><span class="self">Self</span>::remove_gas_reservation_slot</a>(<a href="#261">reservation_id</a>, <a href="#263">slot</a>)
     }
 
     <span class="kw">fn </span>remove_gas_reservation_map(
@@ -737,7 +735,7 @@
     }
 
     <span class="kw">fn </span>send_signal(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message_id: MessageId, destination: ProgramId, code: SignalCode) {
-        <span class="kw">let </span>reserved = <a href="../lib.rs.html#130">GasHandlerOf</a>::&lt;T&gt;::system_unreserve(<a href="#309">message_id</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
+        <span class="kw">let </span>reserved = <a href="../lib.rs.html#131">GasHandlerOf</a>::&lt;T&gt;::system_unreserve(<a href="#308">message_id</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
             <span class="kw">let </span>err_msg = <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
                 <span class="string">"ExtManager::send_signal: failed system unreserve. \
                 Message id - {message_id}. Got error: {e:?}"
@@ -755,20 +753,20 @@
             );
 
             <span class="comment">// Creating signal message.
-            </span><span class="kw">let </span>trap_signal = SignalMessage::new(<a href="#309">message_id</a>, <a href="#309">code</a>)
-                .into_dispatch(<a href="#309">message_id</a>, <a href="#309">destination</a>)
+            </span><span class="kw">let </span>trap_signal = SignalMessage::new(<a href="#308">message_id</a>, <a href="#308">code</a>)
+                .into_dispatch(<a href="#308">message_id</a>, <a href="#308">destination</a>)
                 .into_stored();
 
             <span class="comment">// Splitting gas for newly created signal message.
-            </span><a href="../lib.rs.html#297">Pallet</a>::&lt;T&gt;::split_with_value(
-                <a href="#309">message_id</a>,
-                <a href="#328">trap_signal</a>.id(),
-                <a href="#310">reserved</a>,
-                <a href="#328">trap_signal</a>.is_reply(),
+            </span><a href="../lib.rs.html#298">Pallet</a>::&lt;T&gt;::split_with_value(
+                <a href="#308">message_id</a>,
+                <a href="#327">trap_signal</a>.id(),
+                <a href="#309">reserved</a>,
+                <a href="#327">trap_signal</a>.is_reply(),
             );
 
             <span class="comment">// Enqueueing dispatch into message queue.
-            </span><a href="../lib.rs.html#118">QueueOf</a>::&lt;T&gt;::queue(<a href="#328">trap_signal</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
+            </span><a href="../lib.rs.html#119">QueueOf</a>::&lt;T&gt;::queue(<a href="#327">trap_signal</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
                 <span class="kw">let </span>err_msg =
                     <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"ExtManager::send_signal: failed queuing message. Got error - {e:?}"</span>);
 
@@ -786,29 +784,29 @@
         program: <span class="kw-2">&amp;mut </span>ActiveProgram&lt;BlockNumberFor&lt;T&gt;&gt;,
         value_destination: ProgramId,
     ) {
-        <a href="#291-307"><span class="self">Self</span>::remove_gas_reservation_map</a>(<a href="#355">program_id</a>, <a href="https://doc.rust-lang.org/nightly/core/mem/fn.take.html">mem::take</a>(<span class="kw-2">&amp;mut </span><a href="#356">program</a>.gas_reservation_map));
+        <a href="#290-306"><span class="self">Self</span>::remove_gas_reservation_map</a>(<a href="#354">program_id</a>, <a href="https://doc.rust-lang.org/nightly/core/mem/fn.take.html">mem::take</a>(<span class="kw-2">&amp;mut </span><a href="#355">program</a>.gas_reservation_map));
 
-        <span class="kw">let </span>program_account = <a href="#355">program_id</a>.cast();
-        <span class="kw">let </span>value_destination = <a href="#357">value_destination</a>.cast();
+        <span class="kw">let </span>program_account = <a href="#354">program_id</a>.cast();
+        <span class="kw">let </span>value_destination = <a href="#356">value_destination</a>.cast();
 
         <span class="comment">// Remove the ED lock to allow the account to be reaped.
-        </span><a href="../lib.rs.html#111">CurrencyOf</a>::&lt;T&gt;::remove_lock(<a href="../lib.rs.html#139">EXISTENTIAL_DEPOSIT_LOCK_ID</a>, <span class="kw-2">&amp;</span><a href="#361">program_account</a>);
+        </span><a href="../lib.rs.html#112">CurrencyOf</a>::&lt;T&gt;::remove_lock(<a href="../lib.rs.html#140">EXISTENTIAL_DEPOSIT_LOCK_ID</a>, <span class="kw-2">&amp;</span><a href="#360">program_account</a>);
 
         <span class="comment">// The `reducible_balance` should now include the ED since no consumer is left.
         // If some part of the program account's `free` balance is still `frozen` for some reason
         // it will be offset against the `reducible_balance`.
-        </span><span class="kw">let </span>balance = &lt;<a href="../lib.rs.html#111">CurrencyOf</a>&lt;T&gt; <span class="kw">as </span>fungible::Inspect&lt;<span class="kw">_</span>&gt;&gt;::reducible_balance(
-            <span class="kw-2">&amp;</span><a href="#361">program_account</a>,
+        </span><span class="kw">let </span>balance = &lt;<a href="../lib.rs.html#112">CurrencyOf</a>&lt;T&gt; <span class="kw">as </span>fungible::Inspect&lt;<span class="kw">_</span>&gt;&gt;::reducible_balance(
+            <span class="kw-2">&amp;</span><a href="#360">program_account</a>,
             Preservation::Expendable,
             Fortitude::Polite,
         );
         <span class="kw">if </span>!balance.is_zero() {
             <span class="comment">// The transfer is guaranteed to succeed since the amount contains at least the ED
             // from the deactivated program.
-            </span><a href="../lib.rs.html#111">CurrencyOf</a>::&lt;T&gt;::transfer(
-                <span class="kw-2">&amp;</span><a href="#361">program_account</a>,
-                <span class="kw-2">&amp;</span><a href="#362">value_destination</a>,
-                <a href="#370">balance</a>,
+            </span><a href="../lib.rs.html#112">CurrencyOf</a>::&lt;T&gt;::transfer(
+                <span class="kw-2">&amp;</span><a href="#360">program_account</a>,
+                <span class="kw-2">&amp;</span><a href="#361">value_destination</a>,
+                <a href="#369">balance</a>,
                 ExistenceRequirement::AllowDeath,
             )
             .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| {
@@ -826,10 +824,10 @@
     </span><span class="kw">fn </span>clean_waitlist(program_id: ProgramId) {
         <span class="kw">let </span>reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
 
-        <a href="../lib.rs.html#120">WaitlistOf</a>::&lt;T&gt;::drain_key(<a href="#396">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.for_each">for_each</a>(|entry| {
-            <span class="kw">let </span>message = <a href="../lib.rs.html#297">Pallet</a>::&lt;T&gt;::wake_dispatch_requirements(<a href="#399">entry</a>, <a href="#397">reason</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
+        <a href="../lib.rs.html#121">WaitlistOf</a>::&lt;T&gt;::drain_key(<a href="#395">program_id</a>).<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.for_each">for_each</a>(|entry| {
+            <span class="kw">let </span>message = <a href="../lib.rs.html#298">Pallet</a>::&lt;T&gt;::wake_dispatch_requirements(<a href="#398">entry</a>, <a href="#396">reason</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
 
-            <a href="../lib.rs.html#118">QueueOf</a>::&lt;T&gt;::queue(<a href="#400">message</a>)
+            <a href="../lib.rs.html#119">QueueOf</a>::&lt;T&gt;::queue(<a href="#399">message</a>)
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"Message queue corrupted! {e:?}"</span>));
         });
     }
@@ -840,20 +838,20 @@
         // happen when init message had more gas limit then rest block
         // gas allowance, but a dispatch message to the program was
         // dequeued. The other case is async init.
-        </span><a href="#396-405"><span class="self">Self</span>::clean_waitlist</a>(<a href="#407">program_id</a>);
+        </span><a href="#395-404"><span class="self">Self</span>::clean_waitlist</a>(<a href="#406">program_id</a>);
 
-        <span class="kw">let _ </span>= <a href="../lib.rs.html#134">ProgramStorageOf</a>::&lt;T&gt;::update_program_if_active(<a href="#407">program_id</a>, |p, bn| {
-            <span class="kw">let _ </span>= <a href="../lib.rs.html#122">TaskPoolOf</a>::&lt;T&gt;::delete(<a href="#415">bn</a>, ScheduledTask::PauseProgram(<a href="#407">program_id</a>));
+        <span class="kw">let _ </span>= <a href="../lib.rs.html#135">ProgramStorageOf</a>::&lt;T&gt;::update_program_if_active(<a href="#406">program_id</a>, |p, bn| {
+            <span class="kw">let _ </span>= <a href="../lib.rs.html#123">TaskPoolOf</a>::&lt;T&gt;::delete(<a href="#414">bn</a>, ScheduledTask::PauseProgram(<a href="#406">program_id</a>));
 
-            <span class="kw">if let </span>Program::Active(program) = <a href="#415">p</a> {
-                <a href="#354-393"><span class="self">Self</span>::clean_inactive_program</a>(<a href="#407">program_id</a>, <a href="#418">program</a>, <a href="#407">origin</a>);
+            <span class="kw">if let </span>Program::Active(program) = <a href="#414">p</a> {
+                <a href="#353-392"><span class="self">Self</span>::clean_inactive_program</a>(<a href="#406">program_id</a>, <a href="#417">program</a>, <a href="#406">origin</a>);
             }
 
-            <span class="kw-2">*</span><a href="#415">p</a> = Program::Terminated(<a href="#407">origin</a>);
+            <span class="kw-2">*</span><a href="#414">p</a> = Program::Terminated(<a href="#406">origin</a>);
         });
 
-        <a href="../lib.rs.html#297">Pallet</a>::&lt;T&gt;::deposit_event(<a href="../lib.rs.html#399-406">Event::ProgramChanged</a> {
-            id: <a href="#407">program_id</a>,
+        <a href="../lib.rs.html#298">Pallet</a>::&lt;T&gt;::deposit_event(<a href="../lib.rs.html#400-407">Event::ProgramChanged</a> {
+            id: <a href="#406">program_id</a>,
             change: ProgramChangeKind::Terminated,
         });
     }

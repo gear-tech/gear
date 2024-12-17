@@ -512,10 +512,10 @@
 </span><span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">alloc::format</a>;
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/cmp/enum.Ordering.html">core::cmp::Ordering</a>;
 <span class="kw">use </span>num_traits::bounds::{<a href="https://docs.rs/num-traits/0.2/num_traits/bounds/trait.LowerBounded.html">LowerBounded</a>, <a href="https://docs.rs/num-traits/0.2/num_traits/bounds/trait.UpperBounded.html">UpperBounded</a>};
-<span class="kw">use </span>numerated::{Bound, Numerated, interval::Interval, iterators::IntervalIterator};
+<span class="kw">use </span>numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated};
 <span class="kw">use </span>scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 <span class="kw">pub use </span>numerated::{<span class="self">self</span>, <a href="https://docs.rs/num-traits/0.2/num_traits/index.html">num_traits</a>};
@@ -927,7 +927,7 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>numerated::mock::{<span class="self">self</span>, IntervalAction};
     <span class="kw">use </span>proptest::{
-        prelude::{Arbitrary, any},
+        prelude::{any, Arbitrary},
         proptest,
         strategy::{BoxedStrategy, Strategy},
         test_runner::Config <span class="kw">as </span>ProptestConfig,

@@ -140,7 +140,7 @@
 <span class="kw">pub mod </span><a href="error.rs.html#19-268">error</a>;
 <span class="kw">mod </span><a href="funcs.rs.html#19-1428">funcs</a>;
 <span class="kw">mod </span><a href="log.rs.html#19-61">log</a>;
-<span class="kw">pub mod </span><a href="memory.rs.html#19-967">memory</a>;
+<span class="kw">pub mod </span><a href="memory.rs.html#19-973">memory</a>;
 <span class="attr">#[cfg(any(feature = <span class="string">"mock"</span>, test))]
 </span><span class="kw">pub mod </span>mock;
 <span class="kw">mod </span><a href="runtime.rs.html#19-163">runtime</a>;
@@ -175,8 +175,8 @@
     };
     <span class="kw">use </span>gear_core::{gas_metering::CustomConstantCostRules, message::DispatchKind};
     <span class="kw">use </span>gear_wasm_instrument::{
-        InstrumentationBuilder, SyscallName,
         parity_wasm::{<span class="self">self</span>, builder},
+        InstrumentationBuilder, SyscallName,
     };
 
     <span class="doccomment">/// Check that all syscalls are supported by backend.

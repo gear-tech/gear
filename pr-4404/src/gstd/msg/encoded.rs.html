@@ -512,8 +512,8 @@
 </span><span class="attr">#[cfg(not(feature = <span class="string">"ethexe"</span>))]
 </span><span class="kw">use </span><a href="../../../gstd/struct.ReservationId.html"><span class="kw">crate</span>::ReservationId</a>;
 <span class="kw">use crate</span>::{
-    <a href="../../../gstd/struct.ActorId.html">ActorId</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="../common/errors.rs.html#36-75">errors::Error</a>, <a href="mod.rs.html#60">msg::utils</a>, <a href="../../../gstd/prelude/ops/trait.RangeBounds.html">prelude::ops::RangeBounds</a>,
-    <a href="../util.rs.html#33-66">util::with_optimized_encode</a>,
+    <a href="../common/errors.rs.html#36-75">errors::Error</a>, <a href="mod.rs.html#60">msg::utils</a>, <a href="../../../gstd/prelude/ops/trait.RangeBounds.html">prelude::ops::RangeBounds</a>, <a href="../util.rs.html#33-66">util::with_optimized_encode</a>, <a href="../../../gstd/struct.ActorId.html">ActorId</a>,
+    <a href="../../../gstd/struct.MessageId.html">MessageId</a>,
 };
 <span class="kw">use </span><a href="../../../gcore/errors/type.Result.html">gcore::errors::Result</a>;
 <span class="kw">use </span>gstd_codegen::wait_for_reply;
@@ -618,7 +618,7 @@
 /// # Examples
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[derive(Encode)]
 /// #[codec(crate = gstd::codec)]
@@ -826,7 +826,7 @@
 /// Send a message to the arbitrary address:
 ///
 /// ```
-/// use gstd::{ActorId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ActorId};
 ///
 /// #[derive(Encode)]
 /// #[codec(crate = gstd::codec)]
@@ -917,7 +917,7 @@
 /// Send a message to the sender's address:
 ///
 /// ```
-/// use gstd::{ReservationId, msg, prelude::*};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[derive(Encode)]
 /// #[codec(crate = gstd::codec)]

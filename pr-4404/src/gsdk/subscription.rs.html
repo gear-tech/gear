@@ -150,7 +150,7 @@
 <span class="kw">use </span>futures::{Stream, StreamExt};
 <span class="kw">use </span>sp_core::H256;
 <span class="kw">use </span>std::{<a href="https://doc.rust-lang.org/nightly/core/marker/trait.Unpin.html">marker::Unpin</a>, <a href="https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html">ops::Deref</a>, <a href="https://doc.rust-lang.org/nightly/core/pin/struct.Pin.html">pin::Pin</a>, <a href="https://doc.rust-lang.org/nightly/core/task/poll/enum.Poll.html">task::Poll</a>};
-<span class="kw">use </span>subxt::{OnlineClient, backend::StreamOfResults, blocks::Block, events::Events <span class="kw">as </span>SubxtEvents};
+<span class="kw">use </span>subxt::{backend::StreamOfResults, blocks::Block, events::Events <span class="kw">as </span>SubxtEvents, OnlineClient};
 
 <span class="kw">type </span>SubxtBlock = Block&lt;<a href="config.rs.html#36">GearConfig</a>, OnlineClient&lt;<a href="config.rs.html#36">GearConfig</a>&gt;&gt;;
 <span class="kw">type </span>BlockSubscription = StreamOfResults&lt;<a href="#28">SubxtBlock</a>&gt;;

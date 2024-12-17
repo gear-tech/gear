@@ -675,7 +675,7 @@
         <a href="#105">message_id</a>
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_new_block(<span class="kw-2">&amp;mut </span><span class="self">self</span>, allowance: <a href="../program.rs.html#66">Gas</a>) -&gt; <a href="../log.rs.html#405-427">BlockRunResult</a> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_new_block(<span class="kw-2">&amp;mut </span><span class="self">self</span>, allowance: <a href="../program.rs.html#67">Gas</a>) -&gt; <a href="../log.rs.html#405-427">BlockRunResult</a> {
         <a class="self" href="#111">self</a>.gas_allowance = <a href="#111">allowance</a>;
         <a class="self" href="#111">self</a>.blocks_manager.<a href="../state/blocks.rs.html#75-77">next_block</a>();
         <span class="kw">let </span>new_block_bn = <a class="self" href="#111">self</a>.<a href="../manager.rs.html#138-140">block_height</a>();
@@ -689,7 +689,7 @@
 
         <a href="../log.rs.html#405-427">BlockRunResult</a> {
             block_info: <a class="self" href="#111">self</a>.blocks_manager.<a href="../state/blocks.rs.html#64-72">get</a>(),
-            gas_allowance_spent: <a href="../program.rs.html#66">Gas</a>(<a href="../lib.rs.html#534">GAS_ALLOWANCE</a>) - <a class="self" href="#111">self</a>.gas_allowance,
+            gas_allowance_spent: <a href="../program.rs.html#67">Gas</a>(<a href="../lib.rs.html#534">GAS_ALLOWANCE</a>) - <a class="self" href="#111">self</a>.gas_allowance,
             succeed: <a href="https://doc.rust-lang.org/nightly/core/mem/fn.take.html">mem::take</a>(<span class="kw-2">&amp;mut </span><a class="self" href="#111">self</a>.succeed),
             failed: <a href="https://doc.rust-lang.org/nightly/core/mem/fn.take.html">mem::take</a>(<span class="kw-2">&amp;mut </span><a class="self" href="#111">self</a>.failed),
             not_executed: <a href="https://doc.rust-lang.org/nightly/core/mem/fn.take.html">mem::take</a>(<span class="kw-2">&amp;mut </span><a class="self" href="#111">self</a>.not_executed),
@@ -711,13 +711,13 @@
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|block| {
                 <a class="self" href="#138">self</a>.gas_allowance = <span class="self"><a href="#138">self</a>
                     </span>.gas_allowance
-                    .<a href="../program.rs.html#80-82">saturating_sub</a>(<a href="../program.rs.html#66">Gas</a>(<a href="#139">db_weights</a>.write.ref_time));
+                    .<a href="../program.rs.html#81-83">saturating_sub</a>(<a href="../program.rs.html#67">Gas</a>(<a href="#139">db_weights</a>.write.ref_time));
                 (<a href="#144">block</a>, <span class="bool-val">false</span>)
             })
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| {
                 <a class="self" href="#138">self</a>.gas_allowance = <span class="self"><a href="#138">self</a>
                     </span>.gas_allowance
-                    .<a href="../program.rs.html#80-82">saturating_sub</a>(<a href="../program.rs.html#66">Gas</a>(<a href="#139">db_weights</a>.read.ref_time));
+                    .<a href="../program.rs.html#81-83">saturating_sub</a>(<a href="../program.rs.html#67">Gas</a>(<a href="#139">db_weights</a>.read.ref_time));
                 (<a href="#138">current_bn</a>, <span class="bool-val">true</span>)
             });
 
@@ -800,7 +800,7 @@
                 // if we were reading it only (they were empty).
                 </span><a class="self" href="#138">self</a>.gas_allowance = <span class="self"><a href="#138">self</a>
                     </span>.gas_allowance
-                    .<a href="../program.rs.html#80-82">saturating_sub</a>(<a href="../program.rs.html#66">Gas</a>(<a href="#139">db_weights</a>.write.ref_time));
+                    .<a href="../program.rs.html#81-83">saturating_sub</a>(<a href="../program.rs.html#67">Gas</a>(<a href="#139">db_weights</a>.write.ref_time));
             }
 
             <a class="self" href="#138">self</a>.first_incomplete_tasks_block = <span class="prelude-val">Some</span>(<a href="#230">stopped_at</a>);
@@ -1012,7 +1012,7 @@
 
     <span class="kw">fn </span>process_mock(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        mock: <span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../program.rs.html#98-126">WasmProgram</a>&gt;,
+        mock: <span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="../program.rs.html#99-127">WasmProgram</a>&gt;,
         context: ContextChargedForProgram,
     ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;JournalNote&gt; {
         <span class="kw">enum </span>Mocked {
@@ -1024,10 +1024,10 @@
         <span class="kw">let </span>payload = <a href="#456">dispatch</a>.payload_bytes().<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>();
 
         <span class="kw">let </span>response = <span class="kw">match </span><a href="#456">dispatch</a>.kind() {
-            DispatchKind::Init =&gt; <a href="#448">mock</a>.<a href="../program.rs.html#107">init</a>(<a href="#457">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(<a href="#452">Mocked::Reply</a>),
-            DispatchKind::Handle =&gt; <a href="#448">mock</a>.<a href="../program.rs.html#111">handle</a>(<a href="#457">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(<a href="#452">Mocked::Reply</a>),
-            DispatchKind::Reply =&gt; <a href="#448">mock</a>.<a href="../program.rs.html#113">handle_reply</a>(<a href="#457">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|<span class="kw">_</span>| <a href="#452">Mocked::Reply</a>(<span class="prelude-val">None</span>)),
-            DispatchKind::Signal =&gt; <a href="#448">mock</a>.<a href="../program.rs.html#115">handle_signal</a>(<a href="#457">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|<span class="kw">_</span>| <a href="#453">Mocked::Signal</a>),
+            DispatchKind::Init =&gt; <a href="#448">mock</a>.<a href="../program.rs.html#108">init</a>(<a href="#457">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(<a href="#452">Mocked::Reply</a>),
+            DispatchKind::Handle =&gt; <a href="#448">mock</a>.<a href="../program.rs.html#112">handle</a>(<a href="#457">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(<a href="#452">Mocked::Reply</a>),
+            DispatchKind::Reply =&gt; <a href="#448">mock</a>.<a href="../program.rs.html#114">handle_reply</a>(<a href="#457">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|<span class="kw">_</span>| <a href="#452">Mocked::Reply</a>(<span class="prelude-val">None</span>)),
+            DispatchKind::Signal =&gt; <a href="#448">mock</a>.<a href="../program.rs.html#116">handle_signal</a>(<a href="#457">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|<span class="kw">_</span>| <a href="#453">Mocked::Signal</a>),
         };
 
         <span class="kw">match </span><a href="#459">response</a> {
@@ -1079,7 +1079,7 @@
                 )
             }
             <span class="prelude-val">Err</span>(expl) =&gt; {
-                <a href="#448">mock</a>.<a href="../program.rs.html#123-125">debug</a>(<a href="#514">expl</a>);
+                <a href="#448">mock</a>.<a href="../program.rs.html#124-126">debug</a>(<a href="#514">expl</a>);
 
                 <span class="kw">let </span>err_reply_reason = ActorExecutionErrorReplyReason::Trap(
                     TrapExplanation::Panic(LimitedStr::from_small_str(<a href="#514">expl</a>)),

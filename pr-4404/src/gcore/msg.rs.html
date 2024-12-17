@@ -1350,10 +1350,10 @@
 //! the program execution and enqueued after the execution successfully ends.
 
 </span><span class="kw">use crate</span>::{
-    <a href="../../gcore/struct.ActorId.html">ActorId</a>, <a href="../../gcore/struct.MessageHandle.html">MessageHandle</a>, <a href="../../gcore/struct.MessageId.html">MessageId</a>,
     errors::{<a href="errors.rs.html#31-36">Error</a>, <a class="prelude-ty" href="errors.rs.html#27">Result</a>, <a href="errors.rs.html#59">SyscallError</a>},
     stack_buffer,
     <a href="utils.rs.html#23-31">utils::AsRawPtr</a>,
+    <a href="../../gcore/struct.ActorId.html">ActorId</a>, <a href="../../gcore/struct.MessageHandle.html">MessageHandle</a>, <a href="../../gcore/struct.MessageId.html">MessageId</a>,
 };
 <span class="kw">use </span><a href="../../gcore/errors/enum.ReplyCode.html">gear_core_errors::ReplyCode</a>;
 <span class="kw">use </span>gsys::{ErrorWithHandle, ErrorWithHash, ErrorWithReplyCode, HashWithValue};
@@ -1431,7 +1431,7 @@
 /// # Examples
 ///
 /// ```
-/// use gcore::{MessageId, msg};
+/// use gcore::{msg, MessageId};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {

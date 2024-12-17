@@ -4,7 +4,7 @@ it is possible to continue its execution by calling this function.</p>
 <p><code>message_id</code> specifies a particular message to be taken out of the <em>waiting
 queue</em> and put into the <em>processing queue</em>.</p>
 <h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gcore::{MessageId, exec, msg};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gcore::{exec, msg, MessageId};
 
 <span class="kw">static </span><span class="kw-2">mut </span>MSG_ID: MessageId = MessageId::zero();
 

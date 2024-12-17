@@ -114,13 +114,13 @@
 
 </span><span class="kw">pub use </span><a href="../../gstd/util/struct.MetaType.html">scale_info::MetaType</a>;
 <span class="kw">use </span>scale_info::{
-    PortableRegistry, Registry,
     scale::{<a href="../../gstd/prelude/derive.Encode.html">Encode</a>, Output},
+    PortableRegistry, Registry,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::prelude::{
+    mem::{<a href="../../gstd/prelude/mem/fn.transmute.html">transmute</a>, <a href="../../gstd/prelude/mem/union.MaybeUninit.html">MaybeUninit</a>},
     <a href="../../gstd/prelude/struct.Box.html">Box</a>, <a href="../../gstd/prelude/struct.String.html">String</a>, <a href="../../gstd/prelude/struct.Vec.html">Vec</a>,
-    mem::{<a href="../../gstd/prelude/mem/union.MaybeUninit.html">MaybeUninit</a>, <a href="../../gstd/prelude/mem/fn.transmute.html">transmute</a>},
 };
 
 <span class="doccomment">/// An auxiliary function that reduces gas consumption during payload encoding.

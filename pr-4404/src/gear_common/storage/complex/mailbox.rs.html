@@ -250,7 +250,10 @@
 <a href="#249" id="249">249</a>
 <a href="#250" id="250">250</a>
 <a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -404,10 +407,13 @@
         }
 
         <span class="kw">let </span>block_number = <a href="../primitives/callback.rs.html#64">Callbacks::GetBlockNumber::call</a>();
-        <span class="kw">let </span>message_with_bn = (<a href="#145">message</a>, <a href="../primitives/mod.rs.html#57-60">Interval</a> {
-            start: <a href="#154">block_number</a>,
-            finish: <a href="#146">scheduled_at</a>,
-        });
+        <span class="kw">let </span>message_with_bn = (
+            <a href="#145">message</a>,
+            <a href="../primitives/mod.rs.html#57-60">Interval</a> {
+                start: <a href="#154">block_number</a>,
+                finish: <a href="#146">scheduled_at</a>,
+            },
+        );
 
         <a href="../primitives/callback.rs.html#28">Callbacks::OnInsert::call</a>(<span class="kw-2">&amp;</span><a href="#155">message_with_bn</a>);
         <a href="../primitives/double_map.rs.html#44">T::insert</a>(<a href="#148">key1</a>, <a href="#148">key2</a>, <a href="#155">message_with_bn</a>);
@@ -418,16 +424,16 @@
         user_id: <span class="self">Self</span>::Key1,
         message_id: <span class="self">Self</span>::Key2,
     ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="#30">ValueWithInterval</a>&lt;<span class="self">Self</span>::Value, <span class="self">Self</span>::BlockNumber&gt;, <span class="self">Self</span>::OutputError&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(message_with_bn) = <a href="../primitives/double_map.rs.html#76">T::take</a>(<a href="#166">user_id</a>, <a href="#167">message_id</a>) {
-            <a href="../primitives/callback.rs.html#28">Callbacks::OnRemove::call</a>(<span class="kw-2">&amp;</span><a href="#169">message_with_bn</a>);
-            <span class="prelude-val">Ok</span>(<a href="#169">message_with_bn</a>)
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(message_with_bn) = <a href="../primitives/double_map.rs.html#76">T::take</a>(<a href="#169">user_id</a>, <a href="#170">message_id</a>) {
+            <a href="../primitives/callback.rs.html#28">Callbacks::OnRemove::call</a>(<span class="kw-2">&amp;</span><a href="#172">message_with_bn</a>);
+            <span class="prelude-val">Ok</span>(<a href="#172">message_with_bn</a>)
         } <span class="kw">else </span>{
             <span class="prelude-val">Err</span>(<a href="#99"><span class="self">Self</span>::Error::element_not_found</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
         }
     }
 
     <span class="kw">fn </span>peek(user_id: <span class="kw-2">&amp;</span><span class="self">Self</span>::Key1, message_id: <span class="kw-2">&amp;</span><span class="self">Self</span>::Key2) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="self">Self</span>::Value&gt; {
-        <a href="../primitives/double_map.rs.html#41">T::get</a>(<a href="#177">user_id</a>, <a href="#177">message_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|(stored, <span class="kw">_</span>)| <a href="#178">stored</a>)
+        <a href="../primitives/double_map.rs.html#41">T::get</a>(<a href="#180">user_id</a>, <a href="#180">message_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|(stored, <span class="kw">_</span>)| <a href="#181">stored</a>)
     }
 
     <span class="kw">fn </span>clear() {
@@ -451,7 +457,7 @@
     <span class="kw">type </span>Length = T::Length;
 
     <span class="kw">fn </span>len(key: <span class="kw-2">&amp;</span><span class="self">Self</span>::Key) -&gt; <span class="self">Self</span>::Length {
-        <a href="../primitives/counted.rs.html#53">T::len</a>(<a href="#201">key</a>)
+        <a href="../primitives/counted.rs.html#53">T::len</a>(<a href="#204">key</a>)
     }
 }
 
@@ -472,11 +478,11 @@
     <span class="kw">type </span>Iter = T::Iter;
 
     <span class="kw">fn </span>drain_key(key: <span class="self">Self</span>::Key) -&gt; <span class="self">Self</span>::DrainIter {
-        <a href="../primitives/iterable.rs.html#47">T::drain_key</a>(<a href="#222">key</a>)
+        <a href="../primitives/iterable.rs.html#47">T::drain_key</a>(<a href="#225">key</a>)
     }
 
     <span class="kw">fn </span>iter_key(key: <span class="self">Self</span>::Key) -&gt; <span class="self">Self</span>::Iter {
-        <a href="../primitives/iterable.rs.html#49">T::iter_key</a>(<a href="#226">key</a>)
+        <a href="../primitives/iterable.rs.html#49">T::iter_key</a>(<a href="#229">key</a>)
     }
 }
 

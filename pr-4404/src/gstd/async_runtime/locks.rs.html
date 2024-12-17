@@ -278,15 +278,15 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use crate</span>::{
-    <a href="../../../gstd/type.BlockCount.html">BlockCount</a>, <a href="../../../gstd/type.BlockNumber.html">BlockNumber</a>, <a href="../config.rs.html#44-68">Config</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>,
     <a href="../../../gstd/prelude/collections/struct.BTreeMap.html">collections::BTreeMap</a>,
     <a href="../config.rs.html#34-38">config::WaitType</a>,
     errors::{<a href="../common/errors.rs.html#36-75">Error</a>, <a class="prelude-ty" href="../common/errors.rs.html#32">Result</a>, <a href="../common/errors.rs.html#164-179">UsageError</a>},
     <a href="../lib.rs.html#154">exec</a>,
     <a href="../sync/mutex.rs.html#36">sync::MutexId</a>,
+    <a href="../../../gstd/type.BlockCount.html">BlockCount</a>, <a href="../../../gstd/type.BlockNumber.html">BlockNumber</a>, <a href="../config.rs.html#44-68">Config</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>,
 };
 <span class="kw">use </span><a href="../../../gstd/prelude/cmp/enum.Ordering.html">core::cmp::Ordering</a>;
-<span class="kw">use </span><a href="../../../gstd/prelude/collections/hash_map/struct.HashMap.html">hashbrown::HashMap</a>;
+<span class="kw">use </span><a href="../../../gstd/prelude/collections/struct.HashMap.html">hashbrown::HashMap</a>;
 
 <span class="doccomment">/// Type of wait locks.
 </span><span class="attr">#[derive(Debug, PartialEq, Eq)]
@@ -408,7 +408,7 @@
 
 <span class="doccomment">/// DoubleMap for wait locks.
 </span><span class="attr">#[derive(Default, Debug)]
-</span><span class="kw">pub struct </span>LocksMap(<a href="../../../gstd/prelude/collections/hash_map/struct.HashMap.html">HashMap</a>&lt;<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="../../../gstd/prelude/collections/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="#139-146">LockContext</a>, <a href="#39-44">Lock</a>&gt;&gt;);
+</span><span class="kw">pub struct </span>LocksMap(<a href="../../../gstd/prelude/collections/struct.HashMap.html">HashMap</a>&lt;<a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="../../../gstd/prelude/collections/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="#139-146">LockContext</a>, <a href="#39-44">Lock</a>&gt;&gt;);
 
 <span class="kw">impl </span><a href="#150">LocksMap</a> {
     <span class="doccomment">/// Trigger waiting for the message.

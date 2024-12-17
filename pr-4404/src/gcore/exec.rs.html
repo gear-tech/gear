@@ -470,9 +470,9 @@
 //! This module also provides API for low-level async implementation.
 
 </span><span class="kw">use crate</span>::{
-    <a href="../../gcore/struct.ActorId.html">ActorId</a>, <a href="../../gcore/struct.EnvVars.html">EnvVars</a>, <a href="../../gcore/struct.MessageId.html">MessageId</a>,
     errors::{<a class="prelude-ty" href="errors.rs.html#27">Result</a>, <a href="errors.rs.html#59">SyscallError</a>},
     <a href="utils.rs.html#23-31">utils::AsRawPtr</a>,
+    <a href="../../gcore/struct.ActorId.html">ActorId</a>, <a href="../../gcore/struct.EnvVars.html">EnvVars</a>, <a href="../../gcore/struct.MessageId.html">MessageId</a>,
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/mem/maybe_uninit/union.MaybeUninit.html">core::mem::MaybeUninit</a>;
 <span class="kw">use </span>gsys::BlockNumberWithHash;
@@ -613,7 +613,7 @@
 /// Reserve 50 million of gas for seven blocks:
 ///
 /// ```
-/// use gcore::{ReservationId, exec};
+/// use gcore::{exec, ReservationId};
 ///
 /// static mut RESERVED: ReservationId = ReservationId::zero();
 ///
@@ -816,7 +816,7 @@
 /// # Examples
 ///
 /// ```
-/// use gcore::{MessageId, exec, msg};
+/// use gcore::{exec, msg, MessageId};
 ///
 /// static mut MSG_ID: MessageId = MessageId::zero();
 ///

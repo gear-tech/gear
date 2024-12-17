@@ -278,7 +278,7 @@
 
 </span><span class="kw">use </span><a href="common.rs.html#233-238"><span class="kw">super</span>::common::ReplyDetails</a>;
 <span class="kw">use crate</span>::{
-    ids::{<a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../ids.rs.html#48">ProgramId</a>, <a href="../ids.rs.html#50-169">prelude</a>::<span class="kw-2">*</span>},
+    ids::{<a href="../ids.rs.html#50-169">prelude</a>::<span class="kw-2">*</span>, <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../ids.rs.html#48">ProgramId</a>},
     message::{
         <a href="common.rs.html#298-303">Dispatch</a>, <a href="mod.rs.html#118-128">DispatchKind</a>, <a href="mod.rs.html#90">GasLimit</a>, <a href="common.rs.html#36-51">Message</a>, <a href="mod.rs.html#222-237">Packet</a>, <a href="mod.rs.html#79">Payload</a>, <a href="stored.rs.html#160-167">StoredDispatch</a>, <a href="stored.rs.html#37-51">StoredMessage</a>,
         <a href="mod.rs.html#93">Value</a>,
@@ -286,8 +286,8 @@
 };
 <span class="kw">use </span>gear_core_errors::{<a href="../../../gear_core/message/enum.ErrorReplyReason.html">ErrorReplyReason</a>, <a href="../../../gear_core/message/enum.ReplyCode.html">ReplyCode</a>, <a href="../../../gear_core/message/enum.SuccessReplyReason.html">SuccessReplyReason</a>};
 <span class="kw">use </span>scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 <span class="doccomment">/// Message for Reply entry point.
@@ -467,7 +467,7 @@
     </span><span class="kw">pub fn </span>system(payload: <a href="mod.rs.html#79">Payload</a>, err: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="../../../gear_core/message/enum.ErrorReplyReason.html">ErrorReplyReason</a>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             <a href="#207">payload</a>,
-            code: <a href="../../../gear_core_errors/simple/enum.ReplyCode.html#method.error">ReplyCode::error</a>(<a href="#207">err</a>),
+            code: ReplyCode::error(<a href="#207">err</a>),
             ..<a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
         }
     }

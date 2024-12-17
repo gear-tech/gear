@@ -164,10 +164,10 @@
 <span class="kw">use crate</span>::{<a href="../error.rs.html#29-124">Error</a>, <a class="prelude-ty" href="../error.rs.html#25">Result</a>};
 <span class="kw">use </span><a href="https://docs.rs/async-trait/0.1.81/async_trait/attr.async_trait.html">async_trait::async_trait</a>;
 <span class="kw">use </span>gsdk::{
-    <a href="../../../../gsdk/subscription/struct.Blocks.html">Blocks</a>,
     <a href="../../../../gclient/ext/sp_runtime/testing/struct.H256.html">ext::sp_core::H256</a>,
-    metadata::{<a href="../../../../gclient/enum.Event.html">Event</a>, <a href="../../../../gclient/enum.GearEvent.html">gear::Event</a> <span class="kw">as </span>GearEvent},
+    metadata::{<a href="../../../../gclient/enum.GearEvent.html">gear::Event</a> <span class="kw">as </span>GearEvent, <a href="../../../../gclient/enum.Event.html">Event</a>},
     <a href="../../../../gsdk/subscription/struct.BlockEvents.html">subscription::BlockEvents</a>,
+    <a href="../../../../gsdk/subscription/struct.Blocks.html">Blocks</a>,
 };
 
 <span class="doccomment">/// Event listener that allows catching and processing events propagated through

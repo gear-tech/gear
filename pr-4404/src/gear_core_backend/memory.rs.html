@@ -965,7 +965,13 @@
 <a href="#964" id="964">964</a>
 <a href="#965" id="965">965</a>
 <a href="#966" id="966">966</a>
-<a href="#967" id="967">967</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -986,13 +992,13 @@
 </span><span class="doccomment">//! sp-sandbox extensions for memory.
 
 </span><span class="kw">use crate</span>::{
-    <a href="lib.rs.html#43-53">BackendExternalities</a>,
     error::{
         <a href="error.rs.html#254-258">BackendSyscallError</a>, <a href="error.rs.html#238-241">RunFallibleError</a>, <a href="error.rs.html#215-234">TrapExplanation</a>, <a href="error.rs.html#34-39">UndefinedTerminationReason</a>,
         <a href="error.rs.html#148-155">UnrecoverableMemoryError</a>,
     },
     <a href="runtime.rs.html#30-32">runtime::CallerWrap</a>,
     <a href="state.rs.html#27">state::HostState</a>,
+    <a href="lib.rs.html#43-53">BackendExternalities</a>,
 };
 <span class="kw">use </span>alloc::{<a href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format</a>, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">vec::Vec</a>};
 <span class="kw">use </span>codec::{Decode, DecodeAll, MaxEncodedLen};
@@ -1406,7 +1412,7 @@
     };
     <span class="kw">use </span>codec::Encode;
     <span class="kw">use </span>gear_core::pages::WasmPage;
-    <span class="kw">use </span>gear_sandbox::{SandboxStore, default_executor::Store};
+    <span class="kw">use </span>gear_sandbox::{default_executor::Store, SandboxStore};
 
     <span class="kw">type </span>MemoryAccessRegistry =
         <span class="kw">crate</span>::memory::MemoryAccessRegistry&lt;Store&lt;HostState&lt;MockExt, MockMemory&gt;&gt;&gt;;
@@ -1613,10 +1619,13 @@
         <span class="kw">let </span><span class="kw-2">mut </span>registry = MemoryAccessRegistry::default();
         <span class="kw">let </span>_read = registry.register_read_decoded::&lt;u64&gt;(<span class="number">0</span>);
         <span class="kw">let </span>io: MemoryAccessIo = registry.pre_process(<span class="kw-2">&amp;mut </span>caller_wrap).unwrap();
-        io.read_decoded::&lt;u64&gt;(<span class="kw-2">&amp;mut </span>caller_wrap, WasmMemoryReadDecoded {
-            ptr: u32::MAX,
-            _phantom: PhantomData,
-        })
+        io.read_decoded::&lt;u64&gt;(
+            <span class="kw-2">&amp;mut </span>caller_wrap,
+            WasmMemoryReadDecoded {
+                ptr: u32::MAX,
+                _phantom: PhantomData,
+            },
+        )
         .unwrap_err();
     }
 
@@ -1646,10 +1655,13 @@
         <span class="kw">let </span><span class="kw-2">mut </span>registry = MemoryAccessRegistry::default();
         <span class="kw">let </span>_read = registry.register_read_as::&lt;u64&gt;(<span class="number">0</span>);
         <span class="kw">let </span>io: MemoryAccessIo = registry.pre_process(<span class="kw-2">&amp;mut </span>caller_wrap).unwrap();
-        io.read_as::&lt;u128&gt;(<span class="kw-2">&amp;mut </span>caller_wrap, WasmMemoryReadAs {
-            ptr: u32::MAX,
-            _phantom: PhantomData,
-        })
+        io.read_as::&lt;u128&gt;(
+            <span class="kw-2">&amp;mut </span>caller_wrap,
+            WasmMemoryReadAs {
+                ptr: u32::MAX,
+                _phantom: PhantomData,
+            },
+        )
         .unwrap_err();
     }
 

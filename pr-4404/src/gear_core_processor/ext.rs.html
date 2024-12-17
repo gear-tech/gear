@@ -2353,7 +2353,9 @@
 <a href="#2352" id="2352">2352</a>
 <a href="#2353" id="2353">2353</a>
 <a href="#2354" id="2354">2354</a>
-<a href="#2355" id="2355">2355</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#2355" id="2355">2355</a>
+<a href="#2356" id="2356">2356</a>
+<a href="#2357" id="2357">2357</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -2386,7 +2388,7 @@
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, ValueCounter,
     },
-    ids::{CodeId, MessageId, ProgramId, ReservationId, prelude::<span class="kw-2">*</span>},
+    ids::{prelude::<span class="kw-2">*</span>, CodeId, MessageId, ProgramId, ReservationId},
     memory::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
@@ -2395,19 +2397,19 @@
         InitPacket, MessageContext, Packet, ReplyPacket,
     },
     pages::{
-        GearPage, WasmPage, WasmPagesAmount,
         numerated::{interval::Interval, tree::IntervalsTree},
+        GearPage, WasmPage, WasmPagesAmount,
     },
     program::MemoryInfix,
     reservation::GasReserver,
 };
 <span class="kw">use </span>gear_core_backend::{
-    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         <a href="../../gear_core_processor/common/enum.TrapExplanation.html">TrapExplanation</a>, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableExtError <span class="kw">as </span>UnrecoverableExtErrorCore, UnrecoverableWaitError,
     },
+    BackendExternalities,
 };
 <span class="kw">use </span>gear_core_errors::{
     ExecutionError <span class="kw">as </span>FallibleExecutionError, ExtError <span class="kw">as </span>FallibleExtErrorCore, MessageError,
@@ -3785,7 +3787,7 @@
     <span class="kw">use </span>alloc::vec;
     <span class="kw">use </span>gear_core::{
         costs::{CostOf, RentCosts, SyscallCosts},
-        message::{ContextSettings, IncomingDispatch, MAX_PAYLOAD_SIZE, Payload},
+        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
 
@@ -4623,11 +4625,14 @@
             <span class="kw">let </span><span class="kw-2">mut </span>m = BTreeMap::new();
             <span class="kw">let </span>id = ReservationId::generate(MessageId::new([<span class="number">5</span>; <span class="number">32</span>]), <span class="number">10</span>);
 
-            m.insert(id, GasReservationSlot {
-                amount: <span class="number">1_000_000</span>,
-                start: <span class="number">0</span>,
-                finish: <span class="number">10</span>,
-            });
+            m.insert(
+                id,
+                GasReservationSlot {
+                    amount: <span class="number">1_000_000</span>,
+                    start: <span class="number">0</span>,
+                    finish: <span class="number">10</span>,
+                },
+            );
 
             (id, m)
         };
@@ -4642,13 +4647,12 @@
         );
 
         <span class="comment">// Check all the reseravations are in "existing" state.
-        </span><span class="macro">assert!</span>(
-            ext.context
-                .gas_reserver
-                .states()
-                .iter()
-                .all(|(<span class="kw">_</span>, state)| <span class="macro">matches!</span>(state, GasReservationState::Exists { .. }))
-        );
+        </span><span class="macro">assert!</span>(ext
+            .context
+            .gas_reserver
+            .states()
+            .iter()
+            .all(|(<span class="kw">_</span>, state)| <span class="macro">matches!</span>(state, GasReservationState::Exists { .. })));
 
         <span class="comment">// Unreserving existing and checking no gas reimbursed.
         </span><span class="kw">let </span>gas_before = ext.gas_amount();

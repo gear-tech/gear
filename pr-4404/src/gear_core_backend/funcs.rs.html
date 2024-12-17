@@ -1447,7 +1447,6 @@
 </span><span class="doccomment">//! Syscall implementations generic over wasmi and sandbox backends.
 
 </span><span class="kw">use crate</span>::{
-    <a href="lib.rs.html#43-53">BackendExternalities</a>,
     error::{
         <a href="error.rs.html#80-88">ActorTerminationReason</a>, <a href="error.rs.html#264-268">BackendAllocSyscallError</a>, <a href="error.rs.html#254-258">BackendSyscallError</a>, <a href="error.rs.html#238-241">RunFallibleError</a>,
         <a href="error.rs.html#215-234">TrapExplanation</a>, <a href="error.rs.html#34-39">UndefinedTerminationReason</a>, <a href="error.rs.html#121-132">UnrecoverableExecutionError</a>,
@@ -1459,12 +1458,13 @@
     },
     <a href="runtime.rs.html#30-32">runtime::CallerWrap</a>,
     <a href="state.rs.html#27">state::HostState</a>,
+    <a href="lib.rs.html#43-53">BackendExternalities</a>,
 };
 <span class="kw">use </span>alloc::{
     <a href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format</a>,
     string::{<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html">ToString</a>},
 };
-<span class="kw">use </span>blake2::{Blake2b, Digest, <a href="https://docs.rs/typenum/1.16.0/typenum/generated/consts/type.U32.html">digest::typenum::U32</a>};
+<span class="kw">use </span>blake2::{<a href="https://docs.rs/typenum/1.16.0/typenum/generated/consts/type.U32.html">digest::typenum::U32</a>, Blake2b, Digest};
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">core::marker::PhantomData</a>;
 <span class="kw">use </span>gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},

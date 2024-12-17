@@ -305,12 +305,10 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use crate</span>::{
-    <a href="lib.rs.html#554">EPOCH_DURATION_IN_BLOCKS</a>, <a href="lib.rs.html#548">EXISTENTIAL_DEPOSIT</a>, <a href="lib.rs.html#534">GAS_ALLOWANCE</a>, <a href="lib.rs.html#540">GAS_MULTIPLIER</a>,
-    <a href="lib.rs.html#565">INITIAL_RANDOM_SEED</a>, <a href="lib.rs.html#563">MAX_RESERVATIONS</a>, <a href="lib.rs.html#558">RESERVE_FOR</a>, <a class="prelude-ty" href="error.rs.html#24">Result</a>, <a href="error.rs.html#28-90">TestError</a>, <a href="lib.rs.html#550">VALUE_PER_GAS</a>,
     <a href="lib.rs.html#522">constants::Value</a>,
     <a href="error.rs.html#92-98">error::usage_panic</a>,
     log::{<a href="log.rs.html#405-427">BlockRunResult</a>, <a href="log.rs.html#40-47">CoreLog</a>},
-    program::{<a href="program.rs.html#66">Gas</a>, <a href="program.rs.html#98-126">WasmProgram</a>},
+    program::{<a href="program.rs.html#67">Gas</a>, <a href="program.rs.html#99-127">WasmProgram</a>},
     state::{
         <a href="state/accounts.rs.html#75">accounts::Accounts</a>,
         actors::{<a href="state/actors.rs.html#37">Actors</a>, <a href="state/actors.rs.html#210-216">GenuineProgram</a>, <a href="state/actors.rs.html#235-239">Program</a>, <a href="state/actors.rs.html#107-112">TestActor</a>},
@@ -321,36 +319,38 @@
         <a href="state/task_pool.rs.html#38">task_pool::TaskPoolManager</a>,
         <a href="state/waitlist.rs.html#36">waitlist::WaitlistManager</a>,
     },
+    <a class="prelude-ty" href="error.rs.html#24">Result</a>, <a href="error.rs.html#28-90">TestError</a>, <a href="lib.rs.html#554">EPOCH_DURATION_IN_BLOCKS</a>, <a href="lib.rs.html#548">EXISTENTIAL_DEPOSIT</a>, <a href="lib.rs.html#534">GAS_ALLOWANCE</a>,
+    <a href="lib.rs.html#540">GAS_MULTIPLIER</a>, <a href="lib.rs.html#565">INITIAL_RANDOM_SEED</a>, <a href="lib.rs.html#563">MAX_RESERVATIONS</a>, <a href="lib.rs.html#558">RESERVE_FOR</a>, <a href="lib.rs.html#550">VALUE_PER_GAS</a>,
 };
 <span class="kw">use </span>core_processor::{
-    ContextChargedForInstrumentation, ContextChargedForProgram, Ext, common::<span class="kw-2">*</span>,
-    configs::BlockConfig,
+    common::<span class="kw-2">*</span>, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
+    Ext,
 };
 <span class="kw">use </span>gear_common::{
-    LockId, Origin,
     auxiliary::{
-        BlockNumber, gas_provider::PlainNodeId, mailbox::MailboxErrorImpl,
-        waitlist::WaitlistErrorImpl,
+        gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
+        BlockNumber,
     },
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
     scheduler::StorageType,
     storage::Interval,
+    LockId, Origin,
 };
 <span class="kw">use </span>gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     gas_metering::{DbWeights, RentWeights, Schedule},
-    ids::{CodeId, MessageId, ProgramId, ReservationId, prelude::<span class="kw-2">*</span>},
+    ids::{prelude::<span class="kw-2">*</span>, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDelayedDispatch,
         StoredDispatch, StoredMessage, UserMessage, UserStoredMessage,
     },
-    pages::{GearPage, <a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">num_traits::Zero</a>},
+    pages::{<a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">num_traits::Zero</a>, GearPage},
     tasks::ScheduledTask,
 };
 <span class="kw">use </span>gear_lazy_pages_native_interface::LazyPagesNative;
 <span class="kw">use </span><a href="manager/hold_bound.rs.html#80-83">hold_bound::HoldBoundBuilder</a>;
-<span class="kw">use </span>rand::{<a href="https://rust-random.github.io/rand/rand_core/trait.RngCore.html">RngCore</a>, <a href="https://rust-random.github.io/rand/rand_core/trait.SeedableRng.html">SeedableRng</a>, <a href="https://rust-random.github.io/rand/rand/rngs/std/struct.StdRng.html">rngs::StdRng</a>};
+<span class="kw">use </span>rand::{<a href="https://rust-random.github.io/rand/rand/rngs/std/struct.StdRng.html">rngs::StdRng</a>, <a href="https://rust-random.github.io/rand/rand_core/trait.RngCore.html">RngCore</a>, <a href="https://rust-random.github.io/rand/rand_core/trait.SeedableRng.html">SeedableRng</a>};
 <span class="kw">use </span>std::{
     collections::{<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>, <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">BTreeSet</a>, <a href="https://doc.rust-lang.org/nightly/std/collections/hash/map/struct.HashMap.html">HashMap</a>, <a href="https://doc.rust-lang.org/nightly/alloc/collections/vec_deque/struct.VecDeque.html">VecDeque</a>},
     <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html">convert::TryInto</a>,
@@ -390,7 +390,7 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) task_pool: <a href="state/task_pool.rs.html#38">TaskPoolManager</a>,
     <span class="kw">pub</span>(<span class="kw">crate</span>) waitlist: <a href="state/waitlist.rs.html#36">WaitlistManager</a>,
     <span class="kw">pub</span>(<span class="kw">crate</span>) gas_tree: <a href="state/gas_tree.rs.html#44">GasTreeManager</a>,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) gas_allowance: <a href="program.rs.html#66">Gas</a>,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) gas_allowance: <a href="program.rs.html#67">Gas</a>,
     <span class="kw">pub</span>(<span class="kw">crate</span>) dispatches_stash: <a href="https://doc.rust-lang.org/nightly/std/collections/hash/map/struct.HashMap.html">HashMap</a>&lt;MessageId, (StoredDelayedDispatch, Interval&lt;BlockNumber&gt;)&gt;,
     <span class="kw">pub</span>(<span class="kw">crate</span>) messages_processing_enabled: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
     <span class="kw">pub</span>(<span class="kw">crate</span>) first_incomplete_tasks_block: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;,
@@ -398,7 +398,7 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) succeed: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">BTreeSet</a>&lt;MessageId&gt;,
     <span class="kw">pub</span>(<span class="kw">crate</span>) failed: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">BTreeSet</a>&lt;MessageId&gt;,
     <span class="kw">pub</span>(<span class="kw">crate</span>) not_executed: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">BTreeSet</a>&lt;MessageId&gt;,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) gas_burned: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;MessageId, <a href="program.rs.html#66">Gas</a>&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) gas_burned: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;MessageId, <a href="program.rs.html#67">Gas</a>&gt;,
     <span class="kw">pub</span>(<span class="kw">crate</span>) log: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;StoredMessage&gt;,
 }
 
@@ -511,7 +511,7 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>on_task_pool_change(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>write = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">DbWeights::default</a>().write.ref_time;
-        <a class="self" href="#224">self</a>.gas_allowance = <a class="self" href="#224">self</a>.gas_allowance.<a href="program.rs.html#80-82">saturating_sub</a>(<a href="program.rs.html#66">Gas</a>(<a href="#225">write</a>));
+        <a class="self" href="#224">self</a>.gas_allowance = <a class="self" href="#224">self</a>.gas_allowance.<a href="program.rs.html#81-83">saturating_sub</a>(<a href="program.rs.html#67">Gas</a>(<a href="#225">write</a>));
     }
 
     <span class="kw">fn </span>init_success(<span class="kw-2">&amp;mut </span><span class="self">self</span>, program_id: ProgramId) {

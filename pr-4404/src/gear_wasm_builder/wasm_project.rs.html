@@ -612,7 +612,7 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use crate</span>::{<a href="code_validator.rs.html#313-316">code_validator::CodeValidator</a>, <a href="crate_info.rs.html#26-37">crate_info::CrateInfo</a>, <a href="lib.rs.html#36">smart_fs</a>};
-<span class="kw">use </span>anyhow::{<a href="https://docs.rs/anyhow/1.0.85/anyhow/trait.Context.html">Context</a>, <span class="prelude-val">Ok</span>, <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>, <a href="https://docs.rs/anyhow/1.0.85/anyhow/macro.anyhow.html">anyhow</a>};
+<span class="kw">use </span>anyhow::{<a href="https://docs.rs/anyhow/1.0.85/anyhow/macro.anyhow.html">anyhow</a>, <a href="https://docs.rs/anyhow/1.0.85/anyhow/trait.Context.html">Context</a>, <span class="prelude-val">Ok</span>, <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>};
 <span class="kw">use </span><a href="https://docs.rs/chrono/latest/chrono/offset/local/struct.Local.html">chrono::offset::Local</a> <span class="kw">as </span>ChronoLocal;
 <span class="kw">use </span>gear_wasm_optimizer::{<span class="self">self </span><span class="kw">as </span>optimize, OptType, Optimizer};
 <span class="kw">use </span>gmeta::MetadataRepr;
@@ -778,7 +778,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>package = Table::new();
         <a href="#183">package</a>.insert(<span class="string">"name"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"{}-wasm"</span>, <span class="kw-2">&amp;</span>crate_info.name).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
         <a href="#183">package</a>.insert(<span class="string">"version"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#180">crate_info</a>.version.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
-        <a href="#183">package</a>.insert(<span class="string">"edition"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <span class="string">"2024"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
+        <a href="#183">package</a>.insert(<span class="string">"edition"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <span class="string">"2021"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
 
         <span class="kw">let </span><span class="kw-2">mut </span>lib = Table::new();
         <a href="#188">lib</a>.insert(<span class="string">"name"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#180">crate_info</a>.snake_case_name.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
@@ -866,7 +866,7 @@
                 <span class="string">r#"{source_code}
 #[allow(improper_ctypes)]
 mod fake_gsys {{
-    unsafe extern "C" {{
+    extern "C" {{
         pub fn gr_reply(
             payload: *const u8,
             len: u32,

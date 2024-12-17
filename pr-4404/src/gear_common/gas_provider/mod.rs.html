@@ -324,7 +324,7 @@
 
 </span><span class="kw">use super</span>::<span class="kw-2">*</span>;
 <span class="kw">use </span>frame_support::traits::tokens::Balance <span class="kw">as </span>BalanceTrait;
-<span class="kw">use </span>sp_runtime::{RuntimeDebug, <a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">traits::Zero</a>};
+<span class="kw">use </span>sp_runtime::{<a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">traits::Zero</a>, RuntimeDebug};
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">sp_std::marker::PhantomData</a>;
 
 <span class="kw">mod </span><a href="error.rs.html#19-87">error</a>;
@@ -419,7 +419,7 @@
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
     </span><span class="kw">fn </span>get_origin_node(key: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<span class="self">Self</span>::NodeId&gt;)
-    -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="#54-58">OriginNodeDataOf</a>&lt;<span class="self">Self</span>&gt;, <span class="self">Self</span>::Error&gt;;
+        -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="#54-58">OriginNodeDataOf</a>&lt;<span class="self">Self</span>&gt;, <span class="self">Self</span>::Error&gt;;
 
     <span class="doccomment">/// The external origin for a key.
     ///

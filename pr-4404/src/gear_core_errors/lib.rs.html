@@ -376,7 +376,9 @@
 <a href="#375" id="375">375</a>
 <a href="#376" id="376">376</a>
 <a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 //
 // Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -476,7 +478,7 @@
 )]
 #[non_exhaustive]
 #[repr(u32)]
-</span><span class="kw">pub enum </span><a href="#101-177">MessageError</a> {
+</span><span class="kw">pub enum </span><a href="#101-179">MessageError</a> {
     <span class="doccomment">/// Message has bigger then allowed one message size
     </span><span class="attr">#[display(fmt = <span class="string">"Max message size exceed"</span>)]
     </span>MaxMessageSizeExceed = <span class="number">300</span>,
@@ -518,7 +520,9 @@
     /// not inserted in mailbox.
     ///
     /// Gas limit between 0 and mailbox threshold cannot be inserted in mailbox.
-    </span><span class="attr">#[display(fmt = <span class="string">"In case of non-zero message gas limit must be greater than mailbox threshold"</span>)]
+    </span><span class="attr">#[display(
+        fmt = <span class="string">"In case of non-zero message gas limit must be greater than mailbox threshold"
+    </span>)]
     </span>InsufficientGasLimit = <span class="number">308</span>,
 
     <span class="doccomment">/// The error occurs when program tries to create reply deposit for message
@@ -561,7 +565,7 @@
 #[non_exhaustive]
 #[repr(u32)]
 </span><span class="comment">// TODO: refactor after multiple reservations are done
-</span><span class="kw">pub enum </span><a href="#186-202">ReservationError</a> {
+</span><span class="kw">pub enum </span><a href="#188-204">ReservationError</a> {
     <span class="doccomment">/// An error occurs in attempt to unreserve gas with non-existing reservation ID.
     </span><span class="attr">#[display(fmt = <span class="string">"Invalid reservation ID"</span>)]
     </span>InvalidReservationId = <span class="number">500</span>,
@@ -594,7 +598,7 @@
     derive_more::From,
 )]
 #[non_exhaustive]
-</span><span class="kw">pub enum </span><a href="#219-238">ExtError</a> {
+</span><span class="kw">pub enum </span><a href="#221-240">ExtError</a> {
     <span class="doccomment">/// Execution error.
     </span><span class="attr">#[display(fmt = <span class="string">"Execution error: {_0}"</span>)]
     </span>Execution(<a href="#46-78">ExecutionError</a>),
@@ -605,31 +609,31 @@
 
     <span class="doccomment">/// Message error.
     </span><span class="attr">#[display(fmt = <span class="string">"Message error: {_0}"</span>)]
-    </span>Message(<a href="#101-177">MessageError</a>),
+    </span>Message(<a href="#101-179">MessageError</a>),
 
     <span class="doccomment">/// Reservation error.
     </span><span class="attr">#[display(fmt = <span class="string">"Reservation error: {_0}"</span>)]
-    </span>Reservation(<a href="#186-202">ReservationError</a>),
+    </span>Reservation(<a href="#188-204">ReservationError</a>),
 
     <span class="doccomment">/// There is a new error variant old program don't support.
     </span>Unsupported,
 }
 
-<span class="kw">impl </span><a href="#219-238">ExtError</a> {
+<span class="kw">impl </span><a href="#221-240">ExtError</a> {
     <span class="doccomment">/// Convert error into code.
     </span><span class="kw">pub fn </span>to_u32(<span class="self">self</span>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a> {
-        <span class="kw">match </span><span class="self"><a href="#242">self</a> </span>{
-            <a href="#222">ExtError::Execution</a>(err) =&gt; <a href="#244">err</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
-            <a href="#226">ExtError::Memory</a>(err) =&gt; <a href="#245">err</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
-            <a href="#230">ExtError::Message</a>(err) =&gt; <a href="#246">err</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
-            <a href="#234">ExtError::Reservation</a>(err) =&gt; <a href="#247">err</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
-            <a href="#237">ExtError::Unsupported</a> =&gt; u32::MAX,
+        <span class="kw">match </span><span class="self"><a href="#244">self</a> </span>{
+            <a href="#224">ExtError::Execution</a>(err) =&gt; <a href="#246">err</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+            <a href="#228">ExtError::Memory</a>(err) =&gt; <a href="#247">err</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+            <a href="#232">ExtError::Message</a>(err) =&gt; <a href="#248">err</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+            <a href="#236">ExtError::Reservation</a>(err) =&gt; <a href="#249">err</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+            <a href="#239">ExtError::Unsupported</a> =&gt; u32::MAX,
         }
     }
 
     <span class="doccomment">/// Convert code into error.
     </span><span class="kw">pub fn </span>from_u32(code: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">match </span><a href="#253">code</a> {
+        <span class="kw">match </span><a href="#255">code</a> {
             <span class="number">100 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#49">ExecutionError::NotEnoughGas</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="number">101 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#53">ExecutionError::NotEnoughValue</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="number">103 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#57">ExecutionError::TooBigReadLen</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
@@ -650,43 +654,43 @@
             <span class="number">305 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#127">MessageError::OutOfBounds</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="number">306 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#132">MessageError::DuplicateInit</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="number">307 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#137">MessageError::InsufficientValue</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">308 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#144">MessageError::InsufficientGasLimit</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">309 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#149">MessageError::DuplicateReplyDeposit</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">310 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#156">MessageError::IncorrectMessageForReplyDeposit</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">311 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#161">MessageError::OutgoingMessagesBytesLimitExceeded</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">312 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#166">MessageError::OutOfBoundsInputSliceOffset</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">313 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#171">MessageError::OutOfBoundsInputSliceLength</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">399 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#176">MessageError::InsufficientGasForDelayedSending</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">308 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#146">MessageError::InsufficientGasLimit</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">309 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#151">MessageError::DuplicateReplyDeposit</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">310 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#158">MessageError::IncorrectMessageForReplyDeposit</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">311 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#163">MessageError::OutgoingMessagesBytesLimitExceeded</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">312 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#168">MessageError::OutOfBoundsInputSliceOffset</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">313 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#173">MessageError::OutOfBoundsInputSliceLength</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">399 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#178">MessageError::InsufficientGasForDelayedSending</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="comment">//
-            </span><span class="number">500 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#189">ReservationError::InvalidReservationId</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">501 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#192">ReservationError::ReservationsLimitReached</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">502 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#195">ReservationError::ZeroReservationDuration</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">503 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#198">ReservationError::ZeroReservationAmount</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-            <span class="number">504 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#201">ReservationError::ReservationBelowMailboxThreshold</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            </span><span class="number">500 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#191">ReservationError::InvalidReservationId</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">501 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#194">ReservationError::ReservationsLimitReached</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">502 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#197">ReservationError::ZeroReservationDuration</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">503 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#200">ReservationError::ZeroReservationAmount</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            <span class="number">504 </span>=&gt; <span class="prelude-val">Some</span>(<a href="#203">ReservationError::ReservationBelowMailboxThreshold</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="comment">//
             </span><span class="number">0xffff </span><span class="comment">/* SyscallUsage */ </span>|
             <span class="number">600 </span><span class="comment">/* ProgramRent(ProgramRentError::MaximumBlockCountPaid) */ </span>|
-            u32::MAX =&gt; <span class="prelude-val">Some</span>(<a href="#237">ExtError::Unsupported</a>),
+            u32::MAX =&gt; <span class="prelude-val">Some</span>(<a href="#239">ExtError::Unsupported</a>),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"codec"</span>)]
-</span><span class="kw">impl </span>Encode <span class="kw">for </span><a href="#219-238">ExtError</a> {
+</span><span class="kw">impl </span>Encode <span class="kw">for </span><a href="#221-240">ExtError</a> {
     <span class="kw">fn </span>encode(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt; {
-        <a href="#242-250">ExtError::to_u32</a>(<span class="kw-2">*</span><a class="self" href="#299">self</a>).<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.to_le_bytes">to_le_bytes</a>().<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()
+        <a href="#244-252">ExtError::to_u32</a>(<span class="kw-2">*</span><a class="self" href="#301">self</a>).<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.to_le_bytes">to_le_bytes</a>().<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()
     }
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"codec"</span>)]
-</span><span class="kw">impl </span>Decode <span class="kw">for </span><a href="#219-238">ExtError</a> {
+</span><span class="kw">impl </span>Decode <span class="kw">for </span><a href="#221-240">ExtError</a> {
     <span class="kw">fn </span>decode&lt;I: Input&gt;(input: <span class="kw-2">&amp;mut </span>I) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<span class="self">Self</span>, Error&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>code = [<span class="number">0</span>; <span class="number">4</span>];
-        <a href="#306">input</a>.read(<span class="kw-2">&amp;mut </span><a href="#307">code</a>)<span class="question-mark">?</span>;
+        <a href="#308">input</a>.read(<span class="kw-2">&amp;mut </span><a href="#309">code</a>)<span class="question-mark">?</span>;
         <span class="kw">let </span>err =
-            <a href="#253-294">ExtError::from_u32</a>(<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.from_le_bytes">u32::from_le_bytes</a>(<a href="#307">code</a>)).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<span class="string">"Failed to decode error code"</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<a href="#309">err</a>)
+            <a href="#255-296">ExtError::from_u32</a>(<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.from_le_bytes">u32::from_le_bytes</a>(<a href="#309">code</a>)).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<span class="string">"Failed to decode error code"</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<a href="#311">err</a>)
     }
 }
 

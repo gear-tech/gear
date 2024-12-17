@@ -1663,7 +1663,7 @@
 </span><span class="doccomment">//! This module contains the cost schedule and supporting code that constructs a
 //! sane default schedule from a `WeightInfo` implementation.
 
-</span><span class="kw">use crate</span>::{<a href="lib.rs.html#164-292">Config</a>, <a href="lib.rs.html#125">CostsPerBlockOf</a>, <a href="lib.rs.html#114">DbWeightOf</a>, <a href="weights.rs.html#40-232">weights::WeightInfo</a>};
+</span><span class="kw">use crate</span>::{<a href="weights.rs.html#40-232">weights::WeightInfo</a>, <a href="lib.rs.html#165-293">Config</a>, <a href="lib.rs.html#126">CostsPerBlockOf</a>, <a href="lib.rs.html#115">DbWeightOf</a>};
 <span class="kw">use </span>common::scheduler::SchedulingCostsPerBlock;
 <span class="kw">use </span>frame_support::{traits::Get, weights::Weight};
 <span class="kw">use </span>gear_core::{
@@ -1684,8 +1684,8 @@
 <span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
 </span><span class="kw">use </span>serde::{<a href="https://docs.rs/serde_derive/1.0.210/serde_derive/derive.Deserialize.html">Deserialize</a>, <a href="https://docs.rs/serde_derive/1.0.210/serde_derive/derive.Serialize.html">Serialize</a>};
 <span class="kw">use </span>sp_runtime::{
-    RuntimeDebug,
     codec::{Decode, Encode},
+    RuntimeDebug,
 };
 <span class="kw">use </span>sp_std::{<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">marker::PhantomData</a>, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">vec::Vec</a>};
 
@@ -1758,7 +1758,7 @@
 #[cfg_attr(feature = <span class="string">"std"</span>, serde(bound(serialize = <span class="string">""</span>, deserialize = <span class="string">""</span>)))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-</span><span class="kw">pub struct </span><a href="#117-150">Schedule</a>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+</span><span class="kw">pub struct </span><a href="#117-150">Schedule</a>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     <span class="doccomment">/// Describes the upper limits on various metrics.
     </span><span class="kw">pub </span>limits: <a href="#161-228">Limits</a>,
 
@@ -1894,7 +1894,7 @@
 </span><span class="attr">#[cfg_attr(feature = <span class="string">"std"</span>, derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-</span><span class="kw">pub struct </span><a href="#253-358">InstructionWeights</a>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+</span><span class="kw">pub struct </span><a href="#253-358">InstructionWeights</a>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     <span class="doccomment">/// Version of the instruction weights.
     ///
     /// # Note
@@ -2005,7 +2005,7 @@
 </span><span class="attr">#[cfg_attr(feature = <span class="string">"std"</span>, derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-</span><span class="kw">pub struct </span><a href="#364-579">SyscallWeights</a>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+</span><span class="kw">pub struct </span><a href="#364-579">SyscallWeights</a>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     <span class="doccomment">/// Weight of calling `alloc`.
     </span><span class="kw">pub </span>alloc: Weight,
 
@@ -2235,7 +2235,7 @@
 </span><span class="attr">#[cfg_attr(feature = <span class="string">"std"</span>, derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-</span><span class="kw">pub struct </span><a href="#594-638">MemoryWeights</a>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+</span><span class="kw">pub struct </span><a href="#594-638">MemoryWeights</a>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     <span class="doccomment">/// Cost per one [GearPage] signal `read` processing in lazy-pages,
     </span><span class="kw">pub </span>lazy_pages_signal_read: Weight,
 
@@ -2285,7 +2285,7 @@
 </span><span class="attr">#[cfg_attr(feature = <span class="string">"std"</span>, derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-</span><span class="kw">pub struct </span><a href="#644-667">InstantiationWeights</a>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+</span><span class="kw">pub struct </span><a href="#644-667">InstantiationWeights</a>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     <span class="doccomment">/// WASM module code section instantiation per byte cost.
     </span><span class="kw">pub </span>code_section_per_byte: Weight,
 
@@ -2314,7 +2314,7 @@
 </span><span class="attr">#[cfg_attr(feature = <span class="string">"std"</span>, derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-</span><span class="kw">pub struct </span><a href="#673-688">RentWeights</a>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+</span><span class="kw">pub struct </span><a href="#673-688">RentWeights</a>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     <span class="doccomment">/// Holding message in waitlist weight.
     </span><span class="kw">pub </span>waitlist: Weight,
     <span class="doccomment">/// Holding message in dispatch stash weight.
@@ -2335,7 +2335,7 @@
 </span><span class="attr">#[cfg_attr(feature = <span class="string">"std"</span>, derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-</span><span class="kw">pub struct </span><a href="#694-703">DbWeights</a>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+</span><span class="kw">pub struct </span><a href="#694-703">DbWeights</a>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     <span class="kw">pub </span>read: Weight,
     <span class="kw">pub </span>read_per_byte: Weight,
     <span class="kw">pub </span>write: Weight,
@@ -2350,7 +2350,7 @@
 </span><span class="attr">#[cfg_attr(feature = <span class="string">"std"</span>, derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-</span><span class="kw">pub struct </span><a href="#709-722">TaskWeights</a>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+</span><span class="kw">pub struct </span><a href="#709-722">TaskWeights</a>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     <span class="kw">pub </span>remove_gas_reservation: Weight,
     <span class="kw">pub </span>send_user_message_to_mailbox: Weight,
     <span class="kw">pub </span>send_user_message: Weight,
@@ -2364,7 +2364,7 @@
     #[cfg_attr(feature = <span class="string">"std"</span>, serde(skip))]
     </span><span class="kw">pub </span>_phantom: <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;,
 }
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#709-722">TaskWeights</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#709-722">TaskWeights</a>&lt;T&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="kw">type </span>W&lt;T&gt; = &lt;T <span class="kw">as </span>Config&gt;::WeightInfo;
 
@@ -2424,13 +2424,13 @@
 }
 
 <span class="attr">#[inline]
-</span><span class="kw">fn </span>cost_instr&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt;(w: <span class="kw">fn</span>(<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; Weight, num_params: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a> {
+</span><span class="kw">fn </span>cost_instr&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt;(w: <span class="kw">fn</span>(<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; Weight, num_params: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a> {
     <a href="#778-780">cost_instr_no_params_with_batch_size</a>(<a href="#783">w</a>)
         .<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.saturating_sub">saturating_sub</a>(<a href="#789-805">cost_i64const</a>::&lt;T&gt;().<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.saturating_mul">saturating_mul</a>(<a href="#783">num_params</a>))
 }
 
 <span class="attr">#[inline]
-</span><span class="kw">fn </span>cost_i64const&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt;() -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a> {
+</span><span class="kw">fn </span>cost_i64const&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt;() -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a> {
     <span class="kw">type </span>W&lt;T&gt; = &lt;T <span class="kw">as </span>Config&gt;::WeightInfo;
     <span class="comment">// Since we cannot directly benchmark the weight of `i64.const` (or `i32.const`; we consider their weights to be the same for our purposes),
     // we estimate it as the difference between the benchmarks `instr_call_const` and `instr_call`.
@@ -2448,7 +2448,7 @@
     <a href="#778-780">cost_instr_no_params_with_batch_size</a>(<a href="#790">W</a>::&lt;T&gt;::instr_i64const) / <a href="#802">I64CONST_WEIGHT_DIVIDER</a>
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#117-150">Schedule</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#117-150">Schedule</a>&lt;T&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="kw">type </span>W&lt;T&gt; = &lt;T <span class="kw">as </span>Config&gt;::WeightInfo;
         <span class="self">Self </span>{
@@ -2491,7 +2491,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#253-358">InstructionWeights</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#253-358">InstructionWeights</a>&lt;T&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="comment">// # Wasmer's compiler optimization (relevant for version 4.3.5 single-pass compiler for x86-64 target)
         //
@@ -2691,7 +2691,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#364-579">SyscallWeights</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#364-579">SyscallWeights</a>&lt;T&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="kw">type </span>W&lt;T&gt; = &lt;T <span class="kw">as </span>Config&gt;::WeightInfo;
         <span class="self">Self </span>{
@@ -2792,7 +2792,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#364-579">SyscallWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>SyscallCosts {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#364-579">SyscallWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>SyscallCosts {
     <span class="kw">fn </span>from(val: <a href="#364-579">SyscallWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             alloc: <a href="#1152">val</a>.alloc.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -2878,7 +2878,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#594-638">MemoryWeights</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#594-638">MemoryWeights</a>&lt;T&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="comment">// In benchmarks we calculate cost per wasm page,
         // so here we must convert it to cost per gear page.
@@ -2948,7 +2948,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#594-638">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>IoCosts {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#594-638">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>IoCosts {
     <span class="kw">fn </span>from(val: <a href="#594-638">MemoryWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             common: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">PagesCosts::from</a>(<a href="#1308">val</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>()),
@@ -2957,7 +2957,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#594-638">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>PagesCosts {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#594-638">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>PagesCosts {
     <span class="kw">fn </span>from(val: <a href="#594-638">MemoryWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             load_page_data: <a href="#1317">val</a>.load_page_data.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -2969,7 +2969,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#594-638">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>LazyPagesCosts {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#594-638">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>LazyPagesCosts {
     <span class="kw">fn </span>from(val: <a href="#594-638">MemoryWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             signal_read: <a href="#1329">val</a>.lazy_pages_signal_read.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -3003,20 +3003,20 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#673-688">RentWeights</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#673-688">RentWeights</a>&lt;T&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            waitlist: Weight::from_parts(<a href="lib.rs.html#125">CostsPerBlockOf</a>::&lt;T&gt;::waitlist(), <span class="number">0</span>),
-            dispatch_stash: Weight::from_parts(<a href="lib.rs.html#125">CostsPerBlockOf</a>::&lt;T&gt;::dispatch_stash(), <span class="number">0</span>),
-            reservation: Weight::from_parts(<a href="lib.rs.html#125">CostsPerBlockOf</a>::&lt;T&gt;::reservation(), <span class="number">0</span>),
-            mailbox: Weight::from_parts(<a href="lib.rs.html#125">CostsPerBlockOf</a>::&lt;T&gt;::mailbox(), <span class="number">0</span>),
+            waitlist: Weight::from_parts(<a href="lib.rs.html#126">CostsPerBlockOf</a>::&lt;T&gt;::waitlist(), <span class="number">0</span>),
+            dispatch_stash: Weight::from_parts(<a href="lib.rs.html#126">CostsPerBlockOf</a>::&lt;T&gt;::dispatch_stash(), <span class="number">0</span>),
+            reservation: Weight::from_parts(<a href="lib.rs.html#126">CostsPerBlockOf</a>::&lt;T&gt;::reservation(), <span class="number">0</span>),
+            mailbox: Weight::from_parts(<a href="lib.rs.html#126">CostsPerBlockOf</a>::&lt;T&gt;::mailbox(), <span class="number">0</span>),
             mailbox_threshold: Weight::from_parts(T::MailboxThreshold::get(), <span class="number">0</span>),
             _phantom: <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>,
         }
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#673-688">RentWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>RentCosts {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#673-688">RentWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>RentCosts {
     <span class="kw">fn </span>from(val: <a href="#673-688">RentWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             waitlist: <a href="#1376">val</a>.waitlist.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -3026,12 +3026,12 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#694-703">DbWeights</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#694-703">DbWeights</a>&lt;T&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="kw">type </span>W&lt;T&gt; = &lt;T <span class="kw">as </span>Config&gt;::WeightInfo;
         <span class="self">Self </span>{
-            write: <a href="lib.rs.html#114">DbWeightOf</a>::&lt;T&gt;::get().writes(<span class="number">1</span>),
-            read: <a href="lib.rs.html#114">DbWeightOf</a>::&lt;T&gt;::get().reads(<span class="number">1</span>),
+            write: <a href="lib.rs.html#115">DbWeightOf</a>::&lt;T&gt;::get().writes(<span class="number">1</span>),
+            read: <a href="lib.rs.html#115">DbWeightOf</a>::&lt;T&gt;::get().reads(<span class="number">1</span>),
             write_per_byte: <a href="#747-749">cost_byte</a>(<a href="#1387">W</a>::&lt;T&gt;::db_write_per_kb),
             read_per_byte: <a href="#747-749">cost_byte</a>(<a href="#1387">W</a>::&lt;T&gt;::db_read_per_kb),
             _phantom: <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>,
@@ -3039,7 +3039,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#644-667">InstantiationWeights</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html">Default</a> <span class="kw">for </span><a href="#644-667">InstantiationWeights</a>&lt;T&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="kw">type </span>W&lt;T&gt; = &lt;T <span class="kw">as </span>Config&gt;::WeightInfo;
         <span class="self">Self </span>{
@@ -3054,7 +3054,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#644-667">InstantiationWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>InstantiationCosts {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#644-667">InstantiationWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>InstantiationCosts {
     <span class="kw">fn </span>from(val: <a href="#644-667">InstantiationWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             code_section_per_byte: <a href="#1414">val</a>.code_section_per_byte.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -3067,12 +3067,12 @@
     }
 }
 
-<span class="kw">struct </span>ScheduleRules&lt;<span class="lifetime">'a</span>, T: <a href="lib.rs.html#164-292">Config</a>&gt; {
+<span class="kw">struct </span>ScheduleRules&lt;<span class="lifetime">'a</span>, T: <a href="lib.rs.html#165-293">Config</a>&gt; {
     schedule: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><a href="#117-150">Schedule</a>&lt;T&gt;,
     params: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;,
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; Rules <span class="kw">for </span><a href="#1426-1429">ScheduleRules</a>&lt;<span class="lifetime">'_</span>, T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; Rules <span class="kw">for </span><a href="#1426-1429">ScheduleRules</a>&lt;<span class="lifetime">'_</span>, T&gt; {
     <span class="kw">fn </span>instruction_cost(<span class="kw-2">&amp;</span><span class="self">self</span>, instruction: <span class="kw-2">&amp;</span>Instruction) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt; {
         <span class="kw">use </span>Instruction::<span class="kw-2">*</span>;
         <span class="kw">use </span>SignExtInstruction::<span class="kw-2">*</span>;
@@ -3196,7 +3196,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#164-292">Config</a>&gt; <a href="#117-150">Schedule</a>&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: <a href="lib.rs.html#165-293">Config</a>&gt; <a href="#117-150">Schedule</a>&lt;T&gt; {
     <span class="kw">pub fn </span>rules(<span class="kw-2">&amp;</span><span class="self">self</span>, module: <span class="kw-2">&amp;</span>Module) -&gt; <span class="kw">impl </span>Rules + <span class="kw">use</span>&lt;<span class="lifetime">'_</span>, T&gt; {
         <a href="#1426-1429">ScheduleRules</a> {
             schedule: <a class="self" href="#1556">self</a>,

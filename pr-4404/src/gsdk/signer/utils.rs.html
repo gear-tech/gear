@@ -243,7 +243,9 @@
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 //
 // Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -265,14 +267,14 @@
 
 </span><span class="kw">use </span><a href="mod.rs.html#60-66"><span class="kw">super</span>::Inner</a>;
 <span class="kw">use crate</span>::{
-    <a href="../lib.rs.html#86">TxInBlock</a>, <a href="../lib.rs.html#92">TxStatus</a>,
     <a href="../backtrace.rs.html#29-52">backtrace::BacktraceStatus</a>,
     <a href="../config.rs.html#36">config::GearConfig</a>,
     metadata::{
-        <a href="../metadata/generated.rs.html#10528-10532">CallInfo</a>, <a href="../metadata/generated.rs.html#10438-10505">Event</a>, <a href="../metadata/generated.rs.html#11190-11196">calls::SudoCall</a>, <a href="../metadata/generated.rs.html#8259-8281">sudo::Event</a> <span class="kw">as </span>SudoEvent, <a href="../metadata/generated.rs.html#10292-10359">vara_runtime::RuntimeCall</a>,
+        <a href="../metadata/generated.rs.html#11190-11196">calls::SudoCall</a>, <a href="../metadata/generated.rs.html#8259-8281">sudo::Event</a> <span class="kw">as </span>SudoEvent, <a href="../metadata/generated.rs.html#10292-10359">vara_runtime::RuntimeCall</a>, <a href="../metadata/generated.rs.html#10528-10532">CallInfo</a>, <a href="../metadata/generated.rs.html#10438-10505">Event</a>,
     },
     <a href="../result.rs.html#106">result::Result</a>,
     <a href="rpc.rs.html#31">signer::SignerRpc</a>,
+    <a href="../lib.rs.html#86">TxInBlock</a>, <a href="../lib.rs.html#92">TxStatus</a>,
 };
 <span class="kw">use </span><a href="https://docs.rs/anyhow/1.0.85/anyhow/macro.anyhow.html">anyhow::anyhow</a>;
 <span class="kw">use </span>colored::Colorize;
@@ -280,11 +282,11 @@
 <span class="kw">use </span>sp_core::H256;
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/alloc/sync/struct.Arc.html">std::sync::Arc</a>;
 <span class="kw">use </span>subxt::{
-    Error <span class="kw">as </span>SubxtError, OnlineClient,
     blocks::ExtrinsicEvents,
     config::polkadot::PolkadotExtrinsicParamsBuilder,
     <a href="../../../gsdk/struct.Value.html">dynamic::Value</a>,
     tx::{DynamicPayload, TxProgress},
+    Error <span class="kw">as </span>SubxtError, OnlineClient,
 };
 
 <span class="kw">type </span>TxProgressT = TxProgress&lt;<a href="../config.rs.html#36">GearConfig</a>, OnlineClient&lt;<a href="../config.rs.html#36">GearConfig</a>&gt;&gt;;
@@ -358,11 +360,13 @@
                 Validated | Broadcasted { .. } | NoLongerInBestBlock =&gt; (),
                 InBestBlock(b) =&gt; {
                     hash = <span class="prelude-val">Some</span>(b.extrinsic_hash());
-                    <span class="self">self</span>.backtrace
-                        .append(b.extrinsic_hash(), BacktraceStatus::InBestBlock {
+                    <span class="self">self</span>.backtrace.append(
+                        b.extrinsic_hash(),
+                        BacktraceStatus::InBestBlock {
                             block_hash: b.block_hash(),
                             extrinsic_hash: b.extrinsic_hash(),
-                        });
+                        },
+                    );
                 }
                 InFinalizedBlock(b) =&gt; {
                     <span class="macro">log::info!</span>(<span class="string">"Submitted {extrinsic} !"</span>);

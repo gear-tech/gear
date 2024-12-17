@@ -295,15 +295,15 @@
 </span><span class="kw">use crate</span>::{
     ids::{<a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../ids.rs.html#48">ProgramId</a>},
     message::{
-        <a href="context.rs.html#155-163">ContextStore</a>, <a href="mod.rs.html#118-128">DispatchKind</a>, <a href="mod.rs.html#90">GasLimit</a>, <a href="incoming.rs.html#131-138">IncomingDispatch</a>, <a href="incoming.rs.html#36-49">IncomingMessage</a>, <a href="mod.rs.html#79">Payload</a>,
-        <a href="common.rs.html#233-238">ReplyDetails</a>, <a href="mod.rs.html#93">Value</a>, <a href="common.rs.html#183-188">common::MessageDetails</a>,
+        <a href="common.rs.html#183-188">common::MessageDetails</a>, <a href="context.rs.html#155-163">ContextStore</a>, <a href="mod.rs.html#118-128">DispatchKind</a>, <a href="mod.rs.html#90">GasLimit</a>, <a href="incoming.rs.html#131-138">IncomingDispatch</a>,
+        <a href="incoming.rs.html#36-49">IncomingMessage</a>, <a href="mod.rs.html#79">Payload</a>, <a href="common.rs.html#233-238">ReplyDetails</a>, <a href="mod.rs.html#93">Value</a>,
     },
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html">core::ops::Deref</a>;
 <span class="kw">use </span><a href="../../../gear_core/message/enum.ReplyCode.html">gear_core_errors::ReplyCode</a>;
 <span class="kw">use </span>scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 <span class="doccomment">/// Stored message.

@@ -195,8 +195,8 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>spend_burned(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: MessageId, amount: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>) {
         <a class="self" href="#50">self</a>.gas_burned
             .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.entry">entry</a>(<a href="#50">id</a>)
-            .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/entry/enum.Entry.html#method.and_modify">and_modify</a>(|v| <span class="kw-2">*</span><a href="#53">v</a> = <a href="#53">v</a>.<a href="../program.rs.html#80-82">saturating_sub</a>(<a href="../program.rs.html#66">Gas</a>(<a href="#50">amount</a>)))
-            .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/entry/enum.Entry.html#method.or_insert">or_insert</a>(<a href="../program.rs.html#66">Gas</a>(<a href="#50">amount</a>));
+            .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/entry/enum.Entry.html#method.and_modify">and_modify</a>(|v| <span class="kw-2">*</span><a href="#53">v</a> = <a href="#53">v</a>.<a href="../program.rs.html#81-83">saturating_sub</a>(<a href="../program.rs.html#67">Gas</a>(<a href="#50">amount</a>)))
+            .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/entry/enum.Entry.html#method.or_insert">or_insert</a>(<a href="../program.rs.html#67">Gas</a>(<a href="#50">amount</a>));
         <a class="self" href="#50">self</a>.<a href="#27-48">spend_gas</a>(<a href="#50">id</a>, <a href="#50">amount</a>);
     }
 

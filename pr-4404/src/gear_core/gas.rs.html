@@ -424,11 +424,11 @@
 
 </span><span class="doccomment">//! Gas module.
 
-</span><span class="kw">use crate</span>::{<a href="costs.rs.html#314-423">costs::CostToken</a>, <a href="reservation.rs.html#332">reservation::UnreservedReimbursement</a>};
+</span><span class="kw">use crate</span>::{<a href="costs.rs.html#314-423">costs::CostToken</a>, <a href="reservation.rs.html#341">reservation::UnreservedReimbursement</a>};
 <span class="kw">use </span>enum_iterator::Sequence;
 <span class="kw">use </span>scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 <span class="doccomment">/// The id of the gas lock.
@@ -509,7 +509,7 @@
     ///
     /// Called when gas unreservation is occurred.
     /// We don't decrease `burn` counter because `GasTree` manipulation is handled by separated function
-    </span><span class="kw">pub fn </span>increase(<span class="kw-2">&amp;mut </span><span class="self">self</span>, amount: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, _token: <a href="reservation.rs.html#332">UnreservedReimbursement</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
+    </span><span class="kw">pub fn </span>increase(<span class="kw-2">&amp;mut </span><span class="self">self</span>, amount: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, _token: <a href="reservation.rs.html#341">UnreservedReimbursement</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
         <span class="kw">match </span><a class="self" href="#106">self</a>.left.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.checked_add">checked_add</a>(<a href="#106">amount</a>) {
             <span class="prelude-val">None </span>=&gt; <span class="bool-val">false</span>,
             <span class="prelude-val">Some</span>(new_left) =&gt; {

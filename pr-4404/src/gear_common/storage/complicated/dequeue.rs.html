@@ -428,7 +428,10 @@
 <a href="#427" id="427">427</a>
 <a href="#428" id="428">428</a>
 <a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -720,10 +723,13 @@
             <a href="../primitives/value.rs.html#54">HVS::put</a>(<a href="#286">key</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
 
             <a href="../primitives/callback.rs.html#28">Callbacks::OnPushFront::call</a>(<span class="kw-2">&amp;</span><a href="#286">value</a>);
-            <a href="../primitives/map.rs.html#43">MS::insert</a>(<a href="#286">key</a>, <a href="#144-150">LinkedNode</a> {
-                next: <span class="prelude-val">Some</span>(<a href="#289">head_key</a>),
-                <a href="#286">value</a>,
-            });
+            <a href="../primitives/map.rs.html#43">MS::insert</a>(
+                <a href="#286">key</a>,
+                <a href="#144-150">LinkedNode</a> {
+                    next: <span class="prelude-val">Some</span>(<a href="#289">head_key</a>),
+                    <a href="#286">value</a>,
+                },
+            );
 
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else if </span>TVS::exists() {
@@ -764,7 +770,7 @@
 
 <span class="comment">// `Iterator` implementation for `DequeueDrainIter`.
 </span><span class="kw">impl</span>&lt;Key, Value, Error, HVS, TVS, MS, Callbacks&gt; <a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html">Iterator</a>
-    <span class="kw">for </span><a href="#323-333">DequeueDrainIter</a>&lt;Key, Value, Error, HVS, TVS, MS, Callbacks&gt;
+    <span class="kw">for </span><a href="#326-336">DequeueDrainIter</a>&lt;Key, Value, Error, HVS, TVS, MS, Callbacks&gt;
 <span class="kw">where
     </span>Key: <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a> + <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html">PartialEq</a>,
     Error: <a href="#89-119">DequeueError</a>,
@@ -776,21 +782,21 @@
     <span class="kw">type </span>Item = <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;Value, Error&gt;;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="self">Self</span>::Item&gt; {
-        <span class="kw">let </span>current = <a class="self" href="#348">self</a>.<span class="number">0</span>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.take">take</a>()<span class="question-mark">?</span>;
+        <span class="kw">let </span>current = <a class="self" href="#351">self</a>.<span class="number">0</span>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.take">take</a>()<span class="question-mark">?</span>;
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(node) = <a href="../primitives/map.rs.html#67">MS::take</a>(<a href="#349">current</a>) {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(k) = <a href="#351">node</a>.next.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.as_ref">as_ref</a>() {
-                <a href="../primitives/value.rs.html#54">HVS::put</a>(<a href="#352">k</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>())
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(node) = <a href="../primitives/map.rs.html#67">MS::take</a>(<a href="#352">current</a>) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(k) = <a href="#354">node</a>.next.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.as_ref">as_ref</a>() {
+                <a href="../primitives/value.rs.html#54">HVS::put</a>(<a href="#355">k</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>())
             }
 
-            <a class="self" href="#348">self</a>.<span class="number">0 </span>= <a href="#351">node</a>.next;
+            <a class="self" href="#351">self</a>.<span class="number">0 </span>= <a href="#354">node</a>.next;
 
-            <a href="../primitives/callback.rs.html#28">Callbacks::OnPopFront::call</a>(<span class="kw-2">&amp;</span><a href="#351">node</a>.value);
-            <span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(<a href="#351">node</a>.value))
+            <a href="../primitives/callback.rs.html#28">Callbacks::OnPopFront::call</a>(<span class="kw-2">&amp;</span><a href="#354">node</a>.value);
+            <span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(<a href="#354">node</a>.value))
         } <span class="kw">else </span>{
             <a href="../primitives/value.rs.html#40">HVS::kill</a>();
             <a href="../primitives/value.rs.html#40">TVS::kill</a>();
-            <a class="self" href="#348">self</a>.<span class="number">0 </span>= <span class="prelude-val">None</span>;
+            <a class="self" href="#351">self</a>.<span class="number">0 </span>= <span class="prelude-val">None</span>;
 
             <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<a href="#94">Error::element_not_found</a>()))
         }
@@ -810,7 +816,7 @@
     MS: <a href="../primitives/map.rs.html#30-68">MapStorage</a>&lt;Key = Key, Value = <a href="#144-150">LinkedNode</a>&lt;Key, Value&gt;&gt;;
 
 <span class="comment">// `Iterator` implementation for `DequeueIter`.
-</span><span class="kw">impl</span>&lt;Key, Value, Error, HVS, TVS, MS&gt; <a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html">Iterator</a> <span class="kw">for </span><a href="#371-380">DequeueIter</a>&lt;Key, Value, Error, HVS, TVS, MS&gt;
+</span><span class="kw">impl</span>&lt;Key, Value, Error, HVS, TVS, MS&gt; <a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html">Iterator</a> <span class="kw">for </span><a href="#374-383">DequeueIter</a>&lt;Key, Value, Error, HVS, TVS, MS&gt;
 <span class="kw">where
     </span>Key: <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a> + <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html">PartialEq</a>,
     Error: <a href="#89-119">DequeueError</a>,
@@ -821,14 +827,14 @@
     <span class="kw">type </span>Item = <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;Value, Error&gt;;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="self">Self</span>::Item&gt; {
-        <span class="kw">let </span>current = <a class="self" href="#393">self</a>.<span class="number">0</span>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.take">take</a>()<span class="question-mark">?</span>;
+        <span class="kw">let </span>current = <a class="self" href="#396">self</a>.<span class="number">0</span>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.take">take</a>()<span class="question-mark">?</span>;
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(node) = <a href="../primitives/map.rs.html#40">MS::get</a>(<span class="kw-2">&amp;</span><a href="#394">current</a>) {
-            <a class="self" href="#393">self</a>.<span class="number">0 </span>= <a href="#396">node</a>.next;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(node) = <a href="../primitives/map.rs.html#40">MS::get</a>(<span class="kw-2">&amp;</span><a href="#397">current</a>) {
+            <a class="self" href="#396">self</a>.<span class="number">0 </span>= <a href="#399">node</a>.next;
 
-            <span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(<a href="#396">node</a>.value))
+            <span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(<a href="#399">node</a>.value))
         } <span class="kw">else </span>{
-            <a class="self" href="#393">self</a>.<span class="number">0 </span>= <span class="prelude-val">None</span>;
+            <a class="self" href="#396">self</a>.<span class="number">0 </span>= <span class="prelude-val">None</span>;
 
             <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<a href="#94">Error::element_not_found</a>()))
         }
@@ -847,15 +853,15 @@
     MS: <a href="../primitives/map.rs.html#30-68">MapStorage</a>&lt;Key = Key, Value = <a href="#144-150">LinkedNode</a>&lt;Key, Value&gt;&gt;,
     Callbacks: <a href="#67-84">DequeueCallbacks</a>&lt;Value = Value&gt;,
 {
-    <span class="kw">type </span>DrainIter = <a href="#323-333">DequeueDrainIter</a>&lt;Key, Value, Error, HVS, TVS, MS, Callbacks&gt;;
-    <span class="kw">type </span>Iter = <a href="#371-380">DequeueIter</a>&lt;Key, Value, Error, HVS, TVS, MS&gt;;
+    <span class="kw">type </span>DrainIter = <a href="#326-336">DequeueDrainIter</a>&lt;Key, Value, Error, HVS, TVS, MS, Callbacks&gt;;
+    <span class="kw">type </span>Iter = <a href="#374-383">DequeueIter</a>&lt;Key, Value, Error, HVS, TVS, MS&gt;;
 
     <span class="kw">fn </span>drain() -&gt; <span class="self">Self</span>::DrainIter {
-        <a href="#323-333">DequeueDrainIter</a>(<a href="../primitives/value.rs.html#37">HVS::get</a>(), <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>::&lt;(Error, HVS, TVS, MS, Callbacks)&gt;)
+        <a href="#326-336">DequeueDrainIter</a>(<a href="../primitives/value.rs.html#37">HVS::get</a>(), <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>::&lt;(Error, HVS, TVS, MS, Callbacks)&gt;)
     }
 
     <span class="kw">fn </span>iter() -&gt; <span class="self">Self</span>::Iter {
-        <a href="#371-380">DequeueIter</a>(<a href="../primitives/value.rs.html#37">HVS::get</a>(), <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>::&lt;(Error, HVS, TVS, MS)&gt;)
+        <a href="#374-383">DequeueIter</a>(<a href="../primitives/value.rs.html#37">HVS::get</a>(), <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>::&lt;(Error, HVS, TVS, MS)&gt;)
     }
 }
 </code></pre></div></section></main></body></html>

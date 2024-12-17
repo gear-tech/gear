@@ -523,18 +523,18 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use crate</span>::{
-    <a href="lib.rs.html#534">GAS_ALLOWANCE</a>, <a href="program.rs.html#66">Gas</a>, <a href="lib.rs.html#522">Value</a>,
     <a href="error.rs.html#92-98">error::usage_panic</a>,
     log::{<a href="log.rs.html#405-427">BlockRunResult</a>, <a href="log.rs.html#40-47">CoreLog</a>},
     <a href="manager.rs.html#87-115">manager::ExtManager</a>,
-    program::{<a href="program.rs.html#389-392">Program</a>, <a href="program.rs.html#130">ProgramIdWrapper</a>},
+    program::{<a href="program.rs.html#390-393">Program</a>, <a href="program.rs.html#131">ProgramIdWrapper</a>},
     state::{<a href="state/accounts.rs.html#75">accounts::Accounts</a>, <a href="state/actors.rs.html#37">actors::Actors</a>, <a href="state/mailbox/actor.rs.html#40-43">mailbox::ActorMailbox</a>},
+    <a href="program.rs.html#67">Gas</a>, <a href="lib.rs.html#522">Value</a>, <a href="lib.rs.html#534">GAS_ALLOWANCE</a>,
 };
 <span class="kw">use </span>codec::{Decode, DecodeAll};
 <span class="kw">use </span>colored::Colorize;
 <span class="kw">use </span>env_logger::{Builder, Env};
 <span class="kw">use </span>gear_core::{
-    ids::{CodeId, ProgramId, prelude::CodeIdExt},
+    ids::{prelude::CodeIdExt, CodeId, ProgramId},
     pages::GearPage,
 };
 <span class="kw">use </span>gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
@@ -707,12 +707,12 @@
     /// Messages processing executes messages until either queue becomes empty
     /// or block gas allowance is fully consumed.
     </span><span class="kw">pub fn </span>run_next_block(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="log.rs.html#405-427">BlockRunResult</a> {
-        <a class="self" href="#203">self</a>.<a href="#209-218">run_next_block_with_allowance</a>(<a href="program.rs.html#66">Gas</a>(<a href="lib.rs.html#534">GAS_ALLOWANCE</a>))
+        <a class="self" href="#203">self</a>.<a href="#209-218">run_next_block_with_allowance</a>(<a href="program.rs.html#67">Gas</a>(<a href="lib.rs.html#534">GAS_ALLOWANCE</a>))
     }
 
     <span class="doccomment">/// Runs blocks same as [`Self::run_next_block`], but with limited
     /// allowance.
-    </span><span class="kw">pub fn </span>run_next_block_with_allowance(<span class="kw-2">&amp;</span><span class="self">self</span>, allowance: <a href="program.rs.html#66">Gas</a>) -&gt; <a href="log.rs.html#405-427">BlockRunResult</a> {
+    </span><span class="kw">pub fn </span>run_next_block_with_allowance(<span class="kw-2">&amp;</span><span class="self">self</span>, allowance: <a href="program.rs.html#67">Gas</a>) -&gt; <a href="log.rs.html#405-427">BlockRunResult</a> {
         <span class="kw">if </span>allowance &gt; Gas(GAS_ALLOWANCE) {
             <a class="macro" href="error.rs.html#92-98">usage_panic!</a>(
                 <span class="string">"Provided allowance more than allowed limit of {GAS_ALLOWANCE}. \
@@ -764,7 +764,7 @@
                     .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.collect">collect</a>();
                 <a href="log.rs.html#405-427">BlockRunResult</a> {
                     <a href="#251">block_info</a>,
-                    gas_allowance_spent: <a href="program.rs.html#66">Gas</a>(<a href="lib.rs.html#534">GAS_ALLOWANCE</a>) - <a href="#244">manager</a>.gas_allowance,
+                    gas_allowance_spent: <a href="program.rs.html#67">Gas</a>(<a href="lib.rs.html#534">GAS_ALLOWANCE</a>) - <a href="#244">manager</a>.gas_allowance,
                     <a href="#255">log</a>,
                     ..<a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
                 }
@@ -783,10 +783,10 @@
     }
 
     <span class="doccomment">/// Returns a [`Program`] by `id`.
-    </span><span class="kw">pub fn </span>get_program&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="program.rs.html#389-392">Program</a>&gt; {
+    </span><span class="kw">pub fn </span>get_program&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="program.rs.html#390-393">Program</a>&gt; {
         <span class="kw">let </span>id = <a href="#280">id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>().<span class="number">0</span>;
         <span class="kw">if </span>Actors::is_program(id) {
-            <span class="prelude-val">Some</span>(<a href="program.rs.html#389-392">Program</a> {
+            <span class="prelude-val">Some</span>(<a href="program.rs.html#390-393">Program</a> {
                 <a href="#281">id</a>,
                 manager: <span class="kw-2">&amp;</span><a class="self" href="#280">self</a>.<span class="number">0</span>,
             })
@@ -796,15 +796,15 @@
     }
 
     <span class="doccomment">/// Returns last added program.
-    </span><span class="kw">pub fn </span>last_program(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="program.rs.html#389-392">Program</a>&gt; {
+    </span><span class="kw">pub fn </span>last_program(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="program.rs.html#390-393">Program</a>&gt; {
         <a class="self" href="#293">self</a>.<a href="#298-306">programs</a>().<a href="https://doc.rust-lang.org/nightly/core/iter/traits/collect/trait.IntoIterator.html#tymethod.into_iter">into_iter</a>().<a href="https://doc.rust-lang.org/nightly/core/iter/traits/double_ended/trait.DoubleEndedIterator.html#tymethod.next_back">next_back</a>()
     }
 
     <span class="doccomment">/// Returns a list of programs.
-    </span><span class="kw">pub fn </span>programs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="program.rs.html#389-392">Program</a>&gt; {
+    </span><span class="kw">pub fn </span>programs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="program.rs.html#390-393">Program</a>&gt; {
         <a href="state/actors.rs.html#90-92">Actors::program_ids</a>()
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/collect/trait.IntoIterator.html#tymethod.into_iter">into_iter</a>()
-            .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.map">map</a>(|id| <a href="program.rs.html#389-392">Program</a> {
+            .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.map">map</a>(|id| <a href="program.rs.html#390-393">Program</a> {
                 <a href="#301">id</a>,
                 manager: <span class="kw-2">&amp;</span><a class="self" href="#298">self</a>.<span class="number">0</span>,
             })
@@ -816,7 +816,7 @@
     /// An active program means that the program could be called,
     /// instead, if returns `false` it means that the program has
     /// exited or terminated that it can't be called anymore.
-    </span><span class="kw">pub fn </span>is_active_program&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
+    </span><span class="kw">pub fn </span>is_active_program&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID) -&gt; <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> {
         <span class="kw">let </span>program_id = <a href="#313">id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>().<span class="number">0</span>;
         <a href="state/actors.rs.html#74-81">Actors::is_active_program</a>(<a href="#314">program_id</a>)
     }
@@ -873,7 +873,7 @@
     ///
     /// The mailbox contains messages from the program that are waiting
     /// for user action.
-    </span><span class="kw">pub fn </span>get_mailbox&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID) -&gt; <a href="state/mailbox/actor.rs.html#40-43">ActorMailbox</a> {
+    </span><span class="kw">pub fn </span>get_mailbox&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID) -&gt; <a href="state/mailbox/actor.rs.html#40-43">ActorMailbox</a> {
         <span class="kw">let </span>program_id = <a href="#370">id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>().<span class="number">0</span>;
         <span class="kw">if </span>!Actors::is_user(program_id) {
             <a class="macro" href="error.rs.html#92-98">usage_panic!</a>(<span class="string">"Mailbox available only for users. Please, provide a user id."</span>);
@@ -882,7 +882,7 @@
     }
 
     <span class="doccomment">/// Mint balance to user with given `id` and `value`.
-    </span><span class="kw">pub fn </span>mint_to&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID, value: <a href="lib.rs.html#522">Value</a>) {
+    </span><span class="kw">pub fn </span>mint_to&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID, value: <a href="lib.rs.html#522">Value</a>) {
         <span class="kw">let </span>id = <a href="#379">id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>().<span class="number">0</span>;
 
         <span class="kw">if </span>Actors::is_program(id) {
@@ -898,8 +898,8 @@
     /// id.
     </span><span class="kw">pub fn </span>transfer(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        from: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;,
-        to: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;,
+        from: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;,
+        to: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;,
         value: <a href="lib.rs.html#522">Value</a>,
         keep_alive: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
     ) {
@@ -916,7 +916,7 @@
     }
 
     <span class="doccomment">/// Returns balance of user with given `id`.
-    </span><span class="kw">pub fn </span>balance_of&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#130">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID) -&gt; <a href="lib.rs.html#522">Value</a> {
+    </span><span class="kw">pub fn </span>balance_of&lt;ID: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="program.rs.html#131">ProgramIdWrapper</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, id: ID) -&gt; <a href="lib.rs.html#522">Value</a> {
         <span class="kw">let </span>actor_id = <a href="#413">id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>().<span class="number">0</span>;
         <a class="self" href="#413">self</a>.<span class="number">0</span>.<a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html#method.borrow">borrow</a>().<a href="manager.rs.html#208-210">balance_of</a>(<span class="kw-2">&amp;</span><a href="#414">actor_id</a>)
     }

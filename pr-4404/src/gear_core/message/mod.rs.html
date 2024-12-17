@@ -269,7 +269,7 @@
 </span><span class="doccomment">//! Message processing module.
 
 </span><span class="kw">mod </span><a href="common.rs.html#19-361">common</a>;
-<span class="kw">mod </span><a href="context.rs.html#19-1152">context</a>;
+<span class="kw">mod </span><a href="context.rs.html#19-1160">context</a>;
 <span class="kw">mod </span><a href="handle.rs.html#19-203">handle</a>;
 <span class="kw">mod </span><a href="incoming.rs.html#19-201">incoming</a>;
 <span class="kw">mod </span><a href="init.rs.html#19-207">init</a>;
@@ -296,8 +296,8 @@
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html">core::fmt::Display</a>;
 <span class="kw">use </span>gear_wasm_instrument::syscalls::SyscallName;
 <span class="kw">use </span>scale_info::{
-    TypeInfo,
     scale::{Decode, Encode},
+    TypeInfo,
 };
 
 <span class="doccomment">/// Max payload size which one message can have (8 MiB).

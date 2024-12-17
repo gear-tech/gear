@@ -215,10 +215,10 @@
 
 </span><span class="doccomment">//! Program generation module
 
-</span><span class="kw">use crate</span>::{<a href="../../../gstd/struct.ActorId.html">ActorId</a>, <a href="../../../gstd/struct.CodeId.html">CodeId</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>, <a href="../lib.rs.html#158">prog</a>, <a href="../util.rs.html#33-66">util::with_optimized_encode</a>};
+</span><span class="kw">use crate</span>::{<a href="../lib.rs.html#158">prog</a>, <a href="../util.rs.html#33-66">util::with_optimized_encode</a>, <a href="../../../gstd/struct.ActorId.html">ActorId</a>, <a href="../../../gstd/struct.CodeId.html">CodeId</a>, <a href="../../../gstd/struct.MessageId.html">MessageId</a>};
 <span class="kw">use </span><a href="../../../gcore/errors/type.Result.html">gcore::errors::Result</a>;
 <span class="kw">use </span>gstd_codegen::wait_create_program_for_reply;
-<span class="kw">use </span>scale_info::scale::{<a href="../../../gstd/prelude/derive.Encode.html">Encode</a>, <a href="../../../gstd/prelude/struct.Vec.html">alloc::vec::Vec</a>};
+<span class="kw">use </span>scale_info::scale::{<a href="../../../gstd/prelude/struct.Vec.html">alloc::vec::Vec</a>, <a href="../../../gstd/prelude/derive.Encode.html">Encode</a>};
 
 <span class="doccomment">/// Helper to create programs without setting the salt manually.
 </span><span class="kw">pub struct </span><a href="../../../gstd/prog/struct.ProgramGenerator.html">ProgramGenerator</a>(<a href="https://doc.rust-lang.org/nightly/core/primitive.u64.html">u64</a>);
@@ -272,7 +272,7 @@
     /// Create a new program from the provided code identifier:
     ///
     /// ```
-    /// use gstd::{CodeId, msg, prog::ProgramGenerator};
+    /// use gstd::{msg, prog::ProgramGenerator, CodeId};
     ///
     /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {

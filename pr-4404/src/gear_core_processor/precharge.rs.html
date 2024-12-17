@@ -497,14 +497,14 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use crate</span>::{
-    <a href="context.rs.html#73-75">ContextChargedForCode</a>, <a href="context.rs.html#86-88">ContextChargedForInstrumentation</a>,
     common::{<a href="common.rs.html#447-464">ActorExecutionErrorReplyReason</a>, <a href="common.rs.html#61-90">DispatchResult</a>, <a href="common.rs.html#522-535">ExecutableActorData</a>, <a href="common.rs.html#180-341">JournalNote</a>},
     <a href="configs.rs.html#67-92">configs::BlockConfig</a>,
     context::{
         <a href="context.rs.html#49">ContextChargedForAllocations</a>, <a href="context.rs.html#59-61">ContextChargedForCodeLength</a>, <a href="context.rs.html#96-100">ContextChargedForMemory</a>,
         <a href="context.rs.html#34-39">ContextChargedForProgram</a>, <a href="context.rs.html#51-57">ContextData</a>, <a href="context.rs.html#179-184">SystemReservationContext</a>,
     },
-    processing::{<a href="processing.rs.html#591-608">process_allowance_exceed</a>, <a href="processing.rs.html#348-362">process_execution_error</a>, <a href="processing.rs.html#403-589">process_success</a>},
+    processing::{<a href="processing.rs.html#590-607">process_allowance_exceed</a>, <a href="processing.rs.html#347-361">process_execution_error</a>, <a href="processing.rs.html#402-588">process_success</a>},
+    <a href="context.rs.html#73-75">ContextChargedForCode</a>, <a href="context.rs.html#86-88">ContextChargedForInstrumentation</a>,
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">alloc::vec::Vec</a>;
 <span class="kw">use </span>gear_core::{
@@ -682,7 +682,7 @@
         }),
         <span class="prelude-val">Err</span>(<a href="#64">PrechargeError::BlockGasExceeded</a>) =&gt; {
             <span class="kw">let </span>gas_burned = <a href="#186">gas_counter</a>.burned();
-            <span class="prelude-val">Err</span>(<a href="processing.rs.html#591-608">process_allowance_exceed</a>(
+            <span class="prelude-val">Err</span>(<a href="processing.rs.html#590-607">process_allowance_exceed</a>(
                 <a href="#183">dispatch</a>,
                 <a href="#184">destination_id</a>,
                 <a href="#202">gas_burned</a>,
@@ -691,7 +691,7 @@
         <span class="prelude-val">Err</span>(<a href="#65">PrechargeError::GasExceeded</a>(op)) =&gt; {
             <span class="kw">let </span>gas_burned = <a href="#186">gas_counter</a>.burned();
             <span class="kw">let </span>system_reservation_ctx = <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#183">dispatch</a>);
-            <span class="prelude-val">Err</span>(<a href="processing.rs.html#348-362">process_execution_error</a>(
+            <span class="prelude-val">Err</span>(<a href="processing.rs.html#347-361">process_execution_error</a>(
                 <a href="#183">dispatch</a>,
                 <a href="#184">destination_id</a>,
                 <a href="#210">gas_burned</a>,
@@ -728,7 +728,7 @@
         <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(<a href="context.rs.html#49">ContextChargedForAllocations</a>(<a href="#226">context</a>)),
         <span class="prelude-val">Err</span>(<a href="#64">PrechargeError::BlockGasExceeded</a>) =&gt; {
             <span class="kw">let </span>gas_burned = <a href="#226">context</a>.gas_counter.burned();
-            <span class="prelude-val">Err</span>(<a href="processing.rs.html#591-608">process_allowance_exceed</a>(
+            <span class="prelude-val">Err</span>(<a href="processing.rs.html#590-607">process_allowance_exceed</a>(
                 <a href="#226">context</a>.dispatch,
                 <a href="#226">context</a>.destination_id,
                 <a href="#248">gas_burned</a>,
@@ -737,7 +737,7 @@
         <span class="prelude-val">Err</span>(<a href="#65">PrechargeError::GasExceeded</a>(op)) =&gt; {
             <span class="kw">let </span>gas_burned = <a href="#226">context</a>.gas_counter.burned();
             <span class="kw">let </span>system_reservation_ctx = <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#226">context</a>.dispatch);
-            <span class="prelude-val">Err</span>(<a href="processing.rs.html#348-362">process_execution_error</a>(
+            <span class="prelude-val">Err</span>(<a href="processing.rs.html#347-361">process_execution_error</a>(
                 <a href="#226">context</a>.dispatch,
                 <a href="#226">context</a>.destination_id,
                 <a href="#256">gas_burned</a>,
@@ -769,7 +769,7 @@
     } = <a href="#279">context</a>.<span class="number">0</span>;
 
     <span class="kw">if </span>!actor_data.code_exports.contains(<span class="kw-2">&amp;</span>dispatch.kind()) {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(<a href="processing.rs.html#403-589">process_success</a>(
+        <span class="kw">return </span><span class="prelude-val">Err</span>(<a href="processing.rs.html#402-588">process_success</a>(
             <a href="#173">SuccessfulDispatchResultKind::Success</a>,
             <a href="common.rs.html#115-140">DispatchResult::success</a>(<a href="#283">dispatch</a>, <a href="#284">destination_id</a>, <a href="#285">gas_counter</a>.to_amount()),
         ));
@@ -790,14 +790,14 @@
                 <a href="#280">actor_data</a>,
             },
         }),
-        <span class="prelude-val">Err</span>(<a href="#64">PrechargeError::BlockGasExceeded</a>) =&gt; <span class="prelude-val">Err</span>(<a href="processing.rs.html#591-608">process_allowance_exceed</a>(
+        <span class="prelude-val">Err</span>(<a href="#64">PrechargeError::BlockGasExceeded</a>) =&gt; <span class="prelude-val">Err</span>(<a href="processing.rs.html#590-607">process_allowance_exceed</a>(
             <a href="#283">dispatch</a>,
             <a href="#284">destination_id</a>,
             <a href="#285">gas_counter</a>.burned(),
         )),
         <span class="prelude-val">Err</span>(<a href="#65">PrechargeError::GasExceeded</a>(op)) =&gt; {
             <span class="kw">let </span>system_reservation_ctx = <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#283">dispatch</a>);
-            <span class="prelude-val">Err</span>(<a href="processing.rs.html#348-362">process_execution_error</a>(
+            <span class="prelude-val">Err</span>(<a href="processing.rs.html#347-361">process_execution_error</a>(
                 <a href="#283">dispatch</a>,
                 <a href="#284">destination_id</a>,
                 <a href="#285">gas_counter</a>.burned(),
@@ -822,7 +822,7 @@
 
     <span class="kw">match </span><a href="#335">charger</a>.<a href="#116-126">charge_gas_for_program_code</a>(<a href="#333">code_len_bytes</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()) {
         <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(<a href="#332">context</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-        <span class="prelude-val">Err</span>(<a href="#64">PrechargeError::BlockGasExceeded</a>) =&gt; <span class="prelude-val">Err</span>(<a href="processing.rs.html#591-608">process_allowance_exceed</a>(
+        <span class="prelude-val">Err</span>(<a href="#64">PrechargeError::BlockGasExceeded</a>) =&gt; <span class="prelude-val">Err</span>(<a href="processing.rs.html#590-607">process_allowance_exceed</a>(
             <a href="#332">context</a>.data.dispatch,
             <a href="#332">context</a>.data.destination_id,
             <a href="#332">context</a>.data.gas_counter.burned(),
@@ -830,7 +830,7 @@
         <span class="prelude-val">Err</span>(<a href="#65">PrechargeError::GasExceeded</a>(op)) =&gt; {
             <span class="kw">let </span>system_reservation_ctx =
                 <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#332">context</a>.data.dispatch);
-            <span class="prelude-val">Err</span>(<a href="processing.rs.html#348-362">process_execution_error</a>(
+            <span class="prelude-val">Err</span>(<a href="processing.rs.html#347-361">process_execution_error</a>(
                 <a href="#332">context</a>.data.dispatch,
                 <a href="#332">context</a>.data.destination_id,
                 <a href="#332">context</a>.data.gas_counter.burned(),
@@ -855,7 +855,7 @@
 
     <span class="kw">match </span><a href="#368">charger</a>.<a href="#154-164">charge_gas_for_instrumentation</a>(<a href="#366">original_code_len_bytes</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()) {
         <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(<a href="#365">context</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
-        <span class="prelude-val">Err</span>(<a href="#64">PrechargeError::BlockGasExceeded</a>) =&gt; <span class="prelude-val">Err</span>(<a href="processing.rs.html#591-608">process_allowance_exceed</a>(
+        <span class="prelude-val">Err</span>(<a href="#64">PrechargeError::BlockGasExceeded</a>) =&gt; <span class="prelude-val">Err</span>(<a href="processing.rs.html#590-607">process_allowance_exceed</a>(
             <a href="#365">context</a>.data.dispatch,
             <a href="#365">context</a>.data.destination_id,
             <a href="#365">context</a>.data.gas_counter.burned(),
@@ -863,7 +863,7 @@
         <span class="prelude-val">Err</span>(<a href="#65">PrechargeError::GasExceeded</a>(op)) =&gt; {
             <span class="kw">let </span>system_reservation_ctx =
                 <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#365">context</a>.data.dispatch);
-            <span class="prelude-val">Err</span>(<a href="processing.rs.html#348-362">process_execution_error</a>(
+            <span class="prelude-val">Err</span>(<a href="processing.rs.html#347-361">process_execution_error</a>(
                 <a href="#365">context</a>.data.dispatch,
                 <a href="#365">context</a>.data.destination_id,
                 <a href="#365">context</a>.data.gas_counter.burned(),
@@ -942,7 +942,7 @@
         <span class="prelude-val">Err</span>(err) =&gt; {
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Failed to charge for module instantiation or memory pages: {err:?}"</span>);
             <span class="kw">match </span><a href="#460">err</a> {
-                <a href="#64">PrechargeError::BlockGasExceeded</a> =&gt; <span class="prelude-val">Err</span>(<a href="processing.rs.html#591-608">process_allowance_exceed</a>(
+                <a href="#64">PrechargeError::BlockGasExceeded</a> =&gt; <span class="prelude-val">Err</span>(<a href="processing.rs.html#590-607">process_allowance_exceed</a>(
                     <a href="#398">context</a>.data.dispatch,
                     <a href="#398">context</a>.data.destination_id,
                     <a href="#398">context</a>.data.gas_counter.burned(),
@@ -950,7 +950,7 @@
                 <a href="#65">PrechargeError::GasExceeded</a>(op) =&gt; {
                     <span class="kw">let </span>system_reservation_ctx =
                         <a href="context.rs.html#188-196">SystemReservationContext::from_dispatch</a>(<span class="kw-2">&amp;</span><a href="#398">context</a>.data.dispatch);
-                    <span class="prelude-val">Err</span>(<a href="processing.rs.html#348-362">process_execution_error</a>(
+                    <span class="prelude-val">Err</span>(<a href="processing.rs.html#347-361">process_execution_error</a>(
                         <a href="#398">context</a>.data.dispatch,
                         <a href="#398">context</a>.data.destination_id,
                         <a href="#398">context</a>.data.gas_counter.burned(),

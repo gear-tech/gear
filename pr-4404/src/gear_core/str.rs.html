@@ -324,7 +324,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span>rand::{Rng, distributions::Standard};
+    <span class="kw">use </span>rand::{distributions::Standard, Rng};
 
     <span class="kw">fn </span>assert_result(string: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, max_bytes: usize, expectation: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) {
         <span class="kw">let </span><span class="kw-2">mut </span>string = string.into();
@@ -396,7 +396,7 @@
 
         <span class="comment">// String for demonstration with mixed CJK and UTF-8 encoding.
         </span><span class="kw">let </span>mix = <span class="string">"你he好l吗lo"</span>; <span class="comment">// Chaotic sum of "hello" and "你好吗".
-        // Length in bytes.
+                                 // Length in bytes.
         </span><span class="macro">assert_eq!</span>(mix.len(), utf_8.len() + cjk.len());
         <span class="macro">assert_eq!</span>(mix.len(), <span class="number">14</span>);
         <span class="comment">// Length in chars.

@@ -508,12 +508,12 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 </span><span class="attr">#![allow(clippy::too_many_arguments)]
 
-</span><span class="kw">use crate</span>::{<a href="mod.rs.html#38">GearApi</a>, <a href="error.rs.html#25">api::Result</a>};
+</span><span class="kw">use crate</span>::{<a href="error.rs.html#25">api::Result</a>, <a href="mod.rs.html#38">GearApi</a>};
 <span class="kw">use </span>gear_core::{
     ids::{CodeId, MessageId, <a href="../../../gear_core/ids/type.ProgramId.html">ProgramId</a>},
     <a href="../../../gear_core/message/struct.ReplyInfo.html">message::ReplyInfo</a>,
 };
-<span class="kw">use </span>gsdk::{<a href="../../../gear_core/gas/struct.GasInfo.html">GasInfo</a>, <a href="../../../gclient/ext/sp_runtime/testing/struct.H256.html">ext::sp_core::H256</a>};
+<span class="kw">use </span>gsdk::{<a href="../../../gclient/ext/sp_runtime/testing/struct.H256.html">ext::sp_core::H256</a>, <a href="../../../gear_core/gas/struct.GasInfo.html">GasInfo</a>};
 <span class="kw">use </span>parity_scale_codec::{<a href="../../../gclient/ext/sp_runtime/codec/derive.Decode.html">Decode</a>, <a href="../../../gclient/ext/sp_runtime/codec/derive.Encode.html">Encode</a>};
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html">std::path::Path</a>;
 

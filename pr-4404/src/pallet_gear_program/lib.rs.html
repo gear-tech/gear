@@ -335,7 +335,10 @@
 <a href="#334" id="334">334</a>
 <a href="#335" id="335">335</a>
 <a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -473,7 +476,7 @@
 
 <span class="kw">use </span>sp_std::{<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html">convert::TryInto</a>, prelude::<span class="kw-2">*</span>};
 
-<span class="kw">pub use </span><a href="#148-337">pallet</a>::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><a href="#148-340">pallet</a>::<span class="kw-2">*</span>;
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>mock;
@@ -484,19 +487,19 @@
 <span class="attr">#[frame_support::pallet]
 </span><span class="kw">pub mod </span><a href="../../pallet_gear_program/pallet/index.html">pallet</a> {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span>common::{CodeMetadata, scheduler::<span class="kw-2">*</span>, storage::<span class="kw-2">*</span>};
+    <span class="kw">use </span>common::{scheduler::<span class="kw-2">*</span>, storage::<span class="kw-2">*</span>, CodeMetadata};
     <span class="kw">use </span>frame_support::{
-        StoragePrefixedMap,
         pallet_prelude::<span class="kw-2">*</span>,
         storage::{Key, PrefixIterator},
         traits::StorageVersion,
+        StoragePrefixedMap,
     };
     <span class="kw">use </span>frame_system::pallet_prelude::<span class="kw-2">*</span>;
     <span class="kw">use </span>gear_core::{
         code::InstrumentedCode,
         ids::{CodeId, ProgramId},
         memory::PageBuf,
-        pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
+        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::{MemoryInfix, Program},
         tasks::VaraScheduledTask,
     };
@@ -508,7 +511,10 @@
     <span class="attr">#[pallet::config]
     </span><span class="kw">pub trait </span><a href="../../pallet_gear_program/pallet/trait.Config.html">Config</a>: frame_system::Config {
         <span class="doccomment">/// Scheduler.
-        </span><span class="kw">type </span>Scheduler: Scheduler&lt;BlockNumber = BlockNumberFor&lt;<span class="self">Self</span>&gt;, Task = VaraScheduledTask&lt;<span class="self">Self</span>::AccountId&gt;&gt;;
+        </span><span class="kw">type </span>Scheduler: Scheduler&lt;
+            BlockNumber = BlockNumberFor&lt;<span class="self">Self</span>&gt;,
+            Task = VaraScheduledTask&lt;<span class="self">Self</span>::AccountId&gt;,
+        &gt;;
 
         <span class="doccomment">/// Custom block number tracker.
         </span><span class="kw">type </span>CurrentBlockNumber: Get&lt;BlockNumberFor&lt;<span class="self">Self</span>&gt;&gt;;
@@ -516,7 +522,7 @@
 
     <span class="attr">#[pallet::pallet]
     #[pallet::storage_version(<a href="#169">PROGRAM_STORAGE_VERSION</a>)]
-    </span><span class="kw">pub struct </span><a href="#182">Pallet</a>&lt;T&gt;(<span class="kw">_</span>);
+    </span><span class="kw">pub struct </span><a href="#185">Pallet</a>&lt;T&gt;(<span class="kw">_</span>);
 
     <span class="attr">#[pallet::error]
     </span><span class="kw">pub enum </span><a href="../../pallet_gear_program/pallet/enum.Error.html">Error</a>&lt;T&gt; {
@@ -527,7 +533,7 @@
         ProgramCodeNotFound,
     }
 
-    <span class="kw">impl</span>&lt;T: <a href="#172-178">Config</a>&gt; common::ProgramStorageError <span class="kw">for </span><a href="#185-191">Error</a>&lt;T&gt; {
+    <span class="kw">impl</span>&lt;T: <a href="#172-181">Config</a>&gt; common::ProgramStorageError <span class="kw">for </span><a href="#188-194">Error</a>&lt;T&gt; {
         <span class="kw">fn </span>duplicate_item() -&gt; <span class="self">Self </span>{
             <span class="self">Self</span>::DuplicateItem
         }
@@ -551,7 +557,7 @@
 
     <span class="attr">#[pallet::storage]
     #[pallet::unbounded]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.CodeStorage.html">CodeStorage</a>&lt;T: <a href="#172-178">Config</a>&gt; = StorageMap&lt;<span class="kw">_</span>, Identity, CodeId, InstrumentedCode&gt;;
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.CodeStorage.html">CodeStorage</a>&lt;T: <a href="#172-181">Config</a>&gt; = StorageMap&lt;<span class="kw">_</span>, Identity, CodeId, InstrumentedCode&gt;;
 
     <span class="macro">common::wrap_storage_map!</span>(
         storage: CodeStorage,
@@ -561,7 +567,7 @@
     );
 
     <span class="attr">#[pallet::storage]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.CodeLenStorage.html">CodeLenStorage</a>&lt;T: <a href="#172-178">Config</a>&gt; = StorageMap&lt;<span class="kw">_</span>, Identity, CodeId, <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;;
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.CodeLenStorage.html">CodeLenStorage</a>&lt;T: <a href="#172-181">Config</a>&gt; = StorageMap&lt;<span class="kw">_</span>, Identity, CodeId, <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;;
 
     <span class="macro">common::wrap_storage_map!</span>(
         storage: CodeLenStorage,
@@ -572,7 +578,7 @@
 
     <span class="attr">#[pallet::storage]
     #[pallet::unbounded]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.OriginalCodeStorage.html">OriginalCodeStorage</a>&lt;T: <a href="#172-178">Config</a>&gt; = StorageMap&lt;<span class="kw">_</span>, Identity, CodeId, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt;;
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.OriginalCodeStorage.html">OriginalCodeStorage</a>&lt;T: <a href="#172-181">Config</a>&gt; = StorageMap&lt;<span class="kw">_</span>, Identity, CodeId, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt;;
 
     <span class="macro">common::wrap_storage_map!</span>(
         storage: OriginalCodeStorage,
@@ -583,7 +589,7 @@
 
     <span class="attr">#[pallet::storage]
     #[pallet::unbounded]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.MetadataStorage.html">MetadataStorage</a>&lt;T: <a href="#172-178">Config</a>&gt; = StorageMap&lt;<span class="kw">_</span>, Identity, CodeId, CodeMetadata&gt;;
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.MetadataStorage.html">MetadataStorage</a>&lt;T: <a href="#172-181">Config</a>&gt; = StorageMap&lt;<span class="kw">_</span>, Identity, CodeId, CodeMetadata&gt;;
 
     <span class="macro">common::wrap_storage_map!</span>(
         storage: MetadataStorage,
@@ -594,7 +600,7 @@
 
     <span class="attr">#[pallet::storage]
     #[pallet::unbounded]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.AllocationsStorage.html">AllocationsStorage</a>&lt;T: <a href="#172-178">Config</a>&gt; =
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.AllocationsStorage.html">AllocationsStorage</a>&lt;T: <a href="#172-181">Config</a>&gt; =
         StorageMap&lt;<span class="kw">_</span>, Identity, ProgramId, IntervalsTree&lt;WasmPage&gt;&gt;;
 
     <span class="macro">common::wrap_storage_map!</span>(
@@ -606,7 +612,7 @@
 
     <span class="attr">#[pallet::storage]
     #[pallet::unbounded]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.ProgramStorage.html">ProgramStorage</a>&lt;T: <a href="#172-178">Config</a>&gt; =
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.ProgramStorage.html">ProgramStorage</a>&lt;T: <a href="#172-181">Config</a>&gt; =
         StorageMap&lt;<span class="kw">_</span>, Identity, ProgramId, Program&lt;BlockNumberFor&lt;T&gt;&gt;&gt;;
 
     <span class="macro">common::wrap_storage_map!</span>(
@@ -618,7 +624,7 @@
 
     <span class="attr">#[pallet::storage]
     #[pallet::unbounded]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.MemoryPages.html">MemoryPages</a>&lt;T: <a href="#172-178">Config</a>&gt; = StorageNMap&lt;
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span><a href="../../pallet_gear_program/pallet/storage_types/struct.MemoryPages.html">MemoryPages</a>&lt;T: <a href="#172-181">Config</a>&gt; = StorageNMap&lt;
         <span class="kw">_</span>,
         (
             Key&lt;Identity, ProgramId&gt;,
@@ -637,38 +643,38 @@
         value: PageBuf
     );
 
-    <span class="kw">impl</span>&lt;T: <a href="#172-178">Config</a>&gt; common::CodeStorage <span class="kw">for </span><a href="#182">pallet::Pallet</a>&lt;T&gt; {
-        <span class="kw">type </span>InstrumentedCodeStorage = <a href="#219-224">CodeStorageWrap</a>&lt;T&gt;;
-        <span class="kw">type </span>InstrumentedLenStorage = <a href="#229-234">CodeLenStorageWrap</a>&lt;T&gt;;
-        <span class="kw">type </span>MetadataStorage = <a href="#251-256">MetadataStorageWrap</a>&lt;T&gt;;
-        <span class="kw">type </span>OriginalCodeStorage = <a href="#240-245">OriginalCodeStorageWrap</a>&lt;T&gt;;
+    <span class="kw">impl</span>&lt;T: <a href="#172-181">Config</a>&gt; common::CodeStorage <span class="kw">for </span><a href="#185">pallet::Pallet</a>&lt;T&gt; {
+        <span class="kw">type </span>InstrumentedCodeStorage = <a href="#222-227">CodeStorageWrap</a>&lt;T&gt;;
+        <span class="kw">type </span>InstrumentedLenStorage = <a href="#232-237">CodeLenStorageWrap</a>&lt;T&gt;;
+        <span class="kw">type </span>MetadataStorage = <a href="#254-259">MetadataStorageWrap</a>&lt;T&gt;;
+        <span class="kw">type </span>OriginalCodeStorage = <a href="#243-248">OriginalCodeStorageWrap</a>&lt;T&gt;;
     }
 
-    <span class="kw">impl</span>&lt;T: <a href="#172-178">Config</a>&gt; common::ProgramStorage <span class="kw">for </span><a href="#182">pallet::Pallet</a>&lt;T&gt; {
-        <span class="kw">type </span>InternalError = <a href="#185-191">Error</a>&lt;T&gt;;
+    <span class="kw">impl</span>&lt;T: <a href="#172-181">Config</a>&gt; common::ProgramStorage <span class="kw">for </span><a href="#185">pallet::Pallet</a>&lt;T&gt; {
+        <span class="kw">type </span>InternalError = <a href="#188-194">Error</a>&lt;T&gt;;
         <span class="kw">type </span>Error = DispatchError;
         <span class="kw">type </span>BlockNumber = BlockNumberFor&lt;T&gt;;
         <span class="kw">type </span>AccountId = T::AccountId;
 
-        <span class="kw">type </span>AllocationsMap = <a href="#263-268">AllocationsStorageWrap</a>&lt;T&gt;;
-        <span class="kw">type </span>ProgramMap = <a href="#275-280">ProgramStorageWrap</a>&lt;T&gt;;
-        <span class="kw">type </span>MemoryPageMap = <a href="#294-301">MemoryPageStorageWrap</a>&lt;T&gt;;
+        <span class="kw">type </span>AllocationsMap = <a href="#266-271">AllocationsStorageWrap</a>&lt;T&gt;;
+        <span class="kw">type </span>ProgramMap = <a href="#278-283">ProgramStorageWrap</a>&lt;T&gt;;
+        <span class="kw">type </span>MemoryPageMap = <a href="#297-304">MemoryPageStorageWrap</a>&lt;T&gt;;
 
         <span class="kw">fn </span>pages_final_prefix() -&gt; [<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>; <span class="number">32</span>] {
-            <a href="#284-292">MemoryPages</a>::&lt;T&gt;::final_prefix()
+            <a href="#287-295">MemoryPages</a>::&lt;T&gt;::final_prefix()
         }
     }
 
-    <span class="kw">impl</span>&lt;T: <a href="#172-178">Config</a>&gt; IterableMap&lt;(ProgramId, Program&lt;BlockNumberFor&lt;T&gt;&gt;)&gt; <span class="kw">for </span><a href="#182">pallet::Pallet</a>&lt;T&gt; {
+    <span class="kw">impl</span>&lt;T: <a href="#172-181">Config</a>&gt; IterableMap&lt;(ProgramId, Program&lt;BlockNumberFor&lt;T&gt;&gt;)&gt; <span class="kw">for </span><a href="#185">pallet::Pallet</a>&lt;T&gt; {
         <span class="kw">type </span>DrainIter = PrefixIterator&lt;(ProgramId, Program&lt;BlockNumberFor&lt;T&gt;&gt;)&gt;;
         <span class="kw">type </span>Iter = PrefixIterator&lt;(ProgramId, Program&lt;BlockNumberFor&lt;T&gt;&gt;)&gt;;
 
         <span class="kw">fn </span>drain() -&gt; <span class="self">Self</span>::DrainIter {
-            <a href="#272-273">ProgramStorage</a>::&lt;T&gt;::drain()
+            <a href="#275-276">ProgramStorage</a>::&lt;T&gt;::drain()
         }
 
         <span class="kw">fn </span>iter() -&gt; <span class="self">Self</span>::Iter {
-            <a href="#272-273">ProgramStorage</a>::&lt;T&gt;::iter()
+            <a href="#275-276">ProgramStorage</a>::&lt;T&gt;::iter()
         }
     }
 }

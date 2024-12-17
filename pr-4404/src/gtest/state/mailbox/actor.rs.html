@@ -290,18 +290,18 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use crate</span>::{
-    <a href="../../log.rs.html#186-192">Log</a>, <a href="../../lib.rs.html#537">MAX_USER_GAS_LIMIT</a>, <a href="../../lib.rs.html#522">Value</a>,
     <a href="../../error.rs.html#92-98">error::usage_panic</a>,
     <a href="../../manager.rs.html#87-115">manager::ExtManager</a>,
     state::{<a href="../accounts.rs.html#75">accounts::Accounts</a>, <a href="../actors.rs.html#37">actors::Actors</a>},
+    <a href="../../log.rs.html#186-192">Log</a>, <a href="../../lib.rs.html#522">Value</a>, <a href="../../lib.rs.html#537">MAX_USER_GAS_LIMIT</a>,
 };
 <span class="kw">use </span>codec::Encode;
 <span class="kw">use </span>gear_common::{
-    auxiliary::{BlockNumber, mailbox::<span class="kw-2">*</span>},
+    auxiliary::{mailbox::<span class="kw-2">*</span>, BlockNumber},
     storage::Interval,
 };
 <span class="kw">use </span>gear_core::{
-    ids::{MessageId, ProgramId, prelude::MessageIdExt <span class="kw">as _</span>},
+    ids::{prelude::MessageIdExt <span class="kw">as _</span>, MessageId, ProgramId},
     message::{ReplyMessage, ReplyPacket},
 };
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html">std::cell::RefCell</a>;
@@ -449,7 +449,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use crate</span>::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER, Log, Program, System};
+    <span class="kw">use crate</span>::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
     <span class="kw">use </span>codec::Encode;
     <span class="kw">use </span>demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     <span class="kw">use </span>gear_core::{gas_metering::RentWeights, ids::ProgramId};
