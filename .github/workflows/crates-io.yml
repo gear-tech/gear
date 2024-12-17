@@ -26,17 +26,16 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install: Rust nightly-2024-12-14 toolchain"
-        uses: dtolnay/rust-toolchain@master
+      - name: "Install: Rust beta toolchain"
+        uses: dtolnay/rust-toolchain@beta
         with:
-          toolchain: nightly-2024-12-14
           targets: wasm32v1-none
           components: llvm-tools
 
       - name: "Publish packages (simulate)"
         if: ${{ !inputs.publish }}
-        run: cargo +nightly-2024-12-14 run --release -p crates-io publish -v ${{ inputs.version }} --simulate --registry-path /tmp/cargo-http-registry
+        run: cargo +beta run --release -p crates-io publish -v ${{ inputs.version }} --simulate --registry-path /tmp/cargo-http-registry
 
       - name: "Publish packages"
         if: ${{ inputs.publish }}
-        run: cargo +nightly-2024-12-14 run --release -p crates-io publish -v ${{ inputs.version }}
+        run: cargo +beta run --release -p crates-io publish -v ${{ inputs.version }}

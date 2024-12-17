@@ -86,21 +86,20 @@ jobs:
             exit 1
           fi
 
-      - name: "Install: Rust nightly-2024-12-14 toolchain"
-        uses: dtolnay/rust-toolchain@master
+      - name: "Install: Rust beta toolchain"
+        uses: dtolnay/rust-toolchain@beta
         with:
-          toolchain: nightly-2024-12-14
           targets: wasm32v1-none
           components: llvm-tools
 
-      - name: "Check: Compiling gstd on nightly-2024-12-14"
+      - name: "Check: Compiling gstd on beta"
         run: |
-          cargo +nightly-2024-12-14 check -p gstd --target wasm32v1-none
-          cargo +nightly-2024-12-14 check --manifest-path utils/wasm-builder/test-program/Cargo.toml
-          cargo +nightly-2024-12-14 check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
+          cargo +beta check -p gstd --target wasm32v1-none
+          cargo +beta check --manifest-path utils/wasm-builder/test-program/Cargo.toml
+          cargo +beta check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
       - name: "Check: crates-io packages publishing"
-        run: cargo +nightly-2024-12-14 run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
+        run: cargo +beta run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
   fuzzer:
     runs-on: [kuberunner, github-runner-01]

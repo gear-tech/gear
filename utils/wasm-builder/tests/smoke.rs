@@ -26,9 +26,9 @@ impl CargoRunner {
         Self(Command::new("cargo"))
     }
 
-    fn nightly() -> Self {
+    fn beta() -> Self {
         let mut cmd = Command::new("cargo");
-        cmd.arg("+nightly-2024-12-14");
+        cmd.arg("+beta");
 
         Self(cmd)
     }
@@ -49,14 +49,14 @@ impl CargoRunner {
     }
 }
 
-fn install_nightly_toolchain() {
-    static NIGHTLY_TOOLCHAIN: OnceLock<()> = OnceLock::new();
+fn install_beta_toolchain() {
+    static BETA_TOOLCHAIN: OnceLock<()> = OnceLock::new();
 
-    NIGHTLY_TOOLCHAIN.get_or_init(|| {
+    BETA_TOOLCHAIN.get_or_init(|| {
         let status = Command::new("rustup")
             .arg("toolchain")
             .arg("install")
-            .arg("nightly-2024-12-14")
+            .arg("beta")
             .arg("--component")
             .arg("llvm-tools")
             .arg("--target")
@@ -70,37 +70,37 @@ fn install_nightly_toolchain() {
 #[ignore]
 #[test]
 fn test_debug() {
-    install_nightly_toolchain();
+    install_beta_toolchain();
 
     CargoRunner::new().args(["test"]).run();
-    CargoRunner::nightly().args(["test"]).run();
+    CargoRunner::beta().args(["test"]).run();
 }
 
 #[ignore]
 #[test]
 fn build_debug() {
-    install_nightly_toolchain();
+    install_beta_toolchain();
 
     CargoRunner::new().args(["build"]).run();
-    CargoRunner::nightly().args(["build"]).run();
+    CargoRunner::beta().args(["build"]).run();
 }
 
 #[ignore]
 #[test]
 fn test_release() {
-    install_nightly_toolchain();
+    install_beta_toolchain();
 
     CargoRunner::new().args(["test", "--release"]).run();
-    CargoRunner::nightly().args(["test", "--release"]).run();
+    CargoRunner::beta().args(["test", "--release"]).run();
 }
 
 #[ignore]
 #[test]
 fn build_release() {
-    install_nightly_toolchain();
+    install_beta_toolchain();
 
     CargoRunner::new().args(["build", "--release"]).run();
-    CargoRunner::nightly().args(["build", "--release"]).run();
+    CargoRunner::beta().args(["build", "--release"]).run();
 }
 
 #[test]

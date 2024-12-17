@@ -74,12 +74,12 @@ fn test_compile() -> Result<()> {
 
 #[test]
 fn test_program_tests() {
-    // NOTE: workaround for installing nightly-2024-12-14 toolchain if not exist
+    // NOTE: workaround for installing beta toolchain if not exist
     // This is momently only for adapting the environment (nightly)
     // of our CI.
     {
         let targets = Command::new("rustup")
-            .args(["target", "list", "--toolchain", "nightly-2024-12-14"])
+            .args(["target", "list", "--toolchain", "beta"])
             .output()
             .expect("Failed to list rust toolchains")
             .stdout;
@@ -89,26 +89,21 @@ fn test_program_tests() {
                 .args([
                     "toolchain",
                     "install",
-                    "nightly-2024-12-14",
+                    "beta",
                     "--component",
                     "llvm-tools",
                     "--target",
                     "wasm32v1-none",
                 ])
                 .status()
-                .expect("Failed to install nightly-2024-12-14 toolchain")
+                .expect("Failed to install beta toolchain")
                 .success());
         }
     }
 
     assert!(Command::new("cargo")
         .current_dir("test-program")
-        .args([
-            "+nightly-2024-12-14",
-            "test",
-            "--manifest-path",
-            "Cargo.toml"
-        ])
+        .args(["+beta", "test", "--manifest-path", "Cargo.toml"])
         .status()
         .expect("Failed to run the tests of cargo-gbuild/test-program")
         .success());
