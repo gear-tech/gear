@@ -5,7 +5,7 @@ This library allows to allocate N bytes on the stack and then pass uninitialized
 ### Contents of this directory
 
 - [`alloca.c`](alloca.c) - library source code
-- [`libcalloca.a`](libcalloca.a) - pre-built static library for the `wasm32v1-none` target
+- [`libcalloca.a`](libcalloca.a) - pre-built static library for the `wasm32-unknown-unknown` target
 
 ### Compiling vs pre-built library
 

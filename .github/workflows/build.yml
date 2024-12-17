@@ -167,7 +167,7 @@ jobs:
         if: ${{ inputs.production && matrix.profiles.name == 'release' }}
         run: |
           mkdir -p artifact
-          tar czvf artifact/examples.tar.gz target/wasm32v1-none/release/*.wasm
+          tar czvf artifact/examples.tar.gz target/wasm32-unknown-unknown/release/*.wasm
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
