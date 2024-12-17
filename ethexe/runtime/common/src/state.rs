@@ -899,6 +899,8 @@ impl IndexMut<RegionIdx> for MemoryPages {
     }
 }
 
+/// An inner structure for [`MemoryPages`]. Has at most 256 entries because
+/// [`RegionIdx`] is `u8` internally.
 pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; 256];
 
 impl MemoryPages {
