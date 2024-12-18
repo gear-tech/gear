@@ -161,8 +161,6 @@ mod reservations;
 pub mod sync;
 pub mod util;
 
-pub mod primitives;
-
 pub use async_runtime::{handle_reply_with_hook, message_loop};
 pub use common::errors;
 pub use config::{Config, SYSTEM_RESERVE};
