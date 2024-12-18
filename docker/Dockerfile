@@ -32,7 +32,8 @@ COPY . /gear
 WORKDIR /gear
 
 RUN rustup toolchain install $TOOLCHAIN && \
-    rustup target add wasm32-unknown-unknown --toolchain $TOOLCHAIN
+    rustup target add wasm32-unknown-unknown --toolchain $TOOLCHAIN && \
+    rustup target add wasm32v1-none --toolchain $TOOLCHAIN
 
 RUN cargo build -p gear-cli --profile $PROFILE
 
