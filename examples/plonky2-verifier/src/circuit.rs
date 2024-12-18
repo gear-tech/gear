@@ -18,7 +18,7 @@
 
 //! Circuit config for a custom `Goldilocks` field implementation from `gstd`.
 
-use gstd::primitives::goldilocks_field::GoldilocksFieldWrapper;
+use super::goldilocks_field::GoldilocksFieldWrapper;
 use plonky2::{hash::poseidon::PoseidonHash, plonk::config::GenericConfig};
 use plonky2_field::extension::quadratic::QuadraticExtension;
 
