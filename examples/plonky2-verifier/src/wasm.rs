@@ -24,9 +24,10 @@
 //!   The output message would either contain "Success" (as a byte array) or an error message.
 
 use super::{
-    circuit::CustomPoseidonGoldilocksConfig as Config, serialize::parse_circuit_data_and_proof,
+    circuit::CustomPoseidonGoldilocksConfig as Config,
+    goldilocks_field::GoldilocksFieldWrapper as GF, serialize::parse_circuit_data_and_proof,
 };
-use gstd::{debug, msg, primitives::goldilocks_field::GoldilocksFieldWrapper as GF};
+use gstd::{debug, msg};
 
 #[gstd::async_main]
 async fn main() {

@@ -37,3 +37,6 @@ pub mod serialize;
 
 #[cfg(not(feature = "std"))]
 pub mod circuit;
+
+#[cfg(not(feature = "std"))]
+pub mod goldilocks_field;

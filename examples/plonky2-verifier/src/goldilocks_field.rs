@@ -404,12 +404,10 @@ impl Poseidon for GoldilocksFieldWrapper {
 
     #[inline]
     fn poseidon(input: [Self; 12]) -> [Self; 12] {
-        // Using the fact that `GoldilocksFieldWrapper` is essentially a newtype around
-        // `u64`.
+        // Using the fact that `GoldilocksFieldWrapper` is a newtype around `u64`.
         let data: [u64; 12] = unsafe { core::mem::transmute(input) };
 
-        // Using proper type conversion because not every u64 number is a valid field
-        // element.
+        // Using proper conversion because not every u64 number is a valid field element.
         exec::permute(data)
             .expect("Error in permute")
             .map(Field::from_canonical_u64)

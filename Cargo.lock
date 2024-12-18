@@ -3633,10 +3633,13 @@ dependencies = [
 name = "demo-plonky2-verifier"
 version = "0.1.0"
 dependencies = [
+ "gcore",
  "gear-wasm-builder",
  "gstd",
+ "num",
  "plonky2",
  "plonky2_field",
+ "serde",
 ]
 
 [[package]]
@@ -6989,12 +6992,8 @@ dependencies = [
  "gstd-codegen",
  "hashbrown 0.14.5",
  "hex",
- "num",
  "parity-scale-codec",
- "plonky2",
- "plonky2_field",
  "scale-info",
- "serde",
  "waker-fn",
 ]
 
