@@ -16,10 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{decode_log, IRouter};
+use crate::{abi::utils::bytes32_to_h256, decode_log, IRouter};
 use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
 use anyhow::{anyhow, Result};
 use ethexe_common::events::{RouterEvent, RouterRequestEvent};
+use gprimitives::H256;
 use signatures::*;
 
 pub mod signatures {
@@ -33,7 +34,7 @@ pub mod signatures {
         COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
         PROGRAM_CREATED: ProgramCreated,
         STORAGE_SLOT_CHANGED: StorageSlotChanged,
-        VALIDATORS_CHANGED: ValidatorsChanged,
+        NEXT_ERA_VALIDATORS_COMMITTED: NextEraValidatorsCommitted,
     }
 
     pub const REQUESTS: &[B256] = &[
@@ -41,7 +42,7 @@ pub mod signatures {
         COMPUTATION_SETTINGS_CHANGED,
         PROGRAM_CREATED,
         STORAGE_SLOT_CHANGED,
-        VALIDATORS_CHANGED,
+        NEXT_ERA_VALIDATORS_COMMITTED,
     ];
 }
 
@@ -71,7 +72,9 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
         }
         PROGRAM_CREATED => decode_log::<IRouter::ProgramCreated>(log)?.into(),
         STORAGE_SLOT_CHANGED => decode_log::<IRouter::StorageSlotChanged>(log)?.into(),
-        VALIDATORS_CHANGED => decode_log::<IRouter::ValidatorsChanged>(log)?.into(),
+        NEXT_ERA_VALIDATORS_COMMITTED => {
+            decode_log::<IRouter::NextEraValidatorsCommitted>(log)?.into()
+        }
         _ => unreachable!("filtered above"),
     };
 
@@ -88,4 +91,14 @@ pub fn try_extract_request_event(log: &Log) -> Result<Option<RouterRequestEvent>
         .expect("filtered above");
 
     Ok(Some(request_event))
+}
+
+pub fn try_extract_committed_block_hash(log: &Log) -> Result<Option<H256>> {
+    if log.topic0() != Some(&BLOCK_COMMITTED) {
+        return Ok(None);
+    }
+
+    decode_log::<IRouter::BlockCommitted>(log)
+        .map(|e| Some(bytes32_to_h256(e.hash)))
+        .map_err(Into::into)
 }

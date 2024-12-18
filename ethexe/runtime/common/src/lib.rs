@@ -22,7 +22,7 @@
 
 extern crate alloc;
 
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
@@ -31,14 +31,12 @@ use core_processor::{
 use gear_core::{
     code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     ids::ProgramId,
-    memory::PageBuf,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
-    pages::GearPage,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::CodeId;
 use gsys::{GasMultiplier, Percent};
-use state::{Dispatch, HashOf, ProgramState, Storage};
+use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
 pub use journal::Handler as JournalHandler;
@@ -59,7 +57,7 @@ pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
 
     fn block_info(&self) -> BlockInfo;
-    fn init_lazy_pages(&self, pages_map: BTreeMap<GearPage, HashOf<PageBuf>>);
+    fn init_lazy_pages(&self);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn storage(&self) -> &S;
 }
@@ -236,11 +234,6 @@ where
         Err(journal) => return journal,
     };
 
-    let pages_map = active_state.pages_hash.with_hash_or_default(|hash| {
-        ri.storage()
-            .read_pages(hash)
-            .expect("Cannot get memory pages")
-    });
     let actor_data = ExecutableActorData {
         allocations: allocations.into(),
         code_id,
@@ -271,7 +264,7 @@ where
 
     let random_data = ri.random_data();
 
-    ri.init_lazy_pages(pages_map.into());
+    ri.init_lazy_pages();
 
     core_processor::process::<Ext<RI::LazyPages>>(&block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))
