@@ -18,25 +18,14 @@ derive_more.workspace = true
 enum-iterator.workspace = true
 wasmparser.workspace = true
 wasm-encoder = { version = "0.220.0", features = ["wasmparser"] }
-bumpalo = "3.16.0"
-
-# TODO: move in a proper place
-# parity-wasm
-parity-wasm = { workspace = true, features = ["sign_ext", "multi_value"] }
-# parity-wasm
-gear-wasm = { version = "0.45.1", default-features = false, features = ["sign_ext", "multi_value"] }
 
 [dev-dependencies]
 wat.workspace = true
-rand.workspace = true
+rand = { workspace = true, features = ["std", "std_rng"] }
 binaryen = "0.12"
 diff = "0.1.13"
 wasmprinter.workspace = true
 
 [features]
 default = ["std"]
-std = [
-    "gwasm-instrument/std",
-    "wasmparser/std",
-    "gear-wasm/std",
-]
+std = ["wasmparser/std"]

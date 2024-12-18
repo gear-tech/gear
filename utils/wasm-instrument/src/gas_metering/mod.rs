@@ -843,13 +843,13 @@ mod tests {
 
         assert_eq!(
             get_function_body(&injected_module, 0).unwrap(),
-            &vec![
+            [
                 I32Const { value: 2 },
                 Call { function_index: 0 },
                 GlobalGet { global_index: 0 },
                 MemoryGrow { mem: 0 },
                 End
-            ][..]
+            ]
         );
 
         assert_eq!(injected_module.functions_space(), 2);
