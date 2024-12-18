@@ -312,7 +312,7 @@
 <span class="kw">mod </span><a href="crate_info.rs.html#19-124">crate_info</a>;
 <span class="kw">mod </span><a href="multiple_crate_versions.rs.html#1-71">multiple_crate_versions</a>;
 <span class="kw">mod </span><a href="smart_fs.rs.html#19-97">smart_fs</a>;
-<span class="kw">mod </span><a href="wasm_project.rs.html#19-594">wasm_project</a>;
+<span class="kw">mod </span><a href="wasm_project.rs.html#19-595">wasm_project</a>;
 
 <span class="kw">pub const </span><a href="../../gear_wasm_builder/constant.TARGET.html">TARGET</a>: <span class="kw-2">&amp;</span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.env.html">env!</a>(<span class="string">"TARGET"</span>);
 
@@ -384,7 +384,7 @@
     /// if the build was successful.
     </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>, <a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>)&gt; {
         <span class="kw">if </span>env::var(<span class="string">"__GEAR_WASM_BUILDER_NO_BUILD"</span>).is_ok() || is_intellij_sync() {
-            <span class="kw">_ </span>= <a class="self" href="#107">self</a>.wasm_project.<a href="wasm_project.rs.html#563-587">provide_dummy_wasm_binary_if_not_exist</a>();
+            <span class="kw">_ </span>= <a class="self" href="#107">self</a>.wasm_project.<a href="wasm_project.rs.html#564-588">provide_dummy_wasm_binary_if_not_exist</a>();
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
@@ -412,7 +412,7 @@
         <a class="self" href="#125">self</a>.cargo.set_features(<span class="kw-2">&amp;</span><a class="self" href="#125">self</a>.<a href="#146-202">enabled_features</a>()<span class="question-mark">?</span>);
 
         <a class="self" href="#125">self</a>.cargo.run()<span class="question-mark">?</span>;
-        <a class="self" href="#125">self</a>.wasm_project.<a href="wasm_project.rs.html#436-529">postprocess</a>()
+        <a class="self" href="#125">self</a>.wasm_project.<a href="wasm_project.rs.html#436-530">postprocess</a>()
     }
 
     <span class="kw">fn </span>manifest_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt; {

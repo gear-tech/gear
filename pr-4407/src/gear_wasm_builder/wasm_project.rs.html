@@ -592,7 +592,8 @@
 <a href="#591" id="591">591</a>
 <a href="#592" id="592">592</a>
 <a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -1033,9 +1034,10 @@ extern "C" fn metahash() {{
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.as_ref">as_ref</a>()
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.expect">expect</a>(<span class="string">"Run `WasmProject::generate()` first"</span>);
 
-        <span class="kw">let </span>original_wasm_path = <span class="self"><a href="#436">self</a>
-            </span>.target_dir
-            .<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.join">join</a>(<a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"{}/wasms/{file_base_name}.wasm"</span>, <span class="self">self</span>.profile));
+        <span class="kw">let </span>original_wasm_path = <a class="self" href="#436">self</a>.target_dir.<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.join">join</a>(<a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
+            <span class="string">"wasm32v1-none/{}/{file_base_name}.wasm"</span>,
+            <span class="self">self</span>.profile
+        ));
 
         <a href="https://doc.rust-lang.org/nightly/std/fs/fn.create_dir_all.html">fs::create_dir_all</a>(<span class="kw-2">&amp;</span><a class="self" href="#436">self</a>.target_dir).<a href="https://docs.rs/anyhow/1.0.85/anyhow/trait.Context.html#tymethod.context">context</a>(<span class="string">"Failed to create target directory"</span>)<span class="question-mark">?</span>;
 
@@ -1117,37 +1119,37 @@ extern "C" fn metahash() {{
         }
 
         <span class="kw">if </span>env::var(<span class="string">"__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING"</span>).is_err() {
-            <a class="self" href="#436">self</a>.<a href="#554-560">force_rerun_on_next_run</a>(<span class="kw-2">&amp;</span><a href="#442">original_wasm_path</a>)<span class="question-mark">?</span>;
+            <a class="self" href="#436">self</a>.<a href="#555-561">force_rerun_on_next_run</a>(<span class="kw-2">&amp;</span><a href="#442">original_wasm_path</a>)<span class="question-mark">?</span>;
         }
-        <span class="prelude-val">Ok</span>(<a href="#504">wasm_paths</a>)
+        <span class="prelude-val">Ok</span>(<a href="#505">wasm_paths</a>)
     }
 
     <span class="kw">fn </span>get_exports(file: <span class="kw-2">&amp;</span><a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt;&gt; {
         <span class="kw">let </span>module =
-            parity_wasm::deserialize_file(<a href="#531">file</a>).<a href="https://docs.rs/anyhow/1.0.85/anyhow/trait.Context.html#tymethod.with_context">with_context</a>(|| <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"File path: {file:?}"</span>))<span class="question-mark">?</span>;
+            parity_wasm::deserialize_file(<a href="#532">file</a>).<a href="https://docs.rs/anyhow/1.0.85/anyhow/trait.Context.html#tymethod.with_context">with_context</a>(|| <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"File path: {file:?}"</span>))<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>exports = <a href="#532">module</a>
+        <span class="kw">let </span>exports = <a href="#533">module</a>
             .export_section()
             .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or_else">ok_or_else</a>(|| <a class="macro" href="https://docs.rs/anyhow/1.0.85/anyhow/macro.anyhow.html">anyhow!</a>(<span class="string">"Export section not found"</span>))<span class="question-mark">?
             </span>.entries()
             .<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.iter">iter</a>()
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.flat_map">flat_map</a>(|entry| {
-                <span class="kw">if let </span>Internal::Function(<span class="kw">_</span>) = <a href="#540">entry</a>.internal() {
-                    <span class="prelude-val">Some</span>(<a href="#540">entry</a>.field().<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>())
+                <span class="kw">if let </span>Internal::Function(<span class="kw">_</span>) = <a href="#541">entry</a>.internal() {
+                    <span class="prelude-val">Some</span>(<a href="#541">entry</a>.field().<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>())
                 } <span class="kw">else </span>{
                     <span class="prelude-val">None
                 </span>}
             })
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.collect">collect</a>();
 
-        <span class="prelude-val">Ok</span>(<a href="#535">exports</a>)
+        <span class="prelude-val">Ok</span>(<a href="#536">exports</a>)
     }
 
     <span class="comment">// Force cargo to re-run the build script next time it is invoked.
     // It is needed because feature set or toolchain can change.
     </span><span class="kw">fn </span>force_rerun_on_next_run(<span class="kw-2">&amp;</span><span class="self">self</span>, wasm_file_path: <span class="kw-2">&amp;</span><a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html">Path</a>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;()&gt; {
-        <span class="kw">let </span>stamp_file_path = <a href="#554">wasm_file_path</a>.<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.with_extension">with_extension</a>(<span class="string">"stamp"</span>);
-        <a href="https://doc.rust-lang.org/nightly/std/fs/fn.write.html">fs::write</a>(<span class="kw-2">&amp;</span><a href="#555">stamp_file_path</a>, <a href="https://docs.rs/chrono/latest/chrono/offset/local/struct.Local.html#method.now">ChronoLocal::now</a>().<a href="https://docs.rs/chrono/latest/chrono/datetime/struct.DateTime.html#method.to_rfc3339">to_rfc3339</a>())
+        <span class="kw">let </span>stamp_file_path = <a href="#555">wasm_file_path</a>.<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.with_extension">with_extension</a>(<span class="string">"stamp"</span>);
+        <a href="https://doc.rust-lang.org/nightly/std/fs/fn.write.html">fs::write</a>(<span class="kw-2">&amp;</span><a href="#556">stamp_file_path</a>, <a href="https://docs.rs/chrono/latest/chrono/offset/local/struct.Local.html#method.now">ChronoLocal::now</a>().<a href="https://docs.rs/chrono/latest/chrono/datetime/struct.DateTime.html#method.to_rfc3339">to_rfc3339</a>())
             .<a href="https://docs.rs/anyhow/1.0.85/anyhow/trait.Context.html#tymethod.context">context</a>(<span class="string">"Failed to write stamp file"</span>)<span class="question-mark">?</span>;
         <a class="macro" href="https://doc.rust-lang.org/nightly/std/macro.println.html">println!</a>(<span class="string">"cargo:rerun-if-changed={}"</span>, stamp_file_path.display());
         <span class="prelude-val">Ok</span>(())
@@ -1155,9 +1157,9 @@ extern "C" fn metahash() {{
 
     <span class="doccomment">/// Provide a dummy WASM binary if there doesn't exist one.
     </span><span class="kw">pub fn </span>provide_dummy_wasm_binary_if_not_exist(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a> {
-        <span class="kw">let </span>wasm_binary_rs = <a class="self" href="#563">self</a>.out_dir.<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.join">join</a>(<span class="string">"wasm_binary.rs"</span>);
+        <span class="kw">let </span>wasm_binary_rs = <a class="self" href="#564">self</a>.out_dir.<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.join">join</a>(<span class="string">"wasm_binary.rs"</span>);
         <span class="kw">if </span>wasm_binary_rs.exists() {
-            <span class="kw">return </span><a href="#564">wasm_binary_rs</a>;
+            <span class="kw">return </span><a href="#565">wasm_binary_rs</a>;
         }
 
         <span class="kw">let </span>content = <span class="kw">if </span>!<span class="self">self</span>.project_type.is_metawasm() {
@@ -1174,16 +1176,16 @@ extern "C" fn metahash() {{
     pub const WASM_EXPORTS: &amp;[&amp;str] = &amp;[];
     "#
         </span>};
-        <span class="kw">let </span>path = <a href="#564">wasm_binary_rs</a>.<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html#method.as_path">as_path</a>();
-        <a href="https://doc.rust-lang.org/nightly/std/fs/fn.write.html">fs::write</a>(<a href="#583">path</a>, <a href="#569">content</a>)
+        <span class="kw">let </span>path = <a href="#565">wasm_binary_rs</a>.<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html#method.as_path">as_path</a>();
+        <a href="https://doc.rust-lang.org/nightly/std/fs/fn.write.html">fs::write</a>(<a href="#584">path</a>, <a href="#570">content</a>)
             .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|<span class="kw">_</span>| <a class="macro" href="https://doc.rust-lang.org/nightly/std/macro.panic.html">panic!</a>(<span class="string">"Writing `{}` should not fail!"</span>, display_path(path)));
-        <a href="#564">wasm_binary_rs</a>
+        <a href="#565">wasm_binary_rs</a>
     }
 }
 
 <span class="comment">// Windows has path like `path\to\somewhere` which is incorrect for `include_*`
 // Rust's macros
 </span><span class="kw">fn </span>display_path&lt;P: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html">AsRef</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html">Path</a>&gt;&gt;(path: P) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a> {
-    <a href="#592">path</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html#tymethod.as_ref">as_ref</a>().<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.display">display</a>().<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>().<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.str.html#method.replace">replace</a>(<span class="string">'\\'</span>, <span class="string">"/"</span>)
+    <a href="#593">path</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html#tymethod.as_ref">as_ref</a>().<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.display">display</a>().<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>().<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.str.html#method.replace">replace</a>(<span class="string">'\\'</span>, <span class="string">"/"</span>)
 }
 </code></pre></div></section></main></body></html>
