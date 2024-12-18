@@ -21,7 +21,7 @@ use std::sync::LazyLock;
 
 /// target path from the root workspace
 const TARGET: &str = "target";
-const WASM_TARGET: &str = "target/wasm32-unknown-unknown";
+const WASM_TARGET: &str = "wasms";
 
 static ROOT: LazyLock<String> = LazyLock::new(|| env!("CARGO_MANIFEST_DIR").to_owned() + "/../");
 pub static PROFILE: &str = if cfg!(debug_assertions) {
@@ -31,15 +31,12 @@ pub static PROFILE: &str = if cfg!(debug_assertions) {
 };
 
 fn bin_path(name: &str, profile: &str, wasm: bool) -> String {
-    ROOT.clone()
-        + &[
-            if wasm { WASM_TARGET } else { TARGET },
-            "/",
-            profile,
-            "/",
-            name,
-        ]
-        .concat()
+    let root = ROOT;
+    if wasm {
+        format!("{TARGET}/{profile}/{WASM_TARGET}/{name}")
+    } else {
+        format!("{TARGET}/{profile}/{name}")
+    }
 }
 
 /// path of gear node binary

@@ -29,8 +29,8 @@ jobs:
       - name: "Install: Rust beta toolchain"
         uses: dtolnay/rust-toolchain@beta
         with:
-          targets: wasm32-unknown-unknown
-          components: llvm-tools, rust-src
+          targets: wasm32v1-none
+          components: llvm-tools
 
       - name: "Publish packages (simulate)"
         if: ${{ !inputs.publish }}

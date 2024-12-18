@@ -94,16 +94,11 @@ impl Toolchain {
             self.raw_toolchain_str() == toolchain,
             anyhow!(
                 "recommended toolchain `{x}` not found, install it using the command:\n\
-        rustup toolchain install {x} --component llvm-tools --target wasm32-unknown-unknown\n\n\
+        rustup toolchain install {x} --component llvm-tools --target wasm32v1-none\n\n\
         after installation, do not forget to set `channel = \"{x}\"` in `rust-toolchain.toml` file",
                 x = toolchain
             )
         );
         Ok(())
-    }
-
-    /// Returns bool representing nightly toolchain.
-    pub fn is_nightly(&self) -> bool {
-        self.0.starts_with("nightly")
     }
 }

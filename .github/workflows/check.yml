@@ -89,14 +89,14 @@ jobs:
       - name: "Install: Rust beta toolchain"
         uses: dtolnay/rust-toolchain@beta
         with:
-          targets: wasm32-unknown-unknown
-          components: llvm-tools, rust-src
+          targets: wasm32v1-none
+          components: llvm-tools
 
       - name: "Check: Compiling gstd on beta"
         run: |
-          cargo +beta check -p gstd --target wasm32-unknown-unknown
+          cargo +beta check -p gstd --target wasm32v1-none
           cargo +beta check --manifest-path utils/wasm-builder/test-program/Cargo.toml
-          cargo +beta check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32-unknown-unknown
+          cargo +beta check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
       - name: "Check: crates-io packages publishing"
         run: cargo +beta run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry

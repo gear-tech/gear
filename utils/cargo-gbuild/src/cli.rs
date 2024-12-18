@@ -112,10 +112,12 @@ impl GBuild {
             kargo.set_profile(profile);
         }
 
+        // TODO: not sure how to set target dir here
+
         // 2. setup gbuild artifacts.
         let artifacts = Artifacts::new(
             target_dir.join(ARTIFACT_DIR),
-            target_dir.join("wasm32-unknown-unknown").join(artifact),
+            target_dir.join("wasm32v1-none").join(artifact),
             metadata,
             kargo,
         )?;
