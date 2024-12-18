@@ -439,9 +439,10 @@ extern "C" fn metahash() {{
             .as_ref()
             .expect("Run `WasmProject::generate()` first");
 
-        let original_wasm_path = self
-            .target_dir
-            .join(format!("{}/wasms/{file_base_name}.wasm", self.profile));
+        let original_wasm_path = self.target_dir.join(format!(
+            "wasm32v1-none/{}/{file_base_name}.wasm",
+            self.profile
+        ));
 
         fs::create_dir_all(&self.target_dir).context("Failed to create target directory")?;
 
