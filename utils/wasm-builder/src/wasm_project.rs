@@ -127,8 +127,8 @@ impl WasmProject {
             .expect("Could not find target directory");
 
         let mut wasm_target_dir = target_dir.clone();
-        wasm_target_dir.push("wasm32-unknown-unknown");
         wasm_target_dir.push(&profile);
+        wasm_target_dir.push("wasms");
 
         target_dir.push("wasm-projects");
         target_dir.push(&profile);
