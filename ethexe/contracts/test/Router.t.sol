@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Gear} from "../src/libraries/Gear.sol";
+import {IMiddleware} from "./../src/IMiddleware.sol";
 import {Base} from "./Base.t.sol";
 
 contract RouterTest is Base {
@@ -31,6 +32,7 @@ contract RouterTest is Base {
         maxValidators = 3;
 
         setUpWrappedVara();
+        setUpMiddleware();
 
         validators.push(alicePublic);
         validators.push(bobPublic);
