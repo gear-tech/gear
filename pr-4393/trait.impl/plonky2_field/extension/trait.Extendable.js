@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"gstd":[["impl Extendable&lt;2&gt; for <a class=\"struct\" href=\"gstd/primitives/goldilocks_field/struct.GoldilocksFieldWrapper.html\" title=\"struct gstd::primitives::goldilocks_field::GoldilocksFieldWrapper\">GoldilocksFieldWrapper</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

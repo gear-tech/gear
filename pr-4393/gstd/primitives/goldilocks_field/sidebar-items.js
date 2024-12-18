@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["D"],"struct":["GoldilocksFieldWrapper"],"type":["PoseidonInOut"]};
