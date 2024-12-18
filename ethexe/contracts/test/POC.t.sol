@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import {console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "forge-std/Test.sol";
+
+import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
 
 import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
@@ -15,8 +18,10 @@ import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.s
 
 import {Gear} from "../src/libraries/Gear.sol";
 import {Base} from "./Base.t.sol";
+import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 import {IMirror} from "../src/Mirror.sol";
 import {IRouter} from "../src/IRouter.sol";
+import {IMiddleware} from "./../src/IMiddleware.sol";
 
 contract POCTest is Base {
     using MessageHashUtils for address;
@@ -24,6 +29,7 @@ contract POCTest is Base {
 
     EnumerableMap.AddressToUintMap private operators;
     address[] private vaults;
+    POCBaseTest private sym;
 
     function setUp() public override {
         admin = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
@@ -49,13 +55,15 @@ contract POCTest is Base {
         setUpRouter(_validators);
 
         // Change slash requester and executor to router
-        // Note: just to check that it is possible to change them for now and do not affect the poc test
         vm.startPrank(admin);
         {
             middleware.changeSlashRequester(address(router));
             middleware.changeSlashExecutor(address(router));
         }
         vm.stopPrank();
+
+        // For understanding where symbiotic ecosystem is using
+        sym = POCBaseTest(address(this));
     }
 
     function test_POC() public {
@@ -221,5 +229,58 @@ contract POCTest is Base {
                 _transitions // commitment transitions
             )
         );
+    }
+
+    function vetoDeadline(address slasher, uint256 slash_index) private view returns (uint48) {
+        (, address operator,,, uint48 _vetoDeadline,) = IVetoSlasher(slasher).slashRequests(slash_index);
+        console.log("operator:", operator, _vetoDeadline);
+        return _vetoDeadline;
+    }
+
+    function test_requestAndExecuteSlashCommitment() public {
+        address operator1 = address(0x1);
+        uint256 stake1 = 1_000;
+        address vault1 = createOperatorWithStake(operator1, stake1);
+
+        // Calculate the current era and increment for next era
+        uint256 currentEraIndex = (block.timestamp - router.genesisTimestamp()) / eraDuration;
+        uint256 nextEraIndex = currentEraIndex + 1;
+
+        // Move to the election period for the next era
+        uint256 nextEraStart = router.genesisTimestamp() + eraDuration * nextEraIndex;
+        vm.warp(nextEraStart);
+
+        address[] memory _validators = router.validators();
+        uint256[] memory _privateKeys = new uint256[](_validators.length);
+        for (uint256 i = 0; i < _validators.length; i++) {
+            address _operator = _validators[i];
+            _privateKeys[i] = operators.get(_operator);
+        }
+
+        // Set up slash request commitment
+        IMiddleware.VaultSlashData[] memory vaultData = new IMiddleware.VaultSlashData[](1);
+        vaultData[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 500});
+
+        IMiddleware.SlashData[] memory slashDataArray = new IMiddleware.SlashData[](1);
+        slashDataArray[0] =
+            IMiddleware.SlashData({operator: operator1, ts: uint48(block.timestamp - 1), vaults: vaultData});
+
+        Gear.RequestSlashCommitment memory requestCommitment =
+            Gear.RequestSlashCommitment({eraIndex: nextEraIndex, slashes: slashDataArray});
+
+        commitRequestSlash(_privateKeys, requestCommitment);
+
+        uint48 _vetoDeadline = vetoDeadline(IVault(vault1).slasher(), 0);
+
+        vm.warp(_vetoDeadline);
+
+        // Execute Slash Commitment
+        IMiddleware.SlashIdentifier[] memory slashIdArray = new IMiddleware.SlashIdentifier[](1);
+        slashIdArray[0] = IMiddleware.SlashIdentifier({vault: vault1, index: 0});
+
+        Gear.ExecuteSlashCommitment memory executeCommitment =
+            Gear.ExecuteSlashCommitment({eraIndex: nextEraIndex, slashIdentifiers: slashIdArray});
+
+        commitExecuteSlash(_privateKeys, executeCommitment);
     }
 }
