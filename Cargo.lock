@@ -4801,6 +4801,7 @@ name = "ethexe-tx-pool"
 version = "1.7.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "ethexe-db",
  "ethexe-signer",
  "gprimitives",

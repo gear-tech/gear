@@ -20,6 +20,7 @@
 
 mod service;
 mod transaction;
+mod validation;
 
 #[cfg(test)]
 mod tests;
@@ -28,78 +29,20 @@ pub use service::{
     new, InputTask, OutputTask, TxPoolInputTaskSender, TxPoolInstantiationArtifacts,
     TxPoolOutputTaskReceiver, TxPoolService,
 };
-pub use transaction::{EthexeTransaction, Transaction};
+pub use transaction::{
+    EthexeTransaction, RawEthexeTransacton, SignedEthexeTransaction, Transaction, TxHashBlake2b256,
+    TxReferenceBlockHash, TxSignature,
+};
 
-use anyhow::Result;
-use ethexe_db::Database;
-use parity_scale_codec::Encode;
-use std::marker::PhantomData;
+use service::TxPoolOutputTaskSender;
+use validation::{TxValidator, TxValidatorFinishResult};
 
-/// Transaction pool with a [`EthexeTransaction`] transaction type.
-pub type StandardTxPool = TxPoolCore<EthexeTransaction>;
 /// Transaction pool service with a [`EthexeTransaction`] transaction type and a [`StandardTxPool`] as a transaction pool.
-pub type StandardTxPoolService = TxPoolService<EthexeTransaction, StandardTxPool>;
+pub type StandardTxPoolService = TxPoolService<SignedEthexeTransaction>;
 /// Transaction pool input task sender with a [`EthexeTransaction`] transaction type.
-pub type StandardInputTaskSender = TxPoolInputTaskSender<EthexeTransaction>;
+pub type StandardInputTaskSender = TxPoolInputTaskSender<SignedEthexeTransaction>;
 /// Transaction pool output task receiver with a [`EthexeTransaction`] transaction type.
-pub type StandardOutputTaskReceiver = TxPoolOutputTaskReceiver<EthexeTransaction>;
+pub type StandardOutputTaskReceiver = TxPoolOutputTaskReceiver<SignedEthexeTransaction>;
 /// Transaction pool instantiation artifacts with a [`EthexeTransaction`] transaction type and a [`StandardTxPool`] as a transaction pool.
 pub type StandardTxPoolInstantiationArtifacts =
-    TxPoolInstantiationArtifacts<EthexeTransaction, StandardTxPool>;
-
-/// Transaction pool trait.
-pub trait TxPoolTrait {
-    /// Transaction type.
-    type Transaction: Transaction;
-
-    /// Add transaction to the pool.
-    fn add_transaction(&self, transaction: Self::Transaction) -> Result<()>;
-}
-
-impl TxPoolTrait for () {
-    type Transaction = ();
-
-    fn add_transaction(&self, _transaction: Self::Transaction) -> Result<()> {
-        Ok(())
-    }
-}
-
-pub struct TxPoolCore<Tx> {
-    db: Database,
-    _phantom: PhantomData<Tx>,
-}
-
-impl<Tx> TxPoolCore<Tx> {
-    pub fn new(db: Database) -> Self {
-        Self {
-            db,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<Tx> TxPoolTrait for TxPoolCore<Tx>
-where
-    Tx: Transaction + Encode,
-    Tx::Error: Into<anyhow::Error>,
-{
-    type Transaction = Tx;
-
-    fn add_transaction(&self, transaction: Self::Transaction) -> Result<()> {
-        let tx_bytes = transaction.encode();
-        let tx_hash = transaction.tx_hash();
-
-        if self.db.validated_transaction(tx_hash).is_none() {
-            transaction.validate().map_err(Into::into)?;
-            self.db.set_validated_transaction(tx_hash, tx_bytes);
-        }
-
-        Ok(())
-    }
-}
-
-impl<Tx> From<(Database,)> for TxPoolCore<Tx> {
-    fn from((db,): (Database,)) -> Self {
-        TxPoolCore::new(db)
-    }
-}
+    TxPoolInstantiationArtifacts<SignedEthexeTransaction>;

@@ -21,23 +21,23 @@
 pub use input::{InputTask, TxPoolInputTaskSender};
 pub use output::{OutputTask, TxPoolOutputTaskReceiver};
 
-use crate::{Transaction, TxPoolTrait};
+pub(crate) use output::TxPoolOutputTaskSender;
+
+use crate::{Transaction, TxValidator, TxValidatorFinishResult};
+use ethexe_db::Database;
 use input::TxPoolInputTaskReceiver;
-use output::TxPoolOutputTaskSender;
 use tokio::sync::mpsc;
 
 /// Creates a new transaction pool service.
-pub fn new<Tx, TxPool>(tx_pool_core: impl Into<TxPool>) -> TxPoolInstantiationArtifacts<Tx, TxPool>
+pub fn new<Tx>(db: Database) -> TxPoolInstantiationArtifacts<Tx>
 where
-    Tx: Transaction + Clone,
-    TxPool: TxPoolTrait<Transaction = Tx>,
+    Tx: Transaction + Send + Sync + 'static,
 {
-    let tx_pool_core = tx_pool_core.into();
     let (tx_in, rx_in) = mpsc::unbounded_channel();
     let (tx_out, rx_out) = mpsc::unbounded_channel();
 
     let service = TxPoolService {
-        core: tx_pool_core,
+        db,
         input_interface: TxPoolInputTaskReceiver { receiver: rx_in },
         output_inteface: TxPoolOutputTaskSender { sender: tx_out },
     };
@@ -50,8 +50,8 @@ where
 }
 
 /// Transaction pool instantiation artifacts carrier.
-pub struct TxPoolInstantiationArtifacts<Tx: Transaction, TxPool: TxPoolTrait<Transaction = Tx>> {
-    pub service: TxPoolService<Tx, TxPool>,
+pub struct TxPoolInstantiationArtifacts<Tx: Transaction> {
+    pub service: TxPoolService<Tx>,
     pub input_sender: TxPoolInputTaskSender<Tx>,
     pub output_receiver: TxPoolOutputTaskReceiver<Tx>,
 }
@@ -59,13 +59,13 @@ pub struct TxPoolInstantiationArtifacts<Tx: Transaction, TxPool: TxPoolTrait<Tra
 /// Transaction pool service.
 ///
 /// Serves as an interface for the transaction pool core.
-pub struct TxPoolService<Tx: Transaction, TxPool: TxPoolTrait<Transaction = Tx>> {
-    core: TxPool,
+pub struct TxPoolService<Tx: Transaction> {
+    db: Database,
     input_interface: TxPoolInputTaskReceiver<Tx>,
     output_inteface: TxPoolOutputTaskSender<Tx>,
 }
 
-impl<Tx: Transaction + Clone, TxPool: TxPoolTrait<Transaction = Tx>> TxPoolService<Tx, TxPool> {
+impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
     /// Runs transaction pool service expecting to receive tasks from the
     /// tx pool input task sender.
     pub async fn run(mut self) {
@@ -75,18 +75,47 @@ impl<Tx: Transaction + Clone, TxPool: TxPoolTrait<Transaction = Tx>> TxPoolServi
                     transaction,
                     response_sender,
                 } => {
-                    let res = self.core.add_transaction(transaction.clone());
+                    let res = TxValidator::new(transaction, self.db.clone())
+                        .with_signature_check()
+                        .with_mortality_check()
+                        .with_uniqueness_check()
+                        .with_executable_tx_check(self.output_inteface.clone())
+                        .full_validate()
+                        .await
+                        .finish_validator_res()
+                        .map(|tx| {
+                            let tx_hash = tx.tx_hash();
+                            let tx_encoded = tx.encode();
+
+                            // Request propagation.
+                            if let Err(err) =
+                                self.output_inteface.send(OutputTask::PropogateTransaction {
+                                    transaction: tx.clone(),
+                                })
+                            {
+                                // TODO [sab] handle properly
+                                log::error!("Failed to send `PropogateTransaction` task: {err:?}");
+                            }
+
+                            // Request execution.
+                            if let Err(err) = self
+                                .output_inteface
+                                .send(OutputTask::ExecuteTransaction { transaction: tx })
+                            {
+                                // TODO [sab] handle properly
+                                log::error!("Failed to send `PropogateTransaction` task: {err:?}");
+                            }
+
+                            self.db.set_validated_transaction(tx_hash, tx_encoded);
+
+                            tx_hash
+                        });
+
                     if let Some(response_sender) = response_sender {
                         let _ = response_sender.send(res).inspect_err(|err| {
+                            // TODO [sab] handle properly
                             log::error!("`AddTransaction` task receiver dropped - {err:?}")
                         });
-                    }
-
-                    if let Err(err) = self
-                        .output_inteface
-                        .send(OutputTask::PropogateTransaction { transaction })
-                    {
-                        log::error!("Failed to send `PropogateTransaction` task: {err:?}");
                     }
                 }
             }
@@ -96,6 +125,7 @@ impl<Tx: Transaction + Clone, TxPool: TxPoolTrait<Transaction = Tx>> TxPoolServi
 
 mod input {
     use anyhow::Result;
+    use gprimitives::H256;
     use std::ops::{Deref, DerefMut};
     use tokio::sync::{mpsc, oneshot};
 
@@ -109,7 +139,7 @@ mod input {
         /// that expects the response.
         AddTransaction {
             transaction: Tx,
-            response_sender: Option<oneshot::Sender<Result<()>>>,
+            response_sender: Option<oneshot::Sender<Result<H256>>>,
         },
     }
 
@@ -158,7 +188,7 @@ mod input {
 
 mod output {
     use std::ops::{Deref, DerefMut};
-    use tokio::sync::mpsc;
+    use tokio::sync::{mpsc, oneshot};
 
     /// Output task sent from the transaction pool service.
     ///
@@ -166,11 +196,19 @@ mod output {
     /// but is a way to communicate with an external service.
     #[derive(Debug)]
     pub enum OutputTask<Tx> {
-        /// Signals to the external service to propogate the transaction
+        /// Requests for a transcation to propogation.
         PropogateTransaction { transaction: Tx },
+        /// Requests for a check by external service that transaction is executable.
+        CheckIsExecutable {
+            transaction: Tx,
+            response_sender: oneshot::Sender<bool>,
+        },
+        /// Requests for a tx to be executed.
+        ExecuteTransaction { transaction: Tx },
     }
 
     /// Transaction pool output task sender.
+    #[derive(Debug, Clone)]
     pub(crate) struct TxPoolOutputTaskSender<Tx> {
         pub(crate) sender: mpsc::UnboundedSender<OutputTask<Tx>>,
     }

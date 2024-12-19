@@ -18,63 +18,120 @@
 
 //! Tx pool transaction related types.
 
-use ethexe_signer::{Signature, ToDigest};
-use gprimitives::H256;
+use anyhow::Result;
+use ethexe_signer::Signature;
+use gprimitives::{H160, H256};
 use parity_scale_codec::{Decode, Encode};
 
 /// Ethexe transaction behaviour.
-pub trait Transaction {
-    /// Error type for the trait operations.
-    type Error;
+pub trait Transaction:
+    Clone + TxReferenceBlockHash + TxSignature + TxHashBlake2b256 + Encode
+{
+}
 
-    /// Validate transaction.
-    fn validate(&self) -> Result<(), Self::Error>;
+pub trait TxReferenceBlockHash {
+    fn reference_block_hash(&self) -> H256;
+}
 
-    /// Get transaction hash.
+pub trait TxSignature {
+    fn signature(&self) -> Result<Signature>;
+}
+
+pub trait TxHashBlake2b256 {
     fn tx_hash(&self) -> H256;
 }
 
-impl Transaction for () {
-    type Error = anyhow::Error;
+/// Ethexe transaction with a signature.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct SignedEthexeTransaction {
+    pub signature: Vec<u8>,
+    pub transaction: EthexeTransaction,
+}
 
-    fn validate(&self) -> Result<(), Self::Error> {
-        Ok(())
+impl SignedEthexeTransaction {
+    pub fn new(signature: Vec<u8>, transaction: EthexeTransaction) -> Self {
+        Self {
+            signature,
+            transaction,
+        }
     }
+}
 
+/// Ethexe with a reference block for mortality.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct EthexeTransaction {
+    pub raw: RawEthexeTransacton,
+    pub reference_block: H256,
+}
+
+impl EthexeTransaction {
+    pub fn new(raw: RawEthexeTransacton, reference_block: H256) -> Self {
+        Self {
+            raw,
+            reference_block,
+        }
+    }
+}
+
+/// Raw ethexe transaction.
+///
+/// A particular job to be processed without external specifics.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub enum RawEthexeTransacton {
+    SendMessage {
+        source: H160,
+        program_id: H160,
+        payload: Vec<u8>,
+        value: u128,
+    },
+}
+
+impl Transaction for SignedEthexeTransaction {}
+
+impl TxHashBlake2b256 for SignedEthexeTransaction {
+    fn tx_hash(&self) -> H256 {
+        ethexe_db::hash(&self.encode())
+    }
+}
+
+impl TxSignature for SignedEthexeTransaction {
+    fn signature(&self) -> Result<Signature> {
+        Signature::try_from(self.signature.as_ref())
+    }
+}
+
+impl TxReferenceBlockHash for SignedEthexeTransaction {
+    fn reference_block_hash(&self) -> H256 {
+        self.transaction.reference_block
+    }
+}
+
+impl TxHashBlake2b256 for EthexeTransaction {
+    fn tx_hash(&self) -> H256 {
+        ethexe_db::hash(&self.encode())
+    }
+}
+
+impl TxReferenceBlockHash for EthexeTransaction {
+    fn reference_block_hash(&self) -> H256 {
+        self.reference_block
+    }
+}
+
+impl TxHashBlake2b256 for () {
     fn tx_hash(&self) -> H256 {
         H256::zero()
     }
 }
 
-/// Main ethexe transaction type.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub enum EthexeTransaction {
-    /// Message send transaction
-    /// **TEMPORARY**.
-    Message {
-        raw_message: Vec<u8>,
-        signature: Vec<u8>,
-    },
+impl TxSignature for () {
+    fn signature(&self) -> Result<Signature> {
+        Signature::try_from(vec![0u8; 65].as_ref())
+    }
 }
 
-impl Transaction for EthexeTransaction {
-    type Error = anyhow::Error;
-
-    fn validate(&self) -> Result<(), Self::Error> {
-        match self {
-            EthexeTransaction::Message {
-                raw_message,
-                signature,
-            } => {
-                let message_digest = raw_message.to_digest();
-                let signature = Signature::try_from(signature.as_ref())?;
-
-                signature.verify_with_public_key_recover(message_digest)
-            }
-        }
-    }
-
-    fn tx_hash(&self) -> H256 {
-        ethexe_db::hash(&self.encode())
+impl TxReferenceBlockHash for () {
+    fn reference_block_hash(&self) -> H256 {
+        H256::random()
     }
 }
