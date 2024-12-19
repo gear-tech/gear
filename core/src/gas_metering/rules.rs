@@ -101,7 +101,11 @@ impl<'a> Rules for ScheduleRules<'a> {
         let max_params = self.schedule.limits.parameters;
         let max_results = self.schedule.limits.results;
 
-        let weight = match instruction {
+        Some(match instruction {
+            // Returning None makes the gas instrumentation fail which we intend for
+            // unsupported or unknown instructions.
+            MemoryGrow { .. } => return None,
+            //
             End | Unreachable | Return | Else | Block { .. } | Loop { .. } | Nop | Drop => 0,
             I32Const { .. } | I64Const { .. } => w.i64const,
             I32Load { .. }
@@ -214,11 +218,7 @@ impl<'a> Rules for ScheduleRules<'a> {
             I64Extend8S => w.i64extend8s,
             I64Extend16S => w.i64extend16s,
             I64Extend32S => w.i64extend32s,
-            // Returning None makes the gas instrumentation fail which we intend for
-            // unsupported or unknown instructions.
-            _ => return None,
-        };
-        Some(weight)
+        })
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {

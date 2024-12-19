@@ -31,84 +31,181 @@ use wasmparser::{
     Import, MemoryType, Payload, RefType, Table, TypeRef, ValType,
 };
 
-macro_rules! define_for_each_instruction {
-    ($( @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident ($($ann:tt)*) )*) => {
-        define_for_each_instruction!(inner $( @$proposal $op $({ $($arg: $argty),* })? )* accum);
-    };
-    (
-        inner
-        @mvp BrTable { $($arg:ident: $argty:ty),* }
-        $( @$proposals:ident $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
-        accum
-        $( $ops_accum:ident $({ $($args_accum:ident: $argsty_accum:ty),* })? )*
+macro_rules! define_for_each_instruction_helper {
+    ($dollar:tt;
+        proposals { $($proposals:ident,)+ }
+        rewrite_fields { $( $ops:ident { $($args:ident: $argsty:ty),* }, )+ }
+        forbidden_instructions { $($forbidden_instructions:ident,)+ }
     ) => {
-        define_for_each_instruction!(
-            inner
-            $( @$proposals $ops $({ $($args: $argsty),* })? )*
-            accum
-            BrTable { targets: BrTable }
-            $( $ops_accum $({ $($args_accum: $argsty_accum),* })? )*
-        );
-    };
-    (
-        inner
-        @mvp $op:ident $({ $($arg:ident: $argty:ty),* })?
-        $( @$proposals:ident $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
-        accum
-        $( $ops_accum:ident $({ $($args_accum:ident: $argsty_accum:ty),* })? )*
-    ) => {
-        define_for_each_instruction!(
-            inner
-            $( @$proposals $ops $({ $($args: $argsty),* })? )*
-            accum
-            $op $({ $( $arg: $argty ),* })?
-            $( $ops_accum $({ $($args_accum: $argsty_accum),* })? )*
-        );
-    };
-    (
-        inner
-        @sign_extension $op:ident $({ $($arg:ident: $argty:ty),* })?
-        $( @$proposals:ident $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
-        accum
-        $( $ops_accum:ident $({ $($args_accum:ident: $argsty_accum:ty),* })? )*
-    ) => {
-        define_for_each_instruction!(
-            inner
-            $( @$proposals $ops $({ $($args: $argsty),* })? )*
-            accum
-            $op $({ $($arg: $argty),* })?
-            $( $ops_accum $({ $($args_accum: $argsty_accum),* })? )*
-        );
-    };
-    (
-        inner
-        @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })?
-        $( @$proposals:ident $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
-        accum
-        $( $ops_accum:ident $({ $($args_accum:ident: $argsty_accum:ty),* })? )*
-    ) => {
-        define_for_each_instruction!(
-            inner
-            $( @$proposals $ops $({ $($args: $argsty),* })? )*
-            accum
-            $( $ops_accum $({ $($args_accum: $argsty_accum),* })? )*
-        );
-    };
-    (
-        inner
-        accum
-        $( $op:ident $({ $($arg:ident: $argty:ty),* })? )*
-    ) => {
-        #[macro_export]
-        macro_rules! for_each_instruction {
-            ($mac:ident) => {
-                $mac! {
-                    $( $op $({ $($arg: $argty),* })? )*
+        macro_rules! define_for_each_instruction {
+            ($dollar ( @$dollar proposal:ident $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })? => $dollar visit:ident ($dollar ($dollar ann:tt)*) )*) => {
+                define_for_each_instruction!(inner $dollar ( @$dollar proposal $dollar op $dollar ({ $dollar ($dollar arg: $dollar argty),* })? )* accum);
+            };
+            // skip forbidden instructions
+            $(
+                (
+                    inner
+                    @$dollar proposal:ident $forbidden_instructions $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })?
+                    $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                    accum
+                    $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                ) => {
+                    define_for_each_instruction!(
+                        inner
+                        $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                        accum
+                        $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                    );
+                };
+            )+
+            // rewrite instructions fields
+            $(
+                (
+                    inner
+                    @$dollar proposal:ident $ops { $dollar ($dollar arg:ident: $dollar argty:ty),* }
+                    $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                    accum
+                    $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                ) => {
+                    define_for_each_instruction!(
+                        inner
+                        $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                        accum
+                        $ops { $($args: $argsty),* }
+                        $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                    );
+                };
+            )+
+            // use only specific proposals
+            $(
+                (
+                    inner
+                    @$proposals $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })?
+                    $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                    accum
+                    $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                ) => {
+                    define_for_each_instruction!(
+                        inner
+                        $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                        accum
+                        $dollar op $dollar ({ $dollar ( $dollar arg: $dollar argty ),* })?
+                        $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                    );
+                };
+            )+
+            // skip rest instructions
+            (
+                inner
+                @$dollar proposal:ident $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })?
+                $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                accum
+                $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+            ) => {
+                define_for_each_instruction!(
+                    inner
+                    $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                    accum
+                    $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                );
+            };
+            (
+                inner
+                accum
+                $dollar ( $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })? )*
+            ) => {
+                #[macro_export]
+                macro_rules! for_each_instruction {
+                    ($dollar mac:ident) => {
+                        $dollar mac! {
+                            $dollar ( $dollar op $dollar ({ $dollar ($dollar arg: $dollar argty),* })? )*
+                        }
+                    };
                 }
             };
         }
     };
 }
+
+define_for_each_instruction_helper!($;
+    proposals {
+        mvp,
+        sign_extension,
+    }
+    rewrite_fields {
+        BrTable { targets: BrTable },
+    }
+    forbidden_instructions {
+        F64ReinterpretI64,
+        F32ReinterpretI32,
+        I64ReinterpretF64,
+        I32ReinterpretF32,
+        F64PromoteF32,
+        F64ConvertI64U,
+        F64ConvertI64S,
+        F64ConvertI32U,
+        F64ConvertI32S,
+        F32DemoteF64,
+        F32ConvertI64U,
+        F32ConvertI64S,
+        F32ConvertI32U,
+        F32ConvertI32S,
+        I64TruncF64U,
+        I64TruncF64S,
+        I64TruncF32U,
+        I64TruncF32S,
+        I32TruncF64U,
+        I32TruncF64S,
+        I32TruncF32U,
+        I32TruncF32S,
+        F64Copysign,
+        F64Max,
+        F64Min,
+        F64Div,
+        F64Mul,
+        F64Sub,
+        F64Add,
+        F64Sqrt,
+        F64Nearest,
+        F64Trunc,
+        F64Floor,
+        F64Ceil,
+        F64Neg,
+        F64Abs,
+        F32Copysign,
+        F32Max,
+        F32Min,
+        F32Div,
+        F32Mul,
+        F32Sub,
+        F32Add,
+        F32Sqrt,
+        F32Nearest,
+        F32Trunc,
+        F32Floor,
+        F32Ceil,
+        F32Neg,
+        F32Abs,
+        F64Ge,
+        F64Le,
+        F64Gt,
+        F64Lt,
+        F64Ne,
+        F64Eq,
+        F32Ge,
+        F32Le,
+        F32Gt,
+        F32Lt,
+        F32Ne,
+        F32Eq,
+        F64Const,
+        F32Const,
+        F64Store,
+        F32Store,
+        F64Load,
+        F32Load,
+    }
+);
 
 wasmparser::for_each_operator!(define_for_each_instruction);
 
@@ -169,8 +266,10 @@ pub type Result<T, E = ModuleError> = core::result::Result<T, E>;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum ModuleError {
+    #[from]
     #[display(fmt = "Binary reader error: {}", _0)]
     BinaryReader(BinaryReaderError),
+    #[from]
     #[display(fmt = "Reencode error: {}", _0)]
     Reencode(reencode::Error),
     #[display(fmt = "Unsupported instruction: {}", _0)]
