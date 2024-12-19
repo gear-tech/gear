@@ -18,12 +18,12 @@
 
 use crate::{
     gas_metering::ConstantCostRules,
-    module::{ConstExpr, Function, Global, ModuleBuilder},
+    module::{ConstExpr, Function, Global, Instruction, Instruction::*, ModuleBuilder},
     syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
     InstrumentationBuilder, InstrumentationError, Module, Rules, GLOBAL_NAME_GAS,
 };
 use alloc::format;
-use wasmparser::{BlockType, FuncType, GlobalType, Operator, Operator::*, ValType};
+use wasmparser::{BlockType, FuncType, GlobalType, ValType};
 
 macro_rules! parse_wat {
     ($module:ident = $source:expr) => {
@@ -46,7 +46,7 @@ where
         .instrument(module)
 }
 
-fn get_function_body<'a>(module: &'a Module, index: usize) -> Option<&'a [Operator<'a>]> {
+fn get_function_body<'a>(module: &'a Module, index: usize) -> Option<&'a [Instruction]> {
     module
         .code_section()
         .and_then(|code_section| code_section.get(index))

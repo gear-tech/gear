@@ -1,13 +1,13 @@
 //! Contains the code for the stack height limiter instrumentation.
 
 use crate::{
-    module::{ConstExpr, Export, Global, ModuleBuilder},
+    module::{ConstExpr, Export, Global, Instruction, ModuleBuilder},
     Module,
 };
 use alloc::{string::ToString, vec, vec::Vec};
 use core::mem;
 use max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext};
-use wasmparser::{BlockType, ExternalKind, FuncType, GlobalType, Operator, TypeRef, ValType};
+use wasmparser::{BlockType, ExternalKind, FuncType, GlobalType, TypeRef, ValType};
 
 mod max_height;
 mod thunk;
@@ -90,7 +90,7 @@ pub fn inject(module: Module, stack_limit: u32) -> Result<Module, &'static str> 
         module,
         InjectionConfig {
             stack_limit,
-            injection_fn: |_| [Operator::Unreachable],
+            injection_fn: |_| [Instruction::Unreachable],
             stack_height_export_name: None,
         },
     )
@@ -99,7 +99,7 @@ pub fn inject(module: Module, stack_limit: u32) -> Result<Module, &'static str> 
 /// Represents the injection configuration. See [`inject_with_config`] for more details.
 pub struct InjectionConfig<'a, I, F>
 where
-    I: IntoIterator<Item = Operator<'a>>,
+    I: IntoIterator<Item = Instruction>,
     I::IntoIter: ExactSizeIterator + Clone,
     F: Fn(&FuncType) -> I,
 {
@@ -115,7 +115,7 @@ pub fn inject_with_config<'o, I>(
     injection_config: InjectionConfig<'o, I, impl Fn(&FuncType) -> I>,
 ) -> Result<Module<'o>, &'static str>
 where
-    I: IntoIterator<Item = Operator<'o>>,
+    I: IntoIterator<Item = Instruction>,
     I::IntoIter: ExactSizeIterator + Clone,
 {
     let InjectionConfig {
@@ -150,7 +150,7 @@ fn generate_stack_height_global<'a>(
             shared: false,
         },
         init_expr: ConstExpr {
-            instructions: vec![Operator::I32Const { value: 0 }],
+            instructions: vec![Instruction::I32Const { value: 0 }],
         },
     };
 
@@ -172,13 +172,13 @@ fn generate_stack_height_global<'a>(
 /// Calculate stack costs for all functions.
 ///
 /// Returns a vector with a stack cost for each function, including imports.
-fn compute_stack_costs<'m, 'o, I>(
-    module: &'m Module<'o>,
+fn compute_stack_costs<I>(
+    module: &Module<'_>,
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<Vec<u32>, &'static str>
 where
     I::IntoIter: ExactSizeIterator + Clone,
-    I: IntoIterator<Item = Operator<'o>>,
+    I: IntoIterator<Item = Instruction>,
 {
     let functions_space = module
         .functions_space()
@@ -209,8 +209,8 @@ where
 /// Stack cost of the given *defined* function is the sum of it's locals count (that is,
 /// number of arguments plus number of local variables) and the maximal stack
 /// height.
-fn compute_stack_cost<'m, 'o, I: IntoIterator<Item = Operator<'o>>>(
-    context: MaxStackHeightCounterContext<'m, 'o>,
+fn compute_stack_cost<I: IntoIterator<Item = Instruction>>(
+    context: MaxStackHeightCounterContext<'_, '_>,
     func_idx: u32,
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<u32, &'static str>
@@ -244,9 +244,9 @@ where
         .ok_or("Overflow in adding locals_count and max_stack_height")
 }
 
-fn instrument_functions<'a, I: IntoIterator<Item = Operator<'a>>>(
+fn instrument_functions<I: IntoIterator<Item = Instruction>>(
     ctx: &mut Context,
-    module: &mut Module<'a>,
+    module: &mut Module,
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<(), &'static str>
 where
@@ -301,16 +301,16 @@ where
 ///
 /// drop
 /// ```
-fn instrument_function<'a, I: IntoIterator<Item = Operator<'a>>>(
+fn instrument_function<I: IntoIterator<Item = Instruction>>(
     ctx: &mut Context,
-    func: &mut Vec<Operator<'a>>,
+    func: &mut Vec<Instruction>,
     signature: &FuncType,
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<(), &'static str>
 where
     I::IntoIter: ExactSizeIterator + Clone,
 {
-    use Operator::*;
+    use Instruction::*;
 
     struct InstrumentCall {
         offset: usize,
@@ -385,16 +385,16 @@ where
 }
 
 /// This function generates preamble and postamble.
-fn instrument_call<'a>(
-    instructions: &mut Vec<Operator<'a>>,
+fn instrument_call(
+    instructions: &mut Vec<Instruction>,
     callee_idx: u32,
     callee_stack_cost: i32,
     stack_height_global_idx: u32,
     stack_limit: u32,
-    body_of_condition: impl IntoIterator<Item = Operator<'a>>,
-    arguments: impl IntoIterator<Item = Operator<'a>>,
+    body_of_condition: impl IntoIterator<Item = Instruction>,
+    arguments: impl IntoIterator<Item = Instruction>,
 ) {
-    use Operator::*;
+    use Instruction::*;
 
     // 8 + body_of_condition.len() + 1 instructions
     generate_preamble(
@@ -418,14 +418,14 @@ fn instrument_call<'a>(
 }
 
 /// This function generates preamble.
-fn generate_preamble<'a>(
-    instructions: &mut Vec<Operator<'a>>,
+fn generate_preamble(
+    instructions: &mut Vec<Instruction>,
     callee_stack_cost: i32,
     stack_height_global_idx: u32,
     stack_limit: u32,
-    body_of_condition: impl IntoIterator<Item = Operator<'a>>,
+    body_of_condition: impl IntoIterator<Item = Instruction>,
 ) {
-    use Operator::*;
+    use Instruction::*;
 
     // 8 instructions
     instructions.extend_from_slice(&[
@@ -463,11 +463,11 @@ fn generate_preamble<'a>(
 /// This function generates postamble.
 #[inline]
 fn generate_postamble(
-    instructions: &mut Vec<Operator>,
+    instructions: &mut Vec<Instruction>,
     callee_stack_cost: i32,
     stack_height_global_idx: u32,
 ) {
-    use Operator::*;
+    use Instruction::*;
 
     // 4 instructions
     instructions.extend_from_slice(&[

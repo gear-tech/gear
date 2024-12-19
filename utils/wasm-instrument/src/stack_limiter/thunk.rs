@@ -4,15 +4,15 @@ use super::{
     resolve_func_type, Context,
 };
 use crate::{
-    module::{ElementItems, Function, ModuleBuilder},
+    module::{ElementItems, Function, Instruction, ModuleBuilder},
     Module,
 };
 use alloc::{collections::BTreeMap as Map, vec, vec::Vec};
-use wasmparser::{ExternalKind, FuncType, Operator};
+use wasmparser::{ExternalKind, FuncType};
 
-struct Thunk<'a> {
+struct Thunk {
     signature: FuncType,
-    body: Option<Vec<Operator<'a>>>,
+    body: Option<Vec<Instruction>>,
     // Index in function space of this thunk.
     idx: Option<u32>,
 }
@@ -23,99 +23,97 @@ pub(crate) fn generate_thunks<'a, I>(
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<Module<'a>, &'static str>
 where
-    I: IntoIterator<Item = Operator<'a>>,
+    I: IntoIterator<Item = Instruction>,
     I::IntoIter: ExactSizeIterator + Clone,
 {
     // First, we need to collect all function indices that should be replaced by thunks
-    let mut replacement_map: Map<u32, Thunk> =
-        {
-            // Replacement map is at least export section size.
-            let mut replacement_map: Map<u32, Thunk> = Map::new();
+    let mut replacement_map: Map<u32, Thunk> = {
+        // Replacement map is at least export section size.
+        let mut replacement_map: Map<u32, Thunk> = Map::new();
 
-            let mut maybe_context: Option<MaxStackHeightCounterContext> = None;
+        let mut maybe_context: Option<MaxStackHeightCounterContext> = None;
 
-            for func_idx in thunk_function_indexes(&module) {
-                let mut callee_stack_cost = ctx
-                    .stack_cost(func_idx)
-                    .ok_or("function index isn't found")?;
+        for func_idx in thunk_function_indexes(&module) {
+            let mut callee_stack_cost = ctx
+                .stack_cost(func_idx)
+                .ok_or("function index isn't found")?;
 
-                // Don't generate a thunk if stack_cost of a callee is zero.
-                if callee_stack_cost != 0 {
-                    let signature = resolve_func_type(func_idx, &module)?.clone();
-                    let body_of_condition = injection_fn(&signature).into_iter();
+            // Don't generate a thunk if stack_cost of a callee is zero.
+            if callee_stack_cost != 0 {
+                let signature = resolve_func_type(func_idx, &module)?.clone();
+                let body_of_condition = injection_fn(&signature).into_iter();
 
-                    // Thunk body consist of:
-                    //  - preamble
-                    //  - argument pushing
-                    //  - original call
-                    //  - postamble
-                    //  - end
+                // Thunk body consist of:
+                //  - preamble
+                //  - argument pushing
+                //  - original call
+                //  - postamble
+                //  - end
 
-                    // To pre-allocate memory, we need to count `8 + N + 6`, i.e. `14 + N`.
-                    // See `instrument_call` function for details.
-                    let mut thunk_body: Vec<Operator> = Vec::with_capacity(
-                        signature.params().len() + (14 + body_of_condition.len()) + 1,
-                    );
+                // To pre-allocate memory, we need to count `8 + N + 6`, i.e. `14 + N`.
+                // See `instrument_call` function for details.
+                let mut thunk_body: Vec<Instruction> = Vec::with_capacity(
+                    signature.params().len() + (14 + body_of_condition.len()) + 1,
+                );
 
-                    let arguments = signature.params().iter().enumerate().map(|(arg_idx, _)| {
-                        Operator::LocalGet {
-                            local_index: arg_idx as u32,
-                        }
-                    });
-
-                    const CALLEE_STACK_COST_PLACEHOLDER: i32 = 1248163264;
-                    instrument_call(
-                        &mut thunk_body,
-                        func_idx,
-                        CALLEE_STACK_COST_PLACEHOLDER,
-                        ctx.stack_height_global_idx(),
-                        ctx.stack_limit(),
-                        body_of_condition,
-                        arguments,
-                    );
-
-                    thunk_body.push(Operator::End);
-
-                    // Try to initialize MaxStackHeightCounterContext once
-                    if maybe_context.is_none() {
-                        maybe_context = Some(MaxStackHeightCounterContext::new(&module)?);
+                let arguments = signature.params().iter().enumerate().map(|(arg_idx, _)| {
+                    Instruction::LocalGet {
+                        local_index: arg_idx as u32,
                     }
+                });
 
-                    // Update callee_stack_cost to charge for the thunk call itself
-                    let context =
-                        maybe_context.expect("MaxStackHeightCounterContext must be initialized");
-                    let thunk_cost =
-                        MaxStackHeightCounter::new_with_context(context, &injection_fn)
-                            .compute_for_raw_func(&signature, &thunk_body)?;
+                const CALLEE_STACK_COST_PLACEHOLDER: i32 = 1248163264;
+                instrument_call(
+                    &mut thunk_body,
+                    func_idx,
+                    CALLEE_STACK_COST_PLACEHOLDER,
+                    ctx.stack_height_global_idx(),
+                    ctx.stack_limit(),
+                    body_of_condition,
+                    arguments,
+                );
 
-                    callee_stack_cost = callee_stack_cost
-                        .checked_add(thunk_cost)
-                        .ok_or("overflow during callee_stack_cost calculation")?;
+                thunk_body.push(Instruction::End);
 
-                    // Update thunk body with new cost
-                    for instruction in thunk_body.iter_mut().filter(|i| {
-                        **i == Operator::I32Const {
-                            value: CALLEE_STACK_COST_PLACEHOLDER,
-                        }
-                    }) {
-                        *instruction = Operator::I32Const {
-                            value: callee_stack_cost as i32,
-                        };
-                    }
-
-                    replacement_map.insert(
-                        func_idx,
-                        Thunk {
-                            signature,
-                            body: Some(thunk_body),
-                            idx: None,
-                        },
-                    );
+                // Try to initialize MaxStackHeightCounterContext once
+                if maybe_context.is_none() {
+                    maybe_context = Some(MaxStackHeightCounterContext::new(&module)?);
                 }
-            }
 
-            replacement_map
-        };
+                // Update callee_stack_cost to charge for the thunk call itself
+                let context =
+                    maybe_context.expect("MaxStackHeightCounterContext must be initialized");
+                let thunk_cost = MaxStackHeightCounter::new_with_context(context, &injection_fn)
+                    .compute_for_raw_func(&signature, &thunk_body)?;
+
+                callee_stack_cost = callee_stack_cost
+                    .checked_add(thunk_cost)
+                    .ok_or("overflow during callee_stack_cost calculation")?;
+
+                // Update thunk body with new cost
+                for instruction in thunk_body.iter_mut().filter(|i| {
+                    **i == Instruction::I32Const {
+                        value: CALLEE_STACK_COST_PLACEHOLDER,
+                    }
+                }) {
+                    *instruction = Instruction::I32Const {
+                        value: callee_stack_cost as i32,
+                    };
+                }
+
+                replacement_map.insert(
+                    func_idx,
+                    Thunk {
+                        signature,
+                        body: Some(thunk_body),
+                        idx: None,
+                    },
+                );
+            }
+        }
+
+        replacement_map
+    };
 
     // Then, we generate a thunk for each original function.
 

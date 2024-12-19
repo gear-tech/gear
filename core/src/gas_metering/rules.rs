@@ -20,9 +20,9 @@ use super::Schedule;
 use alloc::vec::Vec;
 use gear_wasm_instrument::{
     gas_metering::{ConstantCostRules, MemoryGrowCost},
+    module::Instruction,
     Module, Rules,
 };
-use wasmparser::Operator;
 
 /// This type provides the functionality of [`ConstantCostRules`].
 ///
@@ -58,125 +58,8 @@ impl Default for CustomConstantCostRules {
 }
 
 impl Rules for CustomConstantCostRules {
-    fn instruction_cost(&self, instruction: &Operator) -> Option<u32> {
-        use Operator::*;
-
-        // list of allowed instructions from `ScheduleRules::<T>::instruction_cost(...)`
-        // method
-        match instruction {
-            End
-            | Unreachable
-            | Return
-            | Else
-            | Block { .. }
-            | Loop { .. }
-            | Nop
-            | Drop
-            | I32Const { .. }
-            | I64Const { .. }
-            | I32Load { .. }
-            | I32Load8S { .. }
-            | I32Load8U { .. }
-            | I32Load16S { .. }
-            | I32Load16U { .. }
-            | I64Load { .. }
-            | I64Load8S { .. }
-            | I64Load8U { .. }
-            | I64Load16S { .. }
-            | I64Load16U { .. }
-            | I64Load32S { .. }
-            | I64Load32U { .. }
-            | I32Store { .. }
-            | I32Store8 { .. }
-            | I32Store16 { .. }
-            | I64Store { .. }
-            | I64Store8 { .. }
-            | I64Store16 { .. }
-            | I64Store32 { .. }
-            | Select
-            | If { .. }
-            | Br { .. }
-            | BrIf { .. }
-            | Call { .. }
-            | LocalGet { .. }
-            | LocalSet { .. }
-            | LocalTee { .. }
-            | GlobalGet { .. }
-            | GlobalSet { .. }
-            | MemorySize { .. }
-            | CallIndirect { .. }
-            | BrTable { .. }
-            | I32Clz
-            | I64Clz
-            | I32Ctz
-            | I64Ctz
-            | I32Popcnt
-            | I64Popcnt
-            | I32Eqz
-            | I64Eqz
-            | I64ExtendI32S
-            | I64ExtendI32U
-            | I32WrapI64
-            | I32Eq
-            | I64Eq
-            | I32Ne
-            | I64Ne
-            | I32LtS
-            | I64LtS
-            | I32LtU
-            | I64LtU
-            | I32GtS
-            | I64GtS
-            | I32GtU
-            | I64GtU
-            | I32LeS
-            | I64LeS
-            | I32LeU
-            | I64LeU
-            | I32GeS
-            | I64GeS
-            | I32GeU
-            | I64GeU
-            | I32Add
-            | I64Add
-            | I32Sub
-            | I64Sub
-            | I32Mul
-            | I64Mul
-            | I32DivS
-            | I64DivS
-            | I32DivU
-            | I64DivU
-            | I32RemS
-            | I64RemS
-            | I32RemU
-            | I64RemU
-            | I32And
-            | I64And
-            | I32Or
-            | I64Or
-            | I32Xor
-            | I64Xor
-            | I32Shl
-            | I64Shl
-            | I32ShrS
-            | I64ShrS
-            | I32ShrU
-            | I64ShrU
-            | I32Rotl
-            | I64Rotl
-            | I32Rotr
-            | I64Rotr
-            // sign ext
-            | I32Extend8S
-            | I32Extend16S
-            | I64Extend8S
-            | I64Extend16S
-            | I64Extend32S
-
-            => Some(self.constant_cost_rules.instruction_cost(instruction)?),
-            _ => None,
-        }
+    fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
+        self.constant_cost_rules.instruction_cost(instruction)
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
@@ -211,8 +94,8 @@ impl Schedule {
 }
 
 impl<'a> Rules for ScheduleRules<'a> {
-    fn instruction_cost(&self, instruction: &Operator) -> Option<u32> {
-        use Operator::*;
+    fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
+        use Instruction::*;
 
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;

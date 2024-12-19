@@ -18,11 +18,11 @@
 
 use super::{instrument_call, resolve_func_type};
 use crate::{
-    module::{CodeSection, FuncSection, TypeSection},
+    module::{CodeSection, FuncSection, Instruction, TypeSection},
     Module,
 };
 use alloc::vec::Vec;
-use wasmparser::{BlockType, FuncType, Operator, TypeRef};
+use wasmparser::{BlockType, FuncType, TypeRef};
 
 // The cost in stack items that should be charged per call of a function. This is
 // is a static cost that is added to each function call. This makes sense because even
@@ -162,7 +162,7 @@ pub(crate) struct MaxStackHeightCounterContext<'m, 'o> {
     pub module: &'m Module<'o>,
     pub func_imports: u32,
     pub func_section: &'m FuncSection,
-    pub code_section: &'m CodeSection<'o>,
+    pub code_section: &'m CodeSection,
     pub type_section: &'m TypeSection,
 }
 
@@ -185,7 +185,7 @@ impl<'m, 'o> MaxStackHeightCounterContext<'m, 'o> {
 /// overhead that is added by the [`instrument_call!`] function.
 pub(crate) struct MaxStackHeightCounter<'m, 'o, I, F>
 where
-    I: IntoIterator<Item = Operator<'o>>,
+    I: IntoIterator<Item = Instruction>,
     I::IntoIter: ExactSizeIterator + Clone,
     F: Fn(&FuncType) -> I,
 {
@@ -198,7 +198,7 @@ where
 
 impl<'m, 'o, I, F> MaxStackHeightCounter<'m, 'o, I, F>
 where
-    I: IntoIterator<Item = Operator<'o>>,
+    I: IntoIterator<Item = Instruction>,
     I::IntoIter: ExactSizeIterator + Clone,
     F: Fn(&FuncType) -> I,
 {
@@ -251,7 +251,7 @@ where
     pub fn compute_for_raw_func(
         &mut self,
         func_signature: &FuncType,
-        instructions: &[Operator],
+        instructions: &[Instruction],
     ) -> Result<u32, &'static str> {
         // Add implicit frame for the function. Breaks to this frame and execution of
         // the last end should deal with this frame.
@@ -269,7 +269,7 @@ where
                     break 'block None;
                 }
 
-                let &Operator::Call { function_index } = instruction else {
+                let &Instruction::Call { function_index } = instruction else {
                     break 'block None;
                 };
 
@@ -308,10 +308,10 @@ where
     /// This function processes all incoming instructions and updates the `self.max_height` field.
     fn process_instruction(
         &mut self,
-        opcode: &Operator,
+        opcode: &Instruction,
         func_arity: u32,
     ) -> Result<(), &'static str> {
-        use Operator::*;
+        use Instruction::*;
 
         let Self {
             stack, max_height, ..
@@ -382,11 +382,10 @@ where
                 stack.push_values(target_arity)?;
             }
             BrTable { targets } => {
-                let arity_of_default = stack.frame(targets.default())?.branch_arity;
+                let arity_of_default = stack.frame(targets.default)?.branch_arity;
 
                 // Check that all jump targets have an equal arities.
-                for target in targets.targets() {
-                    let target = target.unwrap_or_else(|e| todo!("{e}"));
+                for &target in &targets.targets {
                     let arity = stack.frame(target)?.branch_arity;
                     if arity != arity_of_default {
                         return Err("Arity of all jump-targets must be equal");
@@ -562,9 +561,6 @@ where
                 stack.pop_values(1)?;
                 stack.push_values(1)?;
             }
-
-            // TODO: describe other instructions
-            _ => {}
         }
 
         Ok(())
@@ -577,7 +573,7 @@ mod tests {
 
     fn compute(func_idx: u32, module: &Module) -> Result<u32, &'static str> {
         MaxStackHeightCounter::new_with_context(MaxStackHeightCounterContext::new(module)?, |_| {
-            [Operator::Unreachable]
+            [Instruction::Unreachable]
         })
         .count_instrumented_calls(true)
         .compute_for_defined_func(func_idx)

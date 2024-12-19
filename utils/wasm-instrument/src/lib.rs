@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![recursion_limit = "4096"]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::items_after_test_module)]
 #![allow(clippy::result_large_err)]
@@ -27,13 +28,11 @@ pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use module::{Module, ModuleError};
 
 use crate::{
-    module::{ConstExpr, Export, Function, Global, ModuleBuilder},
+    module::{ConstExpr, Export, Function, Global, Instruction, ModuleBuilder},
     stack_limiter::InjectionConfig,
 };
 use alloc::{string::ToString, vec};
-use wasmparser::{
-    BlockType, ExternalKind, FuncType, GlobalType, Import, Operator, TypeRef, ValType,
-};
+use wasmparser::{BlockType, ExternalKind, FuncType, GlobalType, Import, TypeRef, ValType};
 
 mod export_globals;
 
@@ -175,10 +174,10 @@ where
                 stack_limit,
                 injection_fn: |_| {
                     [
-                        Operator::I32Const {
+                        Instruction::I32Const {
                             value: SystemBreakCode::StackLimitExceeded as i32,
                         },
-                        Operator::Call {
+                        Instruction::Call {
                             function_index: gr_system_break_index,
                         },
                     ]
@@ -264,7 +263,7 @@ fn inject_gas_limiter<'a, R: Rules>(
             shared: false,
         },
         init_expr: ConstExpr {
-            instructions: vec![Operator::I64Const { value: 0 }],
+            instructions: vec![Instruction::I64Const { value: 0 }],
         },
     });
 
@@ -280,7 +279,7 @@ fn inject_gas_limiter<'a, R: Rules>(
 
     let mut elements = vec![
         // I. Put global with value of current gas counter of any type.
-        Operator::GlobalGet {
+        Instruction::GlobalGet {
             global_index: gas_index,
         },
         // II. Calculating total gas to charge as sum of:
@@ -288,41 +287,41 @@ fn inject_gas_limiter<'a, R: Rules>(
         //  - `gas_charge(..)` call cost.
         //
         // Setting the sum into local with index 1 with keeping it on stack.
-        Operator::LocalGet { local_index: 0 },
-        Operator::I64ExtendI32U,
-        Operator::I64Const {
+        Instruction::LocalGet { local_index: 0 },
+        Instruction::I64ExtendI32U,
+        Instruction::I64Const {
             value: GAS_CHARGE_COST_PLACEHOLDER,
         },
-        Operator::I64Add,
-        Operator::LocalTee { local_index: 1 },
+        Instruction::I64Add,
+        Instruction::LocalTee { local_index: 1 },
         // III. Validating left amount of gas.
         //
         // In case of requested value is bigger than actual gas counter value,
         // than we call `out_of_gas()` that will terminate execution.
-        Operator::I64LtU,
-        Operator::If {
+        Instruction::I64LtU,
+        Instruction::If {
             blockty: BlockType::Empty,
         },
-        Operator::I32Const {
+        Instruction::I32Const {
             value: SystemBreakCode::OutOfGas as i32,
         },
-        Operator::Call {
+        Instruction::Call {
             function_index: gr_system_break_index,
         },
-        Operator::End,
+        Instruction::End,
         // IV. Calculating new global value by subtraction.
         //
         // Result is stored back into global.
-        Operator::GlobalGet {
+        Instruction::GlobalGet {
             global_index: gas_index,
         },
-        Operator::LocalGet { local_index: 1 },
-        Operator::I64Sub,
-        Operator::GlobalSet {
+        Instruction::LocalGet { local_index: 1 },
+        Instruction::I64Sub,
+        Instruction::GlobalSet {
             global_index: gas_index,
         },
         // V. Ending `gas_charge()` function.
-        Operator::End,
+        Instruction::End,
     ];
 
     // determine cost for successful execution
@@ -331,11 +330,11 @@ fn inject_gas_limiter<'a, R: Rules>(
     let cost_blocks = elements
         .iter()
         .filter(|instruction| match instruction {
-            Operator::If { .. } => {
+            Instruction::If { .. } => {
                 block_of_code = true;
                 true
             }
-            Operator::End => {
+            Instruction::End => {
                 block_of_code = false;
                 false
             }
@@ -349,12 +348,12 @@ fn inject_gas_limiter<'a, R: Rules>(
         .ok_or(InstrumentationError::CostCalculationOverflow)?;
 
     let cost_push_arg = rules
-        .instruction_cost(&Operator::I32Const { value: 0 })
+        .instruction_cost(&Instruction::I32Const { value: 0 })
         .map(|c| c as u64)
         .ok_or(InstrumentationError::InstructionCostNotFound)?;
 
     let cost_call = rules
-        .instruction_cost(&Operator::Call { function_index: 0 })
+        .instruction_cost(&Instruction::Call { function_index: 0 })
         .map(|c| c as u64)
         .ok_or(InstrumentationError::InstructionCostNotFound)?;
 
@@ -373,12 +372,12 @@ fn inject_gas_limiter<'a, R: Rules>(
     let cost_instr = elements
         .iter_mut()
         .find(|i| {
-            **i == Operator::I64Const {
+            **i == Instruction::I64Const {
                 value: GAS_CHARGE_COST_PLACEHOLDER,
             }
         })
         .expect("Const for cost of the fn not found");
-    *cost_instr = Operator::I64Const { value: cost as i64 };
+    *cost_instr = Instruction::I64Const { value: cost as i64 };
 
     // gas_charge function
     mbuilder.push_type(FuncType::new([ValType::I32], []));

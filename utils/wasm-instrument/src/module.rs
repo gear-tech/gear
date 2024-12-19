@@ -17,17 +17,153 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{
+    format,
     string::{String, ToString},
     vec::Vec,
 };
+use core::convert::Infallible;
 use wasm_encoder::{
     reencode,
     reencode::{Reencode, RoundtripReencoder},
 };
 use wasmparser::{
     BinaryReaderError, ElementKind, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType,
-    Import, MemoryType, Operator, Payload, RefType, Table, TypeRef, ValType,
+    Import, MemoryType, Payload, RefType, Table, TypeRef, ValType,
 };
+
+macro_rules! define_for_each_instruction {
+    ($( @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident ($($ann:tt)*) )*) => {
+        define_for_each_instruction!(inner $( @$proposal $op $({ $($arg: $argty),* })? )* accum);
+    };
+    (
+        inner
+        @mvp BrTable { $($arg:ident: $argty:ty),* }
+        $( @$proposals:ident $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
+        accum
+        $( $ops_accum:ident $({ $($args_accum:ident: $argsty_accum:ty),* })? )*
+    ) => {
+        define_for_each_instruction!(
+            inner
+            $( @$proposals $ops $({ $($args: $argsty),* })? )*
+            accum
+            BrTable { targets: BrTable }
+            $( $ops_accum $({ $($args_accum: $argsty_accum),* })? )*
+        );
+    };
+    (
+        inner
+        @mvp $op:ident $({ $($arg:ident: $argty:ty),* })?
+        $( @$proposals:ident $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
+        accum
+        $( $ops_accum:ident $({ $($args_accum:ident: $argsty_accum:ty),* })? )*
+    ) => {
+        define_for_each_instruction!(
+            inner
+            $( @$proposals $ops $({ $($args: $argsty),* })? )*
+            accum
+            $op $({ $( $arg: $argty ),* })?
+            $( $ops_accum $({ $($args_accum: $argsty_accum),* })? )*
+        );
+    };
+    (
+        inner
+        @sign_extension $op:ident $({ $($arg:ident: $argty:ty),* })?
+        $( @$proposals:ident $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
+        accum
+        $( $ops_accum:ident $({ $($args_accum:ident: $argsty_accum:ty),* })? )*
+    ) => {
+        define_for_each_instruction!(
+            inner
+            $( @$proposals $ops $({ $($args: $argsty),* })? )*
+            accum
+            $op $({ $($arg: $argty),* })?
+            $( $ops_accum $({ $($args_accum: $argsty_accum),* })? )*
+        );
+    };
+    (
+        inner
+        @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })?
+        $( @$proposals:ident $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
+        accum
+        $( $ops_accum:ident $({ $($args_accum:ident: $argsty_accum:ty),* })? )*
+    ) => {
+        define_for_each_instruction!(
+            inner
+            $( @$proposals $ops $({ $($args: $argsty),* })? )*
+            accum
+            $( $ops_accum $({ $($args_accum: $argsty_accum),* })? )*
+        );
+    };
+    (
+        inner
+        accum
+        $( $op:ident $({ $($arg:ident: $argty:ty),* })? )*
+    ) => {
+        #[macro_export]
+        macro_rules! for_each_instruction {
+            ($mac:ident) => {
+                $mac! {
+                    $( $op $({ $($arg: $argty),* })? )*
+                }
+            };
+        }
+    };
+}
+
+wasmparser::for_each_operator!(define_for_each_instruction);
+
+macro_rules! define_instruction {
+    ($( $op:ident $({ $($arg:ident: $argty:ty),* })? )*) => {
+        #[derive(Debug, Clone, Eq, PartialEq)]
+        pub enum Instruction {
+            $( $op $({ $($arg: $argty),* })? ),*
+        }
+
+        impl Instruction {
+            fn new(op: wasmparser::Operator) -> Result<Self> {
+                match op {
+                    $(
+                        wasmparser::Operator::$op $({ $($arg),* })? => {
+                            Ok(Self::$op $({ $($arg: <_>::try_from($arg)?),* })?)
+                        }
+                    )*
+                    op => Err(ModuleError::UnsupportedInstruction(format!("{op:?}"))),
+                }
+            }
+
+            fn reencode(&self) -> Result<wasm_encoder::Instruction> {
+                Ok(match self {
+                    $(
+                        Self::$op $({ $($arg),* })? => {
+                            $(
+                                $(let $arg = define_instruction!(@arg $arg $arg);)*
+                            )?
+                            define_instruction!(@build $op $($($arg)*)?)
+                        }
+                    )*
+                })
+            }
+        }
+    };
+    (@arg $arg:ident blockty) => (RoundtripReencoder.block_type(*$arg)?);
+    (@arg $arg:ident targets) => ((
+        ($arg).targets.clone().into(),
+        ($arg).default,
+    ));
+    (@arg $arg:ident memarg) => (RoundtripReencoder.mem_arg(*$arg));
+    (@arg $arg:ident $_arg:ident) => (*$arg);
+
+    (@build $op:ident) => (wasm_encoder::Instruction::$op);
+    (@build BrTable $arg:ident) => (wasm_encoder::Instruction::BrTable($arg.0, $arg.1));
+    (@build I32Const $arg:ident) => (wasm_encoder::Instruction::I32Const($arg));
+    (@build I64Const $arg:ident) => (wasm_encoder::Instruction::I64Const($arg));
+    (@build F32Const $arg:ident) => (wasm_encoder::Instruction::F32Const(f32::from_bits($arg.bits())));
+    (@build F64Const $arg:ident) => (wasm_encoder::Instruction::F64Const(f64::from_bits($arg.bits())));
+    (@build $op:ident $arg:ident) => (wasm_encoder::Instruction::$op($arg));
+    (@build $op:ident $($arg:ident)*) => (wasm_encoder::Instruction::$op { $($arg),* });
+}
+
+for_each_instruction!(define_instruction);
 
 pub type Result<T, E = ModuleError> = core::result::Result<T, E>;
 
@@ -37,19 +173,58 @@ pub enum ModuleError {
     BinaryReader(BinaryReaderError),
     #[display(fmt = "Reencode error: {}", _0)]
     Reencode(reencode::Error),
+    #[display(fmt = "Unsupported instruction: {}", _0)]
+    UnsupportedInstruction(String),
+}
+
+impl From<Infallible> for ModuleError {
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct BrTable {
+    pub default: u32,
+    pub targets: Vec<u32>,
+}
+
+impl BrTable {
+    /// Returns the number of `br_table` entries, not including the default label.
+    pub fn len(&self) -> u32 {
+        self.targets.len() as u32
+    }
+
+    /// Returns whether `BrTable` doesn’t have any labels apart from the default one.
+    pub fn is_empty(&self) -> bool {
+        self.targets.is_empty()
+    }
+}
+
+impl TryFrom<wasmparser::BrTable<'_>> for BrTable {
+    type Error = ModuleError;
+
+    fn try_from(targets: wasmparser::BrTable) -> Result<Self> {
+        Ok(Self {
+            default: targets.default(),
+            targets: targets
+                .targets()
+                .collect::<Result<Vec<_>, BinaryReaderError>>()?,
+        })
+    }
 }
 
 #[derive(Default, Clone)]
-pub struct ConstExpr<'a> {
-    pub instructions: Vec<Operator<'a>>,
+pub struct ConstExpr {
+    pub instructions: Vec<Instruction>,
 }
 
-impl<'a> ConstExpr<'a> {
-    fn new(expr: wasmparser::ConstExpr<'a>) -> Result<Self> {
+impl ConstExpr {
+    fn new(expr: wasmparser::ConstExpr) -> Result<Self> {
         let mut instructions = Vec::new();
         let mut ops = expr.get_operators_reader();
         while !ops.is_end_then_eof() {
-            instructions.push(ops.read()?);
+            instructions.push(Instruction::new(ops.read()?)?);
         }
 
         Ok(Self { instructions })
@@ -59,19 +234,19 @@ impl<'a> ConstExpr<'a> {
         Ok(wasm_encoder::ConstExpr::extended(
             self.instructions
                 .iter()
-                .map(|op| RoundtripReencoder.instruction(op.clone()))
-                .collect::<Result<Vec<_>, reencode::Error>>()?,
+                .map(Instruction::reencode)
+                .collect::<Result<Vec<_>>>()?,
         ))
     }
 }
 
-pub struct Global<'a> {
+pub struct Global {
     pub ty: GlobalType,
-    pub init_expr: ConstExpr<'a>,
+    pub init_expr: ConstExpr,
 }
 
-impl<'a> Global<'a> {
-    fn new(global: wasmparser::Global<'a>) -> Result<Self> {
+impl Global {
+    fn new(global: wasmparser::Global) -> Result<Self> {
         Ok(Self {
             ty: global.ty,
             init_expr: ConstExpr::new(global.init_expr)?,
@@ -96,13 +271,13 @@ impl Export {
 }
 
 #[derive(Clone)]
-pub enum ElementItems<'a> {
+pub enum ElementItems {
     Functions(Vec<u32>),
-    Expressions(RefType, Vec<ConstExpr<'a>>),
+    Expressions(RefType, Vec<ConstExpr>),
 }
 
-impl<'a> ElementItems<'a> {
-    fn new(elements: wasmparser::ElementItems<'a>) -> Result<Self> {
+impl ElementItems {
+    fn new(elements: wasmparser::ElementItems) -> Result<Self> {
         Ok(match elements {
             wasmparser::ElementItems::Functions(f) => {
                 let mut funcs = Vec::new();
@@ -125,7 +300,7 @@ impl<'a> ElementItems<'a> {
 #[derive(Clone)]
 pub struct Element<'a> {
     pub kind: ElementKind<'a>,
-    pub items: ElementItems<'a>,
+    pub items: ElementItems,
 }
 
 impl<'a> Element<'a> {
@@ -137,16 +312,16 @@ impl<'a> Element<'a> {
     }
 }
 
-pub enum DataKind<'a> {
+pub enum DataKind {
     Passive,
     Active {
         memory_index: u32,
-        offset_expr: ConstExpr<'a>,
+        offset_expr: ConstExpr,
     },
 }
 
 pub struct Data<'a> {
-    pub kind: DataKind<'a>,
+    pub kind: DataKind,
     pub data: &'a [u8],
 }
 
@@ -169,13 +344,13 @@ impl<'a> Data<'a> {
 }
 
 #[derive(Debug, Default)]
-pub struct Function<'a> {
+pub struct Function {
     pub locals: Vec<(u32, ValType)>,
-    pub instructions: Vec<Operator<'a>>,
+    pub instructions: Vec<Instruction>,
 }
 
-impl<'a> Function<'a> {
-    fn from_entry(func: FunctionBody<'a>) -> Result<Self> {
+impl Function {
+    fn from_entry(func: FunctionBody) -> Result<Self> {
         let mut locals = Vec::new();
         for pair in func.get_locals_reader()? {
             let (cnt, ty) = pair?;
@@ -185,7 +360,7 @@ impl<'a> Function<'a> {
         let mut instructions = Vec::new();
         let mut reader = func.get_operators_reader()?;
         while !reader.eof() {
-            instructions.push(reader.read()?);
+            instructions.push(Instruction::new(reader.read()?)?);
         }
 
         Ok(Self {
@@ -217,7 +392,7 @@ impl<'a> ModuleBuilder<'a> {
         if let Some(section) = self.module.code_section_mut() {
             for func in section {
                 for instruction in &mut func.instructions {
-                    if let Operator::Call { function_index } = instruction {
+                    if let Instruction::Call { function_index } = instruction {
                         if *function_index >= inserted_index {
                             *function_index += inserted_count
                         }
@@ -250,7 +425,7 @@ impl<'a> ModuleBuilder<'a> {
                     ElementItems::Expressions(_ty, exprs) => {
                         for expr in exprs {
                             for instruction in &mut expr.instructions {
-                                if let Operator::Call { function_index } = instruction {
+                                if let Instruction::Call { function_index } = instruction {
                                     if *function_index >= inserted_index {
                                         *function_index += inserted_count
                                     }
@@ -295,7 +470,7 @@ impl<'a> ModuleBuilder<'a> {
         self.module.import_section.get_or_insert_with(Vec::new)
     }
 
-    fn global_section(&mut self) -> &mut Vec<Global<'a>> {
+    fn global_section(&mut self) -> &mut Vec<Global> {
         self.module.global_section.get_or_insert_with(Vec::new)
     }
 
@@ -303,7 +478,7 @@ impl<'a> ModuleBuilder<'a> {
         self.module.export_section.get_or_insert_with(Vec::new)
     }
 
-    fn code_section(&mut self) -> &mut CodeSection<'a> {
+    fn code_section(&mut self) -> &mut CodeSection {
         self.module.code_section.get_or_insert_with(Vec::new)
     }
 
@@ -316,7 +491,7 @@ impl<'a> ModuleBuilder<'a> {
         self.import_section().push(import);
     }
 
-    pub fn push_global(&mut self, global: Global<'a>) -> u32 {
+    pub fn push_global(&mut self, global: Global) -> u32 {
         self.global_section().push(global);
         self.global_section().len() as u32 - 1
     }
@@ -325,7 +500,7 @@ impl<'a> ModuleBuilder<'a> {
         self.export_section().push(export);
     }
 
-    pub fn push_function(&mut self, function: Function<'a>) {
+    pub fn push_function(&mut self, function: Function) {
         self.code_section().push(function);
     }
 }
@@ -333,7 +508,7 @@ impl<'a> ModuleBuilder<'a> {
 pub type TypeSection = Vec<FuncType>;
 pub type FuncSection = Vec<u32>;
 pub type DataSection<'a> = Vec<Data<'a>>;
-pub type CodeSection<'a> = Vec<Function<'a>>;
+pub type CodeSection = Vec<Function>;
 
 #[derive(derive_more::DebugCustom, Default)]
 #[debug(fmt = "Module {{ .. }}")]
@@ -343,12 +518,12 @@ pub struct Module<'a> {
     pub function_section: Option<FuncSection>,
     pub table_section: Option<Vec<Table<'a>>>,
     pub memory_section: Option<Vec<MemoryType>>,
-    pub global_section: Option<Vec<Global<'a>>>,
+    pub global_section: Option<Vec<Global>>,
     pub export_section: Option<Vec<Export>>,
     pub start_section: Option<u32>,
     pub element_section: Option<Vec<Element<'a>>>,
     pub data_section: Option<DataSection<'a>>,
-    pub code_section: Option<CodeSection<'a>>,
+    pub code_section: Option<CodeSection>,
 }
 
 impl<'a> Module<'a> {
@@ -622,7 +797,7 @@ impl<'a> Module<'a> {
                         .collect::<Result<Vec<_>, reencode::Error>>()?,
                 );
                 for op in function.instructions.clone() {
-                    encoder_func.instruction(&RoundtripReencoder.instruction(op)?);
+                    encoder_func.instruction(&op.reencode()?);
                 }
 
                 encoder_section.function(&encoder_func);
@@ -697,11 +872,11 @@ impl<'a> Module<'a> {
         self.memory_section.as_mut()
     }
 
-    pub fn global_section(&self) -> Option<&Vec<Global<'a>>> {
+    pub fn global_section(&self) -> Option<&Vec<Global>> {
         self.global_section.as_ref()
     }
 
-    pub fn global_section_mut(&mut self) -> Option<&mut Vec<Global<'a>>> {
+    pub fn global_section_mut(&mut self) -> Option<&mut Vec<Global>> {
         self.global_section.as_mut()
     }
 
@@ -737,11 +912,11 @@ impl<'a> Module<'a> {
         self.data_section.as_mut()
     }
 
-    pub fn code_section(&self) -> Option<&Vec<Function<'a>>> {
+    pub fn code_section(&self) -> Option<&Vec<Function>> {
         self.code_section.as_ref()
     }
 
-    pub fn code_section_mut(&mut self) -> Option<&mut CodeSection<'a>> {
+    pub fn code_section_mut(&mut self) -> Option<&mut CodeSection> {
         self.code_section.as_mut()
     }
 }

@@ -25,10 +25,10 @@ use crate::{
 };
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
-    module::{ConstExpr, DataKind, ElementItems, Export, Global},
+    module::{ConstExpr, DataKind, ElementItems, Export, Global, Instruction},
     Module, SyscallName, STACK_END_EXPORT_NAME,
 };
-use wasmparser::{ExternalKind, Operator, Payload, TypeRef, ValType};
+use wasmparser::{ExternalKind, Payload, TypeRef, ValType};
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGES_AMOUNT: u16 = u16::MAX / 2 + 1; // 2GB
@@ -228,7 +228,7 @@ fn get_export_global_with_index(module: &Module, name: &str) -> Option<(u32, u32
 
 fn get_init_expr_const_i32(init_expr: &ConstExpr) -> Option<i32> {
     match init_expr.instructions.as_slice() {
-        [Operator::I32Const { value }, Operator::End] => Some(*value),
+        [Instruction::I32Const { value }, Instruction::End] => Some(*value),
         _ => None,
     }
 }
@@ -237,7 +237,7 @@ fn get_export_global_entry<'a>(
     module: &'a Module,
     export_index: u32,
     global_index: u32,
-) -> Result<&'a Global<'a>, CodeError> {
+) -> Result<&'a Global, CodeError> {
     let index = global_index
         .checked_sub(module.import_count(|ty| matches!(ty, TypeRef::Global(_))) as u32)
         .ok_or(ExportError::ExportReferencesToImportGlobal(

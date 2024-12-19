@@ -9,9 +9,8 @@
 //! the worst case.
 
 use super::{BlockCostCounter, ConstantCostRules, MeteredBlock, Rules};
-use crate::module::Function;
+use crate::module::{Function, Instruction};
 use std::collections::BTreeMap as Map;
-use wasmparser::Operator;
 
 /// An ID for a node in a ControlFlowGraph.
 type NodeId = usize;
@@ -171,13 +170,13 @@ fn build_control_flow_graph(
         }
         let instruction_cost = rules.instruction_cost(instruction).ok_or(())?;
         match instruction {
-            Operator::Block { .. } => {
+            Instruction::Block { .. } => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 let exit_node_id = graph.add_node();
                 stack.push(ControlFrame::new(active_node_id, exit_node_id, false));
             }
-            Operator::If { .. } => {
+            Instruction::If { .. } => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 let then_node_id = graph.add_node();
@@ -187,7 +186,7 @@ fn build_control_flow_graph(
                 graph.new_forward_edge(active_node_id, then_node_id);
                 graph.set_first_instr_pos(then_node_id, cursor + 1);
             }
-            Operator::Loop { .. } => {
+            Instruction::Loop { .. } => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 let loop_node_id = graph.add_node();
@@ -197,7 +196,7 @@ fn build_control_flow_graph(
                 graph.new_forward_edge(active_node_id, loop_node_id);
                 graph.set_first_instr_pos(loop_node_id, cursor + 1);
             }
-            Operator::Else => {
+            Instruction::Else => {
                 let active_frame_idx = stack.len() - 1;
                 let prev_frame_idx = stack.len() - 2;
 
@@ -208,7 +207,7 @@ fn build_control_flow_graph(
                 graph.new_forward_edge(prev_node_id, else_node_id);
                 graph.set_first_instr_pos(else_node_id, cursor + 1);
             }
-            Operator::End => {
+            Instruction::End => {
                 let closing_frame = stack.pop()
 					.expect("module is valid by pre-condition; ends correspond to control stack frames; qed");
 
@@ -219,7 +218,7 @@ fn build_control_flow_graph(
                     active_frame.active_node = closing_frame.exit_node;
                 }
             }
-            Operator::Br { relative_depth } => {
+            Instruction::Br { relative_depth } => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 let active_frame_idx = stack.len() - 1;
@@ -231,7 +230,7 @@ fn build_control_flow_graph(
                 stack[active_frame_idx].active_node = new_node_id;
                 graph.set_first_instr_pos(new_node_id, cursor + 1);
             }
-            Operator::BrIf { relative_depth } => {
+            Instruction::BrIf { relative_depth } => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 let active_frame_idx = stack.len() - 1;
@@ -243,15 +242,11 @@ fn build_control_flow_graph(
                 graph.new_forward_edge(active_node_id, new_node_id);
                 graph.set_first_instr_pos(new_node_id, cursor + 1);
             }
-            Operator::BrTable { targets } => {
+            Instruction::BrTable { targets } => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 let active_frame_idx = stack.len() - 1;
-                for label in [Ok(targets.default())]
-                    .into_iter()
-                    .chain(targets.targets())
-                    .map(|label| label.unwrap_or_else(|_| todo!("return error")))
-                {
+                for label in [targets.default].into_iter().chain(targets.targets.clone()) {
                     let target_frame_idx = active_frame_idx - (label as usize);
                     graph.new_edge(active_node_id, &stack[target_frame_idx]);
                 }
@@ -260,7 +255,7 @@ fn build_control_flow_graph(
                 stack[active_frame_idx].active_node = new_node_id;
                 graph.set_first_instr_pos(new_node_id, cursor + 1);
             }
-            Operator::Return => {
+            Instruction::Return => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 graph.new_forward_edge(active_node_id, terminal_node_id);

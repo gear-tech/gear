@@ -8,12 +8,12 @@
 mod validation;
 
 use crate::{
-    module::{Function, ModuleBuilder},
+    module::{Function, Instruction, ModuleBuilder},
     Module,
 };
 use alloc::{vec, vec::Vec};
 use core::{cmp::min, mem, num::NonZeroU32};
-use wasmparser::{FuncType, Import, Operator, TypeRef, ValType};
+use wasmparser::{FuncType, Import, TypeRef, ValType};
 
 /// An interface that describes instruction costs.
 pub trait Rules {
@@ -22,7 +22,7 @@ pub trait Rules {
     /// Returning `None` makes the gas instrumention end with an error. This is meant
     /// as a way to have a partial rule set where any instruction that is not specifed
     /// is considered as forbidden.
-    fn instruction_cost(&self, instruction: &Operator) -> Option<u32>;
+    fn instruction_cost(&self, instruction: &Instruction) -> Option<u32>;
 
     /// Returns the costs for growing the memory using the `memory.grow` instruction.
     ///
@@ -105,7 +105,7 @@ impl Default for ConstantCostRules {
 }
 
 impl Rules for ConstantCostRules {
-    fn instruction_cost(&self, _: &Operator) -> Option<u32> {
+    fn instruction_cost(&self, _: &Instruction) -> Option<u32> {
         Some(self.instruction_cost)
     }
 
@@ -510,8 +510,8 @@ impl Counter {
     }
 }
 
-fn inject_grow_counter(instructions: &mut Vec<Operator>, grow_counter_func: u32) -> usize {
-    use Operator::*;
+fn inject_grow_counter(instructions: &mut Vec<Instruction>, grow_counter_func: u32) -> usize {
+    use Instruction::*;
     let mut counter = 0;
     for instruction in instructions {
         if let MemoryGrow { mem: _ } = *instruction {
@@ -525,7 +525,7 @@ fn inject_grow_counter(instructions: &mut Vec<Operator>, grow_counter_func: u32)
 }
 
 fn add_grow_counter<'a, R: Rules>(module: Module<'a>, rules: &R, gas_func: u32) -> Module<'a> {
-    use Operator::*;
+    use Instruction::*;
 
     let cost = match rules.memory_grow_cost() {
         MemoryGrowCost::Free => return module,
@@ -555,11 +555,11 @@ fn add_grow_counter<'a, R: Rules>(module: Module<'a>, rules: &R, gas_func: u32) 
 }
 
 fn determine_metered_blocks<R: Rules>(
-    instructions: &[Operator],
+    instructions: &[Instruction],
     rules: &R,
     locals_count: u32,
 ) -> Result<Vec<MeteredBlock>, ()> {
-    use wasmparser::Operator::*;
+    use Instruction::*;
 
     let mut counter = Counter::new();
 
@@ -614,14 +614,10 @@ fn determine_metered_blocks<R: Rules>(
                 counter.increment(instruction_cost)?;
 
                 let active_index = counter.active_control_block_index().ok_or(())?;
-                let target_indices = [Ok(targets.default())]
+                let target_indices = [targets.default]
                     .into_iter()
-                    .chain(targets.targets())
-                    .map(|label| {
-                        label
-                            .ok()
-                            .and_then(|l| active_index.checked_sub(l as usize))
-                    })
+                    .chain(targets.targets.clone())
+                    .map(|label| active_index.checked_sub(label as usize))
                     .collect::<Option<Vec<_>>>()
                     .ok_or(())?;
                 counter.branch(cursor, target_indices.as_slice())?;
@@ -644,7 +640,7 @@ fn determine_metered_blocks<R: Rules>(
 }
 
 fn inject_counter<R: Rules>(
-    instructions: &mut Vec<Operator>,
+    instructions: &mut Vec<Instruction>,
     rules: &R,
     locals_count: u32,
     gas_func: u32,
@@ -655,7 +651,7 @@ fn inject_counter<R: Rules>(
 
 // Then insert metering calls into a sequence of instructions given the block locations and costs.
 fn insert_metering_calls(
-    instructions: &mut Vec<Operator>,
+    instructions: &mut Vec<Instruction>,
     blocks: Vec<MeteredBlock>,
     gas_func: u32,
 ) -> Result<(), ()> {
@@ -700,8 +696,8 @@ fn calculate_blocks_costs_num(blocks: &[MeteredBlock]) -> usize {
     blocks.iter().map(|block| block.cost.costs_num()).sum()
 }
 
-fn insert_gas_call(new_instrs: &mut Vec<Operator>, current_block: &MeteredBlock, gas_func: u32) {
-    use Operator::*;
+fn insert_gas_call(new_instrs: &mut Vec<Instruction>, current_block: &MeteredBlock, gas_func: u32) {
+    use Instruction::*;
 
     let (mut overflows_num, current_cost) = current_block.cost.block_costs();
     // First insert gas charging call with maximum argument due to overflows.
@@ -728,8 +724,8 @@ fn insert_gas_call(new_instrs: &mut Vec<Operator>, current_block: &MeteredBlock,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module::{ConstExpr, Global};
-    use wasmparser::{BlockType, GlobalType, Operator::*};
+    use crate::module::{ConstExpr, Global, Instruction::*};
+    use wasmparser::{BlockType, GlobalType};
 
     macro_rules! parse_wat {
         ($module:ident = $source:expr) => {
@@ -741,7 +737,7 @@ mod tests {
     fn get_function_body<'m: 'o, 'o>(
         module: &'m Module<'o>,
         index: usize,
-    ) -> Option<&'m [Operator<'o>]> {
+    ) -> Option<&'m [Instruction]> {
         module
             .code_section()
             .and_then(|code_section| code_section.get(index))
