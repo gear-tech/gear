@@ -115,6 +115,8 @@ where
     );
     let value_counter = ValueCounter::new(value_available);
 
+    let endpoint_forbidden_funcs = kind.forbidden_funcs();
+
     let context = ProcessorContext {
         gas_counter,
         gas_allowance_counter,
@@ -134,6 +136,7 @@ where
         existential_deposit: settings.existential_deposit,
         mailbox_threshold: settings.mailbox_threshold,
         costs: settings.ext_costs,
+        endpoint_forbidden_funcs,
     };
 
     // Creating externalities.
@@ -307,6 +310,12 @@ where
     )
     .ok_or("Incorrect message store context: out of outgoing bytes limit")?;
 
+    let endpoint_forbidden_funcs = function
+        .try_into_kind()
+        .as_mut()
+        .map(|kind| kind.forbidden_funcs())
+        .unwrap_or_default();
+
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
@@ -333,6 +342,7 @@ where
         existential_deposit: Default::default(),
         mailbox_threshold: Default::default(),
         costs: Default::default(),
+        endpoint_forbidden_funcs,
     };
 
     // Creating externalities.
