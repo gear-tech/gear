@@ -1,0 +1,24 @@
+[package]
+name = "demo-plonky2-verifier"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gcore = { workspace = true, features = ["codec"] }
+gstd.workspace = true
+num = { workspace = true, features = ["alloc"] }
+plonky2.workspace = true
+plonky2_field.workspace = true
+serde = { workspace = true, features = ["derive", "alloc"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]

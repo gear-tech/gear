@@ -38,6 +38,7 @@ pub mod benchmarking;
 pub mod bls12_381;
 pub mod proxy;
 pub mod staking;
+pub mod util;
 pub mod weights;
 
 #[cfg(test)]
@@ -93,6 +94,12 @@ pub enum BuiltinActorError {
     /// Actor's inner error encoded as a String.
     #[display(fmt = "Builtin execution resulted in error: {_0}")]
     Custom(LimitedStr<'static>),
+}
+
+impl From<&'static str> for BuiltinActorError {
+    fn from(e: &'static str) -> Self {
+        BuiltinActorError::Custom(LimitedStr::from_small_str(e))
+    }
 }
 
 impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
