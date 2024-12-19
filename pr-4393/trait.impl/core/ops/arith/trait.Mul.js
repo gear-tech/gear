@@ -1,5 +1,5 @@
 (function() {var implementors = {
 "gclient":[],
-"gstd":[["impl <a class=\"trait\" href=\"gstd/prelude/ops/trait.Mul.html\" title=\"trait gstd::prelude::ops::Mul\">Mul</a> for <a class=\"struct\" href=\"gstd/primitives/goldilocks_field/struct.GoldilocksFieldWrapper.html\" title=\"struct gstd::primitives::goldilocks_field::GoldilocksFieldWrapper\">GoldilocksFieldWrapper</a>"]],
+"gstd":[],
 "gtest":[["impl&lt;__RhsT&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/arith/trait.Mul.html\" title=\"trait core::ops::arith::Mul\">Mul</a>&lt;__RhsT&gt; for <a class=\"struct\" href=\"gtest/struct.Gas.html\" title=\"struct gtest::Gas\">Gas</a><div class=\"where\">where\n    <a class=\"primitive\" href=\"https://doc.rust-lang.org/nightly/std/primitive.u64.html\">u64</a>: <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/arith/trait.Mul.html\" title=\"trait core::ops::arith::Mul\">Mul</a>&lt;__RhsT, Output = <a class=\"primitive\" href=\"https://doc.rust-lang.org/nightly/std/primitive.u64.html\">u64</a>&gt;,</div>"]]
 };if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
