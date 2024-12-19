@@ -24,6 +24,7 @@ pub use output::{OutputTask, TxPoolOutputTaskReceiver};
 pub(crate) use output::TxPoolOutputTaskSender;
 
 use crate::{Transaction, TxValidator, TxValidatorFinishResult};
+use anyhow::Result;
 use ethexe_db::Database;
 use input::TxPoolInputTaskReceiver;
 use tokio::sync::mpsc;
@@ -71,55 +72,65 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
     pub async fn run(mut self) {
         while let Some(task) = self.input_interface.recv().await {
             match task {
+                InputTask::CheckTransactionValidity {
+                    transaction,
+                    response_sender,
+                } => {
+                    let res = self.validate_tx_full(transaction).await;
+                    let _ = response_sender.send(res).inspect_err(|_| {
+                        // TODO [sab] handle properly
+                        log::error!("`CheckValidity` task receiver dropped.");
+                    });
+                }
                 InputTask::AddTransaction {
                     transaction,
                     response_sender,
                 } => {
-                    let res = TxValidator::new(transaction, self.db.clone())
-                        .with_signature_check()
-                        .with_mortality_check()
-                        .with_uniqueness_check()
-                        .with_executable_tx_check(self.output_inteface.clone())
-                        .full_validate()
-                        .await
-                        .finish_validator_res()
-                        .map(|tx| {
-                            let tx_hash = tx.tx_hash();
-                            let tx_encoded = tx.encode();
+                    let res = self.validate_tx_full(transaction).await.map(|tx| {
+                        let tx_hash = tx.tx_hash();
+                        let tx_encoded = tx.encode();
 
-                            // Request propagation.
-                            if let Err(err) =
-                                self.output_inteface.send(OutputTask::PropogateTransaction {
-                                    transaction: tx.clone(),
-                                })
-                            {
-                                // TODO [sab] handle properly
-                                log::error!("Failed to send `PropogateTransaction` task: {err:?}");
-                            }
+                        // Request propagation.
+                        if let Err(err) =
+                            self.output_inteface.send(OutputTask::PropogateTransaction {
+                                transaction: tx.clone(),
+                            })
+                        {
+                            // TODO [sab] handle properly
+                            log::error!("Failed to send `PropogateTransaction` task: {err:?}");
+                        }
 
-                            // Request execution.
-                            if let Err(err) = self
-                                .output_inteface
-                                .send(OutputTask::ExecuteTransaction { transaction: tx })
-                            {
-                                // TODO [sab] handle properly
-                                log::error!("Failed to send `PropogateTransaction` task: {err:?}");
-                            }
+                        // Request execution.
+                        if let Err(err) = self
+                            .output_inteface
+                            .send(OutputTask::ExecuteTransaction { transaction: tx })
+                        {
+                            // TODO [sab] handle properly
+                            log::error!("Failed to send `PropogateTransaction` task: {err:?}");
+                        }
 
-                            self.db.set_validated_transaction(tx_hash, tx_encoded);
+                        self.db.set_validated_transaction(tx_hash, tx_encoded);
 
-                            tx_hash
-                        });
+                        tx_hash
+                    });
 
                     if let Some(response_sender) = response_sender {
-                        let _ = response_sender.send(res).inspect_err(|err| {
+                        let _ = response_sender.send(res).inspect_err(|_| {
                             // TODO [sab] handle properly
-                            log::error!("`AddTransaction` task receiver dropped - {err:?}")
+                            log::error!("`AddTransaction` task receiver dropped.")
                         });
                     }
                 }
             }
         }
+    }
+
+    async fn validate_tx_full(&self, transaction: Tx) -> Result<Tx> {
+        TxValidator::new(transaction, self.db.clone())
+            .with_all_checks(self.output_inteface.clone())
+            .full_validate()
+            .await
+            .finish_validator_res()
     }
 }
 
@@ -130,10 +141,12 @@ mod input {
     use tokio::sync::{mpsc, oneshot};
 
     /// Input task for the transaction pool service.
-    ///
-    /// The task is later processed to be executed by
-    /// the [`crate::TxPool`] implementation.
     pub enum InputTask<Tx> {
+        /// Request for checking the transaction validity.
+        CheckTransactionValidity {
+            transaction: Tx,
+            response_sender: oneshot::Sender<Result<Tx>>,
+        },
         /// Request for adding the transaction to the transaction pool.
         /// Sends the response back to the task sender, if there's receiver,
         /// that expects the response.
@@ -199,7 +212,7 @@ mod output {
         /// Requests for a transcation to propogation.
         PropogateTransaction { transaction: Tx },
         /// Requests for a check by external service that transaction is executable.
-        CheckIsExecutable {
+        CheckIsExecutableTransaction {
             transaction: Tx,
             response_sender: oneshot::Sender<bool>,
         },

@@ -104,6 +104,25 @@ impl<Tx> TxValidator<Tx> {
     }
 }
 
+impl<Tx> TxValidator<Tx>
+where
+    Tx: TxSignature
+        + Encode
+        + TxReferenceBlockHash
+        + TxHashBlake2b256
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+{
+    pub fn with_all_checks(self, tx_pool_output_task_sender: TxPoolOutputTaskSender<Tx>) -> Self {
+        self.with_signature_check()
+            .with_mortality_check()
+            .with_uniqueness_check()
+            .with_executable_tx_check(tx_pool_output_task_sender)
+    }
+}
+
 impl<Tx: TxSignature + Encode> TxValidator<Tx> {
     pub fn with_signature_check(mut self) -> Self {
         self.stateless_validators.push(Box::new(SignatureValidator));
@@ -202,7 +221,7 @@ pub struct ExecutableTxValidator<Tx> {
 impl<Tx: Clone + Send + Sync + 'static> AsyncValidation<Tx> for ExecutableTxValidator<Tx> {
     async fn async_validate(&self, tx: &Tx) -> Result<()> {
         let (response_sender, response_receiver) = oneshot::channel();
-        let outout_task = OutputTask::CheckIsExecutable {
+        let outout_task = OutputTask::CheckIsExecutableTransaction {
             transaction: tx.clone(),
             response_sender,
         };

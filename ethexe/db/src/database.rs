@@ -453,6 +453,15 @@ impl Database {
         self.kv.put(&KeyPrefix::Transaction.one(tx_hash), tx);
     }
 
+    pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> bool {
+        todo!("TODO [sab]");
+    }
+
+    pub fn check_is_unique(&self, tx_hash: H256) -> bool {
+        // already added?
+        todo!("TODO [sab]");
+    }
+
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {
         self.kv
             .get(&KeyPrefix::BlockSmallMeta.two(self.router_address, block_hash))

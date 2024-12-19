@@ -35,7 +35,7 @@ use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_tx_pool::{
-    EthexeTransaction, InputTask, OutputTask, StandardInputTaskSender,
+    InputTask, OutputTask, SignedEthexeTransaction, StandardInputTaskSender,
     StandardTxPoolInstantiationArtifacts,
 };
 use ethexe_validator::BlockCommitmentValidationRequest;
@@ -48,6 +48,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use tokio::sync::oneshot;
 use utils::*;
 
 /// ethexe service.
@@ -85,7 +86,7 @@ pub enum NetworkMessage {
         blocks: Option<(Digest, Signature)>,
     },
     Transaction {
-        transaction: EthexeTransaction,
+        transaction: SignedEthexeTransaction,
     },
 }
 
@@ -209,7 +210,7 @@ impl Service {
             .transpose()?;
 
         log::info!("🚅 Tx pool service starting...");
-        let tx_pool_artifacts = ethexe_tx_pool::new((db.clone(),));
+        let tx_pool_artifacts = ethexe_tx_pool::new(db.clone());
 
         let rpc = config.rpc_config.as_ref().map(|config| {
             ethexe_rpc::RpcService::new(
@@ -383,6 +384,7 @@ impl Service {
         let mut commitments = vec![];
 
         let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
+        log::debug!("Last commited chain {:#?}", last_committed_chain);
 
         for block_hash in last_committed_chain.into_iter().rev() {
             let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
@@ -612,7 +614,7 @@ impl Service {
                 }
                 Some(task) = tx_pool_ouput_task_receiver.recv() => {
                     log::debug!("Received a task from the tx pool - {task:?}");
-                    Self::process_tx_pool_output_task(task, network_sender.as_mut());
+                    Self::process_tx_pool_output_task(task, &db, &tx_pool_input_task_sender, network_sender.as_mut(),).await;
                 }
                 _ = maybe_await(network_handle.as_mut()) => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
@@ -866,6 +868,7 @@ impl Service {
                 Ok(())
             }
             NetworkMessage::Transaction { transaction } => {
+                // TODO [sab] what to do in case of error?
                 let _ = tx_pool_input_task_sender
                     .send(InputTask::AddTransaction {
                         transaction,
@@ -907,8 +910,10 @@ impl Service {
         Ok(true)
     }
 
-    fn process_tx_pool_output_task(
-        task: OutputTask<EthexeTransaction>,
+    async fn process_tx_pool_output_task(
+        task: OutputTask<SignedEthexeTransaction>,
+        db: &Database,
+        tx_pool_input_task_sender: &StandardInputTaskSender,
         mut maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
     ) {
         match task {
@@ -918,6 +923,46 @@ impl Service {
                     network_sender
                         .publish_transaction(NetworkMessage::Transaction { transaction }.encode());
                 }
+            }
+            OutputTask::CheckIsExecutableTransaction {
+                transaction,
+                response_sender,
+            } => {
+                let res = response_sender.send(true);
+                let _db_overlay = unsafe {
+                    // Safety:
+                    // Used when a transaction is received via p2p or rpc
+                    // requested to be added, so executional check is performed
+                    // on the overlayed db.
+                    db.clone().overlaid()
+                };
+                log::debug!(
+                    "Received transaction {transaction:#?} for the check. Result - {res:?}"
+                );
+
+                log::warn!("Unimplemented");
+            }
+            OutputTask::ExecuteTransaction { transaction } => {
+                log::debug!("Received transaction {transaction:#?} for the execution");
+
+                // TODO [sab] handle errors smoothly
+                let (response_sender, response_receiver) = oneshot::channel();
+                let _ = tx_pool_input_task_sender
+                    .send(InputTask::CheckTransactionValidity {
+                        transaction: transaction,
+                        response_sender,
+                    })
+                    .inspect_err(|e| {
+                        log::error!(
+                            "Failed to send tx pool input task: {e}. \
+                            The receiving end in the tx pool might have been dropped."
+                        );
+                    });
+                let _ = response_receiver.await.map_err(|e| {
+                    log::error!("Failed to receive tx pool response: {e}");
+                });
+
+                log::warn!("Unimplemented");
             }
         }
     }
