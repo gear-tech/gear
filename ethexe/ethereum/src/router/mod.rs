@@ -25,7 +25,9 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use ethexe_common::gear::{
+    BlockCommitment, CodeCommitment, ExecuteSlashCommitment, RequestSlashCommitment,
+};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
@@ -182,6 +184,38 @@ impl Router {
                     .collect(),
             )
             .gas(10_000_000);
+        let receipt = builder.send().await?.try_get_receipt().await?;
+        Ok(H256(receipt.transaction_hash.0))
+    }
+
+    pub async fn commit_request_slash(
+        &self,
+        commitment: RequestSlashCommitment,
+        signatures: Vec<LocalSignature>,
+    ) -> Result<H256> {
+        let builder = self.instance.commitRequestSlash(
+            commitment.into(),
+            signatures
+                .into_iter()
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .collect(),
+        );
+        let receipt = builder.send().await?.try_get_receipt().await?;
+        Ok(H256(receipt.transaction_hash.0))
+    }
+
+    pub async fn commit_execute_slash(
+        &self,
+        commitment: ExecuteSlashCommitment,
+        signatures: Vec<LocalSignature>,
+    ) -> Result<H256> {
+        let builder = self.instance.commitExecuteSlash(
+            commitment.into(),
+            signatures
+                .into_iter()
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .collect(),
+        );
         let receipt = builder.send().await?.try_get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
     }

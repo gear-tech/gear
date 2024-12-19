@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::abi::{utils::*, Gear};
+use crate::abi::{utils::*, Gear, IMiddleware};
 use ethexe_common::gear::*;
 use gear_core::message::ReplyDetails;
 
@@ -54,6 +54,58 @@ impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
                 .map(actor_id_to_address_lossy)
                 .collect(),
             eraIndex: Uint256::from(value.era_index),
+        }
+    }
+}
+
+impl From<RequestSlashCommitment> for Gear::RequestSlashCommitment {
+    fn from(commitment: RequestSlashCommitment) -> Self {
+        Gear::RequestSlashCommitment {
+            eraIndex: Uint256::from(commitment.era_index),
+            slashes: commitment.slashes.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<ExecuteSlashCommitment> for Gear::ExecuteSlashCommitment {
+    fn from(commitment: ExecuteSlashCommitment) -> Self {
+        Gear::ExecuteSlashCommitment {
+            eraIndex: Uint256::from(commitment.era_index),
+            slashIdentifiers: commitment
+                .slash_identifiers
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}
+
+impl From<SlashIdentifier> for IMiddleware::SlashIdentifier {
+    fn from(identifier: SlashIdentifier) -> Self {
+        Self {
+            vault: actor_id_to_address_lossy(identifier.vault),
+            index: Uint256::from(identifier.index),
+        }
+    }
+}
+
+impl From<VaultSlashData> for IMiddleware::VaultSlashData {
+    fn from(vault_data: VaultSlashData) -> Self {
+        let mut bytes = Vec::new();
+        vault_data.amount.to_big_endian(&mut bytes);
+        Self {
+            vault: actor_id_to_address_lossy(vault_data.vault),
+            amount: Uint256::from_be_slice(&bytes),
+        }
+    }
+}
+
+impl From<SlashData> for IMiddleware::SlashData {
+    fn from(data: SlashData) -> Self {
+        Self {
+            operator: actor_id_to_address_lossy(data.operator),
+            ts: u64_to_uint48_lossy(data.timestamp),
+            vaults: data.vaults.into_iter().map(Into::into).collect(),
         }
     }
 }

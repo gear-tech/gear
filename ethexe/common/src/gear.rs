@@ -58,6 +58,37 @@ pub struct ValidatorsCommitment {
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct RequestSlashCommitment {
+    pub era_index: u64,
+    pub slashes: Vec<SlashData>,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct ExecuteSlashCommitment {
+    pub era_index: u64,
+    pub slash_identifiers: Vec<SlashIdentifier>,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct SlashData {
+    pub operator: ActorId,
+    pub timestamp: u64,
+    pub vaults: Vec<VaultSlashData>,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct VaultSlashData {
+    pub vault: ActorId,
+    pub amount: U256,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct SlashIdentifier {
+    pub vault: ActorId,
+    pub index: u64,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub enum CodeState {
     #[default]
     Unknown,
