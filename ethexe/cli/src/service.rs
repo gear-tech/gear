@@ -931,7 +931,7 @@ impl Service {
                 let res = response_sender.send(true);
                 let _db_overlay = unsafe {
                     // Safety:
-                    // Used when a transaction is received via p2p or rpc
+                    // Used when a transaction is received via p2p or rpc and
                     // requested to be added, so executional check is performed
                     // on the overlayed db.
                     db.clone().overlaid()
