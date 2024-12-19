@@ -391,4 +391,7 @@ pub trait Externalities {
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
+
+    /// Return the set of functions that are forbidden to be called in this endpoint.
+    fn endpoint_forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
 }

@@ -52,7 +52,7 @@ use gear_core::{
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{AsContextExt, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
-use gear_wasm_instrument::SystemBreakCode;
+use gear_wasm_instrument::{SyscallName, SystemBreakCode};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithGas, ErrorWithHandle, ErrorWithHash,
     ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash, HashWithValue,
@@ -148,6 +148,7 @@ pub(crate) trait Syscall<Caller, T = ()> {
         self,
         caller: &mut CallerWrap<Caller>,
         ctx: Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError>;
 }
 
@@ -234,6 +235,7 @@ where
         self,
         caller: &mut CallerWrap<Caller>,
         (): Self::Context,
+        _syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
         (self.0)(caller)
     }
@@ -285,10 +287,11 @@ where
         self,
         caller: &mut CallerWrap<Caller>,
         context: Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, ()), HostError> {
         let Self { token, f, .. } = self;
         let FallibleSyscallContext { gas, res_ptr } = context;
-        caller.run_fallible::<T, _, E>(gas, res_ptr, token, f)
+        caller.run_fallible::<T, _, E>(gas, res_ptr, token, syscall_name, f)
     }
 }
 
@@ -329,10 +332,11 @@ where
         self,
         caller: &mut CallerWrap<Caller>,
         ctx: Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
         let Self { token, f } = self;
         let InfallibleSyscallContext { gas } = ctx;
-        caller.run_any::<T, _>(gas, token, f)
+        caller.run_any::<T, _>(gas, token, syscall_name, f)
     }
 }
 
@@ -352,6 +356,7 @@ where
         caller: &mut Caller,
         args: &[Value],
         builder: Builder,
+        syscall_name: SyscallName,
     ) -> Result<WasmReturnValue, HostError>
     where
         Builder: SyscallBuilder<Caller, Args, Res, Call>,
@@ -365,7 +370,7 @@ where
 
         let (ctx, args) = Call::Context::from_args(args)?;
         let syscall = builder.build(args)?;
-        let (gas, value) = syscall.execute(&mut caller, ctx)?;
+        let (gas, value) = syscall.execute(&mut caller, ctx, syscall_name)?;
         let value = value.into();
 
         Ok(WasmReturnValue {
@@ -1376,12 +1381,6 @@ where
                 )
             },
         )
-    }
-
-    pub fn forbidden(_args: &[Value]) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Null, |_: &mut CallerWrap<Caller>| {
-            Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into())
-        })
     }
 
     fn out_of_gas(ctx: &mut CallerWrap<Caller>) -> UndefinedTerminationReason {

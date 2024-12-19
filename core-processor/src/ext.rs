@@ -88,6 +88,8 @@ pub struct ProcessorContext {
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<SyscallName>,
+    /// Functions forbidden to be called with this endpoint
+    pub endpoint_forbidden_funcs: BTreeSet<SyscallName>,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
     /// Output from Randomness.
@@ -137,6 +139,7 @@ impl ProcessorContext {
             program_id: Default::default(),
             program_candidates_data: Default::default(),
             forbidden_funcs: Default::default(),
+            endpoint_forbidden_funcs: Default::default(),
             reserve_for: 0,
             random_data: ([0u8; 32].to_vec(), 0),
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
@@ -1417,6 +1420,10 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
         &self.context.forbidden_funcs
+    }
+
+    fn endpoint_forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
+        &self.context.endpoint_forbidden_funcs
     }
 }
 
