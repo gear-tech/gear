@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ScheduledTask"],"trait":["TaskHandler"],"type":["VaraScheduledTask"]};
