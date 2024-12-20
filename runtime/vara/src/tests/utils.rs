@@ -244,11 +244,12 @@ pub(super) fn expected_syscall_weights_count() -> usize {
         gr_create_program_wgas: _,
         gr_create_program_wgas_payload_per_byte: _,
         gr_create_program_wgas_salt_per_byte: _,
+        gr_permute: _,
         _phantom: __phantom,
     } = SyscallWeights::<Runtime>::default();
 
     // total number of syscalls
-    70
+    71
 }
 
 pub(super) fn expected_pages_costs_count() -> usize {
@@ -483,6 +484,7 @@ pub(super) fn check_syscall_weights<T: pallet_gear::Config>(
         expectation!(gr_create_program_wgas),
         expectation!(gr_create_program_wgas_payload_per_byte),
         expectation!(gr_create_program_wgas_salt_per_byte),
+        expectation!(gr_permute),
     ];
 
     check_expectations(&expectations)

@@ -135,7 +135,11 @@ impl DynamicSchedule {
         SCHEDULE.with(|schedule| {
             schedule
                 .borrow_mut()
-                .get_or_insert_with(Default::default)
+                .get_or_insert_with(|| {
+                    let mut schedule = Schedule::<Test>::default();
+                    schedule.limits.code_len *= 2;
+                    schedule
+                })
                 .clone()
         })
     }
