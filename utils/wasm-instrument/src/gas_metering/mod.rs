@@ -105,8 +105,8 @@ impl Default for ConstantCostRules {
 }
 
 impl Rules for ConstantCostRules {
-    fn instruction_cost(&self, _: &Instruction) -> Option<u32> {
-        Some(self.instruction_cost)
+    fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
+        (!instruction.is_user_forbidden()).then_some(self.instruction_cost)
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {

@@ -262,6 +262,13 @@ macro_rules! define_instruction {
 
 for_each_instruction!(define_instruction);
 
+impl Instruction {
+    /// Is instruction forbidden to be used by user but allowed to be used by instrumentation stage.
+    pub fn is_user_forbidden(&self) -> bool {
+        matches!(self, Self::MemoryGrow { .. })
+    }
+}
+
 pub type Result<T, E = ModuleError> = core::result::Result<T, E>;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -708,12 +715,13 @@ impl<'a> Module<'a> {
                     data_section = Some(Vec::with_capacity(count as usize));
                 }
                 Payload::DataSection(section) => {
-                    debug_assert!(
-                        matches!(data_section, Some(ref vec) if vec.len() == section.count() as usize)
-                    );
-                    let data_section = data_section
-                        .as_mut()
-                        .unwrap_or_else(|| unreachable!("data count section missing"));
+                    // debug_assert!(
+                    //     matches!(data_section, Some(ref vec) if vec.len() == section.count() as usize)
+                    // );
+                    // let data_section = data_section
+                    //     .as_mut()
+                    //     .unwrap_or_else(|| unreachable!("data count section missing"));
+                    let data_section = data_section.get_or_insert_with(Vec::new);
                     for data in section {
                         let data = data?;
                         data_section.push(Data::new(data)?);

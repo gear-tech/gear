@@ -132,10 +132,15 @@ impl Code {
         GetRulesFn: FnMut(&Module) -> R,
     {
         if config.make_validation {
-            wasmparser::validate(&original_code).map_err(CodeError::Validation)?;
+            wasmparser::Validator::new_with_features(
+                (wasmparser::WasmFeatures::WASM1 | wasmparser::WasmFeatures::SIGN_EXTENSION)
+                    & !wasmparser::WasmFeatures::FLOATS,
+            )
+            .validate_all(&original_code)
+            .map_err(CodeError::Validation)?;
         }
 
-        let mut module = Module::new(&original_code).map_err(CodecError::Decode)?;
+        let mut module = Module::new(&original_code)?;
 
         let static_pages = utils::get_static_pages(&module)?;
 
@@ -180,6 +185,7 @@ impl Code {
         if let Some(get_gas_rules) = get_gas_rules {
             instrumentation_builder.with_gas_limiter(get_gas_rules);
         }
+
         module = instrumentation_builder.instrument(module)?;
 
         // Use instrumented module to get section sizes.
@@ -188,7 +194,7 @@ impl Code {
         let table_section_size = utils::get_instantiated_table_section_size(&module)?;
         let element_section_size = utils::get_instantiated_element_section_size(&module)?;
 
-        let code = module.serialize().map_err(CodecError::Encode)?;
+        let code = module.serialize()?;
 
         // Use instrumented code to get section sizes.
         let CodeTypeSectionSizes {
@@ -436,7 +442,7 @@ mod tests {
         gas_metering::CustomConstantCostRules,
     };
     use alloc::{format, vec::Vec};
-    use gear_wasm_instrument::{InstrumentationError, STACK_END_EXPORT_NAME};
+    use gear_wasm_instrument::{InstrumentationError, ModuleError, STACK_END_EXPORT_NAME};
 
     fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
         wabt::Wat2Wasm::new()
@@ -845,6 +851,7 @@ mod tests {
         );
     }
 
+    #[ignore = "We don't support `reference-types` proposal yet"]
     #[test]
     fn table_number_limit() {
         const TABLE_NUMBER_LIMIT: u32 = 50;
@@ -1086,6 +1093,7 @@ mod tests {
         );
     }
 
+    #[ignore = "We don't support `reference-types` proposal yet"]
     #[test]
     fn table_section_bytes() {
         let wat = r#"
@@ -1148,6 +1156,8 @@ mod tests {
 
     #[test]
     fn type_section_bytes() {
+        env_logger::init();
+
         let wat = r#"
             (module
                 (import "env" "memory" (memory 3))
@@ -1188,10 +1198,8 @@ mod tests {
 
         assert!(matches!(
             res,
-            Err(CodeError::Instrumentation(
-                InstrumentationError::GasInjection
-            )),
-        ),);
+            Err(CodeError::Module(ModuleError::UnsupportedInstruction(_))),
+        ));
 
         // memory grow
         let res = try_new_code_from_wat(

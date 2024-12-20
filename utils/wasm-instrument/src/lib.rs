@@ -111,10 +111,9 @@ pub enum InstrumentationError {
     InstructionCostNotFound,
     /// Error occurred during injecting gas metering instructions.
     ///
-    /// This might be due to program contained unsupported/non-deterministic
-    /// instructions (floats, memory grow, etc.).
+    /// This might be due to program contained unsupported instructions (memory grow, etc.).
     #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
-        program contains unsupported instructions (floats, memory grow, etc.)")]
+        program contains unsupported instructions (memory grow, etc.)")]
     GasInjection,
 }
 

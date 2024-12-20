@@ -46,6 +46,7 @@ env_logger.workspace = true
 proptest.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 numerated = { workspace = true, features = ["mock"] }
+wasmprinter.workspace = true
 
 [features]
 default = []
