@@ -930,7 +930,7 @@ mod tests {
 
         Service::new(&Config {
             node_name: "test".to_string(),
-            ethereum_rpc: "ws://54.67.75.1:8546".into(),
+            ethereum_rpc: "wss://reth-rpc.gear-tech.io".into(),
             ethereum_beacon_rpc: "http://localhost:5052".into(),
             ethereum_router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
                 .parse()
