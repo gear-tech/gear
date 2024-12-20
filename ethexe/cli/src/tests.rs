@@ -44,7 +44,10 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeMap, BTreeSet}, str::FromStr, sync::Arc, time::Duration
+    collections::{BTreeMap, BTreeSet},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
 };
 use tokio::{
     sync::oneshot,
@@ -1101,10 +1104,16 @@ mod utils {
         }
 
         #[allow(unused)]
-        pub async fn process_already_uploaded_code(&self, code: &[u8], blob_tx_hash: &str) -> CodeId {
+        pub async fn process_already_uploaded_code(
+            &self,
+            code: &[u8],
+            blob_tx_hash: &str,
+        ) -> CodeId {
             let code_id = CodeId::generate(code);
             let blob_tx_hash = H256::from_str(blob_tx_hash).unwrap();
-            self.blob_reader.add_blob_transaction(blob_tx_hash, code.to_vec()).await;
+            self.blob_reader
+                .add_blob_transaction(blob_tx_hash, code.to_vec())
+                .await;
             code_id
         }
     }

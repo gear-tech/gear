@@ -183,11 +183,17 @@ impl Ethereum {
         log::debug!("Router impl has been deployed at {}", router_impl.address());
         log::debug!("Router proxy has been deployed at {router_address}");
 
-        log::debug!("WrappedVara impl has been deployed at {}", wrapped_vara_impl.address());
+        log::debug!(
+            "WrappedVara impl has been deployed at {}",
+            wrapped_vara_impl.address()
+        );
         log::debug!("WrappedVara deployed at {wvara_address}");
 
         log::debug!("Mirror impl has been deployed at {}", mirror.address());
-        log::debug!("Mirror proxy has been deployed at {}", mirror_proxy.address());
+        log::debug!(
+            "Mirror proxy has been deployed at {}",
+            mirror_proxy.address()
+        );
 
         Ok(Self {
             router_address,
