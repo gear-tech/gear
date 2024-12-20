@@ -6085,6 +6085,7 @@ dependencies = [
  "serde",
  "wabt",
  "wasmparser 0.220.0",
+ "wasmprinter",
 ]
 
 [[package]]
@@ -6641,6 +6642,7 @@ dependencies = [
  "diff",
  "enum-iterator 1.5.0",
  "gwasm-instrument",
+ "indexmap 2.6.0",
  "rand",
  "wasm-encoder 0.220.0",
  "wasmparser 0.220.0",

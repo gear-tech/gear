@@ -6,6 +6,7 @@ use crate::{
 };
 use alloc::{string::ToString, vec, vec::Vec};
 use core::mem;
+use indexmap::IndexSet;
 use max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext};
 use wasmparser::{BlockType, ExternalKind, FuncType, GlobalType, TypeRef, ValType};
 
@@ -258,8 +259,8 @@ where
 
     // Func stack costs collection is not empty, so stack height counter has counted costs
     // for module with non empty function and type sections.
-    let types = module.type_section().expect("checked earlier").to_vec();
-    let functions = module.function_section().expect("checked earlier").to_vec();
+    let types = module.type_section().expect("checked earlier").clone();
+    let functions = module.function_section().expect("checked earlier").clone();
 
     if let Some(code_section) = module.code_section_mut() {
         for (func_idx, func_body) in code_section.iter_mut().enumerate() {
@@ -489,7 +490,10 @@ fn resolve_func_type<'a>(
     func_idx: u32,
     module: &'a Module<'a>,
 ) -> Result<&'a FuncType, &'static str> {
-    let types = module.type_section().map(Vec::as_slice).unwrap_or(&[]);
+    let types = module
+        .type_section()
+        .map(IndexSet::as_slice)
+        .unwrap_or_default();
     let functions = module.function_section().map(Vec::as_slice).unwrap_or(&[]);
 
     let func_imports = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
@@ -515,7 +519,7 @@ fn resolve_func_type<'a>(
             .ok_or("Function at the specified index is not defined")?
     };
     let ty = types
-        .get(sig_idx as usize)
+        .get_index(sig_idx as usize)
         .ok_or("The signature as specified by a function isn't defined")?;
     Ok(ty)
 }

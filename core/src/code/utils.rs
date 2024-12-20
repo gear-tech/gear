@@ -123,7 +123,7 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
 
         // Panic is impossible, unless the Module structure is invalid.
         let func_type = types
-            .get(type_id)
+            .get_index(type_id)
             .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
         if !ALLOWED_EXPORTS.contains(&&*export.name) {
@@ -167,7 +167,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
             TypeRef::Func(i) => {
                 // Panic is impossible, unless the Module structure is invalid.
                 let func_type = &types
-                    .get(i as usize)
+                    .get_index(i as usize)
                     .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
                 let syscall = syscalls
@@ -228,7 +228,7 @@ fn get_export_global_with_index(module: &Module, name: &str) -> Option<(u32, u32
 
 fn get_init_expr_const_i32(init_expr: &ConstExpr) -> Option<i32> {
     match init_expr.instructions.as_slice() {
-        [Instruction::I32Const { value }, Instruction::End] => Some(*value),
+        [Instruction::I32Const { value }] => Some(*value),
         _ => None,
     }
 }

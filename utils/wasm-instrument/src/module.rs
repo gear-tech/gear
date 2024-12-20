@@ -22,6 +22,7 @@ use alloc::{
     vec::Vec,
 };
 use core::convert::Infallible;
+use indexmap::IndexSet;
 use wasm_encoder::{
     reencode,
     reencode::{Reencode, RoundtripReencoder},
@@ -261,6 +262,13 @@ macro_rules! define_instruction {
 }
 
 for_each_instruction!(define_instruction);
+
+impl Instruction {
+    /// Is instruction forbidden to be used by user but allowed to be used by instrumentation stage.
+    pub fn is_user_forbidden(&self) -> bool {
+        matches!(self, Self::MemoryGrow { .. })
+    }
+}
 
 pub type Result<T, E = ModuleError> = core::result::Result<T, E>;
 
@@ -556,7 +564,7 @@ impl<'a> ModuleBuilder<'a> {
     }
 
     fn type_section(&mut self) -> &mut TypeSection {
-        self.module.type_section.get_or_insert_with(Vec::new)
+        self.module.type_section.get_or_insert_with(IndexSet::new)
     }
 
     fn import_section(&mut self) -> &mut Vec<Import<'a>> {
@@ -586,8 +594,7 @@ impl<'a> ModuleBuilder<'a> {
     }
 
     pub fn push_type(&mut self, ty: FuncType) -> u32 {
-        self.type_section().push(ty);
-        self.type_section().len() as u32 - 1
+        self.type_section().insert_full(ty).0 as u32
     }
 
     pub fn push_import(&mut self, import: Import<'a>) {
@@ -604,7 +611,7 @@ impl<'a> ModuleBuilder<'a> {
     }
 }
 
-pub type TypeSection = Vec<FuncType>;
+pub type TypeSection = IndexSet<FuncType>;
 pub type FuncSection = Vec<u32>;
 pub type DataSection<'a> = Vec<Data<'a>>;
 pub type CodeSection = Vec<Function>;
@@ -704,16 +711,12 @@ impl<'a> Module<'a> {
                             .collect::<Result<Vec<_>>>()?,
                     );
                 }
+                // note: the section is not present in WASM MVP
                 Payload::DataCountSection { count, range: _ } => {
                     data_section = Some(Vec::with_capacity(count as usize));
                 }
                 Payload::DataSection(section) => {
-                    debug_assert!(
-                        matches!(data_section, Some(ref vec) if vec.len() == section.count() as usize)
-                    );
-                    let data_section = data_section
-                        .as_mut()
-                        .unwrap_or_else(|| unreachable!("data count section missing"));
+                    let data_section = data_section.get_or_insert_with(Vec::new);
                     for data in section {
                         let data = data?;
                         data_section.push(Data::new(data)?);

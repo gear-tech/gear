@@ -283,7 +283,7 @@ impl fmt::Display for CodeErrorWithContext {
 
         match error {
             Validation(_)
-            | Codec(_)
+            | Module(_)
             | Section(_)
             | Memory(_)
             | StackEnd(_)

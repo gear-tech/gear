@@ -19,6 +19,7 @@
 //! Module that describes various code errors.
 
 pub use gear_wasm_instrument::InstrumentationError;
+use gear_wasm_instrument::ModuleError;
 pub use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
@@ -175,17 +176,6 @@ pub enum ImportError {
     },
 }
 
-/// Module encode/decode error.
-#[derive(Debug, derive_more::Display)]
-pub enum CodecError {
-    /// The wasm bytecode is failed to be decoded
-    #[display(fmt = "The wasm bytecode is failed to be decoded: {_0}")]
-    Decode(gear_wasm_instrument::ModuleError),
-    /// Failed to encode instrumented program
-    #[display(fmt = "Failed to encode instrumented program: {_0}")]
-    Encode(gear_wasm_instrument::ModuleError),
-}
-
 /// Describes why the code is not valid Gear program.
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum CodeError {
@@ -194,7 +184,7 @@ pub enum CodeError {
     Validation(BinaryReaderError),
     /// Module encode/decode error.
     #[display(fmt = "Codec error: {_0}")]
-    Codec(CodecError),
+    Module(ModuleError),
     /// The provided code contains section error.
     #[display(fmt = "Section error: {_0}")]
     Section(SectionError),
