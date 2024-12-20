@@ -605,8 +605,10 @@ async fn ping_deep_sync() {
 async fn multiple_validators() {
     gear_utils::init_default_logger();
 
-    let mut config = TestEnvConfig::default();
-    config.validators = ValidatorsConfig::Generated(3);
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::Generated(3),
+        ..Default::default()
+    };
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting sequencer");
@@ -1090,7 +1092,7 @@ mod utils {
 
         pub async fn skip_blocks(&self, blocks_amount: u32) {
             if self.continuous_block_generation {
-                tokio::time::sleep(self.block_time.clone().mul(blocks_amount)).await;
+                tokio::time::sleep(self.block_time.mul(blocks_amount)).await;
             } else {
                 self.observer
                     .provider()
