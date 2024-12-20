@@ -21,21 +21,23 @@
 use crate::{
     gas_metering::{CustomConstantCostRules, Rules},
     ids::{prelude::*, CodeId},
-    message::DispatchKind,
-    pages::{WasmPage, WasmPagesAmount},
 };
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::vec::Vec;
 use gear_wasm_instrument::{
     parity_wasm::{self, elements::Module},
     InstrumentationBuilder,
 };
 
+mod config;
 mod errors;
 mod instrumented;
+mod metadata;
 mod utils;
 
+pub use config::*;
 pub use errors::*;
 pub use instrumented::*;
+pub use metadata::*;
 pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
 
 use utils::CodeTypeSectionSizes;
@@ -43,84 +45,12 @@ use utils::CodeTypeSectionSizes;
 /// Generic OS page size. Approximated to 4KB as a most common value.
 const GENERIC_OS_PAGE_SIZE: u32 = 4096;
 
-/// Contains instrumented binary code of a program and initial memory size from memory import.
+/// Contains original and instrumented binary code of a program.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Code {
-    /// Code instrumented with the latest schedule.
-    code: Vec<u8>,
-    /// The uninstrumented, original version of the code.
     original_code: Vec<u8>,
-    /// Exports of the wasm module.
-    exports: BTreeSet<DispatchKind>,
-    /// Static pages count from memory import.
-    static_pages: WasmPagesAmount,
-    /// Stack end page.
-    stack_end: Option<WasmPage>,
-    /// Instruction weights version.
-    instruction_weights_version: u32,
-    /// Instantiated section sizes used for charging during module instantiation.
-    instantiated_section_sizes: InstantiatedSectionSizes,
-}
-
-/// Configuration for `Code::try_new_mock_`.
-/// By default all checks enabled.
-pub struct TryNewCodeConfig {
-    /// Instrumentation version
-    pub version: u32,
-    /// Stack height limit
-    pub stack_height: Option<u32>,
-    /// Limit of data section amount
-    pub data_segments_amount_limit: Option<u32>,
-    /// Limit on the number of tables.
-    pub table_number_limit: Option<u32>,
-    /// Export `STACK_HEIGHT_EXPORT_NAME` global
-    pub export_stack_height: bool,
-    /// Check exports (wasm contains init or handle exports)
-    pub check_exports: bool,
-    /// Check imports (check that all imports are valid syscalls with correct signature)
-    pub check_imports: bool,
-    /// Check and canonize stack end
-    pub check_and_canonize_stack_end: bool,
-    /// Check mutable global exports
-    pub check_mut_global_exports: bool,
-    /// Check start section (not allowed for programs)
-    pub check_start_section: bool,
-    /// Check data section
-    pub check_data_section: bool,
-    /// Check table section
-    pub check_table_section: bool,
-    /// Make wasmparser validation
-    pub make_validation: bool,
-}
-
-impl Default for TryNewCodeConfig {
-    fn default() -> Self {
-        Self {
-            version: 1,
-            stack_height: None,
-            data_segments_amount_limit: None,
-            table_number_limit: None,
-            export_stack_height: false,
-            check_exports: true,
-            check_imports: true,
-            check_and_canonize_stack_end: true,
-            check_mut_global_exports: true,
-            check_start_section: true,
-            check_data_section: true,
-            check_table_section: true,
-            make_validation: true,
-        }
-    }
-}
-
-impl TryNewCodeConfig {
-    /// New default config without exports checks.
-    pub fn new_no_exports_check() -> Self {
-        Self {
-            check_exports: false,
-            ..Default::default()
-        }
-    }
+    instrumented_code: InstrumentedCode,
+    metadata: CodeMetadata,
 }
 
 impl Code {
@@ -184,6 +114,7 @@ impl Code {
         if let Some(get_gas_rules) = get_gas_rules {
             instrumentation_builder.with_gas_limiter(get_gas_rules);
         }
+
         module = instrumentation_builder.instrument(module)?;
 
         // Use instrumented module to get section sizes.
@@ -200,21 +131,30 @@ impl Code {
             type_section,
         } = utils::get_code_type_sections_sizes(&code)?;
 
-        Ok(Self {
-            code,
-            original_code,
-            exports,
+        let instantiated_section_sizes = InstantiatedSectionSizes::new(
+            code_section,
+            data_section_size,
+            global_section_size,
+            table_section_size,
+            element_section_size,
+            type_section,
+        );
+
+        let instrumented_code = InstrumentedCode::new(code, instantiated_section_sizes);
+
+        let metadata = CodeMetadata::new(
+            original_code.len() as u32,
+            instrumented_code.bytes().len() as u32,
+            exports.clone(),
             static_pages,
             stack_end,
-            instruction_weights_version: config.version,
-            instantiated_section_sizes: InstantiatedSectionSizes {
-                code_section,
-                data_section: data_section_size,
-                global_section: global_section_size,
-                table_section: table_section_size,
-                element_section: element_section_size,
-                type_section,
-            },
+            InstrumentationStatus::Instrumented(config.version),
+        );
+
+        Ok(Self {
+            original_code,
+            instrumented_code,
+            metadata,
         })
     }
 
@@ -348,41 +288,27 @@ impl Code {
         &self.original_code
     }
 
-    /// Returns reference to the instrumented binary code.
-    pub fn code(&self) -> &[u8] {
-        &self.code
+    /// Returns the instrumented code.
+    pub fn instrumented_code(&self) -> &InstrumentedCode {
+        &self.instrumented_code
     }
 
-    /// Returns wasm module exports.
-    pub fn exports(&self) -> &BTreeSet<DispatchKind> {
-        &self.exports
-    }
-
-    /// Returns instruction weights version.
-    pub fn instruction_weights_version(&self) -> u32 {
-        self.instruction_weights_version
-    }
-
-    /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> WasmPagesAmount {
-        self.static_pages
+    /// Returns the code metadata.
+    pub fn metadata(&self) -> &CodeMetadata {
+        &self.metadata
     }
 
     /// Consumes this instance and returns the instrumented and raw binary codes.
-    pub fn into_parts(self) -> (InstrumentedCode, Vec<u8>) {
-        let original_code_len = self.original_code.len() as u32;
-        (
-            InstrumentedCode {
-                code: self.code,
-                original_code_len,
-                exports: self.exports,
-                static_pages: self.static_pages,
-                stack_end: self.stack_end,
-                instantiated_section_sizes: self.instantiated_section_sizes,
-                version: self.instruction_weights_version,
-            },
-            self.original_code,
-        )
+    pub fn into_parts(self) -> (Vec<u8>, InstrumentedCode, CodeMetadata) {
+        (self.original_code, self.instrumented_code, self.metadata)
+    }
+
+    /// Consumes this instance and returns the instrumented code and metadata struct.
+    pub fn into_instrumented_code_and_metadata(self) -> InstrumentedCodeAndMetadata {
+        InstrumentedCodeAndMetadata {
+            instrumented_code: self.instrumented_code,
+            metadata: self.metadata,
+        }
     }
 }
 
@@ -427,6 +353,32 @@ impl CodeAndId {
     /// Decomposes this instance.
     pub fn into_parts(self) -> (Code, CodeId) {
         (self.code, self.code_id)
+    }
+}
+
+/// The newtype contains the InstrumentedCode instance and the corresponding metadata.
+#[derive(Clone, Debug)]
+pub struct InstrumentedCodeAndMetadata {
+    /// Instrumented code.
+    pub instrumented_code: InstrumentedCode,
+    /// Code metadata.
+    pub metadata: CodeMetadata,
+}
+
+impl InstrumentedCodeAndMetadata {
+    /// Decomposes this instance into parts.
+    pub fn into_parts(self) -> (InstrumentedCode, CodeMetadata) {
+        (self.instrumented_code, self.metadata)
+    }
+}
+
+impl From<Code> for InstrumentedCodeAndMetadata {
+    fn from(code: Code) -> Self {
+        let (_, instrumented_code, metadata) = code.into_parts();
+        Self {
+            instrumented_code,
+            metadata,
+        }
     }
 }
 
@@ -718,7 +670,7 @@ mod tests {
         );
 
         let code = try_new_code_from_wat(wat.as_str(), None).expect("Must be ok");
-        assert_eq!(code.stack_end, Some(1.into()));
+        assert_eq!(code.metadata().stack_end(), Some(1.into()));
     }
 
     #[test]
@@ -891,8 +843,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .data_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .data_section(),
             GENERIC_OS_PAGE_SIZE,
         );
 
@@ -910,8 +863,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .data_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .data_section(),
             GENERIC_OS_PAGE_SIZE * 2,
         );
 
@@ -929,8 +883,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .data_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .data_section(),
             GENERIC_OS_PAGE_SIZE * 2,
         );
 
@@ -948,8 +903,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .data_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .data_section(),
             0,
         );
 
@@ -967,8 +923,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .data_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .data_section(),
             GENERIC_OS_PAGE_SIZE,
         );
 
@@ -988,8 +945,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .data_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .data_section(),
             GENERIC_OS_PAGE_SIZE * 2,
         );
 
@@ -1011,8 +969,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .data_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .data_section(),
             GENERIC_OS_PAGE_SIZE * 4,
         );
 
@@ -1034,8 +993,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .data_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .data_section(),
             GENERIC_OS_PAGE_SIZE * 4,
         );
     }
@@ -1060,8 +1020,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .code_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .code_section(),
             INSTRUMENTATION_CODE_SIZE + 11,
         );
     }
@@ -1084,8 +1045,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .global_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .global_section(),
             (INSTRUMENTATION_GLOBALS_SIZE + size_of::<i32>() * 2 + size_of::<i64>()) as u32,
         );
     }
@@ -1107,16 +1069,18 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .table_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .table_section(),
             40 * REF_TYPE_SIZE,
         );
 
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .element_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .element_section(),
             0,
         );
     }
@@ -1136,16 +1100,18 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .table_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .table_section(),
             10 * REF_TYPE_SIZE,
         );
 
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .element_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .element_section(),
             REF_TYPE_SIZE * 4,
         );
     }
@@ -1165,8 +1131,9 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
-                .instantiated_section_sizes
-                .type_section,
+                .instrumented_code()
+                .instantiated_section_sizes()
+                .type_section(),
             50,
         );
     }
