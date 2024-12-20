@@ -12,15 +12,6 @@ import {IRouter} from "./IRouter.sol";
 */
 
 contract MirrorProxy is IMirrorProxy, Proxy {
-    event StateChanged(bytes32 stateHash);
-    event MessageQueueingRequested(bytes32 id, address indexed source, bytes payload, uint128 value);
-    event ReplyQueueingRequested(bytes32 repliedTo, address indexed source, bytes payload, uint128 value);
-    event ValueClaimingRequested(bytes32 claimedId, address indexed source);
-    event ExecutableBalanceTopUpRequested(uint128 value);
-    event Message(bytes32 id, address indexed destination, bytes payload, uint128 value);
-    event Reply(bytes payload, uint128 value, bytes32 replyTo, bytes4 indexed replyCode);
-    event ValueClaimed(bytes32 claimedId, uint128 value);
-
     address public immutable router;
 
     address public decoder;
@@ -35,7 +26,7 @@ contract MirrorProxy is IMirrorProxy, Proxy {
 
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata payload, uint128 value) external returns (bytes32) {
+    function sendMessage(bytes calldata payload, uint128 value) external /*returns (bytes32)*/ {
         _delegate();
     }
 
