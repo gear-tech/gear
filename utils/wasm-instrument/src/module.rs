@@ -542,13 +542,7 @@ impl<'a> ModuleBuilder<'a> {
             }
         }
 
-        if let Some(section) = self.module.function_section_mut() {
-            for func_idx in section {
-                if *func_idx >= inserted_index {
-                    *func_idx += inserted_count;
-                }
-            }
-        }
+        // TODO: decode name section and rewrite
 
         Ok(self)
     }
@@ -569,6 +563,10 @@ impl<'a> ModuleBuilder<'a> {
         self.module.import_section.get_or_insert_with(Vec::new)
     }
 
+    fn func_section(&mut self) -> &mut Vec<u32> {
+        self.module.function_section.get_or_insert_with(Vec::new)
+    }
+
     fn global_section(&mut self) -> &mut Vec<Global> {
         self.module.global_section.get_or_insert_with(Vec::new)
     }
@@ -579,6 +577,12 @@ impl<'a> ModuleBuilder<'a> {
 
     fn code_section(&mut self) -> &mut CodeSection {
         self.module.code_section.get_or_insert_with(Vec::new)
+    }
+
+    pub fn add_func(&mut self, ty: FuncType, function: Function) {
+        let idx = self.push_type(ty);
+        self.func_section().push(idx);
+        self.code_section().push(function);
     }
 
     pub fn push_type(&mut self, ty: FuncType) -> u32 {
@@ -597,10 +601,6 @@ impl<'a> ModuleBuilder<'a> {
 
     pub fn push_export(&mut self, export: Export) {
         self.export_section().push(export);
-    }
-
-    pub fn push_function(&mut self, function: Function) {
-        self.code_section().push(function);
     }
 }
 

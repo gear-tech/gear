@@ -380,11 +380,13 @@ fn inject_gas_limiter<'a, R: Rules>(
     *cost_instr = Instruction::I64Const { value: cost as i64 };
 
     // gas_charge function
-    mbuilder.push_type(FuncType::new([ValType::I32], []));
-    mbuilder.push_function(Function {
-        locals: vec![(1, ValType::I64)],
-        instructions: elements,
-    });
+    mbuilder.add_func(
+        FuncType::new([ValType::I32], []),
+        Function {
+            locals: vec![(1, ValType::I64)],
+            instructions: elements,
+        },
+    );
 
     // back to plain module
     let module = mbuilder.build();

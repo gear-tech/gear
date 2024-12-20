@@ -172,7 +172,7 @@ pub fn inject<'a, R: Rules>(
 
     let mbuilder = mbuilder
         .rewrite_sections_after_insertion(gas_func as u32, 1)
-        .map_err(|b| b.build())?;
+        .map_err(ModuleBuilder::build)?;
     let module = mbuilder.build();
 
     post_injection_handler(module, rules, gas_func)
@@ -533,23 +533,25 @@ fn add_grow_counter<'a, R: Rules>(module: Module<'a>, rules: &R, gas_func: u32) 
     };
 
     let mut b = ModuleBuilder::from_module(module);
-    b.push_type(FuncType::new([ValType::I32], [ValType::I32]));
-    b.push_function(Function {
-        locals: vec![],
-        instructions: vec![
-            LocalGet { local_index: 0 },
-            LocalGet { local_index: 0 },
-            I32Const { value: cost as i32 },
-            I32Mul,
-            // todo: there should be strong guarantee that it does not return anything on
-            // stack?
-            Call {
-                function_index: gas_func,
-            },
-            MemoryGrow { mem: 0 },
-            End,
-        ],
-    });
+    b.add_func(
+        FuncType::new([ValType::I32], [ValType::I32]),
+        Function {
+            locals: vec![],
+            instructions: vec![
+                LocalGet { local_index: 0 },
+                LocalGet { local_index: 0 },
+                I32Const { value: cost as i32 },
+                I32Mul,
+                // todo: there should be strong guarantee that it does not return anything on
+                // stack?
+                Call {
+                    function_index: gas_func,
+                },
+                MemoryGrow { mem: 0 },
+                End,
+            ],
+        },
+    );
 
     b.build()
 }
@@ -756,28 +758,29 @@ mod tests {
             init_expr: ConstExpr::default(),
         });
 
-        mbuilder.push_type(FuncType::new([ValType::I32], []));
-        mbuilder.push_function(Function::default());
+        mbuilder.add_func(FuncType::new([ValType::I32], []), Function::default());
 
-        mbuilder.push_type(FuncType::new([ValType::I32], []));
-        mbuilder.push_function(Function {
-            locals: vec![],
-            instructions: vec![
-                Call { function_index: 0 },
-                If {
-                    blockty: BlockType::Empty,
-                },
-                Call { function_index: 0 },
-                Call { function_index: 0 },
-                Call { function_index: 0 },
-                Else,
-                Call { function_index: 0 },
-                Call { function_index: 0 },
-                End,
-                Call { function_index: 0 },
-                End,
-            ],
-        });
+        mbuilder.add_func(
+            FuncType::new([ValType::I32], []),
+            Function {
+                locals: vec![],
+                instructions: vec![
+                    Call { function_index: 0 },
+                    If {
+                        blockty: BlockType::Empty,
+                    },
+                    Call { function_index: 0 },
+                    Call { function_index: 0 },
+                    Call { function_index: 0 },
+                    Else,
+                    Call { function_index: 0 },
+                    Call { function_index: 0 },
+                    End,
+                    Call { function_index: 0 },
+                    End,
+                ],
+            },
+        );
 
         mbuilder.build()
     }

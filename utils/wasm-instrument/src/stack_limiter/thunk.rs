@@ -127,11 +127,13 @@ where
         let thunk_body = thunk.body.take().expect("can't get thunk function body");
 
         // Signature of the thunk should match the original function signature.
-        mbuilder.push_type(thunk.signature.clone());
-        mbuilder.push_function(Function {
-            locals: vec![],
-            instructions: thunk_body,
-        });
+        mbuilder.add_func(
+            thunk.signature.clone(),
+            Function {
+                locals: vec![],
+                instructions: thunk_body,
+            },
+        );
 
         thunk.idx = Some(next_func_idx);
         next_func_idx += 1;
