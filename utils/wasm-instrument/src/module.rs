@@ -22,6 +22,7 @@ use alloc::{
     vec::Vec,
 };
 use core::convert::Infallible;
+use hashbrown::hash_map::DefaultHashBuilder;
 use indexmap::IndexSet;
 use wasm_encoder::{
     reencode,
@@ -564,7 +565,9 @@ impl<'a> ModuleBuilder<'a> {
     }
 
     fn type_section(&mut self) -> &mut TypeSection {
-        self.module.type_section.get_or_insert_with(IndexSet::new)
+        self.module
+            .type_section
+            .get_or_insert_with(Default::default)
     }
 
     fn import_section(&mut self) -> &mut Vec<Import<'a>> {
@@ -611,7 +614,7 @@ impl<'a> ModuleBuilder<'a> {
     }
 }
 
-pub type TypeSection = IndexSet<FuncType>;
+pub type TypeSection = IndexSet<FuncType, DefaultHashBuilder>;
 pub type FuncSection = Vec<u32>;
 pub type DataSection<'a> = Vec<Data<'a>>;
 pub type CodeSection = Vec<Function>;
