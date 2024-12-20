@@ -1235,6 +1235,7 @@ pub type BuiltinActors = (
 impl pallet_gear_builtin::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
+    type BlockLimiter = GearGas;
     type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
 }
 

@@ -23,33 +23,48 @@ use gear_core::{
     message::{Payload, StoredDispatch},
 };
 
-pub type HandleFn<E> = dyn Fn(&StoredDispatch, u64) -> (Result<Payload, E>, u64);
+/// Builtin actor `handle` function signature.
+pub type HandleFn<C, E> = dyn Fn(&StoredDispatch, &mut C) -> Result<Payload, E>;
+
+/// Builtin actor `max_gas` function signature.
+// TODO: #4395. Let the weight function take complexity arguments for more accurate gas estimation.
+pub type WeightFn = dyn Fn() -> u64;
+
+pub struct BuiltinInfo<'a, C, E> {
+    pub handle: &'a HandleFn<C, E>,
+    pub max_gas: &'a WeightFn,
+}
 
 /// A trait representing a registry that provides methods to lookup and run a builtin actor.
 pub trait BuiltinDispatcher {
+    type Context;
     type Error;
 
     /// Looks up a builtin actor by its actor id.
-    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<&'a HandleFn<Self::Error>>;
+    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>>;
 
     fn run(
         &self,
-        f: &HandleFn<Self::Error>,
+        context: BuiltinInfo<Self::Context, Self::Error>,
         dispatch: StoredDispatch,
         gas_limit: u64,
     ) -> Vec<JournalNote>;
 }
 
 impl BuiltinDispatcher for () {
+    type Context = ();
     type Error = ();
 
-    fn lookup<'a>(&'a self, _id: &ProgramId) -> Option<&'a HandleFn<Self::Error>> {
+    fn lookup<'a>(
+        &'a self,
+        _id: &ProgramId,
+    ) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>> {
         None
     }
 
     fn run(
         &self,
-        _f: &HandleFn<Self::Error>,
+        _context: BuiltinInfo<Self::Context, Self::Error>,
         _dispatch: StoredDispatch,
         _gas_limit: u64,
     ) -> Vec<JournalNote> {
@@ -59,13 +74,15 @@ impl BuiltinDispatcher for () {
 
 /// A trait that defines the interface of a builtin dispatcher factory.
 pub trait BuiltinDispatcherFactory {
+    type Context;
     type Error;
-    type Output: BuiltinDispatcher<Error = Self::Error>;
+    type Output: BuiltinDispatcher<Context = Self::Context, Error = Self::Error>;
 
     fn create() -> (Self::Output, u64);
 }
 
 impl BuiltinDispatcherFactory for () {
+    type Context = ();
     type Error = ();
     type Output = ();
 
