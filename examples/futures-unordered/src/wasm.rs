@@ -26,7 +26,7 @@ use gstd::{debug, msg, prelude::*, ActorId};
 static mut DEMO_ASYNC: ActorId = ActorId::new([0u8; 32]);
 static mut DEMO_PING: ActorId = ActorId::new([0u8; 32]);
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let (demo_async, demo_ping) = msg::load().expect("Failed to load destination");
     unsafe {

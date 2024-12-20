@@ -45,7 +45,7 @@ struct NodeState {
     transition: Option<Transition>,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let reply = match msg::load() {
         Ok(request) => process(request),
@@ -59,7 +59,7 @@ extern "C" fn handle() {
 }
 
 fn state() -> &'static mut NodeState {
-    unsafe { STATE.as_mut().unwrap() }
+    unsafe { static_mut!(STATE).as_mut().unwrap() }
 }
 
 fn process(request: Request) -> Reply {
@@ -205,7 +205,7 @@ fn process(request: Request) -> Reply {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     if let Some(ref mut transition) = state().transition {
         if msg::reply_to().unwrap() != transition.last_sent_message_id {
@@ -232,7 +232,7 @@ extern "C" fn handle_reply() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let init: Initialization = msg::load().expect("Failed to decode init");
 

@@ -62,19 +62,19 @@ use gstd::{
 
 static mut INITIATOR: ActorId = ActorId::zero();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { INITIATOR = msg::source() };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     exec::system_reserve_gas(1_000_000_000).unwrap();
 
     panic!("Gotcha!");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_signal() {
     let signal_received = msg::signal_code()
         .expect("Incorrect call")
@@ -171,12 +171,12 @@ This signal is sent when the trap `TrapExplanation::GasLimitExceeded` occurs. Th
 
     static mut INITIATOR: ActorId = ActorId::zero();
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn init() {
         unsafe { INITIATOR = msg::source() };
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle() {
         exec::system_reserve_gas(1_000_000_000).unwrap();
 
@@ -184,7 +184,7 @@ This signal is sent when the trap `TrapExplanation::GasLimitExceeded` occurs. Th
         loop {}
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle_signal() {
         let signal_received = msg::signal_code()
             .expect("Incorrect call")
@@ -275,12 +275,12 @@ This signal is sent when the trap `TrapExplanation::GasLimitExceeded` occurs. Th
 
     static mut INITIATOR: ActorId = ActorId::zero();
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn init() {
         unsafe { INITIATOR = msg::source() };
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle() {
         exec::system_reserve_gas(1_000_000_000).unwrap();
 
@@ -292,7 +292,7 @@ This signal is sent when the trap `TrapExplanation::GasLimitExceeded` occurs. Th
         }
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle_signal() {
         let signal_received = msg::signal_code()
             .expect("Incorrect call")
@@ -412,12 +412,12 @@ There are two cases of fails when this signal code is sent:
 
         static mut INITIATOR: ActorId = ActorId::zero();
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn init() {
             unsafe { INITIATOR = msg::source() };
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn handle() {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
@@ -425,7 +425,7 @@ There are two cases of fails when this signal code is sent:
                     .expect("cannot send message");
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn handle_signal() {
             let signal_received = msg::signal_code()
                 .expect("Incorrect call")
@@ -521,12 +521,12 @@ There are two cases of fails when this signal code is sent:
 
         static mut INITIATOR: ActorId = ActorId::zero();
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn init() {
             unsafe { INITIATOR = msg::source() };
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn handle() {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
@@ -535,7 +535,7 @@ There are two cases of fails when this signal code is sent:
             debug!("{}", invalid_string);
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn handle_signal() {
             let signal_received = msg::signal_code()
                 .expect("Incorrect call")
@@ -624,19 +624,19 @@ There are two cases of fails when this signal code is sent:
 
         static mut INITIATOR: ActorId = ActorId::zero();
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn init() {
             unsafe { INITIATOR = msg::source() };
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn handle() {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
             exec::wait_up_to(0);
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn handle_signal() {
             let signal_received = msg::signal_code()
                 .expect("Incorrect call")
@@ -734,19 +734,19 @@ use gstd::{
 
 static mut INITIATOR: ActorId = ActorId::zero();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { INITIATOR = msg::source() };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     exec::system_reserve_gas(1_000_000_000).unwrap();
 
     oom_panic();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_signal() {
     let signal_received = msg::signal_code()
         .expect("Incorrect call")
@@ -851,12 +851,12 @@ This signal is sent when the `TrapExplanation::Unknown` trap is triggered. This 
         fn free(ptr: *mut u8) -> *mut u8;
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn init() {
         unsafe { INITIATOR = msg::source() };
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle() {
         exec::system_reserve_gas(1_000_000_000).unwrap();
 
@@ -865,7 +865,7 @@ This signal is sent when the `TrapExplanation::Unknown` trap is triggered. This 
         }
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle_signal() {
         let signal_received = msg::signal_code()
             .expect("Incorrect call")
@@ -961,12 +961,12 @@ This signal is sent when the `TrapExplanation::Unknown` trap is triggered. This 
 
     static mut INITIATOR: ActorId = ActorId::zero();
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn init() {
         unsafe { INITIATOR = msg::source() };
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle() {
         exec::system_reserve_gas(1_000_000_000).unwrap();
 
@@ -974,7 +974,7 @@ This signal is sent when the `TrapExplanation::Unknown` trap is triggered. This 
         core::arch::wasm32::unreachable();
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle_signal() {
         let signal_received = msg::signal_code()
             .expect("Incorrect call")
@@ -1071,19 +1071,19 @@ use gstd::{
 
 static mut INITIATOR: ActorId = ActorId::zero();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { INITIATOR = msg::source() };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     exec::system_reserve_gas(1_000_000_000).unwrap();
 
     exec::wait();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_signal() {
     let signal_received = msg::signal_code()
         .expect("Incorrect call")

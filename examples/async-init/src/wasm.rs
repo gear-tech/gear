@@ -72,7 +72,7 @@ async fn main() {
 
     assert_eq!(message, b"PING");
 
-    let requests = unsafe { ARGUMENTS.iter() }
+    let requests = unsafe { static_ref!(ARGUMENTS).iter() }
         .map(|&addr| msg::send_bytes_for_reply(addr, "PING", 0, 0).expect("Failed to send message"))
         .collect::<Vec<_>>();
 

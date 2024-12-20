@@ -264,8 +264,10 @@ where
             p.gas_reservation_map
                 .remove(&reservation_id)
                 .unwrap_or_else(|| {
-                    let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \
-                    Reservation {reservation_id} doesn't exist.");
+                    let err_msg = format!(
+                        "ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \
+                    Reservation {reservation_id} doesn't exist."
+                    );
 
                     log::error!("{err_msg}");
                     unreachable!("{err_msg}");
@@ -273,8 +275,10 @@ where
         })
         .unwrap_or_else(|e| {
             // Guaranteed to be called on existing program
-            let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed to update program. \
-            Program - {program_id}. Got error: {e:?}");
+            let err_msg = format!(
+                "ExtManager::remove_gas_reservation_impl: failed to update program. \
+            Program - {program_id}. Got error: {e:?}"
+            );
 
             log::error!("{err_msg}");
             unreachable!("{err_msg}")

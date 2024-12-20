@@ -22,7 +22,7 @@ use gstd::{msg, prelude::*, sync::Mutex, ActorId};
 static mut DESTINATION: ActorId = ActorId::zero();
 static MUTEX: Mutex<u32> = Mutex::new(0);
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let destination = msg::load().expect("Failed to load destination");
     unsafe { DESTINATION = destination };

@@ -22,7 +22,7 @@ use gstd::{exec, msg, prelude::*, ReservationId};
 static mut CALLED_BEFORE: bool = false;
 static mut RESERVATION_ID: Option<ReservationId> = None;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let showcase = msg::load().expect("Failed to load request");
 

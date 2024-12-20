@@ -307,7 +307,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
     }
 }
 
-impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
+impl SyscallsImportsGenerator<'_, '_> {
     /// The amount of reserved memory used to create a precise syscall.
     const PRECISE_SYSCALL_RESERVED_MEMORY_SIZE: u32 = 128;
 

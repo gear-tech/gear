@@ -169,7 +169,7 @@ fn get_impl(
         // explicitly drop the lock even on error to
         // allow other threads & processes to read the file
         // because some OS only unlock on process exit
-        file.unlock()?;
+        FileExt::unlock(&file)?;
 
         let (serialized_module, module) = res?;
 

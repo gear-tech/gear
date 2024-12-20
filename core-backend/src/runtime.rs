@@ -69,7 +69,7 @@ where
     }
 }
 
-impl<'a, Caller, Ext> CallerWrap<'a, Caller>
+impl<Caller, Ext> CallerWrap<'_, Caller>
 where
     Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
     Ext: BackendExternalities + 'static,

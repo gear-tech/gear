@@ -40,9 +40,7 @@ impl CargoCommand {
     pub fn new() -> CargoCommand {
         let toolchain = Toolchain::try_from_rustup().expect("Failed to get toolchain from rustup");
         let rustc_version = rustc_version::version().expect("Failed to get rustc version");
-        let reduce_wasm_proposals = toolchain != Toolchain::recommended_nightly()
-            && rustc_version.major == 1
-            && rustc_version.minor >= 82;
+        let reduce_wasm_proposals = rustc_version.major == 1 && rustc_version.minor >= 82;
 
         CargoCommand {
             path: "rustup".to_string(),

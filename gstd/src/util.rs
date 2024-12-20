@@ -36,7 +36,7 @@ pub(crate) fn with_optimized_encode<T, E: Encode>(payload: E, f: impl FnOnce(&[u
         offset: usize,
     }
 
-    impl<'a> Output for ExternalBufferOutput<'a> {
+    impl Output for ExternalBufferOutput<'_> {
         fn write(&mut self, bytes: &[u8]) {
             // SAFETY: same as
             // `MaybeUninit::write_slice(&mut self.buffer[self.offset..end_offset], bytes)`.

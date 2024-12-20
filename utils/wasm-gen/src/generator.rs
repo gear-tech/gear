@@ -323,7 +323,7 @@ pub struct FrozenGearWasmGenerator<'a, 'b> {
     unstructured: Option<&'b mut Unstructured<'a>>,
 }
 
-impl<'a, 'b> FrozenGearWasmGenerator<'a, 'b> {
+impl FrozenGearWasmGenerator<'_, '_> {
     /// Destroy the frozen generator and retrieve it's
     /// beneficial data.
     pub fn melt(self) -> GearWasmGeneratorConfig {

@@ -1,5 +1,6 @@
 use crate::Arg;
 use alloc::{string::String, vec::Vec};
+use gstd::prelude::*;
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -140,7 +141,7 @@ mod wasm {
                 &value[extra_encode as usize..]
             );
 
-            unsafe { DATA.insert(key, value) };
+            unsafe { static_mut!(DATA).insert(key, value) };
 
             None
         }
@@ -392,7 +393,7 @@ mod wasm {
 
             let end = count.value();
             for i in 0_u64..end {
-                unsafe { DATA.insert("last_written_n".into(), i.encode()) };
+                unsafe { static_mut!(DATA).insert("last_written_n".into(), i.encode()) };
             }
 
             None

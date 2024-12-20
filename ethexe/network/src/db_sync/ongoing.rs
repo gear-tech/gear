@@ -397,7 +397,7 @@ impl OngoingRequests {
                         return Ok(ExternalValidation::Success {
                             request_id,
                             response,
-                        })
+                        });
                     }
                     Err(new_ongoing_request) => new_ongoing_request,
                 }

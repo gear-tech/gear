@@ -23,7 +23,7 @@ static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 static mut DELAY: u32 = 0;
 static mut RESERVATION_AMOUNT: u64 = 0;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let reservation_id =
         ReservationId::reserve(unsafe { RESERVATION_AMOUNT }, 80).expect("Failed to reserve gas");
@@ -37,7 +37,7 @@ extern "C" fn handle() {
     .expect("Failed to proxy message");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
     unsafe {

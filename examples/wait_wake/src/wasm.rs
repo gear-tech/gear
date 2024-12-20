@@ -25,7 +25,7 @@ fn process_request(request: Request) {
     match request {
         Request::EchoWait(n) => {
             unsafe {
-                ECHOES
+                static_mut!(ECHOES)
                     .get_or_insert_with(BTreeMap::new)
                     .insert(msg::id(), n)
             };
@@ -35,14 +35,18 @@ fn process_request(request: Request) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     msg::reply((), 0).unwrap();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
-    if let Some(reply) = unsafe { ECHOES.get_or_insert_with(BTreeMap::new).remove(&msg::id()) } {
+    if let Some(reply) = unsafe {
+        static_mut!(ECHOES)
+            .get_or_insert_with(BTreeMap::new)
+            .remove(&msg::id())
+    } {
         msg::reply(reply, 0).unwrap();
     } else {
         msg::load::<Request>().map(process_request).unwrap();

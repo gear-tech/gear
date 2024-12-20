@@ -103,7 +103,7 @@ impl Reservation {
 ///
 /// static mut RESERVATIONS: Reservations = Reservations::new();
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn init() {
 ///     unsafe {
 ///         RESERVATIONS
@@ -118,7 +118,7 @@ impl Reservation {
 ///     }
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let reservation = unsafe { RESERVATIONS.try_take_reservation(100_000) };
 ///     if let Some(reservation) = reservation {
