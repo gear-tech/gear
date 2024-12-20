@@ -1110,60 +1110,39 @@ mod utils {
     }
 
     pub enum ValidatorsConfig {
+        /// Auto generate validators, amount of validators is provided.
         Generated(usize),
+        /// Custom validator eth-addresses in hex string format.
+        #[allow(unused)]
         Custom(Vec<String>),
     }
 
     pub struct TestEnvConfig {
         /// How many validators will be in deployed router.
         /// By default uses 1 auto generated validator.
-        /// Custom validators can be set by `__ETHEXE_TESTS_VALIDATORS` env variable.
         pub validators: ValidatorsConfig,
         /// By default uses 1 second block time.
-        /// Can be set by `__ETHEXE_TESTS_BLOCK_TIME` env variable.
         pub block_time: Duration,
         /// By default creates new anvil instance if rpc is not provided.
-        /// Can be set by `__ETHEXE_TESTS_RPC_URL` env variable.
         pub rpc_url: Option<String>,
-        /// By default uses free anvil hardcoded wallets if wallets are not provided.
-        /// Can be set by `__ETHEXE_TESTS_WALLETS` env variable.
+        /// By default uses anvil hardcoded wallets if wallets are not provided.
         pub wallets: Option<Vec<String>>,
         /// If None (by default) new router will be deployed.
         /// In case of Some(_), will connect to existing router contract.
-        /// Can be set by `__ETHEXE_TESTS_ROUTER_ADDRESS` env variable.
         pub router_address: Option<String>,
         /// Identify whether networks works (or have to works) in continuous block generation mode.
-        /// By default is false can be set by `__ETHEXE_TESTS_CONTINUOUS_BLOCK_GENERATION` env variable.
         pub continuous_block_generation: bool,
     }
 
     impl Default for TestEnvConfig {
         fn default() -> Self {
-            let validators = std::env::var("__ETHEXE_TESTS_VALIDATORS")
-                .map(|validators| {
-                    ValidatorsConfig::Custom(validators.split(',').map(str::to_string).collect())
-                })
-                .unwrap_or(ValidatorsConfig::Generated(1));
-            let rpc_url = std::env::var("__ETHEXE_TESTS_RPC_URL").ok();
-            let wallets = std::env::var("__ETHEXE_TESTS_WALLETS")
-                .ok()
-                .map(|wallets| wallets.split(',').map(str::to_string).collect());
-            let block_time = std::env::var("__ETHEXE_TESTS_BLOCK_TIME")
-                .map(|block_time| Duration::from_secs(block_time.parse().unwrap()))
-                .unwrap_or(Duration::from_secs(1));
-            let continuous_block_generation =
-                std::env::var("__ETHEXE_TESTS_CONTINUOUS_BLOCK_GENERATION")
-                    .map(|v| v == "1")
-                    .unwrap_or(false);
-            let router_address = std::env::var("__ETHEXE_TESTS_ROUTER_ADDRESS").ok();
-
             Self {
-                validators,
-                block_time,
-                rpc_url,
-                wallets,
-                router_address,
-                continuous_block_generation,
+                validators: ValidatorsConfig::Generated(1),
+                block_time: Duration::from_secs(1),
+                rpc_url: None,
+                wallets: None,
+                router_address: None,
+                continuous_block_generation: false,
             }
         }
     }
