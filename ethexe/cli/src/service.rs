@@ -163,6 +163,7 @@ impl Service {
                         threshold,
                     },
                     signer.clone(),
+                    Box::new(db.clone()),
                 )
                 .await?,
             )
@@ -400,11 +401,8 @@ impl Service {
         maybe_sequencer: &mut Option<ethexe_sequencer::Sequencer>,
         observer_event: RequestEvent,
     ) -> Result<(Vec<CodeCommitment>, Vec<BlockCommitment>)> {
-        if let Some(sequencer) = maybe_sequencer {
-            sequencer.process_observer_event(&observer_event)?;
-        }
-
-        match observer_event {
+        // TODO (asap): remove this observer_event.clone() (not so simple - needs cross-creates refactoring)
+        let res = match observer_event.clone() {
             RequestEvent::Block(block_data) => {
                 log::info!(
                     "📦 receive a new block {}, hash {}, parent hash {}",
@@ -429,7 +427,14 @@ impl Service {
                     .collect();
                 Ok((commitments, Vec::new()))
             }
+        };
+
+        // Important: sequencer must process event after event processing by service.
+        if let Some(sequencer) = maybe_sequencer {
+            sequencer.process_observer_event(&observer_event)?;
         }
+
+        res
     }
 
     pub async fn run(self) -> Result<()> {
