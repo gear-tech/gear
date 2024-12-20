@@ -74,6 +74,7 @@ pub struct MockExt {
     reads: Vec<MemoryInterval>,
     writes: Vec<MemoryInterval>,
     _forbidden_funcs: BTreeSet<SyscallName>,
+    _endpoint_forbidden_funcs: BTreeSet<SyscallName>,
 }
 
 impl MockExt {
@@ -241,6 +242,9 @@ impl Externalities for MockExt {
     }
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
         &self._forbidden_funcs
+    }
+    fn endpoint_forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
+        &self._endpoint_forbidden_funcs
     }
     fn reserve_gas(
         &mut self,
