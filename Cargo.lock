@@ -391,7 +391,7 @@ dependencies = [
  "foldhash",
  "hashbrown 0.15.0",
  "hex-literal",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "itoa",
  "k256",
  "keccak-asm",
@@ -649,7 +649,7 @@ dependencies = [
  "alloy-sol-macro-input",
  "const-hex",
  "heck 0.5.0",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
@@ -4829,7 +4829,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gprimitives",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "log",
  "parity-scale-codec",
  "rand",
@@ -6084,7 +6084,7 @@ dependencies = [
  "scale-info",
  "serde",
  "wabt",
- "wasmparser 0.220.0",
+ "wasmparser 0.222.0",
  "wasmprinter",
 ]
 
@@ -6620,7 +6620,7 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "indicatif",
  "log",
  "nonempty 0.8.1",
@@ -6628,7 +6628,7 @@ dependencies = [
  "rand",
  "thiserror 1.0.62",
  "wasm-smith",
- "wasmparser 0.220.0",
+ "wasmparser 0.222.0",
  "wasmprinter",
  "wat",
 ]
@@ -6643,10 +6643,10 @@ dependencies = [
  "enum-iterator 1.5.0",
  "gwasm-instrument",
  "hashbrown 0.14.5",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "rand",
- "wasm-encoder 0.220.0",
- "wasmparser 0.220.0",
+ "wasm-encoder 0.222.0",
+ "wasmparser 0.222.0",
  "wasmprinter",
  "wat",
 ]
@@ -6665,7 +6665,7 @@ dependencies = [
  "wabt",
  "wasm-opt",
  "wasmer",
- "wasmparser 0.220.0",
+ "wasmparser 0.222.0",
  "which",
 ]
 
@@ -6695,7 +6695,7 @@ dependencies = [
  "frame-support",
  "gear-utils",
  "heck 0.5.0",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "pallet-gear",
  "proc-macro2",
  "quote",
@@ -6824,7 +6824,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
 dependencies = [
  "fallible-iterator 0.3.0",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "stable_deref_trait",
 ]
 
@@ -6965,7 +6965,7 @@ dependencies = [
  "gear-utils",
  "gsdk-codegen",
  "hex",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "jsonrpsee 0.24.7",
  "log",
  "parity-scale-codec",
@@ -7073,7 +7073,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "hex",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "log",
  "parity-scale-codec",
  "path-clean",
@@ -7101,7 +7101,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http 0.2.9",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "slab",
  "tokio",
  "tokio-util",
@@ -7120,7 +7120,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "http 1.1.0",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "slab",
  "tokio",
  "tokio-util",
@@ -7793,9 +7793,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "707907fe3c25f5424cce2cb7e1cbcafee6bdbe735ca90ef77c29e84591e5b9da"
+checksum = "62f822373a4fe84d4bb149bf54e584a7f4abec90e072ed49cda0edea5b95471f"
 dependencies = [
  "equivalent",
  "hashbrown 0.15.0",
@@ -8457,6 +8457,12 @@ name = "leb128"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
+
+[[package]]
+name = "leb128fmt"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "libc"
@@ -9532,7 +9538,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "hex-literal",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "libc",
  "mockall 0.12.1",
  "multiaddr 0.17.1",
@@ -10678,7 +10684,7 @@ dependencies = [
  "crc32fast",
  "flate2",
  "hashbrown 0.14.5",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "memchr",
  "ruzstd",
 ]
@@ -12191,7 +12197,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1d3afd2628e69da2be385eb6f2fd57c8ac7977ceeff6dc166ff1657b0e386a9"
 dependencies = [
  "fixedbitset",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
 ]
 
 [[package]]
@@ -13500,7 +13506,7 @@ dependencies = [
  "bytecheck 0.8.0",
  "bytes",
  "hashbrown 0.15.0",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "munge",
  "ptr_meta 0.3.0",
  "rancor",
@@ -15581,7 +15587,7 @@ dependencies = [
  "chrono",
  "hex",
  "indexmap 1.9.3",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "serde",
  "serde_derive",
  "serde_json",
@@ -18209,7 +18215,7 @@ version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a8534fd7f78b5405e860340ad6575217ce99f38d4d5c8f2442cb5ecb50090e1"
 dependencies = [
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "toml_datetime",
  "winnow 0.5.15",
 ]
@@ -18220,7 +18226,7 @@ version = "0.22.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f21c7aaf97f1bd9ca9d4f9e73b0a6c74bd5afef56f2bc931943a6e1c37e04e38"
 dependencies = [
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "serde",
  "serde_spanned",
  "toml_datetime",
@@ -19085,7 +19091,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebf48234b389415b226a4daef6562933d38c7b28a8b8f64c5c4130dad1561ab7"
 dependencies = [
  "leb128",
- "wasmparser 0.220.0",
+]
+
+[[package]]
+name = "wasm-encoder"
+version = "0.222.0"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=fix-no-std-feature#88a25d8e095f54f6074e370cd772d83fde414979"
+dependencies = [
+ "leb128fmt",
+ "wasmparser 0.222.0",
 ]
 
 [[package]]
@@ -19165,7 +19179,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "flagset",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "leb128",
  "wasm-encoder 0.220.0",
 ]
@@ -19324,7 +19338,7 @@ dependencies = [
  "enumset",
  "getrandom",
  "hex",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "more-asserts",
  "rkyv",
  "sha2 0.10.8",
@@ -19347,7 +19361,7 @@ dependencies = [
  "dashmap 6.0.1",
  "enum-iterator 0.7.0",
  "fnv",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "lazy_static",
  "libc",
  "mach2",
@@ -19486,7 +19500,7 @@ version = "0.118.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77f1154f1ab868e2a01d9834a805faca7bf8b50d041b4ca714d005d0dab1c50c"
 dependencies = [
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "semver 1.0.18",
 ]
 
@@ -19499,19 +19513,17 @@ dependencies = [
  "ahash",
  "bitflags 2.5.0",
  "hashbrown 0.14.5",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "semver 1.0.18",
 ]
 
 [[package]]
 name = "wasmparser"
-version = "0.220.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e246c2772ce3ebc83f89a2d4487ac5794cad6c309b2071818a88c7db7c36d87b"
+version = "0.222.0"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=fix-no-std-feature#88a25d8e095f54f6074e370cd772d83fde414979"
 dependencies = [
  "bitflags 2.5.0",
- "indexmap 2.6.0",
- "semver 1.0.18",
+ "indexmap 2.7.0",
 ]
 
 [[package]]
@@ -20557,7 +20569,7 @@ dependencies = [
  "displaydoc",
  "flate2",
  "hmac 0.12.1",
- "indexmap 2.6.0",
+ "indexmap 2.7.0",
  "lzma-rs",
  "memchr",
  "pbkdf2",

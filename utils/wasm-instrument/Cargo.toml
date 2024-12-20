@@ -17,7 +17,7 @@ gwasm-instrument = { workspace = true, features = ["sign_ext"] }
 derive_more.workspace = true
 enum-iterator.workspace = true
 wasmparser.workspace = true
-wasm-encoder = { version = "0.220.0", features = ["wasmparser"] }
+wasm-encoder.workspace = true
 indexmap.workspace = true
 hashbrown.workspace = true
 
@@ -30,4 +30,4 @@ wasmprinter.workspace = true
 
 [features]
 default = ["std"]
-std = ["wasmparser/std", "indexmap/std"]
+std = ["wasmparser/std", "wasm-encoder/std", "indexmap/std"]

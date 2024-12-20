@@ -185,7 +185,7 @@ wasmer-vm = "5.0.2"
 wasmer-compiler = "5.0.2"
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
-wasmparser = { version = "0.220", default-features = false, features = ["validate", "features"] }
+wasmparser = { version = "0.222", default-features = false, features = ["validate", "features"] }
 which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
@@ -552,6 +552,7 @@ fs4 = "0.11.1"                                               # utils/gear-wasmer
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
 wasm-smith = "0.220.0"                                       # utils/wasm-gen
+wasm-encoder = { version = "0.222", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)'] }
@@ -603,3 +604,6 @@ blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross
 # TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
 
+# TODO: remove after https://github.com/bytecodealliance/wasm-tools/pull/1961
+wasmparser = { version = "0.222", git = "https://github.com/gear-tech/wasm-tools", branch = "fix-no-std-feature" }
+wasm-encoder = { version = "0.222", git = "https://github.com/gear-tech/wasm-tools", branch = "fix-no-std-feature" }

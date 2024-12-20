@@ -56,5 +56,6 @@ std = [
     "dep:impl-serde",
     "wasmparser/std",
     "gear-core-errors/serde",
+    "gear-wasm-instrument/std",
     "gprimitives/serde",
 ]
