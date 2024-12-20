@@ -1,0 +1,107 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Gear Messenger Pallet"><title>pallet_gear_messenger - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-99073656bbb10eb3.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="pallet_gear_messenger" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (612a33f20 2024-07-29)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-2a506944c89e7bb4.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../pallet_gear_messenger/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../pallet_gear_messenger/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../pallet_gear_messenger/index.html">pallet_gear_messenger</a><span class="version">1.7.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">pallet_gear_messenger</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/pallet_gear_messenger/lib.rs.html#19-680">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="gear-messenger-pallet"><a class="doc-anchor" href="#gear-messenger-pallet">§</a>Gear Messenger Pallet</h2>
+<p>The Gear Messenger Pallet provides functionality for handling messages.</p>
+<ul>
+<li><a href="pallet/trait.Config.html" title="trait pallet_gear_messenger::pallet::Config"><code>Config</code></a></li>
+<li><a href="pallet/struct.Pallet.html" title="struct pallet_gear_messenger::pallet::Pallet"><code>Pallet</code></a></li>
+</ul>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>The Gear Messenger Pallet’s main aim is to separate message storages out
+of Gear’s execution logic and provide soft functionality to manage them.</p>
+<p>The Gear Messenger Pallet provides functions for:</p>
+<ul>
+<li>Counting amount of messages sent from outside (from extrinsics)
+within the current block.</li>
+<li>Counting amount of messages removed from queue to be processed
+or skipped within the current block.</li>
+<li>Managing continuation of queue processing within the current block.</li>
+<li>Storing and managing message queue, it’s pushing and popping algorithms.</li>
+<li>Storing and managing mailbox, it’s insertion and removal algorithms,
+including the value claiming with Balances Pallet as <code>Currency</code>
+<code>Config</code>’s associated type.</li>
+</ul>
+<h3 id="interface"><a class="doc-anchor" href="#interface">§</a>Interface</h3>
+<p>The Gear Messenger Pallet implements <code>gear_common::storage::Messenger</code> trait
+and shouldn’t contain any other functionality, except this trait declares.</p>
+<h3 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h3>
+<p>How to use the messaging functionality from the Gear Messenger Pallet:</p>
+<ol>
+<li>Implement it’s <code>Config</code> for your runtime with specified <code>Currency</code> type.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `runtime/src/lib.rs`
+// ... //
+
+</span><span class="kw">impl </span>pallet_gear_messenger::Config <span class="kw">for </span>Runtime {
+    <span class="kw">type </span>Currency = .. ;
+}
+
+<span class="comment">// ... //</span></code></pre></div>
+<ol start="2">
+<li>Provide associated type for your pallet’s <code>Config</code>, which implements
+<code>gear_common::storage::Messenger</code> trait,
+specifying associated types if needed.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `some_pallet/src/lib.rs`
+// ... //
+
+</span><span class="kw">use </span>gear_common::storage::Messenger;
+
+<span class="attr">#[pallet::config]
+</span><span class="kw">pub trait </span>Config: frame_system::Config {
+    <span class="comment">// .. //
+
+    </span><span class="kw">type </span>Messenger: Messenger&lt;Capacity = u32&gt;;
+
+    <span class="comment">// .. //
+</span>}</code></pre></div>
+<ol start="3">
+<li>Declare Gear Messenger Pallet in your <code>construct_runtime!</code> macro.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `runtime/src/lib.rs`
+// ... //
+
+</span><span class="macro">construct_runtime!</span>(
+    <span class="kw">pub enum </span>Runtime
+        <span class="kw">where </span><span class="comment">// ... //
+    </span>{
+        <span class="comment">// ... //
+
+        </span>GearMessenger: pallet_gear_messenger,
+
+        <span class="comment">// ... //
+    </span>}
+);
+
+<span class="comment">// ... //</span></code></pre></div>
+<p><code>GearMessenger: pallet_gear_messenger</code></p>
+<ol start="4">
+<li>Set <code>GearMessenger</code> as your pallet <code>Config</code>’s `Messenger type.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `runtime/src/lib.rs`
+// ... //
+
+</span><span class="kw">impl </span>some_pallet::Config <span class="kw">for </span>Runtime {
+    <span class="comment">// ... //
+
+    </span><span class="kw">type </span>Messenger = GearMessenger;
+
+    <span class="comment">// ... //
+</span>}
+
+<span class="comment">// ... //</span></code></pre></div>
+<ol start="5">
+<li>Work with Gear Messenger Pallet in your pallet with provided
+associated type interface.</li>
+</ol>
+<h3 id="genesis-config"><a class="doc-anchor" href="#genesis-config">§</a>Genesis config</h3>
+<p>The Gear Messenger Pallet doesn’t depend on the <code>GenesisConfig</code>.</p>
+<h3 id="assumptions"><a class="doc-anchor" href="#assumptions">§</a>Assumptions</h3>
+<ul>
+<li>You should manually control storage load from queue and mailbox
+length overflow (see Gear Payment Pallet).</li>
+</ul>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><code>pub use <a class="mod" href="pallet/index.html" title="mod pallet_gear_messenger::pallet">pallet</a>::*;</code></div></li></ul><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="migrations/index.html" title="mod pallet_gear_messenger::migrations">migrations</a></div></li><li><div class="item-name"><a class="mod" href="pallet/index.html" title="mod pallet_gear_messenger::pallet">pallet</a></div><div class="desc docblock-short">The <code>pallet</code> module in each FRAME pallet hosts the most important items needed
+to construct this pallet.</div></li><li><div class="item-name"><a class="mod" href="pallet_tests/index.html" title="mod pallet_gear_messenger::pallet_tests">pallet_tests</a></div></li></ul><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="macro" href="macro.impl_config.html" title="macro pallet_gear_messenger::impl_config">impl_config</a></div></li><li><div class="item-name"><a class="macro" href="macro.impl_config_inner.html" title="macro pallet_gear_messenger::impl_config_inner">impl_config_inner</a></div></li></ul></section></div></main></body></html>
