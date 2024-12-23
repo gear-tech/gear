@@ -200,7 +200,7 @@ impl<Tx: TxHashBlake2b256> StatefulValidation<Tx> for UniqunessValidator {
     fn validate(&self, tx: &Tx, db: &Database) -> Result<()> {
         let tx_hash = tx.tx_hash();
 
-        if db.check_is_unique(tx_hash) {
+        if db.validated_transaction(tx_hash).is_none() {
             Ok(())
         } else {
             Err(anyhow!("Transaction already exists"))

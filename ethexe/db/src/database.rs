@@ -39,7 +39,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 
 const LOG_TARGET: &str = "ethexe-db";
 
@@ -59,6 +59,7 @@ enum KeyPrefix {
     BlockStartSchedule = 11,
     BlockEndSchedule = 12,
     Transaction = 13,
+    BlockHashesWindow = 14,
 }
 
 impl KeyPrefix {
@@ -274,6 +275,7 @@ impl BlockMetaStorage for Database {
             &KeyPrefix::LatestValidBlock.one(self.router_address),
             (block_hash, header).encode(),
         );
+        self.add_recent_block(block_hash);
     }
 
     fn block_start_schedule(&self, block_hash: H256) -> Option<Schedule> {
@@ -454,12 +456,8 @@ impl Database {
     }
 
     pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> bool {
-        todo!("TODO [sab]");
-    }
-
-    pub fn check_is_unique(&self, tx_hash: H256) -> bool {
-        // already added?
-        todo!("TODO [sab]");
+        self.get_block_hashes_window()
+            .contains(reference_block_hash)
     }
 
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {
@@ -475,6 +473,29 @@ impl Database {
         self.kv.put(
             &KeyPrefix::BlockSmallMeta.two(self.router_address, block_hash),
             meta.encode(),
+        );
+    }
+
+    fn add_recent_block(&self, block_hash: H256) {
+        let mut recent_block_hashes = self.get_block_hashes_window();
+        recent_block_hashes.add(block_hash);
+        self.set_block_hashes_window(recent_block_hashes);
+    }
+
+    fn get_block_hashes_window(&self) -> RecentBlockHashesWindow<EightBlocks> {
+        self.kv
+            .get(KeyPrefix::BlockHashesWindow.prefix().as_ref())
+            .map(|data| {
+                RecentBlockHashesWindow::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BlockHashesWindow`")
+            })
+            .unwrap_or_default()
+    }
+
+    fn set_block_hashes_window(&self, window: RecentBlockHashesWindow<EightBlocks>) {
+        self.kv.put(
+            KeyPrefix::BlockHashesWindow.prefix().as_ref(),
+            window.encode(),
         );
     }
 }
@@ -593,6 +614,72 @@ impl Storage for Database {
     fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {
         unsafe { HashOf::new(self.cas.write(&data)) }
     }
+}
+
+// Todo [sab] case when blocks stopped and old blocks considered valid
+// Todo [sab] check not old block is added?
+#[derive(Debug, Clone, Encode, Decode)]
+struct RecentBlockHashesWindow<S: WindowSize> {
+    /// That's for keeping an order of the block hashes window.
+    ///
+    /// Complexity for adding and removing the first element is O(1).
+    queue: VecDeque<H256>,
+    /// That's for checking the uniqueness of the block hash.
+    /// Performs check with O(1) complexity.
+    set: HashSet<H256>,
+    _phantom: std::marker::PhantomData<S>,
+}
+
+impl<S: WindowSize> RecentBlockHashesWindow<S> {
+    fn new() -> Self {
+        let cap = S::SIZE;
+
+        Self {
+            queue: VecDeque::with_capacity(cap),
+            set: HashSet::with_capacity(cap),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    fn contains(&self, block_hash: H256) -> bool {
+        self.set.contains(&block_hash)
+    }
+
+    fn add(&mut self, block_hash: H256) -> bool {
+        if self.contains(block_hash) {
+            return false;
+        }
+
+        if self.queue.len() == S::SIZE {
+            let removed = self.queue.pop_front().expect("checked len; qed");
+            self.set.remove(&removed);
+        }
+
+        self.queue.push_back(block_hash);
+        self.set.insert(block_hash);
+
+        true
+    }
+}
+
+impl<S: WindowSize> Default for RecentBlockHashesWindow<S> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+trait WindowSize {
+    const SIZE: usize;
+}
+
+struct EightBlocks;
+
+impl WindowSize for EightBlocks {
+    const SIZE: usize = 8;
+}
+
+impl WindowSize for () {
+    const SIZE: usize = usize::MAX;
 }
 
 #[cfg(test)]
