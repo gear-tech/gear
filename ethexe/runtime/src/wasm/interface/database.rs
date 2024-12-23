@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::wasm::interface;
-use core::{mem, slice};
+use core::slice;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 
