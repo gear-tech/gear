@@ -32,7 +32,7 @@ pub(crate) mod utils {
         let ptr = slice.as_ptr() as i32;
         let len = slice.len() as i32;
 
-        unsafe { core::mem::transmute([ptr, len]) }
+        (ptr as i64) << 32 | len as i64
     }
 }
 

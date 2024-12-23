@@ -31,3 +31,19 @@ pub enum LocalOutcome {
 
     Transition(StateTransition),
 }
+
+pub fn unpack_i64(x: i64) -> (i32, i32) {
+    let high = (x >> 32) as i32;
+    let low = (x & 0xFFFFFFFF) as i32;
+
+    (high, low)
+}
+
+pub fn pack_i64(high: i32, low: i32) -> i64 {
+    // Convert high to i64 and shift left by 32 bits
+    let high = (high as i64) << 32;
+    // Convert low to i64 (no shift needed)
+    let low = low as i64;
+
+    high | low
+}

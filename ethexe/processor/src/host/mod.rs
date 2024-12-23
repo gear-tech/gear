@@ -25,7 +25,7 @@ use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
 use std::{mem, sync::Arc};
 
-use crate::Database;
+use crate::{common::unpack_i64, Database};
 
 pub mod api;
 pub mod runtime;
@@ -200,7 +200,7 @@ impl InstanceWrapper {
     }
 
     fn get_call_output<D: Decode>(&mut self, ptr_len: i64) -> Result<D> {
-        let [ptr, len]: [i32; 2] = unsafe { mem::transmute(ptr_len) };
+        let (ptr, len) = unpack_i64(ptr_len);
 
         // TODO: check range.
         let memory = self.memory()?;

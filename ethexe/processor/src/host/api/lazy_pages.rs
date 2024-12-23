@@ -127,19 +127,24 @@ fn pre_process_memory_accesses(
 
     let memory = MemoryWrap(caller.data().memory());
 
-    let reads = memory.slice_by_val(&caller, reads).to_vec();
+    let reads = memory.slice_by_val(&caller, reads);
 
-    let writes = memory.slice_by_val(&caller, writes).to_vec();
+    let writes = memory.slice_by_val(&caller, writes);
 
     // 8 len bytes of u64 counter.
     // TODO: why gas_bytes is &mut [u8; 8] and not &mut u64 (?).
-    let gas_bytes = memory
-        .slice_mut(&mut caller, gas_bytes as usize, 8)
-        .try_into()
-        .unwrap();
+    // read gas_bytes into `mut` variable because `pre_process_memory_accesses` updates
+    // it, then write updated slice to memory. Can't use `slice_mut` here without using `.to_vec()`
+    // on `writes` and `reads`.
+    let ptr = gas_bytes;
+    let mut gas_bytes: [u8; 8] = memory.slice(&caller, ptr as usize, 8).try_into().unwrap();
 
-    let res = lazy_pages_detail::pre_process_memory_accesses(&reads, &writes, gas_bytes) as i32;
+    let res =
+        lazy_pages_detail::pre_process_memory_accesses(&reads, &writes, &mut gas_bytes) as i32;
 
+    memory
+        .slice_mut(&mut caller, ptr as usize, 8)
+        .copy_from_slice(&gas_bytes);
     log::trace!(target: "host_call", "pre_process_memory_accesses(..) -> {res:?}");
 
     res
