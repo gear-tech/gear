@@ -16,10 +16,98 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use anyhow::{anyhow, Context, Result};
+use clap::Parser;
+use ethexe_service::config::Config;
+use serde::Deserialize;
+use std::path::PathBuf;
+
+mod ethereum;
 mod network;
+mod node;
 mod prometheus;
 mod rpc;
 
+pub use ethereum::EthereumParams;
 pub use network::NetworkParams;
+pub use node::NodeParams;
 pub use prometheus::PrometheusParams;
 pub use rpc::RpcParams;
+
+#[derive(Clone, Debug, Default, Deserialize, Parser)]
+#[serde(deny_unknown_fields)]
+pub struct Params {
+    #[clap(flatten)]
+    pub node: Option<NodeParams>,
+
+    #[clap(flatten)]
+    #[serde(alias = "eth")]
+    pub ethereum: Option<EthereumParams>,
+
+    #[clap(flatten)]
+    #[serde(alias = "net")]
+    pub network: Option<NetworkParams>,
+
+    #[clap(flatten)]
+    pub rpc: Option<RpcParams>,
+
+    #[clap(flatten)]
+    #[serde(alias = "prom")]
+    pub prometheus: Option<PrometheusParams>,
+}
+
+impl Params {
+    pub fn from_file(path: PathBuf) -> Result<Self> {
+        let content =
+            std::fs::read_to_string(path).with_context(|| "failed to read params file")?;
+        let params =
+            toml::from_str(&content).with_context(|| "failed to parse toml params file")?;
+
+        Ok(params)
+    }
+
+    pub fn into_config(self) -> Result<Config> {
+        let node = self.node.ok_or_else(|| anyhow!("missing node params"))?;
+        let net_dir = node.net_dir();
+
+        let ethereum = self
+            .ethereum
+            .ok_or_else(|| anyhow!("missing ethereum params"))?;
+
+        Ok(Config {
+            node: node.into_config()?,
+            ethereum: ethereum.into_config()?,
+            network: self
+                .network
+                .and_then(|p| p.into_config(net_dir).transpose())
+                .transpose()?,
+            rpc: dbg!(self.rpc.and_then(|p| p.into_config())),
+            prometheus: self.prometheus.and_then(|p| p.into_config()),
+        })
+    }
+}
+
+impl MergeParams for Params {
+    fn merge(self, with: Self) -> Self {
+        Self {
+            node: MergeParams::optional_merge(self.node, with.node),
+            ethereum: MergeParams::optional_merge(self.ethereum, with.ethereum),
+            network: MergeParams::optional_merge(self.network, with.network),
+            rpc: MergeParams::optional_merge(self.rpc, with.rpc),
+            prometheus: MergeParams::optional_merge(self.prometheus, with.prometheus),
+        }
+    }
+}
+
+pub trait MergeParams: Sized {
+    fn merge(self, with: Self) -> Self;
+
+    fn optional_merge(me: Option<Self>, with: Option<Self>) -> Option<Self> {
+        match (me, with) {
+            (Some(me), Some(with)) => Some(me.merge(with)),
+            (Some(me), None) => Some(me),
+            (None, Some(with)) => Some(with),
+            (None, None) => None,
+        }
+    }
+}

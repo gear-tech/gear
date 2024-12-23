@@ -16,52 +16,68 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::config::PrometheusConfig;
-use clap::Args;
+use super::MergeParams;
+use clap::Parser;
+use ethexe_prometheus::PrometheusConfig;
 use serde::Deserialize;
 use std::net::{Ipv4Addr, SocketAddr};
 
-/// Parameters used to config prometheus.
-#[derive(Debug, Clone, Args, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Parser)]
+#[serde(deny_unknown_fields)]
 pub struct PrometheusParams {
-    /// Specify Prometheus exporter TCP Port.
-    #[arg(long, value_name = "PORT")]
+    #[arg(long, alias = "prom-name")]
+    #[serde(rename = "name")]
+    pub prometheus_name: Option<String>,
+
+    #[arg(long, alias = "prom-port")]
+    #[serde(rename = "port")]
     pub prometheus_port: Option<u16>,
-    /// Expose Prometheus exporter on all interfaces.
-    ///
-    /// Default is local.
-    #[arg(long)]
+
+    #[arg(long, alias = "prom-external")]
+    #[serde(default, rename = "external")]
     pub prometheus_external: bool,
-    /// Do not expose a Prometheus exporter endpoint.
-    ///
-    /// Prometheus metric endpoint is enabled by default.
-    #[arg(long)]
+
+    #[arg(long, alias = "no-prom")]
+    #[serde(default, rename = "no-prometheus", alias = "no-prom")]
     pub no_prometheus: bool,
 }
 
 impl PrometheusParams {
-    /// Creates [`PrometheusConfig`].
-    pub fn prometheus_config(
-        &self,
-        default_listen_port: u16,
-        chain_id: String,
-    ) -> Option<PrometheusConfig> {
-        if self.no_prometheus {
-            None
-        } else {
-            let interface = if self.prometheus_external {
-                Ipv4Addr::UNSPECIFIED
-            } else {
-                Ipv4Addr::LOCALHOST
-            };
+    pub const DEFAULT_PROMETHEUS_NAME: &str = "DevelopmentNode";
+    pub const DEFAULT_PROMETHEUS_PORT: u16 = 9635;
 
-            Some(PrometheusConfig::new_with_default_registry(
-                SocketAddr::new(
-                    interface.into(),
-                    self.prometheus_port.unwrap_or(default_listen_port),
-                ),
-                chain_id,
-            ))
+    pub fn into_config(self) -> Option<PrometheusConfig> {
+        if self.no_prometheus {
+            return None;
+        }
+
+        let name = self
+            .prometheus_name
+            .unwrap_or_else(|| Self::DEFAULT_PROMETHEUS_NAME.into());
+
+        let interface = if self.prometheus_external {
+            Ipv4Addr::UNSPECIFIED
+        } else {
+            Ipv4Addr::LOCALHOST
+        };
+
+        let addr = SocketAddr::new(
+            interface.into(),
+            self.prometheus_port
+                .unwrap_or(Self::DEFAULT_PROMETHEUS_PORT),
+        );
+
+        Some(PrometheusConfig::new_with_default_registry(name, addr))
+    }
+}
+
+impl MergeParams for PrometheusParams {
+    fn merge(self, with: Self) -> Self {
+        Self {
+            prometheus_name: self.prometheus_name.or(with.prometheus_name),
+            prometheus_port: self.prometheus_port.or(with.prometheus_port),
+            prometheus_external: self.prometheus_external || with.prometheus_external,
+            no_prometheus: self.no_prometheus || with.no_prometheus,
         }
     }
 }

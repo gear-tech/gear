@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use clap::Args;
+use super::MergeParams;
+use clap::Parser;
 use ethexe_rpc::RpcConfig;
 use serde::Deserialize;
 use std::{
@@ -24,49 +25,47 @@ use std::{
     str::FromStr,
 };
 
-/// Parameters used to config prometheus.
-#[derive(Debug, Clone, Args, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Parser)]
+#[serde(deny_unknown_fields)]
 pub struct RpcParams {
-    /// Rpc endpoint port.
-    #[arg(long, default_value = "9944")]
-    pub rpc_port: u16,
+    #[arg(long)]
+    #[serde(rename = "port")]
+    pub rpc_port: Option<u16>,
 
-    /// Expose rpc endpoint on all interfaces
-    #[arg(long, default_value = "false")]
+    #[arg(long)]
+    #[serde(default, rename = "external")]
     pub rpc_external: bool,
 
-    /// Do not start rpc endpoint.
-    #[arg(long, default_value = "false")]
-    pub no_rpc: bool,
-
-    /// Specify browser *origins* allowed to access the HTTP & WS RPC servers.
-    ///
-    /// A comma-separated list of origins (protocol://domain or special `null`
-    /// value). Value of `all` will disable origin validation. Default is to
-    /// allow localhost origin.
     #[arg(long)]
+    #[serde(rename = "cors")]
     pub rpc_cors: Option<Cors>,
+
+    #[arg(long)]
+    #[serde(default, rename = "no-rpc")]
+    pub no_rpc: bool,
 }
 
 impl RpcParams {
-    /// Creates [`RpcConfig`].
-    pub fn as_config(&self) -> Option<RpcConfig> {
+    pub const DEFAULT_RPC_PORT: u16 = 9944;
+
+    pub fn into_config(self) -> Option<RpcConfig> {
         if self.no_rpc {
             return None;
-        };
+        }
 
-        let ip = if self.rpc_external {
+        let ipv4_addr = if self.rpc_external {
             Ipv4Addr::UNSPECIFIED
         } else {
             Ipv4Addr::LOCALHOST
-        }
-        .into();
+        };
 
-        let listen_addr = SocketAddr::new(ip, self.rpc_port);
+        let listen_addr = SocketAddr::new(
+            ipv4_addr.into(),
+            self.rpc_port.unwrap_or(Self::DEFAULT_RPC_PORT),
+        );
 
         let cors = self
             .rpc_cors
-            .clone()
             .unwrap_or_else(|| {
                 Cors::List(vec![
                     "http://localhost:*".into(),
@@ -81,15 +80,20 @@ impl RpcParams {
     }
 }
 
-/// CORS setting
-///
-/// The type is introduced to overcome `Option<Option<T>>` handling of `clap`.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
+impl MergeParams for RpcParams {
+    fn merge(self, with: Self) -> Self {
+        Self {
+            rpc_port: self.rpc_port.or(with.rpc_port),
+            rpc_external: self.rpc_external || with.rpc_external,
+            rpc_cors: self.rpc_cors.or(with.rpc_cors),
+            no_rpc: self.no_rpc || with.no_rpc,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum Cors {
-    /// All hosts allowed.
     All,
-    /// Only hosts on the list are allowed.
     List(Vec<String>),
 }
 
@@ -122,6 +126,33 @@ impl FromStr for Cors {
             Ok(Cors::All)
         } else {
             Ok(Cors::List(origins))
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Cors {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value: toml::Value = Deserialize::deserialize(deserializer)?;
+
+        match value {
+            toml::Value::String(s) if matches!(s.as_ref(), "all" | "*") => Ok(Self::All),
+            toml::Value::Array(arr) => {
+                arr
+                    .into_iter()
+                    .map(|v| {
+                        v.as_str()
+                            .ok_or_else(|| serde::de::Error::custom("Array items must be strings"))
+                            .map(|s| s.to_string())
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(Self::List)
+            }
+            _ => Err(serde::de::Error::custom(
+                "Invalid value for cors. Possible values: \"all\" (alias \"*\") or list of strings like [\"http://localhost:*\", \"https://127.0.0.1:*\"].",
+            )),
         }
     }
 }

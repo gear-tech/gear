@@ -795,9 +795,9 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.2"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15c4c2c83f81532e5845a733998b6971faca23490340a418e9b72a3ec9de12ea"
+checksum = "55cc3b69f167a1ef2e161439aa98aed94e6028e5f9a59be9a6ffb47aef1651f9"
 
 [[package]]
 name = "anstyle-parse"
@@ -2108,7 +2108,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata 0.18.1",
  "cargo_toml",
- "clap 4.5.13",
+ "clap 4.5.23",
  "colored",
  "etc",
  "gear-wasm-optimizer",
@@ -2399,23 +2399,23 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.13"
+version = "4.5.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fbb260a053428790f3de475e304ff84cdbc4face759ea7a3e64c1edd938a7fc"
+checksum = "3135e7ec2ef7b10c6ed8950f0f792ed96ee093fa088608f1c76e569722700c84"
 dependencies = [
  "clap_builder",
- "clap_derive 4.5.13",
+ "clap_derive 4.5.18",
 ]
 
 [[package]]
 name = "clap_builder"
-version = "4.5.13"
+version = "4.5.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64b17d7ea74e9f833c7dbf2cbe4fb12ff26783eda4782a8975b72f895c9b4d99"
+checksum = "30582fc632330df2bd26877bde0c1f4470d57c582bbc070376afcd04d8cb4838"
 dependencies = [
  "anstream",
  "anstyle",
- "clap_lex 0.7.0",
+ "clap_lex 0.7.4",
  "strsim 0.11.1",
  "terminal_size",
 ]
@@ -2435,9 +2435,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.13"
+version = "4.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "501d359d5f3dcaf6ecdeee48833ae73ec6e42723a1e52419c79abf9507eec0a0"
+checksum = "4ac6a0c7b1a9e9a5186361f67dfa1b88213572f427fb9ab038efb2bd8c582dab"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -2456,9 +2456,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.7.0"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
+checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
 name = "cmake"
@@ -2827,7 +2827,7 @@ dependencies = [
  "anyhow",
  "cargo-http-registry",
  "cargo_metadata 0.18.1",
- "clap 4.5.13",
+ "clap 4.5.23",
  "reqwest",
  "serde",
  "tempfile",
@@ -4464,37 +4464,19 @@ checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 name = "ethexe-cli"
 version = "1.7.0"
 dependencies = [
- "alloy",
  "anyhow",
- "clap 4.5.13",
- "demo-async",
- "demo-ping",
- "derive_more 0.99.18",
+ "clap 4.5.23",
  "directories",
  "env_logger",
- "ethexe-common",
- "ethexe-db",
  "ethexe-ethereum",
  "ethexe-network",
- "ethexe-observer",
- "ethexe-processor",
- "ethexe-prometheus-endpoint",
+ "ethexe-prometheus",
  "ethexe-rpc",
- "ethexe-runtime-common",
- "ethexe-sequencer",
+ "ethexe-service",
  "ethexe-signer",
- "ethexe-utils",
- "ethexe-validator",
- "futures",
- "futures-timer",
- "gear-core",
- "gear-utils",
  "gprimitives",
  "hex",
  "log",
- "ntest",
- "parity-scale-codec",
- "rand",
  "serde",
  "static_init",
  "tempfile",
@@ -4628,9 +4610,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-prometheus-endpoint"
+name = "ethexe-prometheus"
 version = "1.7.0"
 dependencies = [
+ "anyhow",
+ "ethexe-observer",
+ "ethexe-sequencer",
+ "ethexe-utils",
  "hyper 0.14.31",
  "log",
  "prometheus",
@@ -4713,6 +4699,48 @@ dependencies = [
  "parity-scale-codec",
  "rand",
  "tokio",
+]
+
+[[package]]
+name = "ethexe-service"
+version = "1.7.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "clap 4.5.23",
+ "demo-async",
+ "demo-ping",
+ "derive_more 0.99.18",
+ "directories",
+ "env_logger",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "ethexe-network",
+ "ethexe-observer",
+ "ethexe-processor",
+ "ethexe-prometheus",
+ "ethexe-rpc",
+ "ethexe-runtime-common",
+ "ethexe-sequencer",
+ "ethexe-signer",
+ "ethexe-utils",
+ "ethexe-validator",
+ "futures",
+ "futures-timer",
+ "gear-core",
+ "gear-utils",
+ "gprimitives",
+ "hex",
+ "log",
+ "ntest",
+ "parity-scale-codec",
+ "rand",
+ "serde",
+ "static_init",
+ "tempfile",
+ "tokio",
+ "toml 0.8.14",
 ]
 
 [[package]]
@@ -5089,7 +5117,7 @@ dependencies = [
  "Inflector",
  "array-bytes",
  "chrono",
- "clap 4.5.13",
+ "clap 4.5.23",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -5699,7 +5727,7 @@ version = "1.7.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 4.5.13",
+ "clap 4.5.23",
  "color-eyre",
  "colored",
  "demo-messenger",
@@ -5848,7 +5876,7 @@ dependencies = [
 name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
- "clap 4.5.13",
+ "clap 4.5.23",
  "generate-bags",
  "vara-runtime",
 ]
@@ -5872,7 +5900,7 @@ dependencies = [
 name = "gear-cli"
 version = "1.7.0"
 dependencies = [
- "clap 4.5.13",
+ "clap 4.5.23",
  "derive_more 0.99.18",
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -6094,7 +6122,7 @@ name = "gear-node-loader"
 version = "1.7.0"
 dependencies = [
  "anyhow",
- "clap 4.5.13",
+ "clap 4.5.23",
  "futures",
  "futures-timer",
  "gclient",
@@ -6181,7 +6209,7 @@ dependencies = [
 name = "gear-replay-cli"
 version = "1.0.0"
 dependencies = [
- "clap 4.5.13",
+ "clap 4.5.23",
  "frame-remote-externalities",
  "frame-system",
  "gear-runtime-interface",
@@ -6442,7 +6470,7 @@ name = "gear-validator-checks"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.5.13",
+ "clap 4.5.23",
  "env_logger",
  "futures",
  "gsdk",
@@ -6562,7 +6590,7 @@ name = "gear-weight-diff"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "clap 4.5.13",
+ "clap 4.5.23",
  "frame-support",
  "gear-utils",
  "heck 0.5.0",
@@ -6802,7 +6830,7 @@ version = "1.7.0"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
- "clap 4.5.13",
+ "clap 4.5.23",
  "colored",
  "dirs",
  "gear-ss58",
@@ -13174,7 +13202,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 4.5.13",
+ "clap 4.5.23",
  "frame-support",
  "junit-common",
  "pallet-gear",
@@ -13416,7 +13444,7 @@ name = "runtime-fuzzer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.5.13",
+ "clap 4.5.23",
  "frame-support",
  "frame-system",
  "gear-call-gen",
@@ -13876,7 +13904,7 @@ source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot
 dependencies = [
  "array-bytes",
  "chrono",
- "clap 4.5.13",
+ "clap 4.5.23",
  "fdlimit",
  "futures",
  "itertools 0.11.0",
@@ -17709,12 +17737,12 @@ dependencies = [
 
 [[package]]
 name = "terminal_size"
-version = "0.3.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21bebf2b7c9e0a515f6e0f8c51dc0f8e4696391e6f1ff30379559f8365fb0df7"
+checksum = "5352447f921fda68cf61b4101566c0bdb5104eff6804d0678e5227580ab6a4e9"
 dependencies = [
  "rustix 0.38.37",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -18942,7 +18970,7 @@ dependencies = [
 name = "wasm-info"
 version = "0.1.0"
 dependencies = [
- "clap 4.5.13",
+ "clap 4.5.23",
  "hex",
  "parity-wasm",
 ]
@@ -18999,7 +19027,7 @@ dependencies = [
 name = "wasm-proc"
 version = "1.7.0"
 dependencies = [
- "clap 4.5.13",
+ "clap 4.5.23",
  "env_logger",
  "gear-wasm-builder",
  "log",

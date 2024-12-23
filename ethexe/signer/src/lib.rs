@@ -77,6 +77,12 @@ impl TryFrom<ActorId> for Address {
     }
 }
 
+impl From<Address> for ActorId {
+    fn from(value: Address) -> Self {
+        H160(value.0).into()
+    }
+}
+
 fn strip_prefix(s: &str) -> &str {
     if let Some(s) = s.strip_prefix("0x") {
         s
