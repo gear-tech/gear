@@ -299,10 +299,10 @@ library Gear {
     }
 
     function eraIndexAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
-        return (ts - router.genesisBlock.timestamp) / router.durations.era;
+        return (ts - router.genesisBlock.timestamp) / router.timelines.era;
     }
 
     function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
-        return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.durations.era;
+        return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
     }
 }
