@@ -49,10 +49,9 @@ impl Sandboxes {
     }
 
     // Clears the underlying store if the counter exceeds the limit.
-    #[cfg(feature = "runtime-benchmarks")]
     pub fn clear(&mut self) {
-        BENCH_SANDBOX_RESET_COUNTER.with_borrow_mut(|c| {
-            if *c >= BENCH_SANDBOX_RESET_COUNTER_LIMIT {
+        SANDBOX_STORE_CLEAR_COUNTER.with_borrow_mut(|c| {
+            if *c >= SANDBOX_STORE_CLEAR_COUNTER_LIMIT {
                 *c = 0;
                 self.store.clear();
             }
@@ -471,12 +470,15 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
-            // The usual method to clear the store doesn't work for benchmarks (see `Sanboxes::get`).
-            // This issue is more prominent in so-called "onetime syscall" benchmarks because
-            // they run with minimal steps and a large number of repeats, leading to significant slowdowns.
-            // Therefore, we have to clear it manually if the `BENCH_SANDBOX_RESET_COUNTER` exceeds the limit.
-            // Otherwise, the store becomes too big and will slow down the benchmarks.
-            #[cfg(feature = "runtime-benchmarks")]
+            // HACK: It was discovered that starting with version 4.0, Wasmer experiences a slowdown
+            // when creating a large number of memory/instances beyond a certain threshold.
+            // The usual method to clear the store doesn't work for benchmarks (see `Sandboxes::get`)
+            // or when too many instances/memories are created **within a single block**, as the store
+            // is only cleared at the start of a new block.
+            // This is a temporary solution to reset the store after reaching a certain limit
+            // (see `SANDBOX_STORE_CLEAR_COUNTER_LIMIT`) for memory/instances.
+            // Otherwise, the store grows too large, leading to performance degradation during
+            // normal node execution and benchmarks.
             sandboxes.borrow_mut().clear();
 
             sandboxes
@@ -603,10 +605,8 @@ pub fn set_global_val(
     method_result
 }
 
-#[cfg(feature = "runtime-benchmarks")]
-const BENCH_SANDBOX_RESET_COUNTER_LIMIT: u32 = 100;
+const SANDBOX_STORE_CLEAR_COUNTER_LIMIT: u32 = 50;
 
-#[cfg(feature = "runtime-benchmarks")]
 thread_local! {
-    static BENCH_SANDBOX_RESET_COUNTER: RefCell<u32> = const { RefCell::new(0) };
+    static SANDBOX_STORE_CLEAR_COUNTER: RefCell<u32> = const { RefCell::new(0) };
 }
