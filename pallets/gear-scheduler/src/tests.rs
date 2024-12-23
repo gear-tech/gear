@@ -48,12 +48,12 @@ fn wl_cost_for(amount_of_blocks: u64) -> u128 {
     gas_price(<Pallet<Test> as Scheduler>::CostsPerBlock::waitlist() * amount_of_blocks)
 }
 
-fn dispatch_from(src: impl Into<ProgramId>) -> StoredDispatch {
+fn dispatch_from(src: impl Origin) -> StoredDispatch {
     StoredDispatch::new(
         DispatchKind::Handle,
         StoredMessage::new(
             H256::random().cast(),
-            src.into(),
+            src.cast(),
             H256::random().cast(),
             Default::default(),
             0,

@@ -19,9 +19,9 @@ library Gear {
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
 
     struct Validators {
-        // TODO: After FROST multi signature applied - consider to remove validators set and list.
+        // TODO: After FROST multi signature applied - consider to remove validators map and list.
         // Replace it with list hash. Any node can access the list of validators using this hash from other nodes.
-        mapping(address => bool) set;
+        mapping(address => bool) map;
         address[] list;
         uint256 useFromTimestamp;
     }
@@ -101,7 +101,7 @@ library Gear {
         Message[] messages;
     }
 
-    struct Durations {
+    struct Timelines {
         uint256 era;
         uint256 election;
         uint256 validationDelay;
@@ -203,9 +203,9 @@ library Gear {
         uint256 ts
     ) internal view returns (bool) {
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
-        if (ts < eraStarted && block.timestamp < eraStarted + router.durations.validationDelay) {
+        if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
             require(ts >= router.genesisBlock.timestamp, "cannot validate before genesis");
-            require(ts + router.durations.era >= eraStarted, "timestamp is older than previous era");
+            require(ts + router.timelines.era >= eraStarted, "timestamp is older than previous era");
 
             // Validation must be done using validators from previous era,
             // because `ts` is in the past and we are in the validation delay period.
@@ -228,7 +228,7 @@ library Gear {
 
             address validator = msgHash.recover(signature);
 
-            if (validators.set[validator]) {
+            if (validators.map[validator]) {
                 if (++validSignatures == threshold) {
                     return true;
                 }

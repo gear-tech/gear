@@ -305,7 +305,7 @@ impl ExtraCommands {
 
                 println!("Completed in transaction {tx:?}");
                 println!(
-                    "Program address on Ethereum {}",
+                    "Program address on Ethereum {:?}",
                     actor_id.to_address_lossy()
                 );
 

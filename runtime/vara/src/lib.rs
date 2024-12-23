@@ -24,7 +24,7 @@
 #![allow(non_local_definitions)]
 
 // Make the WASM binary available.
-#[cfg(all(feature = "std", not(feature = "fuzz")))]
+#[cfg(all(feature = "std", not(fuzz)))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use common::{storage::Messenger, DelegateFee};
@@ -32,6 +32,66 @@ use frame_election_provider_support::{
     bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, NposSolution, SequentialPhragmen,
     VoteWeight,
 };
+use frame_support::{
+    dispatch::DispatchInfo,
+    pallet_prelude::{
+        InvalidTransaction, TransactionLongevity, TransactionValidityError, ValidTransaction,
+    },
+    weights::ConstantMultiplier,
+};
+use frame_system::{
+    limits::{BlockLength, BlockWeights},
+    EnsureRoot,
+};
+use gbuiltin_proxy::ProxyType as BuiltinProxyType;
+use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
+use pallet_gear_builtin::ActorWithId;
+use pallet_grandpa::{
+    fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
+};
+use pallet_identity::legacy::IdentityInfo;
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_session::historical::{self as pallet_session_historical};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use runtime_common::constants::BANK_ADDRESS;
+use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
+use scale_info::TypeInfo;
+use sp_api::impl_runtime_apis;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
+use sp_runtime::{
+    create_runtime_str, generic, impl_opaque_keys,
+    traits::{
+        AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
+        IdentityLookup, NumberFor, One, SignedExtension,
+    },
+    transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
+    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
+};
+use sp_std::{
+    convert::{TryFrom, TryInto},
+    prelude::*,
+};
+use sp_version::RuntimeVersion;
+
+#[cfg(not(feature = "dev"))]
+use sp_runtime::traits::OpaqueKeys;
+
+#[cfg(any(feature = "std", test))]
+use {
+    sp_api::{CallApiAt, CallContext, ProofRecorder},
+    sp_externalities::Extensions,
+    sp_runtime::traits::HashingFor,
+    sp_state_machine::OverlayedChanges,
+};
+
+pub use pallet_gear;
+pub use pallet_gear_gas;
+pub use pallet_gear_payment;
+
+#[cfg(feature = "dev")]
+pub use pallet_gear_debug;
+
 pub use frame_support::{
     construct_runtime, derive_impl,
     dispatch::{DispatchClass, WeighData},
@@ -54,36 +114,13 @@ pub use frame_support::{
     },
     PalletId, StorageValue,
 };
-use frame_support::{
-    dispatch::DispatchInfo,
-    pallet_prelude::{
-        InvalidTransaction, TransactionLongevity, TransactionValidityError, ValidTransaction,
-    },
-    weights::ConstantMultiplier,
-};
-use frame_system::{
-    limits::{BlockLength, BlockWeights},
-    EnsureRoot,
-};
-use gbuiltin_proxy::ProxyType as BuiltinProxyType;
-use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
-use pallet_gear_builtin::ActorWithId;
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
 pub use pallet_gear_staking_rewards::StakingBlackList;
-use pallet_grandpa::{
-    fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
-};
-use pallet_identity::legacy::IdentityInfo;
-use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_session::historical::{self as pallet_session_historical};
-pub use pallet_timestamp::Call as TimestampCall;
 #[allow(deprecated)]
 pub use pallet_transaction_payment::{
     CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
 };
-use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{
         RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
@@ -94,54 +131,16 @@ pub use runtime_common::{
     VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
-use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
-use scale_info::TypeInfo;
-use sp_api::impl_runtime_apis;
-#[cfg(any(feature = "std", test))]
-use sp_api::{CallApiAt, CallContext, ProofRecorder};
-use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
-#[cfg(any(feature = "std", test))]
-use sp_externalities::Extensions;
-#[cfg(any(feature = "std", test))]
-use sp_runtime::traits::HashingFor;
-#[cfg(not(feature = "dev"))]
-use sp_runtime::traits::OpaqueKeys;
-use sp_runtime::{
-    create_runtime_str, generic, impl_opaque_keys,
-    traits::{
-        AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
-        IdentityLookup, NumberFor, One, SignedExtension,
-    },
-    transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
-};
-#[cfg(any(feature = "std", test))]
-use sp_state_machine::OverlayedChanges;
-use sp_std::{
-    convert::{TryFrom, TryInto},
-    prelude::*,
-};
-#[cfg(feature = "std")]
-use sp_version::NativeVersion;
-use sp_version::RuntimeVersion;
 
-#[cfg(any(feature = "std", test))]
-pub use frame_system::Call as SystemCall;
-#[cfg(any(feature = "std", test))]
-pub use pallet_balances::Call as BalancesCall;
-#[cfg(any(feature = "std", test))]
-pub use pallet_staking::StakerStatus;
 #[cfg(all(feature = "dev", any(feature = "std", test)))]
 pub use pallet_sudo::Call as SudoCall;
-#[cfg(any(feature = "std", test))]
-pub use sp_runtime::BuildStorage;
 
-pub use pallet_gear;
-#[cfg(feature = "dev")]
-pub use pallet_gear_debug;
-pub use pallet_gear_gas;
-pub use pallet_gear_payment;
+#[cfg(any(feature = "std", test))]
+pub use {
+    frame_system::Call as SystemCall, pallet_balances::Call as BalancesCall,
+    pallet_staking::StakerStatus, pallet_timestamp::Call as TimestampCall,
+    sp_runtime::BuildStorage,
+};
 
 pub mod constants;
 
@@ -175,19 +174,36 @@ static _DEV_RUNTIME: u8 = 0;
 static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"))
     .len()] = const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"));
 
+/// Vara Network runtime version.
+#[cfg(not(feature = "dev"))]
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
-    authoring_version: 1,
-    // The version of the runtime specification. A full node will not attempt to use its native
-    //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
-    //   `spec_version`, and `authoring_version` are the same between Wasm and native.
+
     spec_version: 1700,
-    impl_version: 1,
+
     apis: RUNTIME_API_VERSIONS,
-    transaction_version: 1,
+    authoring_version: 1,
+    impl_version: 1,
     state_version: 1,
+    transaction_version: 1,
+};
+
+/// Vara Network Testnet (and dev) runtime version.
+#[cfg(feature = "dev")]
+#[sp_version::runtime_version]
+pub const VERSION: RuntimeVersion = RuntimeVersion {
+    spec_name: create_runtime_str!("vara-testnet"),
+    impl_name: create_runtime_str!("vara-testnet"),
+
+    spec_version: 1701,
+
+    apis: RUNTIME_API_VERSIONS,
+    authoring_version: 1,
+    impl_version: 1,
+    state_version: 1,
+    transaction_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -209,16 +225,6 @@ const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
     WEIGHT_REF_TIME_PER_MILLIS * MILLISECS_PER_BLOCK / 3,
     u64::MAX,
 );
-
-/// The version information used to identify this runtime when compiled natively.
-
-#[cfg(any(feature = "std", test))]
-pub fn native_version() -> NativeVersion {
-    NativeVersion {
-        runtime_version: VERSION,
-        can_author_with: Default::default(),
-    }
-}
 
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;

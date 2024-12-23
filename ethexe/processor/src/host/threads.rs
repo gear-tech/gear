@@ -22,7 +22,10 @@ use crate::Database;
 use core::fmt;
 use ethexe_db::BlockMetaStorage;
 use ethexe_runtime_common::{
-    state::{ActiveProgram, HashOf, Program, ProgramState, Storage},
+    state::{
+        ActiveProgram, HashOf, MemoryPages, MemoryPagesInner, MemoryPagesRegionInner, Program,
+        ProgramState, RegionIdx, Storage,
+    },
     BlockInfo,
 };
 use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
@@ -42,7 +45,8 @@ pub struct ThreadParams {
     pub db: Database,
     pub block_info: BlockInfo,
     pub state_hash: H256,
-    pub pages: Option<BTreeMap<GearPage, HashOf<PageBuf>>>,
+    pages_registry_cache: Option<MemoryPagesInner>,
+    pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
 
 impl fmt::Debug for ThreadParams {
@@ -52,19 +56,38 @@ impl fmt::Debug for ThreadParams {
 }
 
 impl ThreadParams {
-    pub fn pages(&mut self) -> &BTreeMap<GearPage, HashOf<PageBuf>> {
-        self.pages.get_or_insert_with(|| {
+    pub fn get_page_region(
+        &mut self,
+        page: GearPage,
+    ) -> Option<&BTreeMap<GearPage, HashOf<PageBuf>>> {
+        let pages_registry = self.pages_registry_cache.get_or_insert_with(|| {
             let ProgramState {
                 program: Program::Active(ActiveProgram { pages_hash, .. }),
                 ..
             } = self.db.read_state(self.state_hash).expect(UNKNOWN_STATE)
             else {
-                // TODO: consider me.
-                panic!("Couldn't get pages hash for inactive program!")
+                unreachable!("program that is currently running can't be inactive");
             };
 
             pages_hash.query(&self.db).expect(UNKNOWN_STATE).into()
-        })
+        });
+
+        let region_idx = MemoryPages::page_region(page);
+
+        let region_hash = pages_registry.get(&region_idx)?;
+
+        let pages_regions = self
+            .pages_regions_cache
+            .get_or_insert_with(Default::default);
+
+        let page_region = pages_regions.entry(region_idx).or_insert_with(|| {
+            self.db
+                .read_pages_region(*region_hash)
+                .expect("Pages region not found")
+                .into()
+        });
+
+        Some(&*page_region)
     }
 }
 
@@ -92,11 +115,11 @@ pub fn set(db: Database, chain_head: H256, state_hash: H256) {
             timestamp: header.timestamp,
         },
         state_hash,
-        pages: None,
+        pages_registry_cache: None,
+        pages_regions_cache: None,
     }))
 }
 
-// TODO: consider Database mutability.
 pub fn with_db<T>(f: impl FnOnce(&Database) -> T) -> T {
     PARAMS.with_borrow(|v| {
         let params = v.as_ref().expect(UNSET_PANIC);
@@ -110,16 +133,6 @@ pub fn chain_head_info() -> BlockInfo {
         let params = v.as_ref().expect(UNSET_PANIC);
 
         params.block_info
-    })
-}
-
-// TODO: consider Database mutability.
-#[allow(unused)]
-pub fn with_db_and_state_hash<T>(f: impl FnOnce(&Database, H256) -> T) -> T {
-    PARAMS.with_borrow(|v| {
-        let params = v.as_ref().expect(UNSET_PANIC);
-
-        f(&params.db, params.state_hash)
     })
 }
 
@@ -139,7 +152,7 @@ impl LazyPagesStorage for EthexeHostLazyPages {
         with_params(|params| {
             let page = PageKey::page_from_buf(key);
 
-            let page_hash = params.pages().get(&page).cloned()?;
+            let page_hash = params.get_page_region(page)?.get(&page).cloned()?;
 
             let data = params.db.read_page_data(page_hash).expect("Page not found");
 
@@ -153,7 +166,10 @@ impl LazyPagesStorage for EthexeHostLazyPages {
         with_params(|params| {
             let page = PageKey::page_from_buf(key);
 
-            params.pages().contains_key(&page)
+            params
+                .get_page_region(page)
+                .map(|region| region.contains_key(&page))
+                .unwrap_or(false)
         })
     }
 }

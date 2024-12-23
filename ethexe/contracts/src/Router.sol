@@ -44,7 +44,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
         router.computeSettings = Gear.defaultComputationSettings();
-        router.durations = Gear.Durations(_eraDuration, _electionDuration, 100);
+        router.timelines = Gear.Timelines(_eraDuration, _electionDuration, 100);
 
         // Set validators for the era 0.
         _resetValidators(router.validationSettings.validators0, _validators, block.timestamp);
@@ -79,8 +79,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         // Copy computation settings from the old router.
         newRouter.computeSettings = oldRouter.computeSettings;
 
-        // Copy durations from the old router.
-        newRouter.durations = oldRouter.durations;
+        // Copy timelines from the old router.
+        newRouter.timelines = oldRouter.timelines;
 
         // All protocol data must be removed - so leave it zeroed in new router.
     }
@@ -114,7 +114,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Gear.Validators storage _currentValidators = Gear.currentEraValidators(_router());
 
         for (uint256 i = 0; i < _validators.length; i++) {
-            if (!_currentValidators.set[_validators[i]]) {
+            if (!_currentValidators.map[_validators[i]]) {
                 return false;
             }
         }
@@ -123,7 +123,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function isValidator(address _validator) public view returns (bool) {
-        return Gear.currentEraValidators(_router()).set[_validator];
+        return Gear.currentEraValidators(_router()).map[_validator];
     }
 
     function signingThresholdPercentage() public view returns (uint16) {
@@ -249,12 +249,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function commitValidators(Gear.ValidatorsCommitment calldata commitment, bytes[] calldata signatures) external {
         Storage storage router = _router();
 
-        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.durations.era;
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
 
         require(commitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
 
-        uint256 nextEraStart = router.genesisBlock.timestamp + router.durations.era * commitment.eraIndex;
-        require(block.timestamp >= nextEraStart - router.durations.election, "election is not yet started");
+        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * commitment.eraIndex;
+        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
 
         // Maybe free slot for new validators:
         Gear.Validators storage _validators = Gear.previousEraValidators(router);
@@ -268,7 +268,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         _resetValidators(_validators, commitment.validators, nextEraStart);
 
-        emit NextEraValidatorsSet(nextEraStart);
+        emit NextEraValidatorsCommitted(nextEraStart);
     }
 
     function commitCodes(Gear.CodeCommitment[] calldata _codeCommitments, bytes[] calldata _signatures) external {
@@ -423,11 +423,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     ) private {
         for (uint256 i = 0; i < _validators.list.length; i++) {
             address _validator = _validators.list[i];
-            _validators.set[_validator] = false;
+            _validators.map[_validator] = false;
         }
         for (uint256 i = 0; i < _newValidators.length; i++) {
             address _validator = _newValidators[i];
-            _validators.set[_validator] = true;
+            _validators.map[_validator] = true;
         }
         _validators.list = _newValidators;
         _validators.useFromTimestamp = _useFromTimestamp;

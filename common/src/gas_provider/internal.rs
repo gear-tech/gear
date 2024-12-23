@@ -556,7 +556,7 @@ where
         let key = key.into();
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        #[cfg(feature = "fuzz")]
+        #[cfg(fuzz)]
         {
             let s = fail::FailScenario::setup();
             // This is a fail point with name `fail_fuzzer`.
