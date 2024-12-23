@@ -139,8 +139,7 @@ fn pre_process_memory_accesses(
     let ptr = gas_bytes;
     let mut gas_bytes: [u8; 8] = memory.slice(&caller, ptr as usize, 8).try_into().unwrap();
 
-    let res =
-        lazy_pages_detail::pre_process_memory_accesses(reads, writes, &mut gas_bytes) as i32;
+    let res = lazy_pages_detail::pre_process_memory_accesses(reads, writes, &mut gas_bytes) as i32;
 
     memory
         .slice_mut(&mut caller, ptr as usize, 8)
