@@ -23,7 +23,6 @@ use crate::{
     host::{api::MemoryWrap, context::HostContext},
 };
 use anyhow::Result;
-use core::mem;
 use gear_runtime_interface::{sandbox_detail, Instantiate};
 use parity_scale_codec::Encode;
 use sp_wasm_interface::{FunctionContext as _, IntoValue as _, Pointer, StoreData};

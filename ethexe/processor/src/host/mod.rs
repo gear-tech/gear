@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{common::unpack_i64, Database};
 use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
@@ -23,9 +24,7 @@ use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
-use std::{mem, sync::Arc};
-
-use crate::{common::unpack_i64, Database};
+use std::sync::Arc;
 
 pub mod api;
 pub mod runtime;

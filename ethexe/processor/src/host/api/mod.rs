@@ -21,7 +21,6 @@ use crate::common::{pack_i64, unpack_i64};
 use super::context::HostContext;
 use parity_scale_codec::{Decode, Encode};
 use sp_wasm_interface::{FunctionContext as _, IntoValue as _, StoreData};
-use std::mem;
 use wasmtime::{Caller, Memory, StoreContext, StoreContextMut};
 
 pub mod allocator;
