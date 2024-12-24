@@ -19096,7 +19096,7 @@ dependencies = [
 [[package]]
 name = "wasm-encoder"
 version = "0.222.0"
-source = "git+https://github.com/gear-tech/wasm-tools?branch=fix-no-std-feature#88a25d8e095f54f6074e370cd772d83fde414979"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=fix-no-std-feature#c0caf12dd26e848eb06abfc3f7d2622162c8bb94"
 dependencies = [
  "leb128fmt",
  "wasmparser 0.222.0",
@@ -19520,7 +19520,7 @@ dependencies = [
 [[package]]
 name = "wasmparser"
 version = "0.222.0"
-source = "git+https://github.com/gear-tech/wasm-tools?branch=fix-no-std-feature#88a25d8e095f54f6074e370cd772d83fde414979"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=fix-no-std-feature#c0caf12dd26e848eb06abfc3f7d2622162c8bb94"
 dependencies = [
  "bitflags 2.5.0",
  "indexmap 2.7.0",
