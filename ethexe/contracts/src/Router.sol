@@ -28,6 +28,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address _wrappedVara,
         uint256 _eraDuration,
         uint256 _electionDuration,
+        uint256 _validationDelay,
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
@@ -36,6 +37,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         require(block.timestamp > 0, "current timestamp must be greater than 0");
         require(_electionDuration > 0, "election duration must be greater than 0");
         require(_eraDuration > _electionDuration, "era duration must be greater than election duration");
+        // _validationDelay must be small enough,
+        // in order to restrict old era validators to make commitments, which can damage the system.
+        require(_validationDelay < (_eraDuration - _electionDuration) / 10, "validation delay is too big");
 
         _setStorageSlot("router.storage.RouterV1");
         Storage storage router = _router();
@@ -44,7 +48,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
         router.computeSettings = Gear.defaultComputationSettings();
-        router.timelines = Gear.Timelines(_eraDuration, _electionDuration, 100);
+        router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
 
         // Set validators for the era 0.
         _resetValidators(router.validationSettings.validators0, _validators, block.timestamp);

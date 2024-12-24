@@ -29,6 +29,7 @@ contract RouterTest is Base {
         electionDuration = 100;
         blockDuration = 12;
         maxValidators = 3;
+        validationDelay = 60;
 
         setUpWrappedVara();
 
