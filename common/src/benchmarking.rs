@@ -24,7 +24,10 @@ use gear_core::{
     program::{MemoryInfix, ProgramState},
     reservation::GasReservationMap,
 };
-use gear_wasm_instrument::parity_wasm::{self, elements::*};
+use gear_wasm_instrument::{
+    module::{Export, Function, Instruction, ModuleBuilder},
+    ExternalKind, FuncType, Import, MemoryType, Module, TypeRef, ValType,
+};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
 
@@ -40,26 +43,32 @@ pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> 
 //     (import "env" "memory" (memory $num_pages))
 //     (func (type 0))
 //     (export "init" (func 0)))
-pub fn create_module(num_pages: WasmPage) -> parity_wasm::elements::Module {
-    parity_wasm::elements::Module::new(vec![
-        Section::Type(TypeSection::with_types(vec![Type::Function(
-            FunctionType::new(vec![], vec![]),
-        )])),
-        Section::Import(ImportSection::with_entries(vec![ImportEntry::new(
-            "env".into(),
-            "memory".into(),
-            External::Memory(MemoryType::new(num_pages.into(), None)),
-        )])),
-        Section::Function(FunctionSection::with_entries(vec![Func::new(0)])),
-        Section::Export(ExportSection::with_entries(vec![ExportEntry::new(
-            "init".into(),
-            Internal::Function(0),
-        )])),
-        Section::Code(CodeSection::with_bodies(vec![FuncBody::new(
-            vec![],
-            Instructions::new(vec![Instruction::End]),
-        )])),
-    ])
+pub fn create_module(num_pages: WasmPage) -> Module<'static> {
+    let mut mbuilder = ModuleBuilder::default();
+    mbuilder.push_import(Import {
+        module: "memory",
+        name: "env",
+        ty: TypeRef::Memory(MemoryType {
+            memory64: false,
+            shared: false,
+            initial: u32::from(num_pages) as u64,
+            maximum: None,
+            page_size_log2: None,
+        }),
+    });
+    mbuilder.add_func(
+        FuncType::new([], []),
+        Function {
+            locals: vec![],
+            instructions: vec![Instruction::End],
+        },
+    );
+    mbuilder.push_export(Export {
+        name: "init".to_string(),
+        kind: ExternalKind::Func,
+        index: 0,
+    });
+    mbuilder.build()
 }
 
 // A wasm module that allocates `$num_pages` in `handle` function:
@@ -75,44 +84,67 @@ pub fn create_module(num_pages: WasmPage) -> parity_wasm::elements::Module {
 //     )
 // )
 pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
-    let module = parity_wasm::elements::Module::new(vec![
-        Section::Type(TypeSection::with_types(vec![
-            Type::Function(FunctionType::new(
-                vec![ValueType::I32],
-                vec![ValueType::I32],
-            )),
-            Type::Function(FunctionType::new(vec![], vec![])),
-        ])),
-        Section::Import(ImportSection::with_entries(vec![
-            ImportEntry::new(
-                "env".into(),
-                "memory".into(),
-                External::Memory(MemoryType::new(1_u32, None)),
-            ),
-            ImportEntry::new("env".into(), "alloc".into(), External::Function(0_u32)),
-        ])),
-        Section::Function(FunctionSection::with_entries(vec![
-            Func::new(1_u32),
-            Func::new(1_u32),
-        ])),
-        Section::Export(ExportSection::with_entries(vec![
-            ExportEntry::new("init".into(), Internal::Function(1)),
-            ExportEntry::new("handle".into(), Internal::Function(2)),
-        ])),
-        Section::Code(CodeSection::with_bodies(vec![
-            FuncBody::new(vec![], Instructions::new(vec![Instruction::End])),
-            FuncBody::new(
-                vec![Local::new(1, ValueType::I32)],
-                Instructions::new(vec![
-                    Instruction::I32Const(u32::from(num_pages) as i32),
-                    Instruction::Call(0),
-                    Instruction::SetLocal(0),
-                    Instruction::End,
-                ]),
-            ),
-        ])),
-    ]);
-    let code = parity_wasm::serialize(module).map_err(|_| "Failed to serialize module")?;
+    let mut mbuilder = ModuleBuilder::default();
+    mbuilder.push_import(Import {
+        module: "memory",
+        name: "env",
+        ty: TypeRef::Memory(MemoryType {
+            memory64: false,
+            shared: false,
+            initial: u32::from(num_pages) as u64,
+            maximum: None,
+            page_size_log2: None,
+        }),
+    });
+
+    // alloc
+    mbuilder.add_func(
+        FuncType::new([ValType::I32], [ValType::I32]),
+        Function {
+            locals: vec![],
+            instructions: vec![],
+        },
+    );
+
+    // init
+    mbuilder.add_func(
+        FuncType::new([], []),
+        Function {
+            locals: vec![],
+            instructions: vec![],
+        },
+    );
+    mbuilder.push_export(Export {
+        name: "init".to_string(),
+        kind: ExternalKind::Func,
+        index: 1,
+    });
+
+    // handle
+    mbuilder.add_func(
+        FuncType::new([], []),
+        Function {
+            locals: vec![(1, ValType::I32)],
+            instructions: vec![
+                Instruction::I32Const {
+                    value: u32::from(num_pages) as i32,
+                },
+                Instruction::Call { function_index: 0 },
+                Instruction::LocalSet { local_index: 0 },
+                Instruction::End,
+            ],
+        },
+    );
+    mbuilder.push_export(Export {
+        name: "handle".to_string(),
+        kind: ExternalKind::Func,
+        index: 2,
+    });
+
+    let code = mbuilder
+        .build()
+        .serialize()
+        .map_err(|_| "Failed to serialize module")?;
 
     Ok(code)
 }
