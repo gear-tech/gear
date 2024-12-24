@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{code_validator::CodeValidator, crate_info::CrateInfo, smart_fs};
+use crate::{
+    code_validator::{validate_metawasm, validate_program},
+    crate_info::CrateInfo,
+    smart_fs,
+};
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, OptType, Optimizer};
@@ -512,12 +516,11 @@ extern "C" fn metahash() {{
 
         for (wasm_path, _) in &wasm_files {
             let code = fs::read(wasm_path)?;
-            let validator = CodeValidator::try_from(code)?;
 
             if self.project_type.is_metawasm() {
-                validator.validate_metawasm()?;
+                validate_metawasm(code)?;
             } else {
-                validator.validate_program()?;
+                validate_program(code)?;
             }
         }
 

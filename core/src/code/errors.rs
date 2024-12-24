@@ -210,3 +210,5 @@ pub enum CodeError {
     #[display(fmt = "Instrumentation error: {_0}")]
     Instrumentation(InstrumentationError),
 }
+
+impl core::error::Error for CodeError {}

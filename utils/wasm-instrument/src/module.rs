@@ -285,6 +285,16 @@ pub enum ModuleError {
     UnsupportedInstruction(String),
 }
 
+impl core::error::Error for ModuleError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            ModuleError::BinaryReader(e) => Some(e),
+            ModuleError::Reencode(e) => Some(e),
+            ModuleError::UnsupportedInstruction(_) => None,
+        }
+    }
+}
+
 impl From<Infallible> for ModuleError {
     fn from(value: Infallible) -> Self {
         match value {}

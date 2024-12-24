@@ -21,40 +21,36 @@ use gear_core::{
     code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig},
     gas_metering::CustomConstantCostRules,
 };
-use gear_wasm_instrument::SyscallName;
-use pwasm_utils::parity_wasm::{
-    self,
-    elements::{
-        ExportEntry, External, FunctionType, ImportCountType, Internal, Module, Type, ValueType,
-    },
+use gear_wasm_instrument::{
+    module::Export, ExternalKind, FuncType, Module, SyscallName, TypeRef, ValType,
 };
-use std::{error, fmt};
+use std::fmt;
 use thiserror::Error;
 
 #[derive(Debug)]
-pub struct PrintableFunctionType(String, FunctionType);
+pub struct PrintableFunctionType(String, FuncType);
 
 impl fmt::Display for PrintableFunctionType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(name, func_type) = self;
 
-        let params = PrintableValueTypes("param".into(), func_type.params().into());
-        let results = PrintableValueTypes("result".into(), func_type.results().into());
+        let params = PrintableValTypes("param".into(), func_type.params().into());
+        let results = PrintableValTypes("result".into(), func_type.results().into());
 
         write!(f, "(func ${name}{params}{results})")
     }
 }
 
-pub struct PrintableValueTypes(String, Vec<ValueType>);
+pub struct PrintableValTypes(String, Vec<ValType>);
 
-impl fmt::Display for PrintableValueTypes {
+impl fmt::Display for PrintableValTypes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(prefix, values) = self;
 
         let len = values.len();
         if len >= 1 {
             write!(f, " ({prefix} ")?;
-            for (val, i) in values.iter().map(|v| PrintableValueType(*v)).zip(1_usize..) {
+            for (val, i) in values.iter().map(|v| PrintableValType(*v)).zip(1_usize..) {
                 write!(f, "{val}")?;
                 if i != len {
                     write!(f, " ")?;
@@ -67,15 +63,19 @@ impl fmt::Display for PrintableValueTypes {
     }
 }
 
-pub struct PrintableValueType(ValueType);
+pub struct PrintableValType(ValType);
 
-impl fmt::Display for PrintableValueType {
+impl fmt::Display for PrintableValType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            ValueType::I32 => write!(f, "i32"),
-            ValueType::I64 => write!(f, "i64"),
-            ValueType::F32 => write!(f, "f32"),
-            ValueType::F64 => write!(f, "f64"),
+            ValType::I32 => write!(f, "i32"),
+            ValType::I64 => write!(f, "i64"),
+            ValType::F32 => write!(f, "f32"),
+            ValType::F64 => write!(f, "f64"),
+            ValType::V128 => write!(f, "v128"),
+            ValType::Ref(_) => {
+                write!(f, "ref")
+            }
         }
     }
 }
@@ -100,81 +100,77 @@ pub enum ExportErrorWithContext {
     RequiredExportNotFound,
 }
 
-impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
+impl TryFrom<(Module<'_>, ExportError)> for ExportErrorWithContext {
     type Error = anyhow::Error;
 
-    fn try_from((module, export_error): (&Module, &ExportError)) -> Result<Self, Self::Error> {
+    fn try_from((module, export_error): (Module, ExportError)) -> Result<Self, Self::Error> {
         use ExportError::*;
 
         Ok(match export_error {
             IncorrectGlobalIndex(global_index, export_index) => {
-                Self::IncorrectGlobalIndex(*global_index, get_export_name(module, *export_index)?)
+                Self::IncorrectGlobalIndex(global_index, get_export_name(&module, export_index)?)
             }
             MutableGlobalExport(global_index, export_index) => {
-                Self::MutableGlobalExport(*global_index, get_export_name(module, *export_index)?)
+                Self::MutableGlobalExport(global_index, get_export_name(&module, export_index)?)
             }
             ExportReferencesToImportFunction(export_index, func_index) => {
                 let Some(import_name) = module.import_section().and_then(|section| {
                     section
-                        .entries()
                         .iter()
                         .filter_map(|import| {
-                            matches!(import.external(), External::Function(_))
-                                .then_some(import.field().into())
+                            matches!(import.ty, TypeRef::Func(_)).then_some(import.name.into())
                         })
-                        .nth(*func_index as usize)
+                        .nth(func_index as usize)
                 }) else {
                     bail!("failed to get import entry by index");
                 };
 
-                Self::ExportReferencesToImport(get_export_name(module, *export_index)?, import_name)
+                Self::ExportReferencesToImport(get_export_name(&module, export_index)?, import_name)
             }
             ExportReferencesToImportGlobal(export_index, global_index) => {
                 let Some(import_name) = module.import_section().and_then(|section| {
                     section
-                        .entries()
                         .iter()
                         .filter_map(|import| {
-                            matches!(import.external(), External::Global(_))
-                                .then_some(import.field().into())
+                            matches!(import.ty, TypeRef::Global(_)).then_some(import.name.into())
                         })
-                        .nth(*global_index as usize)
+                        .nth(global_index as usize)
                 }) else {
                     bail!("failed to get import entry by index");
                 };
 
-                Self::ExportReferencesToImport(get_export_name(module, *export_index)?, import_name)
+                Self::ExportReferencesToImport(get_export_name(&module, export_index)?, import_name)
             }
             InvalidExportFnSignature(export_index) => {
-                let export_entry = get_export(module, *export_index)?;
+                let export_entry = get_export(&module, export_index)?;
 
-                let &Internal::Function(export_func_index) = export_entry.internal() else {
+                let ExternalKind::Func = export_entry.kind else {
                     bail!("failed to get export function index");
                 };
-                let export_name = export_entry.field().to_owned();
+                let export_func_index = export_entry.index;
+                let export_name = export_entry.name.clone();
 
-                let import_count = module.import_count(ImportCountType::Function) as u32;
+                let import_count = module.import_count(|ty| matches!(ty, TypeRef::Func(_))) as u32;
                 let real_func_index = export_func_index - import_count;
 
-                let type_id = module
+                let &type_id = module
                     .function_section()
-                    .and_then(|section| section.entries().get(real_func_index as usize))
-                    .ok_or_else(|| anyhow!("failed to get function type"))?
-                    .type_ref();
-                let Type::Function(func_type) = module
+                    .and_then(|section| section.get(real_func_index as usize))
+                    .ok_or_else(|| anyhow!("failed to get function type"))?;
+                let func_type = module
                     .type_section()
-                    .and_then(|section| section.types().get(type_id as usize))
+                    .and_then(|section| section.get_index(type_id as usize))
                     .ok_or_else(|| anyhow!("failed to get function signature"))?
                     .clone();
 
                 let expected_signature =
-                    PrintableFunctionType(export_name.clone(), FunctionType::default());
+                    PrintableFunctionType(export_name.clone(), FuncType::new([], []));
                 let actual_signature = PrintableFunctionType(export_name.clone(), func_type);
 
                 Self::InvalidExportFnSignature(export_name, expected_signature, actual_signature)
             }
             ExcessExport(export_index) => {
-                Self::ExcessExport(get_export_name(module, *export_index)?)
+                Self::ExcessExport(get_export_name(&module, export_index)?)
             }
             RequiredExportNotFound => Self::RequiredExportNotFound,
         })
@@ -182,13 +178,13 @@ impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
 }
 
 fn get_export_name(module: &Module, export_index: u32) -> anyhow::Result<String> {
-    get_export(module, export_index).map(|entry| entry.field().into())
+    get_export(module, export_index).map(|entry| entry.name.clone())
 }
 
-fn get_export(module: &Module, export_index: u32) -> anyhow::Result<&ExportEntry> {
+fn get_export<'a>(module: &'a Module, export_index: u32) -> anyhow::Result<&'a Export> {
     module
         .export_section()
-        .and_then(|section| section.entries().get(export_index as usize))
+        .and_then(|section| section.get(export_index as usize))
         .ok_or_else(|| anyhow!("failed to get export by index"))
 }
 
@@ -208,10 +204,10 @@ pub enum ImportErrorWithContext {
     UnexpectedImportKind { kind: String, name: String },
 }
 
-impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
+impl TryFrom<(Module<'_>, ImportError)> for ImportErrorWithContext {
     type Error = anyhow::Error;
 
-    fn try_from((module, import_error): (&Module, &ImportError)) -> Result<Self, Self::Error> {
+    fn try_from((module, import_error): (Module, ImportError)) -> Result<Self, Self::Error> {
         use ImportError::*;
 
         let idx = match import_error {
@@ -223,12 +219,12 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
 
         let Some(import_entry) = module
             .import_section()
-            .and_then(|section| section.entries().get(*idx as usize))
+            .and_then(|section| section.get(idx as usize))
         else {
             bail!("failed to get import entry by index");
         };
 
-        let import_name = import_entry.field().to_owned();
+        let import_name = import_entry.name.to_string();
 
         Ok(match import_error {
             UnknownImport(_) => Self::UnknownImport(import_name),
@@ -243,16 +239,16 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
                     bail!("failed to get syscall by name");
                 };
 
-                let &External::Function(func_index) = import_entry.external() else {
+                let TypeRef::Func(func_index) = import_entry.ty else {
                     bail!("import must be function");
                 };
 
                 let expected_signature =
                     PrintableFunctionType(import_name.clone(), syscall.signature().func_type());
 
-                let Some(Type::Function(func_type)) = module
+                let Some(func_type) = module
                     .type_section()
-                    .and_then(|section| section.types().get(func_index as usize).cloned())
+                    .and_then(|section| section.get_index(func_index as usize).cloned())
                 else {
                     bail!("failed to get function type");
                 };
@@ -265,22 +261,19 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
     }
 }
 
-#[derive(Debug)]
-pub struct CodeErrorWithContext(Module, CodeError);
-
-impl From<(Module, CodeError)> for CodeErrorWithContext {
-    fn from((module, error): (Module, CodeError)) -> Self {
-        Self(module, error)
-    }
+#[derive(Error, Debug)]
+#[error("code check failed: ")]
+pub enum CodeErrorWithContext {
+    #[error("Export error: {0}")]
+    Export(#[from] ExportErrorWithContext),
+    #[error("Import error: {0}")]
+    Import(#[from] ImportErrorWithContext),
+    Code(#[from] CodeError),
 }
 
-impl fmt::Display for CodeErrorWithContext {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl CodeErrorWithContext {
+    fn new(module: Module, error: CodeError) -> Result<Self, anyhow::Error> {
         use CodeError::*;
-
-        let Self(module, error) = self;
-        write!(f, "code check failed: ")?;
-
         match error {
             Validation(_)
             | Module(_)
@@ -289,68 +282,46 @@ impl fmt::Display for CodeErrorWithContext {
             | StackEnd(_)
             | DataSection(_)
             | TableSection { .. }
-            | Instrumentation(_) => write!(f, "{error}"),
+            | Instrumentation(_) => Ok(Self::Code(error)),
             Export(error) => {
-                let error_with_context: ExportErrorWithContext =
-                    (module, error).try_into().map_err(|_| fmt::Error)?;
-                write!(f, "Export error: {error_with_context}")
+                let error_with_context: ExportErrorWithContext = (module, error).try_into()?;
+                Ok(Self::Export(error_with_context))
             }
             Import(error) => {
-                let error_with_context: ImportErrorWithContext =
-                    (module, error).try_into().map_err(|_| fmt::Error)?;
-                write!(f, "Import error: {error_with_context}")
+                let error_with_context: ImportErrorWithContext = (module, error).try_into()?;
+                Ok(Self::Import(error_with_context))
             }
         }
     }
 }
 
-impl error::Error for CodeErrorWithContext {}
-
-/// Checks the program code for possible errors.
-///
-/// NOTE: `pallet-gear` crate performs the same check at the node level
-/// when the user tries to upload program code.
-pub struct CodeValidator {
-    code: Vec<u8>,
-    module: Module,
-}
-
-impl TryFrom<Vec<u8>> for CodeValidator {
-    type Error = anyhow::Error;
-
-    fn try_from(code: Vec<u8>) -> Result<Self, Self::Error> {
-        let module: Module = parity_wasm::deserialize_buffer(&code)?;
-        Ok(Self { code, module })
+/// Validates wasm code in the same way as
+/// `pallet_gear::pallet::Pallet::upload_program(...)`.
+pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
+    let module = Module::new(&code)?;
+    match Code::try_new(
+        code.clone(),
+        1,
+        |_| CustomConstantCostRules::default(),
+        None,
+        None,
+        None,
+    ) {
+        Ok(_) => Ok(()),
+        Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
     }
 }
 
-impl CodeValidator {
-    /// Validates wasm code in the same way as
-    /// `pallet_gear::pallet::Pallet::upload_program(...)`.
-    pub fn validate_program(self) -> anyhow::Result<()> {
-        match Code::try_new(
-            self.code,
-            1,
-            |_| CustomConstantCostRules::default(),
-            None,
-            None,
-            None,
-        ) {
-            Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
-            _ => Ok(()),
-        }
-    }
-
-    /// Validate metawasm code in the same way as
-    /// `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`.
-    pub fn validate_metawasm(self) -> anyhow::Result<()> {
-        match Code::try_new_mock_with_rules(
-            self.code,
-            |_| CustomConstantCostRules::default(),
-            TryNewCodeConfig::new_no_exports_check(),
-        ) {
-            Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
-            _ => Ok(()),
-        }
+/// Validate metawasm code in the same way as
+/// `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`.
+pub fn validate_metawasm(code: Vec<u8>) -> anyhow::Result<()> {
+    let module = Module::new(&code)?;
+    match Code::try_new_mock_with_rules(
+        code.clone(),
+        |_| CustomConstantCostRules::default(),
+        TryNewCodeConfig::new_no_exports_check(),
+    ) {
+        Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
+        _ => Ok(()),
     }
 }
