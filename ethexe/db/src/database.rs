@@ -39,7 +39,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const LOG_TARGET: &str = "ethexe-db";
 
@@ -482,7 +482,7 @@ impl Database {
         self.set_block_hashes_window(recent_block_hashes);
     }
 
-    fn get_block_hashes_window(&self) -> RecentBlockHashesWindow<EightBlocks> {
+    fn get_block_hashes_window(&self) -> RecentBlockHashesWindow<ThirtyBlocks> {
         self.kv
             .get(KeyPrefix::BlockHashesWindow.prefix().as_ref())
             .map(|data| {
@@ -492,7 +492,7 @@ impl Database {
             .unwrap_or_default()
     }
 
-    fn set_block_hashes_window(&self, window: RecentBlockHashesWindow<EightBlocks>) {
+    fn set_block_hashes_window(&self, window: RecentBlockHashesWindow<ThirtyBlocks>) {
         self.kv.put(
             KeyPrefix::BlockHashesWindow.prefix().as_ref(),
             window.encode(),
@@ -616,8 +616,7 @@ impl Storage for Database {
     }
 }
 
-// Todo [sab] case when blocks stopped and old blocks considered valid
-// Todo [sab] check not old block is added?
+// TODO #4423
 #[derive(Debug, Clone, Encode, Decode)]
 struct RecentBlockHashesWindow<S: WindowSize> {
     /// That's for keeping an order of the block hashes window.
@@ -625,8 +624,8 @@ struct RecentBlockHashesWindow<S: WindowSize> {
     /// Complexity for adding and removing the first element is O(1).
     queue: VecDeque<H256>,
     /// That's for checking the uniqueness of the block hash.
-    /// Performs check with O(1) complexity.
-    set: HashSet<H256>,
+    /// Performs check with O(logN) complexity.
+    set: BTreeSet<H256>,
     _phantom: std::marker::PhantomData<S>,
 }
 
@@ -636,7 +635,7 @@ impl<S: WindowSize> RecentBlockHashesWindow<S> {
 
         Self {
             queue: VecDeque::with_capacity(cap),
-            set: HashSet::with_capacity(cap),
+            set: BTreeSet::new(),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -672,10 +671,10 @@ trait WindowSize {
     const SIZE: usize;
 }
 
-struct EightBlocks;
+struct ThirtyBlocks;
 
-impl WindowSize for EightBlocks {
-    const SIZE: usize = 8;
+impl WindowSize for ThirtyBlocks {
+    const SIZE: usize = 30;
 }
 
 impl WindowSize for () {
@@ -700,5 +699,27 @@ mod tests {
 
         // database.set_parent_hash(block_hash, parent_hash);
         // assert_eq!(database.parent_hash(block_hash), Some(parent_hash));
+    }
+
+    #[test]
+    fn test_recent_blocks_window() {
+        struct ThreeBlocks;
+        impl WindowSize for ThreeBlocks {
+            const SIZE: usize = 3;
+        }
+
+        let mut window = RecentBlockHashesWindow::<ThreeBlocks>::new();
+
+        // Duplicate check
+        let some_block = H256::random();
+        assert!(window.add(some_block));
+        assert!(!window.add(some_block));
+
+        // Length check
+        window.add(H256::random());
+        window.add(H256::random());
+        assert!(window.contains(some_block));
+        window.add(H256::random());
+        assert!(!window.contains(some_block));
     }
 }

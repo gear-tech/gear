@@ -70,6 +70,7 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
     /// Runs transaction pool service expecting to receive tasks from the
     /// tx pool input task sender.
     pub async fn run(mut self) {
+        // Finishes working of all the input task senders are dropped.
         while let Some(task) = self.input_interface.recv().await {
             match task {
                 InputTask::CheckTransactionValidity {
@@ -78,8 +79,10 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
                 } => {
                     let res = self.validate_tx_full(transaction).await;
                     let _ = response_sender.send(res).inspect_err(|_| {
-                        // TODO [sab] handle properly
-                        log::error!("`CheckValidity` task receiver dropped.");
+                        // No panic case as the request itself is going to be executed.
+                        // The dropped receiver signalizes that the external task sender
+                        // has crashed or is malformed, so problems should be handled there.
+                        log::error!("`CheckValidity` task receiver is stopped or dropped.");
                     });
                 }
                 InputTask::AddTransaction {
@@ -90,25 +93,38 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
                         let tx_hash = tx.tx_hash();
                         let tx_encoded = tx.encode();
 
-                        // Request propagation.
-                        if let Err(err) =
-                            self.output_inteface.send(OutputTask::PropogateTransaction {
-                                transaction: tx.clone(),
-                            })
-                        {
-                            // TODO [sab] handle properly
-                            log::error!("Failed to send `PropogateTransaction` task: {err:?}");
-                        }
+                        // Request the external service for the tx propagation.
+                        self.output_inteface.send(OutputTask::PropogateTransaction {
+                            transaction: tx.clone(),
+                        }).unwrap_or_else(|e| {
+                            // If receiving end of the external service is dropped, it's a panic case,
+                            // because otherwise transaction processing can't be performed correctly.
+                            let err_msg = format!(
+                                "Failed to send `PropogateTransaction` task. External service receiving end \
+                                might have been dropped. Got an error: {e:?}."
+                            );
 
-                        // Request execution.
-                        if let Err(err) = self
+                            log::error!("{err_msg}");
+                            panic!("{err_msg}");
+                        });
+
+                        // Request the external service for scheduling an execution of the tx.
+                        self
                             .output_inteface
                             .send(OutputTask::ExecuteTransaction { transaction: tx })
-                        {
-                            // TODO [sab] handle properly
-                            log::error!("Failed to send `PropogateTransaction` task: {err:?}");
-                        }
+                            .unwrap_or_else(|e| {
+                                // If receiving end of the external service is dropped, it's a panic case,
+                                // because otherwise transaction processing can't be performed correctly.
+                                let err_msg = format!(
+                                    "Failed to send `ExecuteTransaction` task. External service receiving end \
+                                    might have been dropped. Got an error: {e:?}."
+                                );
 
+                                log::error!("{err_msg}");
+                                panic!("{err_msg}");
+                            });
+
+                        // Store the validated transaction to the database.
                         self.db.set_validated_transaction(tx_hash, tx_encoded);
 
                         tx_hash
@@ -116,8 +132,10 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
 
                     if let Some(response_sender) = response_sender {
                         let _ = response_sender.send(res).inspect_err(|_| {
-                            // TODO [sab] handle properly
-                            log::error!("`AddTransaction` task receiver dropped.")
+                            // No panic case as a responsibility of transaction piil is fulfilled.
+                            // The dropped receiver signalizes that the external task sender
+                            // has crashed or is malformed, so problems should be handled there.
+                            log::error!("`AddTransaction` task receiver is stopped or dropped.")
                         });
                     }
                 }

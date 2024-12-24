@@ -29,13 +29,23 @@ use parity_scale_codec::Encode;
 use std::mem;
 use tokio::sync::oneshot;
 
-// TODO [sab]: may return their own error types
-
 type BoxedStatelessValidator<Tx> = Box<dyn StatelessValidation<Tx>>;
 type BoxedStatefulValidator<Tx> = Box<dyn StatefulValidation<Tx>>;
 type BoxedAsyncValidator<Tx> = Box<dyn AsyncValidation<Tx>>;
 
-pub struct TxValidator<Tx> {
+// TODO #4424
+
+/// Main transaction pool tx validator.
+///
+/// Basically consumes a transaction and runs all the defined checks on it.
+/// The checks are defined through the `with_*_check` methods.
+///
+/// The transaction is given back by the validator only in case of
+/// all checks passing. A corresponding `finish` method must be called.
+///
+/// The validator is considered to be called by the transaciton pool service,
+/// so sub-validators can send specific validation tasks outside to the service.
+pub(crate) struct TxValidator<Tx> {
     transaction: Tx,
     db: Database,
     stateless_validators: Vec<BoxedStatelessValidator<Tx>>,
@@ -43,7 +53,10 @@ pub struct TxValidator<Tx> {
     async_validators: Vec<BoxedAsyncValidator<Tx>>,
 }
 
-pub trait TxValidatorFinishResult<Tx> {
+/// Trait to finish the validation process and get the transaction back
+/// on the `Result<TxValidator<Tx>>`` type.
+pub(crate) trait TxValidatorFinishResult<Tx> {
+    /// Finish the transaction validation process and get the transaction back.
     fn finish_validator_res(self) -> Result<Tx>;
 }
 
@@ -54,7 +67,7 @@ impl<Tx> TxValidatorFinishResult<Tx> for Result<TxValidator<Tx>> {
 }
 
 impl<Tx> TxValidator<Tx> {
-    pub fn new(transaction: Tx, db: Database) -> Self {
+    pub(crate) fn new(transaction: Tx, db: Database) -> Self {
         Self {
             transaction,
             db,
@@ -64,12 +77,14 @@ impl<Tx> TxValidator<Tx> {
         }
     }
 
-    pub async fn full_validate(self) -> Result<Self> {
+    /// Runs all sync and async validators for the transaction.
+    pub(crate) async fn full_validate(self) -> Result<Self> {
         let this = self.validate()?;
         this.validate_async().await
     }
 
-    pub fn validate(mut self) -> Result<Self> {
+    /// Runs all stateful and stateless sync validators for the transaction.
+    pub(crate) fn validate(mut self) -> Result<Self> {
         let stateless_validators = mem::take(&mut self.stateless_validators);
         for stateless_validator in stateless_validators {
             stateless_validator.validate(&self.transaction)?;
@@ -83,7 +98,8 @@ impl<Tx> TxValidator<Tx> {
         Ok(self)
     }
 
-    pub async fn validate_async(mut self) -> Result<Self> {
+    /// Runs all async validators for the transaction.
+    pub(crate) async fn validate_async(mut self) -> Result<Self> {
         let async_validators = mem::take(&mut self.async_validators);
         for async_validator in async_validators {
             async_validator.async_validate(&self.transaction).await?;
@@ -92,7 +108,8 @@ impl<Tx> TxValidator<Tx> {
         Ok(self)
     }
 
-    pub fn finish(self) -> Tx {
+    /// Finish the validation process and get the transaction back.
+    pub(crate) fn finish(self) -> Tx {
         if !(self.stateful_validators.is_empty()
             && self.stateful_validators.is_empty()
             && self.async_validators.is_empty())
@@ -115,7 +132,8 @@ where
         + Sync
         + 'static,
 {
-    pub fn with_all_checks(self, tx_pool_output_task_sender: TxPoolOutputTaskSender<Tx>) -> Self {
+    /// Include all the checks for the validation module.
+    pub(crate) fn with_all_checks(self, tx_pool_output_task_sender: TxPoolOutputTaskSender<Tx>) -> Self {
         self.with_signature_check()
             .with_mortality_check()
             .with_uniqueness_check()
@@ -124,7 +142,8 @@ where
 }
 
 impl<Tx: TxSignature + Encode> TxValidator<Tx> {
-    pub fn with_signature_check(mut self) -> Self {
+    /// Add `SignatureValidator` check.
+    pub(crate) fn with_signature_check(mut self) -> Self {
         self.stateless_validators.push(Box::new(SignatureValidator));
 
         self
@@ -132,7 +151,8 @@ impl<Tx: TxSignature + Encode> TxValidator<Tx> {
 }
 
 impl<Tx: TxReferenceBlockHash> TxValidator<Tx> {
-    pub fn with_mortality_check(mut self) -> Self {
+    /// Add `MortalityValidator` check.
+    pub(crate) fn with_mortality_check(mut self) -> Self {
         self.stateful_validators.push(Box::new(MortalityValidator));
 
         self
@@ -140,7 +160,8 @@ impl<Tx: TxReferenceBlockHash> TxValidator<Tx> {
 }
 
 impl<Tx: TxHashBlake2b256> TxValidator<Tx> {
-    pub fn with_uniqueness_check(mut self) -> Self {
+    /// Add `UniqunessValidator` check.
+    pub(crate) fn with_uniqueness_check(mut self) -> Self {
         self.stateful_validators.push(Box::new(UniqunessValidator));
 
         self
@@ -148,7 +169,8 @@ impl<Tx: TxHashBlake2b256> TxValidator<Tx> {
 }
 
 impl<Tx: Clone + Send + Sync + 'static> TxValidator<Tx> {
-    pub fn with_executable_tx_check(
+    /// Add `ExecutableTxValidator` check.
+    pub(crate) fn with_executable_tx_check(
         mut self,
         tx_pool_output_task_sender: TxPoolOutputTaskSender<Tx>,
     ) -> Self {
@@ -160,16 +182,18 @@ impl<Tx: Clone + Send + Sync + 'static> TxValidator<Tx> {
     }
 }
 
+/// Transaction validation which doesn;t require any state to be known.
 trait StatelessValidation<Tx>: Send + Sync {
     fn validate(&self, tx: &Tx) -> Result<()>;
 }
 
+/// Transaction validation which requires db state to be known.
 trait StatefulValidation<Tx>: Send + Sync {
-    // TODO [sab]: change ethexe_db to some generic
     fn validate(&self, tx: &Tx, db: &Database) -> Result<()>;
 }
 
-pub struct SignatureValidator;
+/// Validates transaction signature.
+pub(crate) struct SignatureValidator;
 
 impl<Tx: TxSignature + Encode> StatelessValidation<Tx> for SignatureValidator {
     fn validate(&self, tx: &Tx) -> Result<()> {
@@ -180,7 +204,10 @@ impl<Tx: TxSignature + Encode> StatelessValidation<Tx> for SignatureValidator {
     }
 }
 
-pub struct MortalityValidator;
+/// Validates transaction mortality.
+///
+/// Basically checks that transaction reference block hash is within the recent blocks window.
+pub(crate) struct MortalityValidator;
 
 impl<Tx: TxReferenceBlockHash> StatefulValidation<Tx> for MortalityValidator {
     fn validate(&self, tx: &Tx, db: &Database) -> Result<()> {
@@ -194,7 +221,10 @@ impl<Tx: TxReferenceBlockHash> StatefulValidation<Tx> for MortalityValidator {
     }
 }
 
-pub struct UniqunessValidator;
+/// Validates transaction uniqueness.
+///
+/// Basically checks that transaction is not already in the database.
+pub(crate) struct UniqunessValidator;
 
 impl<Tx: TxHashBlake2b256> StatefulValidation<Tx> for UniqunessValidator {
     fn validate(&self, tx: &Tx, db: &Database) -> Result<()> {
@@ -208,12 +238,20 @@ impl<Tx: TxHashBlake2b256> StatefulValidation<Tx> for UniqunessValidator {
     }
 }
 
+/// General asynchronous transaction validation.
+///
+/// The trait is provided for all the tx validators, which
+/// require async computation for the traansaction validation.
 #[async_trait]
 trait AsyncValidation<Tx>: Send + Sync {
     async fn async_validate(&self, tx: &Tx) -> Result<()>;
 }
 
-pub struct ExecutableTxValidator<Tx> {
+/// Validates if transaction is executable.
+///
+/// Basically sends the transaction to the external transaction pool service
+/// to check if it is executable.
+pub(crate) struct ExecutableTxValidator<Tx> {
     tx_pool_output_task_sender: TxPoolOutputTaskSender<Tx>,
 }
 
@@ -227,16 +265,34 @@ impl<Tx: Clone + Send + Sync + 'static> AsyncValidation<Tx> for ExecutableTxVali
         };
         self.tx_pool_output_task_sender
             .send(outout_task)
-            .inspect_err(|e| {
-                log::error!(
+            .unwrap_or_else(|e| {
+                // If receiving end of the external service is dropped, it's a panic case,
+                // because otherwise transaction validation can't be performed correctly.
+                //
+                // Error should not be returned, as error signalizes that a transaction
+                // is invalid, but that's not the case here.
+                let err_msg = format!(
                     "Failed to send task to validate if tx is executable: {e}. \
                 The receiving end in the tx pool might have been dropped."
                 );
-            })?;
 
-        let res = response_receiver.await.inspect_err(|e| {
-            log::error!("Failed to receive from external service if tx is executable: {e}");
-        })?;
+                log::error!("{err_msg}");
+                panic!("{err_msg}");
+            });
+
+        let res = response_receiver.await.unwrap_or_else(|e| {
+            // If the response sender on the external service side is dropped, it's a panic case,
+            // because otherwise transaction validation can't be performed correctly, as it's
+            // unknown if the transaction is executable.
+            //
+            // Error should not be returned, as error signalizes that a transaction
+            // is invalid, but that's not the case here.
+            let err_msg =
+                format!("Failed to receive from external service if tx is executable: {e}");
+
+            log::error!("{err_msg}");
+            panic!("{err_msg}");
+        });
 
         res.then_some(())
             .ok_or(anyhow!("Transaction is not executable"))

@@ -89,6 +89,9 @@ impl TransactionPoolServer for TransactionPoolApi {
         };
 
         self.tx_pool_task_sender.send(input_task).map_err(|e| {
+            // No panic case as a responsibility of the RPC API is fulfilled.
+            // The dropped tx pool input task receiver might signalize that
+            // the transaction pool has been stooped.
             log::error!(
                 "Failed to send tx pool add transaction input task: {e}. \
                 The receiving end in the tx pool might have been dropped."
@@ -97,7 +100,10 @@ impl TransactionPoolServer for TransactionPoolApi {
         })?;
 
         let res = response_receiver.await.map_err(|e| {
-            log::error!("Failed to receive tx pool response: {e}");
+            // No panic case as a responsibility of the RPC API is fulfilled.
+            // The dropped sender signalizes that the transaction pool
+            // has crashed or is malformed, so problems should be handled there.
+            log::error!("Tx pool has dropped response sender: {e}");
             errors::internal()
         })?;
 

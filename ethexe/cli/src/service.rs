@@ -452,9 +452,8 @@ impl Service {
     }
 
     pub async fn run(self) -> Result<()> {
-        self.run_inner().await.map_err(|err| {
+        self.run_inner().await.inspect_err(|err| {
             log::error!("Service finished work with error: {err:?}");
-            err
         })
     }
 
@@ -614,7 +613,7 @@ impl Service {
                 }
                 Some(task) = tx_pool_ouput_task_receiver.recv() => {
                     log::debug!("Received a task from the tx pool - {task:?}");
-                    Self::process_tx_pool_output_task(task, &db, &tx_pool_input_task_sender, network_sender.as_mut(),).await;
+                    Self::process_tx_pool_output_task(task, &db, &tx_pool_input_task_sender, network_sender.as_mut(),).await?;
                 }
                 _ = maybe_await(network_handle.as_mut()) => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
@@ -868,17 +867,23 @@ impl Service {
                 Ok(())
             }
             NetworkMessage::Transaction { transaction } => {
-                // TODO [sab] what to do in case of error?
-                let _ = tx_pool_input_task_sender
+                // TODO #4423
+                tx_pool_input_task_sender
                     .send(InputTask::AddTransaction {
                         transaction,
                         response_sender: None,
                     })
-                    .inspect_err(|e| {
-                        log::error!(
+                    .unwrap_or_else(|e| {
+                        // Panic case, because the tx pool is unavailable for tasks
+                        // to be sent, so the node can't process offchain transaction,
+                        // and therefore can't create proper commitments.
+                        let err_msg = format!(
                             "Failed to send tx pool input task: {e}. \
                             The receiving end in the tx pool might have been dropped."
                         );
+
+                        log::error!("{err_msg}");
+                        panic!("{err_msg}");
                     });
 
                 Ok(())
@@ -915,7 +920,7 @@ impl Service {
         db: &Database,
         tx_pool_input_task_sender: &StandardInputTaskSender,
         mut maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
-    ) {
+    ) -> Result<()> {
         match task {
             OutputTask::PropogateTransaction { transaction } => {
                 if let Some(network_sender) = maybe_network_sender.as_mut() {
@@ -945,26 +950,38 @@ impl Service {
             OutputTask::ExecuteTransaction { transaction } => {
                 log::debug!("Received transaction {transaction:#?} for the execution");
 
-                // TODO [sab] handle errors smoothly
+                // TODO (breathx) Remove transaction from the database.
                 let (response_sender, response_receiver) = oneshot::channel();
-                let _ = tx_pool_input_task_sender
+                tx_pool_input_task_sender
                     .send(InputTask::CheckTransactionValidity {
-                        transaction: transaction,
+                        transaction,
                         response_sender,
                     })
                     .inspect_err(|e| {
+                        // That's a panic case, because the tx pool is unavailable for tasks
+                        // to be sent, so the node can't execute offchain transactions, and
+                        // therefore can't create proper commitments.
+                        //
+                        // But code doesn't panic, as error is propogated up.
                         log::error!(
                             "Failed to send tx pool input task: {e}. \
                             The receiving end in the tx pool might have been dropped."
                         );
-                    });
-                let _ = response_receiver.await.map_err(|e| {
-                    log::error!("Failed to receive tx pool response: {e}");
-                });
+                    })?;
+                let _ = response_receiver.await.inspect_err(|e| {
+                    // That's a panic case, because the tx pool is unavailable for tasks
+                    // to be sent, so the node can't execute offchain transactions, and
+                    // therefore can't create proper commitments.
+                    //
+                    // But code doesn't panic, as error is propogated up.
+                    log::error!("Failed to receive tx validity info from tx pool: {e}");
+                })?;
 
                 log::warn!("Unimplemented");
             }
         }
+
+        Ok(())
     }
 }
 
