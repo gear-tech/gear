@@ -18,7 +18,7 @@
 
 use clap::Parser;
 use gear_wasm_builder::{
-    code_validator::CodeValidator,
+    code_validator::validate_program,
     optimize::{self, OptType, Optimizer},
 };
 use parity_wasm::elements::External;
@@ -285,7 +285,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimized_wasm_path.display()
         );
 
-        CodeValidator::try_from(code)?.validate_program()?;
+        validate_program(code)?;
     }
 
     Ok(())
