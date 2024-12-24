@@ -227,14 +227,14 @@ mod output {
     /// but is a way to communicate with an external service.
     #[derive(Debug)]
     pub enum OutputTask<Tx> {
-        /// Requests for a transcation to propogation.
+        /// Requests for a transcation to be propogated.
         PropogateTransaction { transaction: Tx },
         /// Requests for a check by external service that transaction is executable.
         CheckIsExecutableTransaction {
             transaction: Tx,
             response_sender: oneshot::Sender<bool>,
         },
-        /// Requests for a tx to be executed.
+        /// Requests for a transaction to be executed.
         ExecuteTransaction { transaction: Tx },
     }
 

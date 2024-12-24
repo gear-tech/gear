@@ -35,6 +35,25 @@ type BoxedAsyncValidator<Tx> = Box<dyn AsyncValidation<Tx>>;
 
 // TODO #4424
 
+/// Transaction validation which doesn;t require any state to be known.
+trait StatelessValidation<Tx>: Send + Sync {
+    fn validate(&self, tx: &Tx) -> Result<()>;
+}
+
+/// Transaction validation which requires db state to be known.
+trait StatefulValidation<Tx>: Send + Sync {
+    fn validate(&self, tx: &Tx, db: &Database) -> Result<()>;
+}
+
+/// General asynchronous transaction validation.
+///
+/// The trait is provided for all the tx validators, which
+/// require async computation for the traansaction validation.
+#[async_trait]
+trait AsyncValidation<Tx>: Send + Sync {
+    async fn async_validate(&self, tx: &Tx) -> Result<()>;
+}
+
 /// Main transaction pool tx validator.
 ///
 /// Basically consumes a transaction and runs all the defined checks on it.
@@ -133,7 +152,10 @@ where
         + 'static,
 {
     /// Include all the checks for the validation module.
-    pub(crate) fn with_all_checks(self, tx_pool_output_task_sender: TxPoolOutputTaskSender<Tx>) -> Self {
+    pub(crate) fn with_all_checks(
+        self,
+        tx_pool_output_task_sender: TxPoolOutputTaskSender<Tx>,
+    ) -> Self {
         self.with_signature_check()
             .with_mortality_check()
             .with_uniqueness_check()
@@ -182,16 +204,6 @@ impl<Tx: Clone + Send + Sync + 'static> TxValidator<Tx> {
     }
 }
 
-/// Transaction validation which doesn;t require any state to be known.
-trait StatelessValidation<Tx>: Send + Sync {
-    fn validate(&self, tx: &Tx) -> Result<()>;
-}
-
-/// Transaction validation which requires db state to be known.
-trait StatefulValidation<Tx>: Send + Sync {
-    fn validate(&self, tx: &Tx, db: &Database) -> Result<()>;
-}
-
 /// Validates transaction signature.
 pub(crate) struct SignatureValidator;
 
@@ -236,15 +248,6 @@ impl<Tx: TxHashBlake2b256> StatefulValidation<Tx> for UniqunessValidator {
             Err(anyhow!("Transaction already exists"))
         }
     }
-}
-
-/// General asynchronous transaction validation.
-///
-/// The trait is provided for all the tx validators, which
-/// require async computation for the traansaction validation.
-#[async_trait]
-trait AsyncValidation<Tx>: Send + Sync {
-    async fn async_validate(&self, tx: &Tx) -> Result<()>;
 }
 
 /// Validates if transaction is executable.
@@ -297,4 +300,148 @@ impl<Tx: Clone + Send + Sync + 'static> AsyncValidation<Tx> for ExecutableTxVali
         res.then_some(())
             .ok_or(anyhow!("Transaction is not executable"))
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{EthexeTransaction, RawEthexeTransacton, SignedEthexeTransaction};
+    use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb};
+    use ethexe_signer::{PrivateKey, PublicKey, Signer, ToDigest};
+    use gprimitives::{H160, H256};
+    use parity_scale_codec::Encode;
+    use std::str::FromStr;
+
+    fn signed_ethexe_tx(reference_block_hash: H256) -> SignedEthexeTransaction {
+        let (signer, public_key) = prepare_keys();
+
+        let transaction = EthexeTransaction {
+            raw: RawEthexeTransacton::SendMessage {
+                source: H160::random(),
+                program_id: H160::random(),
+                payload: vec![],
+                value: 0,
+            },
+            reference_block: reference_block_hash,
+        };
+        let signature = signer
+            .sign_digest(public_key, transaction.encode().to_digest())
+            .expect("signing failed");
+
+        SignedEthexeTransaction {
+            transaction,
+            signature: signature.encode(),
+        }
+    }
+
+    fn prepare_keys() -> (Signer, PublicKey) {
+        let signer = Signer::tmp();
+
+        let public_key = signer
+            .add_key(
+                PrivateKey::from_str(
+                    "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f",
+                )
+                .expect("invalid private key"),
+            )
+            .expect("key addition failed");
+
+        (signer, public_key)
+    }
+
+    fn random_block() -> (H256, BlockHeader) {
+        let block_hash = H256::random();
+        let header = BlockHeader {
+            height: 0,
+            timestamp: 0,
+            parent_hash: H256::random(),
+        };
+
+        (block_hash, header)
+    }
+
+    #[test]
+    fn test_signature_validation() {
+        let signed_transaction = signed_ethexe_tx(H256::random());
+        assert!(SignatureValidator.validate(&signed_transaction).is_ok());
+    }
+
+    #[test]
+    fn test_valid_mortality() {
+        let db = Database::from_one(&MemDb::default(), Default::default());
+
+        // Test valid mortality
+        let block_data = random_block();
+        db.set_latest_valid_block(block_data.0, block_data.1);
+
+        let (block_hash, header) = random_block();
+        db.set_latest_valid_block(block_hash, header);
+
+        let signed_tx = signed_ethexe_tx(block_hash);
+
+        let block_data = random_block();
+        db.set_latest_valid_block(block_data.0, block_data.1);
+
+        // Check on plain transaction
+        assert!(MortalityValidator
+            .validate(&signed_tx.transaction, &db)
+            .is_ok());
+
+        // Check on signed transaction
+        assert!(MortalityValidator.validate(&signed_tx, &db).is_ok());
+    }
+
+    #[test]
+    fn test_invalid_mortality_non_existent_block() {
+        let db = Database::from_one(&MemDb::default(), Default::default());
+        let non_window_block_hash = H256::random();
+        let invalid_transaction = signed_ethexe_tx(non_window_block_hash);
+        assert!(MortalityValidator
+            .validate(&invalid_transaction, &db)
+            .is_err());
+    }
+
+    #[test]
+    fn test_invalid_mortality_rotten_tx() {
+        let db = Database::from_one(&MemDb::default(), Default::default());
+
+        let (first_block_hash, first_block_header) = random_block();
+        db.set_latest_valid_block(first_block_hash, first_block_header);
+        let (second_block_hash, second_block_header) = random_block();
+        db.set_latest_valid_block(second_block_hash, second_block_header);
+
+        // Add more 28 blocks
+        for _ in 0..28 {
+            let block_data = random_block();
+            db.set_latest_valid_block(block_data.0, block_data.1);
+        }
+
+        let transaction1 = signed_ethexe_tx(first_block_hash);
+        assert!(MortalityValidator.validate(&transaction1, &db).is_ok());
+        let transaction2 = signed_ethexe_tx(second_block_hash);
+        assert!(MortalityValidator.validate(&transaction2, &db).is_ok());
+
+        // Adding a new block to the db, which should remove the first block from window
+        let block_data = random_block();
+        db.set_latest_valid_block(block_data.0, block_data.1);
+        assert!(MortalityValidator.validate(&transaction1, &db).is_err());
+        assert!(MortalityValidator.validate(&transaction2, &db).is_ok());
+    }
+
+    #[test]
+    fn test_uniqueness_validation() {
+        let db = Database::from_one(&MemDb::default(), Default::default());
+        let transaction = signed_ethexe_tx(H256::random());
+
+        assert!(UniqunessValidator.validate(&transaction, &db).is_ok());
+
+        db.set_validated_transaction(transaction.tx_hash(), transaction.encode());
+
+        assert!(UniqunessValidator.validate(&transaction, &db).is_err());
+    }
+
+    // TODO [sab]:
+    // 1) async validation tests
+    // 2) general tx pool service test
+    // 3) general serivce test (ethexe/cli)
 }

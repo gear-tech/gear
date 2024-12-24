@@ -29,14 +29,19 @@ pub trait Transaction:
 {
 }
 
+/// Ethexe transaction reference block hash
+///
+/// Reference block hash is used for a transcation mortality check.
 pub trait TxReferenceBlockHash {
     fn reference_block_hash(&self) -> H256;
 }
 
+/// Ethexe transaction signature.
 pub trait TxSignature {
     fn signature(&self) -> Result<Signature>;
 }
 
+/// Ethexe transaction blake2b256 hash.
 pub trait TxHashBlake2b256 {
     fn tx_hash(&self) -> H256;
 }
@@ -62,15 +67,6 @@ impl SignedEthexeTransaction {
 pub struct EthexeTransaction {
     pub raw: RawEthexeTransacton,
     pub reference_block: H256,
-}
-
-impl EthexeTransaction {
-    pub fn new(raw: RawEthexeTransacton, reference_block: H256) -> Self {
-        Self {
-            raw,
-            reference_block,
-        }
-    }
 }
 
 /// Raw ethexe transaction.

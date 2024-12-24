@@ -61,6 +61,7 @@ impl TransactionPoolApi {
 impl TransactionPoolServer for TransactionPoolApi {
     async fn send_message(
         &self,
+        // TODO [sab] remove source - must be derived from signature
         source: H160,
         program_id: H160,
         payload: Vec<u8>,

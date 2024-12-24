@@ -36,7 +36,7 @@ use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_tx_pool::{
     InputTask, OutputTask, SignedEthexeTransaction, StandardInputTaskSender,
-    StandardTxPoolInstantiationArtifacts,
+    StandardTxPoolInstantiationArtifacts, TxSignature,
 };
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
