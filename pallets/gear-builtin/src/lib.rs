@@ -291,17 +291,17 @@ pub mod pallet {
             // Now actually charge the gas
             context.try_charge_gas(actual_gas)?;
 
-            res.map(|_| {
+            res.inspect(|_| {
                 log::debug!(
                     target: LOG_TARGET,
                     "Call dispatched successfully",
                 );
             })
-            .map_err(|e| {
+            .map(|_| ())
+            .inspect_err(|e| {
                 log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
-
-                BuiltinActorError::Custom(LimitedStr::from_small_str(e.into()))
             })
+            .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(e.into())))
         }
     }
 }
@@ -376,7 +376,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         }
 
         // We only allow a message to even start processing if it can fit into the current block
-        // (where the gas estimation is as accurate as the actor's `max_gas()` method).
+        // TODO: use fine-grained `max_gas` estimation based on payload info (#4395)
         let current_gas_allowance = GasAllowanceOf::<T>::get();
         if max_gas() > current_gas_allowance {
             return process_allowance_exceed(dispatch.into_incoming(gas_limit), actor_id, 0);
