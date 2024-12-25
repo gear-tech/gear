@@ -906,3 +906,79 @@ mod utils {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Service;
+    use crate::config::{Config, PrometheusConfig};
+    use ethexe_rpc::RpcConfig;
+    use std::{
+        net::{Ipv4Addr, SocketAddr},
+        time::Duration,
+    };
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn basics() {
+        gear_utils::init_default_logger();
+
+        let tmp_dir = tempdir().unwrap();
+        let tmp_dir = tmp_dir.path().to_path_buf();
+
+        let net_path = tmp_dir.join("net");
+        let net_config = ethexe_network::NetworkEventLoopConfig::new_local(net_path);
+
+        Service::new(&Config {
+            node_name: "test".to_string(),
+            ethereum_rpc: "wss://reth-rpc.gear-tech.io".into(),
+            ethereum_beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
+            ethereum_router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
+                .parse()
+                .expect("infallible"),
+            max_commitment_depth: 1000,
+            block_time: Duration::from_secs(1),
+            worker_threads_override: None,
+            virtual_threads: 1,
+            database_path: tmp_dir.join("db"),
+            key_path: tmp_dir.join("key"),
+            sequencer: Default::default(),
+            validator: Default::default(),
+            sender_address: Default::default(),
+            net_config: Some(net_config),
+            prometheus_config: Some(PrometheusConfig::new_with_default_registry(
+                SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
+                "dev".to_string(),
+            )),
+            rpc_config: Some(RpcConfig {
+                listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
+                cors: None,
+            }),
+        })
+        .await
+        .unwrap();
+
+        // Disable all optional services
+        Service::new(&Config {
+            node_name: "test".to_string(),
+            ethereum_rpc: "wss://reth-rpc.gear-tech.io".into(),
+            ethereum_beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
+            ethereum_router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
+                .parse()
+                .expect("infallible"),
+            max_commitment_depth: 1000,
+            block_time: Duration::from_secs(1),
+            worker_threads_override: None,
+            virtual_threads: 1,
+            database_path: tmp_dir.join("db"),
+            key_path: tmp_dir.join("key"),
+            sequencer: Default::default(),
+            validator: Default::default(),
+            sender_address: Default::default(),
+            net_config: None,
+            prometheus_config: None,
+            rpc_config: None,
+        })
+        .await
+        .unwrap();
+    }
+}
