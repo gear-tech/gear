@@ -212,6 +212,10 @@ library Gear {
         } else {
             require(ts <= block.timestamp, "timestamp cannot be in the future");
 
+            if (ts < eraStarted) {
+                ts = eraStarted;
+            }
+
             // Validation must be done using current era validators.
         }
 
