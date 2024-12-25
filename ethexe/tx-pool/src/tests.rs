@@ -16,21 +16,66 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_db::{Database, MemDb};
+use crate::{EthexeTransaction, RawEthexeTransacton, SignedEthexeTransaction};
+use ethexe_db::{Database, MemDb, BlockHeader, BlockMetaStorage};
 use ethexe_signer::{PrivateKey, PublicKey, Signer, ToDigest};
+use gprimitives::{H160, H256};
 use parity_scale_codec::{Decode, Encode};
 use std::str::FromStr;
 
-const PRIVATE_KEY: &str = "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f";
-
-fn prepare_keys() -> (Signer, PublicKey) {
+pub(crate) fn signed_ethexe_tx(reference_block_hash: H256) -> SignedEthexeTransaction {
     let signer = Signer::tmp();
-
     let public_key = signer
-        .add_key(PrivateKey::from_str(PRIVATE_KEY).expect("invalid private key"))
+        .add_key(
+            PrivateKey::from_str(
+                "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f",
+            )
+            .expect("invalid private key"),
+        )
         .expect("key addition failed");
 
-    (signer, public_key)
+    let transaction = EthexeTransaction {
+        raw: RawEthexeTransacton::SendMessage {
+            source: H160::random(),
+            program_id: H160::random(),
+            payload: vec![],
+            value: 0,
+        },
+        reference_block: reference_block_hash,
+    };
+    let signature = signer
+        .sign_digest(public_key, transaction.encode().to_digest())
+        .expect("signing failed");
+
+    SignedEthexeTransaction {
+        transaction,
+        signature: signature.encode(),
+    }
+}
+
+pub(crate) fn random_block() -> (H256, BlockHeader) {
+    let block_hash = H256::random();
+    let header = BlockHeader {
+        height: 0,
+        timestamp: 0,
+        parent_hash: H256::random(),
+    };
+
+    (block_hash, header)
+}
+
+// Test channels work ok
+// Test overall logic of the transaction pool
+
+#[tokio::test]
+async fn test_add_transaction() {
+    let db = Database::from_one(&MemDb::default(), Default::default());
+
+    let block_data = random_block();
+    db.set_latest_valid_block(block_data.0, block_data.1);
+    let (block_hash, block_header) = random_block();
+    db.set_latest_valid_block(block_data.0, block_data.1);
+
 }
 
 // #[test]

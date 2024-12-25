@@ -953,7 +953,7 @@ impl Service {
                 // TODO (breathx) Remove transaction from the database.
                 let (response_sender, response_receiver) = oneshot::channel();
                 tx_pool_input_task_sender
-                    .send(InputTask::CheckTransactionValidity {
+                    .send(InputTask::CheckPreExecutionTransactionValidity {
                         transaction,
                         response_sender,
                     })

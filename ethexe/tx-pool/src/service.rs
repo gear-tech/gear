@@ -73,11 +73,14 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
         // Finishes working of all the input task senders are dropped.
         while let Some(task) = self.input_interface.recv().await {
             match task {
-                InputTask::CheckTransactionValidity {
+                InputTask::CheckPreExecutionTransactionValidity {
                     transaction,
                     response_sender,
                 } => {
-                    let res = self.validate_tx_full(transaction).await;
+                    let res = TxValidator::new(transaction, self.db.clone())
+                        .with_mortality_check()
+                        .validate()
+                        .finish_validator_res();
                     let _ = response_sender.send(res).inspect_err(|_| {
                         // No panic case as the request itself is going to be executed.
                         // The dropped receiver signalizes that the external task sender
@@ -161,7 +164,7 @@ mod input {
     /// Input task for the transaction pool service.
     pub enum InputTask<Tx> {
         /// Request for checking the transaction validity.
-        CheckTransactionValidity {
+        CheckPreExecutionTransactionValidity {
             transaction: Tx,
             response_sender: oneshot::Sender<Result<Tx>>,
         },
