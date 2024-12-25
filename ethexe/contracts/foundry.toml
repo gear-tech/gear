@@ -16,7 +16,7 @@ ignored_warnings_from = [
     "lib/",
 ]
 # Enable new EVM codegen
-via_ir = false
+via_ir = true
 fs_permissions = [{access = "read-write", path = "out"}, { access = "read", path = "lib"}]
 
 [rpc_endpoints]

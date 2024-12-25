@@ -246,8 +246,8 @@ library Gear {
         return validatorsAt(router, block.timestamp);
     }
 
-    /// @dev Returns previous era validators, if there is no previous era, then returns free validators slot,
-    ///     which must be zeroed.
+    /// @dev Returns previous era validators, if there is no previous era,
+    /// then returns free validators slot, which must be zeroed.
     function previousEraValidators(IRouter.Storage storage router) internal view returns (Validators storage) {
         if (validatorsStoredInSlot1At(router, block.timestamp)) {
             return router.validationSettings.validators0;
@@ -256,7 +256,8 @@ library Gear {
         }
     }
 
-    // TODO: comment
+    /// @dev Returns validators at the given timestamp.
+    /// @param ts Timestamp for which to get the validators.
     function validatorsAt(IRouter.Storage storage router, uint256 ts) internal view returns (Validators storage) {
         if (validatorsStoredInSlot1At(router, ts)) {
             return router.validationSettings.validators1;
@@ -267,7 +268,7 @@ library Gear {
 
     /// @dev Returns whether validators at `ts` are stored in `router.validationSettings.validators1`.
     ///      `false` means that current era validators are stored in `router.validationSettings.validators0`.
-    /// @param ts Timestamp for which to check the validators slot, must be greater than both slots timestamp values.
+    /// @param ts Timestamp for which to check the validators slot.
     function validatorsStoredInSlot1At(IRouter.Storage storage router, uint256 ts) internal view returns (bool) {
         uint256 ts0 = router.validationSettings.validators0.useFromTimestamp;
         uint256 ts1 = router.validationSettings.validators1.useFromTimestamp;
