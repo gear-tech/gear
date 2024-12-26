@@ -311,10 +311,9 @@ mod tests {
     use parity_scale_codec::Encode;
     use tokio::sync::mpsc;
 
-
     #[test]
     fn test_signature_validation() {
-        let signed_transaction = tests::signed_ethexe_tx(H256::random());
+        let signed_transaction = tests::generate_signed_ethexe_tx(H256::random());
         assert!(SignatureValidator.validate(&signed_transaction).is_ok());
     }
 
@@ -329,7 +328,7 @@ mod tests {
         let (block_hash, header) = tests::random_block();
         db.set_latest_valid_block(block_hash, header);
 
-        let signed_tx = tests::signed_ethexe_tx(block_hash);
+        let signed_tx = tests::generate_signed_ethexe_tx(block_hash);
 
         let block_data = tests::random_block();
         db.set_latest_valid_block(block_data.0, block_data.1);
@@ -347,7 +346,7 @@ mod tests {
     fn test_invalid_mortality_non_existent_block() {
         let db = Database::from_one(&MemDb::default(), Default::default());
         let non_window_block_hash = H256::random();
-        let invalid_transaction = tests::signed_ethexe_tx(non_window_block_hash);
+        let invalid_transaction = tests::generate_signed_ethexe_tx(non_window_block_hash);
         assert!(MortalityValidator
             .validate(&invalid_transaction, &db)
             .is_err());
@@ -368,9 +367,9 @@ mod tests {
             db.set_latest_valid_block(block_data.0, block_data.1);
         }
 
-        let transaction1 = tests::signed_ethexe_tx(first_block_hash);
+        let transaction1 = tests::generate_signed_ethexe_tx(first_block_hash);
         assert!(MortalityValidator.validate(&transaction1, &db).is_ok());
-        let transaction2 = tests::signed_ethexe_tx(second_block_hash);
+        let transaction2 = tests::generate_signed_ethexe_tx(second_block_hash);
         assert!(MortalityValidator.validate(&transaction2, &db).is_ok());
 
         // Adding a new block to the db, which should remove the first block from window
@@ -383,7 +382,7 @@ mod tests {
     #[test]
     fn test_uniqueness_validation() {
         let db = Database::from_one(&MemDb::default(), Default::default());
-        let transaction = tests::signed_ethexe_tx(H256::random());
+        let transaction = tests::generate_signed_ethexe_tx(H256::random());
 
         assert!(UniqunessValidator.validate(&transaction, &db).is_ok());
 
@@ -421,7 +420,7 @@ mod tests {
                 }
             });
 
-            let transaction = tests::signed_ethexe_tx(H256::random());
+            let transaction = tests::generate_signed_ethexe_tx(H256::random());
             validator.async_validate(&transaction).await
         };
 
@@ -431,8 +430,4 @@ mod tests {
         // Test invalid transaction
         assert!(run_executable_tx_validation(false).await.is_err());
     }
-
-    // TODO [sab]:
-    // 2) general tx pool service test
-    // 3) general serivce test (ethexe/cli)
 }

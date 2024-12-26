@@ -14,9 +14,11 @@ async-trait.workspace = true
 ethexe-signer.workspace = true
 ethexe-db.workspace = true
 gprimitives = { workspace = true, features = ["codec"] }
+hex.workspace = true
 log.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
+gear-utils.workspace = true

@@ -36,7 +36,7 @@ use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_tx_pool::{
     InputTask, OutputTask, SignedEthexeTransaction, StandardInputTaskSender,
-    StandardTxPoolInstantiationArtifacts, TxSignature,
+    StandardTxPoolInstantiationArtifacts,
 };
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
@@ -933,7 +933,9 @@ impl Service {
                 transaction,
                 response_sender,
             } => {
-                let res = response_sender.send(true);
+                // TODO breathx
+
+                let _source = transaction.send_message_source();
                 let _db_overlay = unsafe {
                     // Safety:
                     // Used when a transaction is received via p2p or rpc and
@@ -941,16 +943,16 @@ impl Service {
                     // on the overlayed db.
                     db.clone().overlaid()
                 };
-                log::debug!(
-                    "Received transaction {transaction:#?} for the check. Result - {res:?}"
-                );
+                log::debug!("Received transaction {transaction:#?} for the check to be executable");
+
+                let res = response_sender.send(true);
+                log::debug!("Transaction is executable task response - {res:?}");
 
                 log::warn!("Unimplemented");
             }
             OutputTask::ExecuteTransaction { transaction } => {
                 log::debug!("Received transaction {transaction:#?} for the execution");
 
-                // TODO (breathx) Remove transaction from the database.
                 let (response_sender, response_receiver) = oneshot::channel();
                 tx_pool_input_task_sender
                     .send(InputTask::CheckPreExecutionTransactionValidity {
@@ -976,6 +978,8 @@ impl Service {
                     // But code doesn't panic, as error is propogated up.
                     log::error!("Failed to receive tx validity info from tx pool: {e}");
                 })?;
+
+                // TODO (breathx) Remove transaction from the database.
 
                 log::warn!("Unimplemented");
             }

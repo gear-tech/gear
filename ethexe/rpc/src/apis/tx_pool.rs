@@ -35,7 +35,6 @@ pub trait TransactionPool {
     #[method(name = "transactionPool_sendMessage")]
     async fn send_message(
         &self,
-        source: H160,
         program_id: H160,
         payload: Vec<u8>,
         value: u128,
@@ -61,8 +60,6 @@ impl TransactionPoolApi {
 impl TransactionPoolServer for TransactionPoolApi {
     async fn send_message(
         &self,
-        // TODO [sab] remove source - must be derived from signature
-        source: H160,
         program_id: H160,
         payload: Vec<u8>,
         value: u128,
@@ -72,7 +69,6 @@ impl TransactionPoolServer for TransactionPoolApi {
         let signed_ethexe_tx = SignedEthexeTransaction {
             transaction: EthexeTransaction {
                 raw: RawEthexeTransacton::SendMessage {
-                    source,
                     program_id,
                     payload,
                     value,
