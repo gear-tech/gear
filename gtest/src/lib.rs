@@ -203,7 +203,7 @@
 //!     # let sys = gtest::System::new();
 //!     let prog = Program::from_file(
 //!         &sys,
-//!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+//!         "./target/release/wasms/demo_ping.wasm",
 //!     );
 //!     ```
 //!

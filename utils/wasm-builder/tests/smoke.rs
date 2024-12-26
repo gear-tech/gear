@@ -26,9 +26,9 @@ impl CargoRunner {
         Self(Command::new("cargo"))
     }
 
-    fn stable() -> Self {
+    fn beta() -> Self {
         let mut cmd = Command::new("cargo");
-        cmd.arg("+stable");
+        cmd.arg("+beta");
 
         Self(cmd)
     }
@@ -49,20 +49,18 @@ impl CargoRunner {
     }
 }
 
-fn install_stable_toolchain() {
-    static STABLE_TOOLCHAIN: OnceLock<()> = OnceLock::new();
+fn install_beta_toolchain() {
+    static BETA_TOOLCHAIN: OnceLock<()> = OnceLock::new();
 
-    STABLE_TOOLCHAIN.get_or_init(|| {
+    BETA_TOOLCHAIN.get_or_init(|| {
         let status = Command::new("rustup")
             .arg("toolchain")
             .arg("install")
-            .arg("stable")
+            .arg("beta")
             .arg("--component")
             .arg("llvm-tools")
-            .arg("--component")
-            .arg("rust-src")
             .arg("--target")
-            .arg("wasm32-unknown-unknown")
+            .arg("wasm32v1-none")
             .status()
             .expect("rustup run error");
         assert!(status.success());
@@ -72,37 +70,37 @@ fn install_stable_toolchain() {
 #[ignore]
 #[test]
 fn test_debug() {
-    install_stable_toolchain();
+    install_beta_toolchain();
 
     CargoRunner::new().args(["test"]).run();
-    CargoRunner::stable().args(["test"]).run();
+    CargoRunner::beta().args(["test"]).run();
 }
 
 #[ignore]
 #[test]
 fn build_debug() {
-    install_stable_toolchain();
+    install_beta_toolchain();
 
     CargoRunner::new().args(["build"]).run();
-    CargoRunner::stable().args(["build"]).run();
+    CargoRunner::beta().args(["build"]).run();
 }
 
 #[ignore]
 #[test]
 fn test_release() {
-    install_stable_toolchain();
+    install_beta_toolchain();
 
     CargoRunner::new().args(["test", "--release"]).run();
-    CargoRunner::stable().args(["test", "--release"]).run();
+    CargoRunner::beta().args(["test", "--release"]).run();
 }
 
 #[ignore]
 #[test]
 fn build_release() {
-    install_stable_toolchain();
+    install_beta_toolchain();
 
     CargoRunner::new().args(["build", "--release"]).run();
-    CargoRunner::stable().args(["build", "--release"]).run();
+    CargoRunner::beta().args(["build", "--release"]).run();
 }
 
 #[test]
@@ -130,7 +128,7 @@ fn features_tracking() {
     #[track_caller]
     fn read_export_entry(name: &str) -> Option<parity_wasm::elements::ExportEntry> {
         parity_wasm::deserialize_file(format!(
-            "test-program/target/wasm32-unknown-unknown/{}/test_program.wasm",
+            "test-program/target/{}/wasms/test_program.wasm",
             if cfg!(debug_assertions) {
                 "debug"
             } else {

@@ -15,7 +15,8 @@ RUN apt update -y && \
     chmod +x rustup-init.sh && \
     ./rustup-init.sh -y ;  \
     rustup update nightly && \
-    rustup target add wasm32-unknown-unknown --toolchain nightly; \
+    rustup target add wasm32-unknown-unknown --toolchain nightly && \
+    rustup target add wasm32v1-none --toolchain nightly; \
     rustup default nightly; \
     # Install cargo-fuzz \
     cargo install --version 0.11.2 cargo-fuzz; \

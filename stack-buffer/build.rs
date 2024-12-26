@@ -4,7 +4,7 @@ use std::{env, error::Error, path::PathBuf};
 fn main() -> Result<(), Box<dyn Error>> {
     let alloca_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("alloca");
 
-    if env::var("TARGET")? == "wasm32-unknown-unknown" {
+    if env::var("TARGET")? == "wasm32v1-none" {
         println!("cargo:rustc-link-lib=static=calloca");
         println!("cargo:rustc-link-search=native={}", alloca_dir.display());
     }

@@ -26,6 +26,7 @@ wasm_init() {
   fi
 
   rustup target add wasm32-unknown-unknown --toolchain nightly
+  rustup target add wasm32v1-none --toolchain nightly
 }
 
 cargo_init() {
