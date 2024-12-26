@@ -4801,9 +4801,12 @@ name = "ethexe-tx-pool"
 version = "1.7.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "ethexe-db",
  "ethexe-signer",
+ "gear-utils",
  "gprimitives",
+ "hex",
  "log",
  "parity-scale-codec",
  "tokio",

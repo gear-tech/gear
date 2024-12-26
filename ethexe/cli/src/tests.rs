@@ -36,7 +36,9 @@ use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{EthexeTransaction, Transaction};
+use ethexe_tx_pool::{
+    EthexeTransaction, RawEthexeTransacton, SignedEthexeTransaction, TxHashBlake2b256,
+};
 use ethexe_validator::Validator;
 use gear_core::{
     ids::prelude::*,
@@ -784,7 +786,7 @@ async fn multiple_validators() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(65_000)]
 async fn tx_pool_gossip() {
     gear_utils::init_default_logger();
 
@@ -797,6 +799,7 @@ async fn tx_pool_gossip() {
     let mut node0 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[0])
+            .service_rpc(9505)
             .network(None, None),
     );
     node0.start_service().await;
@@ -805,28 +808,66 @@ async fn tx_pool_gossip() {
     let mut node1 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[1])
-            .service_rpc(9505)
             .network(None, node0.multiaddr.clone()),
     );
     node1.start_service().await;
 
+    log::info!("Populate node-0 and node-1 with 2 valid blocks");
+
+    env.observer
+        .provider()
+        .evm_mine(None)
+        .await
+        .expect("failed mining a new block");
+    env.observer
+        .provider()
+        .evm_mine(None)
+        .await
+        .expect("failed mining a new block");
+
+    // Give some time for nodes to process the blocks
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let reference_block = node0
+        .db
+        .latest_valid_block()
+        .expect("at least genesis block is latest valid")
+        .0;
+
     // Prepare tx data
-    let raw_message = b"hello world".to_vec();
-    let signature = env
-        .signer
-        .sign(env.validators[2], &raw_message)
-        .expect("failed signing message");
-    let signature_bytes = signature.encode();
+    let signed_ethexe_tx = {
+        let sender_pub_key = env.signer.generate_key().expect("failed generating key");
+
+        let ethexe_tx = EthexeTransaction {
+            raw: RawEthexeTransacton::SendMessage {
+                program_id: H160::random(),
+                payload: vec![],
+                value: 0,
+            },
+            // referring to the latest valid block hash
+            reference_block,
+        };
+        let signature = env
+            .signer
+            .sign(sender_pub_key, ethexe_tx.encode().as_ref())
+            .expect("failed signing tx");
+        SignedEthexeTransaction {
+            signature: signature.encode(),
+            transaction: ethexe_tx,
+        }
+    };
 
     // Send request
-    log::info!("Sending tx pool request");
-    let resp = send_json_request(node1.service_rpc_url().expect("rpc server is set"), || {
+    log::info!("Sending tx pool request to node-1");
+    let resp = send_json_request(node0.service_rpc_url().expect("rpc server is set"), || {
         serde_json::json!({
             "jsonrpc": "2.0",
             "method": "transactionPool_sendMessage",
             "params": {
-                "raw_message": raw_message,
-                "signature": signature_bytes.clone(),
+                "program_id": signed_ethexe_tx.transaction.raw.program_id(),
+                "payload": signed_ethexe_tx.transaction.raw.payload().to_vec(),
+                "value": signed_ethexe_tx.transaction.raw.value(),
+                "reference_block": signed_ethexe_tx.transaction.reference_block,
+                "signature": signed_ethexe_tx.signature,
             },
             "id": 1,
         })
@@ -838,20 +879,15 @@ async fn tx_pool_gossip() {
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 
-    // Check that node0 received the message
-    let tx = EthexeTransaction::Message {
-        raw_message,
-        signature: signature_bytes,
-    };
-    let tx_hash = tx.tx_hash();
-
-    let tx_data = node0
+    // Check that node-1 received the message
+    let tx_hash = signed_ethexe_tx.tx_hash();
+    let tx_data = node1
         .db
         .validated_transaction(tx_hash)
         .expect("tx not found");
-    let node0_db_tx: EthexeTransaction =
+    let node1_db_tx: SignedEthexeTransaction =
         Decode::decode(&mut &tx_data[..]).expect("failed to decode tx");
-    assert_eq!(node0_db_tx, tx);
+    assert_eq!(node1_db_tx, signed_ethexe_tx);
 }
 
 async fn send_json_request(
@@ -1221,6 +1257,7 @@ mod utils {
         pub fn service_rpc(mut self, rpc_port: u16) -> Self {
             let service_rpc_config = RpcConfig {
                 listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
+                cors: None,
             };
             self.service_rpc_config = Some(service_rpc_config);
 
@@ -1430,7 +1467,7 @@ mod utils {
                 None => None,
             };
 
-            let tx_pool_artifacts = ethexe_tx_pool::new((self.db.clone(),));
+            let tx_pool_artifacts = ethexe_tx_pool::new(self.db.clone());
 
             let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
                 RpcService::new(
