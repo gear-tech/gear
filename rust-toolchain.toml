@@ -1,5 +1,5 @@
 [toolchain]
-channel = "nightly-2024-12-17"
+channel = "nightly-2024-12-26"
 components = [ "llvm-tools", "rust-src" ]
 targets = [ "wasm32-unknown-unknown", "wasm32v1-none" ]
 profile = "default"

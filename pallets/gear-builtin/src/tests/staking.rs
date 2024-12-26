@@ -560,6 +560,7 @@ fn payout_stakers_works() {
         // Actually run the chain for a few eras (5) to accumulate some rewards
         run_for_n_blocks(
             5 * SESSION_DURATION * <Test as pallet_staking::Config>::SessionsPerEra::get() as u64,
+            None,
         );
 
         // Send `payout_stakers` message for an era for which the rewards should have been earned
@@ -587,24 +588,84 @@ fn payout_stakers_works() {
     });
 }
 
+#[test]
+fn gas_allowance_respected() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+        let contract_account_id = AccountId::from_origin(contract_id.into_origin());
+
+        // This pours the ED onto the contract's account
+        deploy_broker_contract();
+        run_to_next_block();
+
+        // Asserting success with ample remaining gas in the block
+        send_bond_message(contract_id, 100 * UNITS, None);
+        run_to_next_block();
+
+        assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
+
+        // Estimate the gas cost for sending a message to `staking-broker` contract (without any
+        // outgoing messages).
+        // TODO: find a way to use `calculate_gas_info` here for more precise estimation.
+        // To block the contract from sending any messages, we provide an illegal payload. But
+        // we have to use the "actual" `calculate_gas_info` (since `cfg(test)` is not propagated
+        // to the dependencies), and that one doesn't allow calculating gas for failed dispatches.
+        let gas_to_engage_staking_broker = 880_000_000_u64; // Heuristic value
+
+        let gas_cost = pallet_staking::Call::<Test>::bond {
+            value: 100 * UNITS,
+            payee: pallet_staking::RewardDestination::None,
+        }
+        .get_dispatch_info()
+        .weight
+        .ref_time();
+
+        System::reset_events();
+
+        // With insufficient gas allowance, the message should not be processed
+        send_bond_message(contract_id, 100 * UNITS, None);
+        run_for_n_blocks(1, Some(gas_to_engage_staking_broker + gas_cost));
+
+        // No staking events have taken place
+        assert_no_staking_events();
+
+        // The dispatch is still in the queue
+        assert!(!message_queue_empty());
+
+        // Increasing gas allowance will push the message through
+        run_to_next_block();
+        assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
+
+        // Message queue is now empty
+        assert!(message_queue_empty());
+    });
+}
+
 mod util {
     pub(super) use crate::mock::{
-        BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER, UNITS,
-        VAL_1_STASH, VAL_2_STASH, VAL_3_STASH,
+        message_queue_empty, BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK,
+        SIGNER, UNITS, VAL_1_STASH, VAL_2_STASH, VAL_3_STASH,
     };
-    use crate::{self as pallet_gear_builtin, staking::Actor as StakingBuiltin, ActorWithId};
-    pub(super) use common::Origin;
+    use crate::{
+        self as pallet_gear_builtin, staking::Actor as StakingBuiltin, ActorWithId, GasAllowanceOf,
+    };
+    pub(super) use common::{storage::Limiter, Origin};
     pub(super) use demo_staking_broker::WASM_BINARY;
     use frame_election_provider_support::{
         bounds::{ElectionBounds, ElectionBoundsBuilder},
         onchain, SequentialPhragmen,
     };
+    pub(super) use frame_support::dispatch::GetDispatchInfo;
     use frame_support::{
-        assert_ok, construct_runtime, parameter_types,
-        traits::{ConstBool, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+        assert_ok, construct_runtime,
+        pallet_prelude::{DispatchClass, Weight},
+        parameter_types,
+        traits::{ConstBool, ConstU64, FindAuthor, Get, OnFinalize, OnInitialize},
     };
     use frame_support_test::TestRandomness;
-    use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+    use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
     pub(super) use gear_core::ids::{prelude::*, CodeId, ProgramId};
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
@@ -628,6 +689,7 @@ mod util {
     type BlockNumber = u64;
     type Balance = u128;
     type Block = frame_system::mocking::MockBlock<Test>;
+    type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
 
     // Configure a mock runtime to test the pallet.
     construct_runtime!(
@@ -760,6 +822,7 @@ mod util {
     impl pallet_gear_builtin::Config for Test {
         type RuntimeCall = RuntimeCall;
         type Builtins = (ActorWithId<2, StakingBuiltin<Self>>,);
+        type BlockLimiter = GearGas;
         type WeightInfo = ();
     }
 
@@ -851,14 +914,26 @@ mod util {
     }
 
     pub(crate) fn run_to_next_block() {
-        run_for_n_blocks(1)
+        run_for_n_blocks(1, None)
     }
 
-    pub(crate) fn run_for_n_blocks(n: u64) {
+    pub(crate) fn run_for_n_blocks(n: u64, remaining_weight: Option<u64>) {
         let now = System::block_number();
         let until = now + n;
         for current_blk in now..until {
+            if let Some(remaining_weight) = remaining_weight {
+                GasAllowanceOf::<Test>::put(remaining_weight);
+                let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
+                System::register_extra_weight_unchecked(
+                    max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
+                    DispatchClass::Normal,
+                );
+            }
+
+            let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
+            System::register_extra_weight_unchecked(max_block_weight, DispatchClass::Mandatory);
             Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
+
             on_finalize(current_blk);
 
             let new_block_number = current_blk + 1;
