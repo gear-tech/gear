@@ -46,10 +46,12 @@ use {
     ark_ff::fields::field_hashers::DefaultFieldHasher,
     ark_scale::ArkScale,
     gear_lazy_pages::LazyPagesStorage,
-    plonky2::hash::poseidon::Poseidon,
-    plonky2_field::{
-        goldilocks_field::GoldilocksField,
-        types::{Field, PrimeField64},
+    gprimitives_client::{
+        field::{
+            goldilocks_field::GoldilocksField,
+            types::{Field, PrimeField64},
+        },
+        hash::poseidon::Poseidon,
     },
 };
 
