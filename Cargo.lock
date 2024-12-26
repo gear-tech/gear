@@ -6360,10 +6360,9 @@ dependencies = [
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-sandbox-interface",
+ "gprimitives-client",
  "log",
  "parity-scale-codec",
- "plonky2",
- "plonky2_field",
  "sha2 0.10.8",
  "sp-io 38.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sp-runtime-interface 28.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
@@ -6911,6 +6910,10 @@ dependencies = [
  "scale-info",
  "serde",
 ]
+
+[[package]]
+name = "gprimitives-client"
+version = "1.7.0"
 
 [[package]]
 name = "gring"
@@ -12254,7 +12257,6 @@ dependencies = [
  "serde",
  "static_assertions",
  "unroll",
- "web-time",
 ]
 
 [[package]]

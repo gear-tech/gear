@@ -92,6 +92,7 @@ members = [
     "gmeta",
     "gmeta/codegen",
     "gprimitives",
+    "gprimitives/client",
     "gsdk",
     "gsdk/codegen",
     "gsdk/api-gen",
@@ -149,11 +150,14 @@ impl-serde = "0.4.0"
 jsonrpsee = { version = "^0.24" }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }
+num = { version = "0.4", default-features = false }
 num_enum = { version = "0.6.1", default-features = false }
 parity-scale-codec = { version = "3.6.4", default-features = false }
 parity-wasm = "0.45.0"
 parking_lot = "0.12.3"
 path-clean = "1.0.1"
+plonky2 = { git = "https://github.com/gear-tech/plonky2.git", branch = "fix-getrandom", default-features = false }
+plonky2_field = { git = "https://github.com/gear-tech/plonky2.git", branch = "fix-getrandom", default-features = false }
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
 proptest = "1.5.0"
@@ -177,6 +181,7 @@ syn = "2.0.71"
 thiserror = "1.0.62"
 tokio = { version = "1.38.0" }
 uluru = "3.1.0"
+unroll = { version = "0.1.5", default-features = false }
 url = "2.5.2"
 # wasmer 4.3.4 for some reason have wat's version "=1.0.71" nailed down, so we have to do the same
 wat = "1.0.71"
@@ -201,10 +206,6 @@ ark-ff = { version = "0.4.2", default-features = false }
 ark-scale = { version = "0.0.12", default-features = false }
 sha2 = { version = "0.10.8", default-features = false }
 arrayvec = { version = "0.7.4", default-features = false }
-
-plonky2 = { git = "https://github.com/gear-tech/plonky2.git", branch = "fix-getrandom", default-features = false }
-plonky2_field = { git = "https://github.com/gear-tech/plonky2.git", branch = "fix-getrandom", default-features = false }
-num = { version = "0.4", default-features = false }
 
 # Published deps
 #
@@ -239,6 +240,7 @@ gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gmeta-codegen = { path = "gmeta/codegen" }
 gprimitives = { path = "gprimitives", default-features = false }
+gprimitives-client = { path = "gprimitives/client", default-features = false }
 gear-authorship = { path = "node/authorship" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
