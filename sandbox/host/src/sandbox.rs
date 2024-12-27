@@ -539,15 +539,9 @@ impl<DT: Clone> SandboxComponents<DT> {
 
     /// Clear instance list and memory list.
     pub fn clear(&mut self) {
-        log::trace!(
-            "clear; instances = {}",
-            self.instances.iter().any(|i| i.is_some())
-        );
+        log::trace!("clear; instances cnt = {}", self.instances.len());
         self.instances.clear();
-        log::trace!(
-            "clear; memories = {}",
-            self.memories.iter().any(|m| m.is_some())
-        );
+        log::trace!("clear; memories cnt = {}", self.memories.len());
         self.memories.clear();
 
         match self.backend_context {
