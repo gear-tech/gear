@@ -6,7 +6,7 @@ use alloy::{
     primitives::Address as AlloyAddress,
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::Subscription,
-    rpc::types::eth::{Block, Filter, Topic},
+    rpc::types::eth::{Filter, Header, Topic},
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
@@ -33,7 +33,7 @@ pub struct Observer {
     provider: ObserverProvider,
     router_address: AlloyAddress,
     // Always `Some`
-    blocks_subscription: Option<Subscription<Block>>,
+    blocks_subscription: Option<Subscription<Header>>,
     blob_reader: Arc<dyn BlobReader>,
     status_sender: watch::Sender<ObserverStatus>,
     status: ObserverStatus,
@@ -77,12 +77,12 @@ macro_rules! define_event_stream_method {
                                 break;
                             };
 
-                            log::trace!("Received block: {:?}", block.header.hash);
+                            log::trace!("Received block: {:?}", block.hash);
 
-                            let block_hash = (*block.header.hash).into();
-                            let parent_hash = (*block.header.parent_hash).into();
-                            let block_number = block.header.number;
-                            let block_timestamp = block.header.timestamp;
+                            let block_hash = (*block.hash).into();
+                            let parent_hash = (*block.parent_hash).into();
+                            let block_number = block.number;
+                            let block_timestamp = block.timestamp;
 
                             let events = match $read_events_fn(block_hash, &self.provider, self.router_address).await {
                                 Ok(events) => events,
@@ -213,7 +213,7 @@ impl Observer {
         }
     }
 
-    fn resubscribe_blocks(&self) -> Subscription<Block> {
+    fn resubscribe_blocks(&self) -> Subscription<Header> {
         // `expect` is called to state the invariant` that `blocks_subscription` is always `Some`.
         let subscription_ref = self.blocks_subscription.as_ref().expect("always some");
 
