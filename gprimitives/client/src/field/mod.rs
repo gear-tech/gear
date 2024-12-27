@@ -22,6 +22,8 @@ pub mod extension;
 pub mod goldilocks_extensions;
 pub mod goldilocks_field;
 pub mod ops;
+pub mod packable;
+pub mod packed;
 pub mod types;
 
 #[cfg(test)]

@@ -16,25 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Cloned from [`plonky2`](https://github.com/0xPolygonZero/plonky2.git).
+//! Modified based on [`plonky2`](https://github.com/0xPolygonZero/plonky2.git).
 
-#[cfg(all(
-    target_feature = "avx2",
-    not(all(
-        target_feature = "avx512bw",
-        target_feature = "avx512cd",
-        target_feature = "avx512dq",
-        target_feature = "avx512f",
-        target_feature = "avx512vl"
-    ))
-))]
+#[cfg(target_feature = "avx2")]
 pub mod avx2_goldilocks_field;
-
-#[cfg(all(
-    target_feature = "avx512bw",
-    target_feature = "avx512cd",
-    target_feature = "avx512dq",
-    target_feature = "avx512f",
-    target_feature = "avx512vl"
-))]
-pub mod avx512_goldilocks_field;

@@ -20,5 +20,6 @@
 //! as well as specific hash functions implementation.
 
 mod arch;
+pub mod hash_types;
 pub mod poseidon;
-mod poseidon_goldilocks;
+pub mod poseidon_goldilocks;

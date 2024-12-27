@@ -20,12 +20,21 @@
 //! as described in <https://eprint.iacr.org/2019/458.pdf>
 //! Derived from the implementation in the [`plonky2`](https://crates.io/crates/plonky2) crate.
 
+#![allow(clippy::needless_range_loop)]
+
 #[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
 
 use unroll::unroll_for_loops;
 
-use crate::field::{extension::FieldExtension, types::PrimeField64};
+use crate::{
+    field::{
+        extension::{Extendable, FieldExtension},
+        packed::PackedField,
+        types::PrimeField64,
+    },
+    hash::hash_types::RichField,
+};
 
 pub const SPONGE_RATE: usize = 8;
 pub const SPONGE_CAPACITY: usize = 4;
@@ -206,6 +215,49 @@ pub trait Poseidon: PrimeField64 {
         res
     }
 
+    /// Same as `mds_row_shf` for field extensions of `Self`.
+    fn mds_row_shf_field<F: FieldExtension<D, BaseField = Self>, const D: usize>(
+        r: usize,
+        v: &[F; SPONGE_WIDTH],
+    ) -> F {
+        debug_assert!(r < SPONGE_WIDTH);
+        let mut res = F::ZERO;
+
+        for i in 0..SPONGE_WIDTH {
+            res += v[(i + r) % SPONGE_WIDTH] * F::from_canonical_u64(Self::MDS_MATRIX_CIRC[i]);
+        }
+        res += v[r] * F::from_canonical_u64(Self::MDS_MATRIX_DIAG[r]);
+
+        res
+    }
+
+    /// Same as `mds_row_shf` for `PackedField`.
+    fn mds_row_shf_packed_field<
+        F: RichField + Extendable<D>,
+        const D: usize,
+        FE,
+        P,
+        const D2: usize,
+    >(
+        r: usize,
+        v: &[P; SPONGE_WIDTH],
+    ) -> P
+    where
+        FE: FieldExtension<D2, BaseField = F>,
+        P: PackedField<Scalar = FE>,
+    {
+        debug_assert!(r < SPONGE_WIDTH);
+        let mut res = P::ZEROS;
+
+        for i in 0..SPONGE_WIDTH {
+            res +=
+                v[(i + r) % SPONGE_WIDTH] * P::Scalar::from_canonical_u64(Self::MDS_MATRIX_CIRC[i]);
+        }
+        res += v[r] * P::Scalar::from_canonical_u64(Self::MDS_MATRIX_DIAG[r]);
+
+        res
+    }
+
     #[inline(always)]
     #[unroll_for_loops]
     fn mds_layer(state_: &[Self; SPONGE_WIDTH]) -> [Self; SPONGE_WIDTH] {
@@ -229,6 +281,42 @@ pub trait Poseidon: PrimeField64 {
         result
     }
 
+    /// Same as `mds_layer` for field extensions of `Self`.
+    fn mds_layer_field<F: FieldExtension<D, BaseField = Self>, const D: usize>(
+        state: &[F; SPONGE_WIDTH],
+    ) -> [F; SPONGE_WIDTH] {
+        let mut result = [F::ZERO; SPONGE_WIDTH];
+
+        for r in 0..SPONGE_WIDTH {
+            result[r] = Self::mds_row_shf_field(r, state);
+        }
+
+        result
+    }
+
+    /// Same as `mds_layer` for `PackedField`.
+    fn mds_layer_packed_field<
+        F: RichField + Extendable<D>,
+        const D: usize,
+        FE,
+        P,
+        const D2: usize,
+    >(
+        state: &[P; SPONGE_WIDTH],
+    ) -> [P; SPONGE_WIDTH]
+    where
+        FE: FieldExtension<D2, BaseField = F>,
+        P: PackedField<Scalar = FE>,
+    {
+        let mut result = [P::ZEROS; SPONGE_WIDTH];
+
+        for r in 0..SPONGE_WIDTH {
+            result[r] = Self::mds_row_shf_packed_field(r, state);
+        }
+
+        result
+    }
+
     #[inline(always)]
     #[unroll_for_loops]
     fn partial_first_constant_layer<F: FieldExtension<D, BaseField = Self>, const D: usize>(
@@ -237,6 +325,29 @@ pub trait Poseidon: PrimeField64 {
         for i in 0..12 {
             if i < SPONGE_WIDTH {
                 state[i] += F::from_canonical_u64(Self::FAST_PARTIAL_FIRST_ROUND_CONSTANT[i]);
+            }
+        }
+    }
+
+    /// Same as `partial_first_constant_layer` for `PackedField`.
+    #[inline(always)]
+    #[unroll_for_loops]
+    fn partial_first_constant_layer_packed_field<
+        F: RichField + Extendable<D>,
+        const D: usize,
+        FE,
+        P,
+        const D2: usize,
+    >(
+        state: &mut [P; SPONGE_WIDTH],
+    ) where
+        FE: FieldExtension<D2, BaseField = F>,
+        P: PackedField<Scalar = FE>,
+    {
+        for i in 0..12 {
+            if i < SPONGE_WIDTH {
+                state[i] +=
+                    P::Scalar::from_canonical_u64(Self::FAST_PARTIAL_FIRST_ROUND_CONSTANT[i]);
             }
         }
     }
@@ -261,6 +372,47 @@ pub trait Poseidon: PrimeField64 {
                         // row-major order so that this dot product is cache
                         // friendly.
                         let t = F::from_canonical_u64(
+                            Self::FAST_PARTIAL_ROUND_INITIAL_MATRIX[r - 1][c - 1],
+                        );
+                        result[c] += state[r] * t;
+                    }
+                }
+            }
+        }
+        result
+    }
+
+    /// Same as `mds_partial_layer_init` for `PackedField`.
+    #[inline(always)]
+    #[unroll_for_loops]
+    fn mds_partial_layer_init_packed_field<
+        F: RichField + Extendable<D>,
+        const D: usize,
+        FE,
+        P,
+        const D2: usize,
+    >(
+        state: &[P; SPONGE_WIDTH],
+    ) -> [P; SPONGE_WIDTH]
+    where
+        FE: FieldExtension<D2, BaseField = F>,
+        P: PackedField<Scalar = FE>,
+    {
+        let mut result = [P::ZEROS; SPONGE_WIDTH];
+
+        // Initial matrix has first row/column = [1, 0, ..., 0];
+
+        // c = 0
+        result[0] = state[0];
+
+        for r in 1..12 {
+            if r < SPONGE_WIDTH {
+                for c in 1..12 {
+                    if c < SPONGE_WIDTH {
+                        // NB: FAST_PARTIAL_ROUND_INITIAL_MATRIX is stored in
+                        // row-major order so that this dot product is cache
+                        // friendly.
+                        let t = P::Scalar::from_canonical_u64(
                             Self::FAST_PARTIAL_ROUND_INITIAL_MATRIX[r - 1][c - 1],
                         );
                         result[c] += state[r] * t;
@@ -309,6 +461,62 @@ pub trait Poseidon: PrimeField64 {
         result
     }
 
+    /// Same as `mds_partial_layer_fast` for field extensions of `Self`.
+    fn mds_partial_layer_fast_field<F: FieldExtension<D, BaseField = Self>, const D: usize>(
+        state: &[F; SPONGE_WIDTH],
+        r: usize,
+    ) -> [F; SPONGE_WIDTH] {
+        let s0 = state[0];
+        let mds0to0 = Self::MDS_MATRIX_CIRC[0] + Self::MDS_MATRIX_DIAG[0];
+        let mut d = s0 * F::from_canonical_u64(mds0to0);
+        for i in 1..SPONGE_WIDTH {
+            let t = F::from_canonical_u64(Self::FAST_PARTIAL_ROUND_W_HATS[r][i - 1]);
+            d += state[i] * t;
+        }
+
+        // result = [d] concat [state[0] * v + state[shift up by 1]]
+        let mut result = [F::ZERO; SPONGE_WIDTH];
+        result[0] = d;
+        for i in 1..SPONGE_WIDTH {
+            let t = F::from_canonical_u64(Self::FAST_PARTIAL_ROUND_VS[r][i - 1]);
+            result[i] = state[0] * t + state[i];
+        }
+        result
+    }
+
+    /// Same as `mds_partial_layer_fast` for `PackedField.
+    fn mds_partial_layer_fast_packed_field<
+        F: RichField + Extendable<D>,
+        const D: usize,
+        FE,
+        P,
+        const D2: usize,
+    >(
+        state: &[P; SPONGE_WIDTH],
+        r: usize,
+    ) -> [P; SPONGE_WIDTH]
+    where
+        FE: FieldExtension<D2, BaseField = F>,
+        P: PackedField<Scalar = FE>,
+    {
+        let s0 = state[0];
+        let mds0to0 = Self::MDS_MATRIX_CIRC[0] + Self::MDS_MATRIX_DIAG[0];
+        let mut d = s0 * P::Scalar::from_canonical_u64(mds0to0);
+        for i in 1..SPONGE_WIDTH {
+            let t = P::Scalar::from_canonical_u64(Self::FAST_PARTIAL_ROUND_W_HATS[r][i - 1]);
+            d += state[i] * t;
+        }
+
+        // result = [d] concat [state[0] * v + state[shift up by 1]]
+        let mut result = [P::ZEROS; SPONGE_WIDTH];
+        result[0] = d;
+        for i in 1..SPONGE_WIDTH {
+            let t = P::Scalar::from_canonical_u64(Self::FAST_PARTIAL_ROUND_VS[r][i - 1]);
+            result[i] = state[0] * t + state[i];
+        }
+        result
+    }
+
     #[inline(always)]
     #[unroll_for_loops]
     fn constant_layer(state: &mut [Self; SPONGE_WIDTH], round_ctr: usize) {
@@ -319,6 +527,36 @@ pub trait Poseidon: PrimeField64 {
                     state[i] = state[i].add_canonical_u64(round_constant);
                 }
             }
+        }
+    }
+
+    /// Same as `constant_layer` for field extensions of `Self`.
+    fn constant_layer_field<F: FieldExtension<D, BaseField = Self>, const D: usize>(
+        state: &mut [F; SPONGE_WIDTH],
+        round_ctr: usize,
+    ) {
+        for i in 0..SPONGE_WIDTH {
+            state[i] += F::from_canonical_u64(ALL_ROUND_CONSTANTS[i + SPONGE_WIDTH * round_ctr]);
+        }
+    }
+
+    /// Same as `constant_layer` for PackedFields.
+    fn constant_layer_packed_field<
+        F: RichField + Extendable<D>,
+        const D: usize,
+        FE,
+        P,
+        const D2: usize,
+    >(
+        state: &mut [P; SPONGE_WIDTH],
+        round_ctr: usize,
+    ) where
+        FE: FieldExtension<D2, BaseField = F>,
+        P: PackedField<Scalar = FE>,
+    {
+        for i in 0..SPONGE_WIDTH {
+            state[i] +=
+                P::Scalar::from_canonical_u64(ALL_ROUND_CONSTANTS[i + SPONGE_WIDTH * round_ctr]);
         }
     }
 
@@ -338,6 +576,15 @@ pub trait Poseidon: PrimeField64 {
             if i < SPONGE_WIDTH {
                 state[i] = Self::sbox_monomial(state[i]);
             }
+        }
+    }
+
+    /// Same as `sbox_layer` for field extensions of `Self`.
+    fn sbox_layer_field<F: FieldExtension<D, BaseField = Self>, const D: usize>(
+        state: &mut [F; SPONGE_WIDTH],
+    ) {
+        for i in 0..SPONGE_WIDTH {
+            state[i] = Self::sbox_monomial(state[i]);
         }
     }
 
@@ -406,8 +653,6 @@ pub trait Poseidon: PrimeField64 {
 
 #[cfg(test)]
 pub(crate) mod test_helpers {
-    #![allow(clippy::needless_range_loop)]
-
     use super::*;
 
     pub(crate) fn check_test_vectors<F>(
