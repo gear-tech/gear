@@ -24,22 +24,27 @@ use env_logger::Env;
 use ethexe_service::Service;
 use log::LevelFilter;
 
+/// Run the node.
 #[derive(Debug, Args)]
 pub struct RunCommand {
+    /// CLI parameters to be merged with file ones before execution.
     #[clap(flatten)]
     pub params: Params,
 
+    /// Verbose mode: if enabled turns on debug logs in addition to info level.
     #[clap(short, long)]
     pub verbose: bool,
 }
 
 impl RunCommand {
+    /// Merge the command with the provided params.
     pub fn with_params(mut self, params: Params) -> Self {
         self.params = self.params.merge(params);
 
         self
     }
 
+    /// Run the ethexe service (node).
     pub async fn run(self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
 

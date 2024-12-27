@@ -23,27 +23,37 @@ use ethexe_service::config::EthereumConfig;
 use serde::Deserialize;
 use std::time::Duration;
 
+/// CLI/TOML-config parameters related to Ethereum.
 #[derive(Clone, Debug, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct EthereumParams {
+    /// Ethereum RPC endpoint.
     #[arg(long, alias = "eth-rpc")]
     #[serde(rename = "rpc")]
     pub ethereum_rpc: Option<String>,
 
+    /// Ethereum Beacon RPC endpoint.
     #[arg(long, alias = "eth-beacon-rpc")]
     #[serde(rename = "beacon-rpc")]
     pub ethereum_beacon_rpc: Option<String>,
 
+    /// Ethereum router contract address.
     #[arg(long, alias = "eth-router")]
     #[serde(rename = "router")]
     pub ethereum_router: Option<String>,
 }
 
 impl EthereumParams {
+    /// Default block time in seconds.
     pub const BLOCK_TIME: usize = 12;
+
+    /// Default Ethereum RPC.
     pub const DEFAULT_ETHEREUM_RPC: &str = "http://localhost:8545";
+
+    /// Default Ethereum Beacon RPC.
     pub const DEFAULT_ETHEREUM_BEACON_RPC: &str = "http://localhost:5052";
 
+    /// Convert self into a proper `EthereumConfig` object.
     pub fn into_config(self) -> Result<EthereumConfig> {
         Ok(EthereumConfig {
             rpc: self

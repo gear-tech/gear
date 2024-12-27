@@ -27,16 +27,20 @@ mod params;
 
 #[derive(Debug, Parser)]
 pub struct Cli {
+    /// Path to the TOML config file. If not provided, the default path "./.ethexe.toml" is used. To disable parsing of the config file, use "none".
     #[arg(long)]
-    cfg: Option<String>,
+    pub cfg: Option<String>,
 
+    /// Command to run.
     #[command(subcommand)]
-    command: Command,
+    pub command: Command,
 }
 
 impl Cli {
+    /// Default path to the TOML config file.
     pub const DEFAULT_PARAMS_PATH: &str = "./.ethexe.toml";
 
+    /// Run the CLI.
     pub async fn run(self) -> Result<()> {
         let params = self
             .file_params()

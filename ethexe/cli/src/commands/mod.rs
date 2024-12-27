@@ -28,14 +28,19 @@ pub use key::KeyCommand;
 pub use run::RunCommand;
 pub use tx::TxCommand;
 
+/// CLI command.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Keystore manipulations.
     Key(KeyCommand),
+    /// Run the node.
     Run(Box<RunCommand>),
+    /// Submit a transaction.
     Tx(TxCommand),
 }
 
 impl Command {
+    /// Merge the command with the provided params.
     fn with_file_params(self, file_params: Params) -> Self {
         match self {
             Self::Key(key_cmd) => Self::Key(key_cmd.with_params(file_params)),
@@ -44,6 +49,7 @@ impl Command {
         }
     }
 
+    /// Run the command.
     pub async fn run(self, file_params: Params) -> Result<()> {
         let cmd = self.with_file_params(file_params);
 
@@ -56,6 +62,7 @@ impl Command {
 }
 
 pub(crate) mod utils {
+    /// Parse a hex string into a byte vector.
     pub fn hex_str_to_vec(s: String) -> anyhow::Result<Vec<u8>> {
         let s = s.strip_prefix("0x").unwrap_or(&s);
         hex::decode(s).map_err(|e| anyhow::anyhow!("Failed to parse hex: {e}"))

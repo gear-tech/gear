@@ -23,16 +23,20 @@ use clap::{Parser, Subcommand};
 use ethexe_signer::{Signature, Signer, ToDigest as _};
 use std::path::PathBuf;
 
+/// Keystore manipulations.
 #[derive(Debug, Parser)]
 pub struct KeyCommand {
+    /// Primary key store to use (use to override generation from base path).
     #[arg(short, long)]
     pub key_store: Option<PathBuf>,
 
+    /// Subcommand to run.
     #[command(subcommand)]
     pub command: KeySubcommand,
 }
 
 impl KeyCommand {
+    /// Merge the command with the provided params.
     pub fn with_params(mut self, params: Params) -> Self {
         self.key_store = self
             .key_store
@@ -42,6 +46,7 @@ impl KeyCommand {
         self
     }
 
+    /// Execute the command.
     pub fn exec(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
@@ -152,28 +157,39 @@ impl KeyCommand {
     }
 }
 
+/// Keystore commands.
 #[derive(Debug, Subcommand)]
 pub enum KeySubcommand {
+    /// Clear all keys.
     Clear,
+    /// Generate new keypair.
     Generate,
+    /// Insert a new private key.
     Insert {
+        /// Private key to be inserted.
         #[arg()]
         private_key: String,
     },
+    /// Print all keys.
     List,
+    /// Recover public key from message and signature.
     Recover {
         #[arg(short, long)]
         message: String,
         #[arg(short, long)]
         signature: String,
     },
+    /// Show private key for public key or address.
     Show {
         #[arg()]
         key: String,
     },
+    /// Sign a message with a key.
     Sign {
+        /// Public key or address.
         #[arg(short, long)]
         key: String,
+        /// Message to sign.
         #[arg(short, long)]
         message: String,
     },

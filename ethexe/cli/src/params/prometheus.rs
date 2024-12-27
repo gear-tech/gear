@@ -22,21 +22,26 @@ use ethexe_prometheus::PrometheusConfig;
 use serde::Deserialize;
 use std::net::{Ipv4Addr, SocketAddr};
 
+/// Parameters for prometheus metrics service to start.
 #[derive(Clone, Debug, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct PrometheusParams {
+    /// Node name in prometheus monitoring.
     #[arg(long, alias = "prom-name")]
     #[serde(rename = "name")]
     pub prometheus_name: Option<String>,
 
+    /// Port to expose prometheus metrics.
     #[arg(long, alias = "prom-port")]
     #[serde(rename = "port")]
     pub prometheus_port: Option<u16>,
 
+    /// Flag to expose prometheus metrics on all interfaces.
     #[arg(long, alias = "prom-external")]
     #[serde(default, rename = "external")]
     pub prometheus_external: bool,
 
+    /// Flag to disable prometheus metrics.
     #[arg(long, alias = "no-prom")]
     #[serde(default, rename = "no-prometheus", alias = "no-prom")]
     pub no_prometheus: bool,

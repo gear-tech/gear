@@ -25,25 +25,32 @@ use ethexe_signer::{Address, Signer};
 use gprimitives::H256;
 use std::{fs, path::PathBuf};
 
+/// Submit a transaction.
 #[derive(Debug, Parser)]
 pub struct TxCommand {
+    /// Primary key store to use (use to override generation from base path).
     #[arg(long)]
     pub key_store: Option<PathBuf>,
 
+    /// Ethereum RPC endpoint to use.
     #[arg(long, alias = "eth-rpc")]
     pub ethereum_rpc: Option<String>,
 
+    /// Ethereum router address to use.
     #[arg(long, alias = "eth-router")]
     pub ethereum_router: Option<String>,
 
+    /// Sender address or public key to use. Must have a corresponding private key in the key store.
     #[arg(long)]
     pub sender: Option<String>,
 
+    /// Subcommand to run.
     #[command(subcommand)]
     pub command: TxSubcommand,
 }
 
 impl TxCommand {
+    /// Merge the command with the provided params.
     pub fn with_params(mut self, params: Params) -> Self {
         self.key_store = self
             .key_store
@@ -67,6 +74,7 @@ impl TxCommand {
         self
     }
 
+    /// Execute the command.
     pub async fn exec(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
@@ -205,27 +213,39 @@ impl TxCommand {
 }
 
 // TODO (breathx): impl reply, value claim and exec balance top up with watch.
+/// Available transaction to submit.
 #[derive(Debug, Subcommand)]
 pub enum TxSubcommand {
+    /// Create new mirror program on Ethereum.
     Create {
+        /// Wasm code id to use.
         #[arg(short, long, alias = "code")]
         code_id: String,
+        /// Salt to use for program id generation. If not provided, random is used.
         #[arg(short, long)]
         salt: Option<String>,
     },
+    /// Send message to mirror program on Ethereum.
     Message {
+        /// Mirror address.
         #[arg(short, long)]
         mirror: String,
+        /// Message payload.
         #[arg(short, long)]
         payload: String,
+        /// WVara value to send with message. This amount should be approved on WVara Erc20 contract first, or given `approve` flag.
         #[arg(short, long, default_value = "0")]
         value: u128,
+        /// Flag to first approve given value on WVara Erc20 contract.
         #[arg(short, long, default_value = "false")]
         approve: bool,
+        /// Flat to watch for reply from mirror.
         #[arg(short, long, default_value = "false")]
         watch: bool,
     },
+    /// Upload Wasm code to Ethereum: request its validation for further program creation.
     Upload {
+        /// Path to the Wasm file.
         #[arg()]
         path_to_wasm: PathBuf,
     },

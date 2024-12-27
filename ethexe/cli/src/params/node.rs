@@ -28,39 +28,51 @@ use tempfile::TempDir;
 #[static_init::dynamic(drop, lazy)]
 static mut TMP_DB: Option<TempDir> = None;
 
+/// General node-describing parameters, responsible for its roles and execution configuration.
 #[derive(Clone, Debug, Default, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct NodeParams {
+    /// Base directory for all node-related subdirectories.
     #[arg(long)]
     pub base: Option<String>,
 
+    /// Flag to use temporary directory for database.
     #[arg(long)]
     #[serde(default)]
     pub tmp: bool,
 
+    /// Public key of the sequencer, if node should act as one.
     #[arg(long)]
     pub sequencer: Option<String>,
 
+    /// Public key of the validator, if node should act as one.
     #[arg(long)]
     pub validator: Option<String>,
 
+    /// Max allowed height diff from head for sync directly from Ethereum.
     #[arg(long)]
     #[serde(rename = "max-depth")]
     pub max_depth: Option<NonZero<u32>>,
 
+    /// Number of physical threads to use.
     #[arg(long)]
     #[serde(rename = "physical-threads")]
     pub physical_threads: Option<NonZero<u8>>,
 
+    /// Number of virtual thread to use for programs processing.
     #[arg(long)]
     #[serde(rename = "virtual-threads")]
     pub virtual_threads: Option<NonZero<u8>>,
 }
 
 impl NodeParams {
+    /// Default max allowed height diff from head for sync directly from Ethereum.
     pub const DEFAULT_MAX_DEPTH: NonZero<u32> = unsafe { NonZero::new_unchecked(100_000) };
+
+    /// Default amount of virtual threads to use for programs processing.
     pub const DEFAULT_VIRTUAL_THREADS: NonZero<u8> = unsafe { NonZero::new_unchecked(16) };
 
+    /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
         Ok(NodeConfig {
             database_path: self.db_dir(),
@@ -78,6 +90,7 @@ impl NodeParams {
         })
     }
 
+    /// Get path to the database directory.
     pub fn db_dir(&self) -> PathBuf {
         if self.tmp {
             Self::tmp_db()
@@ -86,10 +99,12 @@ impl NodeParams {
         }
     }
 
+    /// Get path to the keystore directory.
     pub fn keys_dir(&self) -> PathBuf {
         self.base().join("keys")
     }
 
+    /// Get path to the network directory.
     pub fn net_dir(&self) -> PathBuf {
         self.base().join("net")
     }

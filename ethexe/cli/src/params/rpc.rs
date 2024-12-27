@@ -25,29 +25,36 @@ use std::{
     str::FromStr,
 };
 
+/// Parameters for the RPC service to start.
 #[derive(Clone, Debug, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct RpcParams {
+    /// Port to expose RPC service.
     #[arg(long)]
     #[serde(rename = "port")]
     pub rpc_port: Option<u16>,
 
+    /// Flag to expose RPC service on all interfaces.
     #[arg(long)]
     #[serde(default, rename = "external")]
     pub rpc_external: bool,
 
+    /// CORS policy for RPC service.
     #[arg(long)]
     #[serde(rename = "cors")]
     pub rpc_cors: Option<Cors>,
 
+    /// Flag to disable RPC service.
     #[arg(long)]
     #[serde(default, rename = "no-rpc")]
     pub no_rpc: bool,
 }
 
 impl RpcParams {
+    /// Default RPC port.
     pub const DEFAULT_RPC_PORT: u16 = 9944;
 
+    /// Convert self into a proper `RpcConfig` object, if RPC service is enabled.
     pub fn into_config(self) -> Option<RpcConfig> {
         if self.no_rpc {
             return None;
@@ -91,9 +98,12 @@ impl MergeParams for RpcParams {
     }
 }
 
+/// Enum for ease of parsing and deserializing CORS policy.
 #[derive(Clone, Debug)]
 pub enum Cors {
+    /// Allow all origins.
     All,
+    /// Allow only specified origins.
     List(Vec<String>),
 }
 

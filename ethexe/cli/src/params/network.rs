@@ -26,37 +26,46 @@ use ethexe_network::{
 use serde::Deserialize;
 use std::path::PathBuf;
 
+/// Parameters for the networking service to start.
 #[derive(Clone, Debug, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct NetworkParams {
+    /// Network pubkey of the node. If not provided, tries to fetch one from .net directory, in case of absence - generates and stores new random one.
     #[arg(long, alias = "net-key")]
     #[serde(rename = "key")]
     pub network_key: Option<String>,
 
+    /// Predefined bootnodes addresses to connect to.
     #[arg(long, aliases = &["net-bootnodes", "bootnodes"])]
     #[serde(rename = "bootnodes")]
     pub network_bootnodes: Option<Vec<Multiaddr>>,
 
+    /// Externally exposed network addresses of the node.
     #[arg(long, aliases = &["net-public-addr", "public-addr"])]
     #[serde(rename = "public-addr")]
     pub network_public_addr: Option<Vec<Multiaddr>>,
 
+    /// Addresses to listen for incoming connections.
     #[arg(long, aliases = &["net-listen-addr", "listen-addr"])]
     #[serde(rename = "listen-addr")]
     pub network_listen_addr: Option<Vec<Multiaddr>>,
 
+    /// Default network port.
     #[arg(long, alias = "net-port")]
     #[serde(rename = "port")]
     pub network_port: Option<u16>,
 
+    /// Flag to disable network service.
     #[arg(long, alias = "no-net")]
     #[serde(default, rename = "no-network", alias = "no-net")]
     pub no_network: bool,
 }
 
 impl NetworkParams {
+    /// Default network port.
     pub const DEFAULT_NETWORK_PORT: u16 = 20333;
 
+    /// Convert self into a proper `NetworkConfig` object, if network is enabled.
     pub fn into_config(self, config_dir: PathBuf) -> Result<Option<NetworkConfig>> {
         if self.no_network {
             return Ok(None);
