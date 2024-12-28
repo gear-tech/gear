@@ -19,13 +19,17 @@
 //! sp-sandbox runtime (here it's program execution state) realization.
 
 use crate::{
-    error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
+    error::{
+        ActorTerminationReason, BackendAllocSyscallError, RunFallibleError, TrapExplanation,
+        UndefinedTerminationReason,
+    },
     memory::{BackendMemory, ExecutorMemory, MemoryAccessRegistry},
     state::{HostState, State},
     BackendExternalities,
 };
 use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{AsContextExt, HostError};
+use gear_wasm_instrument::SyscallName;
 
 pub(crate) struct CallerWrap<'a, Caller> {
     pub caller: &'a mut Caller,
@@ -75,11 +79,29 @@ where
     Ext: BackendExternalities + 'static,
 {
     #[track_caller]
-    pub fn run_any<U, F>(&mut self, gas: u64, token: CostToken, f: F) -> Result<(u64, U), HostError>
+    pub fn run_any<U, F>(
+        &mut self,
+        gas: u64,
+        token: CostToken,
+        syscall_name: SyscallName,
+        f: F,
+    ) -> Result<(u64, U), HostError>
     where
         F: FnOnce(&mut Self) -> Result<U, UndefinedTerminationReason>,
     {
         self.state_mut().ext.decrease_current_counter_to(gas);
+
+        if self.ext_mut().forbidden_funcs().contains(&syscall_name)
+            || self
+                .ext_mut()
+                .endpoint_forbidden_funcs()
+                .contains(&syscall_name)
+        {
+            self.set_termination_reason(
+                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into(),
+            );
+            return Err(HostError);
+        }
 
         let run = || {
             self.state_mut().ext.charge_gas_for_token(token)?;
@@ -100,6 +122,7 @@ where
         gas: u64,
         res_ptr: u32,
         token: CostToken,
+        syscall_name: SyscallName,
         f: F,
     ) -> Result<(u64, ()), HostError>
     where
@@ -109,6 +132,7 @@ where
         self.run_any(
             gas,
             token,
+            syscall_name,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
                 let res = f(ctx);
                 let res = ctx.process_fallible_func_result(res)?;
