@@ -27,7 +27,7 @@ use core::{
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-use crate::{
+use crate::field::{
     goldilocks_field::GoldilocksField,
     ops::Square,
     packed::PackedField,
@@ -522,7 +522,7 @@ unsafe fn interleave2(x: __m256i, y: __m256i) -> (__m256i, __m256i) {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
+    use crate::field::{
         arch::x86_64::avx2_goldilocks_field::Avx2GoldilocksField,
         goldilocks_field::GoldilocksField, ops::Square, packed::PackedField, types::Field,
     };
