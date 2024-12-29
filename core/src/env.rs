@@ -391,4 +391,7 @@ pub trait Externalities {
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
+
+    /// Do data permutation and return a slice of the same shape.
+    fn permute(&self, input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError>;
 }

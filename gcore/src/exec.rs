@@ -27,7 +27,7 @@ use crate::{
     ActorId, EnvVars, MessageId,
 };
 use core::mem::MaybeUninit;
-use gsys::BlockNumberWithHash;
+use gsys::{BlockNumberWithHash, PoseidonInOut};
 #[cfg(not(feature = "ethexe"))]
 use {
     crate::ReservationId,
@@ -445,4 +445,31 @@ pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {
     unsafe { gsys::gr_random(&subject, res.as_mut_ptr()) };
 
     Ok((res.hash, res.bn))
+}
+
+/// Perform input data transformation and return data in the same format.
+/// Primarily designed for the Poseidon permutation of Goldilocks field arrays,
+/// represented as fixed-size arrays of u64 type - the key part of the Poseidon
+/// hash function. For the Goldilocks field the array size is equal to 12.
+///
+/// `data` is the permutation input.
+///
+/// # Examples
+///
+/// ```
+/// use core::array;
+/// use gcore::exec;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     let data: [u64; 12] = array::from_fn(|i| i as u64 + 1);
+///     let hash_out = exec::permute(data).expect("Error in random");
+/// }
+/// ```
+pub fn permute(data: PoseidonInOut) -> Result<PoseidonInOut> {
+    let mut res = PoseidonInOut::default();
+
+    unsafe { gsys::gr_permute(data.as_ptr() as *const _, res.as_mut_ptr() as *mut _) };
+
+    Ok(res)
 }
