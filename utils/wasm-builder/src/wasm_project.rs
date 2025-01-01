@@ -335,7 +335,6 @@ extern "C" fn metahash() {{
             ),
         )
         .context("unable to write `wasm_binary.rs`")
-        .map_err(Into::into)
     }
 
     fn generate_bin_path(&self, file_base_name: &String) -> Result<()> {

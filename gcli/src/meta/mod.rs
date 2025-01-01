@@ -131,7 +131,6 @@ impl Meta {
         MetadataRepr::from_bytes(encoded)
             .map(Meta::Data)
             .or_else(|_| -> Result<Meta> { Self::decode_wasm(encoded) })
-            .map_err(Into::into)
     }
 
     /// Derive type by name.
