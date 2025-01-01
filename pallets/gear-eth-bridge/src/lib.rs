@@ -25,6 +25,7 @@
 // TODO: remove on rust update.
 #![allow(unknown_lints)]
 #![allow(clippy::manual_inspect)]
+#![allow(clippy::useless_conversion)]
 
 pub use builtin::Actor;
 pub use internal::{EthMessage, Proof};

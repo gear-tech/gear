@@ -42,7 +42,7 @@ impl ProgramGenerator {
     /// ```
     /// use gstd::prog::ProgramGenerator;
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     let salt = ProgramGenerator::get_salt();
     /// }
@@ -77,7 +77,7 @@ impl ProgramGenerator {
     /// ```
     /// use gstd::{msg, prog::ProgramGenerator, CodeId};
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     let code_id: CodeId = msg::load().expect("Unable to load");
     ///     let (init_message_id, new_program_id) =

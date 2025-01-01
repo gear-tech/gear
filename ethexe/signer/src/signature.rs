@@ -33,7 +33,7 @@ pub struct RawSignature([u8; 65]);
 impl RawSignature {
     pub fn create_for_digest(private_key: PrivateKey, digest: Digest) -> Result<RawSignature> {
         let secp_secret_key = secp256k1::SecretKey::from_slice(&private_key.0)
-            .with_context(|| "Invalid secret key format for {:?}")?;
+            .with_context(|| "Invalid secret key format")?;
 
         let message = Message::from_digest(digest.into());
 

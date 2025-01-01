@@ -75,7 +75,7 @@
 //! #![no_std]
 //! use gstd::msg;
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! extern "C" fn handle() {
 //!     let payload = msg::load_bytes().expect("Failed to load payload");
 //!
@@ -467,7 +467,7 @@
 //!     B(u128),
 //! }
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
 //!     let query: State = msg::load().expect("Unable to decode `State`");
 //!     let encoded = match query {

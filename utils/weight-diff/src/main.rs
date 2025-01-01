@@ -336,7 +336,8 @@ impl ImplementationVisitor {
                             unreachable!("unexpected From impl detected")
                         };
 
-                        let Some(GenericArgument::Type(ref mut ty)) = types.args.first_mut() else {
+                        let Some(&mut GenericArgument::Type(ref mut ty)) = types.args.first_mut()
+                        else {
                             unreachable!("unexpected From impl detected")
                         };
 

@@ -537,7 +537,7 @@ impl MemoryWrapper {
         if len == 0 {
             &[]
         } else {
-            core::slice::from_raw_parts(ptr, len)
+            unsafe { core::slice::from_raw_parts(ptr, len) }
         }
     }
 
@@ -564,7 +564,7 @@ impl MemoryWrapper {
         if len == 0 {
             &mut []
         } else {
-            core::slice::from_raw_parts_mut(ptr, len)
+            unsafe { core::slice::from_raw_parts_mut(ptr, len) }
         }
     }
 }

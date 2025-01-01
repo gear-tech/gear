@@ -161,6 +161,6 @@ impl Opt {
     /// Run command sync.
     pub fn exec_sync(&self) -> color_eyre::Result<()> {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(self.run()).map_err(Into::into)
+        rt.block_on(self.run())
     }
 }

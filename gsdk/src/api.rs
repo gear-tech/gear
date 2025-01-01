@@ -96,7 +96,6 @@ impl Api {
             .iter()
             .map(|e| -> Result<Event> { e?.as_root_event::<Event>().map_err(Into::into) })
             .collect::<Result<Vec<Event>>>()
-            .map_err(Into::into)
     }
 
     /// Subscribe finalized events

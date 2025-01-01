@@ -19,18 +19,18 @@
 use crate::{REPLY_REPLY, SEND_REPLY};
 use gstd::msg;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let value = msg::load().unwrap_or(0);
     msg::send_bytes(msg::source(), [], value).expect("Failed to send message");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     msg::send(msg::source(), SEND_REPLY, 0).unwrap();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     msg::send(msg::source(), REPLY_REPLY, 0).unwrap();
 }

@@ -5,20 +5,20 @@ include!("rebuild_test.rs");
 use gstd::{debug, msg};
 
 #[cfg(feature = "a")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {}
 
 #[cfg(feature = "b")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_signal() {}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     debug!("handle()");
     msg::reply_bytes("Hello world!", 0).unwrap();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     debug!("init()");
 }

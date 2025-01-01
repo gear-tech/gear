@@ -67,7 +67,7 @@ pub struct TransitionController<'a, S: Storage> {
     pub transitions: &'a mut InBlockTransitions,
 }
 
-impl<'a, S: Storage> TransitionController<'a, S> {
+impl<S: Storage> TransitionController<'_, S> {
     pub fn update_state<T>(
         &mut self,
         program_id: ProgramId,

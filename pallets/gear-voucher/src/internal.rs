@@ -197,7 +197,7 @@ impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {
     pub fn contains(&self, program_id: ProgramId) -> bool {
         self.programs
             .as_ref()
-            .map_or(true, |v| v.contains(&program_id))
+            .is_none_or(|v| v.contains(&program_id))
     }
 }
 

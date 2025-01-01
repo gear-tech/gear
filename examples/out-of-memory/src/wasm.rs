@@ -18,7 +18,7 @@
 
 use alloc::alloc::Layout;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe {
         // Force rustc not to remove memory import

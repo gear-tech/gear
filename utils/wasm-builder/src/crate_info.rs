@@ -18,7 +18,7 @@
 
 use crate::{builder_error::BuilderError, multiple_crate_versions};
 use anyhow::{ensure, Context, Result};
-use cargo_metadata::{Metadata, MetadataCommand, Package};
+use cargo_metadata::{CrateType, Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
 
 /// Helper to get a crate info extracted from the `Cargo.toml`.
@@ -100,7 +100,7 @@ impl CrateInfo {
         // is the "compiler recommended" style of library.
         //
         // see also https://doc.rust-lang.org/reference/linkage.html
-        let validated_lib = |ty: &String| ty == "lib" || ty == "rlib";
+        let validated_lib = |ty: &CrateType| matches!(ty, CrateType::Lib | CrateType::RLib);
         let pkg_snake_case_name = pkg.name.replace('-', "_");
 
         // Check for rustc version. See https://github.com/rust-lang/cargo/pull/12783

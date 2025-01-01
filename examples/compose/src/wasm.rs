@@ -113,7 +113,7 @@ async fn main() {
         exec::gas_available()
     );
 
-    if let Ok(outcome) = (unsafe { STATE.compose(input) }).await {
+    if let Ok(outcome) = (unsafe { static_mut!(STATE).compose(input) }).await {
         debug!(
             "[0x{} compose::handle] Composition output: {outcome:?}",
             hex::encode(exec::program_id()),
@@ -122,7 +122,7 @@ async fn main() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let (program_a, program_b): (ActorId, ActorId) =
         msg::load().expect("Expecting two program addresses");

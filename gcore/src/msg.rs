@@ -75,7 +75,7 @@ fn value_ptr(value: &u128) -> *const u128 {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle_reply() {
 ///     let reply_code = msg::reply_code().expect("Unable to get reply code");
 /// }
@@ -99,7 +99,7 @@ pub fn reply_code() -> Result<ReplyCode> {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle_signal() {
 ///     let signal_code = msg::signal_code().expect("Unable to get signal code");
 /// }
@@ -124,7 +124,7 @@ pub fn signal_code() -> Result<Option<SignalCode>> {
 /// ```
 /// use gcore::{msg, MessageId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let current_message_id = msg::id();
 ///     if current_message_id != MessageId::zero() {
@@ -151,7 +151,7 @@ pub fn id() -> MessageId {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let mut payload = vec![0u8; msg::size()];
 ///     msg::read(&mut payload).expect("Unable to read");
@@ -182,7 +182,7 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::with_read_on_stack(|read_res| {
 ///         let payload: &mut [u8] = read_res.expect("Unable to read");
@@ -227,7 +227,7 @@ pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let mut payload = vec![0u8; msg::size() - 16];
 ///     msg::read_at(16, &mut payload).expect("Unable to read");
@@ -280,7 +280,7 @@ pub fn read_at(offset: usize, buffer: &mut [u8]) -> Result<()> {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply(b"PING", exec::value_available()).expect("Unable to reply");
 /// }
@@ -316,7 +316,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let reservation_id = exec::reserve_gas(5_000_000, 100).expect("Unable to reserve");
 ///     msg::reply_from_reservation(reservation_id, b"PING", 0).unwrap();
@@ -358,7 +358,7 @@ pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) ->
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_with_gas(b"PING", exec::gas_available() / 2, 0).expect("Unable to reply");
 /// }
@@ -412,7 +412,7 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello,").expect("Unable to push");
 ///     msg::reply_push(b" world!").expect("Unable to push");
@@ -442,7 +442,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello, ").expect("Unable to push");
 ///     msg::reply_push(b", world!").expect("Unable to push");
@@ -473,7 +473,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello,").expect("Unable to push");
 ///     msg::reply_push(b" world!").expect("Unable to push");
@@ -540,7 +540,7 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle_reply() {
 ///     let original_message_id = msg::reply_to().unwrap();
 /// }
@@ -565,7 +565,7 @@ pub fn reply_to() -> Result<MessageId> {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle_signal() {
 ///     let erroneous_message = msg::signal_from().unwrap();
 /// }
@@ -607,7 +607,7 @@ pub fn reply_input(value: u128, offset: u32, len: u32) -> Result<MessageId> {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_push_input(0, msg::size() as u32 / 2).expect("Unable to push");
 ///     msg::reply_commit(0).expect("Unable to commit");
@@ -658,7 +658,7 @@ pub fn reply_input_with_gas(
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::send_input(msg::source(), 0, 0, msg::size() as u32 / 2).expect("Unable to send");
 /// }
@@ -715,7 +715,7 @@ pub fn send_input_delayed(
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
@@ -750,7 +750,7 @@ pub fn send(destination: ActorId, payload: &[u8], value: u128) -> Result<Message
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     // Reserve 5 million of gas for 100 blocks
 ///     let reservation_id = exec::reserve_gas(5_000_000, 100).expect("Unable to reserve");
@@ -825,7 +825,7 @@ pub fn send_delayed_from_reservation(
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let msg_handle = msg::send_init().expect("Unable to init");
 ///     msg::send_push_input(msg_handle, 0, msg::size() as u32 / 2).expect("Unable to push");
@@ -897,7 +897,7 @@ pub fn send_input_with_gas_delayed(
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let reservation_id = exec::reserve_gas(5_000_000, 100).expect("Unable to reserve");
 ///     let msg_handle = msg::send_init().expect("Unable to init");
@@ -993,7 +993,7 @@ pub fn send_delayed(
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
 ///     msg::send_with_gas(id.into(), b"HELLO", 5_000_000, 42).expect("Unable to send");
@@ -1065,7 +1065,7 @@ pub fn send_with_gas_delayed(
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let msg_handle = msg::send_init().expect("Unable to init");
 ///     msg::send_push(msg_handle, b"Hello, ").expect("Unable to push");
@@ -1111,7 +1111,7 @@ pub fn send_commit_delayed(
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let msg_handle = msg::send_init().expect("Unable to init");
 ///     msg::send_push(msg_handle, b"Hello,").expect("Unable to push");
@@ -1178,7 +1178,7 @@ pub fn send_commit_with_gas_delayed(
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let msg_handle = msg::send_init().expect("Unable to init");
 ///     msg::send_push(msg_handle, b"Hello,").expect("Unable to push");
@@ -1215,7 +1215,7 @@ pub fn send_init() -> Result<MessageHandle> {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let msg_handle = msg::send_init().expect("Unable to init");
 ///     msg::send_push(msg_handle, b"Hello,").expect("Unable to push");
@@ -1255,7 +1255,7 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let payload_size = msg::size();
 /// }
@@ -1276,7 +1276,7 @@ pub fn size() -> usize {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let who_sends_message = msg::source();
 /// }
@@ -1297,7 +1297,7 @@ pub fn source() -> ActorId {
 /// ```
 /// use gcore::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let amount_sent_with_message = msg::value();
 /// }

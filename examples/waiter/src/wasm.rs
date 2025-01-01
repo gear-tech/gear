@@ -24,6 +24,7 @@ use core::ops::{Deref, DerefMut};
 use futures::future;
 use gstd::{
     exec, format, msg,
+    prelude::*,
     sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
@@ -107,40 +108,43 @@ async fn main() {
         Command::MxLock(lock_duration, continuation) => {
             let lock = if let Some(lock_duration) = lock_duration {
                 unsafe {
-                    MUTEX
+                    static_ref!(MUTEX)
                         .lock()
                         .own_up_for(lock_duration)
                         .expect("Failed to set mx lock ownership duration")
                 }
             } else {
-                unsafe { MUTEX.lock() }
+                unsafe { static_ref!(MUTEX).lock() }
             };
             let lock_guard = lock.await;
             process_mx_lock_continuation(
-                unsafe { &mut MUTEX_LOCK_GUARD },
+                unsafe { static_mut!(MUTEX_LOCK_GUARD) },
                 lock_guard,
                 continuation,
             )
             .await;
         }
         Command::MxLockStaticAccess(subcommand) => {
-            process_lock_static_access_subcommand_mut(unsafe { &mut MUTEX_LOCK_GUARD }, subcommand);
+            process_lock_static_access_subcommand_mut(
+                unsafe { static_mut!(MUTEX_LOCK_GUARD) },
+                subcommand,
+            );
         }
         Command::RwLock(lock_type, continuation) => {
             match lock_type {
                 RwLockType::Read => {
-                    let lock_guard = unsafe { RW_LOCK.read().await };
+                    let lock_guard = unsafe { static_ref!(RW_LOCK).read().await };
                     process_rw_lock_continuation(
-                        unsafe { &mut R_LOCK_GUARD },
+                        unsafe { static_mut!(R_LOCK_GUARD) },
                         lock_guard,
                         continuation,
                     )
                     .await;
                 }
                 RwLockType::Write => {
-                    let lock_guard = unsafe { RW_LOCK.write().await };
+                    let lock_guard = unsafe { static_ref!(RW_LOCK).write().await };
                     process_rw_lock_continuation(
-                        unsafe { &mut W_LOCK_GUARD },
+                        unsafe { static_mut!(W_LOCK_GUARD) },
                         lock_guard,
                         continuation,
                     )
@@ -150,10 +154,16 @@ async fn main() {
         }
         Command::RwLockStaticAccess(lock_type, subcommand) => match lock_type {
             RwLockType::Read => {
-                process_lock_static_access_subcommand(unsafe { &mut R_LOCK_GUARD }, subcommand);
+                process_lock_static_access_subcommand(
+                    unsafe { static_mut!(R_LOCK_GUARD) },
+                    subcommand,
+                );
             }
             RwLockType::Write => {
-                process_lock_static_access_subcommand_mut(unsafe { &mut W_LOCK_GUARD }, subcommand);
+                process_lock_static_access_subcommand_mut(
+                    unsafe { static_mut!(W_LOCK_GUARD) },
+                    subcommand,
+                );
             }
         },
     }
@@ -174,7 +184,7 @@ async fn process_mx_lock_continuation(
 ) {
     match continuation {
         MxLockContinuation::Lock => unsafe {
-            MUTEX.lock().await;
+            static_ref!(MUTEX).lock().await;
         },
         MxLockContinuation::General(continuation) => {
             process_lock_continuation(static_lock_guard, lock_guard, continuation).await

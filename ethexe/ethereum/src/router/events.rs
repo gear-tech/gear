@@ -98,7 +98,5 @@ pub fn try_extract_committed_block_hash(log: &Log) -> Result<Option<H256>> {
         return Ok(None);
     }
 
-    decode_log::<IRouter::BlockCommitted>(log)
-        .map(|e| Some(bytes32_to_h256(e.hash)))
-        .map_err(Into::into)
+    decode_log::<IRouter::BlockCommitted>(log).map(|e| Some(bytes32_to_h256(e.hash)))
 }
