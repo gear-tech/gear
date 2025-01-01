@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["LanguageId","MetadataParseError"],"struct":["MetaType","MetadataRepr","MetawasmData","PortableRegistry","Registry","TypesRepr"],"trait":["Metadata","Type","Types"],"type":["In","InOut","Out"]};
