@@ -19,6 +19,7 @@ import {WrappedVara} from "../src/WrappedVara.sol";
 import {IMirror, Mirror} from "../src/Mirror.sol";
 import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {IRouter, Router} from "../src/Router.sol";
+import {IMiddleware} from "../src/IMiddleware.sol";
 import {Middleware} from "../src/Middleware.sol";
 import {Gear} from "../src/libraries/Gear.sol";
 
@@ -68,7 +69,7 @@ contract Base is POCBaseTest {
         SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
         super.setUp();
 
-        Middleware.Config memory cfg = Middleware.Config({
+        Middleware.Config memory cfg = IMiddleware.Config({
             eraDuration: eraDuration,
             minVaultEpochDuration: eraDuration * 2,
             operatorGracePeriod: eraDuration * 2,
@@ -95,11 +96,13 @@ contract Base is POCBaseTest {
     function setUpRouter(address[] memory _validators) internal {
         require(admin != address(0), "Base: admin must be initialized");
         require(address(wrappedVara) != address(0), "Base: wrappedVara should be initialized");
+        require(address(middleware) != address(0), "Base: middleware should be initialized");
         require(eraDuration > 0, "Base: eraDuration should be greater than 0");
         require(electionDuration > 0, "Base: electionDuration should be greater than 0");
         require(blockDuration > 0, "Base: blockDuration should be greater than 0");
 
         address wrappedVaraAddress = address(wrappedVara);
+        address middlewareAddress = address(middleware);
 
         address mirrorAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 2);
         address mirrorProxyAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
@@ -117,6 +120,7 @@ contract Base is POCBaseTest {
                             mirrorAddress,
                             mirrorProxyAddress,
                             wrappedVaraAddress,
+                            middlewareAddress,
                             uint256(eraDuration),
                             uint256(electionDuration),
                             _validators
@@ -182,6 +186,20 @@ contract Base is POCBaseTest {
     function commitValidators(uint256[] memory _privateKeys, Gear.ValidatorsCommitment memory commitment) internal {
         bytes memory message = bytes.concat(Gear.validatorsCommitmentHash(commitment));
         router.commitValidators(commitment, signBytes(_privateKeys, message));
+    }
+
+    function commitRequestSlash(uint256[] memory _privateKeys, Gear.RequestSlashCommitment memory commitment)
+        internal
+    {
+        bytes memory message = bytes.concat(Gear.requestSlashCommitmentHash(commitment));
+        router.commitRequestSlash(commitment, signBytes(_privateKeys, message));
+    }
+
+    function commitExecuteSlash(uint256[] memory _privateKeys, Gear.ExecuteSlashCommitment memory commitment)
+        internal
+    {
+        bytes memory message = bytes.concat(Gear.executeSlashCommitmentHash(commitment));
+        router.commitExecuteSlash(commitment, signBytes(_privateKeys, message));
     }
 
     function commitCode(uint256[] memory _privateKeys, Gear.CodeCommitment memory _commitment) internal {

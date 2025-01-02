@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import {IMiddleware} from "./Middleware.sol";
 import {Gear} from "./libraries/Gear.sol";
 
 /// @title Gear.exe Router Interface
@@ -65,6 +66,18 @@ interface IRouter {
     /// @param codeId The code ID of the WASM implementation of the created program.
     event ProgramCreated(address actorId, bytes32 indexed codeId);
 
+    /**
+     * @dev Emitted when a slash request is processed by the middleware.
+     * @param slashData An array of SlashData structures containing details of the slash request.
+     */
+    event RequestSlashCommitmentProcessed(bytes32 indexed commitmentHash, IMiddleware.SlashData[] slashData);
+
+    /**
+     * @dev Emitted when a slash request is executed by the middleware.
+     * @param slashId An array of SlashIdentifier structures containing details of the slash execution.
+     */
+    event ExecuteSlashCommitmentProcessed(bytes32 indexed commitmentHash, IMiddleware.SlashIdentifier[] slashId);
+
     /// @notice Emitted when the router's storage slot has been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
     event StorageSlotChanged();
@@ -77,6 +90,7 @@ interface IRouter {
     function mirrorImpl() external view returns (address);
     function mirrorProxyImpl() external view returns (address);
     function wrappedVara() external view returns (address);
+    function middleware() external view returns (address);
 
     function areValidators(address[] calldata validators) external view returns (bool);
     function isValidator(address validator) external view returns (bool);
@@ -115,4 +129,12 @@ interface IRouter {
     /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(Gear.ValidatorsCommitment calldata validatorsCommitment, bytes[] calldata signatures)
         external;
+    function commitRequestSlash(
+        Gear.RequestSlashCommitment calldata requestSlashCommitment,
+        bytes[] calldata signatures
+    ) external;
+    function commitExecuteSlash(
+        Gear.ExecuteSlashCommitment calldata executeSlashCommitment,
+        bytes[] calldata signatures
+    ) external;
 }
