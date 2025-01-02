@@ -156,6 +156,7 @@ impl Ethereum {
                     _wrappedVara: wvara_address,
                     _eraDuration: U256::from(24 * 60 * 60),
                     _electionDuration: U256::from(2 * 60 * 60),
+                    _validationDelay: U256::from(60),
                     _validators: validators,
                 }
                 .abi_encode(),

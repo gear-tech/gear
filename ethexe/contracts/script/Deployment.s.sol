@@ -48,6 +48,7 @@ contract DeploymentScript is Script {
                         address(wrappedVara),
                         1 days,
                         2 hours,
+                        1 minutes,
                         validatorsArray
                     )
                 )
