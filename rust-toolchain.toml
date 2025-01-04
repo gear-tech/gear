@@ -1,8 +1,5 @@
 [toolchain]
 channel = "nightly-2025-01-01"
-components = [ "llvm-tools", "rust-src" ]
-targets = [ "wasm32-unknown-unknown", "wasm32v1-none" ]
+components = [ "llvm-tools" ]
+targets = [ "wasm32v1-none" ]
 profile = "default"
-
-# TODO: remove `rust-src` component  and `wasm32-unknown-unknown` target
-# https://github.com/paritytech/polkadot-sdk/issues/5777#issuecomment-2543116540
