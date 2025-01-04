@@ -406,7 +406,6 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
                 }
                 Ok(())
             })
-            .map_err(Into::into)
     }
 
     fn reduce_gas(&mut self, limit: GasLimit) -> Result<(), FallibleExtError> {

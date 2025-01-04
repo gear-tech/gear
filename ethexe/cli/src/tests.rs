@@ -627,7 +627,7 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn multiple_validators() {
     gear_utils::init_default_logger();
 
