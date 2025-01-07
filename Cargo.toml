@@ -113,7 +113,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = "0.8.0"
+alloy = "0.9.1"
 anyhow = { version = "1.0.86", default-features = false }
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"

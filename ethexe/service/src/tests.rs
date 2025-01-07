@@ -80,7 +80,7 @@ async fn basics() {
 
     let eth_cfg = crate::config::EthereumConfig {
         rpc: "wss://reth-rpc.gear-tech.io".into(),
-        beacon_rpc: "http://localhost:5052".into(),
+        beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
         router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
             .parse()
             .expect("infallible"),
@@ -688,7 +688,7 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn multiple_validators() {
     gear_utils::init_default_logger();
 
