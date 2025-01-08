@@ -58,7 +58,6 @@ pub struct Params {
 
     /// Prometheus (metrics) service parameters.
     #[clap(flatten)]
-    #[serde(alias = "prom")]
     pub prometheus: Option<PrometheusParams>,
 }
 
@@ -89,7 +88,7 @@ impl Params {
                 .network
                 .and_then(|p| p.into_config(net_dir).transpose())
                 .transpose()?,
-            rpc: dbg!(self.rpc.and_then(|p| p.into_config())),
+            rpc: self.rpc.and_then(|p| p.into_config()),
             prometheus: self.prometheus.and_then(|p| p.into_config()),
         })
     }

@@ -27,23 +27,23 @@ use std::net::{Ipv4Addr, SocketAddr};
 #[serde(deny_unknown_fields)]
 pub struct PrometheusParams {
     /// Node name in prometheus monitoring.
-    #[arg(long, alias = "prom-name")]
+    #[arg(long)]
     #[serde(rename = "name")]
     pub prometheus_name: Option<String>,
 
     /// Port to expose prometheus metrics.
-    #[arg(long, alias = "prom-port")]
+    #[arg(long)]
     #[serde(rename = "port")]
     pub prometheus_port: Option<u16>,
 
     /// Flag to expose prometheus metrics on all interfaces.
-    #[arg(long, alias = "prom-external")]
+    #[arg(long)]
     #[serde(default, rename = "external")]
     pub prometheus_external: bool,
 
     /// Flag to disable prometheus metrics.
-    #[arg(long, alias = "no-prom")]
-    #[serde(default, rename = "no-prometheus", alias = "no-prom")]
+    #[arg(long)]
+    #[serde(default, rename = "no-prometheus")]
     pub no_prometheus: bool,
 }
 

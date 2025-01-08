@@ -39,7 +39,7 @@ impl Config {
         log::info!("💾 Database: {}", self.node.database_path.display());
         log::info!("🔑 Key directory: {}", self.node.key_path.display());
         if let Some(net_config) = &self.network {
-            log::info!("🛜 Network directory: {}", net_config.config_dir.display());
+            log::info!("🛜  Network directory: {}", net_config.config_dir.display());
         }
         log::info!("⧫  Ethereum observer RPC: {}", self.ethereum.rpc);
         log::info!(
