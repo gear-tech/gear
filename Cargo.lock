@@ -2233,7 +2233,7 @@ dependencies = [
  "semver 1.0.18",
  "serde",
  "serde_json",
- "thiserror 2.0.6",
+ "thiserror 2.0.9",
 ]
 
 [[package]]
