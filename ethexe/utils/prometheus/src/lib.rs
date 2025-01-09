@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use anyhow::{anyhow, Result};
+use ethexe_observer::ObserverStatus;
+use ethexe_sequencer::SequencerStatus;
+use ethexe_utils::metrics::register_globals;
 use hyper::{
     http::StatusCode,
     server::Server,
@@ -32,11 +36,185 @@ pub use prometheus::{
     Registry,
 };
 use prometheus::{core::Collector, Encoder, TextEncoder};
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    time::{Duration, Instant, SystemTime},
+};
+use tokio::{sync::watch::Receiver, time};
 
 mod sourced;
 
 pub use sourced::{MetricSource, SourcedCounter, SourcedGauge, SourcedMetric};
+
+#[derive(Debug, Clone)]
+pub struct PrometheusConfig {
+    pub name: String,
+    pub addr: SocketAddr,
+    pub registry: Registry,
+}
+
+impl PrometheusConfig {
+    /// Create a new config using the default registry.
+    pub fn new_with_default_registry(name: String, addr: SocketAddr) -> Self {
+        let labels = [("chain".into(), "ethexe-dev".into())].into();
+        let registry = Registry::new_custom(None, Some(labels))
+            .expect("this can only fail if prefix is empty string");
+
+        Self {
+            name,
+            addr,
+            registry,
+        }
+    }
+}
+
+pub struct MetricsService {
+    metrics: PrometheusMetrics,
+    updated: Instant,
+}
+
+impl MetricsService {
+    pub fn new(config: &PrometheusConfig) -> Result<Self> {
+        let svc = PrometheusMetrics::setup(&config.registry, &config.name)
+            .map(|metrics| MetricsService {
+                metrics,
+                updated: Instant::now(),
+            })
+            .map_err(|e| anyhow!("Failed to create `MetricsService`: {e}"))?;
+
+        Ok(svc)
+    }
+
+    pub async fn run(
+        mut self,
+        mut observer_status: Receiver<ObserverStatus>,
+        mut sequencer_status: Option<Receiver<SequencerStatus>>,
+    ) -> ! {
+        let mut interval = time::interval(Duration::from_secs(6));
+
+        loop {
+            interval.tick().await;
+
+            self.metrics.update(
+                *observer_status.borrow_and_update(),
+                sequencer_status.as_mut().map(|s| *s.borrow_and_update()),
+            );
+            self.updated = Instant::now();
+        }
+    }
+}
+
+struct PrometheusMetrics {
+    eth_block_height: Gauge<U64>,
+    pending_upload_code: Gauge<U64>,
+    last_router_state: Gauge<U64>,
+    aggregated_commitments: Gauge<U64>,
+    submitted_code_commitments: Gauge<U64>,
+    submitted_block_commitments: Gauge<U64>,
+}
+
+impl PrometheusMetrics {
+    fn setup(registry: &Registry, name: &str) -> Result<Self, PrometheusError> {
+        register(
+            Gauge::<U64>::with_opts(
+                Opts::new(
+                    "ethexe_build_info",
+                    "A metric with a constant '1' value labeled by name, version",
+                )
+                .const_label("name", name),
+            )?,
+            registry,
+        )?
+        .set(1);
+
+        register_globals(registry)?;
+
+        let start_time_since_epoch = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default();
+
+        register(
+            Gauge::<U64>::new(
+                "ethexe_process_start_time_seconds",
+                "Number of seconds between the UNIX epoch and the moment the process started",
+            )?,
+            registry,
+        )?
+        .set(start_time_since_epoch.as_secs());
+
+        Ok(Self {
+            // generic internals
+            eth_block_height: register(
+                Gauge::<U64>::new(
+                    "ethexe_eth_block_height",
+                    "Block height info of the ethereum observer",
+                )?,
+                registry,
+            )?,
+
+            pending_upload_code: register(
+                Gauge::<U64>::new(
+                    "ethexe_pending_upload_code",
+                    "Pending upload code events of the ethereum observer",
+                )?,
+                registry,
+            )?,
+
+            last_router_state: register(
+                Gauge::<U64>::new(
+                    "ethexe_last_router_state",
+                    "Block height of the latest state of the router contract",
+                )?,
+                registry,
+            )?,
+
+            aggregated_commitments: register(
+                Gauge::<U64>::new(
+                    "ethexe_aggregated_commitments",
+                    "Number of commitments aggregated in sequencer",
+                )?,
+                registry,
+            )?,
+
+            submitted_code_commitments: register(
+                Gauge::<U64>::new(
+                    "ethexe_submitted_code_commitments",
+                    "Number of submitted code commitments in sequencer",
+                )?,
+                registry,
+            )?,
+
+            submitted_block_commitments: register(
+                Gauge::<U64>::new(
+                    "ethexe_submitted_block_commitments",
+                    "Number of submitted block commitments in sequencer",
+                )?,
+                registry,
+            )?,
+        })
+    }
+
+    fn update(
+        &mut self,
+        observer_status: ObserverStatus,
+        maybe_sequencer_status: Option<SequencerStatus>,
+    ) {
+        self.eth_block_height.set(observer_status.eth_block_number);
+        self.pending_upload_code
+            .set(observer_status.pending_upload_code);
+        self.last_router_state
+            .set(observer_status.last_router_state);
+
+        if let Some(sequencer_status) = maybe_sequencer_status {
+            self.aggregated_commitments
+                .set(sequencer_status.aggregated_commitments);
+            self.submitted_code_commitments
+                .set(sequencer_status.submitted_code_commitments);
+            self.submitted_block_commitments
+                .set(sequencer_status.submitted_block_commitments);
+        }
+    }
+}
 
 pub fn register<T: Clone + Collector + 'static>(
     metric: T,
