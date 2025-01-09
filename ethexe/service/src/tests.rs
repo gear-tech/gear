@@ -18,7 +18,10 @@
 
 //! Integration tests.
 
-use crate::service::Service;
+use crate::{
+    config::{self, Config},
+    Service,
+};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider},
@@ -33,6 +36,8 @@ use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
+use ethexe_prometheus::PrometheusConfig;
+use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
@@ -45,14 +50,70 @@ use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
+    net::{Ipv4Addr, SocketAddr},
     sync::Arc,
     time::Duration,
 };
+use tempfile::tempdir;
 use tokio::{
     sync::oneshot,
     task::{self, JoinHandle},
 };
 use utils::{NodeConfig, TestEnv, TestEnvConfig};
+
+#[tokio::test]
+async fn basics() {
+    gear_utils::init_default_logger();
+
+    let tmp_dir = tempdir().unwrap();
+    let tmp_dir = tmp_dir.path().to_path_buf();
+
+    let node_cfg = config::NodeConfig {
+        database_path: tmp_dir.join("db"),
+        key_path: tmp_dir.join("key"),
+        sequencer: Default::default(),
+        validator: Default::default(),
+        max_commitment_depth: 1_000,
+        worker_threads_override: None,
+        virtual_threads: 16,
+    };
+
+    let eth_cfg = crate::config::EthereumConfig {
+        rpc: "wss://reth-rpc.gear-tech.io".into(),
+        beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
+        router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
+            .parse()
+            .expect("infallible"),
+        block_time: Duration::from_secs(12),
+    };
+
+    let mut config = Config {
+        node: node_cfg,
+        ethereum: eth_cfg,
+        network: None,
+        rpc: None,
+        prometheus: None,
+    };
+
+    Service::new(&config).await.unwrap();
+
+    // Enable all optional services
+    config.network = Some(ethexe_network::NetworkEventLoopConfig::new_local(
+        tmp_dir.join("net"),
+    ));
+
+    config.rpc = Some(RpcConfig {
+        listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
+        cors: None,
+    });
+
+    config.prometheus = Some(PrometheusConfig::new_with_default_registry(
+        "DevNode".into(),
+        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
+    ));
+
+    Service::new(&config).await.unwrap();
+}
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
@@ -1091,6 +1152,7 @@ mod utils {
         }
     }
 
+    // TODO (breathx): remove me in favor of crate::config::NodeConfig.
     #[derive(Default)]
     pub struct NodeConfig {
         /// Database, if not provided, will be created with MemDb.
