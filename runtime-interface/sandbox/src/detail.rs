@@ -79,7 +79,7 @@ thread_local! {
 /// Also sets the store clear counter limit, which is used to clear the store after reaching a certain limit.
 pub fn init(sandbox_backend: sandbox_env::SandboxBackend, store_clear_counter_limit: u32) {
     SANDBOX_BACKEND_TYPE.store(sandbox_backend, Ordering::SeqCst);
-    SANDBOX_STORE_CLEAR_COUNTER_LIMIT.store(store_clear_counter, Ordering::SeqCst);
+    SANDBOX_STORE_CLEAR_COUNTER_LIMIT.store(store_clear_counter_limit, Ordering::SeqCst);
 }
 
 struct SupervisorContext<'a, 'b> {
