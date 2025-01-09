@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::{cell::RefCell, sync::atomic::Ordering};
+use core::{
+    cell::RefCell,
+    sync::atomic::{AtomicU32, Ordering},
+};
 
 use codec::{Decode, Encode};
 use gear_sandbox_host::sandbox::{self as sandbox_env, env::Instantiate};
@@ -51,7 +54,7 @@ impl Sandboxes {
     // Clears the underlying store if the counter exceeds the limit.
     pub fn clear(&mut self) {
         SANDBOX_STORE_CLEAR_COUNTER.with_borrow_mut(|c| {
-            if *c >= SANDBOX_STORE_CLEAR_COUNTER_LIMIT {
+            if *c >= SANDBOX_STORE_CLEAR_COUNTER_LIMIT.load(Ordering::SeqCst) {
                 *c = 0;
                 self.store.clear();
             }
@@ -73,8 +76,10 @@ thread_local! {
 
 /// Sets the global sandbox backend type.
 /// Buy default, it's set to `Wasmer`, so in case of `Wasmer` it's not necessary to call this function.
-pub fn init(sandbox_backend: sandbox_env::SandboxBackend) {
+/// Also sets the store clear counter limit, which is used to clear the store after reaching a certain limit.
+pub fn init(sandbox_backend: sandbox_env::SandboxBackend, store_clear_counter_limit: u32) {
     SANDBOX_BACKEND_TYPE.store(sandbox_backend, Ordering::SeqCst);
+    SANDBOX_STORE_CLEAR_COUNTER_LIMIT.store(store_clear_counter, Ordering::SeqCst);
 }
 
 struct SupervisorContext<'a, 'b> {
@@ -605,7 +610,7 @@ pub fn set_global_val(
     method_result
 }
 
-const SANDBOX_STORE_CLEAR_COUNTER_LIMIT: u32 = 50;
+static SANDBOX_STORE_CLEAR_COUNTER_LIMIT: AtomicU32 = AtomicU32::new(50);
 
 thread_local! {
     static SANDBOX_STORE_CLEAR_COUNTER: RefCell<u32> = const { RefCell::new(0) };
