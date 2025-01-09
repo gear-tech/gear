@@ -2,7 +2,7 @@
 FROM amazonlinux:2023 as builder
 
 ARG PROFILE=production
-ARG TOOLCHAIN=nightly-2025-01-01
+ARG TOOLCHAIN=nightly-2025-01-09
 
 RUN yum update -y && \
     yum install -y clang gcc git gzip make tar wget unzip && \
