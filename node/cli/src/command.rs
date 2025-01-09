@@ -138,7 +138,7 @@ pub fn run() -> sc_cli::Result<()> {
             SandboxBackend::Wasmer => gear_runtime_interface::SandboxBackend::Wasmer,
             SandboxBackend::Wasmi => gear_runtime_interface::SandboxBackend::Wasmi,
         },
-        cli.run.sandbox_store_clear_counter_limit,
+        cli.run.sandbox_store_clear_counter_limit.into(),
     );
 
     let old_base = BasePath::from_project("", "", "gear-node");
