@@ -67,7 +67,7 @@ impl Workspace {
             let version = if let Some(version) = version {
                 version
             } else {
-                workspace.version()? + "-" + &version::hash()?
+                workspace.version()? + "-" + &version::hash()? + "commit"
             };
 
             workspace.mutable_manifest["workspace"]["package"]["version"] =
