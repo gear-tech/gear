@@ -525,6 +525,8 @@ pub struct SyscallWeights {
     pub gr_create_program_wgas_payload_per_byte: Weight,
     #[doc = " Weight per salt byte by `create_program_wgas`."]
     pub gr_create_program_wgas_salt_per_byte: Weight,
+    #[doc = " Weight of calling `gr_permute`."]
+    pub gr_permute: Weight,
 }
 
 impl Default for SyscallWeights {
@@ -808,6 +810,10 @@ impl Default for SyscallWeights {
             },
             gr_create_program_wgas_salt_per_byte: Weight {
                 ref_time: 1591,
+                proof_size: 0,
+            },
+            gr_permute: Weight {
+                ref_time: 4901557,
                 proof_size: 0,
             },
         }
@@ -1189,6 +1195,7 @@ impl From<SyscallWeights> for SyscallCosts {
                 .gr_create_program_wgas_salt_per_byte
                 .ref_time()
                 .into(),
+            gr_permute: val.gr_permute.ref_time().into(),
         }
     }
 }

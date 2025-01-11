@@ -107,6 +107,8 @@ pub enum Kind {
     SystemReserveGas(u64),
     // Param(deposit amount)
     ReplyDeposit(u64),
+    // Param(input), Expected(hash)
+    Permute([u64; 12], [u64; 12]),
 }
 
 #[cfg(not(feature = "wasm-wrapper"))]

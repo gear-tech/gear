@@ -24,7 +24,7 @@ use gear_wasm_builder::{
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 76] = [
+const RT_ALLOWED_IMPORTS: [&str; 77] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -114,6 +114,8 @@ const RT_ALLOWED_IMPORTS: [&str; 76] = [
     // From `GearBls12_381`
     "ext_gear_bls_12_381_aggregate_g1_version_1",
     "ext_gear_bls_12_381_map_to_g2affine_version_1",
+    // From `PoseidonHash`
+    "ext_poseidon_hash_poseidon_version_1",
 ];
 
 #[derive(Debug, clap::Parser)]
