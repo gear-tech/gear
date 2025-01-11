@@ -46,6 +46,7 @@ use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
+use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
@@ -201,6 +202,149 @@ async fn ping() {
     assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.reply_payload, b"");
     assert_eq!(res.reply_value, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn uninitialized_program() {
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let sequencer_public_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_async_init::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    // Case #1: Init failed due to panic in init (decoding).
+    {
+        let res = env
+            .create_program(code_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
+        assert_eq!(res.reply_code, expected_err);
+
+        let res = env
+            .send_message(res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        assert_eq!(res.reply_code, expected_err);
+    }
+
+    // Case #2: async init, replies are acceptable.
+    {
+        let init_payload = demo_async_init::InputArgs {
+            approver_first: env.sender_id,
+            approver_second: env.sender_id,
+            approver_third: env.sender_id,
+        }
+        .encode();
+
+        let mut listener = env.events_publisher().subscribe().await;
+
+        let init_res = env.create_program(code_id, &init_payload, 0).await.unwrap();
+
+        let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
+
+        let mut msgs_for_reply = vec![];
+
+        listener
+            .apply_until_block_event(|event| match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event:
+                        MirrorEvent::Message {
+                            id, destination, ..
+                        },
+                } if actor_id == init_res.program_id && destination == env.sender_id => {
+                    msgs_for_reply.push(id);
+
+                    if msgs_for_reply.len() == 3 {
+                        Ok(Some(()))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                _ => Ok(None),
+            })
+            .await
+            .unwrap();
+
+        // Handle message to uninitialized program.
+        let res = env
+            .send_message(init_res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        assert_eq!(res.reply_code, expected_err);
+        // Checking further initialisation.
+
+        // Required replies.
+        for mid in msgs_for_reply {
+            mirror.send_reply(mid, [], 0).await.unwrap();
+        }
+
+        // Success end of initialisation.
+        let reply_code = listener
+            .apply_until_block_event(|event| match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event:
+                        MirrorEvent::Reply {
+                            reply_code,
+                            reply_to,
+                            ..
+                        },
+                } if actor_id == init_res.program_id && reply_to == init_res.message_id => {
+                    Ok(Some(reply_code))
+                }
+                _ => Ok(None),
+            })
+            .await
+            .unwrap();
+
+        assert!(reply_code.is_success());
+
+        // Handle message handled, but panicked due to incorrect payload as expected.
+        let res = env
+            .send_message(res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
+        assert_eq!(res.reply_code, expected_err);
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1070,11 +1214,12 @@ mod utils {
 
             mirror.executable_balance_top_up(EXECUTABLE_BALANCE).await?;
 
-            mirror.send_message(payload, value).await?;
+            let (_, message_id) = mirror.send_message(payload, value).await?;
 
             Ok(WaitForProgramCreation {
                 listener,
                 program_id,
+                message_id,
             })
         }
 
@@ -1483,14 +1628,13 @@ mod utils {
     pub struct WaitForProgramCreation {
         listener: EventsListener,
         pub program_id: ActorId,
+        pub message_id: MessageId,
     }
 
     #[derive(Debug)]
     pub struct ProgramCreationInfo {
         pub program_id: ActorId,
         pub code_id: CodeId,
-        #[allow(unused)]
-        pub init_message_id: MessageId,
         pub init_message_source: ActorId,
         pub init_message_payload: Vec<u8>,
         pub init_message_value: u128,
@@ -1518,21 +1662,19 @@ mod utils {
                         BlockEvent::Mirror { actor_id, event } if actor_id == self.program_id => {
                             match event {
                                 MirrorEvent::MessageQueueingRequested {
-                                    id,
                                     source,
                                     payload,
                                     value,
+                                    ..
                                 } => {
-                                    init_message_info = Some((id, source, payload, value));
+                                    init_message_info = Some((source, payload, value));
                                 }
                                 MirrorEvent::Reply {
                                     payload,
                                     reply_to,
                                     reply_code,
                                     value,
-                                } if init_message_info.as_ref().map(|(id, ..)| *id)
-                                    == Some(reply_to) =>
-                                {
+                                } if self.message_id == reply_to => {
                                     reply_info = Some((payload, reply_code, value));
                                     return Ok(Some(()));
                                 }
@@ -1546,7 +1688,7 @@ mod utils {
                 .await?;
 
             let code_id = code_id_info.expect("Code ID must be set");
-            let (init_message_id, init_message_source, init_message_payload, init_message_value) =
+            let (init_message_source, init_message_payload, init_message_value) =
                 init_message_info.expect("Init message info must be set");
             let (reply_payload, reply_code, reply_value) =
                 reply_info.expect("Reply info must be set");
@@ -1554,7 +1696,6 @@ mod utils {
             Ok(ProgramCreationInfo {
                 program_id: self.program_id,
                 code_id,
-                init_message_id,
                 init_message_source,
                 init_message_payload,
                 init_message_value,
