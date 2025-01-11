@@ -47,6 +47,7 @@ pub fn patch(pkg: &Package, is_published: bool) -> Result<Manifest> {
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
         "gear-sandbox-interface" => sandbox_interface::patch(doc),
+        "gear-runtime-interface" => runtime_interface::patch(doc),
         "gmeta" => gmeta::patch(doc),
         "gmeta-codegen" => gmeta_codegen::patch(doc),
         _ => {}
@@ -158,6 +159,26 @@ mod sandbox {
 
 /// sandbox interface handler
 mod sandbox_interface {
+    use super::GP_RUNTIME_INTERFACE_VERSION;
+    use toml_edit::DocumentMut;
+
+    /// Patch the manifest of runtime-interface.
+    ///
+    /// We need to patch the manifest of package again because
+    /// `sp_runtime_interface_proc_macro` includes some hardcode
+    /// that could not locate alias packages.
+    pub fn patch(manifest: &mut DocumentMut) {
+        let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_like_mut() else {
+            return;
+        };
+        wi.insert("version", toml_edit::value(GP_RUNTIME_INTERFACE_VERSION));
+        wi.insert("package", toml_edit::value("gp-runtime-interface"));
+        wi.remove("workspace");
+    }
+}
+
+/// runtime interface handler
+mod runtime_interface {
     use super::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::DocumentMut;
 
