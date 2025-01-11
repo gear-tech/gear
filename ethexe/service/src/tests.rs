@@ -1290,7 +1290,7 @@ mod utils {
             self
         }
 
-        #[allow(dead_code)]
+        #[allow(unused)]
         pub fn block_time(mut self, block_time: Duration) -> Self {
             self.block_time = block_time;
             self
