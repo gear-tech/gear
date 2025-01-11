@@ -71,6 +71,12 @@ impl From<Signature> for RawSignature {
 pub struct Signature([u8; 65]);
 
 impl Signature {
+    /// # Safety
+    /// This function is unsafe because it does not check the validity of the input bytes.
+    pub const unsafe fn from_bytes(bytes: [u8; 65]) -> Self {
+        Self(bytes)
+    }
+
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
     }
