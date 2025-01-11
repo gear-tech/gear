@@ -46,6 +46,7 @@ use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
+use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
@@ -201,6 +202,62 @@ async fn ping() {
     assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.reply_payload, b"");
     assert_eq!(res.reply_value, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn uninitialized_program() {
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let sequencer_public_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_async_init::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    // Case #1: Init failed due to panic in init (decoding).
+    {
+        let res = env
+            .create_program(code_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
+        assert_eq!(res.reply_code, expected_err);
+
+        let res = env
+            .send_message(res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        assert_eq!(res.reply_code, expected_err);
+    }
+
+    // Case #2: async init, only replies are acceptable.
+    {}
 }
 
 #[tokio::test(flavor = "multi_thread")]
