@@ -30,7 +30,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32v1-none
-          components: llvm-tools
 
       - name: "Publish packages (simulate)"
         if: ${{ !inputs.publish }}

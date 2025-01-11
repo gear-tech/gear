@@ -112,8 +112,6 @@ impl GBuild {
             kargo.set_profile(profile);
         }
 
-        // TODO: not sure how to set target dir here
-
         // 2. setup gbuild artifacts.
         let artifacts = Artifacts::new(
             target_dir.join(ARTIFACT_DIR),

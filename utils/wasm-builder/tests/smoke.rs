@@ -57,8 +57,6 @@ fn install_stable_toolchain() {
             .arg("toolchain")
             .arg("install")
             .arg("stable")
-            .arg("--component")
-            .arg("llvm-tools")
             .arg("--target")
             .arg("wasm32v1-none")
             .status()

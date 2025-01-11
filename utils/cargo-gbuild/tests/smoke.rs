@@ -90,8 +90,6 @@ fn test_program_tests() {
                     "toolchain",
                     "install",
                     "stable",
-                    "--component",
-                    "llvm-tools",
                     "--target",
                     "wasm32v1-none",
                 ])
