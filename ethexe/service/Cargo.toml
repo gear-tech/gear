@@ -65,7 +65,9 @@ alloy = { workspace = true, features = [
 ] }
 ntest = "0.9.3"
 gear-core.workspace = true
+gear-core-errors.workspace = true
 gear-utils.workspace = true
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
+demo-async-init = { workspace = true, features = ["debug", "ethexe"] }
