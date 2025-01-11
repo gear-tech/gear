@@ -213,7 +213,8 @@ where
     // to process message, if it's a reply or init message.
     // Otherwise, we return error reply.
     if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
-        todo!("Process messages to uninitialized program");
+        log::trace!("Program {program_id} is not yet finished initialization, so cannot process handle message");
+        return core_processor::process_non_executable(context);
     }
 
     // TODO: support normal allocations len #4068
