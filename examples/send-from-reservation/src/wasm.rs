@@ -22,7 +22,7 @@ use gstd::{msg, prelude::*, ReservationId};
 #[derive(Debug, Encode, Decode)]
 pub struct Receive([u8; 32]);
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let action: HandleAction = msg::load().expect("Failed to load handle payload");
     match action {
@@ -84,7 +84,7 @@ extern "C" fn handle() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     let Receive(user) = msg::load().expect("Failed to load handle payload");
     assert_eq!(msg::value(), 900);

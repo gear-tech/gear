@@ -82,7 +82,7 @@ async fn main() {
 
     assert_eq!(message, b"PING");
 
-    let requests = unsafe { ARGUMENTS.iter() }
+    let requests = unsafe { static_ref!(ARGUMENTS).iter() }
         .map(|&addr| ping_reply_fut(addr))
         .collect::<Vec<_>>();
 

@@ -21,19 +21,19 @@ use gstd::{msg, prelude::*, Reservations};
 
 static mut RESERVATIONS: Reservations = Reservations::new();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let action: Action = msg::load().expect("Failed to load message");
 
     unsafe {
         match action {
             Action::Reserve { amount, duration } => {
-                RESERVATIONS
+                static_mut!(RESERVATIONS)
                     .reserve(amount, duration)
                     .expect("Failed to reserve gas");
             }
             Action::SendMessageFromReservation { gas_amount } => {
-                let reservation = RESERVATIONS.try_take_reservation(gas_amount);
+                let reservation = static_mut!(RESERVATIONS).try_take_reservation(gas_amount);
                 if let Some(reservation) = reservation {
                     msg::send_bytes_from_reservation(reservation.id(), msg::source(), [], 0)
                         .expect("Failed to send message from reservation");

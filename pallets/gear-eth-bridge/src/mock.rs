@@ -119,7 +119,9 @@ mod grandpa_keys_handler {
             let validators: Vec<_> = validators.collect();
             let queued_validators: Vec<_> = queued_validators.collect();
 
-            log::debug!("on_new_session(changed={changed}, validators={validators:?}, queued_validators={queued_validators:?})");
+            log::debug!(
+                "on_new_session(changed={changed}, validators={validators:?}, queued_validators={queued_validators:?})"
+            );
 
             Grandpa::on_new_session(
                 changed,

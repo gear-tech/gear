@@ -39,7 +39,7 @@ mod wasm {
     static ALLOCATOR: RuntimeAllocator = RuntimeAllocator;
 
     #[cfg(target_arch = "wasm32")]
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn _start() {
         __start()
     }

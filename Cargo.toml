@@ -5,7 +5,7 @@ edition = "2021"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.81"
+rust-version = "1.82"
 
 [workspace]
 resolver = "2"
@@ -123,8 +123,8 @@ base64 = "0.21.7"
 byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
-cargo_toml = "0.19.2"
-cargo_metadata = "0.18.1"
+cargo_toml = "0.21.0"
+cargo_metadata = "0.19.1"
 clap = "4.5.8"
 codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false }
 color-eyre = "0.6.3"
@@ -557,7 +557,7 @@ bytes = "1.8.0"                                              # utils/gear-wasmer
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
 
 [profile.dev.package.corosensei]
 opt-level = 3

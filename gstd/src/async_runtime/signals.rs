@@ -81,7 +81,9 @@ impl WakeSignals {
 
             crate::exec::wake(signal.message_id).expect("Failed to wake the message")
         } else {
-            crate::debug!("A message has received a reply though it wasn't to receive one, or a processed message has received a reply");
+            crate::debug!(
+                "A message has received a reply though it wasn't to receive one, or a processed message has received a reply"
+            );
         }
     }
 
