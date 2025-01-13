@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// NOTE: Don't use `gstd` here without `wasm-wrapper` feature.
+// NOTE: Don't use `gstd` here with `wasm-wrapper` feature enabled.
 use crate::{Arg, Call};
 use alloc::{string::ToString, vec, vec::Vec};
 use core::{fmt::Debug, ops::Deref};
