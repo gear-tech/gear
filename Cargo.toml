@@ -551,7 +551,7 @@ smallvec = "1.13.2"                                          # utils/node-wrappe
 fs4 = "0.11.1"                                               # utils/gear-wasmer-cache
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
-wasm-smith = "0.220.0"                                       # utils/wasm-gen
+wasm-smith = { version = "0.220.0", features = ["wasmparser"] } # utils/wasm-gen
 wasm-encoder = { version = "0.222", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
 
 [workspace.lints.rust]

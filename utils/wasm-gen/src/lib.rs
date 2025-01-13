@@ -38,11 +38,10 @@ mod wasm;
 
 pub use config::*;
 pub use gear_wasm_instrument::syscalls::SyscallName;
+use gear_wasm_instrument::Module;
 pub use generator::*;
 pub use wasm::{MemoryLayout, WasmModule};
 pub use wasm_gen_arbitrary::*;
-
-use gear_wasm_instrument::parity_wasm::{self, elements::Module};
 
 /// Generate gear program as raw bytes.
 pub fn generate_gear_program_code(
@@ -51,7 +50,7 @@ pub fn generate_gear_program_code(
 ) -> Result<Vec<u8>> {
     let module = generate_gear_program_module(u, configs_bundle)?;
 
-    let bytes = parity_wasm::serialize(module).expect("unable to serialize pw module");
+    let bytes = module.serialize().expect("unable to serialize pw module");
 
     log::trace!(
         "{}",

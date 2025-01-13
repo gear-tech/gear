@@ -24,12 +24,10 @@ use crate::{
 };
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::{
-    parity_wasm::{
-        builder,
-        elements::{Instruction, Section},
-    },
+    module::{ConstExpr, Export, Global, Import, Instruction, ModuleBuilder},
     STACK_END_EXPORT_NAME,
 };
+use wasmparser::{ExternalKind, GlobalType, MemoryType, TypeRef, ValType};
 
 /// Memory import generator.
 ///
@@ -45,10 +43,19 @@ impl<'a, 'b> From<GearWasmGenerator<'a, 'b>>
     for (MemoryGenerator, FrozenGearWasmGenerator<'a, 'b>)
 {
     fn from(generator: GearWasmGenerator<'a, 'b>) -> Self {
-        let mem_generator = MemoryGenerator {
+        let mut mem_generator = MemoryGenerator {
             config: generator.config.memory_config,
             module: generator.module,
         };
+
+        mem_generator.module.with(|module| {
+            log::error!(
+                "GEN_MEM::from: {}",
+                wasmprinter::print_bytes(&module.serialize().unwrap()).unwrap()
+            );
+            (module, ())
+        });
+
         let frozen = FrozenGearWasmGenerator {
             config: generator.config,
             unstructured: Some(generator.unstructured),
@@ -94,45 +101,52 @@ impl MemoryGenerator {
 
         // Define memory import in the module
         module.with(|module| {
-            let mut module = builder::from_module(module)
-                .import()
-                .module("env")
-                .field(Self::MEMORY_FIELD_NAME)
-                .external()
-                .memory(initial_size, upper_limit)
-                .build()
-                .build();
+            let mut builder = ModuleBuilder::from_module(module);
+            builder.push_import(Import {
+                module: "env".into(),
+                name: Self::MEMORY_FIELD_NAME.into(),
+                ty: TypeRef::Memory(MemoryType {
+                    memory64: false,
+                    shared: false,
+                    initial: initial_size as u64,
+                    maximum: upper_limit.map(|v| v as u64),
+                    page_size_log2: None,
+                }),
+            });
 
             // Define optional stack-end
             if let Some(stack_end_page) = stack_end_page {
                 log::trace!("Stack end offset - {:?}", stack_end_page);
 
                 let stack_end = stack_end_page * WasmPage::SIZE;
-                module = builder::from_module(module)
-                    .global()
-                    .value_type()
-                    .i32()
-                    .init_expr(Instruction::I32Const(stack_end as i32))
-                    .build()
-                    .build();
+                builder.push_global(Global {
+                    ty: GlobalType {
+                        content_type: ValType::I32,
+                        mutable: false,
+                        shared: false,
+                    },
+                    init_expr: ConstExpr {
+                        instructions: vec![Instruction::I32Const {
+                            value: stack_end as i32,
+                        }],
+                    },
+                });
 
-                let stack_end_index = module
+                let stack_end_index = builder
+                    .as_module()
                     .global_section()
                     .expect("has at least stack end global")
-                    .entries()
                     .len()
                     - 1;
 
-                module = builder::from_module(module)
-                    .export()
-                    .field(STACK_END_EXPORT_NAME)
-                    .internal()
-                    .global(stack_end_index as u32)
-                    .build()
-                    .build();
+                builder.push_export(Export {
+                    name: STACK_END_EXPORT_NAME.to_string(),
+                    kind: ExternalKind::Global,
+                    index: stack_end_index as u32,
+                });
             }
 
-            (module, ())
+            (builder.build(), ())
         });
 
         (
@@ -145,15 +159,8 @@ impl MemoryGenerator {
     fn remove_mem_section(&mut self) {
         self.module.with(|mut module| {
             // Find memory section index.
-            let mem_section_idx = module
-                .sections()
-                .iter()
-                .enumerate()
-                .find_map(|(idx, section)| matches!(section, Section::Memory(_)).then_some(idx));
-
-            // Remove it.
-            if let Some(mem_section_idx) = mem_section_idx {
-                module.sections_mut().remove(mem_section_idx);
+            if let Some(sections) = module.memory_section_mut() {
+                sections.clear();
             }
 
             (module, ())

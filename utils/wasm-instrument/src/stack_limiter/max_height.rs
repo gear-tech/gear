@@ -236,7 +236,7 @@ where
             .get(func_idx as usize)
             .ok_or("Function is not found in func section")?;
         let func_signature = type_section
-            .get_index(func_sig_idx as usize)
+            .get(func_sig_idx as usize)
             .ok_or("Function is not found in func section")?;
         let body = code_section
             .get(func_idx as usize)
@@ -421,7 +421,7 @@ where
                 table_index: _,
             } => {
                 let ty = type_section
-                    .get_index(*type_index as usize)
+                    .get(*type_index as usize)
                     .ok_or("Type not found")?;
 
                 // Pop the offset into the function table.

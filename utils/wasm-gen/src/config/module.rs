@@ -191,8 +191,8 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             allowed_instructions,
             max_table_elements,
             table_max_size_required,
-            // do not export anything to pass our checks
-            exports: Some(Vec::new()),
+            // pass empty module to not export anything to pass our checks
+            exports: Some(b"\0asm\x01\0\0\0".to_vec()),
             allow_floats,
             extended_const_enabled: false,
         })

@@ -6,7 +6,6 @@ use crate::{
 };
 use alloc::{string::ToString, vec, vec::Vec};
 use core::mem;
-use indexmap::IndexSet;
 use max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext};
 use wasmparser::{BlockType, ExternalKind, FuncType, GlobalType, TypeRef, ValType};
 
@@ -111,10 +110,10 @@ where
 
 /// Same as the [`inject`] function, but allows to configure exit instructions when the stack limit
 /// is reached and the export name of the stack height global.
-pub fn inject_with_config<'o, I>(
-    module: Module<'o>,
-    injection_config: InjectionConfig<'o, I, impl Fn(&FuncType) -> I>,
-) -> Result<Module<'o>, &'static str>
+pub fn inject_with_config<I>(
+    module: Module,
+    injection_config: InjectionConfig<I, impl Fn(&FuncType) -> I>,
+) -> Result<Module, &'static str>
 where
     I: IntoIterator<Item = Instruction>,
     I::IntoIter: ExactSizeIterator + Clone,
@@ -140,10 +139,10 @@ where
 }
 
 /// Generate a new global that will be used for tracking current stack height.
-fn generate_stack_height_global<'a>(
-    module: Module<'a>,
-    stack_height_export_name: Option<&'a str>,
-) -> (Module<'a>, u32) {
+fn generate_stack_height_global(
+    module: Module,
+    stack_height_export_name: Option<&str>,
+) -> (Module, u32) {
     let global_entry = Global {
         ty: GlobalType {
             content_type: ValType::I32,
@@ -174,7 +173,7 @@ fn generate_stack_height_global<'a>(
 ///
 /// Returns a vector with a stack cost for each function, including imports.
 fn compute_stack_costs<I>(
-    module: &Module<'_>,
+    module: &Module,
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<Vec<u32>, &'static str>
 where
@@ -211,7 +210,7 @@ where
 /// number of arguments plus number of local variables) and the maximal stack
 /// height.
 fn compute_stack_cost<I: IntoIterator<Item = Instruction>>(
-    context: MaxStackHeightCounterContext<'_, '_>,
+    context: MaxStackHeightCounterContext<'_>,
     func_idx: u32,
     injection_fn: impl Fn(&FuncType) -> I,
 ) -> Result<u32, &'static str>
@@ -486,14 +485,8 @@ fn generate_postamble(
     ]);
 }
 
-fn resolve_func_type<'a>(
-    func_idx: u32,
-    module: &'a Module<'a>,
-) -> Result<&'a FuncType, &'static str> {
-    let types = module
-        .type_section()
-        .map(IndexSet::as_slice)
-        .unwrap_or_default();
+fn resolve_func_type(func_idx: u32, module: &Module) -> Result<&FuncType, &'static str> {
+    let types = module.type_section().map(Vec::as_slice).unwrap_or_default();
     let functions = module.function_section().map(Vec::as_slice).unwrap_or(&[]);
 
     let func_imports = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
@@ -519,7 +512,7 @@ fn resolve_func_type<'a>(
             .ok_or("Function at the specified index is not defined")?
     };
     let ty = types
-        .get_index(sig_idx as usize)
+        .get(sig_idx as usize)
         .ok_or("The signature as specified by a function isn't defined")?;
     Ok(ty)
 }

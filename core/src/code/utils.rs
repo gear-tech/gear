@@ -123,7 +123,7 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
 
         // Panic is impossible, unless the Module structure is invalid.
         let func_type = types
-            .get_index(type_id)
+            .get(type_id)
             .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
         if !ALLOWED_EXPORTS.contains(&&*export.name) {
@@ -167,7 +167,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
             TypeRef::Func(i) => {
                 // Panic is impossible, unless the Module structure is invalid.
                 let func_type = &types
-                    .get_index(i as usize)
+                    .get(i as usize)
                     .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
                 let syscall = syscalls
