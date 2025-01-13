@@ -32,6 +32,7 @@ use core::{
     ops::{Index, IndexMut},
 };
 use ethexe_common::gear::Message;
+pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
     ids::{prelude::MessageIdExt as _, ProgramId},
     memory::PageBuf,
@@ -45,10 +46,6 @@ use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
-#[cfg(feature = "std")]
-use serde::{de::Visitor, ser::SerializeTuple};
-
-pub use gear_core::program::ProgramState as InitStatus;
 
 /// 3h validity in mailbox for 12s blocks.
 pub const MAILBOX_VALIDITY: u32 = 54_000;
@@ -820,62 +817,12 @@ impl Mailbox {
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MemoryPages(MemoryPagesInner);
 
 impl Default for MemoryPages {
     fn default() -> Self {
         Self([MaybeHashOf::empty(); MemoryPages::REGIONS_AMOUNT])
-    }
-}
-// implemented manually because serde_derive does not work with arrays larger than 32 elements
-#[cfg(feature = "std")]
-impl serde::Serialize for MemoryPages {
-    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut seq = serializer.serialize_tuple(self.0.len())?;
-        for elem in &self.0[..] {
-            seq.serialize_element(elem)?;
-        }
-
-        seq.end()
-    }
-}
-
-#[cfg(feature = "std")]
-impl<'a> serde::Deserialize<'a> for MemoryPages {
-    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'a>,
-    {
-        struct ArrayVisitor {}
-
-        impl<'de> Visitor<'de> for ArrayVisitor {
-            type Value = MemoryPagesInner;
-
-            fn expecting(&self, formatter: &mut alloc::fmt::Formatter) -> alloc::fmt::Result {
-                formatter.write_str("an array of length 16")
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> core::result::Result<Self::Value, A::Error>
-            where
-                A: serde::de::SeqAccess<'de>,
-            {
-                let mut arr = [MaybeHashOf::empty(); MemoryPages::REGIONS_AMOUNT];
-                for (i, hash) in arr.iter_mut().enumerate() {
-                    *hash = seq
-                        .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
-                }
-                Ok(arr)
-            }
-        }
-
-        let visitor = ArrayVisitor {};
-        deserializer
-            .deserialize_tuple(Self::REGIONS_AMOUNT, visitor)
-            .map(Self)
     }
 }
 
