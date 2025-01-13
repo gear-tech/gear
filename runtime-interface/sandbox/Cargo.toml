@@ -33,4 +33,3 @@ std = [
   "sp-wasm-interface/std",
   "sp-wasm-interface/wasmtime",
 ]
-runtime-benchmarks = []
