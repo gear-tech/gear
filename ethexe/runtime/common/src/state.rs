@@ -845,6 +845,9 @@ impl IndexMut<RegionIdx> for MemoryPages {
 pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; MemoryPages::REGIONS_AMOUNT];
 
 impl MemoryPages {
+    /// Copy of the gear_core constant defining max pages amount per program.
+    pub const MAX_PAGES: usize = gear_core::code::MAX_WASM_PAGES_AMOUNT as usize;
+
     /// Granularity parameter of how memory pages hashes are stored.
     ///
     /// Instead of a single huge map of GearPage to HashOf<PageBuf>, memory is
@@ -858,8 +861,12 @@ impl MemoryPages {
     /// host implementation: see the `ThreadParams` struct.
     pub const REGIONS_AMOUNT: usize = 16;
 
+    /// Pages amount per each region.
+    pub const PAGES_PER_REGION: usize = Self::MAX_PAGES / Self::REGIONS_AMOUNT;
+    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES % Self::REGIONS_AMOUNT == 0);
+
     pub fn page_region(page: GearPage) -> RegionIdx {
-        RegionIdx((u32::from(page) as usize / Self::REGIONS_AMOUNT) as u8)
+        RegionIdx((u32::from(page) as usize / Self::PAGES_PER_REGION) as u8)
     }
 
     pub fn update_and_store_regions<S: Storage>(
