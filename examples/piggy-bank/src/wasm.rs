@@ -18,7 +18,7 @@
 
 use gstd::{debug, exec, msg};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     msg::with_read_on_stack(|msg| {
         let available_value = exec::value_available();

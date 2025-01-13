@@ -79,7 +79,7 @@ Refer to the **[Technical Paper](https://github.com/gear-tech/gear-technical/blo
 
 ### Get the binaries
 
-To build Vara node binaries from source follow a step by step instructions provided in [Node README](https://github.com/gear-tech/gear/tree/master/node/README.md).
+To build Vara node binaries from source follow the step-by-step instructions provided in [Node README](https://github.com/gear-tech/gear/tree/master/node/README.md).
 
 Alternatively, you can download pre-built packages for your OS/architecture:
 

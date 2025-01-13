@@ -354,7 +354,9 @@ async fn test_program_counters() -> Result<()> {
     let (block_hash, block_number, count_program, count_active_program, count_memory_page) =
         query_program_counters(&uri, None).await?;
     println!("elapsed = {:?}", instant.elapsed());
-    println!("testnet block_hash = {block_hash}, block_number = {block_number}, count_program = {count_program}, count_active_program = {count_active_program}, count_memory_page = {count_memory_page}");
+    println!(
+        "testnet block_hash = {block_hash}, block_number = {block_number}, count_program = {count_program}, count_active_program = {count_active_program}, count_memory_page = {count_memory_page}"
+    );
 
     Ok(())
 }

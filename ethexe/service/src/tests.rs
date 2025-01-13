@@ -18,7 +18,10 @@
 
 //! Integration tests.
 
-use crate::service::Service;
+use crate::{
+    config::{self, Config},
+    Service,
+};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider},
@@ -33,6 +36,8 @@ use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
+use ethexe_prometheus::PrometheusConfig;
+use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
@@ -41,19 +46,76 @@ use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
+use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     str::FromStr,
+    net::{Ipv4Addr, SocketAddr},
     sync::Arc,
     time::Duration,
 };
+use tempfile::tempdir;
 use tokio::{
     sync::oneshot,
     task::{self, JoinHandle},
 };
 use utils::{NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
+
+#[tokio::test]
+async fn basics() {
+    gear_utils::init_default_logger();
+
+    let tmp_dir = tempdir().unwrap();
+    let tmp_dir = tmp_dir.path().to_path_buf();
+
+    let node_cfg = config::NodeConfig {
+        database_path: tmp_dir.join("db"),
+        key_path: tmp_dir.join("key"),
+        sequencer: Default::default(),
+        validator: Default::default(),
+        max_commitment_depth: 1_000,
+        worker_threads_override: None,
+        virtual_threads: 16,
+    };
+
+    let eth_cfg = crate::config::EthereumConfig {
+        rpc: "wss://reth-rpc.gear-tech.io".into(),
+        beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
+        router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
+            .parse()
+            .expect("infallible"),
+        block_time: Duration::from_secs(12),
+    };
+
+    let mut config = Config {
+        node: node_cfg,
+        ethereum: eth_cfg,
+        network: None,
+        rpc: None,
+        prometheus: None,
+    };
+
+    Service::new(&config).await.unwrap();
+
+    // Enable all optional services
+    config.network = Some(ethexe_network::NetworkEventLoopConfig::new_local(
+        tmp_dir.join("net"),
+    ));
+
+    config.rpc = Some(RpcConfig {
+        listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
+        cors: None,
+    });
+
+    config.prometheus = Some(PrometheusConfig::new_with_default_registry(
+        "DevNode".into(),
+        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
+    ));
+
+    Service::new(&config).await.unwrap();
+}
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
@@ -141,6 +203,149 @@ async fn ping() {
     assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.reply_payload, b"");
     assert_eq!(res.reply_value, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn uninitialized_program() {
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let sequencer_public_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_async_init::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    // Case #1: Init failed due to panic in init (decoding).
+    {
+        let res = env
+            .create_program(code_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
+        assert_eq!(res.reply_code, expected_err);
+
+        let res = env
+            .send_message(res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        assert_eq!(res.reply_code, expected_err);
+    }
+
+    // Case #2: async init, replies are acceptable.
+    {
+        let init_payload = demo_async_init::InputArgs {
+            approver_first: env.sender_id,
+            approver_second: env.sender_id,
+            approver_third: env.sender_id,
+        }
+        .encode();
+
+        let mut listener = env.events_publisher().subscribe().await;
+
+        let init_res = env.create_program(code_id, &init_payload, 0).await.unwrap();
+
+        let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
+
+        let mut msgs_for_reply = vec![];
+
+        listener
+            .apply_until_block_event(|event| match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event:
+                        MirrorEvent::Message {
+                            id, destination, ..
+                        },
+                } if actor_id == init_res.program_id && destination == env.sender_id => {
+                    msgs_for_reply.push(id);
+
+                    if msgs_for_reply.len() == 3 {
+                        Ok(Some(()))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                _ => Ok(None),
+            })
+            .await
+            .unwrap();
+
+        // Handle message to uninitialized program.
+        let res = env
+            .send_message(init_res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        assert_eq!(res.reply_code, expected_err);
+        // Checking further initialisation.
+
+        // Required replies.
+        for mid in msgs_for_reply {
+            mirror.send_reply(mid, [], 0).await.unwrap();
+        }
+
+        // Success end of initialisation.
+        let reply_code = listener
+            .apply_until_block_event(|event| match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event:
+                        MirrorEvent::Reply {
+                            reply_code,
+                            reply_to,
+                            ..
+                        },
+                } if actor_id == init_res.program_id && reply_to == init_res.message_id => {
+                    Ok(Some(reply_code))
+                }
+                _ => Ok(None),
+            })
+            .await
+            .unwrap();
+
+        assert!(reply_code.is_success());
+
+        // Handle message handled, but panicked due to incorrect payload as expected.
+        let res = env
+            .send_message(res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
+        assert_eq!(res.reply_code, expected_err);
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -601,7 +806,7 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(80_000)]
+#[ntest::timeout(120_000)]
 async fn multiple_validators() {
     gear_utils::init_default_logger();
 
@@ -1028,11 +1233,12 @@ mod utils {
 
             mirror.executable_balance_top_up(EXECUTABLE_BALANCE).await?;
 
-            mirror.send_message(payload, value).await?;
+            let (_, message_id) = mirror.send_message(payload, value).await?;
 
             Ok(WaitForProgramCreation {
                 listener,
                 program_id,
+                message_id,
             })
         }
 
@@ -1158,6 +1364,7 @@ mod utils {
         }
     }
 
+    // TODO (breathx): consider to remove me in favor of crate::config::NodeConfig.
     #[derive(Default)]
     pub struct NodeConfig {
         /// Database, if not provided, will be created with MemDb.
@@ -1496,14 +1703,13 @@ mod utils {
     pub struct WaitForProgramCreation {
         listener: EventsListener,
         pub program_id: ActorId,
+        pub message_id: MessageId,
     }
 
     #[derive(Debug)]
     pub struct ProgramCreationInfo {
         pub program_id: ActorId,
         pub code_id: CodeId,
-        #[allow(unused)]
-        pub init_message_id: MessageId,
         pub init_message_source: ActorId,
         pub init_message_payload: Vec<u8>,
         pub init_message_value: u128,
@@ -1531,21 +1737,19 @@ mod utils {
                         BlockEvent::Mirror { actor_id, event } if actor_id == self.program_id => {
                             match event {
                                 MirrorEvent::MessageQueueingRequested {
-                                    id,
                                     source,
                                     payload,
                                     value,
+                                    ..
                                 } => {
-                                    init_message_info = Some((id, source, payload, value));
+                                    init_message_info = Some((source, payload, value));
                                 }
                                 MirrorEvent::Reply {
                                     payload,
                                     reply_to,
                                     reply_code,
                                     value,
-                                } if init_message_info.as_ref().map(|(id, ..)| *id)
-                                    == Some(reply_to) =>
-                                {
+                                } if self.message_id == reply_to => {
                                     reply_info = Some((payload, reply_code, value));
                                     return Ok(Some(()));
                                 }
@@ -1559,7 +1763,7 @@ mod utils {
                 .await?;
 
             let code_id = code_id_info.expect("Code ID must be set");
-            let (init_message_id, init_message_source, init_message_payload, init_message_value) =
+            let (init_message_source, init_message_payload, init_message_value) =
                 init_message_info.expect("Init message info must be set");
             let (reply_payload, reply_code, reply_value) =
                 reply_info.expect("Reply info must be set");
@@ -1567,7 +1771,6 @@ mod utils {
             Ok(ProgramCreationInfo {
                 program_id: self.program_id,
                 code_id,
-                init_message_id,
                 init_message_source,
                 init_message_payload,
                 init_message_value,

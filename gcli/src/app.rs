@@ -115,7 +115,6 @@ pub trait App: Parser + Sync {
             .build(endpoint.as_deref())
             .await
             .map(Into::into)
-            .map_err(Into::into)
     }
 
     /// Get signer.
