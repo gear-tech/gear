@@ -100,7 +100,7 @@ pub enum ExportErrorWithContext {
     RequiredExportNotFound,
 }
 
-impl TryFrom<(Module<'_>, ExportError)> for ExportErrorWithContext {
+impl TryFrom<(Module, ExportError)> for ExportErrorWithContext {
     type Error = anyhow::Error;
 
     fn try_from((module, export_error): (Module, ExportError)) -> Result<Self, Self::Error> {
@@ -118,7 +118,7 @@ impl TryFrom<(Module<'_>, ExportError)> for ExportErrorWithContext {
                     section
                         .iter()
                         .filter_map(|import| {
-                            matches!(import.ty, TypeRef::Func(_)).then_some(import.name.into())
+                            matches!(import.ty, TypeRef::Func(_)).then_some(import.name.to_string())
                         })
                         .nth(func_index as usize)
                 }) else {
@@ -132,7 +132,8 @@ impl TryFrom<(Module<'_>, ExportError)> for ExportErrorWithContext {
                     section
                         .iter()
                         .filter_map(|import| {
-                            matches!(import.ty, TypeRef::Global(_)).then_some(import.name.into())
+                            matches!(import.ty, TypeRef::Global(_))
+                                .then_some(import.name.to_string())
                         })
                         .nth(global_index as usize)
                 }) else {
@@ -181,7 +182,7 @@ fn get_export_name(module: &Module, export_index: u32) -> anyhow::Result<String>
     get_export(module, export_index).map(|entry| entry.name.clone())
 }
 
-fn get_export<'a>(module: &'a Module, export_index: u32) -> anyhow::Result<&'a Export> {
+fn get_export(module: &Module, export_index: u32) -> anyhow::Result<&Export> {
     module
         .export_section()
         .and_then(|section| section.get(export_index as usize))
@@ -204,7 +205,7 @@ pub enum ImportErrorWithContext {
     UnexpectedImportKind { kind: String, name: String },
 }
 
-impl TryFrom<(Module<'_>, ImportError)> for ImportErrorWithContext {
+impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
     type Error = anyhow::Error;
 
     fn try_from((module, import_error): (Module, ImportError)) -> Result<Self, Self::Error> {

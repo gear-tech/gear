@@ -10,7 +10,7 @@ use wasmparser::{ExternalKind, TypeRef};
 /// This will export all internal mutable globals under the name of
 /// concat(`prefix`, `"_"`, `i`) where i is the index inside the range of
 /// [0..total number of internal mutable globals].
-pub fn export_mutable_globals<'a>(module: Module<'a>, prefix: &'a str) -> Module<'a> {
+pub fn export_mutable_globals(module: Module, prefix: &str) -> Module {
     let exports = module
         .global_section()
         .map(|section| {

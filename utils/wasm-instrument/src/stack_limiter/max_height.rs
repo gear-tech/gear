@@ -158,16 +158,16 @@ impl Stack {
 
 /// This is a helper context that is used by [`MaxStackHeightCounter`].
 #[derive(Clone, Copy)]
-pub(crate) struct MaxStackHeightCounterContext<'m, 'o> {
-    pub module: &'m Module<'o>,
+pub(crate) struct MaxStackHeightCounterContext<'m> {
+    pub module: &'m Module,
     pub func_imports: u32,
     pub func_section: &'m FuncSection,
     pub code_section: &'m CodeSection,
     pub type_section: &'m TypeSection,
 }
 
-impl<'m, 'o> MaxStackHeightCounterContext<'m, 'o> {
-    pub fn new(module: &'m Module<'o>) -> Result<Self, &'static str> {
+impl<'m> MaxStackHeightCounterContext<'m> {
+    pub fn new(module: &'m Module) -> Result<Self, &'static str> {
         Ok(Self {
             module,
             func_imports: module
@@ -183,20 +183,20 @@ impl<'m, 'o> MaxStackHeightCounterContext<'m, 'o> {
 
 /// This is a counter for the maximum stack height with the ability to take into account the
 /// overhead that is added by the [`instrument_call!`] function.
-pub(crate) struct MaxStackHeightCounter<'m, 'o, I, F>
+pub(crate) struct MaxStackHeightCounter<'m, I, F>
 where
     I: IntoIterator<Item = Instruction>,
     I::IntoIter: ExactSizeIterator + Clone,
     F: Fn(&FuncType) -> I,
 {
-    context: MaxStackHeightCounterContext<'m, 'o>,
+    context: MaxStackHeightCounterContext<'m>,
     stack: Stack,
     max_height: u32,
     injection_fn: F,
     count_instrumented_calls: bool,
 }
 
-impl<'m, 'o, I, F> MaxStackHeightCounter<'m, 'o, I, F>
+impl<'m, I, F> MaxStackHeightCounter<'m, I, F>
 where
     I: IntoIterator<Item = Instruction>,
     I::IntoIter: ExactSizeIterator + Clone,
@@ -204,9 +204,9 @@ where
 {
     /// Creates a [`MaxStackHeightCounter`] from [`MaxStackHeightCounterContext`].
     pub fn new_with_context(
-        context: MaxStackHeightCounterContext<'m, 'o>,
+        context: MaxStackHeightCounterContext<'m>,
         injection_fn: F,
-    ) -> MaxStackHeightCounter<'m, 'o, I, F> {
+    ) -> MaxStackHeightCounter<'m, I, F> {
         Self {
             context,
             stack: Stack::new(),

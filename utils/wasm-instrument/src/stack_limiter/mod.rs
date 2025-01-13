@@ -6,6 +6,7 @@ use crate::{
 };
 use alloc::{string::ToString, vec, vec::Vec};
 use core::mem;
+use indexmap::IndexSet;
 use max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext};
 use wasmparser::{BlockType, ExternalKind, FuncType, GlobalType, TypeRef, ValType};
 
@@ -486,7 +487,10 @@ fn generate_postamble(
 }
 
 fn resolve_func_type(func_idx: u32, module: &Module) -> Result<&FuncType, &'static str> {
-    let types = module.type_section().map(Vec::as_slice).unwrap_or_default();
+    let types = module
+        .type_section()
+        .map(IndexSet::as_slice)
+        .unwrap_or_default();
     let functions = module.function_section().map(Vec::as_slice).unwrap_or(&[]);
 
     let func_imports = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
@@ -512,7 +516,7 @@ fn resolve_func_type(func_idx: u32, module: &Module) -> Result<&FuncType, &'stat
             .ok_or("Function at the specified index is not defined")?
     };
     let ty = types
-        .get(sig_idx as usize)
+        .get_index(sig_idx as usize)
         .ok_or("The signature as specified by a function isn't defined")?;
     Ok(ty)
 }

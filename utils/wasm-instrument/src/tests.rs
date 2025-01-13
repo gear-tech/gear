@@ -32,14 +32,14 @@ macro_rules! parse_wat {
     };
 }
 
-fn inject<'a, R, GetRulesFn>(
-    module: Module<'a>,
+fn inject<R, GetRulesFn>(
+    module: Module,
     get_gas_rules: GetRulesFn,
-    module_name: &'a str,
-) -> Result<Module<'a>, InstrumentationError>
+    module_name: &str,
+) -> Result<Module, InstrumentationError>
 where
-    R: Rules + 'a,
-    GetRulesFn: FnMut(&Module) -> R + 'a,
+    R: Rules,
+    GetRulesFn: FnMut(&Module) -> R,
 {
     InstrumentationBuilder::new(module_name)
         .with_gas_limiter(get_gas_rules)
@@ -53,7 +53,7 @@ fn get_function_body<'a>(module: &'a Module, index: usize) -> Option<&'a [Instru
         .map(|func_body| func_body.instructions.as_ref())
 }
 
-fn prebuilt_simple_module() -> Module<'static> {
+fn prebuilt_simple_module() -> Module {
     let mut builder = ModuleBuilder::default();
 
     builder.push_global(Global {

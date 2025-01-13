@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{
+    borrow::Cow,
     format,
     string::{String, ToString},
     vec::Vec,
@@ -27,8 +28,8 @@ use wasm_encoder::{
     reencode::{Reencode, RoundtripReencoder},
 };
 use wasmparser::{
-    BinaryReaderError, ElementKind, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType,
-    Import, MemoryType, Payload, RefType, Table, TypeRef, ValType,
+    BinaryReaderError, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType, MemoryType,
+    Payload, RefType, TableType, TypeRef, ValType,
 };
 
 macro_rules! define_for_each_instruction_helper {
@@ -39,9 +40,9 @@ macro_rules! define_for_each_instruction_helper {
     ) => {
         macro_rules! define_for_each_instruction {
             ($dollar ( @$dollar proposal:ident $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })? => $dollar visit:ident ($dollar ($dollar ann:tt)*) )*) => {
-                define_for_each_instruction!(inner $dollar ( @$dollar proposal $dollar op $dollar ({ $dollar ($dollar arg: $dollar argty),* })? )* accum);
+                define_for_each_instruction!(inner $dollar ( @$dollar proposal $dollar op $dollar ({ $dollar ($dollar arg: $dollar argty),* })? )* accum @accum2);
             };
-            // skip forbidden instructions
+            // ACCUM: skip forbidden instructions
             $(
                 (
                     inner
@@ -49,34 +50,18 @@ macro_rules! define_for_each_instruction_helper {
                     $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
                     accum
                     $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                    @accum2
                 ) => {
                     define_for_each_instruction!(
                         inner
                         $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
                         accum
                         $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                        @accum2
                     );
                 };
             )+
-            // rewrite instructions fields
-            $(
-                (
-                    inner
-                    @$dollar proposal:ident $ops { $dollar ($dollar arg:ident: $dollar argty:ty),* }
-                    $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
-                    accum
-                    $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
-                ) => {
-                    define_for_each_instruction!(
-                        inner
-                        $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
-                        accum
-                        $ops { $($args: $argsty),* }
-                        $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
-                    );
-                };
-            )+
-            // use only specific proposals
+            // ACCUM: use only specific proposals
             $(
                 (
                     inner
@@ -84,6 +69,7 @@ macro_rules! define_for_each_instruction_helper {
                     $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
                     accum
                     $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                    @accum2
                 ) => {
                     define_for_each_instruction!(
                         inner
@@ -91,27 +77,69 @@ macro_rules! define_for_each_instruction_helper {
                         accum
                         $dollar op $dollar ({ $dollar ( $dollar arg: $dollar argty ),* })?
                         $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                        @accum2
                     );
                 };
             )+
-            // skip rest instructions
+            // ACCUM: skip rest instructions
             (
                 inner
                 @$dollar proposal:ident $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })?
                 $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
                 accum
                 $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                @accum2
             ) => {
                 define_for_each_instruction!(
                     inner
                     $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
                     accum
                     $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                    @accum2
+                );
+            };
+            // @accum2: rewrite instructions fields
+            $(
+                (
+                    inner
+                    accum
+                    $dollar op:ident { $($args: $dollar argty:ty),* }
+                    $dollar ( $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                    @accum2
+                    $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                ) => {
+                    define_for_each_instruction!(
+                        inner
+                        accum
+                        $dollar ( $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                        @accum2
+                        $dollar op { $($args: $argsty),* }
+                        $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                    );
+                };
+            )+
+            // @accum2: accumulate rest instructions from `accum` to `@accum2`
+            (
+                inner
+                accum
+                $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })?
+                $dollar ( $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                @accum2
+                $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+            ) => {
+                define_for_each_instruction!(
+                    inner
+                    accum
+                    $dollar ( $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                    @accum2
+                    $dollar op $dollar ({ $dollar ( $dollar arg: $dollar argty ),* })?
+                    $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
                 );
             };
             (
                 inner
                 accum
+                @accum2
                 $dollar ( $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })? )*
             ) => {
                 #[macro_export]
@@ -134,6 +162,7 @@ define_for_each_instruction_helper!($;
     }
     rewrite_fields {
         BrTable { targets: BrTable },
+        AnyMemArgInstruction { memarg: MemArg },
     }
     forbidden_instructions {
         F64ReinterpretI64,
@@ -247,7 +276,7 @@ macro_rules! define_instruction {
         ($arg).targets.clone().into(),
         ($arg).default,
     ));
-    (@arg $arg:ident memarg) => (RoundtripReencoder.mem_arg(*$arg));
+    (@arg $arg:ident memarg) => ((*$arg).reencode());
     (@arg $arg:ident $_arg:ident) => (*$arg);
 
     (@build $op:ident) => (wasm_encoder::Instruction::$op);
@@ -279,6 +308,9 @@ pub enum ModuleError {
     #[from]
     #[display(fmt = "Reencode error: {}", _0)]
     Reencode(reencode::Error),
+    #[from]
+    #[display(fmt = "Int conversion error: {}", _0)]
+    TryFromInt(core::num::TryFromIntError),
     #[display(fmt = "Unsupported instruction: {}", _0)]
     UnsupportedInstruction(String),
 }
@@ -288,6 +320,7 @@ impl core::error::Error for ModuleError {
         match self {
             ModuleError::BinaryReader(e) => Some(e),
             ModuleError::Reencode(e) => Some(e),
+            ModuleError::TryFromInt(e) => Some(e),
             ModuleError::UnsupportedInstruction(_) => None,
         }
     }
@@ -296,6 +329,44 @@ impl core::error::Error for ModuleError {
 impl From<Infallible> for ModuleError {
     fn from(value: Infallible) -> Self {
         match value {}
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct MemArg {
+    /// A static offset to add to the instruction's dynamic address operand.
+    pub offset: u32,
+    /// The expected alignment of the instruction's dynamic address operand
+    /// (expressed the exponent of a power of two).
+    pub align: u8,
+}
+
+impl TryFrom<wasmparser::MemArg> for MemArg {
+    type Error = ModuleError;
+
+    fn try_from(
+        wasmparser::MemArg {
+            align,
+            max_align: _,
+            offset,
+            memory,
+        }: wasmparser::MemArg,
+    ) -> Result<Self, Self::Error> {
+        debug_assert_eq!(memory, 0);
+        Ok(Self {
+            align,
+            offset: offset.try_into()?,
+        })
+    }
+}
+
+impl MemArg {
+    fn reencode(self) -> wasm_encoder::MemArg {
+        wasm_encoder::MemArg {
+            offset: self.offset as u64,
+            align: self.align as u32,
+            memory_index: 0,
+        }
     }
 }
 
@@ -330,7 +401,8 @@ impl TryFrom<wasmparser::BrTable<'_>> for BrTable {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, derive_more::DebugCustom)]
+#[debug(fmt = "ConstExpr {{ .. }}")]
 pub struct ConstExpr {
     pub instructions: Vec<Instruction>,
 }
@@ -353,6 +425,69 @@ impl ConstExpr {
                 .map(Instruction::reencode)
                 .collect::<Result<Vec<_>>>()?,
         ))
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Import {
+    pub module: Cow<'static, str>,
+    pub name: Cow<'static, str>,
+    pub ty: TypeRef,
+}
+
+impl Import {
+    fn new(import: wasmparser::Import) -> Self {
+        Self {
+            module: import.module.to_string().into(),
+            name: import.name.to_string().into(),
+            ty: import.ty,
+        }
+    }
+
+    pub fn reencode(&self, imports: &mut wasm_encoder::ImportSection) -> Result<()> {
+        imports.import(
+            &self.module,
+            &self.name,
+            RoundtripReencoder.entity_type(self.ty)?,
+        );
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum TableInit {
+    RefNull,
+    Expr(ConstExpr),
+}
+
+#[derive(Clone, Debug)]
+pub struct Table {
+    pub ty: TableType,
+    pub init: TableInit,
+}
+
+impl Table {
+    fn new(table: wasmparser::Table) -> Result<Self> {
+        Ok(Self {
+            ty: table.ty,
+            init: match table.init {
+                wasmparser::TableInit::RefNull => TableInit::RefNull,
+                wasmparser::TableInit::Expr(expr) => TableInit::Expr(ConstExpr::new(expr)?),
+            },
+        })
+    }
+
+    fn reencode(&self, tables: &mut wasm_encoder::TableSection) -> Result<()> {
+        let ty = RoundtripReencoder.table_type(self.ty)?;
+        match &self.init {
+            TableInit::RefNull => {
+                tables.table(ty);
+            }
+            TableInit::Expr(e) => {
+                tables.table_with_init(ty, &e.reencode()?);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -387,6 +522,32 @@ impl Export {
 }
 
 #[derive(Clone)]
+pub enum ElementKind {
+    Passive,
+    Active {
+        table_index: Option<u32>,
+        offset_expr: ConstExpr,
+    },
+    Declared,
+}
+
+impl ElementKind {
+    fn new(kind: wasmparser::ElementKind) -> Result<Self> {
+        Ok(match kind {
+            wasmparser::ElementKind::Passive => Self::Passive,
+            wasmparser::ElementKind::Active {
+                table_index,
+                offset_expr,
+            } => Self::Active {
+                table_index,
+                offset_expr: ConstExpr::new(offset_expr)?,
+            },
+            wasmparser::ElementKind::Declared => Self::Declared,
+        })
+    }
+}
+
+#[derive(Clone)]
 pub enum ElementItems {
     Functions(Vec<u32>),
     Expressions(RefType, Vec<ConstExpr>),
@@ -414,17 +575,50 @@ impl ElementItems {
 }
 
 #[derive(Clone)]
-pub struct Element<'a> {
-    pub kind: ElementKind<'a>,
+pub struct Element {
+    pub kind: ElementKind,
     pub items: ElementItems,
 }
 
-impl<'a> Element<'a> {
-    fn new(element: wasmparser::Element<'a>) -> Result<Self> {
+impl Element {
+    fn new(element: wasmparser::Element) -> Result<Self> {
         Ok(Self {
-            kind: element.kind,
+            kind: ElementKind::new(element.kind)?,
             items: ElementItems::new(element.items)?,
         })
+    }
+
+    fn reencode(&self, encoder_section: &mut wasm_encoder::ElementSection) -> Result<()> {
+        let items = match &self.items {
+            ElementItems::Functions(funcs) => {
+                wasm_encoder::Elements::Functions(funcs.clone().into())
+            }
+            ElementItems::Expressions(ty, exprs) => wasm_encoder::Elements::Expressions(
+                RoundtripReencoder.ref_type(*ty)?,
+                exprs
+                    .iter()
+                    .map(ConstExpr::reencode)
+                    .collect::<Result<Vec<_>>>()?
+                    .into(),
+            ),
+        };
+
+        match &self.kind {
+            ElementKind::Passive => {
+                encoder_section.passive(items);
+            }
+            ElementKind::Active {
+                table_index,
+                offset_expr,
+            } => {
+                encoder_section.active(*table_index, &offset_expr.reencode()?, items);
+            }
+            ElementKind::Declared => {
+                encoder_section.declared(items);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -436,13 +630,13 @@ pub enum DataKind {
     },
 }
 
-pub struct Data<'a> {
+pub struct Data {
     pub kind: DataKind,
-    pub data: &'a [u8],
+    pub data: Cow<'static, [u8]>,
 }
 
-impl<'a> Data<'a> {
-    fn new(data: wasmparser::Data<'a>) -> Result<Self> {
+impl Data {
+    fn new(data: wasmparser::Data) -> Result<Self> {
         Ok(Self {
             kind: match data.kind {
                 wasmparser::DataKind::Passive => DataKind::Passive,
@@ -454,7 +648,7 @@ impl<'a> Data<'a> {
                     offset_expr: ConstExpr::new(offset_expr)?,
                 },
             },
-            data: data.data,
+            data: data.data.to_vec().into(),
         })
     }
 }
@@ -487,12 +681,12 @@ impl Function {
 }
 
 #[derive(Debug, Default)]
-pub struct ModuleBuilder<'a> {
-    module: Module<'a>,
+pub struct ModuleBuilder {
+    module: Module,
 }
 
-impl<'a> ModuleBuilder<'a> {
-    pub fn from_module(module: Module<'a>) -> Self {
+impl ModuleBuilder {
+    pub fn from_module(module: Module) -> Self {
         Self { module }
     }
 
@@ -564,12 +758,16 @@ impl<'a> ModuleBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> Module<'a> {
+    pub fn build(self) -> Module {
         self.module
     }
 
-    pub fn as_module(&self) -> &Module<'a> {
+    pub fn as_module(&self) -> &Module {
         &self.module
+    }
+
+    pub fn as_module_mut(&mut self) -> &mut Module {
+        &mut self.module
     }
 
     fn type_section(&mut self) -> &mut TypeSection {
@@ -578,7 +776,7 @@ impl<'a> ModuleBuilder<'a> {
             .get_or_insert_with(Default::default)
     }
 
-    fn import_section(&mut self) -> &mut Vec<Import<'a>> {
+    fn import_section(&mut self) -> &mut Vec<Import> {
         self.module.import_section.get_or_insert_with(Vec::new)
     }
 
@@ -594,14 +792,23 @@ impl<'a> ModuleBuilder<'a> {
         self.module.export_section.get_or_insert_with(Vec::new)
     }
 
+    fn data_section(&mut self) -> &mut DataSection {
+        self.module.data_section.get_or_insert_with(Vec::new)
+    }
+
     fn code_section(&mut self) -> &mut CodeSection {
         self.module.code_section.get_or_insert_with(Vec::new)
     }
 
-    pub fn add_func(&mut self, ty: FuncType, function: Function) {
-        let idx = self.push_type(ty);
-        self.func_section().push(idx);
+    /// Adds a new function to the module.
+    ///
+    /// Returns index from function section
+    pub fn add_func(&mut self, ty: FuncType, function: Function) -> u32 {
+        let type_idx = self.push_type(ty);
+        self.func_section().push(type_idx);
+        let func_idx = self.func_section().len() as u32 - 1;
         self.code_section().push(function);
+        func_idx
     }
 
     pub fn push_type(&mut self, ty: FuncType) -> u32 {
@@ -612,7 +819,7 @@ impl<'a> ModuleBuilder<'a> {
         })
     }
 
-    pub fn push_import(&mut self, import: Import<'a>) {
+    pub fn push_import(&mut self, import: Import) {
         self.import_section().push(import);
     }
 
@@ -624,31 +831,35 @@ impl<'a> ModuleBuilder<'a> {
     pub fn push_export(&mut self, export: Export) {
         self.export_section().push(export);
     }
+
+    pub fn push_data(&mut self, data: Data) {
+        self.data_section().push(data);
+    }
 }
 
 pub type TypeSection = Vec<FuncType>;
 pub type FuncSection = Vec<u32>;
-pub type DataSection<'a> = Vec<Data<'a>>;
+pub type DataSection = Vec<Data>;
 pub type CodeSection = Vec<Function>;
 
 #[derive(derive_more::DebugCustom, Default)]
 #[debug(fmt = "Module {{ .. }}")]
-pub struct Module<'a> {
+pub struct Module {
     pub type_section: Option<TypeSection>,
-    pub import_section: Option<Vec<Import<'a>>>,
+    pub import_section: Option<Vec<Import>>,
     pub function_section: Option<FuncSection>,
-    pub table_section: Option<Vec<Table<'a>>>,
+    pub table_section: Option<Vec<Table>>,
     pub memory_section: Option<Vec<MemoryType>>,
     pub global_section: Option<Vec<Global>>,
     pub export_section: Option<Vec<Export>>,
     pub start_section: Option<u32>,
-    pub element_section: Option<Vec<Element<'a>>>,
-    pub data_section: Option<DataSection<'a>>,
+    pub element_section: Option<Vec<Element>>,
+    pub data_section: Option<DataSection>,
     pub code_section: Option<CodeSection>,
 }
 
-impl<'a> Module<'a> {
-    pub fn new(code: &'a [u8]) -> Result<Self> {
+impl Module {
+    pub fn new(code: &[u8]) -> Result<Self> {
         let mut type_section = None;
         let mut import_section = None;
         let mut function_section = None;
@@ -681,7 +892,12 @@ impl<'a> Module<'a> {
                 }
                 Payload::ImportSection(section) => {
                     debug_assert!(import_section.is_none());
-                    import_section = Some(section.into_iter().collect::<Result<_, _>>()?);
+                    import_section = Some(
+                        section
+                            .into_iter()
+                            .map(|import| import.map(Import::new))
+                            .collect::<Result<_, _>>()?,
+                    );
                 }
                 Payload::FunctionSection(section) => {
                     debug_assert!(function_section.is_none());
@@ -689,7 +905,12 @@ impl<'a> Module<'a> {
                 }
                 Payload::TableSection(section) => {
                     debug_assert!(table_section.is_none());
-                    table_section = Some(section.into_iter().collect::<Result<_, _>>()?);
+                    table_section = Some(
+                        section
+                            .into_iter()
+                            .map(|table| table.map_err(Into::into).and_then(Table::new))
+                            .collect::<Result<_, _>>()?,
+                    );
                 }
                 Payload::MemorySection(section) => {
                     debug_assert!(memory_section.is_none());
@@ -787,7 +1008,7 @@ impl<'a> Module<'a> {
         if let Some(crate_section) = self.import_section() {
             let mut encoder_section = wasm_encoder::ImportSection::new();
             for import in crate_section.clone() {
-                RoundtripReencoder.parse_import(&mut encoder_section, import)?;
+                import.reencode(&mut encoder_section)?;
             }
             module.section(&encoder_section);
         }
@@ -803,7 +1024,7 @@ impl<'a> Module<'a> {
         if let Some(crate_section) = self.table_section() {
             let mut encoder_section = wasm_encoder::TableSection::new();
             for table in crate_section.clone() {
-                RoundtripReencoder.parse_table(&mut encoder_section, table)?;
+                table.reencode(&mut encoder_section)?;
             }
             module.section(&encoder_section);
         }
@@ -846,37 +1067,7 @@ impl<'a> Module<'a> {
         if let Some(crate_section) = self.element_section() {
             let mut encoder_section = wasm_encoder::ElementSection::new();
             for element in crate_section {
-                let items = match &element.items {
-                    ElementItems::Functions(funcs) => {
-                        wasm_encoder::Elements::Functions(funcs.clone().into())
-                    }
-                    ElementItems::Expressions(ty, exprs) => wasm_encoder::Elements::Expressions(
-                        RoundtripReencoder.ref_type(*ty)?,
-                        exprs
-                            .iter()
-                            .map(ConstExpr::reencode)
-                            .collect::<Result<Vec<_>>>()?
-                            .into(),
-                    ),
-                };
-                match &element.kind {
-                    ElementKind::Passive => {
-                        encoder_section.passive(items);
-                    }
-                    ElementKind::Active {
-                        table_index,
-                        offset_expr,
-                    } => {
-                        encoder_section.active(
-                            *table_index,
-                            &RoundtripReencoder.const_expr(offset_expr.clone())?,
-                            items,
-                        );
-                    }
-                    ElementKind::Declared => {
-                        encoder_section.declared(items);
-                    }
-                }
+                element.reencode(&mut encoder_section)?;
             }
             module.section(&encoder_section);
         }
@@ -957,11 +1148,11 @@ impl<'a> Module<'a> {
         self.type_section.as_mut()
     }
 
-    pub fn import_section(&self) -> Option<&Vec<Import<'a>>> {
+    pub fn import_section(&self) -> Option<&Vec<Import>> {
         self.import_section.as_ref()
     }
 
-    pub fn import_section_mut(&mut self) -> Option<&mut Vec<Import<'a>>> {
+    pub fn import_section_mut(&mut self) -> Option<&mut Vec<Import>> {
         self.import_section.as_mut()
     }
 
@@ -973,11 +1164,11 @@ impl<'a> Module<'a> {
         self.function_section.as_mut()
     }
 
-    pub fn table_section(&self) -> Option<&Vec<Table<'a>>> {
+    pub fn table_section(&self) -> Option<&Vec<Table>> {
         self.table_section.as_ref()
     }
 
-    pub fn table_section_mut(&mut self) -> Option<&mut Vec<Table<'a>>> {
+    pub fn table_section_mut(&mut self) -> Option<&mut Vec<Table>> {
         self.table_section.as_mut()
     }
 
@@ -1017,15 +1208,15 @@ impl<'a> Module<'a> {
         self.element_section.as_ref()
     }
 
-    pub fn element_section_mut(&mut self) -> Option<&mut Vec<Element<'a>>> {
+    pub fn element_section_mut(&mut self) -> Option<&mut Vec<Element>> {
         self.element_section.as_mut()
     }
 
-    pub fn data_section(&self) -> Option<&DataSection<'a>> {
+    pub fn data_section(&self) -> Option<&DataSection> {
         self.data_section.as_ref()
     }
 
-    pub fn data_section_mut(&mut self) -> Option<&mut DataSection<'a>> {
+    pub fn data_section_mut(&mut self) -> Option<&mut DataSection> {
         self.data_section.as_mut()
     }
 

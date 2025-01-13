@@ -26,10 +26,10 @@ extern crate core;
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use module::{Module, ModuleError};
-pub use wasmparser::{ExternalKind, FuncType, Import, MemoryType, TypeRef, ValType};
+pub use wasmparser::{ExternalKind, FuncType, MemoryType, TypeRef, ValType};
 
 use crate::{
-    module::{ConstExpr, Export, Function, Global, Instruction, ModuleBuilder},
+    module::{ConstExpr, Export, Function, Global, Import, Instruction, ModuleBuilder},
     stack_limiter::InjectionConfig,
 };
 use alloc::{string::ToString, vec};
@@ -161,7 +161,7 @@ where
 
     /// Performs instrumentation of a given WASM module depending
     /// on the parameters with which the [`InstrumentationBuilder`] was created.
-    pub fn instrument(&mut self, module: Module<'a>) -> Result<Module<'a>, InstrumentationError> {
+    pub fn instrument(&mut self, module: Module) -> Result<Module, InstrumentationError> {
         if let (None, None) = (self.stack_limiter, &self.gas_limiter) {
             return Ok(module);
         }
@@ -198,10 +198,10 @@ where
     }
 }
 
-fn inject_system_break_import<'a>(
-    module: Module<'a>,
-    break_module_name: &'a str,
-) -> Result<(u32, Module<'a>), InstrumentationError> {
+fn inject_system_break_import(
+    module: Module,
+    break_module_name: &str,
+) -> Result<(u32, Module), InstrumentationError> {
     if module
         .import_section()
         .map(|section| {
@@ -220,8 +220,8 @@ fn inject_system_break_import<'a>(
 
     // back to plain module
     mbuilder.push_import(Import {
-        module: break_module_name,
-        name: SyscallName::SystemBreak.to_str(),
+        module: break_module_name.to_string().into(),
+        name: SyscallName::SystemBreak.to_str().into(),
         ty: TypeRef::Func(import_idx),
     });
 
@@ -237,11 +237,11 @@ fn inject_system_break_import<'a>(
     Ok((inserted_index, module))
 }
 
-fn inject_gas_limiter<'a, R: Rules>(
-    module: Module<'a>,
+fn inject_gas_limiter<R: Rules>(
+    module: Module,
     rules: &R,
     gr_system_break_index: u32,
-) -> Result<Module<'a>, InstrumentationError> {
+) -> Result<Module, InstrumentationError> {
     if module
         .export_section()
         .map(|section| section.iter().any(|entry| entry.name == GLOBAL_NAME_GAS))

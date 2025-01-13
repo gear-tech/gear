@@ -25,8 +25,8 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use gear_wasm_instrument::{
-    module::{Export, Function, Instruction, ModuleBuilder},
-    ExternalKind, FuncType, Import, MemoryType, Module, TypeRef, ValType,
+    module::{Export, Function, Import, Instruction, ModuleBuilder},
+    ExternalKind, FuncType, MemoryType, Module, TypeRef, ValType,
 };
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
@@ -43,11 +43,11 @@ pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> 
 //     (import "env" "memory" (memory $num_pages))
 //     (func (type 0))
 //     (export "init" (func 0)))
-pub fn create_module(num_pages: WasmPage) -> Module<'static> {
+pub fn create_module(num_pages: WasmPage) -> Module {
     let mut mbuilder = ModuleBuilder::default();
     mbuilder.push_import(Import {
-        module: "memory",
-        name: "env",
+        module: "memory".into(),
+        name: "env".into(),
         ty: TypeRef::Memory(MemoryType {
             memory64: false,
             shared: false,
@@ -86,8 +86,8 @@ pub fn create_module(num_pages: WasmPage) -> Module<'static> {
 pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     let mut mbuilder = ModuleBuilder::default();
     mbuilder.push_import(Import {
-        module: "memory",
-        name: "env",
+        module: "memory".into(),
+        name: "env".into(),
         ty: TypeRef::Memory(MemoryType {
             memory64: false,
             shared: false,

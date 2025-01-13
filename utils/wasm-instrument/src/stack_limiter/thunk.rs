@@ -17,11 +17,11 @@ struct Thunk {
     idx: Option<u32>,
 }
 
-pub(crate) fn generate_thunks<'a, I>(
+pub(crate) fn generate_thunks<I>(
     ctx: &mut Context,
-    module: Module<'a>,
+    module: Module,
     injection_fn: impl Fn(&FuncType) -> I,
-) -> Result<Module<'a>, &'static str>
+) -> Result<Module, &'static str>
 where
     I: IntoIterator<Item = Instruction>,
     I::IntoIter: ExactSizeIterator + Clone,
@@ -183,7 +183,7 @@ where
     Ok(module)
 }
 
-fn thunk_function_indexes<'a>(module: &'a Module<'a>) -> impl Iterator<Item = u32> + 'a {
+fn thunk_function_indexes(module: &Module) -> impl Iterator<Item = u32> + '_ {
     let exports = module.export_section().map(|v| v.as_slice()).unwrap_or(&[]);
     let elem_segments = module
         .element_section()

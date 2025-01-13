@@ -8,12 +8,12 @@
 mod validation;
 
 use crate::{
-    module::{Function, Instruction, ModuleBuilder},
+    module::{Function, Import, Instruction, ModuleBuilder},
     Module,
 };
 use alloc::{vec, vec::Vec};
 use core::{cmp::min, mem, num::NonZeroU32};
-use wasmparser::{FuncType, Import, TypeRef, ValType};
+use wasmparser::{FuncType, TypeRef, ValType};
 
 /// An interface that describes instruction costs.
 pub trait Rules {
@@ -153,11 +153,11 @@ impl Rules for ConstantCostRules {
 ///
 /// The function fails if the module contains any operation forbidden by gas rule set, returning
 /// the original module as an Err.
-pub fn inject<'a, R: Rules>(
-    module: Module<'a>,
+pub fn inject<R: Rules>(
+    module: Module,
     rules: &R,
-    gas_module_name: &'a str,
-) -> Result<Module<'a>, Module<'a>> {
+    gas_module_name: &'static str,
+) -> Result<Module, Module> {
     // Injecting gas counting external
     let gas_func = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
 
@@ -165,8 +165,8 @@ pub fn inject<'a, R: Rules>(
 
     let import_sig = mbuilder.push_type(FuncType::new([ValType::I32], []));
     mbuilder.push_import(Import {
-        module: gas_module_name,
-        name: "gas",
+        module: gas_module_name.into(),
+        name: "gas".into(),
         ty: TypeRef::Func(import_sig),
     });
 
@@ -180,11 +180,11 @@ pub fn inject<'a, R: Rules>(
 /// Helper procedure that makes adjustments after gas metering function injected.
 ///
 /// See documentation for [`inject`] for more details.
-pub fn post_injection_handler<'a, R: Rules>(
-    mut module: Module<'a>,
+pub fn post_injection_handler<R: Rules>(
+    mut module: Module,
     rules: &R,
     gas_charge_index: usize,
-) -> Result<Module<'a>, Module<'a>> {
+) -> Result<Module, Module> {
     // calculate actual function index of the imported definition
     //    (subtract all imports that are NOT functions)
 
@@ -523,7 +523,7 @@ fn inject_grow_counter(instructions: &mut Vec<Instruction>, grow_counter_func: u
     counter
 }
 
-fn add_grow_counter<'a, R: Rules>(module: Module<'a>, rules: &R, gas_func: u32) -> Module<'a> {
+fn add_grow_counter<R: Rules>(module: Module, rules: &R, gas_func: u32) -> Module {
     use Instruction::*;
 
     let cost = match rules.memory_grow_cost() {
@@ -735,17 +735,14 @@ mod tests {
         };
     }
 
-    fn get_function_body<'m: 'o, 'o>(
-        module: &'m Module<'o>,
-        index: usize,
-    ) -> Option<&'m [Instruction]> {
+    fn get_function_body(module: &Module, index: usize) -> Option<&[Instruction]> {
         module
             .code_section()
             .and_then(|code_section| code_section.get(index))
             .map(|func_body| func_body.instructions.as_slice())
     }
 
-    fn prebuilt_simple_module() -> Module<'static> {
+    fn prebuilt_simple_module() -> Module {
         let mut mbuilder = ModuleBuilder::default();
 
         mbuilder.push_global(Global {

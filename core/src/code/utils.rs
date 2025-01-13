@@ -171,7 +171,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
                     .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
                 let syscall = syscalls
-                    .get(import.name)
+                    .get(import.name.as_ref())
                     .ok_or(ImportError::UnknownImport(import_index))?;
 
                 if !visited_imports.insert(*syscall) {
@@ -233,11 +233,11 @@ fn get_init_expr_const_i32(init_expr: &ConstExpr) -> Option<i32> {
     }
 }
 
-fn get_export_global_entry<'a>(
-    module: &'a Module,
+fn get_export_global_entry(
+    module: &Module,
     export_index: u32,
     global_index: u32,
-) -> Result<&'a Global, CodeError> {
+) -> Result<&Global, CodeError> {
     let index = global_index
         .checked_sub(module.import_count(|ty| matches!(ty, TypeRef::Global(_))) as u32)
         .ok_or(ExportError::ExportReferencesToImportGlobal(
