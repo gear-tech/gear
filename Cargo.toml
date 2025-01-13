@@ -285,7 +285,6 @@ pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
 pallet-gear-builtin = { path = "pallets/gear-builtin", default-features = false }
 pallet-gear-builtin-rpc = { path = "pallets/gear-builtin/rpc" }
 pallet-gear-builtin-rpc-runtime-api = { path = "pallets/gear-builtin/rpc/runtime-api", default-features = false }
-runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
