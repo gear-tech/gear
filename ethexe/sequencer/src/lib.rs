@@ -22,7 +22,10 @@ pub mod agro;
 
 use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use ethexe_common::{
+    db::BlockMetaStorage,
+    gear::{BlockCommitment, CodeCommitment},
+};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
@@ -38,6 +41,8 @@ pub struct Sequencer {
     key: PublicKey,
     ethereum: Ethereum,
 
+    db: Box<dyn BlockMetaStorage>,
+
     validators: HashSet<Address>,
     threshold: u64,
 
@@ -47,6 +52,7 @@ pub struct Sequencer {
     codes_candidate: Option<MultisignedCommitmentDigests>,
     blocks_candidate: Option<MultisignedCommitmentDigests>,
     chain_head: Option<H256>,
+    waiting_for_commitments: BTreeSet<H256>,
 
     status: SequencerStatus,
     status_sender: watch::Sender<SequencerStatus>,
@@ -77,7 +83,11 @@ struct CommitmentAndOrigins<C> {
 type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
 
 impl Sequencer {
-    pub async fn new(config: &Config, signer: Signer) -> Result<Self> {
+    pub async fn new(
+        config: &Config,
+        signer: Signer,
+        db: Box<dyn BlockMetaStorage>,
+    ) -> Result<Self> {
         let (status_sender, _status_receiver) = watch::channel(SequencerStatus::default());
         Ok(Sequencer {
             key: config.sign_tx_public,
@@ -88,6 +98,7 @@ impl Sequencer {
                 config.sign_tx_public.to_address(),
             )
             .await?,
+            db,
             validators: config.validators.iter().cloned().collect(),
             threshold: config.threshold,
             code_commitments: Default::default(),
@@ -95,6 +106,7 @@ impl Sequencer {
             codes_candidate: Default::default(),
             blocks_candidate: Default::default(),
             chain_head: Default::default(),
+            waiting_for_commitments: Default::default(),
             status: Default::default(),
             status_sender,
         })
@@ -107,15 +119,31 @@ impl Sequencer {
     // This function should never block.
     pub fn process_observer_event(&mut self, event: &RequestEvent) -> Result<()> {
         if let RequestEvent::Block(RequestBlockData { hash, .. }) = event {
-            // Reset status, candidates and chain-head each block event
+            if !self.db.block_end_state_is_valid(*hash).unwrap_or(false) {
+                return Err(anyhow!("Block {hash} database state is not valid"));
+            }
 
+            // Reset status, candidates, chain-head and waiting commitments each block event
             self.update_status(|status| {
                 *status = SequencerStatus::default();
             });
-
             self.codes_candidate = None;
             self.blocks_candidate = None;
             self.chain_head = Some(*hash);
+            self.waiting_for_commitments = self
+                .db
+                .block_commitment_queue(*hash)
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Block {hash} database state is not valid: missing block commitment queue"
+                    )
+                })?
+                .into_iter()
+                .collect();
+
+            // Remove all commitments, which we are not waiting for anymore.
+            self.block_commitments
+                .retain(|_, c| self.waiting_for_commitments.contains(&c.commitment.hash));
         }
 
         Ok(())
@@ -202,6 +230,7 @@ impl Sequencer {
             &self.validators,
             self.ethereum.router().address(),
             &mut self.code_commitments,
+            |_| true,
         )
     }
 
@@ -216,6 +245,7 @@ impl Sequencer {
             &self.validators,
             self.ethereum.router().address(),
             &mut self.block_commitments,
+            |c| self.waiting_for_commitments.contains(&c.hash),
         )
     }
 
@@ -400,11 +430,13 @@ impl Sequencer {
         Ok(())
     }
 
+    // TODO: make a test that filter works correctly
     fn receive_commitments<C: ToDigest>(
         aggregated: AggregatedCommitments<C>,
         validators: &HashSet<Address>,
         router_address: Address,
         commitments_storage: &mut CommitmentsMap<C>,
+        commitments_filter: impl Fn(&C) -> bool,
     ) -> Result<()> {
         let origin = aggregated.recover(router_address)?;
 
@@ -413,6 +445,10 @@ impl Sequencer {
         }
 
         for commitment in aggregated.commitments {
+            if !commitments_filter(&commitment) {
+                continue;
+            }
+
             commitments_storage
                 .entry(commitment.to_digest())
                 .or_insert_with(|| CommitmentAndOrigins {
@@ -615,6 +651,7 @@ mod tests {
             &validators,
             router_address,
             &mut commitments_storage,
+            |_| true,
         )
         .expect_err("Signature verification must fail");
 
@@ -623,6 +660,7 @@ mod tests {
             &validators,
             router_address,
             &mut commitments_storage,
+            |_| true,
         )
         .unwrap();
 
@@ -659,6 +697,7 @@ mod tests {
             &validators,
             router_address,
             &mut commitments_storage,
+            |_| true,
         )
         .unwrap();
 
