@@ -29,10 +29,12 @@ pub(crate) mod utils {
     pub fn repr_ri_slice(slice: impl AsRef<[u8]>) -> i64 {
         let slice = slice.as_ref();
 
-        let ptr = slice.as_ptr() as i32;
-        let len = slice.len() as i32;
-
-        ((ptr as i64) << 32) | (len as i64 & 0xFFFFFFFF)
+        let ptr = slice.as_ptr() as u32;
+        let len = slice.len() as u32;
+        let mut result = 0u64;
+        result |= (ptr as u64) << 32;
+        result |= len as u64;
+        result as i64
     }
 }
 

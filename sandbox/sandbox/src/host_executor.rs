@@ -306,8 +306,10 @@ extern "C" fn dispatch_thunk<T>(
         let result_ptr = result.as_ptr() as u64;
         let result_len = result.len() as u64;
         mem::forget(result);
-
-        (result_ptr << 32) | result_len
+        let mut result = 0u64;
+        result |= result_ptr << 32;
+        result |= result_len;
+        result
     }
 }
 

@@ -74,5 +74,8 @@ fn return_val(val: impl Encode) -> i64 {
     let len = encoded.len() as i32;
     let ptr = Box::leak(Box::new(encoded)).as_ptr() as i32;
 
-    ((ptr as i64) << 32) | (len as i64 & 0xFFFFFFFF)
+    let mut result = 0u64;
+    result |= (ptr as u32 as u64) << 32;
+    result |= len as u64;
+    result as i64
 }

@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::common::{pack_i64, unpack_i64};
-
 use super::context::HostContext;
+use ethexe_common::{pack_u32_to_i64, unpack_i64_to_u32};
 use parity_scale_codec::{Decode, Encode};
 use sp_wasm_interface::{FunctionContext as _, IntoValue as _, StoreData};
 use wasmtime::{Caller, Memory, StoreContext, StoreContextMut};
@@ -59,7 +58,7 @@ impl MemoryWrap {
         store: impl Into<StoreContext<'a, T>>,
         ptr_len: i64,
     ) -> &'a [u8] {
-        let (ptr, len) = unpack_i64(ptr_len);
+        let (ptr, len) = unpack_i64_to_u32(ptr_len);
 
         self.slice(store, ptr as usize, len as usize)
     }
@@ -120,7 +119,7 @@ pub fn allocate_and_write_raw(
 
     memory.write(&mut caller, ptr as usize, data).unwrap();
 
-    let res = pack_i64(ptr, len as i32);
+    let res = pack_u32_to_i64(ptr as u32, len as u32);
 
     (caller, res)
 }

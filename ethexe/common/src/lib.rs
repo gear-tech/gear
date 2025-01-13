@@ -34,3 +34,17 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
 
     [b1, b2, b3, b4, b5, b6]
 }
+
+pub const fn pack_u32_to_i64(low: u32, high: u32) -> i64 {
+    let mut result = 0u64;
+    result |= (high as u64) << 32;
+    result |= low as u64;
+    result as i64
+}
+
+pub const fn unpack_i64_to_u32(val: i64) -> (u32, u32) {
+    let val = val as u64;
+    let high = (val >> 32) as u32;
+    let low = val as u32;
+    (low, high)
+}

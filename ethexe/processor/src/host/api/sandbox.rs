@@ -18,11 +18,9 @@
 
 // TODO (breathx): remove cloning of slices from wasm memory.
 
-use crate::{
-    common::pack_i64,
-    host::{api::MemoryWrap, context::HostContext},
-};
+use crate::host::{api::MemoryWrap, context::HostContext};
 use anyhow::Result;
+use ethexe_common::pack_u32_to_i64;
 use gear_runtime_interface::{sandbox_detail, Instantiate};
 use parity_scale_codec::Encode;
 use sp_wasm_interface::{FunctionContext as _, IntoValue as _, Pointer, StoreData};
@@ -89,7 +87,7 @@ fn get_global_val(caller: Caller<'_, StoreData>, instance_idx: i32, name: i64) -
 
     let res = sandbox_detail::get_global_val(&mut host_context, instance_idx as u32, name);
     let res = res.encode();
-    let res_len = res.len() as i32;
+    let res_len = res.len() as u32;
 
     let ptr = host_context
         .allocate_memory(res_len as u32)
@@ -104,7 +102,7 @@ fn get_global_val(caller: Caller<'_, StoreData>, instance_idx: i32, name: i64) -
 
     memory.write(&mut caller, ptr as usize, &res).unwrap();
 
-    let res = pack_i64(ptr, res_len);
+    let res = pack_u32_to_i64(ptr as u32, res_len);
 
     log::trace!(target: "host_call", "get_global_val(..) -> {res:?}");
 
