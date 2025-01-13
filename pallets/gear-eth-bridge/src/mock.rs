@@ -119,7 +119,9 @@ mod grandpa_keys_handler {
             let validators: Vec<_> = validators.collect();
             let queued_validators: Vec<_> = queued_validators.collect();
 
-            log::debug!("on_new_session(changed={changed}, validators={validators:?}, queued_validators={queued_validators:?})");
+            log::debug!(
+                "on_new_session(changed={changed}, validators={validators:?}, queued_validators={queued_validators:?})"
+            );
 
             Grandpa::on_new_session(
                 changed,
@@ -180,6 +182,7 @@ pub const BUILTIN_ID: u64 = 1;
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (ActorWithId<BUILTIN_ID, crate::builtin::Actor<Test>>,);
+    type BlockLimiter = GearGas;
     type WeightInfo = ();
 }
 

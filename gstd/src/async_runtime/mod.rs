@@ -41,19 +41,19 @@ use crate::critical;
 static mut FUTURES: Option<FuturesMap> = None;
 
 pub(crate) fn futures() -> &'static mut FuturesMap {
-    unsafe { FUTURES.get_or_insert_with(HashMap::new) }
+    unsafe { crate::static_mut!(FUTURES).get_or_insert_with(HashMap::new) }
 }
 
 static mut SIGNALS: Option<WakeSignals> = None;
 
 pub(crate) fn signals() -> &'static mut WakeSignals {
-    unsafe { SIGNALS.get_or_insert_with(WakeSignals::new) }
+    unsafe { crate::static_mut!(SIGNALS).get_or_insert_with(WakeSignals::new) }
 }
 
 static mut LOCKS: Option<LocksMap> = None;
 
 pub(crate) fn locks() -> &'static mut LocksMap {
-    unsafe { LOCKS.get_or_insert_with(LocksMap::default) }
+    unsafe { crate::static_mut!(LOCKS).get_or_insert_with(LocksMap::default) }
 }
 
 #[cfg(not(feature = "ethexe"))]
@@ -61,7 +61,7 @@ static mut REPLY_HOOKS: Option<HooksMap> = None;
 
 #[cfg(not(feature = "ethexe"))]
 pub(crate) fn reply_hooks() -> &'static mut HooksMap {
-    unsafe { REPLY_HOOKS.get_or_insert_with(HooksMap::new) }
+    unsafe { crate::static_mut!(REPLY_HOOKS).get_or_insert_with(HooksMap::new) }
 }
 
 /// Default reply handler.

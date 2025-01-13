@@ -23,7 +23,7 @@ mod instrument;
 mod run;
 
 #[cfg(target_arch = "wasm32")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn instrument_code(code_ptr: i32, code_len: i32) -> i64 {
     _instrument_code(code_ptr, code_len)
 }
@@ -36,7 +36,7 @@ fn _instrument_code(original_code_ptr: i32, original_code_len: i32) -> i64 {
 }
 
 #[cfg(target_arch = "wasm32")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn run(arg_ptr: i32, arg_len: i32) -> i64 {
     _run(arg_ptr, arg_len)
 }
