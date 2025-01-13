@@ -176,7 +176,7 @@ where
             let mut termination = match termination_reason {
                 TerminationReason::Actor(reason) => reason,
                 TerminationReason::System(reason) => {
-                    return Err(ExecutionError::System(reason.into()))
+                    return Err(ExecutionError::System(reason.into()));
                 }
             };
 
@@ -190,7 +190,7 @@ where
             (termination, store, memory, ext)
         }
         Err(EnvironmentError::System(e)) => {
-            return Err(ExecutionError::System(SystemExecutionError::Environment(e)))
+            return Err(ExecutionError::System(SystemExecutionError::Environment(e)));
         }
         Err(EnvironmentError::Actor(gas_amount, err)) => {
             log::trace!("ActorExecutionErrorReplyReason::Environment({err}) occurred");
@@ -382,7 +382,7 @@ where
             let termination_reason = match termination_reason {
                 TerminationReason::Actor(reason) => reason,
                 TerminationReason::System(reason) => {
-                    return Err(format!("Backend error: {reason}"))
+                    return Err(format!("Backend error: {reason}"));
                 }
             };
 
@@ -395,7 +395,7 @@ where
         ActorTerminationReason::Exit(_)
         | ActorTerminationReason::Leave
         | ActorTerminationReason::Wait(_, _) => {
-            return Err("Execution has incorrect termination reason".into())
+            return Err("Execution has incorrect termination reason".into());
         }
         ActorTerminationReason::Success => (),
         ActorTerminationReason::Trap(explanation) => {

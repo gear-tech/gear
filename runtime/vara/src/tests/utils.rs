@@ -49,7 +49,10 @@ impl WeightExpectation {
         let right = self.expected + self.expected * self.spread as u64 / 100;
 
         if left > self.weight || self.weight > right {
-            return Err(format!("[{}] instruction. Weight: {} ps. Expected: {} ps. {}% spread interval: [{left} ps, {right} ps]", self.name, self.weight, self.expected, self.spread));
+            return Err(format!(
+                "[{}] instruction. Weight: {} ps. Expected: {} ps. {}% spread interval: [{left} ps, {right} ps]",
+                self.name, self.weight, self.expected, self.spread
+            ));
         }
 
         Ok(())

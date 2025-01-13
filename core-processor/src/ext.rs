@@ -362,7 +362,7 @@ struct ExtMutator<'a, LP: LazyPagesInterface> {
     reservation_to_mark: Option<ReservationId>,
 }
 
-impl<'a, LP: LazyPagesInterface> core::ops::Deref for ExtMutator<'a, LP> {
+impl<LP: LazyPagesInterface> core::ops::Deref for ExtMutator<'_, LP> {
     type Target = Ext<LP>;
 
     fn deref(&self) -> &Self::Target {
@@ -409,7 +409,6 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
                 }
                 Ok(())
             })
-            .map_err(Into::into)
     }
 
     fn reduce_gas(&mut self, limit: GasLimit) -> Result<(), FallibleExtError> {
@@ -830,7 +829,9 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
             let err_msg = format!(
                 "CounterOwner::decrease_current_counter_to: Tried to set gas limit left bigger than before. \
                 Message id - {message_id}, program id - {program_id}, gas counter - {gas_counter:?}, diff - {diff}",
-                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_counter = self.context.gas_counter
+                message_id = self.context.message_context.current().id(),
+                program_id = self.context.program_id,
+                gas_counter = self.context.gas_counter
             );
 
             log::error!("{err_msg}");
@@ -841,7 +842,9 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
             let err_msg = format!(
                 "CounterOwner::decrease_current_counter_to: Tried to set gas allowance left bigger than before. \
                 Message id - {message_id}, program id - {program_id}, gas allowance counter - {gas_allowance_counter:?}, diff - {diff}",
-                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_allowance_counter = self.context.gas_allowance_counter,
+                message_id = self.context.message_context.current().id(),
+                program_id = self.context.program_id,
+                gas_allowance_counter = self.context.gas_allowance_counter,
             );
 
             log::error!("{err_msg}");

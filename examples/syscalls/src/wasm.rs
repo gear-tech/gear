@@ -34,14 +34,14 @@ static mut SIGNAL_DETAILS: (MessageId, SignalCode, ActorId) = (
 );
 static mut DO_PANIC: bool = false;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let code_id_bytes: [u8; 32] = msg::load().expect("internal error: invalid payload");
 
     unsafe { CODE_ID = code_id_bytes.into() };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let syscall_kinds: Vec<Kind> = msg::load().expect("internal error: invalid payload");
     for syscall_kind in syscall_kinds {
@@ -409,7 +409,7 @@ fn process(syscall_kind: Kind) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     match msg::load() {
         Ok(Kind::ReplyDetails(expected_reply_to, expected_reply_code_bytes)) => {
@@ -438,7 +438,7 @@ extern "C" fn handle_reply() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_signal() {
     let (signal_from, signal_code, source) = unsafe { SIGNAL_DETAILS };
 

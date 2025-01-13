@@ -8,13 +8,13 @@ PROJECT_ROOT=`git rev-parse --show-toplevel`
 cd $PROJECT_ROOT
 
 # Find the current version from Cargo.toml
-VERSION=`grep "^version" ./node/Cargo.toml | egrep -o "([0-9\.]+)"`
+VERSION=`grep "^version" Cargo.toml | egrep -o "([0-9\.]+)"`
 GITUSER=gear-tech
 GITREPO=gear
 
 # Build the image
 echo "Building ${GITUSER}/${GITREPO}:latest docker image, hang on!"
-time docker build -f ./docker/Dockerfile --build-arg --build-arg PROFILE=production -t ${GITUSER}/${GITREPO}:latest .
+time docker build -f ./docker/Dockerfile --build-arg PROFILE=production -t ${GITUSER}/${GITREPO}:latest .
 
 # Show the list of available images for this repo
 echo "Image is ready"

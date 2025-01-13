@@ -247,7 +247,7 @@ impl<'de> Deserialize<'de> for ActorId {
     {
         struct ActorIdVisitor;
 
-        impl<'de> de::Visitor<'de> for ActorIdVisitor {
+        impl de::Visitor<'_> for ActorIdVisitor {
             type Value = ActorId;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

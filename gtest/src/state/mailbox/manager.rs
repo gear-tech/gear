@@ -54,7 +54,7 @@ impl MailboxManager {
     pub(crate) fn iter_key(
         &self,
         to: ProgramId,
-    ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
+    ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> + use<> {
         <AuxiliaryMailbox<MailboxCallbacksImpl> as IterableByKeyMap<_>>::iter_key(to)
     }
 
