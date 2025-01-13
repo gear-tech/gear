@@ -148,8 +148,9 @@ pub fn new_partial<RuntimeApi>(
         sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi>>,
         (
             impl Fn(
-                sc_rpc::SubscriptionTaskExecutor,
-            ) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>,
+                    sc_rpc::SubscriptionTaskExecutor,
+                ) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>
+                + use<RuntimeApi>,
             (
                 sc_consensus_babe::BabeBlockImport<
                     Block,
@@ -471,9 +472,9 @@ where
         match SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench, false) {
             Err(err) if role.is_authority() => {
                 log::warn!(
-					"⚠️  The hardware does not meet the minimal requirements {} for role 'Authority'.",
-					err
-				);
+                    "⚠️  The hardware does not meet the minimal requirements {} for role 'Authority'.",
+                    err
+                );
             }
             _ => {}
         }

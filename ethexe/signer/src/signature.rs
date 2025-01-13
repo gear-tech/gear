@@ -33,7 +33,7 @@ pub struct RawSignature([u8; 65]);
 impl RawSignature {
     pub fn create_for_digest(private_key: PrivateKey, digest: Digest) -> Result<RawSignature> {
         let secp_secret_key = secp256k1::SecretKey::from_slice(&private_key.0)
-            .with_context(|| "Invalid secret key format for {:?}")?;
+            .with_context(|| "Invalid secret key format")?;
 
         let message = Message::from_digest(digest.into());
 
@@ -71,6 +71,12 @@ impl From<Signature> for RawSignature {
 pub struct Signature([u8; 65]);
 
 impl Signature {
+    /// # Safety
+    /// This function is unsafe because it does not check the validity of the input bytes.
+    pub const unsafe fn from_bytes(bytes: [u8; 65]) -> Self {
+        Self(bytes)
+    }
+
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
     }

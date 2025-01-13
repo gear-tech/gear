@@ -18,7 +18,7 @@
 
 use crate::observer::ObserverProvider;
 use alloy::{
-    consensus::{SidecarCoder, SimpleCoder},
+    consensus::{SidecarCoder, SimpleCoder, Transaction},
     eips::eip4844::kzg_to_versioned_hash,
     providers::{Provider, ProviderBuilder},
     rpc::types::{beacon::sidecar::BeaconBlobBundle, eth::BlockTransactionsKind},
@@ -89,7 +89,7 @@ impl BlobReader for ConsensusLayerBlobReader {
             .await?
             .ok_or_else(|| anyhow!("failed to get transaction"))?;
         let blob_versioned_hashes = tx
-            .blob_versioned_hashes
+            .blob_versioned_hashes()
             .ok_or_else(|| anyhow!("failed to get versioned hashes"))?;
         let blob_versioned_hashes = HashSet::<_, RandomState>::from_iter(blob_versioned_hashes);
         let block_hash = tx

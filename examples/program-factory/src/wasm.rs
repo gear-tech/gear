@@ -28,12 +28,12 @@ use gstd::{msg, prog, ActorId};
 static mut COUNTER: i32 = 0;
 static mut ORIGIN: Option<ActorId> = None;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { ORIGIN = Some(msg::source()) };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     match msg::load().expect("provided invalid payload") {
         CreateProgram::Default => {
@@ -62,7 +62,7 @@ extern "C" fn handle() {
     };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     if !msg::reply_code().unwrap().is_success() {
         let origin = unsafe { ORIGIN.unwrap() };

@@ -25,7 +25,7 @@ use gear_core::{
     str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};
-use pallet_gear_builtin::{BuiltinActor, BuiltinActorError};
+use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::Zero;
 use sp_std::vec::Vec;
@@ -41,27 +41,27 @@ where
 {
     fn handle(
         dispatch: &StoredDispatch,
-        gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64) {
+        context: &mut BuiltinContext,
+    ) -> Result<Payload, BuiltinActorError> {
         if !dispatch.value().is_zero() {
-            return (
-                Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                    error_to_str(&Error::<T>::IncorrectValueApplied),
-                ))),
-                0,
-            );
+            return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                error_to_str(&Error::<T>::IncorrectValueApplied),
+            )));
         }
 
-        let Ok(request) = Request::decode(&mut dispatch.payload_bytes()) else {
-            return (Err(BuiltinActorError::DecodingError), 0);
-        };
+        let request = Request::decode(&mut dispatch.payload_bytes())
+            .map_err(|_| BuiltinActorError::DecodingError)?;
 
         match request {
             Request::SendEthMessage {
                 destination,
                 payload,
-            } => send_message_request::<T>(dispatch.source(), destination, payload, gas_limit),
+            } => send_message_request::<T>(dispatch.source(), destination, payload, context),
         }
+    }
+
+    fn max_gas() -> u64 {
+        Default::default()
     }
 }
 
@@ -69,27 +69,23 @@ fn send_message_request<T: Config>(
     source: ActorId,
     destination: H160,
     payload: Vec<u8>,
-    gas_limit: u64,
-) -> (Result<Payload, BuiltinActorError>, u64)
+    context: &mut BuiltinContext,
+) -> Result<Payload, BuiltinActorError>
 where
     T::AccountId: Origin,
 {
     let gas_cost = <T as Config>::WeightInfo::send_eth_message().ref_time();
 
-    if gas_limit < gas_cost {
-        return (Err(BuiltinActorError::InsufficientGas), 0);
-    }
+    context.try_charge_gas(gas_cost)?;
 
-    let res = Pallet::<T>::queue_message(source, destination, payload)
+    Pallet::<T>::queue_message(source, destination, payload)
         .map(|(nonce, hash)| {
             Response::EthMessageQueued { nonce, hash }
                 .encode()
                 .try_into()
                 .unwrap_or_else(|_| unreachable!("response max encoded len is less than maximum"))
         })
-        .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(&e))));
-
-    (res, gas_cost)
+        .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(&e))))
 }
 
 pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {

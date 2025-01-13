@@ -234,7 +234,7 @@ impl GearApi {
             .api()
             .read_state(H256(program_id.into()), payload, at)
             .await?;
-        crate::utils::hex_to_vec(response).map_err(Into::into)
+        crate::utils::hex_to_vec(response)
     }
 
     /// Read the program's state as decoded data.
