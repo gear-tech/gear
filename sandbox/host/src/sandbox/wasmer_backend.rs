@@ -345,8 +345,8 @@ fn dispatch_common(
     let (serialized_result_val_ptr, serialized_result_val_len) = {
         // Cast to u64 to use zero-extension.
         let v = serialized_result as u64;
-        let ptr = (v >> 32) as u32;
-        let len = (v & 0xFFFFFFFF) as u32;
+        let len = (v >> 32) as u32;
+        let ptr = (v & 0xFFFFFFFF) as u32;
         (Pointer::new(ptr), len)
     };
 

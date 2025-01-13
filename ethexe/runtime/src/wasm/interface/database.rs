@@ -43,7 +43,7 @@ pub fn read_raw(hash: &H256) -> Option<&[u8]> {
         let ptr_len = sys::ext_database_read_by_hash_version_1(hash.as_ptr() as _);
 
         (ptr_len != 0).then(|| {
-            let (ptr, len) = ((ptr_len >> 32) as i32, (ptr_len & 0xFFFFFFFF) as i32);
+            let (len, ptr) = ((ptr_len >> 32) as i32, (ptr_len & 0xFFFFFFFF) as i32);
             slice::from_raw_parts(ptr as _, len as usize)
         })
     }

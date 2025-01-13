@@ -32,8 +32,8 @@ pub(crate) mod utils {
         let ptr = slice.as_ptr() as u32;
         let len = slice.len() as u32;
         let mut result = 0u64;
-        result |= (ptr as u64) << 32;
-        result |= len as u64;
+        result |= (len as u64) << 32;
+        result |= ptr as u64;
         result as i64
     }
 }
