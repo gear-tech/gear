@@ -655,8 +655,8 @@ where
 
         // Processing of the message, if destination is builtin actor.
         let builtin_dispatcher = ext_manager.builtins();
-        if let Some(f) = builtin_dispatcher.lookup(&destination) {
-            let journal = builtin_dispatcher.run(f, dispatch, gas_limit);
+        if let Some(info) = builtin_dispatcher.lookup(&destination) {
+            let journal = builtin_dispatcher.run(info, dispatch, gas_limit);
             return Ok(Some((processed, journal, true)));
         }
 

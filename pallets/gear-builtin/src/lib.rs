@@ -53,17 +53,18 @@ use alloc::{
     format,
     string::ToString,
 };
+use common::{storage::Limiter, BlockLimiter};
 use core::marker::PhantomData;
 use core_processor::{
     common::{
         ActorExecutionErrorReplyReason, DispatchResult, JournalNote, SuccessfulDispatchResultKind,
         TrapExplanation,
     },
-    process_execution_error, process_success, SystemReservationContext,
+    process_allowance_exceed, process_execution_error, process_success, SystemReservationContext,
 };
 use frame_support::dispatch::extract_actual_weight;
 use gear_core::{
-    gas::GasCounter,
+    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::{hash, ProgramId},
     message::{
         ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
@@ -71,17 +72,18 @@ use gear_core::{
     str::LimitedStr,
 };
 use impl_trait_for_tuples::impl_for_tuples;
-use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
+use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
 pub use pallet::*;
 
 type CallOf<T> = <T as Config>::RuntimeCall;
+pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
 const LOG_TARGET: &str = "gear::builtin";
 
-pub type ActorErrorHandleFn = HandleFn<BuiltinActorError>;
+pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
 
 /// Built-in actor error type
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
@@ -95,6 +97,9 @@ pub enum BuiltinActorError {
     /// Actor's inner error encoded as a String.
     #[display(fmt = "Builtin execution resulted in error: {_0}")]
     Custom(LimitedStr<'static>),
+    /// Occurs if a builtin actor execution does not fit in the current block.
+    #[display(fmt = "Block gas allowance exceeded")]
+    GasAllowanceExceeded,
 }
 
 impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
@@ -110,7 +115,49 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
             BuiltinActorError::Custom(e) => {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e))
             }
+            BuiltinActorError::GasAllowanceExceeded => {
+                unreachable!("Never supposed to be converted to error reply reason")
+            }
         }
+    }
+}
+
+/// A builtin actor execution context. Primarily used to track gas usage.
+#[derive(Debug)]
+pub struct BuiltinContext {
+    pub(crate) gas_counter: GasCounter,
+    pub(crate) gas_allowance_counter: GasAllowanceCounter,
+}
+
+impl BuiltinContext {
+    // Tries to charge the gas amount from the gas counters.
+    pub fn try_charge_gas(&mut self, amount: u64) -> Result<(), BuiltinActorError> {
+        if self.gas_counter.charge_if_enough(amount) == ChargeResult::NotEnough {
+            return Err(BuiltinActorError::InsufficientGas);
+        }
+
+        if self.gas_allowance_counter.charge_if_enough(amount) == ChargeResult::NotEnough {
+            return Err(BuiltinActorError::GasAllowanceExceeded);
+        }
+
+        Ok(())
+    }
+
+    // Checks if an amount of gas can be charged without actually modifying the inner counters.
+    pub fn can_charge_gas(&self, amount: u64) -> Result<(), BuiltinActorError> {
+        if self.gas_counter.left() < amount {
+            return Err(BuiltinActorError::InsufficientGas);
+        }
+
+        if self.gas_allowance_counter.left() < amount {
+            return Err(BuiltinActorError::GasAllowanceExceeded);
+        }
+
+        Ok(())
+    }
+
+    fn to_gas_amount(&self) -> GasAmount {
+        self.gas_counter.to_amount()
     }
 }
 
@@ -120,8 +167,11 @@ pub trait BuiltinActor {
     /// Handles a message and returns a result and the actual gas spent.
     fn handle(
         dispatch: &StoredDispatch,
-        gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64);
+        context: &mut BuiltinContext,
+    ) -> Result<Payload, BuiltinActorError>;
+
+    /// Returns the maximum gas that can be spent by the actor.
+    fn max_gas() -> u64;
 }
 
 /// A marker struct to associate a builtin actor with its unique ID.
@@ -142,7 +192,7 @@ impl<const ID: u64, A: BuiltinActor> BuiltinActorWithId for ActorWithId<ID, A> {
 /// a in-memory collection of builtin actors.
 pub trait BuiltinCollection {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, Box<ActorErrorHandleFn>>,
+        registry: &mut BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
         id_converter: &dyn Fn(u64) -> ProgramId,
     );
 }
@@ -152,14 +202,14 @@ pub trait BuiltinCollection {
 #[tuple_types_custom_trait_bound(BuiltinActorWithId + 'static)]
 impl BuiltinCollection for Tuple {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, Box<ActorErrorHandleFn>>,
+        registry: &mut BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
         id_converter: &dyn Fn(u64) -> ProgramId,
     ) {
         for_tuples!(
             #(
                 let actor_id = id_converter(Tuple::ID);
                 if let Entry::Vacant(e) = registry.entry(actor_id) {
-                    e.insert(Box::new(Tuple::Actor::handle));
+                    e.insert((Box::new(Tuple::Actor::handle), Box::new(Tuple::Actor::max_gas)));
                 } else {
                     let err_msg = format!(
                         "Tuple::for_tuples: Duplicate builtin ids. \
@@ -202,6 +252,9 @@ pub mod pallet {
         /// The builtin actor type.
         type Builtins: BuiltinCollection;
 
+        /// Block limits.
+        type BlockLimiter: BlockLimiter<Balance = u64>;
+
         /// Weight cost incurred by builtin actors calls.
         type WeightInfo: WeightInfo;
     }
@@ -222,45 +275,41 @@ pub mod pallet {
         pub(crate) fn dispatch_call(
             origin: ProgramId,
             call: CallOf<T>,
-            gas_limit: u64,
-        ) -> (Result<(), BuiltinActorError>, u64)
+            context: &mut BuiltinContext,
+        ) -> Result<(), BuiltinActorError>
         where
             T::AccountId: Origin,
         {
             let call_info = call.get_dispatch_info();
 
-            // Necessary upfront gas sufficiency check
-            if gas_limit < call_info.weight.ref_time() {
-                return (Err(BuiltinActorError::InsufficientGas), 0_u64);
-            }
+            // Necessary upfront gas sufficiency checks
+            let gas_cost = call_info.weight.ref_time();
+            context.can_charge_gas(gas_cost)?;
 
             // Execute call
             let res = call.dispatch(frame_system::RawOrigin::Signed(origin.cast()).into());
             let actual_gas = extract_actual_weight(&res, &call_info).ref_time();
 
-            match res {
-                Ok(_post_info) => {
-                    log::debug!(
-                        target: LOG_TARGET,
-                        "Call dispatched successfully",
-                    );
-                    (Ok(()), actual_gas)
-                }
-                Err(e) => {
-                    log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
-                    (
-                        Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                            e.into(),
-                        ))),
-                        actual_gas,
-                    )
-                }
-            }
+            // Now actually charge the gas
+            context.try_charge_gas(actual_gas)?;
+
+            res.inspect(|_| {
+                log::debug!(
+                    target: LOG_TARGET,
+                    "Call dispatched successfully",
+                );
+            })
+            .map(|_| ())
+            .inspect_err(|e| {
+                log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
+            })
+            .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(e.into())))
         }
     }
 }
 
 impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
+    type Context = BuiltinContext;
     type Error = BuiltinActorError;
 
     type Output = BuiltinRegistry<T>;
@@ -274,7 +323,7 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
 }
 
 pub struct BuiltinRegistry<T: Config> {
-    pub registry: BTreeMap<ProgramId, Box<ActorErrorHandleFn>>,
+    pub registry: BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
 impl<T: Config> BuiltinRegistry<T> {
@@ -290,19 +339,27 @@ impl<T: Config> BuiltinRegistry<T> {
 }
 
 impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
+    type Context = BuiltinContext;
     type Error = BuiltinActorError;
 
-    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<&'a ActorErrorHandleFn> {
-        self.registry.get(id).map(|f| &**f)
+    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>> {
+        self.registry
+            .get(id)
+            .map(|(f, g)| BuiltinInfo::<'a, Self::Context, Self::Error> {
+                handle: &**f,
+                max_gas: &**g,
+            })
     }
 
     fn run(
         &self,
-        f: &ActorErrorHandleFn,
+        context: BuiltinInfo<Self::Context, Self::Error>,
         dispatch: StoredDispatch,
         gas_limit: u64,
     ) -> Vec<JournalNote> {
         let actor_id = dispatch.destination();
+
+        let BuiltinInfo { handle, max_gas } = context;
 
         if dispatch.kind() != DispatchKind::Handle {
             let err_msg = format!(
@@ -320,24 +377,26 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
             );
         }
 
-        // Creating a gas counter to track gas usage (because core processor needs it).
-        let mut gas_counter = GasCounter::new(gas_limit);
+        // We only allow a message to even start processing if it can fit into the current block
+        // TODO: use fine-grained `max_gas` estimation based on payload info (#4395)
+        let current_gas_allowance = GasAllowanceOf::<T>::get();
+        if max_gas() > current_gas_allowance {
+            return process_allowance_exceed(dispatch.into_incoming(gas_limit), actor_id, 0);
+        }
 
-        // TODO: #3752. Need to run gas limit check before calling `f(&dispatch)`.
+        // Setting up the context to track gas usage.
+        let mut context = BuiltinContext {
+            gas_counter: GasCounter::new(gas_limit),
+            gas_allowance_counter: GasAllowanceCounter::new(current_gas_allowance),
+        };
 
         // Actual call to the builtin actor
-        let (res, gas_spent) = f(&dispatch, gas_limit);
-
-        // We rely on a builtin actor to perform the check for gas limit consistency before
-        // executing a message and report an error if the `gas_limit` was to have been exceeded.
-        // However, to avoid gas tree corruption error, we must not report as spent more gas than
-        // the amount reserved in gas tree (that is, `gas_limit`). Hence (just in case):
-        let gas_spent = gas_spent.min(gas_limit);
-
-        // Let the `gas_counter` know how much gas was spent.
-        let _ = gas_counter.charge(gas_spent);
+        let res = handle(&dispatch, &mut context);
 
         let dispatch = dispatch.into_incoming(gas_limit);
+
+        // Consume the context and extract the amount of gas spent.
+        let gas_amount = context.to_gas_amount();
 
         match res {
             Ok(response_payload) => {
@@ -345,7 +404,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
 
                 let mut dispatch_result =
-                    DispatchResult::success(dispatch.clone(), actor_id, gas_counter.to_amount());
+                    DispatchResult::success(dispatch.clone(), actor_id, gas_amount);
 
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
@@ -378,12 +437,25 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 // Using the core processor logic create necessary `JournalNote`'s for us.
                 process_success(SuccessfulDispatchResultKind::Success, dispatch_result)
             }
+            Err(BuiltinActorError::GasAllowanceExceeded) => {
+                // Ideally, this should never happen, as we should have checked the gas allowance
+                // before even entring the `handle` method. However, if this error does occur,
+                // we should handle it by discarding the gas burned and requeueing the message.
+                // N.B.: if `gas_amount.burned` is not zero, the cost is borne by the validator.
+                process_allowance_exceed(dispatch, actor_id, 0)
+            }
             Err(err) => {
                 // Builtin actor call failed.
                 log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
                 // The core processor will take care of creating necessary `JournalNote`'s.
-                process_execution_error(dispatch, actor_id, gas_spent, system_reservation_ctx, err)
+                process_execution_error(
+                    dispatch,
+                    actor_id,
+                    gas_amount.burned(),
+                    system_reservation_ctx,
+                    err,
+                )
             }
         }
     }

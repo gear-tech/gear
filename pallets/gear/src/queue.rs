@@ -339,9 +339,9 @@ where
             // of a builtin actor, we handle the dispatch as a builtin actor dispatch.
             // Otherwise we proceed with the regular flow.
             let builtin_dispatcher = ext_manager.builtins();
-            if let Some(f) = builtin_dispatcher.lookup(&program_id) {
+            if let Some(info) = builtin_dispatcher.lookup(&program_id) {
                 core_processor::handle_journal(
-                    builtin_dispatcher.run(f, dispatch, gas_limit),
+                    builtin_dispatcher.run(info, dispatch, gas_limit),
                     &mut ext_manager,
                 );
                 continue;

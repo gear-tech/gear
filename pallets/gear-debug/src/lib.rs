@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::manual_inspect)]
+#![allow(clippy::useless_conversion)]
 
 extern crate alloc;
 
@@ -219,7 +220,7 @@ pub mod pallet {
                             return ProgramDetails {
                                 id,
                                 state: ProgramState::Terminated,
-                            }
+                            };
                         }
                     };
                     let static_pages = match T::CodeStorage::get_code_metadata(active.code_id) {

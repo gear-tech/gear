@@ -319,7 +319,6 @@ impl System {
     ///
     /// Same as ['submit_code_file'], but the path is provided as relative to
     /// the current directory.
-
     pub fn submit_local_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")

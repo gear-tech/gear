@@ -35,7 +35,7 @@ async fn ping() {
         .expect("Received error reply");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let destination = msg::load().expect("Failed to load destination");
     unsafe { DESTINATION = destination };

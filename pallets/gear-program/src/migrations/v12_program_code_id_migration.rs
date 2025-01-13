@@ -57,8 +57,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateProgramCodeHashToCodeId<T> {
             }
 
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
-
-            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+            log::info!(
+                "🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}."
+            );
 
             ProgramStorage::<T>::translate(|_, program: v11::Program<BlockNumberFor<T>>| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -89,7 +90,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateProgramCodeHashToCodeId<T> {
 
             log::info!("✅ Successfully migrated storage. {counter} codes have been migrated");
         } else {
-            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
+            log::info!(
+                "🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}"
+            );
         }
 
         weight

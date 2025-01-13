@@ -42,8 +42,8 @@ pub use ext::{
 pub use handler::handle_journal;
 pub use precharge::*;
 pub use processing::{
-    process, process_code_metadata_error, process_execution_error, process_non_executable,
-    process_reinstrumentation_error, process_success,
+    process, process_allowance_exceed, process_code_metadata_error, process_execution_error,
+    process_non_executable, process_reinstrumentation_error, process_success,
 };
 
 /// Informational functions for core-processor and executor.

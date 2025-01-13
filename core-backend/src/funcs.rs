@@ -1378,7 +1378,7 @@ where
         )
     }
 
-    pub fn forbidden(_args: &[Value]) -> impl Syscall<Caller> {
+    pub fn forbidden(_args: &[Value]) -> impl Syscall<Caller> + use<Caller, Ext> {
         InfallibleSyscall::new(CostToken::Null, |_: &mut CallerWrap<Caller>| {
             Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into())
         })

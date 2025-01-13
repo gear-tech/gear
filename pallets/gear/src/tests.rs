@@ -114,7 +114,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 600_000_000, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 800_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -778,7 +778,7 @@ fn value_counter_set_correctly_for_interruptions() {
     //
     // use gstd::{msg, exec};
     //
-    // #[no_mangle]
+    // #[unsafe(no_mangle)]
     // extern "C" fn handle() {
     //     msg::send(msg::source(), exec::value_available(), 0).unwrap();
     //     msg::send_bytes(Default::default(), [], msg::value()).unwrap();
@@ -16584,7 +16584,7 @@ pub(crate) mod utils {
         OutgoingWithValueInHandle,
     }
 
-    impl<'a> ProgramCodeKind<'a> {
+    impl ProgramCodeKind<'_> {
         pub(super) fn to_bytes(self) -> Vec<u8> {
             let mut validate = true;
             let source = match self {

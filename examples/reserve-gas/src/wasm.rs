@@ -38,7 +38,7 @@ enum WakeState {
     Exit,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { INIT_MSG = msg::id() };
 
@@ -62,7 +62,7 @@ extern "C" fn init() {
                 )
             };
         }
-        InitAction::Wait => match unsafe { &WAKE_STATE } {
+        InitAction::Wait => match unsafe { static_ref!(WAKE_STATE) } {
             WakeState::Initial => {
                 let _reservation = ReservationId::reserve(50_000, 10);
                 // to find message to reply to in test
@@ -126,19 +126,19 @@ extern "C" fn init() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let action: HandleAction = msg::load().unwrap();
     match action {
         HandleAction::Unreserve => {
-            let id = unsafe { RESERVATION_ID.take().unwrap() };
+            let id = unsafe { static_mut!(RESERVATION_ID).take().unwrap() };
             id.unreserve().expect("unreservation across executions");
         }
         HandleAction::Exit => {
             exec::exit(msg::source());
         }
         HandleAction::ReplyFromReservation => {
-            let id = unsafe { RESERVATION_ID.take().unwrap() };
+            let id = unsafe { static_mut!(RESERVATION_ID).take().unwrap() };
             msg::reply_from_reservation(id, REPLY_FROM_RESERVATION_PAYLOAD, 0)
                 .expect("unable to reply from reservation");
         }
@@ -146,11 +146,11 @@ extern "C" fn handle() {
             let reservation_id =
                 ReservationId::reserve(amount, block_count).expect("Unable to reserve gas");
             unsafe {
-                RESERVATIONS.push(reservation_id);
+                static_mut!(RESERVATIONS).push(reservation_id);
             }
         }
         HandleAction::ConsumeReservationsFromList => {
-            let reservations = unsafe { mem::take(&mut RESERVATIONS) };
+            let reservations = unsafe { mem::take(static_mut!(RESERVATIONS)) };
             for reservation_id in reservations {
                 msg::send_from_reservation(
                     reservation_id,
@@ -170,7 +170,7 @@ extern "C" fn handle() {
             }
         }
         HandleAction::SendFromReservationAndUnreserve => {
-            let id = unsafe { RESERVATION_ID.take().unwrap() };
+            let id = unsafe { static_mut!(RESERVATION_ID).take().unwrap() };
             gstd::msg::send_from_reservation(id, msg::source(), b"existing_reserve_unreserve", 0)
                 .unwrap();
             assert_eq!(
@@ -184,7 +184,7 @@ extern "C" fn handle() {
 }
 
 // must be called after `InitAction::Wait`
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     let action: ReplyAction = msg::load().unwrap();
     unsafe {
