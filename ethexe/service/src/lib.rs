@@ -16,13 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Main service in ethexe node.
-
-use crate::{
-    config::{Config, ConfigPublicKey, PrometheusConfig},
-    metrics::MetricsService,
-};
-use anyhow::{anyhow, bail, Result};
+use crate::config::{Config, ConfigPublicKey};
+use anyhow::{anyhow, bail, Context, Result};
 use ethexe_common::{
     events::{BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
@@ -32,6 +27,7 @@ use ethexe_ethereum::{primitives::U256, router::RouterQuery};
 use ethexe_network::{db_sync, NetworkReceiverEvent};
 use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
+use ethexe_prometheus::MetricsService;
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
@@ -45,6 +41,11 @@ use std::{
     time::{Duration, Instant},
 };
 use utils::*;
+
+pub mod config;
+
+#[cfg(test)]
+mod tests;
 
 /// ethexe service.
 pub struct Service {
@@ -85,27 +86,34 @@ impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
         let blob_reader = Arc::new(
             ethexe_observer::ConsensusLayerBlobReader::new(
-                &config.ethereum_rpc,
-                &config.ethereum_beacon_rpc,
-                config.block_time,
+                &config.ethereum.rpc,
+                &config.ethereum.beacon_rpc,
+                config.ethereum.block_time,
             )
-            .await?,
+            .await
+            .with_context(|| "failed to create blob reader")?,
         );
 
-        let ethereum_router_address = config.ethereum_router_address;
-        let rocks_db = ethexe_db::RocksDatabase::open(config.database_path.clone())?;
-        let db = ethexe_db::Database::from_one(&rocks_db, ethereum_router_address.0);
+        let rocks_db = ethexe_db::RocksDatabase::open(config.node.database_path.clone())
+            .with_context(|| "failed to open database")?;
+        let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
 
         let observer = ethexe_observer::Observer::new(
-            &config.ethereum_rpc,
-            ethereum_router_address,
+            &config.ethereum.rpc,
+            config.ethereum.router_address,
             blob_reader.clone(),
         )
-        .await?;
+        .await
+        .with_context(|| "failed to create observer")?;
 
-        let router_query = RouterQuery::new(&config.ethereum_rpc, ethereum_router_address).await?;
+        let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
+            .await
+            .with_context(|| "failed to create router query")?;
 
-        let genesis_block_hash = router_query.genesis_block_hash().await?;
+        let genesis_block_hash = router_query
+            .genesis_block_hash()
+            .await
+            .with_context(|| "failed to query genesis hash")?;
 
         if genesis_block_hash.is_zero() {
             log::error!(
@@ -117,29 +125,37 @@ impl Service {
             log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
         }
 
-        let validators = router_query.validators().await?;
+        let validators = router_query
+            .validators()
+            .await
+            .with_context(|| "failed to query validators")?;
         log::info!("👥 Validators set: {validators:?}");
 
-        let threshold = router_query.threshold().await?;
+        let threshold = router_query
+            .threshold()
+            .await
+            .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
         let query = ethexe_observer::Query::new(
             Arc::new(db.clone()),
-            &config.ethereum_rpc,
-            ethereum_router_address,
+            &config.ethereum.rpc,
+            config.ethereum.router_address,
             genesis_block_hash,
             blob_reader,
-            config.max_commitment_depth,
+            config.node.max_commitment_depth,
         )
-        .await?;
+        .await
+        .with_context(|| "failed to create observer query")?;
 
         let processor = ethexe_processor::Processor::with_config(
             ProcessorConfig {
-                worker_threads_override: config.worker_threads_override,
-                virtual_threads: config.virtual_threads,
+                worker_threads_override: config.node.worker_threads_override,
+                virtual_threads: config.node.virtual_threads,
             },
             db.clone(),
-        )?;
+        )
+        .with_context(|| "failed to create processor")?;
 
         if let Some(worker_threads) = processor.config().worker_threads_override {
             log::info!("🔧 Overriding amount of physical threads for runtime: {worker_threads}");
@@ -150,58 +166,68 @@ impl Service {
             processor.config().virtual_threads
         );
 
-        let signer = ethexe_signer::Signer::new(config.key_path.clone())?;
+        let signer = ethexe_signer::Signer::new(config.node.key_path.clone())
+            .with_context(|| "failed to create signer")?;
 
-        let sequencer = if let Some(key) = Self::get_config_public_key(config.sequencer, &signer)? {
+        let sequencer = if let Some(key) =
+            Self::get_config_public_key(config.node.sequencer, &signer)
+                .with_context(|| "failed to get sequencer private key")?
+        {
             Some(
                 ethexe_sequencer::Sequencer::new(
                     &ethexe_sequencer::Config {
-                        ethereum_rpc: config.ethereum_rpc.clone(),
+                        ethereum_rpc: config.ethereum.rpc.clone(),
                         sign_tx_public: key,
-                        router_address: config.ethereum_router_address,
+                        router_address: config.ethereum.router_address,
                         validators,
                         threshold,
                     },
                     signer.clone(),
                 )
-                .await?,
+                .await
+                .with_context(|| "failed to create sequencer")?,
             )
         } else {
             None
         };
 
-        let validator = Self::get_config_public_key(config.validator, &signer)?.map(|key| {
-            ethexe_validator::Validator::new(
-                &ethexe_validator::Config {
-                    pub_key: key,
-                    router_address: config.ethereum_router_address,
-                },
-                signer.clone(),
-            )
-        });
+        let validator = Self::get_config_public_key(config.node.validator, &signer)
+            .with_context(|| "failed to get validator private key")?
+            .map(|key| {
+                ethexe_validator::Validator::new(
+                    &ethexe_validator::Config {
+                        pub_key: key,
+                        router_address: config.ethereum.router_address,
+                    },
+                    signer.clone(),
+                )
+            });
 
         // Prometheus metrics.
-        let metrics_service =
-            if let Some(PrometheusConfig { port, registry }) = config.prometheus_config.clone() {
-                // Set static metrics.
-                let metrics = MetricsService::with_prometheus(&registry, config)?;
-                tokio::spawn(ethexe_prometheus_endpoint::init_prometheus(port, registry).map(drop));
+        let metrics_service = if let Some(config) = config.prometheus.clone() {
+            // Set static metrics.
+            let metrics =
+                MetricsService::new(&config).with_context(|| "failed to create metrics service")?;
+            tokio::spawn(
+                ethexe_prometheus::init_prometheus(config.addr, config.registry).map(drop),
+            );
 
-                Some(metrics)
-            } else {
-                None
-            };
+            Some(metrics)
+        } else {
+            None
+        };
 
-        let network = config
-            .net_config
-            .as_ref()
-            .map(|config| -> Result<_> {
-                ethexe_network::NetworkService::new(config.clone(), &signer, db.clone())
-            })
-            .transpose()?;
+        let network = if let Some(net_config) = &config.network {
+            Some(
+                ethexe_network::NetworkService::new(net_config.clone(), &signer, db.clone())
+                    .with_context(|| "failed to create network service")?,
+            )
+        } else {
+            None
+        };
 
         let rpc = config
-            .rpc_config
+            .rpc
             .as_ref()
             .map(|config| ethexe_rpc::RpcService::new(config.clone(), db.clone()));
 
@@ -217,7 +243,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
-            block_time: config.block_time,
+            block_time: config.ethereum.block_time,
         })
     }
 
@@ -432,6 +458,13 @@ impl Service {
         }
     }
 
+    pub async fn run(self) -> Result<()> {
+        self.run_inner().await.map_err(|err| {
+            log::error!("Service finished work with error: {err:?}");
+            err
+        })
+    }
+
     async fn run_inner(self) -> Result<()> {
         let Service {
             db,
@@ -589,13 +622,6 @@ impl Service {
         }
 
         Ok(())
-    }
-
-    pub async fn run(self) -> Result<()> {
-        self.run_inner().await.map_err(|err| {
-            log::error!("Service finished work with error: {:?}", err);
-            err
-        })
     }
 
     async fn post_process_commitments(
@@ -904,80 +930,5 @@ mod utils {
         } else {
             future::pending().await
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Service;
-    use crate::config::{Config, PrometheusConfig};
-    use ethexe_rpc::RpcConfig;
-    use std::{
-        net::{Ipv4Addr, SocketAddr},
-        time::Duration,
-    };
-    use tempfile::tempdir;
-
-    #[tokio::test]
-    async fn basics() {
-        gear_utils::init_default_logger();
-
-        let tmp_dir = tempdir().unwrap();
-        let tmp_dir = tmp_dir.path().to_path_buf();
-
-        let net_path = tmp_dir.join("net");
-        let net_config = ethexe_network::NetworkEventLoopConfig::new_local(net_path);
-
-        Service::new(&Config {
-            node_name: "test".to_string(),
-            ethereum_rpc: "ws://54.67.75.1:8546".into(),
-            ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
-                .parse()
-                .expect("infallible"),
-            max_commitment_depth: 1000,
-            block_time: Duration::from_secs(1),
-            worker_threads_override: None,
-            virtual_threads: 1,
-            database_path: tmp_dir.join("db"),
-            key_path: tmp_dir.join("key"),
-            sequencer: Default::default(),
-            validator: Default::default(),
-            sender_address: Default::default(),
-            net_config: Some(net_config),
-            prometheus_config: Some(PrometheusConfig::new_with_default_registry(
-                SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
-                "dev".to_string(),
-            )),
-            rpc_config: Some(RpcConfig {
-                listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
-            }),
-        })
-        .await
-        .unwrap();
-
-        // Disable all optional services
-        Service::new(&Config {
-            node_name: "test".to_string(),
-            ethereum_rpc: "wss://ethereum-holesky-rpc.publicnode.com".into(),
-            ethereum_beacon_rpc: "http://localhost:5052".into(),
-            ethereum_router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
-                .parse()
-                .expect("infallible"),
-            max_commitment_depth: 1000,
-            block_time: Duration::from_secs(1),
-            worker_threads_override: None,
-            virtual_threads: 1,
-            database_path: tmp_dir.join("db"),
-            key_path: tmp_dir.join("key"),
-            sequencer: Default::default(),
-            validator: Default::default(),
-            sender_address: Default::default(),
-            net_config: None,
-            prometheus_config: None,
-            rpc_config: None,
-        })
-        .await
-        .unwrap();
     }
 }

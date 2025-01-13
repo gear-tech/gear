@@ -368,7 +368,7 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
     }
 
     LAZY_PAGES_INITIALIZED.get_or_init(|| {
-        if let Err(err) = sys::setup_signal_handler::<H>() {
+        if let Err(err) = unsafe { sys::setup_signal_handler::<H>() } {
             return Err(CanNotSetUpSignalHandler(err.to_string()));
         }
 

@@ -24,7 +24,10 @@ use common::scheduler::SchedulingCostsPerBlock;
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
-    costs::{ExtCosts, InstantiationCosts, LazyPagesCosts, ProcessCosts, RentCosts, SyscallCosts},
+    costs::{
+        ExtCosts, InstantiationCosts, IoCosts, LazyPagesCosts, PagesCosts, ProcessCosts, RentCosts,
+        SyscallCosts,
+    },
     message,
     pages::{GearPage, WasmPage},
 };
@@ -56,12 +59,12 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 /// To avoid potential stack overflow problems we have a panic in sandbox in case,
 /// execution is ended with stack overflow error. So, process queue execution will be
 /// stopped and we will be able to investigate the problem and decrease this constant if needed.
-#[cfg(not(feature = "fuzz"))]
+#[cfg(not(fuzz))]
 pub const STACK_HEIGHT_LIMIT: u32 = 36_743;
 
 /// For the fuzzer, we take the maximum possible stack limit calculated by the `calc-stack-height`
 /// utility, which would be suitable for Linux machines. This has a positive effect on code coverage.
-#[cfg(feature = "fuzz")]
+#[cfg(fuzz)]
 pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 
 /// Maximum number of data segments in a wasm module.
@@ -823,9 +826,9 @@ impl<T: Config> Default for Schedule<T> {
 impl Default for Limits {
     fn default() -> Self {
         Self {
-            #[cfg(not(feature = "fuzz"))]
+            #[cfg(not(fuzz))]
             stack_height: Some(STACK_HEIGHT_LIMIT),
-            #[cfg(feature = "fuzz")]
+            #[cfg(fuzz)]
             stack_height: Some(FUZZER_STACK_HEIGHT_LIMIT),
             data_segments_amount: DATA_SEGMENTS_AMOUNT_LIMIT,
             globals: 256,
@@ -1301,6 +1304,27 @@ impl<T: Config> Default for MemoryWeights<T> {
     }
 }
 
+impl<T: Config> From<MemoryWeights<T>> for IoCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            common: PagesCosts::from(val.clone()),
+            lazy_pages: LazyPagesCosts::from(val),
+        }
+    }
+}
+
+impl<T: Config> From<MemoryWeights<T>> for PagesCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            load_page_data: val.load_page_data.ref_time().into(),
+            upload_page_data: val.upload_page_data.ref_time().into(),
+            mem_grow: val.mem_grow.ref_time().into(),
+            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
+            parachain_read_heuristic: val.parachain_read_heuristic.ref_time().into(),
+        }
+    }
+}
+
 impl<T: Config> From<MemoryWeights<T>> for LazyPagesCosts {
     fn from(val: MemoryWeights<T>) -> Self {
         Self {
@@ -1404,7 +1428,7 @@ struct ScheduleRules<'a, T: Config> {
     params: Vec<u32>,
 }
 
-impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
+impl<T: Config> Rules for ScheduleRules<'_, T> {
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
         use Instruction::*;
         use SignExtInstruction::*;
@@ -1529,7 +1553,7 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &Module) -> impl Rules + '_ {
+    pub fn rules(&self, module: &Module) -> impl Rules + use<'_, T> {
         ScheduleRules {
             schedule: self,
             params: module

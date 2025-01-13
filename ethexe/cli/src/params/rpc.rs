@@ -16,43 +16,153 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use clap::Args;
+use super::MergeParams;
+use clap::Parser;
 use ethexe_rpc::RpcConfig;
 use serde::Deserialize;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    str::FromStr,
+};
 
-/// Parameters used to config prometheus.
-#[derive(Debug, Clone, Args, Deserialize)]
+/// Parameters for the RPC service to start.
+#[derive(Clone, Debug, Deserialize, Parser)]
+#[serde(deny_unknown_fields)]
 pub struct RpcParams {
-    /// Rpc endpoint port.
-    #[arg(long, default_value = "9944")]
-    pub rpc_port: u16,
+    /// Port to expose RPC service.
+    #[arg(long)]
+    #[serde(rename = "port")]
+    pub rpc_port: Option<u16>,
 
-    /// Expose rpc endpoint on all interfaces
-    #[arg(long, default_value = "false")]
+    /// Flag to expose RPC service on all interfaces.
+    #[arg(long)]
+    #[serde(default, rename = "external")]
     pub rpc_external: bool,
 
-    /// Do not start rpc endpoint.
-    #[arg(long, default_value = "false")]
+    /// CORS policy for RPC service.
+    #[arg(long)]
+    #[serde(rename = "cors")]
+    pub rpc_cors: Option<Cors>,
+
+    /// Flag to disable RPC service.
+    #[arg(long)]
+    #[serde(default, rename = "no-rpc")]
     pub no_rpc: bool,
 }
 
 impl RpcParams {
-    /// Creates [`RpcConfig`].
-    pub fn as_config(&self) -> Option<RpcConfig> {
+    /// Default RPC port.
+    pub const DEFAULT_RPC_PORT: u16 = 9944;
+
+    /// Convert self into a proper `RpcConfig` object, if RPC service is enabled.
+    pub fn into_config(self) -> Option<RpcConfig> {
         if self.no_rpc {
             return None;
-        };
+        }
 
-        let ip = if self.rpc_external {
+        let ipv4_addr = if self.rpc_external {
             Ipv4Addr::UNSPECIFIED
         } else {
             Ipv4Addr::LOCALHOST
+        };
+
+        let listen_addr = SocketAddr::new(
+            ipv4_addr.into(),
+            self.rpc_port.unwrap_or(Self::DEFAULT_RPC_PORT),
+        );
+
+        let cors = self
+            .rpc_cors
+            .unwrap_or_else(|| {
+                Cors::List(vec![
+                    "http://localhost:*".into(),
+                    "http://127.0.0.1:*".into(),
+                    "https://localhost:*".into(),
+                    "https://127.0.0.1:*".into(),
+                ])
+            })
+            .into();
+
+        Some(RpcConfig { listen_addr, cors })
+    }
+}
+
+impl MergeParams for RpcParams {
+    fn merge(self, with: Self) -> Self {
+        Self {
+            rpc_port: self.rpc_port.or(with.rpc_port),
+            rpc_external: self.rpc_external || with.rpc_external,
+            rpc_cors: self.rpc_cors.or(with.rpc_cors),
+            no_rpc: self.no_rpc || with.no_rpc,
         }
-        .into();
+    }
+}
 
-        let listen_addr = SocketAddr::new(ip, self.rpc_port);
+/// Enum for ease of parsing and deserializing CORS policy.
+#[derive(Clone, Debug)]
+pub enum Cors {
+    /// Allow all origins.
+    All,
+    /// Allow only specified origins.
+    List(Vec<String>),
+}
 
-        Some(RpcConfig { listen_addr })
+impl From<Cors> for Option<Vec<String>> {
+    fn from(cors: Cors) -> Self {
+        match cors {
+            Cors::All => None,
+            Cors::List(list) => Some(list),
+        }
+    }
+}
+
+impl FromStr for Cors {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut is_all = false;
+        let mut origins = Vec::new();
+        for part in s.split(',') {
+            match part {
+                "all" | "*" => {
+                    is_all = true;
+                    break;
+                }
+                other => origins.push(other.to_owned()),
+            }
+        }
+
+        if is_all {
+            Ok(Cors::All)
+        } else {
+            Ok(Cors::List(origins))
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Cors {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value: toml::Value = Deserialize::deserialize(deserializer)?;
+
+        match value {
+            toml::Value::String(s) if matches!(s.as_ref(), "all" | "*") => Ok(Self::All),
+            toml::Value::Array(arr) => {
+                arr
+                    .into_iter()
+                    .map(|v| {
+                        v.as_str()
+                            .ok_or_else(|| serde::de::Error::custom("Array items must be strings"))
+                            .map(|s| s.to_string())
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(Self::List)
+            }
+            _ => Err(serde::de::Error::custom(
+                "Invalid value for cors. Possible values: \"all\" (alias \"*\") or list of strings like [\"http://localhost:*\", \"https://127.0.0.1:*\"].",
+            )),
+        }
     }
 }

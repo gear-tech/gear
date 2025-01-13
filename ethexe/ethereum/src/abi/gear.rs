@@ -45,6 +45,19 @@ impl From<CodeCommitment> for Gear::CodeCommitment {
     }
 }
 
+impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
+    fn from(value: ValidatorsCommitment) -> Self {
+        Self {
+            validators: value
+                .validators
+                .into_iter()
+                .map(actor_id_to_address_lossy)
+                .collect(),
+            eraIndex: Uint256::from(value.era_index),
+        }
+    }
+}
+
 impl From<Message> for Gear::Message {
     fn from(value: Message) -> Self {
         Self {

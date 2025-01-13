@@ -120,3 +120,6 @@ runtime-benchmarks-checkers = [
 try-runtime = [
 	"vara-runtime?/try-runtime",
 ]
+metadata-hash = [
+	"vara-runtime?/metadata-hash",
+]

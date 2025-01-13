@@ -21,11 +21,17 @@ use alloy::sol;
 mod events;
 mod gear;
 
-sol!(
-    #[sol(rpc)]
-    IMirror,
-    "Mirror.json"
-);
+pub use mirror_abi::*;
+
+// TODO (breathx): remove this dummy hack to avoid reentrancy issues with
+// the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
+mod mirror_abi {
+    alloy::sol!(
+        #[sol(rpc)]
+        IMirror,
+        "Mirror.json"
+    );
+}
 
 sol!(
     #[sol(rpc)]
@@ -34,6 +40,7 @@ sol!(
 );
 
 sol!(
+    #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IRouter,
     "Router.json"
@@ -112,7 +119,7 @@ pub(crate) mod utils {
         assert_eq!(uint256_to_u128_lossy(Uint256::MAX), u128::MAX);
 
         for _ in 0..10 {
-            let val: u128 = rng.gen();
+            let val: u128 = rng.r#gen();
             let uint256 = Uint256::from(val);
 
             assert_eq!(uint256_to_u128_lossy(uint256), val);

@@ -1,5 +1,7 @@
 [package]
 name = "gear-wasmer-cache"
+description = "Wasmer executor's module caches used by Gear nodes"
+documentation = "https://docs.rs/gear-wasmer-cache"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -8,8 +10,8 @@ homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
+[lints]
+workspace = true
 
 [dependencies]
 wasmer.workspace = true

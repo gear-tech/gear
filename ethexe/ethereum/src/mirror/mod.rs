@@ -53,6 +53,13 @@ impl Mirror {
         ))
     }
 
+    pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
+        let builder = self.0.executableBalanceTopUp(value);
+        let receipt = builder.send().await?.try_get_receipt().await?;
+
+        Ok((*receipt.transaction_hash).into())
+    }
+
     pub async fn send_message(
         &self,
         payload: impl AsRef<[u8]>,

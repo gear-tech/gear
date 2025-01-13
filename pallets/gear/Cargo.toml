@@ -9,6 +9,9 @@ homepage.workspace = true
 repository.workspace = true
 readme = "README.md"
 
+[lints]
+workspace = true
+
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
@@ -182,7 +185,6 @@ runtime-benchmarks = [
     "frame-system/runtime-benchmarks",
     "frame-support/runtime-benchmarks",
     "common/runtime-benchmarks",
-    "gear-runtime-interface/runtime-benchmarks",
     "gear-core-backend/mock",
     "gear-core-errors/codec",
     "gear-sandbox",
@@ -204,4 +206,3 @@ runtime-benchmarks = [
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
-fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]

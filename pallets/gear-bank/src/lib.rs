@@ -251,8 +251,10 @@ pub mod pallet {
             }
 
             if total != expected {
-                log::error!("Block #{bn:?} ended with unreachable error while performing cleaning of on-finalize value: \
-                total tried to transfer is {total:?}, expected amount is {expected:?}")
+                log::error!(
+                    "Block #{bn:?} ended with unreachable error while performing cleaning of on-finalize value: \
+                total tried to transfer is {total:?}, expected amount is {expected:?}"
+                )
             }
         }
     }

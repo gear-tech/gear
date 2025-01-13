@@ -38,12 +38,14 @@ impl AsRawPtr for ReservationId {}
 
 /// Extensions for additional features.
 pub mod ext {
-    use crate::stack_buffer;
-    use core::{
-        fmt::{self, Write as _},
-        mem::MaybeUninit,
+    #[cfg(any(feature = "debug", debug_assertions))]
+    use {
+        crate::stack_buffer::{self, MAX_BUFFER_SIZE},
+        core::{
+            fmt::{self, Write as _},
+            mem::MaybeUninit,
+        },
     };
-    use gear_stack_buffer::MAX_BUFFER_SIZE;
 
     /// Add a `data` string to the debug log.
     ///
@@ -52,7 +54,7 @@ pub mod ext {
     /// ```
     /// use gcore::ext;
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     ext::debug("Hello, world!");
     /// }
@@ -111,7 +113,7 @@ pub mod ext {
     /// ```
     /// use gcore::ext;
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     ext::panic("I decided to panic");
     /// }
@@ -141,7 +143,7 @@ pub mod ext {
     ///     ext::oom_panic()
     /// }
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     let layout = Layout::new::<[u8; 64 * 1024]>();
     ///     if Global.allocate(layout).is_err() {
@@ -179,7 +181,7 @@ pub mod ext {
 /// ```
 /// use gcore::debug;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     debug!("String literal");
 ///
@@ -206,4 +208,42 @@ macro_rules! debug {
 macro_rules! debug {
     ($fmt:expr) => {};
     ($fmt:expr, $($args:tt)*) => {};
+}
+
+/// Get mutable reference to `static mut`.
+///
+/// Note that getting two mutable references to `static mut` is UB.
+///
+/// ```
+/// use gcore::static_mut;
+///
+/// static mut X: usize = 0;
+///
+/// let _: &mut usize = unsafe { static_mut!(X) };
+/// ```
+#[macro_export]
+macro_rules! static_mut {
+    ($expr:expr) => {{
+        #[allow(clippy::deref_addrof)] // https://github.com/rust-lang/rust-clippy/issues/13783
+        let ret: &mut _ = (&mut *&raw mut $expr);
+        ret
+    }};
+}
+
+/// Get shared reference to `static mut`.
+///
+/// ```
+/// use gcore::static_ref;
+///
+/// static mut X: usize = 0;
+///
+/// let _: &usize = unsafe { static_ref!(X) };
+/// ```
+#[macro_export]
+macro_rules! static_ref {
+    ($expr:expr) => {{
+        #[allow(clippy::deref_addrof)] // https://github.com/rust-lang/rust-clippy/issues/13783
+        let ret: &_ = (&*&raw const $expr);
+        ret
+    }};
 }

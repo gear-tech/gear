@@ -18,7 +18,7 @@
 
 use gstd::{msg, prelude::*};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     gstd::debug!("Init is live!");
 
@@ -30,7 +30,7 @@ extern "C" fn init() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let payload = msg::load_bytes().expect("Failed to load payload");
 

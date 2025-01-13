@@ -1,3 +1,22 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+// NOTE: Don't use `gstd` here with `wasm-wrapper` feature enabled.
 use crate::Arg;
 use alloc::{string::String, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
@@ -59,7 +78,7 @@ pub enum Call {
 mod wasm {
     use super::*;
     use crate::DATA;
-    use gstd::{debug, exec, msg, prog, String, Vec};
+    use gstd::{debug, exec, msg, prelude::*, prog};
 
     type CallResult = (Call, Option<Vec<u8>>);
 
@@ -140,7 +159,7 @@ mod wasm {
                 &value[extra_encode as usize..]
             );
 
-            unsafe { DATA.insert(key, value) };
+            unsafe { static_mut!(DATA).insert(key, value) };
 
             None
         }
@@ -392,7 +411,7 @@ mod wasm {
 
             let end = count.value();
             for i in 0_u64..end {
-                unsafe { DATA.insert("last_written_n".into(), i.encode()) };
+                unsafe { static_mut!(DATA).insert("last_written_n".into(), i.encode()) };
             }
 
             None
