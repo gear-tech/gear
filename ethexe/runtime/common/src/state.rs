@@ -873,7 +873,9 @@ impl<'a> serde::Deserialize<'a> for MemoryPages {
         }
 
         let visitor = ArrayVisitor {};
-        deserializer.deserialize_tuple(Self::REGIONS_AMOUNT, visitor).map(Self)
+        deserializer
+            .deserialize_tuple(Self::REGIONS_AMOUNT, visitor)
+            .map(Self)
     }
 }
 
