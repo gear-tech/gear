@@ -158,9 +158,13 @@ impl FungibleToken {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn state() {
-    let state = unsafe { FUNGIBLE_TOKEN.take().expect("State is not initialized") };
+    let state = unsafe {
+        static_mut!(FUNGIBLE_TOKEN)
+            .take()
+            .expect("State is not initialized")
+    };
     let FungibleToken {
         name,
         symbol,
@@ -188,10 +192,11 @@ extern "C" fn state() {
         .expect("Failed to encode or reply with `<AppMetadata as Metadata>::State` from `state()`");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let action: FTAction = msg::load().expect("Could not load Action");
-    let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
+    let ft: &mut FungibleToken =
+        unsafe { static_mut!(FUNGIBLE_TOKEN).get_or_insert(Default::default()) };
     match action {
         FTAction::Mint(amount) => {
             ft.mint(amount);
@@ -216,7 +221,7 @@ extern "C" fn handle() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
     let ft = FungibleToken {

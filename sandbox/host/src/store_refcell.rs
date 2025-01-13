@@ -271,7 +271,7 @@ mod tests {
     use std::rc::Rc;
 
     struct Store;
-    impl<'r> GenericAsStoreMut for &'r mut Store {}
+    impl GenericAsStoreMut for &mut Store {}
 
     #[test]
     fn test_store_refcell_borrow() {

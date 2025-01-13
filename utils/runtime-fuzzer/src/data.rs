@@ -26,8 +26,8 @@ use std::{any, fmt::Debug, marker::PhantomData};
 /// For more info see `Debug` impl.
 pub struct FuzzerInput<'a>(&'a [u8]);
 
+#[cfg(test)]
 impl<'a> FuzzerInput<'a> {
-    #[cfg(test)]
     pub(crate) fn new(data: &'a [u8]) -> Self {
         Self(data)
     }

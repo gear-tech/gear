@@ -167,7 +167,9 @@ impl<'a> ActorMailbox<'a> {
             .find_map(|(msg, _)| log.eq(&msg).then_some(msg))
     }
 
-    fn get_user_mailbox(&self) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
+    fn get_user_mailbox(
+        &self,
+    ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> + use<> {
         self.manager.borrow().mailbox.iter_key(self.user_id)
     }
 }

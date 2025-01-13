@@ -5,7 +5,7 @@ edition = "2021"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.81"
+rust-version = "1.82"
 
 [workspace]
 resolver = "2"
@@ -113,7 +113,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = "0.8.0"
+alloy = "0.9.1"
 anyhow = { version = "1.0.86", default-features = false }
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"
@@ -123,8 +123,8 @@ base64 = "0.21.7"
 byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
-cargo_toml = "0.19.2"
-cargo_metadata = "0.18.1"
+cargo_toml = "0.21.0"
+cargo_metadata = "0.19.1"
 clap = "4.5.8"
 codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false }
 color-eyre = "0.6.3"
@@ -168,6 +168,7 @@ serde = { version = "^1", default-features = false }
 serde_json = "^1"
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
+static_init = "1.0.3"
 subxt = "0.37.0"
 subxt-metadata = "0.37.0"
 subxt-codegen = "0.37.0"
@@ -299,10 +300,11 @@ ethexe-network = { path = "ethexe/network", default-features = false }
 ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
 ethexe-signer = { path = "ethexe/signer", default-features = false }
+ethexe-service = { path = "ethexe/service", default-features = false }
 ethexe-sequencer = { path = "ethexe/sequencer", default-features = false }
 ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
 ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
-ethexe-prometheus-endpoint = { path = "ethexe/utils/prometheus", default-features = false }
+ethexe-prometheus = { path = "ethexe/utils/prometheus", default-features = false }
 ethexe-utils = { path = "ethexe/utils", default-features = false }
 ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
@@ -555,7 +557,7 @@ bytes = "1.8.0"                                              # utils/gear-wasmer
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
 
 [profile.dev.package.corosensei]
 opt-level = 3

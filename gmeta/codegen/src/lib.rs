@@ -217,7 +217,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
     let Item::Type(type_item) = potential_type_item else {
         return error(
             potential_type_item,
-            "first item of a module with `#[metawasm]` must be a type alias to a state type (e.g. `type State = StateType;`)"
+            "first item of a module with `#[metawasm]` must be a type alias to a state type (e.g. `type State = StateType;`)",
         );
     };
     let type_item_attributes = &type_item.attrs;
@@ -271,7 +271,10 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
         }
 
         if signature.inputs.len() > 19 {
-            return error(signature.inputs, "too many arguments, no more 19 arguments must be here due restrictions of the SCALE codec");
+            return error(
+                signature.inputs,
+                "too many arguments, no more 19 arguments must be here due restrictions of the SCALE codec",
+            );
         }
 
         let signature_span = signature.span();
@@ -399,7 +402,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
         });
 
         extern_functions.push(quote! {
-            #[no_mangle]
+            #[unsafe(no_mangle)]
             extern "C" fn #function_identifier() {
                 let #variables: #variables_types = ::gstd::msg::load()
                     .expect("Failed to load or decode a payload");
@@ -424,7 +427,7 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
             mod r#extern {
                 use super::*;
 
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 extern "C" fn metadata() {
                     let mut funcs = ::gstd::collections::BTreeMap::new();
                     let mut registry = ::gmeta::Registry::new();

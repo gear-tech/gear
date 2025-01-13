@@ -128,7 +128,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                         Program::Active(ActiveProgram { initialized, .. }) if *initialized => {
                             bail!("an attempt to initialize already initialized program")
                         }
-                        Program::Active(ActiveProgram {
+                        &mut Program::Active(ActiveProgram {
                             ref mut initialized,
                             ..
                         }) => *initialized = true,
