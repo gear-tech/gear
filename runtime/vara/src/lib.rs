@@ -142,6 +142,7 @@ pub use {
 };
 
 pub mod constants;
+pub mod genesis_config_presets;
 
 pub use constants::{currency::*, time::*};
 
