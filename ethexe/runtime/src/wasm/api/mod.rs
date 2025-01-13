@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{boxed::Box, vec::Vec};
+use ethexe_runtime_common::pack_u32_to_i64;
 use parity_scale_codec::{Decode, Encode};
 
 mod instrument;
@@ -74,8 +75,5 @@ fn return_val(val: impl Encode) -> i64 {
     let len = encoded.len() as i32;
     let ptr = Box::leak(Box::new(encoded)).as_ptr() as i32;
 
-    let mut result = 0u64;
-    result |= (len as u32 as u64) << 32;
-    result |= ptr as u64;
-    result as i64
+    pack_u32_to_i64(ptr as u32, len as u32)
 }

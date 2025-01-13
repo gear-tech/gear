@@ -26,15 +26,13 @@ pub(crate) mod database_ri;
 pub(crate) mod logging_ri;
 
 pub(crate) mod utils {
+    use ethexe_runtime_common::pack_u32_to_i64;
     pub fn repr_ri_slice(slice: impl AsRef<[u8]>) -> i64 {
         let slice = slice.as_ref();
 
         let ptr = slice.as_ptr() as u32;
         let len = slice.len() as u32;
-        let mut result = 0u64;
-        result |= (len as u64) << 32;
-        result |= ptr as u64;
-        result as i64
+        pack_u32_to_i64(ptr, len)
     }
 }
 

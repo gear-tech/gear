@@ -19,7 +19,7 @@
 use crate::Database;
 use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
-use ethexe_common::unpack_i64_to_u32;
+use ethexe_runtime_common::unpack_i64_to_u32;
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};

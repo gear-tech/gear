@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::context::HostContext;
-use ethexe_common::{pack_u32_to_i64, unpack_i64_to_u32};
+use ethexe_runtime_common::{pack_u32_to_i64, unpack_i64_to_u32};
 use parity_scale_codec::{Decode, Encode};
 use sp_wasm_interface::{FunctionContext as _, IntoValue as _, StoreData};
 use wasmtime::{Caller, Memory, StoreContext, StoreContextMut};
