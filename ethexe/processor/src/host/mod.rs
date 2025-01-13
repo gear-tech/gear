@@ -141,7 +141,7 @@ impl InstanceWrapper {
             maybe_instrumented_code,
         );
 
-        // Peaces of resulting journal. Hack to avoid single allocation limit.
+        // Pieces of resulting journal. Hack to avoid single allocation limit.
         let ptr_lens: Vec<i64> = self.call("run", arg.encode())?;
 
         let mut journal = Vec::new();
