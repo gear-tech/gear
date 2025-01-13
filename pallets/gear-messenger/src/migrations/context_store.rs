@@ -79,7 +79,9 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
             }
 
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
-            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+            log::info!(
+                "🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}."
+            );
 
             Dispatches::<T>::translate(|_, value: LinkedNode<MessageId, v3::StoredDispatch>| {
                 counter += 1;
@@ -103,7 +105,9 @@ impl<T: Config> OnRuntimeUpgrade for RemoveCommitStorage<T> {
 
             log::info!("✅ Successfully migrated storage. {counter} codes have been migrated");
         } else {
-            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
+            log::info!(
+                "🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}"
+            );
         }
 
         weight

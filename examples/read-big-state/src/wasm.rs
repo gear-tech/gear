@@ -22,16 +22,16 @@ use gstd::{msg, prelude::*};
 static mut STATE: Option<State> = None;
 
 fn state_mut() -> &'static mut State {
-    unsafe { STATE.get_or_insert_with(State::new) }
+    unsafe { static_mut!(STATE).get_or_insert_with(State::new) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let strings = msg::load().expect("Failed to load state");
     state_mut().insert(strings);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn state() {
     msg::reply(state_mut(), 0).expect("Error in reply of state");
 }

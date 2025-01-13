@@ -88,7 +88,7 @@ impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
     }
 }
 
-impl<'a> From<String> for LimitedStr<'a> {
+impl From<String> for LimitedStr<'_> {
     fn from(mut s: String) -> Self {
         smart_truncate(&mut s, TRIMMED_MAX_LEN);
         Self(Cow::from(s))

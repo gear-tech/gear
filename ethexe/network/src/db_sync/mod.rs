@@ -415,7 +415,9 @@ impl Behaviour {
                 log::trace!("outbound failure for request {request_id} to {peer}: {error}");
 
                 if let OutboundFailure::UnsupportedProtocols = error {
-                    log::debug!("request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol");
+                    log::debug!(
+                        "request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
+                    );
                     self.peer_score_handle.unsupported_protocol(peer);
                 }
 
@@ -449,7 +451,9 @@ impl Behaviour {
                 request_id: _,
                 error: InboundFailure::UnsupportedProtocols,
             } => {
-                log::debug!("request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol");
+                log::debug!(
+                    "request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
+                );
                 self.peer_score_handle.unsupported_protocol(peer);
             }
             request_response::Event::InboundFailure { .. } => {}
