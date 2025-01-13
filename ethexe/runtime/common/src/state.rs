@@ -977,7 +977,7 @@ impl MemoryPagesRegion {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct RegionIdx(u8);
 
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 pub struct Allocations {
     inner: IntervalsTree<WasmPage>,
     #[into(ignore)]
@@ -998,9 +998,7 @@ impl Allocations {
             .flat_map(|i| i.to_iter())
             .collect();
 
-        if !removed_pages.is_empty()
-            || allocations.intervals_amount() != self.inner.intervals_amount()
-        {
+        if !removed_pages.is_empty() || allocations.difference(&self.inner).next().is_some() {
             self.changed = true;
             self.inner = allocations;
         }
