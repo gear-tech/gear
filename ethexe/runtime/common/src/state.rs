@@ -247,14 +247,6 @@ impl<S: Sealed> MaybeHashOf<S> {
             *self = other;
         }
     }
-
-    pub fn map<T>(&self, f: impl FnOnce(HashOf<S>) -> T) -> Option<T> {
-        self.0.map(f)
-    }
-
-    pub fn take(&mut self) -> Self {
-        Self(self.0.take())
-    }
 }
 
 impl<S: Sealed + 'static> From<HashOf<S>> for MaybeHashOf<S> {
@@ -832,7 +824,7 @@ pub struct MemoryPages(MemoryPagesInner);
 
 impl Default for MemoryPages {
     fn default() -> Self {
-        Self([MaybeHashOf::empty(); 256])
+        Self([MaybeHashOf::empty(); MemoryPages::REGIONS_AMOUNT])
     }
 }
 // implemented manually because serde_derive does not work with arrays larger than 32 elements
@@ -863,14 +855,14 @@ impl<'a> serde::Deserialize<'a> for MemoryPages {
             type Value = MemoryPagesInner;
 
             fn expecting(&self, formatter: &mut alloc::fmt::Formatter) -> alloc::fmt::Result {
-                formatter.write_str("an array of length 256")
+                formatter.write_str("an array of length 16")
             }
 
             fn visit_seq<A>(self, mut seq: A) -> core::result::Result<Self::Value, A::Error>
             where
                 A: serde::de::SeqAccess<'de>,
             {
-                let mut arr = [MaybeHashOf::empty(); 256];
+                let mut arr = [MaybeHashOf::empty(); MemoryPages::REGIONS_AMOUNT];
                 for (i, hash) in arr.iter_mut().enumerate() {
                     *hash = seq
                         .next_element()?
@@ -881,7 +873,7 @@ impl<'a> serde::Deserialize<'a> for MemoryPages {
         }
 
         let visitor = ArrayVisitor {};
-        deserializer.deserialize_tuple(256, visitor).map(Self)
+        deserializer.deserialize_tuple(Self::REGIONS_AMOUNT, visitor).map(Self)
     }
 }
 
@@ -899,9 +891,9 @@ impl IndexMut<RegionIdx> for MemoryPages {
     }
 }
 
-/// An inner structure for [`MemoryPages`]. Has at most 256 entries because
-/// [`RegionIdx`] is `u8` internally.
-pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; 256];
+/// An inner structure for [`MemoryPages`]. Has at [`REGIONS_AMOUNT`](MemoryPages::REGIONS_AMOUNT)
+/// entries.
+pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; MemoryPages::REGIONS_AMOUNT];
 
 impl MemoryPages {
     /// Granularity parameter of how memory pages hashes are stored.
@@ -937,6 +929,7 @@ impl MemoryPages {
             if current_region_idx != Some(region_idx) {
                 let region_entry = updated_regions.entry(region_idx).or_insert_with(|| {
                     self[region_idx]
+                        .0
                         .take()
                         .map(|region_hash| {
                             storage
@@ -979,6 +972,7 @@ impl MemoryPages {
             if current_region_idx != Some(region_idx) {
                 let region_entry = updated_regions.entry(region_idx).or_insert_with(|| {
                     self[region_idx]
+                        .0
                         .take()
                         .map(|region_hash| {
                             storage
