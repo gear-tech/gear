@@ -1,6 +1,5 @@
 use crate::Arg;
 use alloc::{string::String, vec::Vec};
-use gstd::prelude::*;
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -60,7 +59,7 @@ pub enum Call {
 mod wasm {
     use super::*;
     use crate::DATA;
-    use gstd::{debug, exec, msg, prog, String, Vec};
+    use gstd::{debug, exec, msg, prelude::*, prog, String, Vec};
 
     type CallResult = (Call, Option<Vec<u8>>);
 

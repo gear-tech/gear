@@ -2,7 +2,6 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use gstd::prelude::*;
 use parity_scale_codec::{Codec, Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -94,6 +93,7 @@ impl From<&'static str> for Arg<bool> {
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use super::*;
+    use gcore::static_ref;
 
     impl<T: 'static + Clone + Codec> Arg<T> {
         pub(crate) fn value(self) -> T {
