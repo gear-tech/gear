@@ -967,7 +967,7 @@ mod utils {
     use ethexe_observer::SimpleBlockData;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
-    use std::ops::Mul;
+    use std::{ops::Mul, str::FromStr};
     use tokio::sync::{broadcast::Sender, Mutex};
 
     pub struct TestEnv {
