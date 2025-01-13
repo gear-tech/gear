@@ -16,23 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
+use crate::chain_spec::Extensions;
 use gear_runtime_common::{
     self,
-    constants::{BANK_ADDRESS, VARA_DECIMAL, VARA_SS58PREFIX, VARA_TESTNET_TOKEN_SYMBOL},
+    constants::{VARA_DECIMAL, VARA_SS58PREFIX, VARA_TESTNET_TOKEN_SYMBOL},
 };
-use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_staking::Forcing;
 use sc_chain_spec::Properties;
 use sc_service::ChainType;
-use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_consensus_babe::AuthorityId as BabeId;
-use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_core::sr25519;
-use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    constants::currency::{ECONOMIC_UNITS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
-    SessionKeys, StakerStatus, WASM_BINARY,
+    WASM_BINARY, genesis_config_presets,
 };
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
@@ -49,42 +41,6 @@ pub fn vara_dev_properties() -> Properties {
     p
 }
 
-/// Helper function that wraps a set of session keys.
-fn session_keys(
-    babe: BabeId,
-    grandpa: GrandpaId,
-    im_online: ImOnlineId,
-    authority_discovery: AuthorityDiscoveryId,
-) -> SessionKeys {
-    SessionKeys {
-        babe,
-        grandpa,
-        im_online,
-        authority_discovery,
-    }
-}
-
-/// Generate authority keys.
-pub fn authority_keys_from_seed(
-    s: &str,
-) -> (
-    AccountId,
-    AccountId,
-    BabeId,
-    GrandpaId,
-    ImOnlineId,
-    AuthorityDiscoveryId,
-) {
-    (
-        get_account_id_from_seed::<sr25519::Public>(&format!("{s}//stash")),
-        get_account_id_from_seed::<sr25519::Public>(s),
-        get_from_seed::<BabeId>(s),
-        get_from_seed::<GrandpaId>(s),
-        get_from_seed::<ImOnlineId>(s),
-        get_from_seed::<AuthorityDiscoveryId>(s),
-    )
-}
-
 pub fn development_config() -> Result<ChainSpec, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 
@@ -92,19 +48,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
         .with_name("Development")
         .with_id("vara_dev")
         .with_chain_type(ChainType::Development)
-        .with_genesis_config_patch(testnet_genesis(
-            // Initial PoA authorities
-            vec![authority_keys_from_seed("Alice")],
-            // Sudo account
-            get_account_id_from_seed::<sr25519::Public>("Alice"),
-            // Pre-funded accounts
-            vec![
-                get_account_id_from_seed::<sr25519::Public>("Alice"),
-                get_account_id_from_seed::<sr25519::Public>("Bob"),
-            ],
-            BANK_ADDRESS.into(),
-            true,
-        ))
+        .with_genesis_config_patch(genesis_config_presets::development_genesis())
         .with_properties(vara_dev_properties())
         .build())
 }
@@ -116,26 +60,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
         .with_name("Vara Local Testnet")
         .with_id("vara_local_testnet")
         .with_chain_type(ChainType::Local)
-        .with_genesis_config_patch(testnet_genesis(
-            // Initial PoA authorities
-            vec![
-                authority_keys_from_seed("Alice"),
-                authority_keys_from_seed("Bob"),
-            ],
-            // Sudo account
-            get_account_id_from_seed::<sr25519::Public>("Alice"),
-            // Pre-funded accounts
-            vec![
-                get_account_id_from_seed::<sr25519::Public>("Alice"),
-                get_account_id_from_seed::<sr25519::Public>("Bob"),
-                get_account_id_from_seed::<sr25519::Public>("Charlie"),
-                get_account_id_from_seed::<sr25519::Public>("Dave"),
-                get_account_id_from_seed::<sr25519::Public>("Eve"),
-                get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-            ],
-            BANK_ADDRESS.into(),
-            true,
-        ))
+        .with_genesis_config_patch(genesis_config_presets::local_testnet_genesis())
         .with_properties(vara_dev_properties())
         .build())
 }
