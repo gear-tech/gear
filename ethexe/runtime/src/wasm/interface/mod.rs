@@ -27,6 +27,7 @@ pub(crate) mod logging_ri;
 
 pub(crate) mod utils {
     use ethexe_runtime_common::pack_u32_to_i64;
+
     pub fn repr_ri_slice(slice: impl AsRef<[u8]>) -> i64 {
         let slice = slice.as_ref();
 
