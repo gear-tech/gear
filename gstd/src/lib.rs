@@ -56,7 +56,7 @@
 //!     answer: u8,
 //! }
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! extern "C" fn handle() {
 //!     let payload: Payload = msg::load().expect("Unable to decode payload");
 //!     if payload.question == "life-universe-everything" {
@@ -165,8 +165,8 @@ pub use async_runtime::{handle_reply_with_hook, message_loop};
 pub use common::errors;
 pub use config::{Config, SYSTEM_RESERVE};
 pub use gcore::{
-    debug, ext, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId,
-    Percent, Ss58Address, Value,
+    debug, ext, static_mut, static_ref, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas,
+    GasMultiplier, MessageId, Percent, Ss58Address, Value,
 };
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;

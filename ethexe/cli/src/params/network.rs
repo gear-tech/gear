@@ -16,62 +16,84 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Context;
-use clap::Args;
+use super::MergeParams;
+use anyhow::{Context, Result};
+use clap::Parser;
 use ethexe_network::{
     export::{Multiaddr, Protocol},
-    NetworkEventLoopConfig,
+    NetworkEventLoopConfig as NetworkConfig,
 };
 use serde::Deserialize;
 use std::path::PathBuf;
 
-/// Parameters used to create the network configuration.
-#[derive(Debug, Clone, Args, Deserialize)]
+/// Parameters for the networking service to start.
+#[derive(Clone, Debug, Deserialize, Parser)]
+#[serde(deny_unknown_fields)]
 pub struct NetworkParams {
-    /// Forced signer generated network key to be used inside `libp2p`
-    #[arg(long, value_name = "NETWORK_KEY")]
+    /// Network pubkey of the node. If not provided, tries to fetch one from .net directory, in case of absence - generates and stores new random one.
+    #[arg(long, alias = "net-key")]
+    #[serde(rename = "key")]
     pub network_key: Option<String>,
 
-    /// Specify a list of bootnodes.
-    #[arg(long, value_name = "ADDR", num_args = 1..)]
-    pub bootnodes: Vec<Multiaddr>,
+    /// Predefined bootnodes addresses to connect to.
+    #[arg(long, aliases = &["net-bootnodes", "bootnodes"])]
+    #[serde(rename = "bootnodes")]
+    pub network_bootnodes: Option<Vec<Multiaddr>>,
 
-    /// Public address that other nodes will use to connect to this node.
-    ///
-    /// This can be used if there's a proxy in front of this node.
-    #[arg(long, value_name = "PUBLIC_ADDR", num_args = 1..)]
-    pub public_addr: Vec<Multiaddr>,
+    /// Externally exposed network addresses of the node.
+    #[arg(long, aliases = &["net-public-addr", "public-addr"])]
+    #[serde(rename = "public-addr")]
+    pub network_public_addr: Option<Vec<Multiaddr>>,
 
-    /// Listen on this multiaddress.
-    ///
-    /// By default:
-    /// `/ip4/0.0.0.0/udp/<port>/quic-v1` and `/ip6/[::]/udp/<port>/quic-v1`.
-    #[arg(long, value_name = "LISTEN_ADDR", num_args = 1..)]
-    pub listen_addr: Vec<Multiaddr>,
+    /// Addresses to listen for incoming connections.
+    #[arg(long, aliases = &["net-listen-addr", "listen-addr"])]
+    #[serde(rename = "listen-addr")]
+    pub network_listen_addr: Option<Vec<Multiaddr>>,
 
-    /// Specify p2p protocol TCP port.
-    #[arg(long, value_name = "PORT", conflicts_with_all = &[ "listen_addr" ])]
-    pub port: Option<u16>,
+    /// Default network port.
+    #[arg(long, alias = "net-port")]
+    #[serde(rename = "port")]
+    pub network_port: Option<u16>,
 
-    /// Disable mDNS discovery (default: true).
-    ///
-    /// By default, the network will use mDNS to discover other nodes on the
-    /// local network. This disables it. Automatically implied when using --dev.
-    #[arg(long)]
-    #[serde(default)]
-    pub no_mdns: bool,
-    // TODO: Add node key cli
-    // #[allow(missing_docs)]
-    // #[clap(flatten)]
-    // pub node_key_params: NodeKeyParams,
+    /// Flag to disable network service.
+    #[arg(long, alias = "no-net")]
+    #[serde(default, rename = "no-network", alias = "no-net")]
+    pub no_network: bool,
 }
 
 impl NetworkParams {
-    /// Fill the given `NetworkConfiguration` by looking at the cli parameters.
-    pub fn network_config(self, net_path: PathBuf) -> anyhow::Result<NetworkEventLoopConfig> {
-        let port = self.port.unwrap_or(ethexe_network::DEFAULT_LISTEN_PORT);
+    /// Default network port.
+    pub const DEFAULT_NETWORK_PORT: u16 = 20333;
 
-        let listen_addresses = if self.listen_addr.is_empty() {
+    /// Convert self into a proper `NetworkConfig` object, if network is enabled.
+    pub fn into_config(self, config_dir: PathBuf) -> Result<Option<NetworkConfig>> {
+        if self.no_network {
+            return Ok(None);
+        }
+
+        let public_key = self
+            .network_key
+            .map(|k| k.parse())
+            .transpose()
+            .with_context(|| "invalid `network-key`")?;
+
+        let external_addresses = self
+            .network_public_addr
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+
+        let bootstrap_addresses = self
+            .network_bootnodes
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+
+        let network_listen_addr = self.network_listen_addr.unwrap_or_default();
+
+        let port = self.network_port.unwrap_or(Self::DEFAULT_NETWORK_PORT);
+
+        let listen_addresses = if network_listen_addr.is_empty() {
             [
                 Multiaddr::empty()
                     .with(Protocol::Ip6([0, 0, 0, 0, 0, 0, 0, 0].into()))
@@ -84,24 +106,29 @@ impl NetworkParams {
             ]
             .into()
         } else {
-            self.listen_addr.into_iter().collect()
+            network_listen_addr.into_iter().collect()
         };
 
-        let public_key = self
-            .network_key
-            .map(|k| k.parse())
-            .transpose()
-            .with_context(|| "Invalid network key")?;
-        let external_addresses = self.public_addr.into_iter().collect();
-        let bootstrap_addresses = self.bootnodes.into_iter().collect();
-
-        Ok(NetworkEventLoopConfig {
-            config_dir: net_path,
+        Ok(Some(NetworkConfig {
+            config_dir,
             public_key,
             external_addresses,
             bootstrap_addresses,
             listen_addresses,
             transport_type: Default::default(),
-        })
+        }))
+    }
+}
+
+impl MergeParams for NetworkParams {
+    fn merge(self, with: Self) -> Self {
+        Self {
+            network_key: self.network_key.or(with.network_key),
+            network_bootnodes: self.network_bootnodes.or(with.network_bootnodes),
+            network_public_addr: self.network_public_addr.or(with.network_public_addr),
+            network_listen_addr: self.network_listen_addr.or(with.network_listen_addr),
+            network_port: self.network_port.or(with.network_port),
+            no_network: self.no_network || with.no_network,
+        }
     }
 }

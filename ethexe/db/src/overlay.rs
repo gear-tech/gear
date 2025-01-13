@@ -89,7 +89,7 @@ impl KVDatabase for KVOverlay {
     fn iter_prefix<'a>(
         &'a self,
         prefix: &'a [u8],
-    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + '_> {
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
         let mem_iter = self.mem.iter_prefix(prefix);
         let db_iter = self.db.iter_prefix(prefix);
 

@@ -41,7 +41,7 @@ impl<'d> Io<'d> {
     }
 }
 
-impl<'d> fmt::Debug for Io<'d> {
+impl fmt::Debug for Io<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let mut display = fmt.debug_struct("");
         for (name, ty) in [("input", self.io.input), ("output", self.io.output)] {
@@ -56,7 +56,7 @@ impl<'d> fmt::Debug for Io<'d> {
     }
 }
 
-impl<'d> fmt::Display for Io<'d> {
+impl fmt::Display for Io<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self, fmt)
     }
@@ -131,7 +131,6 @@ impl Meta {
         MetadataRepr::from_bytes(encoded)
             .map(Meta::Data)
             .or_else(|_| -> Result<Meta> { Self::decode_wasm(encoded) })
-            .map_err(Into::into)
     }
 
     /// Derive type by name.

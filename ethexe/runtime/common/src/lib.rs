@@ -67,7 +67,7 @@ pub struct TransitionController<'a, S: Storage> {
     pub transitions: &'a mut InBlockTransitions,
 }
 
-impl<'a, S: Storage> TransitionController<'a, S> {
+impl<S: Storage> TransitionController<'_, S> {
     pub fn update_state<T>(
         &mut self,
         program_id: ProgramId,
@@ -161,14 +161,6 @@ where
         reserve_for: 0,
     };
 
-    let active_state = match program_state.program {
-        state::Program::Active(state) => state,
-        state::Program::Exited(program_id) | state::Program::Terminated(program_id) => {
-            log::trace!("Program {program_id} is not active");
-            todo!("Support non-active program")
-        }
-    };
-
     let Dispatch {
         id: dispatch_id,
         kind,
@@ -177,22 +169,7 @@ where
         value,
         details,
         context,
-    } = queue.dequeue().unwrap(); // TODO (breathx): why unwrap?
-
-    if active_state.initialized && kind == DispatchKind::Init {
-        // Panic is impossible, because gear protocol does not provide functionality
-        // to send second init message to any already existing program.
-        unreachable!(
-            "Init message {dispatch_id} is sent to already initialized program {program_id}",
-        );
-    }
-
-    // If the destination program is uninitialized, then we allow
-    // to process message, if it's a reply or init message.
-    // Otherwise, we return error reply.
-    if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
-        todo!("Process messages to uninitialized program");
-    }
+    } = queue.dequeue().unwrap();
 
     let payload = payload.query(ri.storage()).expect("failed to get payload");
 
@@ -216,7 +193,29 @@ where
         Err(journal) => return journal,
     };
 
-    let code = instrumented_code.expect("Instrumented code must be provided if program is active");
+    let active_state = match program_state.program {
+        state::Program::Active(state) => state,
+        state::Program::Exited(program_id) | state::Program::Terminated(program_id) => {
+            log::trace!("Program {program_id} is not active");
+            return core_processor::process_non_executable(context);
+        }
+    };
+
+    if active_state.initialized && kind == DispatchKind::Init {
+        // Panic is impossible, because gear protocol does not provide functionality
+        // to send second init message to any already existing program.
+        unreachable!(
+            "Init message {dispatch_id} is sent to already initialized program {program_id}",
+        );
+    }
+
+    // If the destination program is uninitialized, then we allow
+    // to process message, if it's a reply or init message.
+    // Otherwise, we return error reply.
+    if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
+        log::trace!("Program {program_id} is not yet finished initialization, so cannot process handle message");
+        return core_processor::process_non_executable(context);
+    }
 
     // TODO: support normal allocations len #4068
     let allocations = active_state.allocations_hash.with_hash_or_default(|hash| {
@@ -233,6 +232,8 @@ where
         Ok(context) => context,
         Err(journal) => return journal,
     };
+
+    let code = instrumented_code.expect("Instrumented code must be provided if program is active");
 
     let actor_data = ExecutableActorData {
         allocations: allocations.into(),
