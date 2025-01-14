@@ -22,7 +22,7 @@ use crate::{
     env_vars::EnvVars,
     ids::{MessageId, ProgramId, ReservationId},
     memory::Memory,
-    message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
+    message::{DispatchKind, HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
     pages::WasmPage,
 };
 use alloc::collections::BTreeSet;
@@ -392,6 +392,6 @@ pub trait Externalities {
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
 
-    /// Return the set of functions that are forbidden to be called in this endpoint.
-    fn endpoint_forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
+    /// Return the current dispatch kind.
+    fn endpoint_dispatch_kind(&self) -> DispatchKind;
 }

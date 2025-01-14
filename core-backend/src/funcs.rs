@@ -225,9 +225,11 @@ impl<F> RawSyscall<F> {
     }
 }
 
-impl<T, F, Caller> Syscall<Caller, T> for RawSyscall<F>
+impl<T, F, Caller, Ext> Syscall<Caller, T> for RawSyscall<F>
 where
     F: FnOnce(&mut CallerWrap<Caller>) -> Result<(Gas, T), HostError>,
+    Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
+    Ext: BackendExternalities + 'static,
 {
     type Context = ();
 
@@ -235,8 +237,10 @@ where
         self,
         caller: &mut CallerWrap<Caller>,
         (): Self::Context,
-        _syscall_name: SyscallName,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
+        caller.check_func_forbiddenness(syscall_name)?;
+
         (self.0)(caller)
     }
 }
@@ -291,7 +295,8 @@ where
     ) -> Result<(Gas, ()), HostError> {
         let Self { token, f, .. } = self;
         let FallibleSyscallContext { gas, res_ptr } = context;
-        caller.run_fallible::<T, _, E>(gas, res_ptr, token, syscall_name, f)
+        caller.check_func_forbiddenness(syscall_name)?;
+        caller.run_fallible::<T, _, E>(gas, res_ptr, token, f)
     }
 }
 
@@ -336,7 +341,8 @@ where
     ) -> Result<(Gas, T), HostError> {
         let Self { token, f } = self;
         let InfallibleSyscallContext { gas } = ctx;
-        caller.run_any::<T, _>(gas, token, syscall_name, f)
+        caller.check_func_forbiddenness(syscall_name)?;
+        caller.run_any::<T, _>(gas, token, f)
     }
 }
 

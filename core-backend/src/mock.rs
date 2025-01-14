@@ -32,7 +32,7 @@ use gear_core::{
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval},
-    message::{HandlePacket, InitPacket, ReplyPacket},
+    message::{DispatchKind, HandlePacket, InitPacket, ReplyPacket},
     pages::WasmPage,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
@@ -74,7 +74,6 @@ pub struct MockExt {
     reads: Vec<MemoryInterval>,
     writes: Vec<MemoryInterval>,
     _forbidden_funcs: BTreeSet<SyscallName>,
-    _endpoint_forbidden_funcs: BTreeSet<SyscallName>,
 }
 
 impl MockExt {
@@ -243,8 +242,8 @@ impl Externalities for MockExt {
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
         &self._forbidden_funcs
     }
-    fn endpoint_forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
-        &self._endpoint_forbidden_funcs
+    fn endpoint_dispatch_kind(&self) -> DispatchKind {
+        Default::default()
     }
     fn reserve_gas(
         &mut self,

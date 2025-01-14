@@ -79,29 +79,11 @@ where
     Ext: BackendExternalities + 'static,
 {
     #[track_caller]
-    pub fn run_any<U, F>(
-        &mut self,
-        gas: u64,
-        token: CostToken,
-        syscall_name: SyscallName,
-        f: F,
-    ) -> Result<(u64, U), HostError>
+    pub fn run_any<U, F>(&mut self, gas: u64, token: CostToken, f: F) -> Result<(u64, U), HostError>
     where
         F: FnOnce(&mut Self) -> Result<U, UndefinedTerminationReason>,
     {
         self.state_mut().ext.decrease_current_counter_to(gas);
-
-        if self.ext_mut().forbidden_funcs().contains(&syscall_name)
-            || self
-                .ext_mut()
-                .endpoint_forbidden_funcs()
-                .contains(&syscall_name)
-        {
-            self.set_termination_reason(
-                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into(),
-            );
-            return Err(HostError);
-        }
 
         let run = || {
             self.state_mut().ext.charge_gas_for_token(token)?;
@@ -122,7 +104,6 @@ where
         gas: u64,
         res_ptr: u32,
         token: CostToken,
-        syscall_name: SyscallName,
         f: F,
     ) -> Result<(u64, ()), HostError>
     where
@@ -132,7 +113,6 @@ where
         self.run_any(
             gas,
             token,
-            syscall_name,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
                 let res = f(ctx);
                 let res = ctx.process_fallible_func_result(res)?;
@@ -183,5 +163,20 @@ where
                 Err(alloc_err) => Ok(Err(alloc_err)),
             },
         }
+    }
+
+    pub fn check_func_forbiddenness(&mut self, syscall_name: SyscallName) -> Result<(), HostError> {
+        let endpoint_forbidden_funcs = self.ext_mut().endpoint_dispatch_kind().forbidden_funcs();
+
+        if self.ext_mut().forbidden_funcs().contains(&syscall_name)
+            || endpoint_forbidden_funcs.contains(&syscall_name)
+        {
+            self.set_termination_reason(
+                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into(),
+            );
+            return Err(HostError);
+        }
+
+        Ok(())
     }
 }
