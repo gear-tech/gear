@@ -74,7 +74,7 @@ impl Artifact {
             ancestors.next()?.to_str()?,
         ];
 
-        let bin = PathBuf::from(format!("{target}/{profile}/wasms"));
+        let bin = PathBuf::from(format!("{target}/gear-wasm/{profile}"));
         let stem = PathBuf::from(name.replace('-', "_"));
 
         Some(Self {

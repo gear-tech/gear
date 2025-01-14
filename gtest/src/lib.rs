@@ -203,7 +203,7 @@
 //!     # let sys = gtest::System::new();
 //!     let prog = Program::from_file(
 //!         &sys,
-//!         "./target/release/wasms/demo_ping.wasm",
+//!         "./target/gear-wasm/release/demo_ping.wasm",
 //!     );
 //!     ```
 //!

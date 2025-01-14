@@ -77,27 +77,27 @@ mod tests {
     #[cfg(debug_assertions)]
     fn debug_wasm() {
         assert_eq!(
-            fs::read("target/debug/wasms/test_program.wasm").unwrap(),
+            fs::read("target/gear-wasm/debug/test_program.wasm").unwrap(),
             code::WASM_BINARY,
         );
         assert_eq!(
-            fs::read("target/debug/wasms/test_program.opt.wasm").unwrap(),
+            fs::read("target/gear-wasm/debug/test_program.opt.wasm").unwrap(),
             code::WASM_BINARY_OPT,
         );
-        assert!(fs::read("target/debug/wasms/test_program.meta.wasm").is_err());
+        assert!(fs::read("target/gear-wasm/debug/test_program.meta.wasm").is_err());
     }
 
     #[test]
     #[cfg(not(debug_assertions))]
     fn release_wasm() {
         assert_eq!(
-            fs::read("target/release/wasms/test_program.wasm").unwrap(),
+            fs::read("target/gear-wasm/release/test_program.wasm").unwrap(),
             code::WASM_BINARY,
         );
         assert_eq!(
-            fs::read("target/release/wasms/test_program.opt.wasm").unwrap(),
+            fs::read("target/gear-wasm/release/test_program.opt.wasm").unwrap(),
             code::WASM_BINARY_OPT,
         );
-        assert!(fs::read("target/release/wasms/test_program.meta.wasm").is_err());
+        assert!(fs::read("target/gear-wasm/release/test_program.meta.wasm").is_err());
     }
 }

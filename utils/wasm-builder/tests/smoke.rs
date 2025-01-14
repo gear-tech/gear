@@ -126,7 +126,7 @@ fn features_tracking() {
     #[track_caller]
     fn read_export_entry(name: &str) -> Option<parity_wasm::elements::ExportEntry> {
         parity_wasm::deserialize_file(format!(
-            "test-program/target/{}/wasms/test_program.wasm",
+            "test-program/target/gear-wasm/{}/test_program.wasm",
             if cfg!(debug_assertions) {
                 "debug"
             } else {
