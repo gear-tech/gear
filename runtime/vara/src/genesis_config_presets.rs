@@ -15,16 +15,15 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-use super::{*, UNITS as TOKEN};
+use super::{UNITS as TOKEN, *};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_staking::Forcing;
+use pallet_staking::{Forcing, StakerStatus};
+use runtime_primitives::AccountPublic;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use pallet_staking::StakerStatus;
-use runtime_primitives::AccountPublic;
-use sp_core::{Pair, Public, sr25519};
-use sp_runtime::{traits::IdentifyAccount, format};
-use sp_genesis_builder::{DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET, PresetId};
+use sp_core::{sr25519, Pair, Public};
+use sp_genesis_builder::{PresetId, DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET};
+use sp_runtime::{format, traits::IdentifyAccount};
 
 /// Configure initial storage state for FRAME modules.
 pub fn testnet_genesis(
@@ -200,23 +199,23 @@ pub fn local_testnet_genesis() -> serde_json::Value {
 pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
     // TODO: remove after Substrate update
     let id: &str = id.try_into().ok()?;
-	let patch = match id.as_ref() {
-		DEV_RUNTIME_PRESET => development_genesis(),
-		LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis(),
-		_ => return None,
-	};
+    let patch = match id.as_ref() {
+        DEV_RUNTIME_PRESET => development_genesis(),
+        LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis(),
+        _ => return None,
+    };
 
-	Some(
-		serde_json::to_string(&patch)
-			.expect("serialization to json works.")
-			.into_bytes(),
-	)
+    Some(
+        serde_json::to_string(&patch)
+            .expect("serialization to json works.")
+            .into_bytes(),
+    )
 }
 
 /// List of supported presets.
 pub fn preset_names() -> Vec<PresetId> {
-	vec![
-		PresetId::from(DEV_RUNTIME_PRESET),
-		PresetId::from(LOCAL_TESTNET_RUNTIME_PRESET),
-	]
+    vec![
+        PresetId::from(DEV_RUNTIME_PRESET),
+        PresetId::from(LOCAL_TESTNET_RUNTIME_PRESET),
+    ]
 }

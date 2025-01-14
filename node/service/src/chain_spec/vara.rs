@@ -23,9 +23,7 @@ use gear_runtime_common::{
 };
 use sc_chain_spec::Properties;
 use sc_service::ChainType;
-use vara_runtime::{
-    WASM_BINARY, genesis_config_presets,
-};
+use vara_runtime::{genesis_config_presets, WASM_BINARY};
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec<Extensions>;
