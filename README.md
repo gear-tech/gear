@@ -55,7 +55,7 @@ Gear Protocol provides a developer-friendly programming platform for decentraliz
 
 - Gear Protocol provides dApp developers with a very minimal, intuitive, and sufficient API for writing custom-logic programs in Rust and running them on Gear-powered networks, such as the Vara Network.
 - It provides a technological foundation for constructing highly scalable and rapid decentralized Layer-1 networks.
-- Reduces the computational burden on blockchains by offloading highly intensive calculations using a Vara node with WAVM, and then proving the correctness of these calculations on any blockchain.
+- Reduces the computational burden on blockchains by offloading highly intensive calculations using a Vara node with Wasm VM, and then proving the correctness of these calculations on any blockchain.
 - A Vara node can be used as a standalone instance running microservices, middleware, open API, and more.
 
 For more details refer to the **[Gear Whitepaper](https://whitepaper.gear.foundation)**.
@@ -79,7 +79,7 @@ Refer to the **[Technical Paper](https://github.com/gear-tech/gear-technical/blo
 
 ### Get the binaries
 
-To build Vara node binaries from source follow a step by step instructions provided in [Node README](https://github.com/gear-tech/gear/tree/master/node/README.md).
+To build Vara node binaries from source follow the step-by-step instructions provided in [Node README](https://github.com/gear-tech/gear/tree/master/node/README.md).
 
 Alternatively, you can download pre-built packages for your OS/architecture:
 
