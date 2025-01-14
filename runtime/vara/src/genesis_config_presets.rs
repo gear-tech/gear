@@ -199,7 +199,7 @@ pub fn local_testnet_genesis() -> serde_json::Value {
 pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
     // TODO: remove after Substrate update
     let id: &str = id.try_into().ok()?;
-    let patch = match id.as_ref() {
+    let patch = match id {
         DEV_RUNTIME_PRESET => development_genesis(),
         LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis(),
         _ => return None,
