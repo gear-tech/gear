@@ -272,24 +272,6 @@ impl RouterQuery {
         Ok(code_id)
     }
 
-    pub async fn are_validators(&self, validators: Vec<LocalAddress>) -> Result<bool> {
-        self.instance
-            .areValidators(validators.into_iter().map(|v| v.0.into()).collect())
-            .call()
-            .await
-            .map(|res| res._0)
-            .map_err(Into::into)
-    }
-
-    pub async fn is_validator(&self, validator: LocalAddress) -> Result<bool> {
-        self.instance
-            .isValidator(validator.0.into())
-            .call()
-            .await
-            .map(|res| res._0)
-            .map_err(Into::into)
-    }
-
     pub async fn signing_threshold_percentage(&self) -> Result<u16> {
         self.instance
             .signingThresholdPercentage()
