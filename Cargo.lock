@@ -4814,6 +4814,7 @@ dependencies = [
  "ethexe-common",
  "gprimitives",
  "hex",
+ "log",
  "parity-scale-codec",
  "secp256k1 0.30.0",
  "sha3",
