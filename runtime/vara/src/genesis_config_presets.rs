@@ -23,13 +23,8 @@ use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use pallet_staking::StakerStatus;
 use runtime_primitives::AccountPublic;
 use sp_core::{Pair, Public, sr25519};
-use sp_runtime::traits::IdentifyAccount;
-
-#[cfg(not(feature = "std"))]
-extern crate alloc;
-
-#[cfg(not(feature = "std"))]
-use alloc::format;
+use sp_runtime::{traits::IdentifyAccount, format};
+use sp_genesis_builder::{DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET, PresetId};
 
 /// Configure initial storage state for FRAME modules.
 pub fn testnet_genesis(
@@ -199,4 +194,29 @@ pub fn local_testnet_genesis() -> serde_json::Value {
         BANK_ADDRESS.into(),
         true,
     )
+}
+
+/// Provides the JSON representation of predefined genesis config for given `id`.
+pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
+    // TODO: remove after Substrate update
+    let id: &str = id.try_into().ok()?;
+	let patch = match id.as_ref() {
+		DEV_RUNTIME_PRESET => development_genesis(),
+		LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis(),
+		_ => return None,
+	};
+
+	Some(
+		serde_json::to_string(&patch)
+			.expect("serialization to json works.")
+			.into_bytes(),
+	)
+}
+
+/// List of supported presets.
+pub fn preset_names() -> Vec<PresetId> {
+	vec![
+		PresetId::from(DEV_RUNTIME_PRESET),
+		PresetId::from(LOCAL_TESTNET_RUNTIME_PRESET),
+	]
 }
