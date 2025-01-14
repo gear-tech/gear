@@ -236,14 +236,13 @@ pub mod lazy_pages_detail {
         let mut writes_intervals = Vec::with_capacity(writes_len / mem_interval_size);
         deserialize_mem_intervals(writes, &mut writes_intervals);
 
-        match gear_lazy_pages::pre_process_memory_accesses(
+        gear_lazy_pages::pre_process_memory_accesses(
             &reads_intervals,
             &writes_intervals,
             gas_counter,
-        ) {
-            Ok(_) => 0,
-            Err(err) => err.into(),
-        }
+        )
+        .map(|_| 0)
+        .unwrap_or_else(|err| err.into())
     }
 
     pub fn lazy_pages_status() -> (Status,) {
