@@ -25,8 +25,14 @@ use alloc::{
     vec::Vec,
 };
 use anyhow::{anyhow, Result};
-use core::{any::Any, marker::PhantomData, mem};
+use core::{
+    any::Any,
+    marker::PhantomData,
+    mem,
+    ops::{Index, IndexMut},
+};
 use ethexe_common::gear::Message;
+pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
     ids::{prelude::MessageIdExt as _, ProgramId},
     memory::PageBuf,
@@ -40,8 +46,6 @@ use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
-
-pub use gear_core::program::ProgramState as InitStatus;
 
 /// 3h validity in mailbox for 12s blocks.
 pub const MAILBOX_VALIDITY: u32 = 54_000;
@@ -812,14 +816,38 @@ impl Mailbox {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MemoryPages(MemoryPagesInner);
 
-// TODO (breathx): replace BTreeMap here with fixed size array.
-pub type MemoryPagesInner = BTreeMap<RegionIdx, HashOf<MemoryPagesRegion>>;
+impl Default for MemoryPages {
+    fn default() -> Self {
+        Self([MaybeHashOf::empty(); MemoryPages::REGIONS_AMOUNT])
+    }
+}
+
+impl Index<RegionIdx> for MemoryPages {
+    type Output = MaybeHashOf<MemoryPagesRegion>;
+
+    fn index(&self, idx: RegionIdx) -> &Self::Output {
+        &self.0[idx.0 as usize]
+    }
+}
+
+impl IndexMut<RegionIdx> for MemoryPages {
+    fn index_mut(&mut self, index: RegionIdx) -> &mut Self::Output {
+        &mut self.0[index.0 as usize]
+    }
+}
+
+/// An inner structure for [`MemoryPages`]. Has at [`REGIONS_AMOUNT`](MemoryPages::REGIONS_AMOUNT)
+/// entries.
+pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; MemoryPages::REGIONS_AMOUNT];
 
 impl MemoryPages {
+    /// Copy of the gear_core constant defining max pages amount per program.
+    pub const MAX_PAGES: usize = gear_core::code::MAX_WASM_PAGES_AMOUNT as usize;
+
     /// Granularity parameter of how memory pages hashes are stored.
     ///
     /// Instead of a single huge map of GearPage to HashOf<PageBuf>, memory is
@@ -833,8 +861,12 @@ impl MemoryPages {
     /// host implementation: see the `ThreadParams` struct.
     pub const REGIONS_AMOUNT: usize = 16;
 
+    /// Pages amount per each region.
+    pub const PAGES_PER_REGION: usize = Self::MAX_PAGES / Self::REGIONS_AMOUNT;
+    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES % Self::REGIONS_AMOUNT == 0);
+
     pub fn page_region(page: GearPage) -> RegionIdx {
-        RegionIdx((u32::from(page) as usize / Self::REGIONS_AMOUNT) as u8)
+        RegionIdx((u32::from(page) as usize / Self::PAGES_PER_REGION) as u8)
     }
 
     pub fn update_and_store_regions<S: Storage>(
@@ -852,8 +884,9 @@ impl MemoryPages {
 
             if current_region_idx != Some(region_idx) {
                 let region_entry = updated_regions.entry(region_idx).or_insert_with(|| {
-                    self.0
-                        .remove(&region_idx)
+                    self[region_idx]
+                        .0
+                        .take()
                         .map(|region_hash| {
                             storage
                                 .read_pages_region(region_hash)
@@ -879,7 +912,7 @@ impl MemoryPages {
                 .hash()
                 .expect("infallible; pages are only appended here, none are removed");
 
-            self.0.insert(region_idx, region_hash);
+            self[region_idx] = region_hash.into();
         }
     }
 
@@ -894,8 +927,9 @@ impl MemoryPages {
 
             if current_region_idx != Some(region_idx) {
                 let region_entry = updated_regions.entry(region_idx).or_insert_with(|| {
-                    self.0
-                        .remove(&region_idx)
+                    self[region_idx]
+                        .0
+                        .take()
                         .map(|region_hash| {
                             storage
                                 .read_pages_region(region_hash)
@@ -917,7 +951,7 @@ impl MemoryPages {
 
         for (region_idx, region) in updated_regions {
             if let Some(region_hash) = region.store(storage).hash() {
-                self.0.insert(region_idx, region_hash);
+                self[region_idx] = region_hash.into();
             }
         }
     }
@@ -943,7 +977,7 @@ impl MemoryPagesRegion {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct RegionIdx(u8);
 
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 pub struct Allocations {
     inner: IntervalsTree<WasmPage>,
     #[into(ignore)]
@@ -964,9 +998,7 @@ impl Allocations {
             .flat_map(|i| i.to_iter())
             .collect();
 
-        if !removed_pages.is_empty()
-            || allocations.intervals_amount() != self.inner.intervals_amount()
-        {
+        if !removed_pages.is_empty() || allocations.difference(&self.inner).next().is_some() {
             self.changed = true;
             self.inner = allocations;
         }
