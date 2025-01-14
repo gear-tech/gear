@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IRouter, wvara::WVara, AlloyProvider, AlloyTransport, TryGetReceipt};
+use crate::{
+    abi::{Gear::CodeState, IRouter},
+    wvara::WVara,
+    AlloyProvider, AlloyTransport, TryGetReceipt,
+};
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     primitives::{Address, Bytes, B256, U256},
@@ -266,5 +270,95 @@ impl RouterQuery {
         let code_id = self.instance.programCodeId(program_id).call().await?;
         let code_id = Some(CodeId::new(code_id._0.0)).filter(|&code_id| code_id != CodeId::zero());
         Ok(code_id)
+    }
+
+    pub async fn are_validators(&self, validators: Vec<LocalAddress>) -> Result<bool> {
+        self.instance
+            .areValidators(validators.into_iter().map(|v| v.0.into()).collect())
+            .call()
+            .await
+            .map(|res| res._0)
+            .map_err(Into::into)
+    }
+
+    pub async fn is_validator(&self, validator: LocalAddress) -> Result<bool> {
+        self.instance
+            .isValidator(validator.0.into())
+            .call()
+            .await
+            .map(|res| res._0)
+            .map_err(Into::into)
+    }
+
+    pub async fn signing_threshold_percentage(&self) -> Result<u16> {
+        self.instance
+            .signingThresholdPercentage()
+            .call()
+            .await
+            .map(|res| res._0)
+            .map_err(Into::into)
+    }
+
+    pub async fn code_state(&self, code_id: CodeId) -> Result<CodeState> {
+        self.instance
+            .codeState(code_id.into_bytes().into())
+            .call()
+            .await
+            .map(|res| CodeState::from(res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn codes_states(&self, code_ids: Vec<CodeId>) -> Result<Vec<CodeState>> {
+        self.instance
+            .codesStates(
+                code_ids
+                    .into_iter()
+                    .map(|c| c.into_bytes().into())
+                    .collect(),
+            )
+            .call()
+            .await
+            .map(|res| res._0.into_iter().map(|s| CodeState::from(s)).collect())
+            .map_err(Into::into)
+    }
+
+    pub async fn program_code_ids(&self, program_ids: Vec<ProgramId>) -> Result<Vec<CodeId>> {
+        self.instance
+            .programsCodeIds(
+                program_ids
+                    .into_iter()
+                    .map(|p| {
+                        let program_id = LocalAddress::try_from(p).expect("infallible");
+                        Address::new(program_id.0)
+                    })
+                    .collect(),
+            )
+            .call()
+            .await
+            .map(|res| res._0.into_iter().map(|c| CodeId::new(c.0)).collect())
+            .map_err(Into::into)
+    }
+
+    pub async fn validate_codes_count(&self) -> Result<U256> {
+        let count = self.instance.validatedCodesCount().call().await?;
+        Ok(count._0)
+    }
+
+    pub async fn mirror_impl(&self) -> Result<LocalAddress> {
+        self.instance
+            .mirrorImpl()
+            .call()
+            .await
+            .map(|res| LocalAddress(res._0.into()))
+            .map_err(Into::into)
+    }
+
+    pub async fn mirror_proxy_impl(&self) -> Result<LocalAddress> {
+        self.instance
+            .mirrorProxyImpl()
+            .call()
+            .await
+            .map(|res| LocalAddress(res._0.into()))
+            .map_err(Into::into)
     }
 }
