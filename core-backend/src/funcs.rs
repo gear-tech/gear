@@ -20,7 +20,8 @@
 
 use crate::{
     accessors::{
-        Read, ReadAs, ReadDecoded, ReadDecodedSpecial, SyscallArg, SyscallValue, Write, WriteAs,
+        Read, ReadAs, ReadDecoded, ReadDecodedSpecial, SyscallArg, SyscallValue, WriteAs,
+        WriteInGrRead,
     },
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
@@ -584,7 +585,7 @@ where
         )
     }
 
-    pub fn read(at: u32, buffer: Write) -> impl Syscall<Caller> {
+    pub fn read(at: u32, buffer: WriteInGrRead) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::Read,
             move |ctx: &mut CallerWrap<Caller>, io: &mut MemoryAccessIoWrapper<Caller>| {

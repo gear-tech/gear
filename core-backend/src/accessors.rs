@@ -110,7 +110,7 @@ pub(crate) struct ReadDecodedSpecial<T: Decode + MaxEncodedLen + Default> {
     read: Option<WasmMemoryReadDecoded<T>>,
 }
 
-pub(crate) struct Write {
+pub(crate) struct WriteInGrRead {
     write: WasmMemoryWrite,
 }
 
@@ -255,7 +255,7 @@ impl<T: Decode + MaxEncodedLen + Default> SyscallArg for ReadDecodedSpecial<T> {
     }
 }
 
-impl SyscallArg for Write {
+impl SyscallArg for WriteInGrRead {
     const REQUIRED_ARGS: usize = 2;
     const REQUIRES_MEMORY_MANAGER: bool = true;
 
@@ -366,7 +366,7 @@ impl<T: Decode + MaxEncodedLen + Default> ReadDecodedSpecial<T> {
     }
 }
 
-impl Write {
+impl WriteInGrRead {
     pub fn write<Caller, Ext>(
         self,
         ctx: &mut CallerWrap<Caller>,
