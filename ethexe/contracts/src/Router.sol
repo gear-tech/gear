@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Gear} from "./libraries/Gear.sol";
+import {IMiddleware} from "./IMiddleware.sol";
 import {IMirror} from "./IMirror.sol";
 import {IMirrorDecoder} from "./IMirrorDecoder.sol";
 import {IRouter} from "./IRouter.sol";
@@ -26,6 +27,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address _mirror,
         address _mirrorProxy,
         address _wrappedVara,
+        address _middleware,
         uint256 _eraDuration,
         uint256 _electionDuration,
         address[] calldata _validators
@@ -41,7 +43,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
 
         router.genesisBlock = Gear.newGenesis();
-        router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
+        router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara, _middleware);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration);
@@ -108,6 +110,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function wrappedVara() public view returns (address) {
         return _router().implAddresses.wrappedVara;
+    }
+
+    function middleware() public view returns (address) {
+        return _router().implAddresses.middleware;
     }
 
     function areValidators(address[] calldata _validators) public view returns (bool) {
@@ -321,6 +327,72 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             Gear.validateSignatures(router, keccak256(blockCommitmentsHashes), _signatures),
             "signatures verification failed"
         );
+    }
+
+    function commitRequestSlash(Gear.RequestSlashCommitment calldata commitment, bytes[] calldata signatures)
+        external
+    {
+        Storage storage router = _router();
+
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+
+        // Validate the era index
+        require(commitment.eraIndex == currentEraIndex, "commitment era index is invalid");
+
+        // Ensure the commitment window is valid
+        uint256 eraStart = router.genesisBlock.timestamp + router.timelines.era * currentEraIndex;
+        require(block.timestamp >= eraStart, "current era has not started yet");
+
+        // Validate signatures
+        bytes32 commitmentHash = Gear.requestSlashCommitmentHash(commitment);
+        require(
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), signatures),
+            "request slash commitment signatures verification failed"
+        );
+
+        // Ensure middleware is set
+        address middlewareAddress = router.implAddresses.middleware;
+        require(middlewareAddress != address(0), "Middleware address not set");
+
+        IMiddleware middlewareInstance = IMiddleware(middlewareAddress);
+
+        // Call the middleware's `requestSlash` function
+        middlewareInstance.requestSlash(commitment.slashes);
+
+        emit RequestSlashCommitmentProcessed(commitmentHash, commitment.slashes);
+    }
+
+    function commitExecuteSlash(Gear.ExecuteSlashCommitment calldata commitment, bytes[] calldata signatures)
+        external
+    {
+        Storage storage router = _router();
+
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+
+        // Validate the era index
+        require(commitment.eraIndex == currentEraIndex, "commitment era index is invalid");
+
+        // Ensure the commitment window is valid
+        uint256 eraStart = router.genesisBlock.timestamp + router.timelines.era * currentEraIndex;
+        require(block.timestamp >= eraStart, "current era has not started yet");
+
+        // Validate signatures
+        bytes32 commitmentHash = Gear.executeSlashCommitmentHash(commitment);
+        require(
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), signatures),
+            "execute slash commitment signatures verification failed"
+        );
+
+        // Ensure middleware is set
+        address middlewareAddress = router.implAddresses.middleware;
+        require(middlewareAddress != address(0), "Middleware address not set");
+
+        IMiddleware middlewareInstance = IMiddleware(middlewareAddress);
+
+        // Call the middleware's `executeSlash` function
+        middlewareInstance.executeSlash(commitment.slashIdentifiers);
+
+        emit ExecuteSlashCommitmentProcessed(commitmentHash, commitment.slashIdentifiers);
     }
 
     /* Helper private functions */
