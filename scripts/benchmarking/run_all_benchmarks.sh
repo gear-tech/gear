@@ -91,7 +91,7 @@ then
   cargo build --profile=production --locked --features=runtime-benchmarks
 fi
 
-PATH_BASE=./target/release
+PATH_BASE=./target/production
 # The executable to use.
 GEAR=$PATH_BASE/gear
 # The runtime to use.
