@@ -429,7 +429,7 @@ extern "C" fn metahash() {{
     /// Post-processing after the WASM binary has been built.
     ///
     /// - Copy WASM binary from `OUT_DIR` to
-    /// `target/gear-wasm/<profile>`
+    ///   `target/gear-wasm/<profile>`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     pub fn postprocess(&self) -> Result<Option<(PathBuf, PathBuf)>> {
