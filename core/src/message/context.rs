@@ -244,6 +244,11 @@ impl MessageContext {
         &self.settings
     }
 
+    /// Getter for inner dispatch kind
+    pub fn kind(&self) -> DispatchKind {
+        self.kind
+    }
+
     fn check_reply_availability(&self) -> Result<(), ExecutionError> {
         if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
             return Err(ExecutionError::IncorrectEntryForReply);

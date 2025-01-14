@@ -128,7 +128,6 @@ where
         program_id: program.id,
         program_candidates_data: Default::default(),
         forbidden_funcs: settings.forbidden_funcs,
-        endpoint_dispatch_kind: kind,
         reserve_for: settings.reserve_for,
         random_data: settings.random_data,
         gas_multiplier: settings.gas_multiplier,
@@ -334,7 +333,6 @@ where
         existential_deposit: Default::default(),
         mailbox_threshold: Default::default(),
         costs: Default::default(),
-        endpoint_dispatch_kind: function.try_into_kind().unwrap_or_default(),
     };
 
     // Creating externalities.

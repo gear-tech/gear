@@ -42,7 +42,7 @@ pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
 pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
-use alloc::{collections::BTreeSet, string::String, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use core::fmt::Display;
 use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
@@ -195,23 +195,23 @@ impl DispatchKind {
         matches!(self, Self::Signal)
     }
 
-    /// Syscalls that are not allowed to be called for the dispatch kind.
-    pub fn forbidden_funcs(&self) -> BTreeSet<SyscallName> {
+    /// Returns is syscall forbidden for the dispatch kind.
+    pub fn forbids(&self, syscall_name: SyscallName) -> bool {
         match self {
-            DispatchKind::Signal => [
-                SyscallName::Source,
-                SyscallName::Reply,
-                SyscallName::ReplyPush,
-                SyscallName::ReplyCommit,
-                SyscallName::ReplyCommitWGas,
-                SyscallName::ReplyInput,
-                SyscallName::ReplyInputWGas,
-                SyscallName::ReservationReply,
-                SyscallName::ReservationReplyCommit,
-                SyscallName::SystemReserveGas,
-            ]
-            .into(),
-            _ => Default::default(),
+            DispatchKind::Signal => matches!(
+                syscall_name,
+                SyscallName::Source
+                    | SyscallName::Reply
+                    | SyscallName::ReplyPush
+                    | SyscallName::ReplyCommit
+                    | SyscallName::ReplyCommitWGas
+                    | SyscallName::ReplyInput
+                    | SyscallName::ReplyInputWGas
+                    | SyscallName::ReservationReply
+                    | SyscallName::ReservationReplyCommit
+                    | SyscallName::SystemReserveGas
+            ),
+            _ => false,
         }
     }
 }

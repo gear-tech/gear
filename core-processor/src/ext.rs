@@ -88,8 +88,6 @@ pub struct ProcessorContext {
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<SyscallName>,
-    /// Endpoint dispatch kind.
-    pub endpoint_dispatch_kind: DispatchKind,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
     /// Output from Randomness.
@@ -139,7 +137,6 @@ impl ProcessorContext {
             program_id: Default::default(),
             program_candidates_data: Default::default(),
             forbidden_funcs: Default::default(),
-            endpoint_dispatch_kind: Default::default(),
             reserve_for: 0,
             random_data: ([0u8; 32].to_vec(), 0),
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
@@ -1426,7 +1423,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     }
 
     fn endpoint_dispatch_kind(&self) -> DispatchKind {
-        self.context.endpoint_dispatch_kind
+        self.context.message_context.kind()
     }
 }
 
