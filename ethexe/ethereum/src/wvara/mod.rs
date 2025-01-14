@@ -139,4 +139,22 @@ impl WVaraQuery {
             .map(|res| U256(res._0.into_limbs()))
             .map_err(Into::into)
     }
+
+    pub async fn name(&self) -> Result<String> {
+        self.0
+            .name()
+            .call()
+            .await
+            .map(|res| res._0.to_string())
+            .map_err(Into::into)
+    }
+
+    pub async fn symbol(&self) -> Result<String> {
+        self.0
+            .symbol()
+            .call()
+            .await
+            .map(|res| res._0.to_string())
+            .map_err(Into::into)
+    }
 }
