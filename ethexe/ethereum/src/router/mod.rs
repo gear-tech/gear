@@ -318,7 +318,7 @@ impl RouterQuery {
             )
             .call()
             .await
-            .map(|res| res._0.into_iter().map(|s| CodeState::from(s)).collect())
+            .map(|res| res._0.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
     }
 
