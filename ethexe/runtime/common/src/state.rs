@@ -845,6 +845,9 @@ impl IndexMut<RegionIdx> for MemoryPages {
 pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; MemoryPages::REGIONS_AMOUNT];
 
 impl MemoryPages {
+    /// Copy of the gear_core constant defining max pages amount per program.
+    pub const MAX_PAGES: usize = gear_core::code::MAX_WASM_PAGES_AMOUNT as usize;
+
     /// Granularity parameter of how memory pages hashes are stored.
     ///
     /// Instead of a single huge map of GearPage to HashOf<PageBuf>, memory is
@@ -858,8 +861,12 @@ impl MemoryPages {
     /// host implementation: see the `ThreadParams` struct.
     pub const REGIONS_AMOUNT: usize = 16;
 
+    /// Pages amount per each region.
+    pub const PAGES_PER_REGION: usize = Self::MAX_PAGES / Self::REGIONS_AMOUNT;
+    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES % Self::REGIONS_AMOUNT == 0);
+
     pub fn page_region(page: GearPage) -> RegionIdx {
-        RegionIdx((u32::from(page) as usize / Self::REGIONS_AMOUNT) as u8)
+        RegionIdx((u32::from(page) as usize / Self::PAGES_PER_REGION) as u8)
     }
 
     pub fn update_and_store_regions<S: Storage>(
@@ -970,7 +977,7 @@ impl MemoryPagesRegion {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct RegionIdx(u8);
 
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 pub struct Allocations {
     inner: IntervalsTree<WasmPage>,
     #[into(ignore)]
@@ -991,9 +998,7 @@ impl Allocations {
             .flat_map(|i| i.to_iter())
             .collect();
 
-        if !removed_pages.is_empty()
-            || allocations.intervals_amount() != self.inner.intervals_amount()
-        {
+        if !removed_pages.is_empty() || allocations.difference(&self.inner).next().is_some() {
             self.changed = true;
             self.inner = allocations;
         }
