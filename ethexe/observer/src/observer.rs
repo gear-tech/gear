@@ -198,7 +198,7 @@ impl Observer {
 
     /// Clones the `Observer` with resubscribing to blocks.
     ///
-    /// Resubscription here is the same as calling provider's `subscibe_blocks`
+    /// Resubscription here is the same as calling provider's `subscribe_blocks`
     /// method from the sense of both approaches will result in receiving only new blocks.
     /// All the previous blocks queued in the inner channel of the subscription won't be
     /// accessible by the new subscription.
