@@ -33,7 +33,7 @@ cargo test
 cargo test --release
 ```
 
-4. Find the built WASM binaries in `target/gear-wasm/<profile>` directory:
+4. Find the built WASM binaries in `target/wasm32-gear/<profile>` directory:
 
 - `.wasm` — original WASM built from the source files
 - `.opt.wasm` — optimised WASM binary to be submitted to the blockchain
@@ -50,15 +50,15 @@ mod code {
 #[test]
 fn debug_wasm() {
     assert_eq!(
-        std::fs::read("target/gear-wasm/debug/test_program.wasm").unwrap(),
+        std::fs::read("target/wasm32-gear/debug/test_program.wasm").unwrap(),
         code::WASM_BINARY,
     );
     assert_eq!(
-        std::fs::read("target/gear-wasm/debug/test_program.opt.wasm").unwrap(),
+        std::fs::read("target/wasm32-gear/debug/test_program.opt.wasm").unwrap(),
         code::WASM_BINARY_OPT,
     );
     assert_eq!(
-        std::fs::read("target/gear-wasm/debug/test_program.meta.wasm").unwrap(),
+        std::fs::read("target/wasm32-gear/debug/test_program.meta.wasm").unwrap(),
         code::WASM_BINARY_META,
     );
 }

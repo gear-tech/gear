@@ -47,7 +47,7 @@ gear_replay_build() {
 
 # $1 = TARGET DIR
 examples_proc() {
-  WASM_EXAMPLES_DIR="$1"/gear-wasm/release
+  WASM_EXAMPLES_DIR="$1"/wasm32-gear/release
   WASM_EXAMPLES_LIST=$(find $WASM_EXAMPLES_DIR -name "*.wasm" | tr '\n' ' ' | sed 's/ $//')
   "$1"/release/wasm-proc $WASM_EXAMPLES_LIST
 }

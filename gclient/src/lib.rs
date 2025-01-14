@@ -77,7 +77,7 @@
 //! ```
 //! use gclient::{EventProcessor, GearApi, Result};
 //!
-//! const WASM_PATH: &str = "./target/gear-wasm/release/first_gear_app.opt.wasm";
+//! const WASM_PATH: &str = "./target/wasm32-gear/release/first_gear_app.opt.wasm";
 //!
 //! #[tokio::test]
 //! async fn test_example() -> Result<()> {
