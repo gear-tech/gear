@@ -304,7 +304,7 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn program_code_ids(&self, program_ids: Vec<ProgramId>) -> Result<Vec<CodeId>> {
+    pub async fn programs_code_ids(&self, program_ids: Vec<ProgramId>) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
                 program_ids
@@ -321,7 +321,7 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn validate_codes_count(&self) -> Result<U256> {
+    pub async fn validated_codes_count(&self) -> Result<U256> {
         let count = self.instance.validatedCodesCount().call().await?;
         Ok(count._0)
     }
