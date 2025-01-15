@@ -39,7 +39,7 @@ use gstd_codegen::wait_create_program_for_reply;
 /// ```
 /// use gstd::{msg, prog, CodeId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let code_id: CodeId = msg::load().expect("Unable to load");
 ///     let (init_message_id, new_program_id) =
@@ -69,7 +69,7 @@ pub fn create_program_bytes(
 /// ```
 /// use gstd::{msg, prog, CodeId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let code_id: CodeId = msg::load().expect("Unable to load");
 ///     let (init_message_id, new_program_id) =

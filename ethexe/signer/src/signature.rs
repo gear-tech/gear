@@ -86,6 +86,12 @@ impl Signature {
         Ok(raw_signature.into())
     }
 
+    /// # Safety
+    /// This function is unsafe because it does not check the validity of the input bytes.
+    pub const unsafe fn from_bytes(bytes: [u8; 65]) -> Self {
+        Self(bytes)
+    }
+
     /// Covert signature to hex string.
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)

@@ -27,23 +27,129 @@
 
 mod address;
 mod digest;
-mod private_key;
-mod public_key;
 mod signature;
 mod utils;
 
 // Exports
 pub use address::Address;
 pub use digest::{Digest, ToDigest};
-pub use private_key::PrivateKey;
-pub use public_key::PublicKey;
 pub use sha3;
 pub use signature::Signature;
 
-use anyhow::{bail, Result};
-use secp256k1::hashes::hex::{Case, DisplayHex};
+use anyhow::{bail, Error, Result};
+use parity_scale_codec::{Decode, Encode};
+use secp256k1::{
+    hashes::hex::{Case, DisplayHex},
+    PublicKey as Secp256k1PublicKey, SecretKey as Secp256k1SecretKey,
+};
 use signature::RawSignature;
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{fmt, fs, path::PathBuf, str::FromStr};
+
+/// Private key.
+///
+/// Private key type used for elliptic curves maths for secp256k1 standard
+/// is a 256 bits unsigned integer, which the type stores as a 32 bytes array.
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PrivateKey(pub [u8; 32]);
+
+impl From<PrivateKey> for Secp256k1SecretKey {
+    fn from(key: PrivateKey) -> Self {
+        Secp256k1SecretKey::from_byte_array(&key.0).expect("32 bytes; within curve order")
+    }
+}
+
+impl FromStr for PrivateKey {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(utils::decode_to_array(s)?))
+    }
+}
+
+/// Public key.
+///
+/// Basically, public key is a point on the elliptic curve, which should have
+/// two coordinates - `x` and `y`, both 256 bits unsigned integers. But it's possible
+/// to store only `x` coordinate, as `y` can be calculated.
+///
+/// As the secp256k1 elliptic curve is symmetric, the y can be either positive or
+/// negative. To stress the exact position of the `y` the prefix byte is used, so
+/// the public key becomes 33 bytes, not 32.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct PublicKey(pub [u8; 33]);
+
+impl PublicKey {
+    /// Create public key from the private key.
+    ///
+    /// Only `ethexe-signer` types are used.
+    pub fn from_private(private_key: PrivateKey) -> Self {
+        let secret_key = private_key.into();
+        let public_key = Secp256k1PublicKey::from_secret_key_global(&secret_key);
+
+        public_key.into()
+    }
+
+    pub fn try_from_slice(slice: &[u8]) -> Result<Self> {
+        let bytes = <[u8; 33]>::try_from(slice)?;
+
+        Ok(Self::from_bytes(bytes))
+    }
+
+    /// Create public key from compressed public key bytes.
+    pub fn from_bytes(bytes: [u8; 33]) -> Self {
+        Self(bytes)
+    }
+
+    /// Public key hex string.
+    pub fn to_hex(&self) -> String {
+        hex::encode(self.0)
+    }
+
+    /// Convert public key to ethereum address.
+    pub fn to_address(&self) -> Address {
+        (*self).into()
+    }
+}
+
+impl From<PrivateKey> for PublicKey {
+    fn from(key: PrivateKey) -> Self {
+        Self::from_private(key)
+    }
+}
+
+impl From<Secp256k1PublicKey> for PublicKey {
+    fn from(key: Secp256k1PublicKey) -> Self {
+        Self(key.serialize())
+    }
+}
+
+impl From<PublicKey> for Secp256k1PublicKey {
+    fn from(key: PublicKey) -> Self {
+        Secp256k1PublicKey::from_byte_array_compressed(&key.0).expect("invalid public key")
+    }
+}
+
+impl FromStr for PublicKey {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Ok(Self(utils::decode_to_array(s)?))
+    }
+}
+
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = Error;
+
+    fn try_from(data: &[u8]) -> Result<Self> {
+        Self::try_from_slice(data)
+    }
+}
+
+impl fmt::Display for PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_hex())
+    }
+}
 
 /// Signer which signs data using owned key store.
 #[derive(Debug, Clone)]
@@ -142,15 +248,15 @@ impl Signer {
 
         let public_key: PublicKey = secp256k1_public_key.into();
 
-        let key_file = self.key_store.join(public_key.to_hex());
-        println!(
-            "Secret key: {}",
+        log::debug!(
+            "Secret key generated: {}",
             secp256k1_secret_key
                 .secret_bytes()
                 .to_hex_string(Case::Lower)
         );
-        fs::write(key_file, secp256k1_secret_key.secret_bytes())?;
 
+        let key_file = self.key_store.join(public_key.to_hex());
+        fs::write(key_file, secp256k1_secret_key.secret_bytes())?;
         Ok(public_key)
     }
 

@@ -17,18 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // for panic/oom handlers
-extern crate gstd;
 
-use gcore::{exec, msg, MessageId};
+use gstd::{debug, exec, msg, prelude::*, MessageId};
 
 static mut STATE: u32 = 0;
 static mut MSG_ID_1: MessageId = MessageId::zero();
 static mut MSG_ID_2: MessageId = MessageId::zero();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
-    let state = unsafe { &mut STATE };
-    gstd::debug!("{state}");
+    let state = unsafe { static_mut!(STATE) };
+    debug!("{state}");
 
     match *state {
         0 => {
@@ -47,7 +46,7 @@ extern "C" fn handle() {
             exec::wake(unsafe { MSG_ID_2 }).unwrap();
         }
         _ => {
-            msg::send(msg::source(), msg::id().as_ref(), 0).unwrap();
+            msg::send_bytes(msg::source(), msg::id(), 0).unwrap();
         }
     }
 }

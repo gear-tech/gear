@@ -237,6 +237,7 @@ where
     }
 
     /// The extrinsic inclusion mode of the runtime for this block.
+    #[allow(unused)]
     pub fn extrinsic_inclusion_mode(&self) -> ExtrinsicInclusionMode {
         self.extrinsic_inclusion_mode
     }
