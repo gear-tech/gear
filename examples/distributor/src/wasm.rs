@@ -76,11 +76,21 @@ impl Program {
     }
 
     fn nodes() -> &'static Mutex<BTreeSet<Program>> {
-        unsafe { &mut STATE.as_mut().expect("STATE UNINITIALIZED!").nodes }
+        unsafe {
+            &static_mut!(STATE)
+                .as_mut()
+                .expect("STATE UNINITIALIZED!")
+                .nodes
+        }
     }
 
     fn amount() -> &'static mut u64 {
-        unsafe { &mut STATE.as_mut().expect("STATE UNINITIALIZED!").amount }
+        unsafe {
+            &mut static_mut!(STATE)
+                .as_mut()
+                .expect("STATE UNINITIALIZED!")
+                .amount
+        }
     }
 
     async fn handle_request() {
@@ -162,19 +172,19 @@ impl Program {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     debug!("Handling sequence started");
     gstd::message_loop(Program::handle_request());
     debug!("Handling sequence terminated");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     gstd::handle_reply_with_hook();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { STATE = Some(Default::default()) };
     msg::reply((), 0).unwrap();

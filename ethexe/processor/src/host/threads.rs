@@ -23,8 +23,8 @@ use core::fmt;
 use ethexe_db::BlockMetaStorage;
 use ethexe_runtime_common::{
     state::{
-        ActiveProgram, HashOf, MemoryPages, MemoryPagesInner, MemoryPagesRegionInner, Program,
-        ProgramState, RegionIdx, Storage,
+        ActiveProgram, HashOf, MemoryPages, MemoryPagesRegionInner, Program, ProgramState,
+        RegionIdx, Storage,
     },
     BlockInfo,
 };
@@ -45,7 +45,7 @@ pub struct ThreadParams {
     pub db: Database,
     pub block_info: BlockInfo,
     pub state_hash: H256,
-    pages_registry_cache: Option<MemoryPagesInner>,
+    pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
 
@@ -69,12 +69,12 @@ impl ThreadParams {
                 unreachable!("program that is currently running can't be inactive");
             };
 
-            pages_hash.query(&self.db).expect(UNKNOWN_STATE).into()
+            pages_hash.query(&self.db).expect(UNKNOWN_STATE)
         });
 
         let region_idx = MemoryPages::page_region(page);
 
-        let region_hash = pages_registry.get(&region_idx)?;
+        let region_hash = pages_registry[region_idx].with_hash(|hash| hash)?;
 
         let pages_regions = self
             .pages_regions_cache
@@ -82,7 +82,7 @@ impl ThreadParams {
 
         let page_region = pages_regions.entry(region_idx).or_insert_with(|| {
             self.db
-                .read_pages_region(*region_hash)
+                .read_pages_region(region_hash)
                 .expect("Pages region not found")
                 .into()
         });

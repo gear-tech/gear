@@ -210,7 +210,7 @@ unsafe fn mprotect_interval(
     if allow_exec {
         mask |= region::Protection::EXECUTE;
     }
-    region::protect(addr as *mut (), size, mask)?;
+    unsafe { region::protect(addr as *mut (), size, mask)? };
     log::trace!("mprotect interval: {addr:#x}, size: {size:#x}, mask: {mask}");
     Ok(())
 }
@@ -229,7 +229,9 @@ unsafe fn simulate_data_load(addr: usize) {
 unsafe fn memset(addr: *mut u8, value: u8, size: usize) {
     let mut addr = addr;
     for _ in 0..size {
-        *addr = value;
-        addr = addr.add(1);
+        unsafe {
+            *addr = value;
+            addr = addr.add(1);
+        }
     }
 }

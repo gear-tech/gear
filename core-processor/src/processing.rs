@@ -587,6 +587,7 @@ pub fn process_success(
     journal
 }
 
+/// Helper function for journal creation if the block gas allowance has been exceeded.
 pub fn process_allowance_exceed(
     dispatch: IncomingDispatch,
     program_id: ProgramId,

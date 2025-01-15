@@ -2,14 +2,14 @@
 path = "junit.xml"
 
 # sometimes fails on CI machine in debug profile
-# due to an inconsistent machine load and unoptimized code 
+# due to an inconsistent machine load and unoptimized code
 [[profile.ci.overrides]]
 filter = 'package(gear-authorship)'
 retries = 5
 threads-required = "num-test-threads"
 
 [[profile.ci.overrides]]
-filter = 'package(ethexe-cli)'
+filter = 'package(ethexe-service)'
 retries = 5
 threads-required = "num-test-threads"
 

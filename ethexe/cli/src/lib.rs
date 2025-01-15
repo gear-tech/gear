@@ -16,12 +16,64 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub mod args;
-pub mod chain_spec;
-pub mod config;
-pub mod metrics;
-pub mod params;
-pub mod service;
+use anyhow::{Context, Ok, Result};
+use clap::Parser;
+use commands::Command;
+use params::Params;
+use std::path::PathBuf;
 
-#[cfg(test)]
-mod tests;
+mod commands;
+mod params;
+
+#[derive(Debug, Parser)]
+pub struct Cli {
+    /// Path to the TOML config file. If not provided, the default path "./.ethexe.toml" is used. To disable parsing of the config file, use "none".
+    #[arg(long)]
+    pub cfg: Option<String>,
+
+    /// Command to run.
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+impl Cli {
+    /// Default path to the TOML config file.
+    pub const DEFAULT_PARAMS_PATH: &str = "./.ethexe.toml";
+
+    /// Run the CLI.
+    pub async fn run(self) -> Result<()> {
+        let params = self
+            .file_params()
+            .with_context(|| "failed to read params from file")?
+            .unwrap_or_default();
+
+        self.command.run(params).await
+    }
+
+    fn file_params(&self) -> Result<Option<Params>> {
+        Ok(match &self.cfg {
+            Some(ref path_str) if path_str == "none" => None,
+            Some(path) => {
+                let path = PathBuf::from(path);
+
+                println!("📄 Using custom params file: {}", path.display());
+
+                Some(Params::from_file(path)?)
+            }
+            None => {
+                let default_cfg_path = PathBuf::from(Self::DEFAULT_PARAMS_PATH);
+
+                if default_cfg_path.exists() {
+                    println!(
+                        "📄 Using default params file: {}",
+                        default_cfg_path.display()
+                    );
+
+                    Some(Params::from_file(default_cfg_path)?)
+                } else {
+                    None
+                }
+            }
+        })
+    }
+}

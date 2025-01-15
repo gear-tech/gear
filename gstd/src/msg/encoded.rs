@@ -47,7 +47,7 @@ use scale_info::scale::{Decode, Encode};
 ///     field: String,
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let payload: Input = msg::load().expect("Unable to load");
 ///     msg::reply(payload.field, 0).expect("Unable to reply");
@@ -96,7 +96,7 @@ pub fn load<D: Decode>() -> crate::errors::Result<D> {
 ///     b: Option<bool>,
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let payload = Reply {
 ///         a: 42,
@@ -138,7 +138,7 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
 ///     b: Option<bool>,
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let reservation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserve");
 ///     let payload = Reply {
@@ -179,7 +179,7 @@ pub fn reply_from_reservation<E: Encode>(
 ///     b: Option<bool>,
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let payload = Reply {
 ///         a: 42,
@@ -210,7 +210,7 @@ pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Res
 /// ```
 /// use gstd::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_input(0, 0..msg::size() / 2).expect("Unable to reply");
 /// }
@@ -255,7 +255,7 @@ pub fn reply_input_with_gas(
 /// ```
 /// use gstd::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::send_input(msg::source(), 0, 0..msg::size() / 2).expect("Unable to send");
 /// }
@@ -346,7 +346,7 @@ pub fn send_input_with_gas_delayed(
 ///     b: Option<bool>,
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let payload = Output {
 ///         a: 42,
@@ -437,7 +437,7 @@ pub fn send_with_gas_delayed<E: Encode>(
 ///     b: Option<bool>,
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let payload = Output {
 ///         a: 42,

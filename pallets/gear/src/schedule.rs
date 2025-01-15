@@ -1428,7 +1428,7 @@ struct ScheduleRules<'a, T: Config> {
     params: Vec<u32>,
 }
 
-impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
+impl<T: Config> Rules for ScheduleRules<'_, T> {
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
         use Instruction::*;
         use SignExtInstruction::*;
@@ -1553,7 +1553,7 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &Module) -> impl Rules + '_ {
+    pub fn rules(&self, module: &Module) -> impl Rules + use<'_, T> {
         ScheduleRules {
             schedule: self,
             params: module
