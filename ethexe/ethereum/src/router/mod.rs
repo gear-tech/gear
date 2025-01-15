@@ -214,12 +214,12 @@ impl RouterQuery {
         }
     }
 
-    pub async fn wvara_address(&self) -> Result<Address> {
+    pub async fn genesis_block_hash(&self) -> Result<H256> {
         self.instance
-            .wrappedVara()
+            .genesisBlockHash()
             .call()
             .await
-            .map(|res| res._0)
+            .map(|res| H256(*res._0))
             .map_err(Into::into)
     }
 
@@ -232,12 +232,30 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn genesis_block_hash(&self) -> Result<H256> {
+    pub async fn mirror_impl(&self) -> Result<LocalAddress> {
         self.instance
-            .genesisBlockHash()
+            .mirrorImpl()
             .call()
             .await
-            .map(|res| H256(*res._0))
+            .map(|res| LocalAddress(res._0.into()))
+            .map_err(Into::into)
+    }
+
+    pub async fn mirror_proxy_impl(&self) -> Result<LocalAddress> {
+        self.instance
+            .mirrorProxyImpl()
+            .call()
+            .await
+            .map(|res| LocalAddress(res._0.into()))
+            .map_err(Into::into)
+    }
+
+    pub async fn wvara_address(&self) -> Result<Address> {
+        self.instance
+            .wrappedVara()
+            .call()
+            .await
+            .map(|res| res._0)
             .map_err(Into::into)
     }
 
@@ -257,19 +275,6 @@ impl RouterQuery {
             .await
             .map(|res| res._0.to())
             .map_err(Into::into)
-    }
-
-    pub async fn programs_count(&self) -> Result<U256> {
-        let count = self.instance.programsCount().call().await?;
-        Ok(count._0)
-    }
-
-    pub async fn program_code_id(&self, program_id: ProgramId) -> Result<Option<CodeId>> {
-        let program_id = LocalAddress::try_from(program_id).expect("infallible");
-        let program_id = Address::new(program_id.0);
-        let code_id = self.instance.programCodeId(program_id).call().await?;
-        let code_id = Some(CodeId::new(code_id._0.0)).filter(|&code_id| code_id != CodeId::zero());
-        Ok(code_id)
     }
 
     pub async fn signing_threshold_percentage(&self) -> Result<u16> {
@@ -304,6 +309,14 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
+    pub async fn program_code_id(&self, program_id: ProgramId) -> Result<Option<CodeId>> {
+        let program_id = LocalAddress::try_from(program_id).expect("infallible");
+        let program_id = Address::new(program_id.0);
+        let code_id = self.instance.programCodeId(program_id).call().await?;
+        let code_id = Some(CodeId::new(code_id._0.0)).filter(|&code_id| code_id != CodeId::zero());
+        Ok(code_id)
+    }
+
     pub async fn programs_code_ids(&self, program_ids: Vec<ProgramId>) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
@@ -321,26 +334,13 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn validated_codes_count(&self) -> Result<U256> {
-        let count = self.instance.validatedCodesCount().call().await?;
+    pub async fn programs_count(&self) -> Result<U256> {
+        let count = self.instance.programsCount().call().await?;
         Ok(count._0)
     }
 
-    pub async fn mirror_impl(&self) -> Result<LocalAddress> {
-        self.instance
-            .mirrorImpl()
-            .call()
-            .await
-            .map(|res| LocalAddress(res._0.into()))
-            .map_err(Into::into)
-    }
-
-    pub async fn mirror_proxy_impl(&self) -> Result<LocalAddress> {
-        self.instance
-            .mirrorProxyImpl()
-            .call()
-            .await
-            .map(|res| LocalAddress(res._0.into()))
-            .map_err(Into::into)
+    pub async fn validated_codes_count(&self) -> Result<U256> {
+        let count = self.instance.validatedCodesCount().call().await?;
+        Ok(count._0)
     }
 }
