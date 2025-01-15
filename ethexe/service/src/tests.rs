@@ -968,10 +968,13 @@ async fn multiple_validators() {
 async fn tx_pool_gossip() {
     gear_utils::init_default_logger();
 
+    let test_env_config = TestEnvConfig {
+        validators: ValidatorsConfig::Generated(2),
+        ..Default::default()
+    };
+
     // Setup env of 2 nodes, one of them knows about the other one.
-    let mut env = TestEnv::new(TestEnvConfig::default().validators_amount(3))
-        .await
-        .unwrap();
+    let mut env = TestEnv::new(test_env_config).await.unwrap();
 
     log::info!("📗 Starting node 0");
     let mut node0 = env.new_node(
@@ -994,7 +997,7 @@ async fn tx_pool_gossip() {
     let raw_message = b"hello world".to_vec();
     let signature = env
         .signer
-        .sign(env.validators[2], &raw_message)
+        .sign(env.validators[1], &raw_message)
         .expect("failed signing message");
     let signature_bytes = signature.encode();
 
@@ -1050,8 +1053,15 @@ mod utils {
     use ethexe_rpc::{RpcConfig, RpcService};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
-    use std::{net::SocketAddr, ops::Mul, str::FromStr};
+    use std::{
+        net::SocketAddr,
+        ops::Mul,
+        str::FromStr,
+        sync::atomic::{AtomicU32, Ordering},
+    };
     use tokio::sync::{broadcast::Sender, Mutex};
+
+    static NETWORK_ADRESSES_NONCE: AtomicU32 = AtomicU32::new(1);
 
     pub struct TestEnv {
         pub rpc_url: String,
@@ -1070,7 +1080,6 @@ mod utils {
         pub block_time: Duration,
         pub continuous_block_generation: bool,
 
-        network_addresses_nonce: u64,
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Arc<Mutex<Sender<Event>>>,
         _anvil: Option<AnvilInstance>,
@@ -1217,7 +1226,6 @@ mod utils {
                 threshold,
                 block_time,
                 continuous_block_generation,
-                network_addresses_nonce: 0,
                 broadcaster,
                 _anvil: anvil,
                 _events_stream,
@@ -1238,8 +1246,10 @@ mod utils {
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
-                    self.network_addresses_nonce += 1;
-                    format!("/memory/{}", self.network_addresses_nonce)
+                    format!(
+                        "/memory/{}",
+                        NETWORK_ADRESSES_NONCE.fetch_add(1, Ordering::Relaxed)
+                    )
                 })
             });
 
@@ -1494,6 +1504,7 @@ mod utils {
         pub fn service_rpc(mut self, rpc_port: u16) -> Self {
             let service_rpc_config = RpcConfig {
                 listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
+                cors: None,
             };
             self.service_rpc_config = Some(service_rpc_config);
 

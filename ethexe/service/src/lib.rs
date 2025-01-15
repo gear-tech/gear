@@ -238,7 +238,7 @@ impl Service {
         log::info!("🚅 Tx pool service starting...");
         let tx_pool_artifacts = ethexe_tx_pool::new((db.clone(),));
 
-        let rpc = config.rpc_config.as_ref().map(|config| {
+        let rpc = config.rpc.as_ref().map(|config| {
             ethexe_rpc::RpcService::new(
                 config.clone(),
                 db.clone(),

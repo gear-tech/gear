@@ -87,6 +87,12 @@ impl TryFrom<ActorId> for Address {
     }
 }
 
+impl From<Address> for ActorId {
+    fn from(value: Address) -> Self {
+        H160(value.0).into()
+    }
+}
+
 impl fmt::Debug for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "0x{}", self.to_hex())
