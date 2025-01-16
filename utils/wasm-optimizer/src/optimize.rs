@@ -23,7 +23,9 @@ use colored::Colorize;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::{
     parity_wasm,
-    parity_wasm::elements::{Internal, Module, Section, Serialize},
+    parity_wasm::elements::{
+        DataSection, DataSegment,  Internal, Module, Section, Serialize,
+    },
 };
 #[cfg(not(feature = "wasm-opt"))]
 use std::process::Command;
@@ -46,6 +48,8 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
     "metahash",
     STACK_END_EXPORT_NAME,
 ];
+
+const MAX_DATA_SEGMENT_AMOUNT: usize = 1024;
 
 /// Type of the output wasm.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -94,6 +98,106 @@ impl Optimizer {
         self.module
             .sections_mut()
             .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
+    }
+
+    pub fn join_data_sections(&mut self) {
+        let statistics = match self.module.data_section() {
+            Some(data_section) if data_section.entries().len() >= MAX_DATA_SEGMENT_AMOUNT => {
+                self.data_section_statistics(data_section)
+            }
+            _ => return,
+        };
+
+        let mut data_sections_to_join =
+            self.module.data_section().unwrap().entries().len() - MAX_DATA_SEGMENT_AMOUNT;
+
+        let threshold_index = statistics
+            .iter()
+            .scan(0usize, |state, &stat| Some(*state + stat))
+            .position(|sum| sum >= data_sections_to_join)
+            .unwrap_or(statistics.len() - 1);
+
+        let mut current_segment_index = 1;
+        while data_sections_to_join > 0 {
+            let previous_segment = self
+                .module
+                .data_section()
+                .unwrap()
+                .entries()
+                .get(current_segment_index - 1)
+                .unwrap();
+            let current_segment = self
+                .module
+                .data_section()
+                .unwrap()
+                .entries()
+                .get(current_segment_index)
+                .unwrap();
+
+            let zero_bytes =
+                match self.zero_byte_between_data_segments(previous_segment, current_segment) {
+                    Some(zero_bytes) => zero_bytes,
+                    None => {
+                        current_segment_index += 1;
+                        continue;
+                    }
+                };
+
+            if zero_bytes <= threshold_index * 4 {
+                let current_segment = self
+                    .module
+                    .data_section_mut()
+                    .unwrap()
+                    .entries_mut()
+                    .remove(current_segment_index);
+
+                let mut addition_part: Vec<u8> = vec![0u8; zero_bytes];
+                addition_part.extend(current_segment.value());
+
+                self.module
+                    .data_section_mut()
+                    .unwrap()
+                    .entries_mut()
+                    .get_mut(current_segment_index - 1)
+                    .unwrap()
+                    .value_mut()
+                    .extend(addition_part);
+
+                data_sections_to_join -= 1;
+            } else {
+                current_segment_index += 1;
+            }
+        }
+    }
+
+    fn data_section_statistics(&self, data_section: &DataSection) -> [usize; 64] {
+        let mut statistics: [usize; 64] = [0; 64];
+        for pair in data_section.entries().windows(2) {
+            let zero_bytes = match self.zero_byte_between_data_segments(&pair[0], &pair[1]) {
+                Some(zero_bytes) => zero_bytes,
+                // skip `passive` data segments
+                None => continue,
+            };
+            *statistics.get_mut(zero_bytes / 4).unwrap() += 1;
+        }
+
+        statistics
+    }
+
+    fn zero_byte_between_data_segments(
+        &self,
+        start_segment: &DataSegment,
+        end_segment: &DataSegment,
+    ) -> Option<usize> {
+        let offset = |segment: &DataSegment| match segment.offset().clone()?.code().first()? {
+            parity_wasm::elements::Instruction::I32Const(value) => Some(*value),
+            _ => None,
+        };
+
+        let start_segment_offset: usize = offset(start_segment)?.try_into().unwrap();
+        let end_segment_offset: usize = offset(end_segment)?.try_into().unwrap();
+
+        Some(end_segment_offset - start_segment_offset - start_segment.value().len())
     }
 
     pub fn flush_to_file(self, path: &PathBuf) {

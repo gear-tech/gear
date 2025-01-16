@@ -393,7 +393,10 @@ extern "C" fn metahash() {{
             optimizer
                 .insert_stack_end_export()
                 .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
+
             optimizer.strip_custom_sections();
+            optimizer.join_data_sections();
+
             fs::write(&opt_wasm_path, optimizer.optimize(OptType::Opt)?)
                 .context("Failed to write optimized WASM binary")?;
         }
