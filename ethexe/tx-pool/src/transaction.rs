@@ -25,7 +25,7 @@ use parity_scale_codec::{Decode, Encode};
 use std::fmt;
 
 /// Ethexe transaction behaviour.
-pub trait Transaction:
+pub trait TransactionTrait:
     Clone + TxReferenceBlockHash + TxSignature + TxHashBlake2b256 + Encode
 {
 }
@@ -49,12 +49,12 @@ pub trait TxHashBlake2b256 {
 
 /// Ethexe transaction with a signature.
 #[derive(Clone, Encode, Decode, PartialEq, Eq)]
-pub struct SignedEthexeTransaction {
+pub struct SignedTransaction {
     pub signature: Vec<u8>,
-    pub transaction: EthexeTransaction,
+    pub transaction: Transaction,
 }
 
-impl SignedEthexeTransaction {
+impl SignedTransaction {
     /// Gets source of the `SendMessage` transaction recovering it from the signature.
     pub fn send_message_source(&self) -> Result<H160> {
         Signature::try_from(self.signature.as_ref())
@@ -62,11 +62,10 @@ impl SignedEthexeTransaction {
                 signature.recover_from_digest(self.transaction.encode().to_digest())
             })
             .map(|public_key| H160::from(Address::from(public_key).0))
-            .map_err(Into::into)
     }
 }
 
-impl fmt::Debug for SignedEthexeTransaction {
+impl fmt::Debug for SignedTransaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SignedEthexeTransaction")
             .field("signature", &hex::encode(&self.signature))
@@ -75,7 +74,7 @@ impl fmt::Debug for SignedEthexeTransaction {
     }
 }
 
-impl fmt::Display for SignedEthexeTransaction {
+impl fmt::Display for SignedTransaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -86,14 +85,14 @@ impl fmt::Display for SignedEthexeTransaction {
     }
 }
 
-/// Ethexe with a reference block for mortality.
+/// Ethexe transaction with a reference block for mortality.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct EthexeTransaction {
-    pub raw: RawEthexeTransacton,
+pub struct Transaction {
+    pub raw: RawTransacton,
     pub reference_block: H256,
 }
 
-impl fmt::Display for EthexeTransaction {
+impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -107,7 +106,7 @@ impl fmt::Display for EthexeTransaction {
 ///
 /// A particular job to be processed without external specifics.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub enum RawEthexeTransacton {
+pub enum RawTransacton {
     SendMessage {
         program_id: H160,
         payload: Vec<u8>,
@@ -115,33 +114,33 @@ pub enum RawEthexeTransacton {
     },
 }
 
-impl RawEthexeTransacton {
+impl RawTransacton {
     /// Gets the program id of the transaction.
     pub fn program_id(&self) -> H160 {
         match self {
-            RawEthexeTransacton::SendMessage { program_id, .. } => *program_id,
+            RawTransacton::SendMessage { program_id, .. } => *program_id,
         }
     }
 
     /// Gets the payload of the transaction.
     pub fn payload(&self) -> &[u8] {
         match self {
-            RawEthexeTransacton::SendMessage { payload, .. } => payload,
+            RawTransacton::SendMessage { payload, .. } => payload,
         }
     }
 
     /// Gets the value of the transaction.
     pub fn value(&self) -> u128 {
         match self {
-            RawEthexeTransacton::SendMessage { value, .. } => *value,
+            RawTransacton::SendMessage { value, .. } => *value,
         }
     }
 }
 
-impl fmt::Display for RawEthexeTransacton {
+impl fmt::Display for RawTransacton {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RawEthexeTransacton::SendMessage {
+            RawTransacton::SendMessage {
                 program_id,
                 payload,
                 value,
@@ -155,33 +154,33 @@ impl fmt::Display for RawEthexeTransacton {
     }
 }
 
-impl Transaction for SignedEthexeTransaction {}
+impl TransactionTrait for SignedTransaction {}
 
-impl TxHashBlake2b256 for SignedEthexeTransaction {
+impl TxHashBlake2b256 for SignedTransaction {
     fn tx_hash(&self) -> H256 {
         ethexe_db::hash(&self.encode())
     }
 }
 
-impl TxSignature for SignedEthexeTransaction {
+impl TxSignature for SignedTransaction {
     fn signature(&self) -> Result<Signature> {
         Signature::try_from(self.signature.as_ref())
     }
 }
 
-impl TxReferenceBlockHash for SignedEthexeTransaction {
+impl TxReferenceBlockHash for SignedTransaction {
     fn reference_block_hash(&self) -> H256 {
         self.transaction.reference_block
     }
 }
 
-impl TxHashBlake2b256 for EthexeTransaction {
+impl TxHashBlake2b256 for Transaction {
     fn tx_hash(&self) -> H256 {
         ethexe_db::hash(&self.encode())
     }
 }
 
-impl TxReferenceBlockHash for EthexeTransaction {
+impl TxReferenceBlockHash for Transaction {
     fn reference_block_hash(&self) -> H256 {
         self.reference_block
     }

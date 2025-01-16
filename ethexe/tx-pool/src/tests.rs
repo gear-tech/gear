@@ -23,8 +23,8 @@
 //! - the channels inside the tx pool service to work as expected
 
 use crate::{
-    service, EthexeTransaction, InputTask, OutputTask, RawEthexeTransacton,
-    SignedEthexeTransaction, TxHashBlake2b256, TxPoolInstantiationArtifacts,
+    service, Transaction, InputTask, OutputTask, RawTransacton,
+    SignedTransaction, TxHashBlake2b256, TxPoolKit,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb};
 use ethexe_signer::{PrivateKey, Signer, ToDigest};
@@ -33,7 +33,7 @@ use parity_scale_codec::Encode;
 use std::str::FromStr;
 use tokio::sync::oneshot;
 
-pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedEthexeTransaction {
+pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedTransaction {
     let signer = Signer::tmp();
     let public_key = signer
         .add_key(
@@ -44,8 +44,8 @@ pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedEth
         )
         .expect("key addition failed");
 
-    let transaction = EthexeTransaction {
-        raw: RawEthexeTransacton::SendMessage {
+    let transaction = Transaction {
+        raw: RawTransacton::SendMessage {
             program_id: H160::random(),
             payload: vec![],
             value: 0,
@@ -56,7 +56,7 @@ pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedEth
         .sign_digest(public_key, transaction.encode().to_digest())
         .expect("signing failed");
 
-    SignedEthexeTransaction {
+    SignedTransaction {
         transaction,
         signature: signature.encode(),
     }
@@ -79,10 +79,10 @@ async fn test_add_transaction() {
 
     let db = Database::from_one(&MemDb::default(), Default::default());
 
-    let TxPoolInstantiationArtifacts {
+    let TxPoolKit {
         service,
-        input_sender,
-        mut output_receiver,
+        tx_pool_sender: input_sender,
+        tx_pool_receiver: mut output_receiver,
     } = service::new(db.clone());
 
     // Spawn the service in a separate thread
@@ -183,10 +183,10 @@ async fn test_pre_execution_validity() {
 
     let db = Database::from_one(&MemDb::default(), Default::default());
 
-    let TxPoolInstantiationArtifacts {
+    let TxPoolKit {
         service,
-        input_sender,
-        mut output_receiver,
+        tx_pool_sender: input_sender,
+        tx_pool_receiver: mut output_receiver,
     } = service::new(db.clone());
 
     // Spawn the service in a separate thread
@@ -226,7 +226,7 @@ async fn test_pre_execution_validity() {
     // Now check existent validated transaction pre-execution validity
     let (response_sender, response_receiver) = oneshot::channel();
     input_sender
-        .send(InputTask::CheckPreExecutionTransactionValidity {
+        .send(InputTask::ValidateTransaction {
             transaction: signed_ethexe_tx.clone(),
             response_sender,
         })
@@ -250,7 +250,7 @@ async fn test_pre_execution_validity() {
     // Check for the pre-execution validity of the same transaction
     let (response_sender, response_receiver) = oneshot::channel();
     input_sender
-        .send(InputTask::CheckPreExecutionTransactionValidity {
+        .send(InputTask::ValidateTransaction {
             transaction: signed_ethexe_tx,
             response_sender,
         })

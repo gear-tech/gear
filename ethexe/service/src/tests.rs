@@ -42,7 +42,7 @@ use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{
-    EthexeTransaction, RawEthexeTransacton, SignedEthexeTransaction, TxHashBlake2b256,
+    Transaction, RawTransacton, SignedTransaction, TxHashBlake2b256,
 };
 use ethexe_validator::Validator;
 use gear_core::{
@@ -1020,8 +1020,8 @@ async fn tx_pool_gossip() {
     let signed_ethexe_tx = {
         let sender_pub_key = env.signer.generate_key().expect("failed generating key");
 
-        let ethexe_tx = EthexeTransaction {
-            raw: RawEthexeTransacton::SendMessage {
+        let ethexe_tx = Transaction {
+            raw: RawTransacton::SendMessage {
                 program_id: H160::random(),
                 payload: vec![],
                 value: 0,
@@ -1033,7 +1033,7 @@ async fn tx_pool_gossip() {
             .signer
             .sign(sender_pub_key, ethexe_tx.encode().as_ref())
             .expect("failed signing tx");
-        SignedEthexeTransaction {
+        SignedTransaction {
             signature: signature.encode(),
             transaction: ethexe_tx,
         }
@@ -1068,7 +1068,7 @@ async fn tx_pool_gossip() {
         .db
         .validated_transaction(tx_hash)
         .expect("tx not found");
-    let node1_db_tx: SignedEthexeTransaction =
+    let node1_db_tx: SignedTransaction =
         Decode::decode(&mut &tx_data[..]).expect("failed to decode tx");
     assert_eq!(node1_db_tx, signed_ethexe_tx);
 }
@@ -1757,13 +1757,13 @@ mod utils {
                 None => None,
             };
 
-            let tx_pool_artifacts = ethexe_tx_pool::new(self.db.clone());
+            let tx_pool_kit = ethexe_tx_pool::new(self.db.clone());
 
             let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
                 RpcService::new(
                     service_rpc_config.clone(),
                     self.db.clone(),
-                    tx_pool_artifacts.input_sender.clone(),
+                    tx_pool_kit.tx_pool_sender.clone(),
                 )
             });
 
@@ -1780,7 +1780,7 @@ mod utils {
                 validator,
                 None,
                 rpc,
-                tx_pool_artifacts,
+                tx_pool_kit,
             );
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);

@@ -26,23 +26,18 @@ mod validation;
 mod tests;
 
 pub use service::{
-    new, InputTask, OutputTask, TxPoolInputTaskSender, TxPoolInstantiationArtifacts,
+    new, InputTask, OutputTask, TxPoolInputTaskSender, TxPoolKit,
     TxPoolOutputTaskReceiver, TxPoolService,
 };
 pub use transaction::{
-    EthexeTransaction, RawEthexeTransacton, SignedEthexeTransaction, Transaction, TxHashBlake2b256,
+    Transaction, RawTransacton, SignedTransaction, TransactionTrait, TxHashBlake2b256,
     TxReferenceBlockHash, TxSignature,
 };
 
 use service::TxPoolOutputTaskSender;
-use validation::{TxValidator, TxValidatorFinishResult};
+use validation::TxValidator;
 
-/// Transaction pool service with a [`EthexeTransaction`] transaction type and a [`StandardTxPool`] as a transaction pool.
-pub type StandardTxPoolService = TxPoolService<SignedEthexeTransaction>;
-/// Transaction pool input task sender with a [`EthexeTransaction`] transaction type.
-pub type StandardInputTaskSender = TxPoolInputTaskSender<SignedEthexeTransaction>;
-/// Transaction pool output task receiver with a [`EthexeTransaction`] transaction type.
-pub type StandardOutputTaskReceiver = TxPoolOutputTaskReceiver<SignedEthexeTransaction>;
-/// Transaction pool instantiation artifacts with a [`EthexeTransaction`] transaction type and a [`StandardTxPool`] as a transaction pool.
-pub type StandardTxPoolInstantiationArtifacts =
-    TxPoolInstantiationArtifacts<SignedEthexeTransaction>;
+/// Transaction pool input task sender with a [`SignedEthexeTransaction`] transaction type.
+pub type TxPoolSender = TxPoolInputTaskSender<SignedTransaction>;
+/// Transaction pool output task receiver with a [`SignedEthexeTransaction`] transaction type.
+pub type TxPoolReceiver = TxPoolOutputTaskReceiver<SignedTransaction>;

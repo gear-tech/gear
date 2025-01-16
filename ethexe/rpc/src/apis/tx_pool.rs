@@ -20,8 +20,8 @@
 
 use crate::errors;
 use ethexe_tx_pool::{
-    EthexeTransaction, InputTask, RawEthexeTransacton, SignedEthexeTransaction,
-    StandardInputTaskSender,
+    Transaction, InputTask, RawTransacton, SignedTransaction,
+    TxPoolSender,
 };
 use gprimitives::{H160, H256};
 use jsonrpsee::{
@@ -45,13 +45,13 @@ pub trait TransactionPool {
 
 #[derive(Clone)]
 pub struct TransactionPoolApi {
-    tx_pool_task_sender: StandardInputTaskSender,
+    tx_pool_sender: TxPoolSender,
 }
 
 impl TransactionPoolApi {
-    pub fn new(tx_pool_task_sender: StandardInputTaskSender) -> Self {
+    pub fn new(tx_pool_sender: TxPoolSender) -> Self {
         Self {
-            tx_pool_task_sender,
+            tx_pool_sender,
         }
     }
 }
@@ -66,9 +66,9 @@ impl TransactionPoolServer for TransactionPoolApi {
         reference_block: H256,
         signature: Vec<u8>,
     ) -> RpcResult<H256> {
-        let signed_ethexe_tx = SignedEthexeTransaction {
-            transaction: EthexeTransaction {
-                raw: RawEthexeTransacton::SendMessage {
+        let signed_ethexe_tx = SignedTransaction {
+            transaction: Transaction {
+                raw: RawTransacton::SendMessage {
                     program_id,
                     payload,
                     value,
@@ -85,7 +85,7 @@ impl TransactionPoolServer for TransactionPoolApi {
             response_sender: Some(response_sender),
         };
 
-        self.tx_pool_task_sender.send(input_task).map_err(|e| {
+        self.tx_pool_sender.send(input_task).map_err(|e| {
             // No panic case as a responsibility of the RPC API is fulfilled.
             // The dropped tx pool input task receiver might signalize that
             // the transaction pool has been stooped.

@@ -31,8 +31,7 @@ use ethexe_prometheus::MetricsService;
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_tx_pool::{
-    InputTask, OutputTask, SignedEthexeTransaction, StandardInputTaskSender,
-    StandardTxPoolInstantiationArtifacts,
+    InputTask, OutputTask, SignedTransaction, TxPoolSender, TxPoolKit,
 };
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
@@ -61,7 +60,7 @@ pub struct Service {
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
     block_time: Duration,
-    tx_pool_artifacts: StandardTxPoolInstantiationArtifacts,
+    tx_pool_kit: TxPoolKit<SignedTransaction>,
 
     // Optional services
     network: Option<ethexe_network::NetworkService>,
@@ -87,7 +86,7 @@ pub enum NetworkMessage {
         blocks: Option<(Digest, Signature)>,
     },
     Transaction {
-        transaction: SignedEthexeTransaction,
+        transaction: SignedTransaction,
     },
 }
 
@@ -237,13 +236,13 @@ impl Service {
         };
 
         log::info!("🚅 Tx pool service starting...");
-        let tx_pool_artifacts = ethexe_tx_pool::new(db.clone());
+        let tx_pool_kit = ethexe_tx_pool::new(db.clone());
 
         let rpc = config.rpc.as_ref().map(|config| {
             ethexe_rpc::RpcService::new(
                 config.clone(),
                 db.clone(),
-                tx_pool_artifacts.input_sender.clone(),
+                tx_pool_kit.tx_pool_sender.clone(),
             )
         });
 
@@ -260,7 +259,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time: config.ethereum.block_time,
-            tx_pool_artifacts,
+            tx_pool_kit,
         })
     }
 
@@ -287,7 +286,7 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         metrics_service: Option<MetricsService>,
         rpc: Option<ethexe_rpc::RpcService>,
-        tx_pool_artifacts: StandardTxPoolInstantiationArtifacts,
+        tx_pool_kit: TxPoolKit<SignedTransaction>,
     ) -> Self {
         Self {
             db,
@@ -302,7 +301,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
-            tx_pool_artifacts,
+            tx_pool_kit,
         }
     }
 
@@ -501,7 +500,7 @@ impl Service {
             mut validator,
             metrics_service,
             rpc,
-            tx_pool_artifacts,
+            tx_pool_kit,
             block_time,
         } = self;
 
@@ -536,11 +535,11 @@ impl Service {
             None
         };
 
-        let StandardTxPoolInstantiationArtifacts {
+        let TxPoolKit {
             service: tx_pool_service,
-            input_sender: tx_pool_input_task_sender,
-            output_receiver: mut tx_pool_ouput_task_receiver,
-        } = tx_pool_artifacts;
+            tx_pool_sender,
+            mut tx_pool_receiver,
+        } = tx_pool_kit;
         let mut tx_pool_handle = tokio::spawn(tx_pool_service.run());
 
         let mut roles = "Observer".to_string();
@@ -617,7 +616,7 @@ impl Service {
                                 validator.as_mut(),
                                 sequencer.as_mut(),
                                 network_sender.as_mut(),
-                                &tx_pool_input_task_sender,
+                                &tx_pool_sender,
                             );
 
                             if let Err(err) = result {
@@ -642,9 +641,9 @@ impl Service {
                         _ => {}
                     }
                 }
-                Some(task) = tx_pool_ouput_task_receiver.recv() => {
+                Some(task) = tx_pool_receiver.recv() => {
                     log::debug!("Received a task from the tx pool - {task:?}");
-                    Self::process_tx_pool_output_task(task, &db, &tx_pool_input_task_sender, network_sender.as_mut(),).await?;
+                    Self::process_tx_pool_output_task(task, &db, &tx_pool_sender, network_sender.as_mut(),).await?;
                 }
                 _ = maybe_await(network_handle.as_mut()) => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
@@ -841,7 +840,7 @@ impl Service {
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
         maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
-        tx_pool_input_task_sender: &StandardInputTaskSender,
+        tx_pool_sender: &TxPoolSender,
     ) -> Result<()> {
         let message = NetworkMessage::decode(&mut data)?;
         match message {
@@ -899,7 +898,7 @@ impl Service {
             }
             NetworkMessage::Transaction { transaction } => {
                 // TODO #4423
-                tx_pool_input_task_sender
+                tx_pool_sender
                     .send(InputTask::AddTransaction {
                         transaction,
                         response_sender: None,
@@ -947,9 +946,9 @@ impl Service {
     }
 
     async fn process_tx_pool_output_task(
-        task: OutputTask<SignedEthexeTransaction>,
+        task: OutputTask<SignedTransaction>,
         db: &Database,
-        tx_pool_input_task_sender: &StandardInputTaskSender,
+        tx_sender: &TxPoolSender,
         mut maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
     ) -> Result<()> {
         match task {
@@ -985,8 +984,8 @@ impl Service {
                 log::debug!("Received transaction {transaction:#?} for the execution");
 
                 let (response_sender, response_receiver) = oneshot::channel();
-                tx_pool_input_task_sender
-                    .send(InputTask::CheckPreExecutionTransactionValidity {
+                tx_sender
+                    .send(InputTask::ValidateTransaction {
                         transaction,
                         response_sender,
                     })

@@ -16,76 +16,79 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Transaction pool io.
+//! Transaction pool service and io.
 
 pub use input::{InputTask, TxPoolInputTaskSender};
 pub use output::{OutputTask, TxPoolOutputTaskReceiver};
 
 pub(crate) use output::TxPoolOutputTaskSender;
 
-use crate::{Transaction, TxValidator, TxValidatorFinishResult};
+use crate::{TransactionTrait, TxValidator};
 use anyhow::Result;
 use ethexe_db::Database;
 use input::TxPoolInputTaskReceiver;
 use tokio::sync::mpsc;
 
 /// Creates a new transaction pool service.
-pub fn new<Tx>(db: Database) -> TxPoolInstantiationArtifacts<Tx>
+pub fn new<Tx>(db: Database) -> TxPoolKit<Tx>
 where
-    Tx: Transaction + Send + Sync + 'static,
+    Tx: TransactionTrait + Send + Sync + 'static,
 {
     let (tx_in, rx_in) = mpsc::unbounded_channel();
     let (tx_out, rx_out) = mpsc::unbounded_channel();
 
     let service = TxPoolService {
         db,
-        input_interface: TxPoolInputTaskReceiver { receiver: rx_in },
-        output_inteface: TxPoolOutputTaskSender { sender: tx_out },
+        receiver: TxPoolInputTaskReceiver { receiver: rx_in },
+        sender: TxPoolOutputTaskSender { sender: tx_out },
     };
 
-    TxPoolInstantiationArtifacts {
+    TxPoolKit {
         service,
-        input_sender: TxPoolInputTaskSender { sender: tx_in },
-        output_receiver: TxPoolOutputTaskReceiver { receiver: rx_out },
+        tx_pool_sender: TxPoolInputTaskSender { sender: tx_in },
+        tx_pool_receiver: TxPoolOutputTaskReceiver { receiver: rx_out },
     }
 }
 
-/// Transaction pool instantiation artifacts carrier.
-pub struct TxPoolInstantiationArtifacts<Tx: Transaction> {
+/// Transaction pool kit, which consists of the pool service and channels to communicate with it.
+pub struct TxPoolKit<Tx: TransactionTrait> {
     pub service: TxPoolService<Tx>,
-    pub input_sender: TxPoolInputTaskSender<Tx>,
-    pub output_receiver: TxPoolOutputTaskReceiver<Tx>,
+    pub tx_pool_sender: TxPoolInputTaskSender<Tx>,
+    pub tx_pool_receiver: TxPoolOutputTaskReceiver<Tx>,
 }
 
 /// Transaction pool service.
 ///
 /// Serves as an interface for the transaction pool core.
-pub struct TxPoolService<Tx: Transaction> {
+pub struct TxPoolService<Tx: TransactionTrait> {
     db: Database,
-    input_interface: TxPoolInputTaskReceiver<Tx>,
-    output_inteface: TxPoolOutputTaskSender<Tx>,
+    receiver: TxPoolInputTaskReceiver<Tx>,
+    sender: TxPoolOutputTaskSender<Tx>,
 }
 
-impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
+impl<Tx: TransactionTrait + Send + Sync + 'static> TxPoolService<Tx> {
     /// Runs transaction pool service expecting to receive tasks from the
     /// tx pool input task sender.
     pub async fn run(mut self) {
         // Finishes working of all the input task senders are dropped.
-        while let Some(task) = self.input_interface.recv().await {
+        while let Some(task) = self.receiver.recv().await {
             match task {
-                InputTask::CheckPreExecutionTransactionValidity {
+                InputTask::ValidateTransaction {
                     transaction,
                     response_sender,
                 } => {
+                    // No need for a uniqueness check as the input task is sent on existing transactions
+                    debug_assert!(self.db.validated_transaction(transaction.tx_hash()).is_some());
+
                     let res = TxValidator::new(transaction, self.db.clone())
+                        .with_signature_check()
                         .with_mortality_check()
-                        .validate()
-                        .finish_validator_res();
+                        .validate();
                     let _ = response_sender.send(res).inspect_err(|_| {
                         // No panic case as the request itself is going to be executed.
                         // The dropped receiver signalizes that the external task sender
                         // has crashed or is malformed, so problems should be handled there.
-                        log::error!("`CheckValidity` task receiver is stopped or dropped.");
+                        log::error!("`ValidateTransaction` task receiver is stopped or dropped.");
                     });
                 }
                 InputTask::AddTransaction {
@@ -97,7 +100,7 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
                         let tx_encoded = tx.encode();
 
                         // Request the external service for the tx propagation.
-                        self.output_inteface.send(OutputTask::PropogateTransaction {
+                        self.sender.send(OutputTask::PropogateTransaction {
                             transaction: tx.clone(),
                         }).unwrap_or_else(|e| {
                             // If receiving end of the external service is dropped, it's a panic case,
@@ -111,9 +114,12 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
                             panic!("{err_msg}");
                         });
 
+                        // Store the validated transaction to the database.
+                        self.db.set_validated_transaction(tx_hash, tx_encoded);
+
                         // Request the external service for scheduling an execution of the tx.
                         self
-                            .output_inteface
+                            .sender
                             .send(OutputTask::ExecuteTransaction { transaction: tx })
                             .unwrap_or_else(|e| {
                                 // If receiving end of the external service is dropped, it's a panic case,
@@ -126,9 +132,6 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
                                 log::error!("{err_msg}");
                                 panic!("{err_msg}");
                             });
-
-                        // Store the validated transaction to the database.
-                        self.db.set_validated_transaction(tx_hash, tx_encoded);
 
                         tx_hash
                     });
@@ -148,10 +151,9 @@ impl<Tx: Transaction + Send + Sync + 'static> TxPoolService<Tx> {
 
     async fn validate_tx_full(&self, transaction: Tx) -> Result<Tx> {
         TxValidator::new(transaction, self.db.clone())
-            .with_all_checks(self.output_inteface.clone())
+            .with_all_checks(self.sender.clone())
             .full_validate()
             .await
-            .finish_validator_res()
     }
 }
 
@@ -164,7 +166,7 @@ mod input {
     /// Input task for the transaction pool service.
     pub enum InputTask<Tx> {
         /// Request for checking the transaction validity.
-        CheckPreExecutionTransactionValidity {
+        ValidateTransaction {
             transaction: Tx,
             response_sender: oneshot::Sender<Result<Tx>>,
         },
