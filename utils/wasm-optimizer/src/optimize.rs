@@ -23,13 +23,12 @@ use colored::Colorize;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::{
     parity_wasm,
-    parity_wasm::elements::{
-        DataSection, DataSegment,  Internal, Module, Section, Serialize,
-    },
+    parity_wasm::elements::{DataSection, DataSegment, Internal, Module, Section, Serialize},
 };
 #[cfg(not(feature = "wasm-opt"))]
 use std::process::Command;
 use std::{
+    collections::BTreeMap,
     fs::{self, metadata},
     path::{Path, PathBuf},
 };
@@ -49,7 +48,7 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
     STACK_END_EXPORT_NAME,
 ];
 
-const MAX_DATA_SEGMENT_AMOUNT: usize = 1024;
+const MAX_DATA_SEGMENTS_AMOUNT: usize = 1024;
 
 /// Type of the output wasm.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -100,22 +99,33 @@ impl Optimizer {
             .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
     }
 
+    /// Join data segments
+    ///
+    /// This function joins data segments that are separated by a small number of zero bytes.
+    /// Is is necessary to fit in the network limits - 1024 data segment limit.
     pub fn join_data_sections(&mut self) {
         let statistics = match self.module.data_section() {
-            Some(data_section) if data_section.entries().len() >= MAX_DATA_SEGMENT_AMOUNT => {
+            Some(data_section) if data_section.entries().len() >= MAX_DATA_SEGMENTS_AMOUNT => {
                 self.data_section_statistics(data_section)
             }
             _ => return,
         };
 
         let mut data_sections_to_join =
-            self.module.data_section().unwrap().entries().len() - MAX_DATA_SEGMENT_AMOUNT;
+            self.module.data_section().unwrap().entries().len() - MAX_DATA_SEGMENTS_AMOUNT;
 
-        let threshold_index = statistics
+        let mut accumulated_sum = 0;
+        let threshold_zero_bytes = statistics
             .iter()
-            .scan(0usize, |state, &stat| Some(*state + stat))
-            .position(|sum| sum >= data_sections_to_join)
-            .unwrap_or(statistics.len() - 1);
+            .find_map(|(&key, &count)| {
+                accumulated_sum += count;
+                if accumulated_sum >= data_sections_to_join {
+                    Some(key)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| *statistics.keys().last().unwrap());
 
         let mut current_segment_index = 1;
         while data_sections_to_join > 0 {
@@ -143,7 +153,7 @@ impl Optimizer {
                     }
                 };
 
-            if zero_bytes <= threshold_index * 4 {
+            if zero_bytes <= threshold_zero_bytes {
                 let current_segment = self
                     .module
                     .data_section_mut()
@@ -170,20 +180,23 @@ impl Optimizer {
         }
     }
 
-    fn data_section_statistics(&self, data_section: &DataSection) -> [usize; 64] {
-        let mut statistics: [usize; 64] = [0; 64];
+    /// Returns statistics of zero bytes between data segments.
+    fn data_section_statistics(&self, data_section: &DataSection) -> BTreeMap<usize, usize> {
+        let mut statistics = BTreeMap::new();
         for pair in data_section.entries().windows(2) {
             let zero_bytes = match self.zero_byte_between_data_segments(&pair[0], &pair[1]) {
                 Some(zero_bytes) => zero_bytes,
                 // skip `passive` data segments
                 None => continue,
             };
-            *statistics.get_mut(zero_bytes / 4).unwrap() += 1;
+            *statistics.entry(zero_bytes).or_insert(0) += 1;
         }
 
         statistics
     }
 
+    /// Returns the number of zero bytes between two data segments.
+    /// Formula: `end_segment_offset - start_segment_offset - start_segment_size`
     fn zero_byte_between_data_segments(
         &self,
         start_segment: &DataSegment,
