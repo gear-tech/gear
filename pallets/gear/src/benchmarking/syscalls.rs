@@ -1518,7 +1518,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn gr_permute(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_poseidon_permute(r: u32) -> Result<Exec<T>, &'static str> {
         let seed = 1000;
         let sample_goldilocks_field = |n: usize| -> Vec<u8> {
             let mut rng = Pcg64::seed_from_u64(seed);
@@ -1540,7 +1540,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE * 3)),
-            imported_functions: vec![SyscallName::Permute],
+            imported_functions: vec![SyscallName::PoseidonPermute],
             data_segments: vec![DataSegment {
                 offset: input_offset,
                 value: inputs,

@@ -1146,7 +1146,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(130_379_476, 0).saturating_mul(s.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-	fn gr_permute(r: u32, ) -> Weight {
+	fn gr_poseidon_permute(r: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`

@@ -406,11 +406,12 @@ fn process(syscall_kind: Kind) {
 
             exec::reply_deposit(mid, amount).expect("Kind::ReplyDeposit: call test failed");
         }
-        Kind::Permute(input, expected_hash) => {
-            let actual_hash = exec::permute(input).expect("internal error: permute call failed");
+        Kind::PoseidonPermute(input, expected_hash) => {
+            let actual_hash = exec::poseidon_permute(input)
+                .expect("internal error: poseidon_permute call failed");
             assert_eq!(
                 expected_hash, actual_hash,
-                "Kind::Permute: call test failed"
+                "Kind::PoseidonPermute: call test failed"
             );
         }
     }

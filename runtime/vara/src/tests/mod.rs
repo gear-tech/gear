@@ -309,7 +309,7 @@ fn syscall_weights_test() {
         gr_create_program_wgas: 4_100_000.into(),
         gr_create_program_wgas_payload_per_byte: 130.into(),
         gr_create_program_wgas_salt_per_byte: 1_500.into(),
-        gr_permute: 4_900_000.into(),
+        gr_poseidon_permute: 4_900_000.into(),
         _phantom: Default::default(),
     };
 

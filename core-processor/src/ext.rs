@@ -1414,7 +1414,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         })
     }
 
-    fn permute(&self, input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError> {
+    fn poseidon_permute(&self, input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError> {
         Ok(poseidon(input.to_vec())
             .try_into()
             .expect("poseidon always returns 12 elements"))

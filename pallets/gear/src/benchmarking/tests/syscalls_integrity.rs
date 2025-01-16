@@ -214,7 +214,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    vec![SyscallName::Permute].into_iter().for_each(|syscall| {
+    vec![SyscallName::PoseidonPermute].into_iter().for_each(|syscall| {
     // SyscallName::all().for_each(|syscall| {
         log::info!("run test for {syscall:?}");
         match syscall {
@@ -273,7 +273,7 @@ where
             SyscallName::ReservationReply => check_gr_reservation_reply::<T>(),
             SyscallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SyscallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
-            SyscallName::Permute => check_gr_permute::<T>(),
+            SyscallName::PoseidonPermute => check_gr_poseidon_permute::<T>(),
         }
     });
 }
@@ -1043,7 +1043,7 @@ where
     })
 }
 
-fn check_gr_permute<T>()
+fn check_gr_poseidon_permute<T>()
 where
     T: Config,
     T::AccountId: Origin,
@@ -1065,7 +1065,9 @@ where
             12948832098596279325,
         ];
 
-        let mp = vec![Kind::Permute(input, expected_hash)].encode().into();
+        let mp = vec![Kind::PoseidonPermute(input, expected_hash)]
+            .encode()
+            .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })

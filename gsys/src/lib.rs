@@ -65,7 +65,7 @@ pub type SignalCode = u32;
 pub type Value = u128;
 
 /// Poseidon permutation input/output
-pub type PoseidonInOut = [u64; 12];
+pub type PoseidonPermuteInOut = [u64; 12];
 
 /// Represents type defining concatenated block number with hash. 36 bytes.
 #[repr(C, packed)]
@@ -966,10 +966,10 @@ syscalls! {
     /// - `err_mid`: `mut ptr` for error code.
     pub fn gr_wake(message_id: *const Hash, delay: BlockNumber, err: *mut ErrorCode);
 
-    /// Infallible `gr_permute` calculate syscall.
+    /// Infallible `gr_poseidon_permute` calculate syscall.
     ///
     /// Arguments type:
     /// - `data`: `const ptr` to the permutation data.
     /// - `hash_out`: `mut ptr` to the Poseidon hash output.
-    pub fn gr_permute(data: *const PoseidonInOut, hash_out: *mut PoseidonInOut);
+    pub fn gr_poseidon_permute(data: *const PoseidonPermuteInOut, hash_out: *mut PoseidonPermuteInOut);
 }

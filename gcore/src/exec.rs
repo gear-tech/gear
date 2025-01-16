@@ -27,7 +27,7 @@ use crate::{
     ActorId, EnvVars, MessageId,
 };
 use core::mem::MaybeUninit;
-use gsys::{BlockNumberWithHash, PoseidonInOut};
+use gsys::{BlockNumberWithHash, PoseidonPermuteInOut};
 #[cfg(not(feature = "ethexe"))]
 use {
     crate::ReservationId,
@@ -463,13 +463,13 @@ pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let data: [u64; 12] = array::from_fn(|i| i as u64 + 1);
-///     let hash_out = exec::permute(data).expect("Error in random");
+///     let hash_out = exec::poseidon_permute(data).expect("Error in random");
 /// }
 /// ```
-pub fn permute(data: PoseidonInOut) -> Result<PoseidonInOut> {
-    let mut res = PoseidonInOut::default();
+pub fn poseidon_permute(data: PoseidonPermuteInOut) -> Result<PoseidonPermuteInOut> {
+    let mut res = PoseidonPermuteInOut::default();
 
-    unsafe { gsys::gr_permute(data.as_ptr() as *const _, res.as_mut_ptr() as *mut _) };
+    unsafe { gsys::gr_poseidon_permute(data.as_ptr() as *const _, res.as_mut_ptr() as *mut _) };
 
     Ok(res)
 }

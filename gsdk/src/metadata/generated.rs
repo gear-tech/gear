@@ -3287,7 +3287,7 @@ pub mod runtime_types {
                         runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_create_program_wgas_salt_per_byte:
                         runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_permute: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_poseidon_permute: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct TaskWeights {

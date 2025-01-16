@@ -408,7 +408,7 @@ impl Poseidon for GoldilocksFieldWrapper {
         let data: [u64; 12] = unsafe { core::mem::transmute(input) };
 
         // Using proper conversion because not every u64 number is a valid field element.
-        exec::permute(data)
+        exec::poseidon_permute(data)
             .expect("Error in permute")
             .map(Field::from_canonical_u64)
     }

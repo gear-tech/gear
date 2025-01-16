@@ -275,7 +275,7 @@ impl Externalities for MockExt {
         Ok(MessageId::default())
     }
 
-    fn permute(&self, _input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError> {
+    fn poseidon_permute(&self, _input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError> {
         Ok([0u64; 12])
     }
 

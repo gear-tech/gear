@@ -219,7 +219,7 @@ where
         builder.add_func(ReservationReplyCommit, wrap_syscall!(reservation_reply_commit));
         builder.add_func(ReservationSend, wrap_syscall!(reservation_send));
         builder.add_func(ReservationSendCommit, wrap_syscall!(reservation_send_commit));
-        builder.add_func(Permute, wrap_syscall!(permute));
+        builder.add_func(PoseidonPermute, wrap_syscall!(poseidon_permute));
         builder.add_func(SystemBreak, wrap_syscall!(system_break));
 
         builder.add_func(Alloc, wrap_syscall!(alloc));

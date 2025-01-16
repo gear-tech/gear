@@ -308,8 +308,8 @@ pub struct SyscallCosts {
     /// Cost per salt byte by `gr_create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: CostOf<BytesAmount>,
 
-    /// Cost of calling `gr_permute`.
-    pub gr_permute: CostOf<CallsAmount>,
+    /// Cost of calling `gr_poseidon_permute`.
+    pub gr_poseidon_permute: CostOf<CallsAmount>,
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
@@ -423,8 +423,8 @@ pub enum CostToken {
     CreateProgram(BytesAmount, BytesAmount),
     /// Cost of calling `gr_create_program_wgas`, taking in account payload and salt size.
     CreateProgramWGas(BytesAmount, BytesAmount),
-    /// Cost of calling `gr_permute`
-    Permute,
+    /// Cost of calling `gr_poseidon_permute`
+    PoseidonPermute,
 }
 
 impl SyscallCosts {
@@ -503,7 +503,7 @@ impl SyscallCosts {
                     .cost_for_with_bytes(self.gr_create_program_wgas_payload_per_byte, payload),
             )
             .cost_for_with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
-            Permute => self.gr_permute.cost_for_one(),
+            PoseidonPermute => self.gr_poseidon_permute.cost_for_one(),
         }
     }
 }

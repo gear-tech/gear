@@ -393,5 +393,5 @@ pub trait Externalities {
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
 
     /// Do data permutation and return a slice of the same shape.
-    fn permute(&self, input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError>;
+    fn poseidon_permute(&self, input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError>;
 }

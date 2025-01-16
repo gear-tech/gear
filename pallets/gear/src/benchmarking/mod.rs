@@ -1489,10 +1489,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_permute {
+    gr_poseidon_permute {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_permute(r)?;
+        let exec = Benches::<T>::gr_poseidon_permute(r)?;
     }: {
         res.replace(run_process(exec));
     }

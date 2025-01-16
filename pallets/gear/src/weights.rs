@@ -126,7 +126,7 @@ pub trait WeightInfo {
     fn gr_create_program_per_kb(p: u32, s: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
     fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight;
-    fn gr_permute(n: u32, ) -> Weight;
+    fn gr_poseidon_permute(n: u32, ) -> Weight;
     fn lazy_pages_signal_read(p: u32, ) -> Weight;
     fn lazy_pages_signal_write(p: u32, ) -> Weight;
     fn lazy_pages_signal_write_after_read(p: u32, ) -> Weight;
@@ -1147,7 +1147,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(130_379_476, 0).saturating_mul(s.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_permute(r: u32, ) -> Weight {
+    fn gr_poseidon_permute(r: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
@@ -3099,7 +3099,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(130_379_476, 0).saturating_mul(s.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-	fn gr_permute(r: u32, ) -> Weight {
+	fn gr_poseidon_permute(r: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`

@@ -376,7 +376,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_create_program,
                     gr_create_program_payload_per_byte,
                     gr_create_program_salt_per_byte,
-                    gr_permute,
+                    gr_poseidon_permute,
                 }
             }
         }

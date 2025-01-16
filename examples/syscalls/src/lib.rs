@@ -108,7 +108,7 @@ pub enum Kind {
     // Param(deposit amount)
     ReplyDeposit(u64),
     // Param(input), Expected(hash)
-    Permute([u64; 12], [u64; 12]),
+    PoseidonPermute([u64; 12], [u64; 12]),
 }
 
 #[cfg(not(feature = "wasm-wrapper"))]
