@@ -26,11 +26,11 @@ mod validation;
 mod tests;
 
 pub use service::{
-    new, InputTask, OutputTask, TxPoolInputTaskSender, TxPoolKit,
-    TxPoolOutputTaskReceiver, TxPoolService,
+    new, InputTask, OutputTask, TxPoolInputTaskSender, TxPoolKit, TxPoolOutputTaskReceiver,
+    TxPoolService,
 };
 pub use transaction::{
-    Transaction, RawTransacton, SignedTransaction, TransactionTrait, TxHashBlake2b256,
+    RawTransacton, SignedTransaction, Transaction, TransactionTrait, TxHashBlake2b256,
     TxReferenceBlockHash, TxSignature,
 };
 

@@ -63,11 +63,7 @@ pub struct RpcService {
 }
 
 impl RpcService {
-    pub fn new(
-        config: RpcConfig,
-        db: Database,
-        tx_pool_sender: TxPoolSender,
-    ) -> Self {
+    pub fn new(config: RpcConfig, db: Database, tx_pool_sender: TxPoolSender) -> Self {
         Self {
             config,
             db,

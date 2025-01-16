@@ -231,15 +231,18 @@ mod tests {
         let db = Database::from_one(&MemDb::default(), Default::default());
 
         // Test valid mortality
-        let block_data = tests::random_block();
+        let block_data = tests::new_block(None);
+        db.set_block_header(block_data.0, block_data.1.clone());
         db.set_latest_valid_block(block_data.0, block_data.1);
 
-        let (block_hash, header) = tests::random_block();
+        let (block_hash, header) = tests::new_block(Some(block_data.0));
+        db.set_block_header(block_hash, header.clone());
         db.set_latest_valid_block(block_hash, header);
 
         let signed_tx = tests::generate_signed_ethexe_tx(block_hash);
 
-        let block_data = tests::random_block();
+        let block_data = tests::new_block(Some(block_hash));
+        db.set_block_header(block_data.0, block_data.1.clone());
         db.set_latest_valid_block(block_data.0, block_data.1);
 
         let tx_validator = TxValidator::new(signed_tx, db).with_mortality_check();
@@ -262,15 +265,20 @@ mod tests {
     fn test_invalid_mortality_rotten_tx() {
         let db = Database::from_one(&MemDb::default(), Default::default());
 
-        let (first_block_hash, first_block_header) = tests::random_block();
+        let (first_block_hash, first_block_header) = tests::new_block(None);
+        db.set_block_header(first_block_hash, first_block_header.clone());
         db.set_latest_valid_block(first_block_hash, first_block_header);
-        let (second_block_hash, second_block_header) = tests::random_block();
+        let (second_block_hash, second_block_header) = tests::new_block(Some(first_block_hash));
+        db.set_block_header(second_block_hash, second_block_header.clone());
         db.set_latest_valid_block(second_block_hash, second_block_header);
 
         // Add more 28 blocks
+        let mut block_hash = second_block_hash;
         for _ in 0..28 {
-            let block_data = tests::random_block();
+            let block_data = tests::new_block(Some(block_hash));
+            db.set_block_header(block_data.0, block_data.1.clone());
             db.set_latest_valid_block(block_data.0, block_data.1);
+            block_hash = block_data.0;
         }
 
         let transaction1 = TxValidator::new(
@@ -290,7 +298,8 @@ mod tests {
         .expect("internal error: transaction2 validation failed");
 
         // Adding a new block to the db, which should remove the first block from window
-        let block_data = tests::random_block();
+        let block_data = tests::new_block(Some(block_hash));
+        db.set_block_header(block_data.0, block_data.1.clone());
         db.set_latest_valid_block(block_data.0, block_data.1);
 
         // `db` is `Arc`, so no need to instatiate a new validator.

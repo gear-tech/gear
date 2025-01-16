@@ -42,6 +42,8 @@ use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const LOG_TARGET: &str = "ethexe-db";
+/// Recent block hashes window size used to check transaction mortality.
+const BLOCK_HASHES_WINDOW_SIZE: u32 = 30;
 
 #[repr(u64)]
 enum KeyPrefix {
@@ -59,7 +61,6 @@ enum KeyPrefix {
     BlockStartSchedule = 11,
     BlockEndSchedule = 12,
     Transaction = 13,
-    BlockHashesWindow = 14,
 }
 
 impl KeyPrefix {
@@ -275,7 +276,6 @@ impl BlockMetaStorage for Database {
             &KeyPrefix::LatestValidBlock.one(self.router_address),
             (block_hash, header).encode(),
         );
-        self.add_recent_block(block_hash);
     }
 
     fn block_start_schedule(&self, block_hash: H256) -> Option<Schedule> {
@@ -456,8 +456,35 @@ impl Database {
     }
 
     pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> bool {
-        self.get_block_hashes_window()
-            .contains(reference_block_hash)
+        let Some((latest_valid_block_hash, latest_valid_block_header)) = self.latest_valid_block()
+        else {
+            return false;
+        };
+        let Some(reference_block_header) = self.block_header(reference_block_hash) else {
+            return false;
+        };
+
+        // If reference block is far away from the latest valid block, it's not in the window.
+        if latest_valid_block_header.height - reference_block_header.height
+            > BLOCK_HASHES_WINDOW_SIZE
+        {
+            return false;
+        }
+
+        // Check against reorgs.
+        let mut block_hash = latest_valid_block_hash;
+        for _ in 0..BLOCK_HASHES_WINDOW_SIZE {
+            if block_hash == reference_block_hash {
+                return true;
+            }
+
+            let Some(block_header) = self.block_header(block_hash) else {
+                return false;
+            };
+            block_hash = block_header.parent_hash;
+        }
+
+        false
     }
 
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {
@@ -473,29 +500,6 @@ impl Database {
         self.kv.put(
             &KeyPrefix::BlockSmallMeta.two(self.router_address, block_hash),
             meta.encode(),
-        );
-    }
-
-    fn add_recent_block(&self, block_hash: H256) {
-        let mut recent_block_hashes = self.get_block_hashes_window();
-        recent_block_hashes.add(block_hash);
-        self.set_block_hashes_window(recent_block_hashes);
-    }
-
-    fn get_block_hashes_window(&self) -> RecentBlockHashesWindow<ThirtyBlocks> {
-        self.kv
-            .get(KeyPrefix::BlockHashesWindow.prefix().as_ref())
-            .map(|data| {
-                RecentBlockHashesWindow::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `BlockHashesWindow`")
-            })
-            .unwrap_or_default()
-    }
-
-    fn set_block_hashes_window(&self, window: RecentBlockHashesWindow<ThirtyBlocks>) {
-        self.kv.put(
-            KeyPrefix::BlockHashesWindow.prefix().as_ref(),
-            window.encode(),
         );
     }
 }
@@ -616,71 +620,6 @@ impl Storage for Database {
     }
 }
 
-// TODO #4423
-#[derive(Debug, Clone, Encode, Decode)]
-struct RecentBlockHashesWindow<S: WindowSize> {
-    /// That's for keeping an order of the block hashes window.
-    ///
-    /// Complexity for adding and removing the first element is O(1).
-    queue: VecDeque<H256>,
-    /// That's for checking the uniqueness of the block hash.
-    /// Performs check with O(logN) complexity.
-    set: BTreeSet<H256>,
-    _phantom: std::marker::PhantomData<S>,
-}
-
-impl<S: WindowSize> RecentBlockHashesWindow<S> {
-    fn new() -> Self {
-        let cap = S::SIZE;
-
-        Self {
-            queue: VecDeque::with_capacity(cap),
-            set: BTreeSet::new(),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    fn contains(&self, block_hash: H256) -> bool {
-        self.set.contains(&block_hash)
-    }
-
-    fn add(&mut self, block_hash: H256) -> bool {
-        if self.contains(block_hash) {
-            return false;
-        }
-
-        if self.queue.len() == S::SIZE {
-            let removed = self.queue.pop_front().expect("checked len; qed");
-            self.set.remove(&removed);
-        }
-
-        self.queue.push_back(block_hash);
-        self.set.insert(block_hash);
-
-        true
-    }
-}
-
-impl<S: WindowSize> Default for RecentBlockHashesWindow<S> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-trait WindowSize {
-    const SIZE: usize;
-}
-
-struct ThirtyBlocks;
-
-impl WindowSize for ThirtyBlocks {
-    const SIZE: usize = 30;
-}
-
-impl WindowSize for () {
-    const SIZE: usize = usize::MAX;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -699,27 +638,5 @@ mod tests {
 
         // database.set_parent_hash(block_hash, parent_hash);
         // assert_eq!(database.parent_hash(block_hash), Some(parent_hash));
-    }
-
-    #[test]
-    fn test_recent_blocks_window() {
-        struct ThreeBlocks;
-        impl WindowSize for ThreeBlocks {
-            const SIZE: usize = 3;
-        }
-
-        let mut window = RecentBlockHashesWindow::<ThreeBlocks>::new();
-
-        // Duplicate check
-        let some_block = H256::random();
-        assert!(window.add(some_block));
-        assert!(!window.add(some_block));
-
-        // Length check
-        window.add(H256::random());
-        window.add(H256::random());
-        assert!(window.contains(some_block));
-        window.add(H256::random());
-        assert!(!window.contains(some_block));
     }
 }

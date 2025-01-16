@@ -78,7 +78,10 @@ impl<Tx: TransactionTrait + Send + Sync + 'static> TxPoolService<Tx> {
                     response_sender,
                 } => {
                     // No need for a uniqueness check as the input task is sent on existing transactions
-                    debug_assert!(self.db.validated_transaction(transaction.tx_hash()).is_some());
+                    debug_assert!(self
+                        .db
+                        .validated_transaction(transaction.tx_hash())
+                        .is_some());
 
                     let res = TxValidator::new(transaction, self.db.clone())
                         .with_signature_check()

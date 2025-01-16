@@ -23,8 +23,8 @@
 //! - the channels inside the tx pool service to work as expected
 
 use crate::{
-    service, Transaction, InputTask, OutputTask, RawTransacton,
-    SignedTransaction, TxHashBlake2b256, TxPoolKit,
+    service, InputTask, OutputTask, RawTransacton, SignedTransaction, Transaction,
+    TxHashBlake2b256, TxPoolKit,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb};
 use ethexe_signer::{PrivateKey, Signer, ToDigest};
@@ -62,12 +62,12 @@ pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedTra
     }
 }
 
-pub(crate) fn random_block() -> (H256, BlockHeader) {
+pub(crate) fn new_block(parent_hash: Option<H256>) -> (H256, BlockHeader) {
     let block_hash = H256::random();
     let header = BlockHeader {
         height: 0,
         timestamp: 0,
-        parent_hash: H256::random(),
+        parent_hash: parent_hash.unwrap_or(H256::random()),
     };
 
     (block_hash, header)
@@ -91,13 +91,15 @@ async fn test_add_transaction() {
     // -------------- Test adding valid transaction --------------
 
     // Prepare the database by populating it with blocks
-    let block_data = random_block();
+    let block_data = new_block(None);
+    db.set_block_header(block_data.0, block_data.1.clone());
     db.set_latest_valid_block(block_data.0, block_data.1);
-    let (block_hash, block_header) = random_block();
-    db.set_latest_valid_block(block_hash, block_header);
+    let (tx_reference_block_hash, block_header) = new_block(Some(block_data.0));
+    db.set_block_header(tx_reference_block_hash, block_header.clone());
+    db.set_latest_valid_block(tx_reference_block_hash, block_header);
 
     // Send the transaction to the service
-    let signed_ethexe_tx = generate_signed_ethexe_tx(block_hash);
+    let signed_ethexe_tx = generate_signed_ethexe_tx(tx_reference_block_hash);
     let (response_sender, response_receiver) = oneshot::channel();
     input_sender
         .send(InputTask::AddTransaction {
@@ -151,13 +153,16 @@ async fn test_add_transaction() {
     // -------------- Test adding invalid transaction --------------
 
     // Populate more blocks in db
+    let mut block_hash = tx_reference_block_hash;
     for _ in 0..30 {
-        let block_data = random_block();
+        let block_data = new_block(Some(block_hash));
+        db.set_block_header(block_data.0, block_data.1.clone());
         db.set_latest_valid_block(block_data.0, block_data.1);
+        block_hash = block_data.0;
     }
 
     // Rotten block hash
-    let invalid_tx = generate_signed_ethexe_tx(block_hash);
+    let invalid_tx = generate_signed_ethexe_tx(tx_reference_block_hash);
     let tx_hash = invalid_tx.tx_hash();
     let (response_sender, response_receiver) = oneshot::channel();
     input_sender
@@ -193,9 +198,11 @@ async fn test_pre_execution_validity() {
     tokio::spawn(service.run());
 
     // Prepare the database by populating it with blocks
-    let block_data = random_block();
+    let block_data = new_block(None);
+    db.set_block_header(block_data.0, block_data.1.clone());
     db.set_latest_valid_block(block_data.0, block_data.1);
-    let (block_hash, block_header) = random_block();
+    let (block_hash, block_header) = new_block(Some(block_data.0));
+    db.set_block_header(block_hash, block_header.clone());
     db.set_latest_valid_block(block_hash, block_header);
 
     // Send add transaction task, so transaction is validated and added
@@ -242,9 +249,12 @@ async fn test_pre_execution_validity() {
         .is_some());
 
     // Now make the validated transaction rotten
+    let mut block_hash = block_hash;
     for _ in 0..30 {
-        let block_data = random_block();
+        let block_data = new_block(Some(block_hash));
+        db.set_block_header(block_data.0, block_data.1.clone());
         db.set_latest_valid_block(block_data.0, block_data.1);
+        block_hash = block_data.0;
     }
 
     // Check for the pre-execution validity of the same transaction

@@ -19,10 +19,7 @@
 //! Transaction pool rpc interface.
 
 use crate::errors;
-use ethexe_tx_pool::{
-    Transaction, InputTask, RawTransacton, SignedTransaction,
-    TxPoolSender,
-};
+use ethexe_tx_pool::{InputTask, RawTransacton, SignedTransaction, Transaction, TxPoolSender};
 use gprimitives::{H160, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
@@ -50,9 +47,7 @@ pub struct TransactionPoolApi {
 
 impl TransactionPoolApi {
     pub fn new(tx_pool_sender: TxPoolSender) -> Self {
-        Self {
-            tx_pool_sender,
-        }
+        Self { tx_pool_sender }
     }
 }
 

@@ -30,9 +30,7 @@ use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_prometheus::MetricsService;
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
-use ethexe_tx_pool::{
-    InputTask, OutputTask, SignedTransaction, TxPoolSender, TxPoolKit,
-};
+use ethexe_tx_pool::{InputTask, OutputTask, SignedTransaction, TxPoolKit, TxPoolSender};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
