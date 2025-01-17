@@ -31,3 +31,46 @@ pub mod wasm;
 
 pub mod constants;
 pub mod data_access;
+
+#[cfg(test)]
+mod tests {
+    use crate::data_access::DataAccess;
+    use gtest::{Log, Program, System};
+
+    const USER_ID: u64 = gtest::constants::DEFAULT_USER_ALICE;
+
+    use proptest::{
+        arbitrary::any, collection::vec, proptest, test_runner::Config as ProptestConfig,
+    };
+    // Testing random access to data section
+    proptest! {
+        #![proptest_config(ProptestConfig {
+                    cases: 200, // Set the number of test cases to run
+                    .. ProptestConfig::default()
+                })]
+        #[test]
+        fn test_big_data_section(payload in vec(any::<u8>(), 2..100)){
+            let sys = System::new();
+            sys.init_logger();
+
+            let prog = Program::from_file(
+                &sys,
+                "../../target/wasm32-unknown-unknown/debug/demo_big_data_section.opt.wasm",
+            );
+            sys.mint_to(gtest::constants::DEFAULT_USER_ALICE, 100000000000);
+
+            let expected_value = DataAccess::from_payload(&payload).expect("").constant();
+
+            let message_id = prog.send_bytes(USER_ID, payload);
+            let block_run_result = sys.run_next_block();
+
+            let log = Log::builder()
+                .source(prog.id())
+                .dest(USER_ID)
+                .payload_bytes(expected_value.to_be_bytes());
+
+            assert!(block_run_result.succeed.contains(&message_id));
+            assert!(block_run_result.contains(&log));
+        }
+    }
+}

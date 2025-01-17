@@ -20,7 +20,7 @@ use crate::data_access::DataAccess;
 use gstd::{msg, prelude::*};
 
 #[unsafe(no_mangle)]
-extern "C" fn handle() {
+extern "C" fn init() {
     let payload = msg::load_bytes().expect("Failed to load payload");
 
     let value = DataAccess::from_payload(&payload)

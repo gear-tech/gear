@@ -3344,6 +3344,7 @@ dependencies = [
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "proptest",
 ]
 
 [[package]]
