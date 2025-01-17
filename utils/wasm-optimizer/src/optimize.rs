@@ -16,19 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::stack_end;
+use crate::{data_section, stack_end};
 use anyhow::{anyhow, Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::{
     parity_wasm,
-    parity_wasm::elements::{DataSection, DataSegment, Internal, Module, Section, Serialize},
+    parity_wasm::elements::{Internal, Module, Section, Serialize},
 };
 #[cfg(not(feature = "wasm-opt"))]
 use std::process::Command;
 use std::{
-    collections::BTreeMap,
     fs::{self, metadata},
     path::{Path, PathBuf},
 };
@@ -106,7 +105,7 @@ impl Optimizer {
     pub fn join_data_sections(&mut self) {
         let statistics = match self.module.data_section() {
             Some(data_section) if data_section.entries().len() >= MAX_DATA_SEGMENTS_AMOUNT => {
-                self.data_section_statistics(data_section)
+                data_section::zero_bytes_gap_statistics(data_section)
             }
             _ => return,
         };
@@ -145,10 +144,11 @@ impl Optimizer {
                 .unwrap();
 
             let zero_bytes =
-                match self.zero_byte_between_data_segments(previous_segment, current_segment) {
+                match data_section::segments_zero_bytes_gap(previous_segment, current_segment) {
                     Some(zero_bytes) => zero_bytes,
                     None => {
                         current_segment_index += 1;
+                        // skip `passive` data segments
                         continue;
                     }
                 };
@@ -178,39 +178,6 @@ impl Optimizer {
                 current_segment_index += 1;
             }
         }
-    }
-
-    /// Returns statistics of zero bytes between data segments.
-    fn data_section_statistics(&self, data_section: &DataSection) -> BTreeMap<usize, usize> {
-        let mut statistics = BTreeMap::new();
-        for pair in data_section.entries().windows(2) {
-            let zero_bytes = match self.zero_byte_between_data_segments(&pair[0], &pair[1]) {
-                Some(zero_bytes) => zero_bytes,
-                // skip `passive` data segments
-                None => continue,
-            };
-            *statistics.entry(zero_bytes).or_insert(0) += 1;
-        }
-
-        statistics
-    }
-
-    /// Returns the number of zero bytes between two data segments.
-    /// Formula: `end_segment_offset - start_segment_offset - start_segment_size`
-    fn zero_byte_between_data_segments(
-        &self,
-        start_segment: &DataSegment,
-        end_segment: &DataSegment,
-    ) -> Option<usize> {
-        let offset = |segment: &DataSegment| match segment.offset().clone()?.code().first()? {
-            parity_wasm::elements::Instruction::I32Const(value) => Some(*value),
-            _ => None,
-        };
-
-        let start_segment_offset: usize = offset(start_segment)?.try_into().unwrap();
-        let end_segment_offset: usize = offset(end_segment)?.try_into().unwrap();
-
-        Some(end_segment_offset - start_segment_offset - start_segment.value().len())
     }
 
     pub fn flush_to_file(self, path: &PathBuf) {

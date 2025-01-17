@@ -20,6 +20,7 @@ mod cargo_command;
 mod cargo_toolchain;
 mod optimize;
 mod stack_end;
+mod data_section;
 
 pub use cargo_command::CargoCommand;
 pub use optimize::*;
