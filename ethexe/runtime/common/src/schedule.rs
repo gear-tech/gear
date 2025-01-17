@@ -1,5 +1,5 @@
 use crate::{
-    state::{Dispatch, PayloadLookup, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{Dispatch, Origin, PayloadLookup, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
     TransitionController,
 };
 use ethexe_common::{
@@ -12,7 +12,10 @@ use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
 
 #[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct Handler<'a, S: Storage> {
+    #[deref_mut]
+    #[deref]
     pub controller: TransitionController<'a, S>,
+    pub dispatch_origin: Origin,
 }
 
 impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
@@ -21,6 +24,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
         (program_id, user_id): (ProgramId, ActorId),
         message_id: MessageId,
     ) -> u64 {
+        let dispatch_origin = self.dispatch_origin;
         self.update_state(program_id, |state, storage, transitions| {
             let ValueWithExpiry { value, .. } =
                 state.mailbox_hash.modify_mailbox(storage, |mailbox| {
@@ -43,6 +47,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 PayloadLookup::empty(),
                 0,
                 SuccessReplyReason::Auto,
+                dispatch_origin,
             );
 
             state

@@ -169,6 +169,7 @@ where
         value,
         details,
         context,
+        ..
     } = queue.dequeue().unwrap();
 
     let payload = payload.query(ri.storage()).expect("failed to get payload");

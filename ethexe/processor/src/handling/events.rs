@@ -66,6 +66,8 @@ impl ProcessingHandler {
             return Ok(());
         }
 
+        let dispatch_origin = self.dispatch_origin;
+
         match event {
             MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
@@ -81,7 +83,15 @@ impl ProcessingHandler {
                 self.update_state(actor_id, |state, storage, _| -> Result<()> {
                     let is_init = state.requires_init_message();
 
-                    let dispatch = Dispatch::new(storage, id, source, payload, value, is_init)?;
+                    let dispatch = Dispatch::new(
+                        storage,
+                        id,
+                        source,
+                        payload,
+                        value,
+                        is_init,
+                        dispatch_origin,
+                    )?;
 
                     state
                         .queue_hash
@@ -120,7 +130,14 @@ impl ProcessingHandler {
                         &ScheduledTask::RemoveFromMailbox((actor_id, source), replied_to),
                     )?;
 
-                    let reply = Dispatch::new_reply(storage, replied_to, source, payload, value)?;
+                    let reply = Dispatch::new_reply(
+                        storage,
+                        replied_to,
+                        source,
+                        payload,
+                        value,
+                        dispatch_origin,
+                    )?;
 
                     state
                         .queue_hash
@@ -156,6 +173,7 @@ impl ProcessingHandler {
                         PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
+                        dispatch_origin,
                     );
 
                     state

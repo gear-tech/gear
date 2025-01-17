@@ -1,5 +1,5 @@
 use crate::{
-    state::{ActiveProgram, Dispatch, Program, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{ActiveProgram, Dispatch, Origin, Program, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
     TransitionController,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
@@ -20,6 +20,7 @@ use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
 #[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct Handler<'a, S: Storage> {
     pub program_id: ProgramId,
+    pub dispatch_origin: Origin,
     #[deref]
     #[deref_mut]
     pub controller: TransitionController<'a, S>,
@@ -66,6 +67,8 @@ impl<S: Storage> Handler<'_, S> {
             return;
         }
 
+        let dispatch_origin = self.dispatch_origin;
+
         self.update_state(dispatch.source(), |state, storage, transitions| {
             if let Ok(non_zero_delay) = delay.try_into() {
                 let expiry = transitions.schedule_task(
@@ -77,7 +80,7 @@ impl<S: Storage> Handler<'_, S> {
                 );
 
                 let user_id = dispatch.destination();
-                let dispatch = Dispatch::from_stored(storage, dispatch);
+                let dispatch = Dispatch::from_stored(storage, dispatch, dispatch_origin);
 
                 state.stash_hash.modify_stash(storage, |stash| {
                     stash.add_to_user(dispatch.id, dispatch, expiry, user_id);
@@ -219,7 +222,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         let dispatch = dispatch.into_stored();
 
         if self.transitions.is_program(&destination) {
-            let dispatch = Dispatch::from_stored(self.storage, dispatch);
+            let dispatch = Dispatch::from_stored(self.storage, dispatch, self.dispatch_origin);
 
             self.send_dispatch_to_program(message_id, destination, dispatch, delay);
         } else {
@@ -241,6 +244,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
 
         let program_id = self.program_id;
+        let dispatch_origin = self.dispatch_origin;
 
         self.update_state(program_id, |state, storage, transitions| {
             let expiry = transitions.schedule_task(
@@ -248,7 +252,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
             );
 
-            let dispatch = Dispatch::from_stored(storage, dispatch);
+            let dispatch = Dispatch::from_stored(storage, dispatch, dispatch_origin);
 
             state.queue_hash.modify_queue(storage, |queue| {
                 let head = queue
