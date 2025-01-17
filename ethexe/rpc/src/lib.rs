@@ -21,6 +21,7 @@ use apis::{
     BlockApi, BlockServer, ProgramApi, ProgramServer, TransactionPoolApi, TransactionPoolServer,
 };
 use ethexe_db::Database;
+use ethexe_tx_pool::TxPoolSender;
 use futures::FutureExt;
 use jsonrpsee::{
     server::{
@@ -58,19 +59,15 @@ pub struct RpcConfig {
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    tx_pool_task_sender: ethexe_tx_pool::StandardInputTaskSender,
+    tx_pool_sender: TxPoolSender,
 }
 
 impl RpcService {
-    pub fn new(
-        config: RpcConfig,
-        db: Database,
-        tx_pool_task_sender: ethexe_tx_pool::StandardInputTaskSender,
-    ) -> Self {
+    pub fn new(config: RpcConfig, db: Database, tx_pool_sender: TxPoolSender) -> Self {
         Self {
             config,
             db,
-            tx_pool_task_sender,
+            tx_pool_sender,
         }
     }
 
@@ -93,7 +90,7 @@ impl RpcService {
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
-            self.tx_pool_task_sender,
+            self.tx_pool_sender,
         )))?;
 
         let (stop_handle, server_handle) = stop_channel();

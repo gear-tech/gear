@@ -42,6 +42,8 @@ use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const LOG_TARGET: &str = "ethexe-db";
+/// Recent block hashes window size used to check transaction mortality.
+const BLOCK_HASHES_WINDOW_SIZE: u32 = 30;
 
 #[repr(u64)]
 enum KeyPrefix {
@@ -451,6 +453,38 @@ impl Database {
 
     pub fn set_validated_transaction(&self, tx_hash: H256, tx: Vec<u8>) {
         self.kv.put(&KeyPrefix::Transaction.one(tx_hash), tx);
+    }
+
+    pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> bool {
+        let Some((latest_valid_block_hash, latest_valid_block_header)) = self.latest_valid_block()
+        else {
+            return false;
+        };
+        let Some(reference_block_header) = self.block_header(reference_block_hash) else {
+            return false;
+        };
+
+        // If reference block is far away from the latest valid block, it's not in the window.
+        if latest_valid_block_header.height - reference_block_header.height
+            > BLOCK_HASHES_WINDOW_SIZE
+        {
+            return false;
+        }
+
+        // Check against reorgs.
+        let mut block_hash = latest_valid_block_hash;
+        for _ in 0..BLOCK_HASHES_WINDOW_SIZE {
+            if block_hash == reference_block_hash {
+                return true;
+            }
+
+            let Some(block_header) = self.block_header(block_hash) else {
+                return false;
+            };
+            block_hash = block_header.parent_hash;
+        }
+
+        false
     }
 
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {

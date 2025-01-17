@@ -19,7 +19,8 @@
 //! Transaction pool rpc interface.
 
 use crate::errors;
-use ethexe_tx_pool::{EthexeTransaction, InputTask, TxPoolInputTaskSender};
+use ethexe_tx_pool::{InputTask, RawTransacton, SignedTransaction, Transaction, TxPoolSender};
+use gprimitives::{H160, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -29,46 +30,72 @@ use tokio::sync::oneshot;
 #[rpc(server)]
 pub trait TransactionPool {
     #[method(name = "transactionPool_sendMessage")]
-    async fn send_message(&self, raw_message: Vec<u8>, signature: Vec<u8>) -> RpcResult<()>;
+    async fn send_message(
+        &self,
+        program_id: H160,
+        payload: Vec<u8>,
+        value: u128,
+        reference_block: H256,
+        signature: Vec<u8>,
+    ) -> RpcResult<H256>;
 }
 
 #[derive(Clone)]
 pub struct TransactionPoolApi {
-    tx_pool_task_sender: TxPoolInputTaskSender<EthexeTransaction>,
+    tx_pool_sender: TxPoolSender,
 }
 
 impl TransactionPoolApi {
-    pub fn new(tx_pool_task_sender: TxPoolInputTaskSender<EthexeTransaction>) -> Self {
-        Self {
-            tx_pool_task_sender,
-        }
+    pub fn new(tx_pool_sender: TxPoolSender) -> Self {
+        Self { tx_pool_sender }
     }
 }
 
 #[async_trait]
 impl TransactionPoolServer for TransactionPoolApi {
-    async fn send_message(&self, raw_message: Vec<u8>, signature: Vec<u8>) -> RpcResult<()> {
-        log::debug!("Called send_message with vars: raw_message - {raw_message:?}, signature - {signature:?}");
+    async fn send_message(
+        &self,
+        program_id: H160,
+        payload: Vec<u8>,
+        value: u128,
+        reference_block: H256,
+        signature: Vec<u8>,
+    ) -> RpcResult<H256> {
+        let signed_ethexe_tx = SignedTransaction {
+            transaction: Transaction {
+                raw: RawTransacton::SendMessage {
+                    program_id,
+                    payload,
+                    value,
+                },
+                reference_block,
+            },
+            signature,
+        };
+        log::debug!("Called send_message with vars: {signed_ethexe_tx:#?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
         let input_task = InputTask::AddTransaction {
-            transaction: EthexeTransaction::Message {
-                raw_message,
-                signature,
-            },
+            transaction: signed_ethexe_tx,
             response_sender: Some(response_sender),
         };
 
-        self.tx_pool_task_sender.send(input_task).map_err(|e| {
+        self.tx_pool_sender.send(input_task).map_err(|e| {
+            // No panic case as a responsibility of the RPC API is fulfilled.
+            // The dropped tx pool input task receiver might signalize that
+            // the transaction pool has been stooped.
             log::error!(
-                "Failed to send tx pool input task: {e}. \
+                "Failed to send tx pool add transaction input task: {e}. \
                 The receiving end in the tx pool might have been dropped."
             );
             errors::internal()
         })?;
 
         let res = response_receiver.await.map_err(|e| {
-            log::error!("Failed to receive tx pool response: {e}");
+            // No panic case as a responsibility of the RPC API is fulfilled.
+            // The dropped sender signalizes that the transaction pool
+            // has crashed or is malformed, so problems should be handled there.
+            log::error!("Tx pool has dropped response sender: {e}");
             errors::internal()
         })?;
 

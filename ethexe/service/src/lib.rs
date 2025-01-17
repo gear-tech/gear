@@ -30,10 +30,7 @@ use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_prometheus::MetricsService;
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
-use ethexe_tx_pool::{
-    EthexeTransaction, InputTask, OutputTask, StandardInputTaskSender,
-    StandardTxPoolInstantiationArtifacts,
-};
+use ethexe_tx_pool::{InputTask, OutputTask, SignedTransaction, TxPoolKit, TxPoolSender};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::{future, stream::StreamExt, FutureExt};
 use gprimitives::H256;
@@ -44,6 +41,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use tokio::sync::oneshot;
 use utils::*;
 
 pub mod config;
@@ -60,7 +58,7 @@ pub struct Service {
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
     block_time: Duration,
-    tx_pool_artifacts: StandardTxPoolInstantiationArtifacts,
+    tx_pool_kit: TxPoolKit<SignedTransaction>,
 
     // Optional services
     network: Option<ethexe_network::NetworkService>,
@@ -86,7 +84,7 @@ pub enum NetworkMessage {
         blocks: Option<(Digest, Signature)>,
     },
     Transaction {
-        transaction: EthexeTransaction,
+        transaction: SignedTransaction,
     },
 }
 
@@ -236,13 +234,13 @@ impl Service {
         };
 
         log::info!("🚅 Tx pool service starting...");
-        let tx_pool_artifacts = ethexe_tx_pool::new((db.clone(),));
+        let tx_pool_kit = ethexe_tx_pool::new(db.clone());
 
         let rpc = config.rpc.as_ref().map(|config| {
             ethexe_rpc::RpcService::new(
                 config.clone(),
                 db.clone(),
-                tx_pool_artifacts.input_sender.clone(),
+                tx_pool_kit.tx_pool_sender.clone(),
             )
         });
 
@@ -259,7 +257,7 @@ impl Service {
             metrics_service,
             rpc,
             block_time: config.ethereum.block_time,
-            tx_pool_artifacts,
+            tx_pool_kit,
         })
     }
 
@@ -286,7 +284,7 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         metrics_service: Option<MetricsService>,
         rpc: Option<ethexe_rpc::RpcService>,
-        tx_pool_artifacts: StandardTxPoolInstantiationArtifacts,
+        tx_pool_kit: TxPoolKit<SignedTransaction>,
     ) -> Self {
         Self {
             db,
@@ -301,7 +299,7 @@ impl Service {
             validator,
             metrics_service,
             rpc,
-            tx_pool_artifacts,
+            tx_pool_kit,
         }
     }
 
@@ -410,6 +408,7 @@ impl Service {
         let mut commitments = vec![];
 
         let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
+        log::debug!("Last commited chain {:#?}", last_committed_chain);
 
         for block_hash in last_committed_chain.into_iter().rev() {
             let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
@@ -481,9 +480,8 @@ impl Service {
     }
 
     pub async fn run(self) -> Result<()> {
-        self.run_inner().await.map_err(|err| {
+        self.run_inner().await.inspect_err(|err| {
             log::error!("Service finished work with error: {err:?}");
-            err
         })
     }
 
@@ -500,7 +498,7 @@ impl Service {
             mut validator,
             metrics_service,
             rpc,
-            tx_pool_artifacts,
+            tx_pool_kit,
             block_time,
         } = self;
 
@@ -535,11 +533,11 @@ impl Service {
             None
         };
 
-        let StandardTxPoolInstantiationArtifacts {
+        let TxPoolKit {
             service: tx_pool_service,
-            input_sender: tx_pool_input_task_sender,
-            output_receiver: mut tx_pool_ouput_task_receiver,
-        } = tx_pool_artifacts;
+            tx_pool_sender,
+            mut tx_pool_receiver,
+        } = tx_pool_kit;
         let mut tx_pool_handle = tokio::spawn(tx_pool_service.run());
 
         let mut roles = "Observer".to_string();
@@ -616,7 +614,7 @@ impl Service {
                                 validator.as_mut(),
                                 sequencer.as_mut(),
                                 network_sender.as_mut(),
-                                &tx_pool_input_task_sender,
+                                &tx_pool_sender,
                             );
 
                             if let Err(err) = result {
@@ -641,9 +639,9 @@ impl Service {
                         _ => {}
                     }
                 }
-                Some(task) = tx_pool_ouput_task_receiver.recv() => {
+                Some(task) = tx_pool_receiver.recv() => {
                     log::debug!("Received a task from the tx pool - {task:?}");
-                    Self::process_tx_pool_output_task(task, network_sender.as_mut());
+                    Self::process_tx_pool_output_task(task, &db, &tx_pool_sender, network_sender.as_mut(),).await?;
                 }
                 _ = maybe_await(network_handle.as_mut()) => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
@@ -840,7 +838,7 @@ impl Service {
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
         maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
-        tx_pool_input_task_sender: &StandardInputTaskSender,
+        tx_pool_sender: &TxPoolSender,
     ) -> Result<()> {
         let message = NetworkMessage::decode(&mut data)?;
         match message {
@@ -897,16 +895,23 @@ impl Service {
                 Ok(())
             }
             NetworkMessage::Transaction { transaction } => {
-                let _ = tx_pool_input_task_sender
+                // TODO #4423
+                tx_pool_sender
                     .send(InputTask::AddTransaction {
                         transaction,
                         response_sender: None,
                     })
-                    .inspect_err(|e| {
-                        log::error!(
+                    .unwrap_or_else(|e| {
+                        // Panic case, because the tx pool is unavailable for tasks
+                        // to be sent, so the node can't process offchain transaction,
+                        // and therefore can't create proper commitments.
+                        let err_msg = format!(
                             "Failed to send tx pool input task: {e}. \
                             The receiving end in the tx pool might have been dropped."
                         );
+
+                        log::error!("{err_msg}");
+                        panic!("{err_msg}");
                     });
 
                 Ok(())
@@ -938,10 +943,12 @@ impl Service {
         Ok(true)
     }
 
-    fn process_tx_pool_output_task(
-        task: OutputTask<EthexeTransaction>,
+    async fn process_tx_pool_output_task(
+        task: OutputTask<SignedTransaction>,
+        db: &Database,
+        tx_sender: &TxPoolSender,
         mut maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
-    ) {
+    ) -> Result<()> {
         match task {
             OutputTask::PropogateTransaction { transaction } => {
                 if let Some(network_sender) = maybe_network_sender.as_mut() {
@@ -950,7 +957,63 @@ impl Service {
                         .publish_transaction(NetworkMessage::Transaction { transaction }.encode());
                 }
             }
+            OutputTask::CheckIsExecutableTransaction {
+                transaction,
+                response_sender,
+            } => {
+                // TODO breathx
+
+                let _source = transaction.send_message_source();
+                let _db_overlay = unsafe {
+                    // Safety:
+                    // Used when a transaction is received via p2p or rpc and
+                    // requested to be added, so executional check is performed
+                    // on the overlayed db.
+                    db.clone().overlaid()
+                };
+                log::debug!("Received transaction {transaction:#?} for the check to be executable");
+
+                let res = response_sender.send(true);
+                log::debug!("Transaction is executable task response - {res:?}");
+
+                log::warn!("Unimplemented");
+            }
+            OutputTask::ExecuteTransaction { transaction } => {
+                log::debug!("Received transaction {transaction:#?} for the execution");
+
+                let (response_sender, response_receiver) = oneshot::channel();
+                tx_sender
+                    .send(InputTask::ValidateTransaction {
+                        transaction,
+                        response_sender,
+                    })
+                    .inspect_err(|e| {
+                        // That's a panic case, because the tx pool is unavailable for tasks
+                        // to be sent, so the node can't execute offchain transactions, and
+                        // therefore can't create proper commitments.
+                        //
+                        // But code doesn't panic, as error is propogated up.
+                        log::error!(
+                            "Failed to send tx pool input task: {e}. \
+                            The receiving end in the tx pool might have been dropped."
+                        );
+                    })?;
+                let _ = response_receiver.await.inspect_err(|e| {
+                    // That's a panic case, because the tx pool is unavailable for tasks
+                    // to be sent, so the node can't execute offchain transactions, and
+                    // therefore can't create proper commitments.
+                    //
+                    // But code doesn't panic, as error is propogated up.
+                    log::error!("Failed to receive tx validity info from tx pool: {e}");
+                })?;
+
+                // TODO (breathx) Remove transaction from the database.
+
+                log::warn!("Unimplemented");
+            }
         }
+
+        Ok(())
     }
 }
 
