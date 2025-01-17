@@ -45,14 +45,14 @@ use {
     },
     ark_ff::fields::field_hashers::DefaultFieldHasher,
     ark_scale::ArkScale,
-    gear_lazy_pages::LazyPagesStorage,
-    gprimitives_client::{
+    gear_ark::{
         field::{
             goldilocks_field::GoldilocksField,
             types::{Field, PrimeField64},
         },
         hash::poseidon::Poseidon,
     },
+    gear_lazy_pages::LazyPagesStorage,
 };
 
 pub use gear_sandbox_interface::sandbox;

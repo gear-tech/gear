@@ -82,7 +82,7 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gear-lazy-pages-common",
     "gear-lazy-pages",
     "gear-sandbox-interface",
-    "gprimitives-client",
+    "gear-ark",
     "gear-runtime-interface",
     "gear-sandbox",
     "gear-core-backend",

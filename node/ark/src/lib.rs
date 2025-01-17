@@ -18,10 +18,6 @@
 
 //! Mock definitions and implementations for Goldilocs field and Poseidon hash
 
-#![cfg_attr(not(feature = "std"), no_std)]
-
-extern crate alloc;
-
 pub mod field {
     pub mod goldilocks_field {
         use super::types::{Field, PrimeField64};
