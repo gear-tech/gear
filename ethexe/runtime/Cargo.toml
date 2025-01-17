@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 ## Gear deps.
 ethexe-runtime-common.workspace = true
-core-processor.workspace = true
+core-processor = { workspace = true, features = ["ethexe"] }
 gear-core.workspace = true
 gear-lazy-pages-interface.workspace = true
 gear-wasm-instrument.workspace = true

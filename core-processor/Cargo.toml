@@ -40,3 +40,4 @@ std = [
 strict = []
 mock = []
 gtest = []
+ethexe = []
