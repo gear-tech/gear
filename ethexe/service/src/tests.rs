@@ -41,7 +41,7 @@ use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{RawTransacton, SignedTransaction, Transaction, TxHashBlake2b256};
+use ethexe_tx_pool::{RawTransacton, SignedTransaction, Transaction};
 use ethexe_validator::Validator;
 use gear_core::{
     ids::prelude::*,

@@ -23,17 +23,15 @@ pub use output::{OutputTask, TxPoolOutputTaskReceiver};
 
 pub(crate) use output::TxPoolOutputTaskSender;
 
-use crate::{TransactionTrait, TxValidator};
+use crate::{SignedTransaction, TxValidator};
 use anyhow::Result;
 use ethexe_db::Database;
 use input::TxPoolInputTaskReceiver;
+use parity_scale_codec::Encode;
 use tokio::sync::mpsc;
 
 /// Creates a new transaction pool service.
-pub fn new<Tx>(db: Database) -> TxPoolKit<Tx>
-where
-    Tx: TransactionTrait + Send + Sync + 'static,
-{
+pub fn new(db: Database) -> TxPoolKit {
     let (tx_in, rx_in) = mpsc::unbounded_channel();
     let (tx_out, rx_out) = mpsc::unbounded_channel();
 
@@ -51,29 +49,29 @@ where
 }
 
 /// Transaction pool kit, which consists of the pool service and channels to communicate with it.
-pub struct TxPoolKit<Tx: TransactionTrait> {
-    pub service: TxPoolService<Tx>,
-    pub tx_pool_sender: TxPoolInputTaskSender<Tx>,
-    pub tx_pool_receiver: TxPoolOutputTaskReceiver<Tx>,
+pub struct TxPoolKit {
+    pub service: TxPoolService,
+    pub tx_pool_sender: TxPoolInputTaskSender<SignedTransaction>,
+    pub tx_pool_receiver: TxPoolOutputTaskReceiver<SignedTransaction>,
 }
 
 /// Transaction pool service.
 ///
 /// Serves as an interface for the transaction pool core.
-pub struct TxPoolService<Tx: TransactionTrait> {
+pub struct TxPoolService {
     db: Database,
-    receiver: TxPoolInputTaskReceiver<Tx>,
-    sender: TxPoolOutputTaskSender<Tx>,
+    receiver: TxPoolInputTaskReceiver<SignedTransaction>,
+    sender: TxPoolOutputTaskSender<SignedTransaction>,
 }
 
-impl<Tx: TransactionTrait + Send + Sync + 'static> TxPoolService<Tx> {
+impl TxPoolService {
     /// Runs transaction pool service expecting to receive tasks from the
     /// tx pool input task sender.
     pub async fn run(mut self) {
         // Finishes working of all the input task senders are dropped.
         while let Some(task) = self.receiver.recv().await {
             match task {
-                InputTask::ValidateTransaction {
+                InputTask::ValidatePreDispatch {
                     transaction,
                     response_sender,
                 } => {
@@ -152,7 +150,7 @@ impl<Tx: TransactionTrait + Send + Sync + 'static> TxPoolService<Tx> {
         }
     }
 
-    async fn validate_tx_full(&self, transaction: Tx) -> Result<Tx> {
+    async fn validate_tx_full(&self, transaction: SignedTransaction) -> Result<SignedTransaction> {
         TxValidator::new(transaction, self.db.clone())
             .with_all_checks(self.sender.clone())
             .full_validate()
@@ -169,7 +167,7 @@ mod input {
     /// Input task for the transaction pool service.
     pub enum InputTask<Tx> {
         /// Request for checking the transaction validity.
-        ValidateTransaction {
+        ValidatePreDispatch {
             transaction: Tx,
             response_sender: oneshot::Sender<Result<Tx>>,
         },

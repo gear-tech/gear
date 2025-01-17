@@ -23,8 +23,7 @@
 //! - the channels inside the tx pool service to work as expected
 
 use crate::{
-    service, InputTask, OutputTask, RawTransacton, SignedTransaction, Transaction,
-    TxHashBlake2b256, TxPoolKit,
+    service, InputTask, OutputTask, RawTransacton, SignedTransaction, Transaction, TxPoolKit,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb};
 use ethexe_signer::{PrivateKey, Signer, ToDigest};
@@ -233,7 +232,7 @@ async fn test_pre_execution_validity() {
     // Now check existent validated transaction pre-execution validity
     let (response_sender, response_receiver) = oneshot::channel();
     input_sender
-        .send(InputTask::ValidateTransaction {
+        .send(InputTask::ValidatePreDispatch {
             transaction: signed_ethexe_tx.clone(),
             response_sender,
         })
@@ -260,7 +259,7 @@ async fn test_pre_execution_validity() {
     // Check for the pre-execution validity of the same transaction
     let (response_sender, response_receiver) = oneshot::channel();
     input_sender
-        .send(InputTask::ValidateTransaction {
+        .send(InputTask::ValidatePreDispatch {
             transaction: signed_ethexe_tx,
             response_sender,
         })

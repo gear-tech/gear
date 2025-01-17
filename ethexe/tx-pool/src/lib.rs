@@ -29,10 +29,7 @@ pub use service::{
     new, InputTask, OutputTask, TxPoolInputTaskSender, TxPoolKit, TxPoolOutputTaskReceiver,
     TxPoolService,
 };
-pub use transaction::{
-    RawTransacton, SignedTransaction, Transaction, TransactionTrait, TxHashBlake2b256,
-    TxReferenceBlockHash, TxSignature,
-};
+pub use transaction::{RawTransacton, SignedTransaction, Transaction};
 
 use service::TxPoolOutputTaskSender;
 use validation::TxValidator;

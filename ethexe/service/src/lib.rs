@@ -58,7 +58,7 @@ pub struct Service {
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
     block_time: Duration,
-    tx_pool_kit: TxPoolKit<SignedTransaction>,
+    tx_pool_kit: TxPoolKit,
 
     // Optional services
     network: Option<ethexe_network::NetworkService>,
@@ -284,7 +284,7 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         metrics_service: Option<MetricsService>,
         rpc: Option<ethexe_rpc::RpcService>,
-        tx_pool_kit: TxPoolKit<SignedTransaction>,
+        tx_pool_kit: TxPoolKit,
     ) -> Self {
         Self {
             db,
@@ -983,7 +983,7 @@ impl Service {
 
                 let (response_sender, response_receiver) = oneshot::channel();
                 tx_sender
-                    .send(InputTask::ValidateTransaction {
+                    .send(InputTask::ValidatePreDispatch {
                         transaction,
                         response_sender,
                     })

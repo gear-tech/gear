@@ -24,29 +24,6 @@ use gprimitives::{H160, H256};
 use parity_scale_codec::{Decode, Encode};
 use std::fmt;
 
-/// Ethexe transaction behaviour.
-pub trait TransactionTrait:
-    Clone + TxReferenceBlockHash + TxSignature + TxHashBlake2b256 + Encode
-{
-}
-
-/// Ethexe transaction reference block hash
-///
-/// Reference block hash is used for a transcation mortality check.
-pub trait TxReferenceBlockHash {
-    fn reference_block_hash(&self) -> H256;
-}
-
-/// Ethexe transaction signature.
-pub trait TxSignature {
-    fn signature(&self) -> Result<Signature>;
-}
-
-/// Ethexe transaction blake2b256 hash.
-pub trait TxHashBlake2b256 {
-    fn tx_hash(&self) -> H256;
-}
-
 /// Ethexe transaction with a signature.
 #[derive(Clone, Encode, Decode, PartialEq, Eq)]
 pub struct SignedTransaction {
@@ -55,6 +32,23 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
+    /// Ethexe transaction blake2b256 hash.
+    pub fn tx_hash(&self) -> H256 {
+        ethexe_db::hash(&self.encode())
+    }
+
+    /// Ethexe transaction signature.
+    pub fn signature(&self) -> Result<Signature> {
+        Signature::try_from(self.signature.as_ref())
+    }
+
+    /// Ethexe transaction reference block hash
+    ///
+    /// Reference block hash is used for a transcation mortality check.
+    pub fn reference_block_hash(&self) -> H256 {
+        self.transaction.reference_block
+    }
+
     /// Gets source of the `SendMessage` transaction recovering it from the signature.
     pub fn send_message_source(&self) -> Result<H160> {
         Signature::try_from(self.signature.as_ref())
@@ -151,55 +145,5 @@ impl fmt::Display for RawTransacton {
                 .field("value", value)
                 .finish(),
         }
-    }
-}
-
-impl TransactionTrait for SignedTransaction {}
-
-impl TxHashBlake2b256 for SignedTransaction {
-    fn tx_hash(&self) -> H256 {
-        ethexe_db::hash(&self.encode())
-    }
-}
-
-impl TxSignature for SignedTransaction {
-    fn signature(&self) -> Result<Signature> {
-        Signature::try_from(self.signature.as_ref())
-    }
-}
-
-impl TxReferenceBlockHash for SignedTransaction {
-    fn reference_block_hash(&self) -> H256 {
-        self.transaction.reference_block
-    }
-}
-
-impl TxHashBlake2b256 for Transaction {
-    fn tx_hash(&self) -> H256 {
-        ethexe_db::hash(&self.encode())
-    }
-}
-
-impl TxReferenceBlockHash for Transaction {
-    fn reference_block_hash(&self) -> H256 {
-        self.reference_block
-    }
-}
-
-impl TxHashBlake2b256 for () {
-    fn tx_hash(&self) -> H256 {
-        H256::zero()
-    }
-}
-
-impl TxSignature for () {
-    fn signature(&self) -> Result<Signature> {
-        Signature::try_from(vec![0u8; 65].as_ref())
-    }
-}
-
-impl TxReferenceBlockHash for () {
-    fn reference_block_hash(&self) -> H256 {
-        H256::random()
     }
 }

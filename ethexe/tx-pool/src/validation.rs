@@ -18,10 +18,11 @@
 
 //! Transactions validation.
 
-use crate::{OutputTask, TransactionTrait, TxPoolOutputTaskSender};
+use crate::{OutputTask, SignedTransaction, TxPoolOutputTaskSender};
 use anyhow::{anyhow, Result};
 use ethexe_db::Database;
 use ethexe_signer::ToDigest;
+use parity_scale_codec::Encode;
 use tokio::sync::oneshot;
 
 // TODO #4424
@@ -36,17 +37,17 @@ use tokio::sync::oneshot;
 ///
 /// The validator is considered to be called by the transaciton pool service,
 /// so sub-validators can send specific validation tasks outside to the service.
-pub(crate) struct TxValidator<Tx> {
-    transaction: Tx,
+pub(crate) struct TxValidator {
+    transaction: SignedTransaction,
     db: Database,
     signature_check: bool,
     mortality_check: bool,
     uniqueness_check: bool,
-    executable_tx_check: Option<TxPoolOutputTaskSender<Tx>>,
+    executable_tx_check: Option<TxPoolOutputTaskSender<SignedTransaction>>,
 }
 
-impl<Tx> TxValidator<Tx> {
-    pub(crate) fn new(transaction: Tx, db: Database) -> Self {
+impl TxValidator {
+    pub(crate) fn new(transaction: SignedTransaction, db: Database) -> Self {
         Self {
             transaction,
             db,
@@ -57,7 +58,7 @@ impl<Tx> TxValidator<Tx> {
         }
     }
 
-    pub(crate) fn with_all_checks(self, sender: TxPoolOutputTaskSender<Tx>) -> Self {
+    pub(crate) fn with_all_checks(self, sender: TxPoolOutputTaskSender<SignedTransaction>) -> Self {
         self.with_signature_check()
             .with_mortality_check()
             .with_uniqueness_check()
@@ -79,24 +80,24 @@ impl<Tx> TxValidator<Tx> {
         self
     }
 
-    pub(crate) fn with_executable_tx_check(mut self, sender: TxPoolOutputTaskSender<Tx>) -> Self {
+    pub(crate) fn with_executable_tx_check(
+        mut self,
+        sender: TxPoolOutputTaskSender<SignedTransaction>,
+    ) -> Self {
         self.executable_tx_check = Some(sender);
         self
     }
 }
 
-impl<Tx> TxValidator<Tx>
-where
-    Tx: TransactionTrait + Send + Sync + 'static,
-{
+impl TxValidator {
     /// Runs all sync and async validators for the transaction.
-    pub(crate) async fn full_validate(self) -> Result<Tx> {
+    pub(crate) async fn full_validate(self) -> Result<SignedTransaction> {
         self.validate_inner()?;
         self.async_validate().await
     }
 
     /// Runs all stateful and stateless sync validators for the transaction.
-    pub(crate) fn validate(self) -> Result<Tx> {
+    pub(crate) fn validate(self) -> Result<SignedTransaction> {
         self.validate_inner()?;
 
         Ok(self.transaction)
@@ -119,7 +120,7 @@ where
     }
 
     /// Runs all async validators for the transaction.
-    pub(crate) async fn async_validate(self) -> Result<Tx> {
+    pub(crate) async fn async_validate(self) -> Result<SignedTransaction> {
         if self.executable_tx_check.is_some() {
             self.check_is_executable_tx().await?;
         }
@@ -212,7 +213,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tests, TxHashBlake2b256, TxPoolOutputTaskReceiver};
+    use crate::{tests, TxPoolOutputTaskReceiver};
     use ethexe_db::{BlockMetaStorage, Database, MemDb};
     use gprimitives::H256;
     use parity_scale_codec::Encode;
