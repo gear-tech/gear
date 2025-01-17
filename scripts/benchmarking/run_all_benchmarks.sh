@@ -91,8 +91,13 @@ then
   cargo build --profile=production --locked --features=runtime-benchmarks
 fi
 
+PATH_BASE=./target/production
 # The executable to use.
-GEAR=./target/production/gear
+GEAR=$PATH_BASE/gear
+# The runtime to use.
+RUNTIME=$PATH_BASE/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm
+# The preset of genesis builder to use.
+PRESET=development
 
 # Manually exclude some pallets.
 EXCLUDED_PALLETS=(
@@ -100,7 +105,11 @@ EXCLUDED_PALLETS=(
 
 # Load all pallet names in an array.
 ALL_PALLETS=($(
-  $GEAR benchmark pallet --list --chain=$chain_spec |\
+  $GEAR benchmark pallet \
+    --list \
+    --runtime=$RUNTIME \
+    --genesis-builder=runtime \
+    --genesis-builder-preset=$PRESET | \
     tail -n+2 |\
     cut -d',' -f1 |\
     sort |\
@@ -157,9 +166,12 @@ for PALLET in "${PALLETS[@]}"; do
   # Get all the extrinsics for the pallet if the pallet is "pallet_gear".
   if [ "$PALLET" == "pallet_gear" ]
   then
-    IFS=',' read -r -a ALL_EXTRINSICS <<< "$(IFS=',' $GEAR benchmark pallet --list \
-      --chain=$chain_spec \
-      --pallet="$PALLET" |\
+    IFS=',' read -r -a ALL_EXTRINSICS <<< "$(IFS=',' $GEAR benchmark pallet \
+      --list \
+      --runtime=$RUNTIME \
+      --genesis-builder=runtime \
+      --genesis-builder-preset=$PRESET \
+      --pallet="$PALLET" | \
       tail -n+2 |\
       cut -d',' -f2 |\
       sort |\
@@ -186,7 +198,9 @@ for PALLET in "${PALLETS[@]}"; do
 
   OUTPUT=$(
     $TASKSET_CMD $GEAR benchmark pallet \
-    --chain="$chain_spec" \
+    --runtime=$RUNTIME \
+    --genesis-builder=runtime \
+    --genesis-builder-preset=$PRESET \
     --steps=$BENCHMARK_STEPS \
     --repeat=$BENCHMARK_REPEAT \
     --pallet="$PALLET" \
@@ -208,7 +222,9 @@ for PALLET in "${PALLETS[@]}"; do
     touch "./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs"
     OUTPUT=$(
         $TASKSET_CMD $GEAR benchmark pallet \
-        --chain="$chain_spec" \
+        --runtime=$RUNTIME \
+        --genesis-builder=runtime \
+        --genesis-builder-preset=$PRESET \
         --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \
         --repeat=$BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS \
         --pallet="$PALLET" \
