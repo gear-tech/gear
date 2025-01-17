@@ -29,6 +29,7 @@ contract RouterTest is Base {
         electionDuration = 100;
         blockDuration = 12;
         maxValidators = 3;
+        validationDelay = 60;
 
         setUpWrappedVara();
 
@@ -114,6 +115,186 @@ contract RouterTest is Base {
 
         vm.expectRevert();
         commitValidators(wrongValidatorPrivateKeys, commitment);
+    }
+
+    function test_lateCommitments() public {
+        address[] memory _validators = new address[](3);
+        uint256[] memory _validatorPrivateKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
+            _validators[i] = addr;
+            _validatorPrivateKeys[i] = key;
+        }
+
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(_validators, 1);
+
+        vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
+        commitValidators(_commitment);
+
+        // Go to the next era, setting block hash to the last 1 blocks of the era
+        vm.warp(router.genesisTimestamp() + eraDuration - uint48(blockDuration));
+        rollBlocks(1);
+
+        uint256 _eraStartNumber = vm.getBlockNumber();
+        uint48 _eraStartTimestamp = uint48(vm.getBlockTimestamp());
+
+        Gear.BlockCommitment memory _blockCommitment = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 1),
+            timestamp: _eraStartTimestamp - uint48(blockDuration),
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(_eraStartNumber - 1),
+            transitions: new Gear.StateTransition[](0)
+        });
+
+        // Try to commit block from the previous era using new validators
+        vm.expectRevert();
+        commitBlock(_validatorPrivateKeys, _blockCommitment);
+
+        // Now try to commit block from the previous era using old validators
+        commitBlock(validatorsPrivateKeys, _blockCommitment);
+
+        rollBlocks(1);
+        _blockCommitment = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber),
+            timestamp: _eraStartTimestamp,
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+
+        // Try to commit block from the new era using old validators
+        vm.expectRevert();
+        commitBlock(validatorsPrivateKeys, _blockCommitment);
+
+        // Now try to commit block from the new era using new validators
+        commitBlock(_validatorPrivateKeys, _blockCommitment);
+    }
+
+    function test_lateCommitmentsAfterDelay() public {
+        address[] memory _validators = new address[](3);
+        uint256[] memory _validatorPrivateKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
+            _validators[i] = addr;
+            _validatorPrivateKeys[i] = key;
+        }
+
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(_validators, 1);
+
+        vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
+        commitValidators(_commitment);
+
+        // Go to the next era, setting block hash to the last 5 blocks of the era and first 5 blocks of the new era
+        vm.warp(router.genesisTimestamp() + eraDuration - 5 * uint48(blockDuration));
+        rollBlocks(10);
+
+        Gear.BlockCommitment memory _blockCommitment = Gear.BlockCommitment({
+            hash: blockHash(vm.getBlockNumber() - 6),
+            timestamp: uint48(vm.getBlockTimestamp() - 6 * blockDuration),
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(vm.getBlockNumber() - 1),
+            transitions: new Gear.StateTransition[](0)
+        });
+
+        // Try to commit block from the previous era using old validators
+        // Must be failed because the validation delay is already passed
+        vm.expectRevert();
+        commitBlock(validatorsPrivateKeys, _blockCommitment);
+
+        // Now try to commit block from the previous era using new validators
+        // Must be successful because the validation delay is already passed
+        commitBlock(_validatorPrivateKeys, _blockCommitment);
+    }
+
+    function test_manyLateCommitments() public {
+        address[] memory _validators = new address[](3);
+        uint256[] memory _validatorPrivateKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
+            _validators[i] = addr;
+            _validatorPrivateKeys[i] = key;
+        }
+
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(_validators, 1);
+
+        vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
+        commitValidators(_commitment);
+
+        // Go to the next era, setting block hash to the last 4 blocks of the era
+        vm.warp(router.genesisTimestamp() + eraDuration - 4 * uint48(blockDuration));
+        rollBlocks(4);
+
+        uint256 _eraStartNumber = vm.getBlockNumber();
+        uint48 _eraStartTimestamp = uint48(vm.getBlockTimestamp());
+
+        // Try to commit blocks: [n - 4] <- [n - 3] <- [n]
+        // Where [n] is a start of the new era
+        Gear.BlockCommitment[] memory _commitments = new Gear.BlockCommitment[](3);
+        _commitments[0] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 4),
+            timestamp: _eraStartTimestamp - 4 * uint48(blockDuration),
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        _commitments[1] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 3),
+            timestamp: _eraStartTimestamp - 3 * uint48(blockDuration),
+            previousCommittedBlock: _commitments[0].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        _commitments[2] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber),
+            timestamp: _eraStartTimestamp,
+            previousCommittedBlock: _commitments[1].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+
+        // Roll to next block to be possible to make commitment for the era start block
+        rollBlocks(1);
+
+        // Validation must fail because the last block is from new era, so must be committed by new validators
+        vm.expectRevert();
+        commitBlocks(validatorsPrivateKeys, _commitments);
+
+        // Now try to commit [n - 4] <- [n - 3] <- [n - 2]
+        _commitments[2] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 2),
+            timestamp: _eraStartTimestamp - 2 * uint48(blockDuration),
+            previousCommittedBlock: _commitments[1].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        // Must be successful, because all blocks are from the previous era
+        commitBlocks(validatorsPrivateKeys, _commitments);
+
+        // Now try to commit [n - 1] <- [n] <- [n + 1] using new validators
+        rollBlocks(1);
+        _commitments[0] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 1),
+            timestamp: _eraStartTimestamp - uint48(blockDuration),
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        _commitments[1] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber),
+            timestamp: _eraStartTimestamp,
+            previousCommittedBlock: _commitments[0].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        _commitments[2] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber + 1),
+            timestamp: _eraStartTimestamp + uint48(blockDuration),
+            previousCommittedBlock: _commitments[1].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        // Must be successful, because the newest blocks are from the new era
+        commitBlocks(_validatorPrivateKeys, _commitments);
     }
 
     /* helper functions */
