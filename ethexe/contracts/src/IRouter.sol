@@ -109,10 +109,21 @@ interface IRouter {
 
     // # Validators calls.
     /// @dev CodeGotValidated Emitted for each code in commitment.
-    function commitCodes(Gear.CodeCommitment[] calldata codeCommitments, bytes[] calldata signatures) external;
+    function commitCodes(
+        Gear.CodeCommitment[] calldata codeCommitments,
+        Gear.SignatureType signatureType,
+        bytes[] calldata signatures
+    ) external;
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
-    function commitBlocks(Gear.BlockCommitment[] calldata blockCommitments, bytes[] calldata signatures) external;
+    function commitBlocks(
+        Gear.BlockCommitment[] calldata blockCommitments,
+        Gear.SignatureType signatureType,
+        bytes[] calldata signatures
+    ) external;
     /// @dev NextEraValidatorsCommitted Emitted on success.
-    function commitValidators(Gear.ValidatorsCommitment calldata validatorsCommitment, bytes[] calldata signatures)
-        external;
+    function commitValidators(
+        Gear.ValidatorsCommitment calldata validatorsCommitment,
+        Gear.SignatureType signatureType,
+        bytes[] calldata signatures
+    ) external;
 }

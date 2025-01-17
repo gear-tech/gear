@@ -29,7 +29,7 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use ethexe_common::gear::{BlockCommitment, CodeCommitment, SignatureType};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
@@ -162,6 +162,7 @@ impl Router {
     ) -> Result<H256> {
         let builder = self.instance.commitCodes(
             commitments.into_iter().map(Into::into).collect(),
+            SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
@@ -180,6 +181,7 @@ impl Router {
             .instance
             .commitBlocks(
                 commitments.into_iter().map(Into::into).collect(),
+                SignatureType::ECDSA as u8,
                 signatures
                     .into_iter()
                     .map(|signature| Bytes::copy_from_slice(signature.as_ref()))

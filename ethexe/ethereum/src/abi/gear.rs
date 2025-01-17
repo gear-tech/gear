@@ -24,6 +24,15 @@ use gear_core::message::ReplyDetails;
 // From Rust types to alloy //
 //                          //
 
+impl From<AggregatedPublicKey> for Gear::AggregatedPublicKey {
+    fn from(value: AggregatedPublicKey) -> Self {
+        Self {
+            x: u256_to_uint256(value.x),
+            y: u256_to_uint256(value.y),
+        }
+    }
+}
+
 impl From<BlockCommitment> for Gear::BlockCommitment {
     fn from(value: BlockCommitment) -> Self {
         Self {
@@ -48,6 +57,7 @@ impl From<CodeCommitment> for Gear::CodeCommitment {
 impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
     fn from(value: ValidatorsCommitment) -> Self {
         Self {
+            aggregatedPublicKey: value.aggregated_public_key.into(),
             validators: value
                 .validators
                 .into_iter()

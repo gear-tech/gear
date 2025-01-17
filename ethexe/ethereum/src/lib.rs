@@ -46,6 +46,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use ethexe_common::gear::AggregatedPublicKey;
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
 use mirror::Mirror;
 use router::{Router, RouterQuery};
@@ -157,6 +158,13 @@ impl Ethereum {
                     _eraDuration: U256::from(24 * 60 * 60),
                     _electionDuration: U256::from(2 * 60 * 60),
                     _validationDelay: U256::from(60),
+                    _aggregatedPublicKey: (AggregatedPublicKey {
+                        x: "0x0000000000000000000000000000000000000000000000000000000000000001"
+                            .parse()?,
+                        y: "0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE"
+                            .parse()?,
+                    })
+                    .into(),
                     _validators: validators,
                 }
                 .abi_encode(),

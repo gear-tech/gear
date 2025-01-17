@@ -100,7 +100,17 @@ contract POCTest is Base {
         rollBlocks((eraDuration - electionDuration) / blockDuration);
         _validators = middleware.makeElectionAt(uint48(vm.getBlockTimestamp()) - 1, maxValidators);
 
-        commitValidators(_privateKeys, Gear.ValidatorsCommitment(_validators, 2));
+        commitValidators(
+            _privateKeys,
+            Gear.ValidatorsCommitment(
+                Gear.AggregatedPublicKey(
+                    0x0000000000000000000000000000000000000000000000000000000000000001,
+                    0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+                ),
+                _validators,
+                2
+            )
+        );
 
         for (uint256 i = 0; i < _validators.length; i++) {
             address _operator = _validators[i];

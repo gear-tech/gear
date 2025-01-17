@@ -121,6 +121,10 @@ contract Base is POCBaseTest {
                             uint256(eraDuration),
                             uint256(electionDuration),
                             uint256(validationDelay),
+                            Gear.AggregatedPublicKey(
+                                0x0000000000000000000000000000000000000000000000000000000000000001,
+                                0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+                            ),
                             _validators
                         )
                     )
@@ -183,7 +187,7 @@ contract Base is POCBaseTest {
 
     function commitValidators(uint256[] memory _privateKeys, Gear.ValidatorsCommitment memory commitment) internal {
         bytes memory message = bytes.concat(Gear.validatorsCommitmentHash(commitment));
-        router.commitValidators(commitment, signBytes(_privateKeys, message));
+        router.commitValidators(commitment, Gear.SignatureType.ECDSA, signBytes(_privateKeys, message));
     }
 
     function commitCode(uint256[] memory _privateKeys, Gear.CodeCommitment memory _commitment) internal {
@@ -200,7 +204,7 @@ contract Base is POCBaseTest {
             _codesBytes = bytes.concat(_codesBytes, keccak256(abi.encodePacked(_commitment.id, _commitment.valid)));
         }
 
-        router.commitCodes(_commitments, signBytes(_privateKeys, _codesBytes));
+        router.commitCodes(_commitments, Gear.SignatureType.ECDSA, signBytes(_privateKeys, _codesBytes));
     }
 
     function commitBlock(uint256[] memory _privateKeys, Gear.BlockCommitment memory _commitment) internal {
@@ -217,7 +221,7 @@ contract Base is POCBaseTest {
             _message = bytes.concat(_message, blockCommitmentHash(_commitment));
         }
 
-        router.commitBlocks(_commitments, signBytes(_privateKeys, _message));
+        router.commitBlocks(_commitments, Gear.SignatureType.ECDSA, signBytes(_privateKeys, _message));
     }
 
     function blockCommitmentHash(Gear.BlockCommitment memory _commitment) internal pure returns (bytes32) {

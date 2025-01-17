@@ -61,7 +61,7 @@ sol!(
 
 pub(crate) mod utils {
     use alloy::primitives::{FixedBytes, Uint};
-    use gprimitives::{ActorId, CodeId, MessageId, H256};
+    use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
 
     pub type Bytes32 = FixedBytes<32>;
     pub type Uint256 = Uint<256, 4>;
@@ -107,6 +107,12 @@ pub(crate) mod utils {
         let [low, high, ..] = value.into_limbs();
 
         ((high as u128) << 64) | (low as u128)
+    }
+
+    pub fn u256_to_uint256(value: U256) -> Uint256 {
+        let mut bytes = [0u8; Uint256::BYTES];
+        value.to_little_endian(&mut bytes);
+        Uint256::from_le_bytes(bytes)
     }
 
     #[test]

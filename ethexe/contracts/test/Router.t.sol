@@ -53,7 +53,14 @@ contract RouterTest is Base {
             _validatorPrivateKeys[i] = key;
         }
 
-        Gear.ValidatorsCommitment memory commitment = Gear.ValidatorsCommitment(_validators, 1);
+        Gear.ValidatorsCommitment memory commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(
+                0x0000000000000000000000000000000000000000000000000000000000000001,
+                0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+            ),
+            _validators,
+            1
+        );
 
         // Election is not yet started
         vm.expectRevert();
@@ -67,7 +74,14 @@ contract RouterTest is Base {
         vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
 
         // Started but wrong era index
-        Gear.ValidatorsCommitment memory commitment2 = Gear.ValidatorsCommitment(_validators, 2);
+        Gear.ValidatorsCommitment memory commitment2 = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(
+                0x0000000000000000000000000000000000000000000000000000000000000001,
+                0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+            ),
+            _validators,
+            2
+        );
         vm.expectRevert();
         commitValidators(commitment2);
 
@@ -126,7 +140,14 @@ contract RouterTest is Base {
             _validatorPrivateKeys[i] = key;
         }
 
-        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(_validators, 1);
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(
+                0x0000000000000000000000000000000000000000000000000000000000000001,
+                0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+            ),
+            _validators,
+            1
+        );
 
         vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
         commitValidators(_commitment);
@@ -179,7 +200,14 @@ contract RouterTest is Base {
             _validatorPrivateKeys[i] = key;
         }
 
-        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(_validators, 1);
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(
+                0x0000000000000000000000000000000000000000000000000000000000000001,
+                0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+            ),
+            _validators,
+            1
+        );
 
         vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
         commitValidators(_commitment);
@@ -215,7 +243,14 @@ contract RouterTest is Base {
             _validatorPrivateKeys[i] = key;
         }
 
-        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(_validators, 1);
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(
+                0x0000000000000000000000000000000000000000000000000000000000000001,
+                0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+            ),
+            _validators,
+            1
+        );
 
         vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
         commitValidators(_commitment);
