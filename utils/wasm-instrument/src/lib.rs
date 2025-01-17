@@ -232,6 +232,7 @@ fn inject_system_break_import(
 
     let module = mbuilder
         .rewrite_sections_after_insertion(inserted_index, 1)
+        .expect("Failed to rewrite sections")
         .build();
 
     Ok((inserted_index, module))

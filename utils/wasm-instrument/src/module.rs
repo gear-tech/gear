@@ -23,6 +23,8 @@ use alloc::{
     vec::Vec,
 };
 use core::convert::Infallible;
+use hashbrown::hash_map::DefaultHashBuilder;
+use indexmap::IndexSet;
 use wasm_encoder::{
     reencode,
     reencode::{Reencode, RoundtripReencoder},
@@ -694,9 +696,9 @@ impl ModuleBuilder {
         mut self,
         inserted_index: u32,
         inserted_count: u32,
-    ) -> Self {
+    ) -> Result<Self, Self> {
         if inserted_count == 0 {
-            panic!("inserted count is zero");
+            return Err(self);
         }
 
         if let Some(section) = self.module.code_section_mut() {
@@ -755,7 +757,7 @@ impl ModuleBuilder {
 
         // TODO: decode name section and rewrite
 
-        self
+        Ok(self)
     }
 
     pub fn build(self) -> Module {
@@ -812,11 +814,7 @@ impl ModuleBuilder {
     }
 
     pub fn push_type(&mut self, ty: FuncType) -> u32 {
-        let idx = self.type_section().iter().position(|vec_ty| *vec_ty == ty);
-        idx.map(|pos| pos as u32).unwrap_or_else(|| {
-            self.type_section().push(ty);
-            self.type_section().len() as u32 - 1
-        })
+        self.type_section().insert_full(ty).0 as u32
     }
 
     pub fn push_import(&mut self, import: Import) {
@@ -837,7 +835,7 @@ impl ModuleBuilder {
     }
 }
 
-pub type TypeSection = Vec<FuncType>;
+pub type TypeSection = IndexSet<FuncType, DefaultHashBuilder>;
 pub type FuncSection = Vec<u32>;
 pub type DataSection = Vec<Data>;
 pub type CodeSection = Vec<Function>;

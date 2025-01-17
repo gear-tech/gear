@@ -170,9 +170,10 @@ pub fn inject<R: Rules>(
         ty: TypeRef::Func(import_sig),
     });
 
-    let module = mbuilder
+    let mbuilder = mbuilder
         .rewrite_sections_after_insertion(gas_func as u32, 1)
-        .build();
+        .map_err(ModuleBuilder::build)?;
+    let module = mbuilder.build();
 
     post_injection_handler(module, rules, gas_func)
 }

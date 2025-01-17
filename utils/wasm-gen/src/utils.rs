@@ -18,15 +18,19 @@
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
-    module::{ElementItems, Function, Import, Instruction, MemArg, ModuleBuilder},
+    parity_wasm::{
+        builder,
+        elements::{
+            BlockType, External, FuncBody, ImportCountType, Instruction, Instructions, Internal,
+            Module, Section, Type, ValueType,
+        },
+    },
     syscalls::SyscallName,
-    Module,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
-    mem,
+    iter, mem,
 };
-use wasmparser::{BlockType, ExternalKind, FuncType, TypeRef, ValType};
 
 const PREALLOCATE: usize = 1_000;
 
@@ -60,33 +64,28 @@ pub fn remove_recursion(module: Module) -> Module {
         }
     });
 
-    let import_count = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
+    let import_count = module.import_count(ImportCountType::Function);
 
-    let signature_entries = module.function_section().unwrap().to_vec();
-    let types = module.type_section().unwrap().clone();
+    let signature_entries = module.function_section().unwrap().entries().to_vec();
+    let types = module.type_section().unwrap().types().to_vec();
 
-    let mut mbuilder = ModuleBuilder::from_module(module);
+    let mut mbuilder = builder::from_module(module);
 
     // generate mock functions with empty bodies
     let keys = call_substitutions.keys().cloned().collect::<Vec<_>>();
     for call_index in keys {
         let index = call_index - import_count;
 
-        let signature_index = signature_entries[index];
-        let signature = types[signature_index as usize].clone();
+        let signature_index = &signature_entries[index];
+        let signature = &types[signature_index.type_ref() as usize];
+        let Type::Function(signature) = signature;
         let results = signature.results();
         let mut body = Vec::with_capacity(results.len() + 1);
         for result in results {
             let instruction = match result {
-                ValType::I32 => Instruction::I32Const {
-                    value: u32::MAX as i32,
-                },
-                ValType::I64 => Instruction::I64Const {
-                    value: u64::MAX as i64,
-                },
-                ValType::F32 | ValType::F64 | ValType::V128 | ValType::Ref(_) => {
-                    unreachable!("f32/64, SIMD and reference types are not supported")
-                }
+                ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
+                ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
+                ValueType::F32 | ValueType::F64 => unreachable!("f32/64 types are not supported"),
             };
 
             body.push(instruction);
@@ -94,13 +93,19 @@ pub fn remove_recursion(module: Module) -> Module {
 
         body.push(Instruction::End);
 
-        let mock_index = mbuilder.add_func(
-            signature,
-            Function {
-                locals: vec![],
-                instructions: body,
-            },
-        );
+        let mock_index = mbuilder
+            .push_function(
+                builder::function()
+                    .signature()
+                    .with_params(signature.params().to_vec())
+                    .with_results(signature.results().to_vec())
+                    .build()
+                    .body()
+                    .with_instructions(Instructions::new(body))
+                    .build()
+                    .build(),
+            )
+            .body;
 
         call_substitutions.insert(call_index, mock_index + import_count as u32);
     }
@@ -108,14 +113,13 @@ pub fn remove_recursion(module: Module) -> Module {
     // change call indices to mock functions to disable recursion
     let mut module = mbuilder.build();
     let code_section = module.code_section_mut().unwrap();
+    let function_bodies = code_section.bodies_mut();
     for (call_to_change, calls) in calls_to_change {
         let index = call_to_change - import_count;
-        let function_body = &mut code_section[index];
-        for instruction in function_body.instructions.iter_mut() {
+        let function_body = &mut function_bodies[index];
+        for instruction in function_body.code_mut().elements_mut().iter_mut() {
             let call_index = match instruction {
-                Instruction::Call { function_index } if calls.contains(function_index) => {
-                    function_index
-                }
+                Instruction::Call(i) if calls.contains(i) => i,
                 _ => continue,
             };
 
@@ -138,11 +142,11 @@ where
     Callback: FnMut(&[usize], usize),
 {
     let function_bodies = match module.code_section() {
-        Some(s) if !s.is_empty() => s,
+        Some(s) if !s.bodies().is_empty() => s.bodies(),
         _ => return,
     };
 
-    let import_count = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
+    let import_count = module.import_count(ImportCountType::Function);
 
     let mut colored_list = Vec::<BTreeMap<_, _>>::with_capacity(function_bodies.len());
     let mut path = Vec::with_capacity(PREALLOCATE);
@@ -173,7 +177,7 @@ where
 fn find_recursion_impl<Callback>(
     call_index: usize,
     import_count: usize,
-    function_bodies: &[Function],
+    function_bodies: &[FuncBody],
     colored: &mut BTreeMap<usize, Color>,
     path: &mut Vec<usize>,
     callback: &mut Callback,
@@ -185,10 +189,10 @@ fn find_recursion_impl<Callback>(
 
     let body_index = call_index - import_count;
     let body = &function_bodies[body_index];
-    let instructions = &body.instructions;
-    for instruction in instructions {
+    let instructions = body.code();
+    for instruction in instructions.elements() {
         let called_index = match instruction {
-            Instruction::Call { function_index } => *function_index as usize,
+            Instruction::Call(i) => *i as usize,
             _ => continue,
         };
 
@@ -251,11 +255,12 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
     // add gr_gas_available import if needed
     let maybe_gr_gas_available_index = module.import_section().and_then(|section| {
         section
+            .entries()
             .iter()
-            .filter(|entry| matches!(entry.ty, TypeRef::Func(_)))
+            .filter(|entry| matches!(entry.external(), External::Function(_)))
             .enumerate()
             .find_map(|(i, entry)| {
-                (entry.module == "env" && entry.name == SyscallName::GasAvailable.to_str())
+                (entry.module() == "env" && entry.field() == SyscallName::GasAvailable.to_str())
                     .then_some(i as u32)
             })
     });
@@ -265,21 +270,25 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
     let (gr_gas_available_index, mut module) = match maybe_gr_gas_available_index {
         Some(gr_gas_available_index) => (gr_gas_available_index, module),
         None => {
-            let mut mbuilder = ModuleBuilder::from_module(module);
+            let mut mbuilder = builder::from_module(module);
 
             // fn gr_gas_available(gas: *mut u64);
-            let import_sig = mbuilder.push_type(FuncType::new([ValType::I32], []));
+            let import_sig = mbuilder
+                .push_signature(builder::signature().with_param(ValueType::I32).build_sig());
 
-            mbuilder.push_import(Import {
-                module: "env".into(),
-                name: SyscallName::GasAvailable.to_str().into(),
-                ty: TypeRef::Func(import_sig),
-            });
+            mbuilder.push_import(
+                builder::import()
+                    .module("env")
+                    .field(SyscallName::GasAvailable.to_str())
+                    .external()
+                    .func(import_sig)
+                    .build(),
+            );
 
             // back to plain module
             let module = mbuilder.build();
 
-            let import_count = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
+            let import_count = module.import_count(ImportCountType::Function);
             let gr_gas_available_index = import_count as u32 - 1;
 
             (gr_gas_available_index, module)
@@ -292,16 +301,17 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
         return module;
     };
 
-    let type_section = type_section.clone();
-    let signature_entries = function_section.clone();
+    let types = type_section.types().to_vec();
+    let signature_entries = function_section.entries().to_vec();
 
     let Some(code_section) = module.code_section_mut() else {
         return module;
     };
 
-    for (index, func_body) in code_section.iter_mut().enumerate() {
-        let signature_index = signature_entries[index];
-        let signature = &type_section[signature_index as usize];
+    for (index, func_body) in code_section.bodies_mut().iter_mut().enumerate() {
+        let signature_index = &signature_entries[index];
+        let signature = &types[signature_index.type_ref() as usize];
+        let Type::Function(signature) = signature;
         let results = signature.results();
 
         // store available gas pointer on the first memory page
@@ -311,40 +321,23 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
         let mut body = Vec::with_capacity(results.len() + 9);
         body.extend_from_slice(&[
             // gr_gas_available(GAS_PTR)
-            Instruction::I32Const { value: GAS_PTR },
-            Instruction::Call {
-                function_index: gr_gas_available_index,
-            },
+            Instruction::I32Const(GAS_PTR),
+            Instruction::Call(gr_gas_available_index),
             // gas_available = *GAS_PTR
-            Instruction::I32Const { value: GAS_PTR },
-            Instruction::I64Load {
-                memarg: MemArg {
-                    offset: 0,
-                    align: 3,
-                },
-            },
-            Instruction::I64Const {
-                value: critical_gas_limit as i64,
-            },
+            Instruction::I32Const(GAS_PTR),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Const(critical_gas_limit as i64),
             // if gas_available <= critical_gas_limit { return result; }
             Instruction::I64LeU,
-            Instruction::If {
-                blockty: BlockType::Empty,
-            },
+            Instruction::If(BlockType::NoResult),
         ]);
 
         // exit the current function with dummy results
         for result in results {
             let instruction = match result {
-                ValType::I32 => Instruction::I32Const {
-                    value: u32::MAX as i32,
-                },
-                ValType::I64 => Instruction::I64Const {
-                    value: u64::MAX as i64,
-                },
-                ValType::F32 | ValType::F64 | ValType::V128 | ValType::Ref(_) => {
-                    unreachable!("f32/64, SIMD and reference types are not supported")
-                }
+                ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
+                ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
+                ValueType::F32 | ValueType::F64 => unreachable!("f32/64 types are not supported"),
             };
 
             body.push(instruction);
@@ -352,7 +345,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
 
         body.extend_from_slice(&[Instruction::Return, Instruction::End]);
 
-        let instructions = &mut func_body.instructions;
+        let instructions = func_body.code_mut().elements_mut();
 
         let original_instructions =
             mem::replace(instructions, Vec::with_capacity(instructions.len()));
@@ -365,17 +358,15 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
         // to limit control instructions
         for instruction in original_instructions {
             match instruction {
-                Instruction::Block { .. } | Instruction::Loop { .. } | Instruction::If { .. } => {
+                Instruction::Block(_) | Instruction::Loop(_) | Instruction::If(_) => {
                     new_instructions.push(instruction);
                     new_instructions.extend_from_slice(&body);
                 }
-                Instruction::Call { function_index }
-                    if rewrite_sections && function_index >= gr_gas_available_index =>
+                Instruction::Call(call_index)
+                    if rewrite_sections && call_index >= gr_gas_available_index =>
                 {
                     // fix function indexes if import gr_gas_available was inserted
-                    new_instructions.push(Instruction::Call {
-                        function_index: function_index + 1,
-                    });
+                    new_instructions.push(Instruction::Call(call_index + 1));
                 }
                 _ => {
                     new_instructions.push(instruction);
@@ -386,45 +377,35 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
 
     // fix other sections if import gr_gas_available was inserted
     if rewrite_sections {
-        if let Some(section) = module.export_section_mut() {
-            for export in section {
-                if let ExternalKind::Func = export.kind {
-                    if export.index >= gr_gas_available_index {
-                        export.index += 1;
-                    }
-                }
-            }
-        }
+        let sections = module.sections_mut();
+        sections.retain(|section| !matches!(section, Section::Custom(_)));
 
-        if let Some(section) = module.element_section_mut() {
-            for segment in section {
-                // update all indirect call addresses initial values
-                match &mut segment.items {
-                    ElementItems::Functions(funcs) => {
-                        for func_index in funcs.iter_mut() {
+        for section in sections {
+            match section {
+                Section::Export(export_section) => {
+                    for export in export_section.entries_mut() {
+                        if let Internal::Function(func_index) = export.internal_mut() {
                             if *func_index >= gr_gas_available_index {
-                                *func_index += 1;
-                            }
-                        }
-                    }
-                    ElementItems::Expressions(_ty, exprs) => {
-                        for expr in exprs {
-                            for instruction in &mut expr.instructions {
-                                if let Instruction::Call { function_index } = instruction {
-                                    if *function_index >= gr_gas_available_index {
-                                        *function_index += 1;
-                                    }
-                                }
+                                *func_index += 1
                             }
                         }
                     }
                 }
-            }
-        }
-
-        if let Some(start_idx) = &mut module.start_section {
-            if *start_idx >= gr_gas_available_index {
-                *start_idx += 1;
+                Section::Element(elements_section) => {
+                    for segment in elements_section.entries_mut() {
+                        for func_index in segment.members_mut() {
+                            if *func_index >= gr_gas_available_index {
+                                *func_index += 1
+                            }
+                        }
+                    }
+                }
+                Section::Start(start_idx) => {
+                    if *start_idx >= gr_gas_available_index {
+                        *start_idx += 1;
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -484,22 +465,15 @@ pub(crate) fn translate_ptr_data(
         .enumerate()
         .flat_map(|(word_idx, word)| {
             vec![
-                Instruction::I32Const {
-                    value: start_offset,
-                },
-                Instruction::I32Const { value: word },
-                Instruction::I32Store {
-                    memarg: MemArg {
-                        offset: (word_idx * size_of::<i32>()) as u32,
-                        align: 2,
-                    },
-                },
+                Instruction::I32Const(start_offset),
+                Instruction::I32Const(word),
+                Instruction::I32Store(2, (word_idx * size_of::<i32>()) as u32),
             ]
         })
         .chain(
             end_offset
                 .into_iter()
-                .map(|end_offset| Instruction::I32Const { value: end_offset }),
+                .flat_map(|end_offset| iter::once(Instruction::I32Const(end_offset))),
         )
         .collect()
 }
@@ -512,29 +486,21 @@ pub(crate) trait MemcpyUnit: Sized {
 
 impl MemcpyUnit for u32 {
     fn load(offset: u32) -> Instruction {
-        Instruction::I32Load {
-            memarg: MemArg { offset, align: 2 },
-        }
+        Instruction::I32Load(2, offset)
     }
 
     fn store(offset: u32) -> Instruction {
-        Instruction::I32Store {
-            memarg: MemArg { offset, align: 2 },
-        }
+        Instruction::I32Store(2, offset)
     }
 }
 
 impl MemcpyUnit for u64 {
     fn load(offset: u32) -> Instruction {
-        Instruction::I64Load {
-            memarg: MemArg { offset, align: 3 },
-        }
+        Instruction::I64Load(3, offset)
     }
 
     fn store(offset: u32) -> Instruction {
-        Instruction::I64Store {
-            memarg: MemArg { offset, align: 3 },
-        }
+        Instruction::I64Store(3, offset)
     }
 }
 

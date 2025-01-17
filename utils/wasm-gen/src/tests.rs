@@ -38,6 +38,7 @@ use gear_lazy_pages::LazyPagesVersion;
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_utils::NonEmpty;
+use gear_wasm_instrument::parity_wasm::{self, elements::Module};
 use nonempty::nonempty;
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -144,17 +145,17 @@ fn inject_critical_gas_limit_works() {
     )"#;
 
     let wasm_bytes = wat::parse_str(wat1).expect("invalid wat");
-    let module = Module::new(&wasm_bytes).expect("invalid wasm bytes");
+    let module =
+        parity_wasm::deserialize_buffer::<Module>(&wasm_bytes).expect("invalid wasm bytes");
     let module_with_critical_gas_limit = utils::inject_critical_gas_limit(module, 1_000_000);
 
     let wasm_bytes = module_with_critical_gas_limit
-        .serialize()
+        .into_bytes()
         .expect("invalid pw module");
+    assert!(wasmparser::validate(&wasm_bytes).is_ok());
 
     let wat = wasmprinter::print_bytes(&wasm_bytes).expect("failed printing bytes");
     println!("wat = {wat}");
-
-    wasmparser::validate(&wasm_bytes).unwrap();
 }
 
 #[test]
@@ -167,10 +168,13 @@ fn remove_trivial_recursions() {
     )"#;
 
     let wasm_bytes = wat::parse_str(wat1).expect("invalid wat");
-    let module = Module::new(&wasm_bytes).expect("invalid wasm bytes");
+    let module =
+        parity_wasm::deserialize_buffer::<Module>(&wasm_bytes).expect("invalid wasm bytes");
     let no_recursions_module = utils::remove_recursion(module);
 
-    let wasm_bytes = no_recursions_module.serialize().expect("invalid pw module");
+    let wasm_bytes = no_recursions_module
+        .into_bytes()
+        .expect("invalid pw module");
     assert!(wasmparser::validate(&wasm_bytes).is_ok());
 
     let wat = wasmprinter::print_bytes(&wasm_bytes).expect("failed printing bytes");
@@ -194,7 +198,8 @@ fn remove_multiple_recursions() {
     )"#;
 
     let wasm_bytes = wat::parse_str(wat2).expect("invalid wat");
-    let module = Module::new(&wasm_bytes).expect("invalid wasm bytes");
+    let module =
+        parity_wasm::deserialize_buffer::<Module>(&wasm_bytes).expect("invalid wasm bytes");
     utils::find_recursion(&module, |path, call| {
         println!("path = {path:?}, call = {call}");
     });
@@ -203,7 +208,9 @@ fn remove_multiple_recursions() {
         unreachable!("there should be no recursions")
     });
 
-    let wasm_bytes = no_recursions_module.serialize().expect("invalid pw module");
+    let wasm_bytes = no_recursions_module
+        .into_bytes()
+        .expect("invalid pw module");
     assert!(wasmparser::validate(&wasm_bytes).is_ok());
 
     let wat = wasmprinter::print_bytes(&wasm_bytes).expect("failed printing bytes");

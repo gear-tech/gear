@@ -46,6 +46,11 @@
 //! State machine named `(syscalls-module-state-machine)` can be started only with having proof of work from `MemoryGenerator` and `EntryPointsGenerator`.
 //! For more info about this state machine read docs of the [`syscalls`] mod.
 
+use crate::{utils, GearWasmGeneratorConfig, WasmModule};
+use arbitrary::{Result, Unstructured};
+use gear_wasm_instrument::parity_wasm::elements::Module;
+use std::{collections::HashSet, ops::RangeInclusive};
+
 mod entry_points;
 mod memory;
 pub mod syscalls;
@@ -53,11 +58,6 @@ pub mod syscalls;
 pub use entry_points::*;
 pub use memory::*;
 pub use syscalls::*;
-
-use crate::{utils, GearWasmGeneratorConfig, WasmModule};
-use arbitrary::{Result, Unstructured};
-use gear_wasm_instrument::Module;
-use std::{collections::HashSet, ops::RangeInclusive};
 
 /// Module and it's call indexes carrier.
 ///
@@ -113,15 +113,7 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
     }
 
     /// Run all generators, while mediating between them.
-    pub fn generate(mut self) -> Result<Module> {
-        self.module.with(|module| {
-            log::error!(
-                "WASM_GEN::generate: {}",
-                wasmprinter::print_bytes(&module.serialize().unwrap()).unwrap()
-            );
-            (module, ())
-        });
-
+    pub fn generate(self) -> Result<Module> {
         let (disabled_mem_gen, frozen_gear_wasm_gen, mem_imports_gen_proof) =
             self.generate_memory_export();
 

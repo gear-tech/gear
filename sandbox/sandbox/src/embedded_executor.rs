@@ -564,10 +564,11 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
     ) -> Result<ReturnValue, Error> {
         let args = args.iter().cloned().map(to_wasmer).collect::<Vec<_>>();
 
-        let func = self.instance.exports.get_function(name).map_err(|e| {
-            log::trace!(target: TARGET, "function `{name}` not found: {e}");
-            Error::Execution
-        })?;
+        let func = self
+            .instance
+            .exports
+            .get_function(name)
+            .map_err(|_| Error::Execution)?;
 
         let results = func.call(&mut store, &args).map_err(|e| {
             log::trace!(target: TARGET, "invocation error: {e}");
@@ -577,10 +578,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         match results.as_ref() {
             [] => Ok(ReturnValue::Unit),
             [val] => {
-                let val = to_interface(val.clone()).ok_or_else(|| {
-                    log::trace!(target: TARGET, "error converting return value to interface: {val}");
-                    Error::Execution
-                })?;
+                let val = to_interface(val.clone()).ok_or(Error::Execution)?;
                 Ok(ReturnValue::Value(val))
             }
             _results => {

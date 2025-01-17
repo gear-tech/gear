@@ -38,7 +38,7 @@ use crate::{
 };
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
-    module::{ConstExpr, Data, DataKind, Instruction, ModuleBuilder},
+    parity_wasm::{builder, elements::Instruction},
     syscalls::SyscallName,
 };
 use std::{collections::BTreeMap, num::NonZero};
@@ -153,41 +153,31 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
 
             self.last_offset = log_info_offset + log_bytes_len;
 
-            let mut builder = ModuleBuilder::from_module(module);
-            builder.push_data(Data {
-                kind: DataKind::Active {
-                    memory_index: 0,
-                    offset_expr: ConstExpr {
-                        instructions: vec![Instruction::I32Const {
-                            value: log_info_offset as i32,
-                        }],
-                    },
-                },
-                data: log_bytes.into(),
-            });
-            builder
-                .as_module_mut()
+            let mut module = builder::from_module(module)
+                .data()
+                .offset(Instruction::I32Const(log_info_offset as i32))
+                .value(log_bytes)
+                .build()
+                .build();
+
+            module
                 .code_section_mut()
                 .expect("has at least one export")
+                .bodies_mut()
                 .get_mut(export_idx as usize)
                 .expect("index of existing export")
-                .instructions
+                .code_mut()
+                .elements_mut()
                 .splice(
                     0..0,
                     [
-                        Instruction::I32Const {
-                            value: log_info_offset as i32,
-                        },
-                        Instruction::I32Const {
-                            value: log_bytes_len as i32,
-                        },
-                        Instruction::Call {
-                            function_index: debug_call_indexes_handle,
-                        },
+                        Instruction::I32Const(log_info_offset as i32),
+                        Instruction::I32Const(log_bytes_len as i32),
+                        Instruction::Call(debug_call_indexes_handle),
                     ],
                 );
 
-            (builder.build(), ())
+            (module, ())
         });
     }
 }
