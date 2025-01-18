@@ -130,8 +130,7 @@ impl ProcessorContext {
                 Default::default(),
                 Default::default(),
                 Default::default(),
-            )
-            .unwrap(),
+            ),
             block_info: Default::default(),
             performance_multiplier: gsys::Percent::new(100),
             program_id: Default::default(),

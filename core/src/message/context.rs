@@ -226,17 +226,17 @@ impl MessageContext {
         dispatch: IncomingDispatch,
         program_id: ProgramId,
         settings: ContextSettings,
-    ) -> Option<Self> {
+    ) -> Self {
         let (kind, message, store) = dispatch.into_parts();
 
-        Some(Self {
+        Self {
             kind,
             outcome: ContextOutcome::new(program_id, message.source(), message.id()),
             current: message,
             store: store.unwrap_or_default(),
             outgoing_payloads: OutgoingPayloads::default(),
             settings,
-        })
+        }
     }
 
     /// Getter for inner settings.
