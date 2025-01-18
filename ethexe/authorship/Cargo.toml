@@ -11,6 +11,8 @@ repository.workspace = true
 
 [dependencies]
 ethexe-signer.workspace = true
+ethexe-common.workspace = true
+ethexe-observer.workspace = true
 ethexe-processor.workspace = true
 ethexe-db.workspace = true
 
