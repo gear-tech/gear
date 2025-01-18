@@ -41,6 +41,8 @@ pub struct Service {
 
     router: Address,
 
+    last_block_number: u64,
+
     blocks_stream: SubscriptionStream<Header>,
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
@@ -78,9 +80,27 @@ impl Service {
             blobs,
             provider,
             router: config.router_address,
+            last_block_number: 0,
             blocks_stream,
             codes_futures: FuturesUnordered::new(),
         })
+    }
+
+    pub fn get_status(&self) -> ObserverStatus {
+        ObserverStatus {
+            eth_block_number: self.last_block_number,
+            last_router_state: 0, // what is this?
+            pending_upload_code: self.codes_futures.len() as u64,
+        }
+    }
+
+    pub fn lookup_code(&mut self, code_id: CodeId, blob_tx_hash: H256) {
+        self.codes_futures.push(Box::pin(read_code_from_tx_hash(
+            self.blobs.clone(),
+            code_id,
+            blob_tx_hash,
+            Some(3),
+        )));
     }
 
     pub async fn next(&mut self) -> Result<Event> {
@@ -94,6 +114,8 @@ impl Service {
                 let block_timestamp = header.timestamp;
 
                 log::trace!("Received block: {block_hash:?}");
+
+                self.last_block_number = block_number as u64;
 
                 let header = BlockHeader {
                     height: block_number,
@@ -120,41 +142,4 @@ impl Service {
 pub enum Event {
     Blob { code_id: CodeId, code: Vec<u8> },
     Block(RequestBlockData),
-    Status(ObserverStatus),
-}
-
-pub struct EventReceiver(mpsc::UnboundedReceiver<Event>);
-
-impl EventReceiver {
-    pub async fn recv(&mut self) -> Result<Event> {
-        self.0
-            .recv()
-            .await
-            .ok_or_else(|| anyhow!("connection closed"))
-    }
-}
-
-pub enum Request {
-    LookupBlob { code_id: CodeId, blob_tx_hash: H256 },
-    SyncStatus,
-}
-
-#[derive(Clone)]
-pub struct RequestSender(mpsc::UnboundedSender<Request>);
-
-impl RequestSender {
-    fn send_request(&self, request: Request) -> Result<()> {
-        self.0.send(request).map_err(|_| anyhow!("service is down"))
-    }
-
-    pub fn lookup_blob(&self, code_id: CodeId, blob_tx_hash: H256) -> Result<()> {
-        self.send_request(Request::LookupBlob {
-            code_id,
-            blob_tx_hash,
-        })
-    }
-
-    pub fn sync_status(&self) -> Result<()> {
-        self.send_request(Request::SyncStatus)
-    }
 }
