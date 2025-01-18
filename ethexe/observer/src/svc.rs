@@ -8,7 +8,7 @@ use crate::{
 use alloy::{
     primitives::Address as AlloyAddress,
     providers::{Provider as _, ProviderBuilder, RootProvider},
-    pubsub::Subscription,
+    pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
     signers::k256::elliptic_curve::rand_core::block,
     transports::BoxTransport,
@@ -38,14 +38,14 @@ pub struct EthereumConfig {
 pub struct Service {
     blobs: Arc<dyn BlobReader>,
     provider: Provider,
-    subscription: Subscription<Header>,
 
     router: Address,
 
-    request_block_stream: Option<Pin<Box<dyn Stream<Item = RequestBlockData>>>>,
-    #[allow(clippy::type_complexity)]
-    codes_futures: FuturesUnordered<BoxFuture<'static, Result<(CodeId, Vec<u8>)>>>,
+    blocks_stream: SubscriptionStream<Header>,
+    codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
+
+type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, Vec<u8>)>>;
 
 impl Service {
     pub async fn new(config: &EthereumConfig) -> Result<Self> {
@@ -72,145 +72,43 @@ impl Service {
             .await
             .context("failed to subscribe blocks")?;
 
+        let blocks_stream = subscription.into_stream();
+
         Ok(Self {
             blobs,
             provider,
-            subscription,
             router: config.router_address,
-            request_block_stream: None,
+            blocks_stream,
             codes_futures: FuturesUnordered::new(),
         })
     }
 
-    fn request_events_raw(
-        provider: Provider,
-        router: Address,
-        sub: Subscription<Header>,
-    ) -> impl Stream<Item = RequestBlockData> {
-        let mut headers_stream = sub.into_stream();
-
-        async_stream::stream! {
-            while let Some(header) = headers_stream.next().await {
-                let block_hash = (*header.hash).into();
-                let parent_hash = (*header.parent_hash).into();
-                let block_number = header.number as u32;
-                let block_timestamp = header.timestamp;
-
-                log::trace!("Received block: {block_hash:?}");
-
-                let header = BlockHeader {
-                    height: block_number,
-                    timestamp: block_timestamp,
-                    parent_hash,
-                };
-
-                match read_block_request_events(block_hash, &provider, router.0.into()).await {
-                    Ok(events) => {
-                        yield RequestBlockData {
-                            hash: block_hash,
-                            header,
-                            events,
-                        }
-                    },
-                    Err(err) => {
-                        log::error!("Failed to read events for block {block_hash:?}: {err}");
-                        continue;
-                    },
-                };
-            }
-        }
-    }
-
-    // TODO: move me to static method with first argument: Subscription<Header>.
-    fn stream<E, EF, BD, RE, BDC>(
-        &mut self,
-        read_events: RE,
-        block_data_constructor: BDC,
-    ) -> impl Stream<Item = BD> + use<'_, E, EF, BD, RE, BDC>
-    where
-        EF: Future<Output = Result<E>>,
-        RE: Fn(Provider, Address, H256) -> EF,
-        BDC: Fn(H256, BlockHeader, E) -> BD,
-    {
-        let new_subscription = self.subscription.resubscribe();
-        let old_subscription = mem::replace(&mut self.subscription, new_subscription);
-
-        let mut headers_stream = old_subscription.into_stream();
-
-        async_stream::stream! {
-            while let Some(header) = headers_stream.next().await {
-                let block_hash = (*header.hash).into();
-                let parent_hash = (*header.parent_hash).into();
-                let block_number = header.number as u32;
-                let block_timestamp = header.timestamp;
-
-                log::trace!("Received block: {block_hash:?}");
-
-                let header = BlockHeader {
-                    height: block_number,
-                    timestamp: block_timestamp,
-                    parent_hash,
-                };
-
-                match read_events(self.provider.clone(), self.router, block_hash).await {
-                    Ok(events) => {
-                        yield block_data_constructor(block_hash, header, events);
-                    },
-                    Err(err) => {
-                        log::error!("Failed to read events for block {block_hash:?}: {err}");
-                        continue;
-                    },
-                };
-            }
-        }
-    }
-
-    pub fn block_stream(&mut self) -> impl Stream<Item = BlockData> + '_ {
-        self.stream(
-            |provider, router, block_hash| async move {
-                read_block_events(block_hash, &provider, router.0.into()).await
-            },
-            |block_hash, header, events| BlockData {
-                hash: block_hash,
-                header,
-                events,
-            },
-        )
-    }
-
-    // pub fn request_block_stream<'a>(&mut self) -> impl Stream<Item = RequestBlockData> + 'a {
-    //     self.stream(
-    //         move |provider, router, block_hash| async move {
-    //             read_block_request_events(block_hash, &provider, router.0.into()).await
-    //         },
-    //         move |block_hash, header, events| RequestBlockData {
-    //             hash: block_hash,
-    //             header,
-    //             events,
-    //         },
-    //     )
-    // }
-
-    pub fn set_blocks_stream(&mut self) {
-        self.request_block_stream = Some(Box::pin(Self::request_events_raw(
-            self.provider.clone(),
-            self.router,
-            self.subscription.resubscribe(),
-        )));
-    }
-
     pub async fn next(&mut self) -> Result<Event> {
-        if self.request_block_stream.is_none() {
-            self.set_blocks_stream();
-        }
-
         select! {
-            block = self.request_block_stream.as_mut().expect("infallible").next() => {
-                let block = block.ok_or_else(|| anyhow!("block stream closed"))?;
+            header = self.blocks_stream.next() => {
+                let header = header.ok_or_else(|| anyhow!("blocks stream closed"))?;
 
-                // status.eth_block_number = block.header.height as u64;
+                let block_hash = (*header.hash).into();
+                let parent_hash = (*header.parent_hash).into();
+                let block_number = header.number as u32;
+                let block_timestamp = header.timestamp;
 
-                Ok(Event::Block(block))
+                log::trace!("Received block: {block_hash:?}");
+
+                let header = BlockHeader {
+                    height: block_number,
+                    timestamp: block_timestamp,
+                    parent_hash,
+                };
+
+                read_block_request_events(block_hash, &self.provider, self.router.0.into())
+                    .await
+                    .map(|events| Event::Block(RequestBlockData {
+                        hash: block_hash,
+                        header,
+                        events,
+                    }))
+                    .map_err(|err| anyhow!("Failed to read events for block {block_hash:?}: {err}"))
             },
             res = self.codes_futures.select_next_some() => {
                 res.map(|(code_id, code)| Event::Blob { code_id, code })
