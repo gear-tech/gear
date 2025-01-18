@@ -31,7 +31,7 @@ use core::{
     mem,
     ops::{Index, IndexMut},
 };
-use ethexe_common::gear::Message;
+use ethexe_common::gear::{Message, Origin};
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
     ids::{prelude::MessageIdExt as _, ProgramId},
@@ -502,14 +502,6 @@ impl ProgramState {
     }
 }
 
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub enum Origin {
-    #[default]
-    Ethereum,
-    OffChain,
-}
-
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Dispatch {
@@ -670,6 +662,10 @@ impl MessageQueue {
 
     pub fn dequeue(&mut self) -> Option<Dispatch> {
         self.0.pop_front()
+    }
+
+    pub fn peek(&self) -> Option<&Dispatch> {
+        self.0.front()
     }
 
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {

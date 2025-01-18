@@ -22,9 +22,7 @@ use crate::{
 };
 use core_processor::common::JournalNote;
 use ethexe_db::{CodesStorage, Database};
-use ethexe_runtime_common::{
-    state::Origin, InBlockTransitions, JournalHandler, TransitionController,
-};
+use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use std::collections::BTreeMap;
@@ -43,7 +41,6 @@ pub fn run(
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
-    dispatch_origin: Origin,
 ) {
     tokio::task::block_in_place(|| {
         let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
@@ -62,7 +59,6 @@ pub fn run(
                 db,
                 instance_creator,
                 in_block_transitions,
-                dispatch_origin,
             )
             .await
         })
@@ -76,7 +72,6 @@ async fn run_in_async(
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
-    dispatch_origin: Origin,
 ) {
     let mut task_senders = vec![];
     let mut handles = vec![];
@@ -111,15 +106,32 @@ async fn run_in_async(
             }
 
             for (program_id, journal) in super_journal {
-                let mut handler = JournalHandler {
-                    program_id,
-                    controller: TransitionController {
-                        transitions: in_block_transitions,
-                        storage: &db,
-                    },
-                    dispatch_origin,
+                let controller = TransitionController {
+                    transitions: in_block_transitions,
+                    storage: &db,
                 };
-                core_processor::handle_journal(journal, &mut handler);
+
+                let dispatch_origin = controller.access_state(program_id, |state, storage, _| {
+                    let queue = state
+                        .queue_hash
+                        .query(storage)
+                        .expect("failed to query queue");
+
+                    queue.peek().map(|message| message.origin)
+                });
+
+                // Absence of `dispatch_origin` means journal is empty, so we can skip journal handling
+                if let Some(dispatch_origin) = dispatch_origin {
+                    let mut handler = JournalHandler {
+                        program_id,
+                        controller: TransitionController {
+                            transitions: in_block_transitions,
+                            storage: &db,
+                        },
+                        dispatch_origin,
+                    };
+                    core_processor::handle_journal(journal, &mut handler);
+                }
             }
         }
 

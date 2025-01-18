@@ -20,8 +20,7 @@ use crate::Processor;
 use anyhow::{anyhow, Result};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::{
-    state::{Origin, ProgramState},
-    InBlockTransitions, ScheduleHandler, TransitionController,
+    state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,
 };
 use gprimitives::{ActorId, CodeId, H256};
 
@@ -32,7 +31,6 @@ pub struct ProcessingHandler {
     pub block_hash: H256,
     pub db: Database,
     pub transitions: InBlockTransitions,
-    pub dispatch_origin: Origin,
 }
 
 impl ProcessingHandler {
@@ -53,7 +51,7 @@ impl ProcessingHandler {
 }
 
 impl Processor {
-    pub fn handler(&self, block_hash: H256, dispatch_origin: Origin) -> Result<ProcessingHandler> {
+    pub fn handler(&self, block_hash: H256) -> Result<ProcessingHandler> {
         let header = self
             .db
             .block_header(block_hash)
@@ -76,7 +74,6 @@ impl Processor {
             block_hash,
             db: self.db.clone(),
             transitions,
-            dispatch_origin,
         })
     }
 
@@ -115,7 +112,6 @@ impl ProcessingHandler {
         );
 
         let mut handler = ScheduleHandler {
-            dispatch_origin: self.dispatch_origin,
             controller: self.controller(),
         };
 

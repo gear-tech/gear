@@ -250,7 +250,7 @@ fn ping_pong() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let mut handler = processor.handler(ch0, Default::default()).unwrap();
+    let mut handler = processor.handler(ch0).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -333,7 +333,7 @@ fn async_and_ping() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let mut handler = processor.handler(ch0, Default::default()).unwrap();
+    let mut handler = processor.handler(ch0).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated {
@@ -469,7 +469,7 @@ fn many_waits() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let mut handler = processor.handler(ch0, Default::default()).unwrap();
+    let mut handler = processor.handler(ch0).unwrap();
 
     let amount = 10000;
     for i in 0..amount {
@@ -581,7 +581,7 @@ fn many_waits() {
         assert_eq!(schedule, expected_schedule);
     }
 
-    let mut handler = processor.handler(ch11, Default::default()).unwrap();
+    let mut handler = processor.handler(ch11).unwrap();
     handler.run_schedule();
     processor.process_queue(&mut handler);
 

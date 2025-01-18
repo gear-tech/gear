@@ -21,7 +21,7 @@
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_runtime_common::state::{Origin, Storage};
+use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use handling::{run, ProcessingHandler};
@@ -106,9 +106,7 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
-        // ATM only eth origin events
-        let dispatch_origin = Origin::Ethereum;
-        let mut handler = self.handler(block_hash, dispatch_origin)?;
+        let mut handler = self.handler(block_hash)?;
 
         for event in events {
             match event {
@@ -148,7 +146,6 @@ impl Processor {
             self.db.clone(),
             self.creator.clone(),
             &mut handler.transitions,
-            handler.dispatch_origin,
         );
     }
 }
@@ -168,9 +165,7 @@ impl OverlaidProcessor {
     ) -> Result<ReplyInfo> {
         self.0.creator.set_chain_head(block_hash);
 
-        // ATM only eth origin events
-        let dispatch_origin = Origin::Ethereum;
-        let mut handler = self.0.handler(block_hash, dispatch_origin)?;
+        let mut handler = self.0.handler(block_hash)?;
 
         let state_hash = handler
             .transitions

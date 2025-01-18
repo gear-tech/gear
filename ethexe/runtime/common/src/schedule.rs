@@ -1,10 +1,10 @@
 use crate::{
-    state::{Dispatch, Origin, PayloadLookup, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{Dispatch, PayloadLookup, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
     TransitionController,
 };
 use ethexe_common::{
     db::{Rfm, ScheduledTask, Sd, Sum},
-    gear::ValueClaim,
+    gear::{Origin, ValueClaim},
 };
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;
@@ -15,16 +15,14 @@ pub struct Handler<'a, S: Storage> {
     #[deref_mut]
     #[deref]
     pub controller: TransitionController<'a, S>,
-    pub dispatch_origin: Origin,
 }
 
 impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn remove_from_mailbox(
         &mut self,
-        (program_id, user_id): (ProgramId, ActorId),
+        (program_id, user_id, dispatch_origin): (ProgramId, ActorId, Origin),
         message_id: MessageId,
     ) -> u64 {
-        let dispatch_origin = self.dispatch_origin;
         self.update_state(program_id, |state, storage, transitions| {
             let ValueWithExpiry { value, .. } =
                 state.mailbox_hash.modify_mailbox(storage, |mailbox| {
@@ -72,7 +70,11 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
         0
     }
 
-    fn send_user_message(&mut self, stashed_message_id: MessageId, program_id: ProgramId) -> u64 {
+    fn send_user_message(
+        &mut self,
+        stashed_message_id: MessageId,
+        (program_id, dispatch_origin): (ProgramId, Origin),
+    ) -> u64 {
         self.update_state(program_id, |state, storage, transitions| {
             let (dispatch, user_id) = state
                 .stash_hash
@@ -80,7 +82,10 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 
             let expiry = transitions.schedule_task(
                 MAILBOX_VALIDITY.try_into().expect("infallible"),
-                ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
+                ScheduledTask::RemoveFromMailbox(
+                    (program_id, user_id, dispatch_origin),
+                    stashed_message_id,
+                ),
             );
 
             state.mailbox_hash.modify_mailbox(storage, |mailbox| {

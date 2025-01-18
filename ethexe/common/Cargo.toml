@@ -18,3 +18,7 @@ derive_more.workspace = true
 hex.workspace = true
 anyhow.workspace = true
 serde.workspace = true
+
+[features]
+default = []
+std = []

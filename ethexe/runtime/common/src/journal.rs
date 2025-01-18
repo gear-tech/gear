@@ -1,12 +1,12 @@
 use crate::{
-    state::{ActiveProgram, Dispatch, Origin, Program, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{ActiveProgram, Dispatch, Program, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
     TransitionController,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use anyhow::bail;
 use core::{mem, num::NonZero};
 use core_processor::common::{DispatchOutcome, JournalHandler};
-use ethexe_common::db::ScheduledTask;
+use ethexe_common::{db::ScheduledTask, gear::Origin};
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
@@ -75,7 +75,7 @@ impl<S: Storage> Handler<'_, S> {
                     non_zero_delay,
                     ScheduledTask::SendUserMessage {
                         message_id: dispatch.id(),
-                        to_mailbox: dispatch.source(),
+                        to_mailbox: (dispatch.source(), dispatch_origin),
                     },
                 );
 
@@ -89,7 +89,7 @@ impl<S: Storage> Handler<'_, S> {
                 let expiry = transitions.schedule_task(
                     MAILBOX_VALIDITY.try_into().expect("infallible"),
                     ScheduledTask::RemoveFromMailbox(
-                        (dispatch.source(), dispatch.destination()),
+                        (dispatch.source(), dispatch.destination(), dispatch_origin),
                         dispatch.id(),
                     ),
                 );

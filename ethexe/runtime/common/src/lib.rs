@@ -91,6 +91,24 @@ impl<S: Storage> TransitionController<'_, S> {
 
         res
     }
+
+    pub fn access_state<T>(
+        &self,
+        program_id: ProgramId,
+        f: impl FnOnce(&ProgramState, &S, &InBlockTransitions) -> T,
+    ) -> T {
+        let state_hash = self
+            .transitions
+            .state_of(&program_id)
+            .expect("failed to find program in known states");
+
+        let state = self
+            .storage
+            .read_state(state_hash)
+            .expect("failed to read state from storage");
+
+        f(&state, self.storage, self.transitions)
+    }
 }
 
 pub fn process_next_message<S, RI>(

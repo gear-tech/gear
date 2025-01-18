@@ -131,3 +131,11 @@ pub struct ValueClaim {
     pub destination: ActorId,
     pub value: u128,
 }
+
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub enum Origin {
+    #[default]
+    Ethereum,
+    OffChain,
+}

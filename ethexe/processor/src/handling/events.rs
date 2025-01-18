@@ -20,7 +20,7 @@ use super::ProcessingHandler;
 use anyhow::{ensure, Result};
 use ethexe_common::{
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
-    gear::ValueClaim,
+    gear::{Origin, ValueClaim},
 };
 use ethexe_db::{CodesStorage, ScheduledTask};
 use ethexe_runtime_common::state::{Dispatch, PayloadLookup, ValueWithExpiry};
@@ -66,8 +66,6 @@ impl ProcessingHandler {
             return Ok(());
         }
 
-        let dispatch_origin = self.dispatch_origin;
-
         match event {
             MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
@@ -90,7 +88,7 @@ impl ProcessingHandler {
                         payload,
                         value,
                         is_init,
-                        dispatch_origin,
+                        Origin::Ethereum,
                     )?;
 
                     state
@@ -127,7 +125,10 @@ impl ProcessingHandler {
 
                     transitions.remove_task(
                         expiry,
-                        &ScheduledTask::RemoveFromMailbox((actor_id, source), replied_to),
+                        &ScheduledTask::RemoveFromMailbox(
+                            (actor_id, source, Origin::Ethereum),
+                            replied_to,
+                        ),
                     )?;
 
                     let reply = Dispatch::new_reply(
@@ -136,7 +137,7 @@ impl ProcessingHandler {
                         source,
                         payload,
                         value,
-                        dispatch_origin,
+                        Origin::Ethereum,
                     )?;
 
                     state
@@ -164,7 +165,10 @@ impl ProcessingHandler {
 
                     transitions.remove_task(
                         expiry,
-                        &ScheduledTask::RemoveFromMailbox((actor_id, source), claimed_id),
+                        &ScheduledTask::RemoveFromMailbox(
+                            (actor_id, source, Origin::Ethereum),
+                            claimed_id,
+                        ),
                     )?;
 
                     let reply = Dispatch::reply(
@@ -173,7 +177,7 @@ impl ProcessingHandler {
                         PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
-                        dispatch_origin,
+                        Origin::Ethereum,
                     );
 
                     state
