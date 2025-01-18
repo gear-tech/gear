@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use crate::{
+    event,
     observer::{read_block_events, read_block_request_events, read_code_from_tx_hash},
     BlobReader, BlockData, ConsensusLayerBlobReader, ObserverStatus, RequestBlockData,
 };
@@ -15,9 +16,14 @@ use alloy::{
 use anyhow::{anyhow, Context, Result};
 use ethexe_db::BlockHeader;
 use ethexe_signer::Address;
-use futures::{Stream, StreamExt};
+use futures::{
+    future::{self, BoxFuture},
+    pin_mut,
+    stream::{self, FuturesUnordered},
+    Stream, StreamExt,
+};
 use gprimitives::{CodeId, H256};
-use std::{future::Future, mem, sync::Arc, time::Duration};
+use std::{collections::VecDeque, future::Future, mem, pin::Pin, sync::Arc, time::Duration};
 use tokio::{select, sync::mpsc, task::JoinHandle};
 
 type Provider = RootProvider<BoxTransport>;
@@ -35,6 +41,10 @@ pub struct Service {
     subscription: Subscription<Header>,
 
     router: Address,
+
+    request_block_stream: Option<Pin<Box<dyn Stream<Item = RequestBlockData>>>>,
+    #[allow(clippy::type_complexity)]
+    codes_futures: FuturesUnordered<BoxFuture<'static, Result<(CodeId, Vec<u8>)>>>,
 }
 
 impl Service {
@@ -67,7 +77,48 @@ impl Service {
             provider,
             subscription,
             router: config.router_address,
+            request_block_stream: None,
+            codes_futures: FuturesUnordered::new(),
         })
+    }
+
+    fn request_events_raw(
+        provider: Provider,
+        router: Address,
+        sub: Subscription<Header>,
+    ) -> impl Stream<Item = RequestBlockData> {
+        let mut headers_stream = sub.into_stream();
+
+        async_stream::stream! {
+            while let Some(header) = headers_stream.next().await {
+                let block_hash = (*header.hash).into();
+                let parent_hash = (*header.parent_hash).into();
+                let block_number = header.number as u32;
+                let block_timestamp = header.timestamp;
+
+                log::trace!("Received block: {block_hash:?}");
+
+                let header = BlockHeader {
+                    height: block_number,
+                    timestamp: block_timestamp,
+                    parent_hash,
+                };
+
+                match read_block_request_events(block_hash, &provider, router.0.into()).await {
+                    Ok(events) => {
+                        yield RequestBlockData {
+                            hash: block_hash,
+                            header,
+                            events,
+                        }
+                    },
+                    Err(err) => {
+                        log::error!("Failed to read events for block {block_hash:?}: {err}");
+                        continue;
+                    },
+                };
+            }
+        }
     }
 
     // TODO: move me to static method with first argument: Subscription<Header>.
@@ -127,69 +178,44 @@ impl Service {
         )
     }
 
-    pub fn request_block_stream(&mut self) -> impl Stream<Item = RequestBlockData> + '_ {
-        self.stream(
-            |provider, router, block_hash| async move {
-                read_block_request_events(block_hash, &provider, router.0.into()).await
-            },
-            |block_hash, header, events| RequestBlockData {
-                hash: block_hash,
-                header,
-                events,
-            },
-        )
+    // pub fn request_block_stream<'a>(&mut self) -> impl Stream<Item = RequestBlockData> + 'a {
+    //     self.stream(
+    //         move |provider, router, block_hash| async move {
+    //             read_block_request_events(block_hash, &provider, router.0.into()).await
+    //         },
+    //         move |block_hash, header, events| RequestBlockData {
+    //             hash: block_hash,
+    //             header,
+    //             events,
+    //         },
+    //     )
+    // }
+
+    pub fn set_blocks_stream(&mut self) {
+        self.request_block_stream = Some(Box::pin(Self::request_events_raw(
+            self.provider.clone(),
+            self.router,
+            self.subscription.resubscribe(),
+        )));
     }
 
-    pub fn run(mut self) -> (JoinHandle<Result<()>>, RequestSender, EventReceiver) {
-        let (request_tx, mut request_rx) = mpsc::unbounded_channel();
-        let (mut event_tx, event_rx) = mpsc::unbounded_channel();
+    pub async fn next(&mut self) -> Result<Event> {
+        if self.request_block_stream.is_none() {
+            self.set_blocks_stream();
+        }
 
-        let handle = tokio::spawn(async move {
-            let blob_reader = self.blobs.clone();
+        select! {
+            block = self.request_block_stream.as_mut().expect("infallible").next() => {
+                let block = block.ok_or_else(|| anyhow!("block stream closed"))?;
 
-            let blocks_stream = self.request_block_stream();
-            futures::pin_mut!(blocks_stream);
+                // status.eth_block_number = block.header.height as u64;
 
-            let mut status = ObserverStatus::default();
-
-            loop {
-                tokio::select! {
-                    block = blocks_stream.next() => {
-                        let block = block.ok_or_else(|| anyhow!("block stream closed"))?;
-
-                        status.eth_block_number = block.header.height as u64;
-
-                        event_tx.send(Event::Block(block)).map_err(|_| anyhow!("failed to send block data event"))?;
-                    },
-                    request = request_rx.recv() => {
-                        let request = request.ok_or_else(|| anyhow!("failed to receive request: channel closed"))?;
-
-                        match request {
-                            Request::LookupBlob { code_id, blob_tx_hash } => {
-                                let attempts = Some(3);
-
-                                let res = read_code_from_tx_hash(blob_reader.clone(), code_id, blob_tx_hash, attempts).await;
-
-                                status.pending_upload_code += 1;
-
-                                if let Ok((code_id, code)) = res.inspect_err(|e| log::error!("failed to handle upload code event: {e}"))  {
-                                    event_tx.send(Event::Blob { code_id, code }).map_err(|_| anyhow!("failed to send status event"))?
-                                }
-                            },
-                            Request::SyncStatus => {
-                                let status = mem::take(&mut status);
-
-                                event_tx.send(Event::Status(status)).map_err(|_| anyhow!("failed to send status event"))?;
-                            },
-                        }
-                    }
-                }
+                Ok(Event::Block(block))
+            },
+            res = self.codes_futures.select_next_some() => {
+                res.map(|(code_id, code)| Event::Blob { code_id, code })
             }
-
-            Ok(())
-        });
-
-        (handle, RequestSender(request_tx), EventReceiver(event_rx))
+        }
     }
 }
 
