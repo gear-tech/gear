@@ -1047,8 +1047,7 @@ fn execute_wasm_with_custom_configs(
         IncomingDispatch::new(DispatchKind::Init, incoming_message, None),
         program_id,
         ContextSettings::with_outgoing_limits(outgoing_limit, u32::MAX),
-    )
-    .unwrap();
+    );
 
     if imitate_reply {
         let _ = message_context.reply_commit(ReplyPacket::auto(), None);

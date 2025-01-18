@@ -1455,7 +1455,6 @@ mod tests {
                 self.program_id,
                 self.context_settings,
             )
-            .unwrap()
         }
 
         fn with_outgoing_limit(mut self, outgoing_limit: u32) -> Self {

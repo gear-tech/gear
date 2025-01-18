@@ -15398,7 +15398,7 @@ fn incorrect_store_context() {
         let limit = <Test as Config>::OutgoingBytesLimit::get();
         let dispatch = IncomingDispatch::new(DispatchKind::Handle, message.clone(), None);
         let settings = ContextSettings::with_outgoing_limits(1024, limit + 1);
-        let mut message_context = MessageContext::new(dispatch, pid, settings).unwrap();
+        let mut message_context = MessageContext::new(dispatch, pid, settings);
         let mut counter = 0;
         // Fill until the limit is reached
         while counter < limit + 1 {
