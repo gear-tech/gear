@@ -28,7 +28,6 @@ use gear_lazy_pages_common::{GlobalsAccessError, Status};
 use numerated::tree::IntervalsTree;
 use std::{fmt, num::NonZero};
 
-// TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
     #[display(fmt = "Accessed memory interval is out of wasm memory")]
