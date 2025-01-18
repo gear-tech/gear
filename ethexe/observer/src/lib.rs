@@ -22,6 +22,7 @@ mod blobs;
 mod event;
 mod observer;
 mod query;
+mod svc;
 
 pub use blobs::{BlobReader, ConsensusLayerBlobReader, MockBlobReader};
 pub use event::{BlockData, Event, RequestBlockData, RequestEvent, SimpleBlockData};

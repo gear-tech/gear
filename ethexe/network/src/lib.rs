@@ -21,6 +21,8 @@ pub mod db_sync;
 pub mod peer_score;
 mod utils;
 
+mod svc;
+
 pub mod export {
     pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
 }

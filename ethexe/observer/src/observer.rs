@@ -47,6 +47,7 @@ impl Clone for Observer {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ObserverStatus {
+    // TODO: change to u32
     pub eth_block_number: u64,
     pub pending_upload_code: u64,
     pub last_router_state: u64,

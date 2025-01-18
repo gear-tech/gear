@@ -1,5 +1,5 @@
 [package]
-name = "ethexe-network"
+name = "ethexe-authorship"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -10,10 +10,8 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethexe-common.workspace = true
 ethexe-signer.workspace = true
-ethexe-validator.workspace = true
-ethexe-sequencer.workspace = true
+ethexe-processor.workspace = true
 ethexe-db.workspace = true
 
 gprimitives = { workspace = true, features = ["codec"] }
@@ -28,15 +26,3 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 derive_more.workspace = true
 futures.workspace = true
 void = "1.0.2"
-
-[dependencies.libp2p]
-git = "https://github.com/gear-tech/rust-libp2p"
-branch = "al/v0.54.1-patches"
-features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tcp", "tls", "tokio", "macros", "plaintext", "yamux"]
-
-[dev-dependencies]
-# newer versions are not supported on crates.io
-libp2p-swarm-test = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/v0.54.1-patches", default-features = false, features = ["tokio"] }
-tempfile.workspace = true
-tokio = { workspace = true, features = ["full"] }
-env_logger.workspace = true
