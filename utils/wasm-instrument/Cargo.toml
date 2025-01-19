@@ -19,7 +19,6 @@ enum-iterator.workspace = true
 wasmparser.workspace = true
 wasm-encoder.workspace = true
 indexmap.workspace = true
-hashbrown.workspace = true
 
 [dev-dependencies]
 wat.workspace = true
