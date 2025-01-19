@@ -19,7 +19,7 @@
 //! Application config in one place.
 
 use anyhow::Result;
-use ethexe_network::NetworkEventLoopConfig;
+use ethexe_network::NetworkServiceConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_signer::{Address, PublicKey};
@@ -29,7 +29,7 @@ use std::{path::PathBuf, str::FromStr, time::Duration};
 pub struct Config {
     pub node: NodeConfig,
     pub ethereum: EthereumConfig,
-    pub network: Option<NetworkEventLoopConfig>,
+    pub network: Option<NetworkServiceConfig>,
     pub rpc: Option<RpcConfig>,
     pub prometheus: Option<PrometheusConfig>,
 }

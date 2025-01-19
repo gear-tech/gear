@@ -4557,26 +4557,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-consensus"
-version = "1.7.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "derive_more 0.99.18",
- "ethexe-db",
- "ethexe-processor",
- "ethexe-signer",
- "futures",
- "gear-core",
- "gprimitives",
- "log",
- "parity-scale-codec",
- "rand",
- "tokio",
- "void",
-]
-
-[[package]]
 name = "ethexe-db"
 version = "1.7.0"
 dependencies = [

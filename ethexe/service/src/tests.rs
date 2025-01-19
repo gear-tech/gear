@@ -99,7 +99,7 @@ async fn basics() {
     Service::new(&config).await.unwrap();
 
     // Enable all optional services
-    config.network = Some(ethexe_network::NetworkEventLoopConfig::new_local(
+    config.network = Some(ethexe_network::NetworkServiceConfig::new_local(
         tmp_dir.join("net"),
     ));
 
@@ -1570,8 +1570,7 @@ mod utils {
 
             let network = self.network_address.as_ref().map(|addr| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
-                let mut config =
-                    ethexe_network::NetworkEventLoopConfig::new_memory(config_path, addr.as_str());
+                let mut config = ethexe_network::NetworkServiceConfig::new_memory(config_path);
                 if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
                     let multiaddr = bootstrap_addr.parse().unwrap();
                     config.bootstrap_addresses = [multiaddr].into();
@@ -1579,7 +1578,7 @@ mod utils {
                 let network =
                     ethexe_network::NetworkService::new(config, &self.signer, self.db.clone())
                         .unwrap();
-                self.multiaddr = Some(format!("{addr}/p2p/{}", network.event_loop.local_peer_id()));
+                self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
                 network
             });
 

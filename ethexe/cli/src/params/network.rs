@@ -21,7 +21,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use ethexe_network::{
     export::{Multiaddr, Protocol},
-    NetworkEventLoopConfig as NetworkConfig,
+    NetworkServiceConfig,
 };
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -65,8 +65,8 @@ impl NetworkParams {
     /// Default network port.
     pub const DEFAULT_NETWORK_PORT: u16 = 20333;
 
-    /// Convert self into a proper `NetworkConfig` object, if network is enabled.
-    pub fn into_config(self, config_dir: PathBuf) -> Result<Option<NetworkConfig>> {
+    /// Convert self into a proper `NetworkServiceConfig` object, if network is enabled.
+    pub fn into_config(self, config_dir: PathBuf) -> Result<Option<NetworkServiceConfig>> {
         if self.no_network {
             return Ok(None);
         }
@@ -109,7 +109,7 @@ impl NetworkParams {
             network_listen_addr.into_iter().collect()
         };
 
-        Ok(Some(NetworkConfig {
+        Ok(Some(NetworkServiceConfig {
             config_dir,
             public_key,
             external_addresses,

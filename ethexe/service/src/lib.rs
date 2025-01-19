@@ -24,7 +24,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::{primitives::U256, router::RouterQuery};
-use ethexe_network::{db_sync, NetworkEvent};
+use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_prometheus::MetricsService;
@@ -473,7 +473,7 @@ impl Service {
     async fn run_inner(self) -> Result<()> {
         let Service {
             db,
-            network,
+            mut network,
             mut observer,
             mut query,
             mut router_query,
@@ -495,17 +495,6 @@ impl Service {
 
         let observer_events = observer.request_events();
         futures::pin_mut!(observer_events);
-
-        let (mut network_sender, mut network_receiver, mut network_handle) =
-            if let Some(network) = network {
-                (
-                    Some(network.sender),
-                    Some(network.receiver),
-                    Some(tokio::spawn(network.event_loop.run())),
-                )
-            } else {
-                (None, None, None)
-            };
 
         let mut rpc_handle = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
@@ -552,7 +541,7 @@ impl Service {
                         block_commitments,
                         validator.as_mut(),
                         sequencer.as_mut(),
-                        network_sender.as_mut(),
+                        network.as_mut(),
                     ).await?;
 
                     if is_block_event {
@@ -567,7 +556,7 @@ impl Service {
                         &db,
                         validator.as_mut(),
                         sequencer.as_mut(),
-                        network_sender.as_mut()
+                        network.as_mut()
                     )?;
 
                     collection_round_timer.stop();
@@ -580,7 +569,7 @@ impl Service {
 
                     validation_round_timer.stop();
                 }
-                Some(event) = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
+                Some(event) = maybe_await(network.as_mut().map(|v| v.next())) => {
                     match event {
                         NetworkEvent::Message { source, data } => {
                             log::debug!("Received a network message from peer {source:?}");
@@ -590,7 +579,7 @@ impl Service {
                                 &db,
                                 validator.as_mut(),
                                 sequencer.as_mut(),
-                                network_sender.as_mut(),
+                                network.as_mut(),
                             );
 
                             if let Err(err) = result {
@@ -607,17 +596,13 @@ impl Service {
                                 Err(validating_response)
                             };
 
-                            network_sender
+                            network
                                 .as_mut()
                                 .expect("if network receiver is `Some()` so does sender")
                                 .request_validated(res);
                         }
                         _ => {}
                     }
-                }
-                _ = maybe_await(network_handle.as_mut()) => {
-                    log::info!("`NetworkWorker` has terminated, shutting down...");
-                    break;
                 }
                 _ = maybe_await(rpc_handle.as_mut()) => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
@@ -634,13 +619,13 @@ impl Service {
         block_commitments: Vec<BlockCommitment>,
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
-        maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
+        maybe_network: Option<&mut NetworkService>,
     ) -> Result<()> {
         let Some(validator) = maybe_validator else {
             return Ok(());
         };
 
-        if maybe_network_sender.is_none() && maybe_sequencer.is_none() {
+        if maybe_network.is_none() && maybe_sequencer.is_none() {
             return Ok(());
         }
 
@@ -659,9 +644,9 @@ impl Service {
             return Ok(());
         }
 
-        if let Some(network_sender) = maybe_network_sender {
+        if let Some(network) = maybe_network {
             log::debug!("Publishing commitments to network...");
-            network_sender.publish_message(
+            network.publish_message(
                 NetworkMessage::PublishCommitments {
                     codes: aggregated_codes.clone(),
                     blocks: aggregated_blocks.clone(),
@@ -694,7 +679,7 @@ impl Service {
         db: &Database,
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
-        maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
+        maybe_network: Option<&mut NetworkService>,
     ) -> Result<()> {
         let Some(sequencer) = maybe_sequencer else {
             return Ok(());
@@ -725,7 +710,7 @@ impl Service {
 
         sequencer.process_collected_commitments(last_not_empty_block)?;
 
-        if maybe_validator.is_none() && maybe_network_sender.is_none() {
+        if maybe_validator.is_none() && maybe_network.is_none() {
             return Ok(());
         }
 
@@ -743,7 +728,7 @@ impl Service {
             return Ok(());
         }
 
-        if let Some(network_sender) = maybe_network_sender {
+        if let Some(network_sender) = maybe_network {
             log::debug!("Request validation of aggregated commitments...");
 
             let message = NetworkMessage::RequestCommitmentsValidation {
@@ -805,7 +790,7 @@ impl Service {
         db: &Database,
         maybe_validator: Option<&mut ethexe_validator::Validator>,
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
-        maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
+        maybe_network: Option<&mut NetworkService>,
     ) -> Result<()> {
         let message = NetworkMessage::decode(&mut data)?;
         match message {
@@ -825,7 +810,7 @@ impl Service {
                 let Some(validator) = maybe_validator else {
                     return Ok(());
                 };
-                let Some(network_sender) = maybe_network_sender else {
+                let Some(network_sender) = maybe_network else {
                     return Ok(());
                 };
 

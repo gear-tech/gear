@@ -40,3 +40,6 @@ libp2p-swarm-test = { git = "https://github.com/gear-tech/rust-libp2p", branch =
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 env_logger.workspace = true
+
+[features]
+test = []
