@@ -24,7 +24,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::{primitives::U256, router::RouterQuery};
-use ethexe_network::{db_sync, NetworkReceiverEvent};
+use ethexe_network::{db_sync, NetworkEvent};
 use ethexe_observer::{RequestBlockData, RequestEvent};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_prometheus::MetricsService;
@@ -582,7 +582,7 @@ impl Service {
                 }
                 Some(event) = maybe_await(network_receiver.as_mut().map(|rx| rx.recv())) => {
                     match event {
-                        NetworkReceiverEvent::Message { source, data } => {
+                        NetworkEvent::Message { source, data } => {
                             log::debug!("Received a network message from peer {source:?}");
 
                             let result = Self::process_network_message(
@@ -599,7 +599,7 @@ impl Service {
                                 log::warn!("Failed to process network message: {err}");
                             }
                         }
-                        NetworkReceiverEvent::ExternalValidation(validating_response) => {
+                        NetworkEvent::ExternalValidation(validating_response) => {
                             let validated = Self::process_response_validation(&validating_response, &mut router_query).await?;
                             let res = if validated {
                                 Ok(validating_response)
