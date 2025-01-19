@@ -257,7 +257,7 @@ library Gear {
             assembly ("memory-safe") {
                 _signatureRX := mload(add(_signature, 0x20))
                 _signatureRY := mload(add(_signature, 0x40))
-                _signatureZ := byte(0, mload(add(_signature, 0x60)))
+                _signatureZ := mload(add(_signature, 0x60))
             }
 
             // extra security check (`FROST.verifySignature()` does not check public key validity)
