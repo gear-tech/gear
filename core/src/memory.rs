@@ -472,11 +472,9 @@ impl AllocationsContext {
 
     /// Free specific memory page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
-        // TODO: do not use `contains` #3879
-        if page < self.static_pages || page >= self.max_pages || !self.allocations.contains(page) {
+        if page < self.static_pages || page >= self.max_pages || !self.allocations.remove(page) {
             Err(AllocError::InvalidFree(page))
         } else {
-            self.allocations.remove(page);
             Ok(())
         }
     }

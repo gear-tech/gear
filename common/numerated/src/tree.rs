@@ -270,7 +270,9 @@ impl<T: Numerated> IntervalsTree<T> {
             // `left_interval` is outside, so just insert `interval`
             self.put(start, end);
         }
-        return true;
+
+        // Returns true because the current interval has unique points compared to at least `right_interval`
+        true
     }
 
     /// Remove `interval` from tree.
@@ -280,10 +282,14 @@ impl<T: Numerated> IntervalsTree<T> {
     /// Complexity: `O(m * log(n))`, where
     /// - `n` is amount of intervals in `self`
     /// - `m` is amount of intervals in `self` ⋂ `interval`
-    pub fn remove<I: Into<IntervalIterator<T>>>(&mut self, interval: I) {
+    ///
+    /// Returns:
+    /// - false: if `interval` is not empty and for each `p` ∈ `interval` ⇒ `p` ∉ `self`.
+    /// - true: in other cases
+    pub fn remove<I: Into<IntervalIterator<T>>>(&mut self, interval: I) -> bool {
         let Some((start, end)) = Self::into_start_end(interval) else {
             // Empty interval - nothing to remove.
-            return;
+            return true;
         };
 
         // `iter` iterates over all intervals, which starts before or inside `interval`.
@@ -291,12 +297,12 @@ impl<T: Numerated> IntervalsTree<T> {
 
         // "right interval" - interval from `iter` with the biggest start.
         let Some((&right_start, &right_end)) = iter.next_back() else {
-            return;
+            return false;
         };
 
         if right_end < start {
             // No intersections with `interval`.
-            return;
+            return false;
         }
 
         // `left_interval` - interval from `iter` which lies before `interval`
@@ -351,6 +357,10 @@ impl<T: Numerated> IntervalsTree<T> {
                 debug_assert!(false, "`T: Numerated` impl error");
             }
         }
+
+        // Returns true because the interval intersects with the given range (i.e., right_end >= start),
+        // and the interval will be removed or modified accordingly.
+        true
     }
 
     /// Returns iterator over non empty intervals, that consist of points `p: T`
@@ -474,9 +484,8 @@ mod tests {
         assert!(tree.insert(Interval::try_from(-1..=3).unwrap()));
         assert!(tree.insert(Interval::try_from(5..=7).unwrap()));
         assert!(tree.insert(Interval::try_from(2..=6).unwrap()));
-        assert_eq!(
-            tree.insert(Interval::try_from(7..=7).unwrap()),
-            false,
+        assert!(
+            !tree.insert(Interval::try_from(7..=7).unwrap()),
             "Expected false, because point 7 already in tree"
         );
         assert!(tree.insert(Interval::try_from(19..=25).unwrap()));
@@ -496,31 +505,27 @@ mod tests {
 
         let mut tree = IntervalsTree::new();
         assert!(tree.insert(..=10));
-        assert_eq!(
-            tree.insert(Interval::try_from(3..=4).unwrap()),
-            false,
+        assert!(
+            !tree.insert(Interval::try_from(3..=4).unwrap()),
             "Expected false, because no unique points to insert in 3..=4"
         );
         assert_eq!(tree.to_vec(), vec![i32::MIN..=10]);
 
         let mut tree = IntervalsTree::new();
         assert!(tree.insert(Interval::try_from(1..=10).unwrap()));
-        assert_eq!(
-            tree.insert(Interval::try_from(3..=4).unwrap()),
-            false,
+        assert!(
+            !tree.insert(Interval::try_from(3..=4).unwrap()),
             "Expected false, because non-empty interval has no unique points to insert in 3..=4"
         );
-        assert_eq!(
-            tree.insert(Interval::try_from(5..=6).unwrap()),
-            false,
+        assert!(
+            !tree.insert(Interval::try_from(5..=6).unwrap()),
             "Expected false, because non-empty interval has no unique points to insert in 5..=6"
         );
         assert_eq!(tree.to_vec(), vec![1..=10]);
 
         let mut tree = IntervalsTree::new();
-        assert_eq!(
+        assert!(
             tree.insert(IntervalIterator::empty()),
-            true,
             "Expected true, because empty interval is allowed"
         );
         assert_eq!(tree.to_vec(), vec![]);
@@ -531,15 +536,15 @@ mod tests {
     #[test]
     fn remove() {
         let mut tree: IntervalsTree<i32> = [1].into_iter().collect();
-        tree.remove(1);
+        assert!(tree.remove(1));
         assert_eq!(tree.to_vec(), vec![]);
 
         let mut tree: IntervalsTree<i32> = [1, 2].into_iter().collect();
-        tree.remove(Interval::try_from(1..=2).unwrap());
+        assert!(tree.remove(Interval::try_from(1..=2).unwrap()));
         assert_eq!(tree.to_vec(), vec![]);
 
         let mut tree: IntervalsTree<i32> = [-1, 0, 1, 2, 4, 5].into_iter().collect();
-        tree.remove(Interval::try_from(-1..=2).unwrap());
+        assert!(tree.remove(Interval::try_from(-1..=2).unwrap()));
         assert_eq!(tree.to_vec(), vec![4..=5]);
 
         let mut tree: IntervalsTree<i32> = [-1, 0, 1, 2, 4, 5].into_iter().collect();
@@ -547,37 +552,42 @@ mod tests {
         assert_eq!(tree.to_vec(), vec![-1..=2]);
 
         let mut tree: IntervalsTree<i32> = [1, 2, 4, 5].into_iter().collect();
-        tree.remove(Interval::try_from(2..=4).unwrap());
+        assert!(tree.remove(Interval::try_from(2..=4).unwrap()));
         assert_eq!(tree.to_vec(), vec![1..=1, 5..=5]);
 
         let mut tree: IntervalsTree<i32> = [-1, 0, 1, 2, 4, 5].into_iter().collect();
-        tree.remove(Interval::try_from(3..=4).unwrap());
+        assert!(tree.remove(Interval::try_from(3..=4).unwrap()));
         assert_eq!(tree.to_vec(), vec![-1..=2, 5..=5]);
 
         let mut tree: IntervalsTree<i32> = [-1, 0, 1, 2, 4, 5].into_iter().collect();
-        tree.remove(Interval::try_from(-1..=5).unwrap());
+        assert!(tree.remove(Interval::try_from(-1..=5).unwrap()));
         assert_eq!(tree.to_vec(), vec![]);
 
         let mut tree: IntervalsTree<i32> = [1, 2, 4, 5].into_iter().collect();
-        tree.remove(Interval::try_from(2..=5).unwrap());
+        assert!(tree.remove(Interval::try_from(2..=5).unwrap()));
         assert_eq!(tree.to_vec(), vec![1..=1]);
 
         let mut tree: IntervalsTree<i32> = [1, 2, 4, 5].into_iter().collect();
-        tree.remove(Interval::try_from(1..=4).unwrap());
+        assert!(tree.remove(Interval::try_from(1..=4).unwrap()));
         assert_eq!(tree.to_vec(), vec![5..=5]);
 
         let mut tree: IntervalsTree<i32> = [1, 2, 4, 5].into_iter().collect();
-        tree.remove(Interval::try_from(1..=3).unwrap());
+        assert!(
+            !tree.remove(Interval::try_from(3..=3).unwrap()),
+            "Expected false, because there is no point 3 in tree"
+        );
+        assert!(tree.remove(Interval::try_from(1..=3).unwrap()));
+        assert_eq!(tree.to_vec(), vec![4..=5]);
         assert_eq!(tree.to_vec(), vec![4..=5]);
 
         let mut tree: IntervalsTree<u32> = [1, 2, 5, 6, 7, 9, 10, 11].into_iter().collect();
-        tree.remove(IntervalIterator::empty());
+        assert!(tree.remove(IntervalIterator::empty()));
         assert_eq!(tree.to_vec(), vec![1..=2, 5..=7, 9..=11]);
-        tree.remove(Interval::try_from(1..2).unwrap());
+        assert!(tree.remove(Interval::try_from(1..2).unwrap()));
         assert_eq!(tree.to_vec(), vec![2..=2, 5..=7, 9..=11]);
-        tree.remove(..7);
+        assert!(tree.remove(..7));
         assert_eq!(tree.to_vec(), vec![7..=7, 9..=11]);
-        tree.remove(..);
+        assert!(tree.remove(..));
         assert_eq!(tree.to_vec(), vec![]);
     }
 
