@@ -19,7 +19,6 @@
 //! Sequencer for ethexe.
 
 pub mod agro;
-mod svc;
 
 use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
 use anyhow::{anyhow, Result};

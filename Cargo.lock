@@ -4520,28 +4520,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 
 [[package]]
-name = "ethexe-authorship"
-version = "1.7.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "derive_more 0.99.18",
- "ethexe-common",
- "ethexe-db",
- "ethexe-observer",
- "ethexe-processor",
- "ethexe-signer",
- "futures",
- "gear-core",
- "gprimitives",
- "log",
- "parity-scale-codec",
- "rand",
- "tokio",
- "void",
-]
-
-[[package]]
 name = "ethexe-cli"
 version = "1.7.0"
 dependencies = [
@@ -4847,19 +4825,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml 0.8.14",
-]
-
-[[package]]
-name = "ethexe-service-common"
-version = "1.7.0"
-dependencies = [
- "anyhow",
- "derive_more 0.99.18",
- "gear-core",
- "gprimitives",
- "hex",
- "parity-scale-codec",
- "serde",
 ]
 
 [[package]]
