@@ -34,7 +34,7 @@ static mut STATE: State = State {
 
 fn do_actions(mut actions: Vec<Action>) -> u32 {
     let check_sum = match actions.pop() {
-        Some(Action::Read) => msg::with_read_on_stack(|payload| {
+        Some(Action::Read) => msg::with_read_on_stack_or_heap(|payload| {
             payload
                 .map(|payload| payload.iter().fold(0u32, |acc, x| acc + *x as u32))
                 .expect("Failed to read payload")
