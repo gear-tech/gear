@@ -64,8 +64,6 @@ contract POCTest is Base {
     }
 
     function test_POC() public {
-        vm.skip(true);
-
         bytes32 _codeId = bytes32(uint256(1));
         bytes32 _blobTxHash = bytes32(uint256(2));
 
@@ -76,6 +74,7 @@ contract POCTest is Base {
 
         uint256[] memory _privateKeys = new uint256[](1);
         _privateKeys[0] = signingKey.asScalar();
+
         commitCode(_privateKeys, Gear.CodeCommitment(_codeId, true));
 
         address _ping = deployPing(_privateKeys, _codeId);
@@ -101,18 +100,17 @@ contract POCTest is Base {
         depositInto(vaults[1], 10_000);
         depositInto(vaults[2], 10_000);
         rollBlocks((eraDuration - electionDuration) / blockDuration);
+
+        SigningKey _signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
+
         // TODO: makeElectionAt should also return Gear.AggregatedPublicKey
         _validators = middleware.makeElectionAt(uint48(vm.getBlockTimestamp()) - 1, maxValidators);
 
         commitValidators(
             _privateKeys,
             Gear.ValidatorsCommitment(
-                Gear.AggregatedPublicKey(
-                    0x1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f,
-                    0x70beaf8f588b541507fed6a642c5ab42dfdf8120a7f639de5122d47a69a8e8d1
-                ),
-                _validators,
-                2
+                Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), _validators, 2
             )
         );
 
@@ -123,9 +121,9 @@ contract POCTest is Base {
             // Validators are sorted in descending order
             (address expected,) = makeAddrAndKey(vm.toString(_validators.length - i));
             assertEq(_operator, expected);
-
-            _privateKeys[i] = operators.get(_operator);
         }
+
+        _privateKeys[0] = _signingKey.asScalar();
 
         // Go to a new era and commit from new validators
         rollBlocks(electionDuration / blockDuration);
