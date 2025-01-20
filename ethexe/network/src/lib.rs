@@ -37,6 +37,7 @@ use libp2p::{
     multiaddr::Protocol,
     ping,
     swarm::{
+        behaviour::toggle::Toggle,
         dial_opts::{DialOpts, PeerCondition},
         Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
     },
@@ -104,7 +105,7 @@ impl NetworkServiceConfig {
         }
     }
 
-    pub fn new_memory(config_path: PathBuf) -> Self {
+    pub fn new_test(config_path: PathBuf) -> Self {
         Self {
             config_dir: config_path,
             public_key: None,
@@ -221,7 +222,12 @@ impl NetworkService {
                 .boxed(),
         };
 
-        let behaviour = Behaviour::new(&keypair, db)?;
+        let enable_mdns = match transport_type {
+            TransportType::QuicOrTcp => true,
+            TransportType::MemoryOrTcp => false,
+        };
+
+        let behaviour = Behaviour::new(&keypair, db, enable_mdns)?;
         let local_peer_id = keypair.public().to_peer_id();
         let config = SwarmConfig::with_tokio_executor();
 
@@ -311,11 +317,13 @@ impl NetworkService {
             //
             BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
                 let behaviour = self.swarm.behaviour_mut();
-                if behaviour.mdns4.discovered_nodes().any(|&p| p == peer) {
-                    // we don't want local peers to appear in KadDHT.
-                    // event can be emitted few times in a row for
-                    // the same peer, so we just ignore `None`
-                    let _res = behaviour.kad.remove_peer(&peer);
+                if let Some(mdns4) = behaviour.mdns4.as_ref() {
+                    if mdns4.discovered_nodes().any(|&p| p == peer) {
+                        // we don't want local peers to appear in KadDHT.
+                        // event can be emitted few times in a row for
+                        // the same peer, so we just ignore `None`
+                        let _res = behaviour.kad.remove_peer(&peer);
+                    }
                 }
             }
             BehaviourEvent::Kad(_) => {}
@@ -447,7 +455,7 @@ pub(crate) struct Behaviour {
     // friend or foe system
     pub identify: identify::Behaviour,
     // local discovery for IPv4 only
-    pub mdns4: mdns::tokio::Behaviour,
+    pub mdns4: Toggle<mdns::tokio::Behaviour>,
     // global traversal discovery
     // TODO: consider to cache records in fs
     pub kad: kad::Behaviour<kad::store::MemoryStore>,
@@ -458,7 +466,7 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    fn new(keypair: &identity::Keypair, db: Database) -> anyhow::Result<Self> {
+    fn new(keypair: &identity::Keypair, db: Database, enable_mdns: bool) -> anyhow::Result<Self> {
         let peer_id = keypair.public().to_peer_id();
 
         // we use custom behaviour because
@@ -489,7 +497,11 @@ impl Behaviour {
             .with_agent_version(AGENT_VERSION.to_string());
         let identify = identify::Behaviour::new(identify_config);
 
-        let mdns4 = mdns::Behaviour::new(mdns::Config::default(), peer_id)?;
+        let mdns4 = Toggle::from(
+            enable_mdns
+                .then(|| mdns::Behaviour::new(mdns::Config::default(), peer_id))
+                .transpose()?,
+        );
 
         let mut kad = kad::Behaviour::new(peer_id, kad::store::MemoryStore::new(peer_id));
         kad.set_mode(Some(kad::Mode::Server));
@@ -548,7 +560,7 @@ mod tests {
 
     fn new_service_with_db(db: Database) -> (TempDir, NetworkService) {
         let tmp_dir = tempfile::tempdir().unwrap();
-        let config = NetworkServiceConfig::new_memory(tmp_dir.path().to_path_buf());
+        let config = NetworkServiceConfig::new_test(tmp_dir.path().to_path_buf());
         let signer = ethexe_signer::Signer::new(tmp_dir.path().join("key")).unwrap();
         let service = NetworkService::new(config.clone(), &signer, db).unwrap();
         (tmp_dir, service)

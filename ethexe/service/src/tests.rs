@@ -1606,7 +1606,7 @@ mod utils {
                 let config_path = tempfile::tempdir().unwrap().into_path();
                 let multiaddr: Multiaddr = addr.parse().unwrap();
 
-                let mut config = ethexe_network::NetworkServiceConfig::new_memory(config_path);
+                let mut config = ethexe_network::NetworkServiceConfig::new_test(config_path);
                 config.listen_addresses = [multiaddr.clone()].into();
                 config.external_addresses = [multiaddr.clone()].into();
                 if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
