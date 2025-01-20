@@ -79,8 +79,8 @@ pub enum NetworkEvent {
 #[derive(Default, Debug, Clone)]
 pub enum TransportType {
     #[default]
-    QuicOrTcp,
-    MemoryOrTcp,
+    Default,
+    Test,
 }
 
 #[derive(Debug, Clone)]
@@ -101,7 +101,7 @@ impl NetworkServiceConfig {
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
-            transport_type: TransportType::QuicOrTcp,
+            transport_type: TransportType::Default,
         }
     }
 
@@ -112,7 +112,7 @@ impl NetworkServiceConfig {
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: Default::default(),
-            transport_type: TransportType::MemoryOrTcp,
+            transport_type: TransportType::Test,
         }
     }
 }
@@ -197,7 +197,7 @@ impl NetworkService {
         transport_type: TransportType,
     ) -> anyhow::Result<Swarm<Behaviour>> {
         let transport = match transport_type {
-            TransportType::QuicOrTcp => {
+            TransportType::Default => {
                 let tcp = libp2p::tcp::tokio::Transport::default()
                     .upgrade(upgrade::Version::V1Lazy)
                     .authenticate(libp2p::tls::Config::new(&keypair)?)
@@ -214,22 +214,27 @@ impl NetworkService {
                     })
                     .boxed()
             }
-            TransportType::MemoryOrTcp => libp2p::core::transport::MemoryTransport::default()
+            TransportType::Test => libp2p::core::transport::MemoryTransport::default()
                 .or_transport(libp2p::tcp::tokio::Transport::default())
                 .upgrade(upgrade::Version::V1Lazy)
                 .authenticate(libp2p::plaintext::Config::new(&keypair))
                 .multiplex(yamux::Config::default())
+                .timeout(Duration::from_secs(20))
                 .boxed(),
         };
 
         let enable_mdns = match transport_type {
-            TransportType::QuicOrTcp => true,
-            TransportType::MemoryOrTcp => false,
+            TransportType::Default => true,
+            TransportType::Test => false,
         };
 
         let behaviour = Behaviour::new(&keypair, db, enable_mdns)?;
         let local_peer_id = keypair.public().to_peer_id();
-        let config = SwarmConfig::with_tokio_executor();
+        let mut config = SwarmConfig::with_tokio_executor();
+
+        if let TransportType::Test = transport_type {
+            config = config.with_idle_connection_timeout(Duration::from_secs(5));
+        }
 
         Ok(Swarm::new(transport, behaviour, local_peer_id, config))
     }
