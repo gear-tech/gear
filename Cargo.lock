@@ -4529,6 +4529,7 @@ dependencies = [
  "env_logger",
  "ethexe-ethereum",
  "ethexe-network",
+ "ethexe-observer",
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",

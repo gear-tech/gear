@@ -26,6 +26,7 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Context, Result};
+use ethexe_common::events::{BlockRequestEvent, RouterRequestEvent};
 use ethexe_db::BlockHeader;
 use ethexe_signer::Address;
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
@@ -44,6 +45,7 @@ pub use event::{BlockData, Event, RequestBlockData, RequestEvent, SimpleBlockDat
 pub use observer::{Observer, ObserverStatus};
 pub use query::Query;
 
+#[derive(Clone, Debug)]
 pub struct EthereumConfig {
     pub rpc: String,
     pub beacon_rpc: String,
@@ -66,6 +68,17 @@ pub struct ObserverService {
 type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, Vec<u8>)>>;
 
 impl ObserverService {
+    pub async fn cloned(&self) -> Result<Self> {
+        Ok(Self {
+            blobs: self.blobs.clone(),
+            provider: self.provider.clone(),
+            router: self.router,
+            last_block_number: self.last_block_number,
+            blocks_stream: self.provider.subscribe_blocks().await?.into_stream(),
+            codes_futures: FuturesUnordered::new(),
+        })
+    }
+
     pub async fn new(config: &EthereumConfig) -> Result<Self> {
         let blobs = Arc::new(
             ConsensusLayerBlobReader::new(&config.rpc, &config.beacon_rpc, config.block_time)
@@ -119,7 +132,7 @@ impl ObserverService {
         )));
     }
 
-    pub async fn next(&mut self) -> Result<ServiceEvent> {
+    pub async fn next(&mut self) -> Result<ObserverServiceEvent> {
         tokio::select! {
             header = self.blocks_stream.next() => {
                 let header = header.ok_or_else(|| anyhow!("blocks stream closed"))?;
@@ -139,24 +152,32 @@ impl ObserverService {
                     parent_hash,
                 };
 
-                read_block_request_events(block_hash, &self.provider, self.router.0.into())
+                let events = read_block_request_events(block_hash, &self.provider, self.router.0.into())
                     .await
-                    .map(|events| ServiceEvent::Block(RequestBlockData {
-                        hash: block_hash,
-                        header,
-                        events,
-                    }))
-                    .map_err(|err| anyhow!("Failed to read events for block {block_hash:?}: {err}"))
+                    .map_err(|err| anyhow!("Failed to read events for block {block_hash:?}: {err}"))?;
+
+                // TODO: replace me with proper processing of all events, including commitments.
+                for event in &events {
+                    if let BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
+                        self.lookup_code(*code_id, *blob_tx_hash);
+                    }
+                }
+
+                Ok(ObserverServiceEvent::Block(RequestBlockData {
+                    hash: block_hash,
+                    header,
+                    events,
+                }))
             },
-            res = self.codes_futures.select_next_some() => {
-                res.map(|(code_id, code)| ServiceEvent::Blob { code_id, code })
+            Some(res) = self.codes_futures.next() => {
+                res.map(|(code_id, code)| ObserverServiceEvent::Blob { code_id, code })
             }
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum ServiceEvent {
+pub enum ObserverServiceEvent {
     Blob { code_id: CodeId, code: Vec<u8> },
     Block(RequestBlockData),
 }

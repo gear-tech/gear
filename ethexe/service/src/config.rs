@@ -20,10 +20,11 @@
 
 use anyhow::Result;
 use ethexe_network::NetworkServiceConfig;
+use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
-use ethexe_signer::{Address, PublicKey};
-use std::{path::PathBuf, str::FromStr, time::Duration};
+use ethexe_signer::PublicKey;
+use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug)]
 pub struct Config {
@@ -58,14 +59,6 @@ pub struct NodeConfig {
     pub max_commitment_depth: u32,
     pub worker_threads_override: Option<usize>,
     pub virtual_threads: usize,
-}
-
-#[derive(Debug)]
-pub struct EthereumConfig {
-    pub rpc: String,
-    pub beacon_rpc: String,
-    pub router_address: Address,
-    pub block_time: Duration,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

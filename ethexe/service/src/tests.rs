@@ -34,7 +34,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{Event, MockBlobReader, Observer, Query};
+use ethexe_observer::{EthereumConfig, Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -79,7 +79,7 @@ async fn basics() {
         virtual_threads: 16,
     };
 
-    let eth_cfg = crate::config::EthereumConfig {
+    let eth_cfg = EthereumConfig {
         rpc: "wss://reth-rpc.gear-tech.io".into(),
         beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
         router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
@@ -124,11 +124,13 @@ async fn ping() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
-    );
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .sequencer(sequencer_public_key)
+                .validator(env.validators[0]),
+        )
+        .await;
     node.start_service().await;
 
     let res = env
@@ -212,11 +214,13 @@ async fn uninitialized_program() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
-    );
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .sequencer(sequencer_public_key)
+                .validator(env.validators[0]),
+        )
+        .await;
     node.start_service().await;
 
     let res = env
@@ -355,11 +359,13 @@ async fn mailbox() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
-    );
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .sequencer(sequencer_public_key)
+                .validator(env.validators[0]),
+        )
+        .await;
     node.start_service().await;
 
     let res = env
@@ -537,11 +543,13 @@ async fn incoming_transfers() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
-    );
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .sequencer(sequencer_public_key)
+                .validator(env.validators[0]),
+        )
+        .await;
     node.start_service().await;
 
     let res = env
@@ -642,11 +650,13 @@ async fn ping_reorg() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_pub_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_pub_key)
-            .validator(env.validators[0]),
-    );
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .sequencer(sequencer_pub_key)
+                .validator(env.validators[0]),
+        )
+        .await;
     node.start_service().await;
 
     let res = env
@@ -746,11 +756,13 @@ async fn ping_deep_sync() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_pub_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_pub_key)
-            .validator(env.validators[0]),
-    );
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .sequencer(sequencer_pub_key)
+                .validator(env.validators[0]),
+        )
+        .await;
     node.start_service().await;
 
     let res = env
@@ -817,35 +829,43 @@ async fn multiple_validators() {
 
     log::info!("📗 Starting sequencer");
     let sequencer_pub_key = env.wallets.next();
-    let mut sequencer = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_pub_key)
-            .network(None, None),
-    );
+    let mut sequencer = env
+        .new_node(
+            NodeConfig::default()
+                .sequencer(sequencer_pub_key)
+                .network(None, None),
+        )
+        .await;
     sequencer.start_service().await;
 
     log::info!("📗 Starting validator 0");
-    let mut validator0 = env.new_node(
-        NodeConfig::default()
-            .validator(env.validators[0])
-            .network(None, sequencer.multiaddr.clone()),
-    );
+    let mut validator0 = env
+        .new_node(
+            NodeConfig::default()
+                .validator(env.validators[0])
+                .network(None, sequencer.multiaddr.clone()),
+        )
+        .await;
     validator0.start_service().await;
 
     log::info!("📗 Starting validator 1");
-    let mut validator1 = env.new_node(
-        NodeConfig::default()
-            .validator(env.validators[1])
-            .network(None, sequencer.multiaddr.clone()),
-    );
+    let mut validator1 = env
+        .new_node(
+            NodeConfig::default()
+                .validator(env.validators[1])
+                .network(None, sequencer.multiaddr.clone()),
+        )
+        .await;
     validator1.start_service().await;
 
     log::info!("📗 Starting validator 2");
-    let mut validator2 = env.new_node(
-        NodeConfig::default()
-            .validator(env.validators[2])
-            .network(None, sequencer.multiaddr.clone()),
-    );
+    let mut validator2 = env
+        .new_node(
+            NodeConfig::default()
+                .validator(env.validators[2])
+                .network(None, sequencer.multiaddr.clone()),
+        )
+        .await;
     validator2.start_service().await;
 
     let res = env
@@ -947,12 +967,14 @@ async fn multiple_validators() {
 
     log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
     // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
-    let mut validator2 = env.new_node(
-        NodeConfig::default()
-            .validator(env.validators[2])
-            .network(None, sequencer.multiaddr.clone())
-            .db(validator2.db),
-    );
+    let mut validator2 = env
+        .new_node(
+            NodeConfig::default()
+                .validator(env.validators[2])
+                .network(None, sequencer.multiaddr.clone())
+                .db(validator2.db),
+        )
+        .await;
     validator2.start_service().await;
 
     // IMPORTANT: mine one block to sent a new block event.
@@ -964,7 +986,7 @@ async fn multiple_validators() {
 
 mod utils {
     use super::*;
-    use ethexe_observer::SimpleBlockData;
+    use ethexe_observer::{ObserverService, SimpleBlockData};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use std::{ops::Mul, str::FromStr};
@@ -1141,7 +1163,7 @@ mod utils {
             })
         }
 
-        pub fn new_node(&mut self, config: NodeConfig) -> Node {
+        pub async fn new_node(&mut self, config: NodeConfig) -> Node {
             let NodeConfig {
                 db,
                 sequencer_public_key,
@@ -1161,13 +1183,24 @@ mod utils {
 
             let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
 
+            let eth_cfg = EthereumConfig {
+                rpc: self.rpc_url.clone(),
+                beacon_rpc: Default::default(),
+                router_address: self.router_address,
+                block_time: self.block_time,
+            };
+            let observer_service =
+                ObserverService::new_with_blobs(&eth_cfg, self.blob_reader.clone())
+                    .await
+                    .unwrap();
+
             Node {
                 db,
                 multiaddr: None,
                 rpc_url: self.rpc_url.clone(),
                 genesis_block_hash: self.genesis_block_hash,
                 blob_reader: self.blob_reader.clone(),
-                observer: self.observer.clone(),
+                observer: observer_service,
                 signer: self.signer.clone(),
                 block_time: self.block_time,
                 validators: self.validators.iter().map(|k| k.to_address()).collect(),
@@ -1531,7 +1564,7 @@ mod utils {
         rpc_url: String,
         genesis_block_hash: H256,
         blob_reader: Arc<MockBlobReader>,
-        observer: Observer,
+        observer: ObserverService,
         signer: Signer,
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
@@ -1614,7 +1647,7 @@ mod utils {
 
             let service = Service::new_from_parts(
                 self.db.clone(),
-                self.observer.clone(),
+                self.observer.cloned().await.unwrap(),
                 query,
                 router_query,
                 processor,
@@ -1623,7 +1656,6 @@ mod utils {
                 network,
                 sequencer,
                 validator,
-                None,
                 None,
             );
             let handle = task::spawn(service.run());

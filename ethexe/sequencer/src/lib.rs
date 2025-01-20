@@ -27,7 +27,7 @@ use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment},
 };
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::{RequestBlockData, RequestEvent};
+use ethexe_observer::{ObserverServiceEvent, RequestBlockData};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
 use indexmap::IndexSet;
@@ -117,8 +117,8 @@ impl Sequencer {
     }
 
     // This function should never block.
-    pub fn process_observer_event(&mut self, event: &RequestEvent) -> Result<()> {
-        if let RequestEvent::Block(RequestBlockData { hash, .. }) = event {
+    pub fn process_observer_event(&mut self, event: &ObserverServiceEvent) -> Result<()> {
+        if let ObserverServiceEvent::Block(RequestBlockData { hash, .. }) = event {
             if !self.db.block_end_state_is_valid(*hash).unwrap_or(false) {
                 return Err(anyhow!("Block {hash} database state is not valid"));
             }

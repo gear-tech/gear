@@ -25,13 +25,12 @@ use ethexe_common::{
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::{primitives::U256, router::RouterQuery};
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{RequestBlockData, RequestEvent};
+use ethexe_observer::{ObserverService, ObserverServiceEvent, RequestBlockData};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
-use ethexe_prometheus::MetricsService;
 use ethexe_sequencer::agro::AggregatedCommitments;
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
-use futures::{future, stream::StreamExt, FutureExt};
+use futures::{future, stream::StreamExt};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::{
@@ -50,7 +49,7 @@ mod tests;
 /// ethexe service.
 pub struct Service {
     db: Database,
-    observer: ethexe_observer::Observer,
+    observer: ObserverService,
     query: ethexe_observer::Query,
     router_query: RouterQuery,
     processor: ethexe_processor::Processor,
@@ -58,10 +57,10 @@ pub struct Service {
     block_time: Duration,
 
     // Optional services
-    network: Option<ethexe_network::NetworkService>,
+    network: Option<NetworkService>,
     sequencer: Option<ethexe_sequencer::Sequencer>,
     validator: Option<ethexe_validator::Validator>,
-    metrics_service: Option<MetricsService>,
+    // metrics_service: Option<MetricsService>,
     rpc: Option<ethexe_rpc::RpcService>,
 }
 
@@ -98,13 +97,9 @@ impl Service {
             .with_context(|| "failed to open database")?;
         let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
 
-        let observer = ethexe_observer::Observer::new(
-            &config.ethereum.rpc,
-            config.ethereum.router_address,
-            blob_reader.clone(),
-        )
-        .await
-        .with_context(|| "failed to create observer")?;
+        let observer = ObserverService::new(&config.ethereum)
+            .await
+            .context("failed to create observer service")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -205,18 +200,18 @@ impl Service {
             });
 
         // Prometheus metrics.
-        let metrics_service = if let Some(config) = config.prometheus.clone() {
-            // Set static metrics.
-            let metrics =
-                MetricsService::new(&config).with_context(|| "failed to create metrics service")?;
-            tokio::spawn(
-                ethexe_prometheus::init_prometheus(config.addr, config.registry).map(drop),
-            );
+        // let metrics_service = if let Some(config) = config.prometheus.clone() {
+        //     // Set static metrics.
+        //     let metrics =
+        //         MetricsService::new(&config).with_context(|| "failed to create metrics service")?;
+        //     tokio::spawn(
+        //         ethexe_prometheus::init_prometheus(config.addr, config.registry).map(drop),
+        //     );
 
-            Some(metrics)
-        } else {
-            None
-        };
+        //     Some(metrics)
+        // } else {
+        //     None
+        // };
 
         let network = if let Some(net_config) = &config.network {
             Some(
@@ -242,7 +237,7 @@ impl Service {
             sequencer,
             signer,
             validator,
-            metrics_service,
+            // metrics_service,
             rpc,
             block_time: config.ethereum.block_time,
         })
@@ -260,16 +255,16 @@ impl Service {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         db: Database,
-        observer: ethexe_observer::Observer,
+        observer: ObserverService,
         query: ethexe_observer::Query,
         router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
         block_time: Duration,
-        network: Option<ethexe_network::NetworkService>,
+        network: Option<NetworkService>,
         sequencer: Option<ethexe_sequencer::Sequencer>,
         validator: Option<ethexe_validator::Validator>,
-        metrics_service: Option<MetricsService>,
+        // metrics_service: Option<MetricsService>,
         rpc: Option<ethexe_rpc::RpcService>,
     ) -> Self {
         Self {
@@ -283,7 +278,7 @@ impl Service {
             network,
             sequencer,
             validator,
-            metrics_service,
+            // metrics_service,
             rpc,
         }
     }
@@ -425,11 +420,11 @@ impl Service {
         query: &mut ethexe_observer::Query,
         processor: &mut ethexe_processor::Processor,
         maybe_sequencer: &mut Option<ethexe_sequencer::Sequencer>,
-        observer_event: RequestEvent,
+        event: ObserverServiceEvent,
     ) -> Result<(Vec<CodeCommitment>, Vec<BlockCommitment>)> {
         // TODO (asap): remove this observer_event.clone() (not so simple - needs cross-creates refactoring)
-        let res = match observer_event.clone() {
-            RequestEvent::Block(block_data) => {
+        let res = match event.clone() {
+            ObserverServiceEvent::Block(block_data) => {
                 log::info!(
                     "📦 receive a new block {}, hash {}, parent hash {}",
                     block_data.header.height,
@@ -442,7 +437,7 @@ impl Service {
 
                 Ok((Vec::new(), commitments))
             }
-            RequestEvent::CodeLoaded { code_id, code } => {
+            ObserverServiceEvent::Blob { code_id, code } => {
                 let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
                 let commitments: Vec<_> = outcomes
                     .into_iter()
@@ -457,7 +452,7 @@ impl Service {
 
         // Important: sequencer must process event after event processing by service.
         if let Some(sequencer) = maybe_sequencer {
-            sequencer.process_observer_event(&observer_event)?;
+            sequencer.process_observer_event(&event)?;
         }
 
         res
@@ -481,20 +476,17 @@ impl Service {
             mut sequencer,
             signer: _signer,
             mut validator,
-            metrics_service,
             rpc,
             block_time,
         } = self;
 
-        if let Some(metrics_service) = metrics_service {
-            tokio::spawn(metrics_service.run(
-                observer.get_status_receiver(),
-                sequencer.as_mut().map(|s| s.get_status_receiver()),
-            ));
-        }
-
-        let observer_events = observer.request_events();
-        futures::pin_mut!(observer_events);
+        // TODO: support monitoring in observer.
+        // if let Some(metrics_service) = metrics_service {
+        //     tokio::spawn(metrics_service.run(
+        //         observer.get_status_receiver(),
+        //         sequencer.as_mut().map(|s| s.get_status_receiver()),
+        //     ));
+        // }
 
         let mut rpc_handle = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
@@ -520,20 +512,17 @@ impl Service {
 
         loop {
             tokio::select! {
-                observer_event = observer_events.next() => {
-                    let Some(observer_event) = observer_event else {
-                        log::info!("Observer stream ended, shutting down...");
-                        break;
-                    };
+                event = observer.next() => {
+                    let event = event?;
 
-                    let is_block_event = matches!(observer_event, RequestEvent::Block(_));
+                    let is_block_event = matches!(event, ObserverServiceEvent::Block(_));
 
                     let (code_commitments, block_commitments) = Self::process_observer_event(
                         &db,
                         &mut query,
                         &mut processor,
                         &mut sequencer,
-                        observer_event,
+                        event,
                     ).await?;
 
                     Self::post_process_commitments(
