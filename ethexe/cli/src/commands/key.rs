@@ -66,8 +66,12 @@ impl KeyCommand {
                 // TODO: remove println from there.
                 let public = signer
                     .generate_key()
-                    .with_context(|| "failed to generate new keypair")?;
+                    .with_context(|| "failed to generate a new keypair")?;
+                let private = signer
+                    .get_private_key(public.clone())
+                    .with_context(|| "failed to get a private key for the public one")?;
 
+                println!("Private key: {private}");
                 println!("Public key: {public}");
                 println!("Ethereum address: {}", public.to_address());
             }
@@ -135,7 +139,7 @@ impl KeyCommand {
                     .get_private_key(public)
                     .with_context(|| "failed to get private key")?;
 
-                println!("Secret key: {}", hex::encode(private.0));
+                println!("Private key: {}", hex::encode(private.0));
                 println!("Public key: {public}");
                 println!("Ethereum address: {}", public.to_address());
             }

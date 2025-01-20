@@ -255,11 +255,6 @@ impl Signer {
 
         let local_public = PublicKey::from_bytes(public_key.serialize());
 
-        log::debug!(
-            "Secret key generated: {}",
-            secret_key.secret_bytes().to_hex_string(Case::Lower)
-        );
-
         let key_file = self.key_store.join(local_public.to_hex());
         fs::write(key_file, secret_key.secret_bytes())?;
         Ok(local_public)
