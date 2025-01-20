@@ -40,7 +40,7 @@
 //! Note that messages and a reply are not sent immediately but collected during
 //! the program execution and enqueued after the execution successfully ends.
 
-pub use gcore::msg::{id, reply_code, reply_to, size, source, value, with_read_on_stack};
+pub use gcore::msg::{id, reply_code, reply_to, size, source, value, with_read_on_stack_or_heap};
 
 #[cfg(not(feature = "ethexe"))]
 pub use gcore::msg::{signal_code, signal_from};
