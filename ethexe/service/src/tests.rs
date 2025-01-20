@@ -155,22 +155,25 @@ async fn ping() {
         .expect("After approval, instrumented code is guaranteed to be in the database");
 
     let res = env
-        .create_program(code_id, b"PING", 0)
+        .create_program(code_id)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
     assert_eq!(res.code_id, code_id);
-    assert_eq!(res.init_message_source, env.sender_id);
-    assert_eq!(res.init_message_payload, b"PING");
-    assert_eq!(res.init_message_value, 0);
+
+    let res = env
+        .send_message(res.program_id, b"PING", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.reply_payload, b"PONG");
     assert_eq!(res.reply_value, 0);
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
 
     let ping_id = res.program_id;
 
@@ -234,7 +237,15 @@ async fn uninitialized_program() {
     // Case #1: Init failed due to panic in init (decoding).
     {
         let res = env
-            .create_program(code_id, &[], 0)
+            .create_program(code_id)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let reply = env
+            .send_message(res.program_id, &[], 0)
             .await
             .unwrap()
             .wait_for()
@@ -242,7 +253,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
-        assert_eq!(res.reply_code, expected_err);
+        assert_eq!(reply.reply_code, expected_err);
 
         let res = env
             .send_message(res.program_id, &[], 0)
@@ -267,8 +278,10 @@ async fn uninitialized_program() {
 
         let mut listener = env.events_publisher().subscribe().await;
 
-        let init_res = env.create_program(code_id, &init_payload, 0).await.unwrap();
-
+        let init_res = env.create_program(code_id).await.unwrap();
+        env.send_message(init_res.program_id, &init_payload, 0)
+            .await
+            .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
 
         let mut msgs_for_reply = vec![];
@@ -323,7 +336,7 @@ async fn uninitialized_program() {
                             reply_to,
                             ..
                         },
-                } if actor_id == init_res.program_id && reply_to == init_res.message_id => {
+                } if actor_id == init_res.program_id && reply_to == res.message_id => {
                     Ok(Some(reply_code))
                 }
                 _ => Ok(None),
@@ -375,14 +388,23 @@ async fn mailbox() {
     let code_id = res.code_id;
 
     let res = env
-        .create_program(code_id, &env.sender_id.encode(), 0)
+        .create_program(code_id)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
-
-    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+    let init_res = env
+        .send_message(res.program_id, &env.sender_id.encode(), 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(
+        init_res.reply_code,
+        ReplyCode::Success(SuccessReplyReason::Auto)
+    );
 
     let pid = res.program_id;
 
@@ -393,7 +415,7 @@ async fn mailbox() {
         .await
         .unwrap();
 
-    let original_mid = res.message_id;
+    let original_mid = init_res.message_id;
     let mid_expected_message = MessageId::generate_outgoing(original_mid, 0);
     let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
 
@@ -555,7 +577,14 @@ async fn incoming_transfers() {
     let code_id = res.code_id;
 
     let res = env
-        .create_program(code_id, b"PING", 0)
+        .create_program(code_id)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    env.send_message(res.program_id, &env.sender_id.encode(), 0)
         .await
         .unwrap()
         .wait_for()
@@ -663,8 +692,11 @@ async fn ping_reorg() {
     log::info!("📗 Abort service to simulate node blocks skipping");
     node.stop_service().await;
 
-    let create_program = env.create_program(code_id, b"PING", 0).await.unwrap();
-
+    let create_program = env.create_program(code_id).await.unwrap();
+    let init = env
+        .send_message(create_program.program_id, b"PING", 0)
+        .await
+        .unwrap();
     // Mine some blocks to check missed blocks support
     env.skip_blocks(10).await;
 
@@ -675,8 +707,9 @@ async fn ping_reorg() {
     env.force_new_block().await;
 
     let res = create_program.wait_for().await.unwrap();
+    let init_res = init.wait_for().await.unwrap();
     assert_eq!(res.code_id, code_id);
-    assert_eq!(res.reply_payload, b"PONG");
+    assert_eq!(init_res.reply_payload, b"PONG");
 
     let ping_id = res.program_id;
 
@@ -766,19 +799,24 @@ async fn ping_deep_sync() {
     let code_id = res.code_id;
 
     let res = env
-        .create_program(code_id, b"PING", 0)
+        .create_program(code_id)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, b"PING", 0)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
     assert_eq!(res.code_id, code_id);
-    assert_eq!(res.init_message_payload, b"PING");
-    assert_eq!(res.init_message_value, 0);
-    assert_eq!(res.reply_payload, b"PONG");
-    assert_eq!(res.reply_value, 0);
+    assert_eq!(init_res.reply_payload, b"PONG");
+    assert_eq!(init_res.reply_value, 0);
     assert_eq!(
-        res.reply_code,
+        init_res.reply_code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
 
@@ -861,18 +899,26 @@ async fn multiple_validators() {
     let ping_code_id = res.code_id;
 
     let res = env
-        .create_program(ping_code_id, b"", 0)
+        .create_program(ping_code_id)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, b"", 0)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
     assert_eq!(res.code_id, ping_code_id);
-    assert_eq!(res.init_message_payload, b"");
-    assert_eq!(res.init_message_value, 0);
-    assert_eq!(res.reply_payload, b"");
-    assert_eq!(res.reply_value, 0);
-    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(init_res.reply_payload, b"");
+    assert_eq!(init_res.reply_value, 0);
+    assert_eq!(
+        init_res.reply_code,
+        ReplyCode::Success(SuccessReplyReason::Auto)
+    );
 
     let ping_id = res.program_id;
 
@@ -889,18 +935,26 @@ async fn multiple_validators() {
     let async_code_id = res.code_id;
 
     let res = env
-        .create_program(async_code_id, ping_id.encode().as_slice(), 0)
+        .create_program(async_code_id)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, ping_id.encode().as_slice(), 0)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
     assert_eq!(res.code_id, async_code_id);
-    assert_eq!(res.init_message_payload, ping_id.encode().as_slice());
-    assert_eq!(res.init_message_value, 0);
-    assert_eq!(res.reply_payload, b"");
-    assert_eq!(res.reply_value, 0);
-    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(init_res.reply_payload, b"");
+    assert_eq!(init_res.reply_value, 0);
+    assert_eq!(
+        init_res.reply_code,
+        ReplyCode::Success(SuccessReplyReason::Auto)
+    );
 
     let async_id = res.program_id;
 
@@ -1202,18 +1256,10 @@ mod utils {
         }
 
         // TODO (breathx): split it into different functions WITHIN THE PR.
-        pub async fn create_program(
-            &self,
-            code_id: CodeId,
-            payload: &[u8],
-            value: u128,
-        ) -> Result<WaitForProgramCreation> {
+        pub async fn create_program(&self, code_id: CodeId) -> Result<WaitForProgramCreation> {
             const EXECUTABLE_BALANCE: u128 = 500_000_000_000_000;
 
-            log::info!(
-                "📗 Create program, code_id {code_id}, payload len {}",
-                payload.len()
-            );
+            log::info!("📗 Create program, code_id {code_id}");
 
             let listener = self.events_publisher().subscribe().await;
 
@@ -1225,19 +1271,16 @@ mod utils {
 
             router
                 .wvara()
-                .approve(program_address, value + EXECUTABLE_BALANCE)
+                .approve(program_address, EXECUTABLE_BALANCE)
                 .await?;
 
             let mirror = self.ethereum.mirror(program_address.into_array().into());
 
             mirror.executable_balance_top_up(EXECUTABLE_BALANCE).await?;
 
-            let (_, message_id) = mirror.send_message(payload, value).await?;
-
             Ok(WaitForProgramCreation {
                 listener,
                 program_id,
-                message_id,
             })
         }
 
@@ -1702,19 +1745,12 @@ mod utils {
     pub struct WaitForProgramCreation {
         listener: EventsListener,
         pub program_id: ActorId,
-        pub message_id: MessageId,
     }
 
     #[derive(Debug)]
     pub struct ProgramCreationInfo {
         pub program_id: ActorId,
         pub code_id: CodeId,
-        pub init_message_source: ActorId,
-        pub init_message_payload: Vec<u8>,
-        pub init_message_value: u128,
-        pub reply_payload: Vec<u8>,
-        pub reply_code: ReplyCode,
-        pub reply_value: u128,
     }
 
     impl WaitForProgramCreation {
@@ -1722,9 +1758,6 @@ mod utils {
             log::info!("📗 Waiting for program {} creation", self.program_id);
 
             let mut code_id_info = None;
-            let mut init_message_info = None;
-            let mut reply_info = None;
-
             self.listener
                 .apply_until_block_event(|event| {
                     match event {
@@ -1733,28 +1766,7 @@ mod utils {
                         {
                             code_id_info = Some(code_id);
                         }
-                        BlockEvent::Mirror { actor_id, event } if actor_id == self.program_id => {
-                            match event {
-                                MirrorEvent::MessageQueueingRequested {
-                                    source,
-                                    payload,
-                                    value,
-                                    ..
-                                } => {
-                                    init_message_info = Some((source, payload, value));
-                                }
-                                MirrorEvent::Reply {
-                                    payload,
-                                    reply_to,
-                                    reply_code,
-                                    value,
-                                } if self.message_id == reply_to => {
-                                    reply_info = Some((payload, reply_code, value));
-                                    return Ok(Some(()));
-                                }
-                                _ => {}
-                            }
-                        }
+
                         _ => {}
                     }
                     Ok(None)
@@ -1762,20 +1774,10 @@ mod utils {
                 .await?;
 
             let code_id = code_id_info.expect("Code ID must be set");
-            let (init_message_source, init_message_payload, init_message_value) =
-                init_message_info.expect("Init message info must be set");
-            let (reply_payload, reply_code, reply_value) =
-                reply_info.expect("Reply info must be set");
 
             Ok(ProgramCreationInfo {
                 program_id: self.program_id,
                 code_id,
-                init_message_source,
-                init_message_payload,
-                init_message_value,
-                reply_payload,
-                reply_code,
-                reply_value,
             })
         }
     }
