@@ -990,7 +990,11 @@ mod utils {
     use ethexe_observer::{ObserverService, SimpleBlockData};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
-    use std::{ops::Mul, str::FromStr};
+    use std::{
+        ops::Mul,
+        str::FromStr,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
     use tokio::sync::{broadcast::Sender, Mutex};
 
     pub struct TestEnv {
@@ -1010,7 +1014,6 @@ mod utils {
         pub block_time: Duration,
         pub continuous_block_generation: bool,
 
-        network_addresses_nonce: u64,
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Arc<Mutex<Sender<Event>>>,
         _anvil: Option<AnvilInstance>,
@@ -1157,7 +1160,6 @@ mod utils {
                 threshold,
                 block_time,
                 continuous_block_generation,
-                network_addresses_nonce: 0,
                 broadcaster,
                 _anvil: anvil,
                 _events_stream,
@@ -1177,8 +1179,9 @@ mod utils {
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
-                    self.network_addresses_nonce += 1;
-                    format!("/memory/{}", self.network_addresses_nonce)
+                    static NONCE: AtomicUsize = AtomicUsize::new(1);
+                    let nonce = NONCE.fetch_add(1, Ordering::Relaxed);
+                    format!("/memory/{nonce}")
                 })
             });
 
