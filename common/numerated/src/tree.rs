@@ -109,6 +109,12 @@ impl<T: Copy> IntervalsTree<T> {
     pub fn intervals_amount(&self) -> usize {
         self.inner.len()
     }
+
+    /// Checks if the tree is empty.
+    /// Returns `true` if the tree contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
 }
 
 impl<T: Copy + Ord> IntervalsTree<T> {
