@@ -171,7 +171,10 @@ async fn ping() {
         .await
         .unwrap();
 
-    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(
+        res.reply_code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
     assert_eq!(res.reply_payload, b"PONG");
     assert_eq!(res.reply_value, 0);
 
@@ -278,8 +281,14 @@ async fn uninitialized_program() {
 
         let mut listener = env.events_publisher().subscribe().await;
 
-        let init_res = env.create_program(code_id).await.unwrap();
-        env.send_message(init_res.program_id, &init_payload, 0)
+        let init_res = env
+            .create_program(code_id)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        let init_reply = env.send_message(init_res.program_id, &init_payload, 0)
             .await
             .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
@@ -336,7 +345,7 @@ async fn uninitialized_program() {
                             reply_to,
                             ..
                         },
-                } if actor_id == init_res.program_id && reply_to == res.message_id => {
+                } if actor_id == init_res.program_id && reply_to == init_reply.message_id => {
                     Ok(Some(reply_code))
                 }
                 _ => Ok(None),
@@ -394,6 +403,7 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
+
     let init_res = env
         .send_message(res.program_id, &env.sender_id.encode(), 0)
         .await
@@ -415,7 +425,7 @@ async fn mailbox() {
         .await
         .unwrap();
 
-    let original_mid = init_res.message_id;
+    let original_mid = res.message_id;
     let mid_expected_message = MessageId::generate_outgoing(original_mid, 0);
     let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
 
