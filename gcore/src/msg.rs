@@ -174,6 +174,8 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 }
 
 /// Executes function `f` with provided message payload allocated on stack.
+/// If payload size is bigger than [stack_buffer::MAX_BUFFER_SIZE], then
+/// allocation will be on heap.
 ///
 /// Returns function `f` call result `T`.
 ///
@@ -184,13 +186,13 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
-///     msg::with_read_on_stack(|read_res| {
+///     msg::with_read_on_stack_or_heap(|read_res| {
 ///         let payload: &mut [u8] = read_res.expect("Unable to read");
 ///         // do something with `payload`
 ///     });
 /// }
 /// ```
-pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
+pub fn with_read_on_stack_or_heap<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
     let size = size();
     stack_buffer::with_byte_buffer(size, |buffer| {
         let mut len = 0u32;

@@ -425,8 +425,8 @@ pub struct ActiveProgram {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Program {
     Active(ActiveProgram),
-    Exited(ProgramId),
-    Terminated(ProgramId),
+    Exited(ActorId),
+    Terminated(ActorId),
 }
 
 impl Program {
