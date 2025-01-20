@@ -288,7 +288,8 @@ async fn uninitialized_program() {
             .wait_for()
             .await
             .unwrap();
-        let init_reply = env.send_message(init_res.program_id, &init_payload, 0)
+        let init_reply = env
+            .send_message(init_res.program_id, &init_payload, 0)
             .await
             .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
