@@ -583,7 +583,8 @@ async fn incoming_transfers() {
         .await
         .unwrap();
 
-    let init_res = env.send_message(res.program_id, &env.sender_id.encode(), 0)
+    let init_res = env
+        .send_message(res.program_id, &env.sender_id.encode(), 0)
         .await
         .unwrap()
         .wait_for()
@@ -1272,7 +1273,7 @@ mod utils {
                 .wvara()
                 .approve(program_address, EXECUTABLE_BALANCE)
                 .await?;
-            
+
             let mirror = self.ethereum.mirror(program_address.into_array().into());
 
             mirror.executable_balance_top_up(EXECUTABLE_BALANCE).await?;
