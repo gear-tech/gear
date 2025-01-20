@@ -20,7 +20,7 @@ use gstd::{debug, exec, msg};
 
 #[unsafe(no_mangle)]
 extern "C" fn handle() {
-    msg::with_read_on_stack(|msg| {
+    msg::with_read_on_stack_or_heap(|msg| {
         let available_value = exec::value_available();
         let value = msg::value();
         debug!("inserted: {value}, total: {available_value}");
