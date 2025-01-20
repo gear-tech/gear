@@ -53,7 +53,6 @@ use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use runtime_common::constants::BANK_ADDRESS;
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
@@ -114,21 +113,21 @@ pub use frame_support::{
     },
     PalletId, StorageValue,
 };
+pub use gear_runtime_common::{
+    constants::{
+        BANK_ADDRESS, RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR,
+        RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR,
+    },
+    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
+    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
+    VALUE_PER_GAS,
+};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
 pub use pallet_gear_staking_rewards::StakingBlackList;
 #[allow(deprecated)]
 pub use pallet_transaction_payment::{
     CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
-};
-pub use runtime_common::{
-    constants::{
-        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
-        RESUME_SESSION_DURATION_HOUR_FACTOR,
-    },
-    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
-    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
-    VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 
@@ -143,6 +142,7 @@ pub use {
 };
 
 pub mod constants;
+pub mod genesis_config_presets;
 
 pub use constants::{currency::*, time::*};
 
@@ -229,7 +229,7 @@ const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
     pub const SS58Prefix: u8 = VARA_SS58_PREFIX;
-    pub RuntimeBlockWeights: BlockWeights = runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
+    pub RuntimeBlockWeights: BlockWeights = gear_runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
     pub RuntimeBlockLength: BlockLength =
         BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_LENGTH_RATIO);
 }
@@ -1882,11 +1882,11 @@ impl_runtime_apis_plus_common! {
         }
 
         fn get_preset(id: &Option<sp_genesis_builder::PresetId>) -> Option<Vec<u8>> {
-            get_preset::<RuntimeGenesisConfig>(id, |_| None)
+            get_preset::<RuntimeGenesisConfig>(id, genesis_config_presets::get_preset)
         }
 
         fn preset_names() -> Vec<sp_genesis_builder::PresetId> {
-            vec![]
+            genesis_config_presets::preset_names()
         }
     }
 

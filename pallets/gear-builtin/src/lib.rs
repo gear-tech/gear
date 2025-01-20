@@ -437,8 +437,8 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
             }
             Err(BuiltinActorError::GasAllowanceExceeded) => {
                 // Ideally, this should never happen, as we should have checked the gas allowance
-                // before even entring the `handle` method. However, if this error does occur,
-                // we should handle it by discarding the gas burned and requeueing the message.
+                // before even entering the `handle` method. However, if this error does occur,
+                // we should handle it by discarding the gas burned and requeuing the message.
                 // N.B.: if `gas_amount.burned` is not zero, the cost is borne by the validator.
                 process_allowance_exceed(dispatch, actor_id, 0)
             }

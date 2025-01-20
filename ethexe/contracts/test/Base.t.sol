@@ -29,6 +29,7 @@ contract Base is POCBaseTest {
     address public admin;
     uint48 public eraDuration;
     uint48 public electionDuration;
+    uint256 public validationDelay;
     uint256 public blockDuration;
     uint256 public maxValidators;
 
@@ -119,6 +120,7 @@ contract Base is POCBaseTest {
                             wrappedVaraAddress,
                             uint256(eraDuration),
                             uint256(electionDuration),
+                            uint256(validationDelay),
                             _validators
                         )
                     )

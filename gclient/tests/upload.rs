@@ -45,7 +45,7 @@ async fn upload_programs_and_check(
     let (ex_res, _) = if let Some(timeout) = timeout {
         tokio::time::timeout(timeout, api.upload_program_bytes_batch(args))
             .await
-            .expect("Too long test upload time - something goes wrong.")?
+            .expect("Too long test upload time - something goes wrong")?
     } else {
         api.upload_program_bytes_batch(args).await?
     };

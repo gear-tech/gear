@@ -20,8 +20,6 @@
 
 pub use runtime_primitives::{AccountId, AccountPublic, Block};
 use sc_chain_spec::ChainSpecExtension;
-use sp_core::{Pair, Public};
-use sp_runtime::traits::IdentifyAccount;
 
 use serde::{Deserialize, Serialize};
 
@@ -45,18 +43,3 @@ pub struct Extensions {
 
 /// General `ChainSpec` used as a basis for a specialized config.
 pub type RawChainSpec = sc_service::GenericChainSpec<Extensions>;
-
-/// Generate a crypto pair from seed.
-pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
-    TPublic::Pair::from_string(&format!("//{seed}"), None)
-        .expect("static values are valid; qed")
-        .public()
-}
-
-/// Generate an account ID from seed.
-pub fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId
-where
-    AccountPublic: From<<TPublic::Pair as Pair>::Public>,
-{
-    AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
-}
