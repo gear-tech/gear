@@ -104,7 +104,6 @@ impl NetworkServiceConfig {
         }
     }
 
-    #[cfg(any(test, feature = "test"))]
     pub fn new_memory(config_path: PathBuf) -> Self {
         Self {
             config_dir: config_path,

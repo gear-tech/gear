@@ -67,7 +67,7 @@ ntest = "0.9.3"
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-utils.workspace = true
-ethexe-network = { workspace = true, features = ["test"] }
+ethexe-network.workspace = true
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
