@@ -986,6 +986,7 @@ async fn multiple_validators() {
 
 mod utils {
     use super::*;
+    use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverService, SimpleBlockData};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
@@ -1603,7 +1604,11 @@ mod utils {
 
             let network = self.network_address.as_ref().map(|addr| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
+                let multiaddr: Multiaddr = addr.parse().unwrap();
+
                 let mut config = ethexe_network::NetworkServiceConfig::new_memory(config_path);
+                config.listen_addresses = [multiaddr.clone()].into();
+                config.external_addresses = [multiaddr.clone()].into();
                 if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
                     let multiaddr = bootstrap_addr.parse().unwrap();
                     config.bootstrap_addresses = [multiaddr].into();
