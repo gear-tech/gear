@@ -107,22 +107,6 @@ async fn test_add_transaction() {
         })
         .expect("failed to send input task");
 
-    // Check received output tasks
-    let validation_task = output_receiver
-        .recv()
-        .await
-        .expect("failed to receive output task");
-    let OutputTask::CheckIsExecutableTransaction {
-        transaction,
-        response_sender,
-    } = validation_task
-    else {
-        // Expected validation task from TxValidator
-        panic!("invalid task received - {validation_task:#?}");
-    };
-    assert_eq!(transaction, signed_ethexe_tx);
-    response_sender.send(true).expect("failed to send response");
-
     // Propogation task
     let task = output_receiver
         .recv()
@@ -171,8 +155,6 @@ async fn test_add_transaction() {
         })
         .expect("failed to send input task");
 
-    // No need here to execute `CheckIsExecutableTransaction` output task, as validation won't reach it.
-
     // Check response
     let response = response_receiver.await.expect("failed to receive response");
     assert!(response.is_err());
@@ -190,7 +172,7 @@ async fn test_pre_execution_validity() {
     let TxPoolKit {
         service,
         tx_pool_sender: input_sender,
-        tx_pool_receiver: mut output_receiver,
+        ..
     } = service::new(db.clone());
 
     // Spawn the service in a separate thread
@@ -212,22 +194,6 @@ async fn test_pre_execution_validity() {
             response_sender: None,
         })
         .expect("failed to send input task");
-
-    // In order for the tx to be added to the pool th validation task must be finished
-    let validation_task = output_receiver
-        .recv()
-        .await
-        .expect("failed to receive output task");
-    let OutputTask::CheckIsExecutableTransaction {
-        transaction,
-        response_sender,
-    } = validation_task
-    else {
-        // Expected validation task from TxValidator
-        panic!("invalid task received - {validation_task:#?}");
-    };
-    assert_eq!(transaction, signed_ethexe_tx);
-    response_sender.send(true).expect("failed to send response");
 
     // Now check existent validated transaction pre-execution validity
     let (response_sender, response_receiver) = oneshot::channel();

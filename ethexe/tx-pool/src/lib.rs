@@ -31,7 +31,6 @@ pub use service::{
 };
 pub use transaction::{RawTransacton, SignedTransaction, Transaction};
 
-use service::TxPoolOutputTaskSender;
 use validation::TxValidator;
 
 /// Transaction pool input task sender with a [`SignedEthexeTransaction`] transaction type.

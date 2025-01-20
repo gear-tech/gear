@@ -641,7 +641,7 @@ impl Service {
                 }
                 Some(task) = tx_pool_receiver.recv() => {
                     log::debug!("Received a task from the tx pool - {task:?}");
-                    Self::process_tx_pool_output_task(task, &db, &tx_pool_sender, network_sender.as_mut(),).await?;
+                    Self::process_tx_pool_output_task(task, &tx_pool_sender, network_sender.as_mut(),).await?;
                 }
                 _ = maybe_await(network_handle.as_mut()) => {
                     log::info!("`NetworkWorker` has terminated, shutting down...");
@@ -657,6 +657,8 @@ impl Service {
                 }
             }
         }
+
+        log::warn!("ENDED!");
 
         Ok(())
     }
@@ -945,7 +947,6 @@ impl Service {
 
     async fn process_tx_pool_output_task(
         task: OutputTask<SignedTransaction>,
-        db: &Database,
         tx_sender: &TxPoolSender,
         mut maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
     ) -> Result<()> {
@@ -956,27 +957,6 @@ impl Service {
                     network_sender
                         .publish_transaction(NetworkMessage::Transaction { transaction }.encode());
                 }
-            }
-            OutputTask::CheckIsExecutableTransaction {
-                transaction,
-                response_sender,
-            } => {
-                // TODO breathx
-
-                let _source = transaction.send_message_source();
-                let _db_overlay = unsafe {
-                    // Safety:
-                    // Used when a transaction is received via p2p or rpc and
-                    // requested to be added, so executional check is performed
-                    // on the overlayed db.
-                    db.clone().overlaid()
-                };
-                log::debug!("Received transaction {transaction:#?} for the check to be executable");
-
-                let res = response_sender.send(true);
-                log::debug!("Transaction is executable task response - {res:?}");
-
-                log::warn!("Unimplemented");
             }
             OutputTask::ExecuteTransaction { transaction } => {
                 log::debug!("Received transaction {transaction:#?} for the execution");

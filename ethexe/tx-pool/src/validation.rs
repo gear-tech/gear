@@ -18,12 +18,12 @@
 
 //! Transactions validation.
 
-use crate::{OutputTask, SignedTransaction, TxPoolOutputTaskSender};
+use crate::SignedTransaction;
 use anyhow::{anyhow, Result};
 use ethexe_db::Database;
+use ethexe_processor::Processor;
 use ethexe_signer::ToDigest;
 use parity_scale_codec::Encode;
-use tokio::sync::oneshot;
 
 // TODO #4424
 
@@ -43,7 +43,7 @@ pub(crate) struct TxValidator {
     signature_check: bool,
     mortality_check: bool,
     uniqueness_check: bool,
-    executable_tx_check: Option<TxPoolOutputTaskSender<SignedTransaction>>,
+    executable_tx_check: bool,
 }
 
 impl TxValidator {
@@ -54,15 +54,15 @@ impl TxValidator {
             signature_check: false,
             mortality_check: false,
             uniqueness_check: false,
-            executable_tx_check: None,
+            executable_tx_check: false,
         }
     }
 
-    pub(crate) fn with_all_checks(self, sender: TxPoolOutputTaskSender<SignedTransaction>) -> Self {
+    pub(crate) fn with_all_checks(self) -> Self {
         self.with_signature_check()
             .with_mortality_check()
             .with_uniqueness_check()
-            .with_executable_tx_check(sender)
+            .with_executable_tx_check()
     }
 
     pub(crate) fn with_signature_check(mut self) -> Self {
@@ -80,30 +80,15 @@ impl TxValidator {
         self
     }
 
-    pub(crate) fn with_executable_tx_check(
-        mut self,
-        sender: TxPoolOutputTaskSender<SignedTransaction>,
-    ) -> Self {
-        self.executable_tx_check = Some(sender);
+    pub(crate) fn with_executable_tx_check(mut self) -> Self {
+        self.executable_tx_check = true;
         self
     }
 }
 
 impl TxValidator {
-    /// Runs all sync and async validators for the transaction.
-    pub(crate) async fn full_validate(self) -> Result<SignedTransaction> {
-        self.validate_inner()?;
-        self.async_validate().await
-    }
-
     /// Runs all stateful and stateless sync validators for the transaction.
     pub(crate) fn validate(self) -> Result<SignedTransaction> {
-        self.validate_inner()?;
-
-        Ok(self.transaction)
-    }
-
-    fn validate_inner(&self) -> Result<()> {
         if self.signature_check {
             self.check_signature()?;
         }
@@ -116,13 +101,8 @@ impl TxValidator {
             self.check_uniqueness()?;
         }
 
-        Ok(())
-    }
-
-    /// Runs all async validators for the transaction.
-    pub(crate) async fn async_validate(self) -> Result<SignedTransaction> {
-        if self.executable_tx_check.is_some() {
-            self.check_is_executable_tx().await?;
+        if self.executable_tx_check {
+            self.check_is_executable_tx()?;
         }
 
         Ok(self.transaction)
@@ -163,61 +143,26 @@ impl TxValidator {
     }
 
     /// Validates if transaction is executable.
-    ///
-    /// Basically sends the transaction to the external transaction pool service
-    /// to check if it is executable.
-    async fn check_is_executable_tx(&self) -> Result<()> {
-        let Some(task_sender) = self.executable_tx_check.as_ref() else {
-            panic!("Executable tx check not set");
-        };
-        let (response_sender, response_receiver) = oneshot::channel();
-        let output_task = OutputTask::CheckIsExecutableTransaction {
-            transaction: self.transaction.clone(),
-            response_sender,
-        };
+    fn check_is_executable_tx(&self) -> Result<()> {
+        // TODO breathx
+        let processor = Processor::new(self.db.clone())?;
+        let _overlaid_processor = processor.overlaid();
 
-        task_sender.send(output_task).unwrap_or_else(|e| {
-            // If receiving end of the external service is dropped, it's a panic case,
-            // because otherwise transaction validation can't be performed correctly.
-            //
-            // Error should not be returned, as error signalizes that a transaction
-            // is invalid, but that's not the case here.
-            let err_msg = format!(
-                "Failed to send task to validate if tx is executable: {e}. \
-                The receiving end in the tx pool might have been dropped."
-            );
+        let _source = self.transaction.send_message_source();
 
-            log::error!("{err_msg}");
-            panic!("{err_msg}");
-        });
+        log::warn!("Unimplemented transaction is executable check");
 
-        let res = response_receiver.await.unwrap_or_else(|e| {
-            // If the response sender on the external service side is dropped, it's a panic case,
-            // because otherwise transaction validation can't be performed correctly, as it's
-            // unknown if the transaction is executable.
-            //
-            // Error should not be returned, as error signalizes that a transaction
-            // is invalid, but that's not the case here.
-            let err_msg =
-                format!("Failed to receive from external service if tx is executable: {e}");
-
-            log::error!("{err_msg}");
-            panic!("{err_msg}");
-        });
-
-        res.then_some(())
-            .ok_or(anyhow!("Transaction is not executable"))
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tests, TxPoolOutputTaskReceiver};
+    use crate::tests;
     use ethexe_db::{BlockMetaStorage, Database, MemDb};
     use gprimitives::H256;
     use parity_scale_codec::Encode;
-    use tokio::sync::mpsc;
 
     #[test]
     fn test_signature_validation() {
@@ -332,43 +277,12 @@ mod tests {
             .is_err());
     }
 
-    #[tokio::test]
-    async fn test_executable_tx_validation() {
-        let run_executable_tx_validation = |response_value| async move {
-            let (sender, receiver) = mpsc::unbounded_channel();
-            let output_task_sender = TxPoolOutputTaskSender { sender };
-            let mut output_task_receiver = TxPoolOutputTaskReceiver { receiver };
+    #[test]
+    fn test_executable_tx_validation() {
+        let transaction = tests::generate_signed_ethexe_tx(H256::random());
+        let db = Database::from_one(&MemDb::default(), Default::default());
+        let tx_validator = TxValidator::new(transaction, db).with_executable_tx_check();
 
-            let transaction = tests::generate_signed_ethexe_tx(H256::random());
-            let db = Database::from_one(&MemDb::default(), Default::default());
-            let tx_validator = TxValidator::new(transaction, db)
-                .with_executable_tx_check(output_task_sender.clone());
-
-            // Spawn a thread for tx pool service
-            tokio::spawn(async move {
-                let task = output_task_receiver
-                    .recv()
-                    .await
-                    .expect("failed receiving task");
-                match task {
-                    OutputTask::CheckIsExecutableTransaction {
-                        response_sender, ..
-                    } => {
-                        response_sender
-                            .send(response_value)
-                            .expect("failed sending response");
-                    }
-                    _ => unreachable!("unexpected task"),
-                }
-            });
-
-            tx_validator.async_validate().await
-        };
-
-        // Test valid transaction
-        assert!(run_executable_tx_validation(true).await.is_ok());
-
-        // Test invalid transaction
-        assert!(run_executable_tx_validation(false).await.is_err());
+        assert!(tx_validator.validate().is_ok());
     }
 }

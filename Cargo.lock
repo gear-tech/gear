@@ -4833,6 +4833,7 @@ version = "1.7.0"
 dependencies = [
  "anyhow",
  "ethexe-db",
+ "ethexe-processor",
  "ethexe-signer",
  "gear-utils",
  "gprimitives",

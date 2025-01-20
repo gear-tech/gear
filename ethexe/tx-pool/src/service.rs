@@ -96,7 +96,7 @@ impl TxPoolService {
                     transaction,
                     response_sender,
                 } => {
-                    let res = self.validate_tx_full(transaction).await.map(|tx| {
+                    let res = self.validate_tx_full(transaction).map(|tx| {
                         let tx_hash = tx.tx_hash();
                         let tx_encoded = tx.encode();
 
@@ -150,11 +150,10 @@ impl TxPoolService {
         }
     }
 
-    async fn validate_tx_full(&self, transaction: SignedTransaction) -> Result<SignedTransaction> {
+    fn validate_tx_full(&self, transaction: SignedTransaction) -> Result<SignedTransaction> {
         TxValidator::new(transaction, self.db.clone())
-            .with_all_checks(self.sender.clone())
-            .full_validate()
-            .await
+            .with_all_checks()
+            .validate()
     }
 }
 
@@ -225,7 +224,7 @@ mod input {
 
 mod output {
     use std::ops::{Deref, DerefMut};
-    use tokio::sync::{mpsc, oneshot};
+    use tokio::sync::mpsc;
 
     /// Output task sent from the transaction pool service.
     ///
@@ -235,11 +234,6 @@ mod output {
     pub enum OutputTask<Tx> {
         /// Requests for a transcation to be propogated.
         PropogateTransaction { transaction: Tx },
-        /// Requests for a check by external service that transaction is executable.
-        CheckIsExecutableTransaction {
-            transaction: Tx,
-            response_sender: oneshot::Sender<bool>,
-        },
         /// Requests for a transaction to be executed.
         ExecuteTransaction { transaction: Tx },
     }

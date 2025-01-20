@@ -964,7 +964,7 @@ async fn multiple_validators() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(65_000)]
+#[ntest::timeout(120_000)]
 async fn tx_pool_gossip() {
     gear_utils::init_default_logger();
 

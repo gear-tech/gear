@@ -12,6 +12,7 @@ rust-version.workspace = true
 anyhow.workspace = true
 ethexe-signer.workspace = true
 ethexe-db.workspace = true
+ethexe-processor.workspace = true
 gprimitives = { workspace = true, features = ["codec"] }
 hex.workspace = true
 log.workspace = true
