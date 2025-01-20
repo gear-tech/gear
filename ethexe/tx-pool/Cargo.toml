@@ -17,7 +17,7 @@ gprimitives = { workspace = true, features = ["codec"] }
 hex.workspace = true
 log.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["sync", "rt"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }

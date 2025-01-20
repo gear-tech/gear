@@ -1058,7 +1058,9 @@ async fn tx_pool_gossip() {
 
     assert!(resp.status().is_success());
 
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    // Tx executable validation takes time.
+    // Sleep for a while so tx is processed by both nodes.
+    tokio::time::sleep(Duration::from_secs(12)).await;
 
     // Check that node-1 received the message
     let tx_hash = signed_ethexe_tx.tx_hash();

@@ -115,14 +115,6 @@ async fn test_add_transaction() {
     assert!(
         matches!(task, OutputTask::PropogateTransaction { transaction } if transaction == signed_ethexe_tx)
     );
-    // Execution task
-    let task = output_receiver
-        .recv()
-        .await
-        .expect("failed to receive output task");
-    assert!(
-        matches!(task, OutputTask::ExecuteTransaction { transaction } if transaction == signed_ethexe_tx)
-    );
 
     // Assert response is ok
     let response = response_receiver.await.expect("failed to receive response");
@@ -172,8 +164,11 @@ async fn test_pre_execution_validity() {
     let TxPoolKit {
         service,
         tx_pool_sender: input_sender,
-        ..
+        tx_pool_receiver,
     } = service::new(db.clone());
+
+    // So not dropped.
+    std::mem::forget(tx_pool_receiver);
 
     // Spawn the service in a separate thread
     tokio::spawn(service.run());

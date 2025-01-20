@@ -118,21 +118,8 @@ impl TxPoolService {
                         // Store the validated transaction to the database.
                         self.db.set_validated_transaction(tx_hash, tx_encoded);
 
-                        // Request the external service for scheduling an execution of the tx.
-                        self
-                            .sender
-                            .send(OutputTask::ExecuteTransaction { transaction: tx })
-                            .unwrap_or_else(|e| {
-                                // If receiving end of the external service is dropped, it's a panic case,
-                                // because otherwise transaction processing can't be performed correctly.
-                                let err_msg = format!(
-                                    "Failed to send `ExecuteTransaction` task. External service receiving end \
-                                    might have been dropped. Got an error: {e:?}."
-                                );
-
-                                log::error!("{err_msg}");
-                                panic!("{err_msg}");
-                            });
+                        // Start transaction execution
+                        tokio::spawn(Self::execute_transaction(self.db.clone(), tx));
 
                         tx_hash
                     });
@@ -154,6 +141,13 @@ impl TxPoolService {
         TxValidator::new(transaction, self.db.clone())
             .with_all_checks()
             .validate()
+    }
+
+    async fn execute_transaction(db: Database, _transaction: SignedTransaction) {
+        let _processor = ethexe_processor::Processor::new(db.clone());
+        // TODO (breathx) Execute transaction
+        // TODO (braethx) Remove transaction from the database.
+        log::warn!("Unimplemented transaction execution");
     }
 }
 
@@ -234,8 +228,6 @@ mod output {
     pub enum OutputTask<Tx> {
         /// Requests for a transcation to be propogated.
         PropogateTransaction { transaction: Tx },
-        /// Requests for a transaction to be executed.
-        ExecuteTransaction { transaction: Tx },
     }
 
     /// Transaction pool output task sender.
