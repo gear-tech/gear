@@ -575,7 +575,6 @@ async fn incoming_transfers() {
         .unwrap();
 
     let code_id = res.code_id;
-
     let res = env
         .create_program(code_id)
         .await
@@ -584,7 +583,7 @@ async fn incoming_transfers() {
         .await
         .unwrap();
 
-    env.send_message(res.program_id, &env.sender_id.encode(), 0)
+    let init_res = env.send_message(res.program_id, &env.sender_id.encode(), 0)
         .await
         .unwrap()
         .wait_for()
@@ -1273,7 +1272,7 @@ mod utils {
                 .wvara()
                 .approve(program_address, EXECUTABLE_BALANCE)
                 .await?;
-
+            
             let mirror = self.ethereum.mirror(program_address.into_array().into());
 
             mirror.executable_balance_top_up(EXECUTABLE_BALANCE).await?;
@@ -1765,6 +1764,7 @@ mod utils {
                             if actor_id == self.program_id =>
                         {
                             code_id_info = Some(code_id);
+                            return Ok(Some(()));
                         }
 
                         _ => {}
@@ -1774,7 +1774,6 @@ mod utils {
                 .await?;
 
             let code_id = code_id_info.expect("Code ID must be set");
-
             Ok(ProgramCreationInfo {
                 program_id: self.program_id,
                 code_id,
