@@ -583,7 +583,7 @@ async fn incoming_transfers() {
         .await
         .unwrap();
 
-    let init_res = env
+    let _ = env
         .send_message(res.program_id, &env.sender_id.encode(), 0)
         .await
         .unwrap()
