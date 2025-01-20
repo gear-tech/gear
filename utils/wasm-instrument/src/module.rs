@@ -1072,6 +1072,25 @@ impl Module {
             module.section(&encoder_section);
         }
 
+        if let Some(crate_section) = self.code_section() {
+            let mut encoder_section = wasm_encoder::CodeSection::new();
+            for function in crate_section {
+                let mut encoder_func = wasm_encoder::Function::new(
+                    function
+                        .locals
+                        .iter()
+                        .map(|&(cnt, ty)| Ok((cnt, RoundtripReencoder.val_type(ty)?)))
+                        .collect::<Result<Vec<_>, reencode::Error>>()?,
+                );
+                for op in function.instructions.clone() {
+                    encoder_func.instruction(&op.reencode()?);
+                }
+
+                encoder_section.function(&encoder_func);
+            }
+            module.section(&encoder_section);
+        }
+
         if let Some(crate_section) = self.data_section() {
             let mut encoder_section = wasm_encoder::DataSection::new();
             for data in crate_section {
@@ -1090,25 +1109,6 @@ impl Module {
                         );
                     }
                 }
-            }
-            module.section(&encoder_section);
-        }
-
-        if let Some(crate_section) = self.code_section() {
-            let mut encoder_section = wasm_encoder::CodeSection::new();
-            for function in crate_section {
-                let mut encoder_func = wasm_encoder::Function::new(
-                    function
-                        .locals
-                        .iter()
-                        .map(|&(cnt, ty)| Ok((cnt, RoundtripReencoder.val_type(ty)?)))
-                        .collect::<Result<Vec<_>, reencode::Error>>()?,
-                );
-                for op in function.instructions.clone() {
-                    encoder_func.instruction(&op.reencode()?);
-                }
-
-                encoder_section.function(&encoder_func);
             }
             module.section(&encoder_section);
         }
