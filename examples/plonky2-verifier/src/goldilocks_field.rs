@@ -110,62 +110,14 @@ impl Field for GoldilocksFieldWrapper {
     const BITS: usize = GoldilocksField::BITS;
 
     fn order() -> BigUint {
-        Self::ORDER.into()
+        GoldilocksField::order()
     }
     fn characteristic() -> BigUint {
-        Self::order()
+        GoldilocksField::characteristic()
     }
 
-    /// Returns the inverse of the field element, using Fermat's little theorem.
-    /// The inverse of `a` is computed as `a^(p-2)`, where `p` is the prime
-    /// order of the field.
-    ///
-    /// Mathematically, this is equivalent to:
-    ///                $a^(p-1)     = 1 (mod p)$
-    ///                $a^(p-2) * a = 1 (mod p)$
-    /// Therefore      $a^(p-2)     = a^-1 (mod p)$
-    ///
-    /// The following code has been adapted from
-    /// winterfell/math/src/field/f64/mod.rs located at <https://github.com/facebook/winterfell>.
     fn try_inverse(&self) -> Option<Self> {
-        if self.is_zero() {
-            return None;
-        }
-
-        // compute base^(P - 2) using 72 multiplications
-        // The exponent P - 2 is represented in binary as:
-        // 0b1111111111111111111111111111111011111111111111111111111111111111
-
-        // compute base^11
-        let t2 = self.square() * *self;
-
-        // compute base^111
-        let t3 = t2.square() * *self;
-
-        // compute base^111111 (6 ones)
-        // repeatedly square t3 3 times and multiply by t3
-        let t6 = exp_acc::<3>(t3, t3);
-
-        // compute base^111111111111 (12 ones)
-        // repeatedly square t6 6 times and multiply by t6
-        let t12 = exp_acc::<6>(t6, t6);
-
-        // compute base^111111111111111111111111 (24 ones)
-        // repeatedly square t12 12 times and multiply by t12
-        let t24 = exp_acc::<12>(t12, t12);
-
-        // compute base^1111111111111111111111111111111 (31 ones)
-        // repeatedly square t24 6 times and multiply by t6 first. then square t30 and
-        // multiply by base
-        let t30 = exp_acc::<6>(t24, t6);
-        let t31 = t30.square() * *self;
-
-        // compute base^111111111111111111111111111111101111111111111111111111111111111
-        // repeatedly square t31 32 times and multiply by t31
-        let t63 = exp_acc::<32>(t31, t31);
-
-        // compute base^1111111111111111111111111111111011111111111111111111111111111111
-        Some(t63.square() * *self)
+        self.0.try_inverse().map(Self)
     }
 
     fn from_noncanonical_biguint(n: BigUint) -> Self {
