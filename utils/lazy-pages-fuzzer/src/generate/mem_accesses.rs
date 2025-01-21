@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::OS_PAGE_SIZE;
 use arbitrary::Unstructured;
 use derive_more::{Display, Error, From};
-use gear_wasm_instrument::parity_wasm::elements::{External, Instruction, Module};
-
-use crate::OS_PAGE_SIZE;
+use gear_wasm_instrument::{module::MemArg, Instruction, Module, TypeRef};
 
 #[derive(Debug, Clone)]
 pub struct InjectMemoryAccessesConfig {
@@ -77,14 +76,30 @@ impl<'u> InjectMemoryAccesses<'u> {
 
         Ok(match u.choose(&[ReadI32, WriteI32])? {
             ReadI32 => vec![
-                Instruction::I32Const(target_addr as i32),
-                Instruction::I32Load(0, 0),
+                Instruction::I32Const {
+                    value: target_addr as i32,
+                },
+                Instruction::I32Load {
+                    memarg: MemArg {
+                        align: 0,
+                        offset: 0,
+                    },
+                },
                 Instruction::Drop,
             ],
             WriteI32 => vec![
-                Instruction::I32Const(target_addr as i32),
-                Instruction::I32Const(DUMMY_VALUE as i32),
-                Instruction::I32Store(0, 0),
+                Instruction::I32Const {
+                    value: target_addr as i32,
+                },
+                Instruction::I32Const {
+                    value: DUMMY_VALUE as i32,
+                },
+                Instruction::I32Store {
+                    memarg: MemArg {
+                        align: 0,
+                        offset: 0,
+                    },
+                },
             ],
         })
     }
@@ -97,11 +112,10 @@ impl<'u> InjectMemoryAccesses<'u> {
             .import_section()
             .ok_or(InjectMemoryAccessesError::NoMemoryImports)?;
         let initial_memory_limit = import_section
-            .entries()
             .iter()
             .filter_map(|import| {
-                if let External::Memory(import) = import.external() {
-                    Some(import.limits().initial())
+                if let TypeRef::Memory(import) = import.ty {
+                    Some(import.initial)
                 } else {
                     None
                 }
@@ -113,7 +127,7 @@ impl<'u> InjectMemoryAccesses<'u> {
             .code_section_mut()
             .ok_or(InjectMemoryAccessesError::NoCodeSection)?;
 
-        for function in code_section.bodies_mut() {
+        for function in code_section {
             let access_count = self
                 .unstructured
                 .int_in_range(1..=self.config.max_accesses_per_func)?;
@@ -124,7 +138,7 @@ impl<'u> InjectMemoryAccesses<'u> {
                     .choose_index(initial_memory_limit as usize)?
                     .saturating_mul(OS_PAGE_SIZE);
 
-                let code_len = function.code().elements().len();
+                let code_len = function.instructions.len();
                 let insert_at_pos = self
                     .unstructured
                     .choose_index(code_len)
@@ -135,10 +149,7 @@ impl<'u> InjectMemoryAccesses<'u> {
                     Self::generate_access_instructions(&mut self.unstructured, target_addr)?;
 
                 for instr in instrs.into_iter().rev() {
-                    function
-                        .code_mut()
-                        .elements_mut()
-                        .insert(insert_at_pos, instr);
+                    function.instructions.insert(insert_at_pos, instr);
                 }
             }
         }
@@ -180,7 +191,7 @@ mod tests {
         };
 
         let wasm = wat::parse_str(TEST_PROGRAM_WAT).unwrap();
-        let module = Module::from_bytes(wasm).unwrap();
+        let module = Module::new(&wasm).unwrap();
 
         let (module, _) = InjectMemoryAccesses::new(unstructured, config)
             .inject(module)
@@ -188,7 +199,7 @@ mod tests {
 
         let engine = wasmi::Engine::default();
         let mut store = wasmi::Store::new(&engine, ());
-        let module = wasmi::Module::new(&engine, &module.into_bytes().unwrap()).unwrap();
+        let module = wasmi::Module::new(&engine, &module.serialize().unwrap()).unwrap();
 
         let ty = wasmi::MemoryType::new(1, None).unwrap();
         let memory = wasmi::Memory::new(&mut store, ty).unwrap();

@@ -25,15 +25,14 @@ extern crate alloc;
 extern crate core;
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
-pub use module::{Module, ModuleError};
-pub use wasmparser::{ExternalKind, FuncType, MemoryType, TypeRef, ValType};
-
-use crate::{
-    module::{ConstExpr, Export, Function, Global, Import, Instruction, ModuleBuilder},
-    stack_limiter::InjectionConfig,
+pub use module::{
+    ConstExpr, Export, Function, Global, Import, Instruction, Module, ModuleBuilder, ModuleError,
 };
+pub use wasmparser::{ExternalKind, FuncType, GlobalType, MemoryType, TypeRef, ValType};
+
+use crate::stack_limiter::InjectionConfig;
 use alloc::{string::ToString, vec};
-use wasmparser::{BlockType, GlobalType};
+use wasmparser::BlockType;
 
 mod export_globals;
 

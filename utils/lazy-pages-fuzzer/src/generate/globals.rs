@@ -18,10 +18,9 @@
 
 use anyhow::Result;
 use arbitrary::{Arbitrary, Unstructured};
-
-use gear_wasm_instrument::parity_wasm::{
-    builder,
-    elements::{Instruction, Module},
+use gear_wasm_instrument::{
+    module::{Export, Global, Instruction, ModuleBuilder},
+    ConstExpr, ExternalKind, GlobalType, Module, ValType,
 };
 
 pub const GLOBAL_NAME_PREFIX: &str = "gear_fuzz_";
@@ -68,56 +67,57 @@ impl<'u> InjectGlobals<'u> {
             .ok_or_else(|| anyhow::Error::msg("No code section found"))?;
 
         // Insert global access instructions
-        for function in code_section.bodies_mut() {
+        for function in code_section {
             let count_per_func = self
                 .unstructured
                 .int_in_range(1..=self.config.max_access_per_func)?;
 
             for _ in 0..=count_per_func {
                 let array_idx = self.unstructured.choose_index(global_names.len())? as u32;
-                let global_idx = next_global_idx + array_idx;
+                let global_index = next_global_idx + array_idx;
 
                 let insert_at_pos = self
                     .unstructured
-                    .choose_index(function.code().elements().len())?;
+                    .choose_index(function.instructions.len())?;
                 let is_set = bool::arbitrary(&mut self.unstructured)?;
 
                 let instructions = if is_set {
                     [
-                        Instruction::I64Const(self.unstructured.int_in_range(0..=i64::MAX)?),
-                        Instruction::SetGlobal(global_idx),
+                        Instruction::I64Const {
+                            value: self.unstructured.int_in_range(0..=i64::MAX)?,
+                        },
+                        Instruction::GlobalGet { global_index },
                     ]
                 } else {
-                    [Instruction::GetGlobal(global_idx), Instruction::Drop]
+                    [Instruction::GlobalGet { global_index }, Instruction::Drop]
                 };
 
                 for instr in instructions.into_iter().rev() {
-                    function
-                        .code_mut()
-                        .elements_mut()
-                        .insert(insert_at_pos, instr.clone());
+                    function.instructions.insert(insert_at_pos, instr.clone());
                 }
             }
         }
 
         // Add global exports
-        let mut builder = builder::from_module(module);
+        let mut builder = ModuleBuilder::from_module(module);
         for global in global_names.iter() {
-            builder.push_export(
-                builder::export()
-                    .field(global)
-                    .internal()
-                    .global(next_global_idx)
-                    .build(),
-            );
-            builder.push_global(
-                builder::global()
-                    .mutable()
-                    .value_type()
-                    .i64()
-                    .init_expr(Instruction::I64Const(INITIAL_GLOBAL_VALUE))
-                    .build(),
-            );
+            builder.push_export(Export {
+                name: global.into(),
+                kind: ExternalKind::Global,
+                index: next_global_idx,
+            });
+            builder.push_global(Global {
+                ty: GlobalType {
+                    content_type: ValType::I64,
+                    mutable: true,
+                    shared: false,
+                },
+                init_expr: ConstExpr {
+                    instructions: vec![Instruction::I64Const {
+                        value: INITIAL_GLOBAL_VALUE,
+                    }],
+                },
+            });
 
             next_global_idx += 1;
         }
@@ -128,8 +128,6 @@ impl<'u> InjectGlobals<'u> {
 
 #[cfg(test)]
 mod tests {
-    use gear_wasm_instrument::parity_wasm::elements::Internal;
-
     use super::*;
 
     const TEST_PROGRAM_WAT: &str = r#"
@@ -150,7 +148,7 @@ mod tests {
         let globals = InjectGlobals::new(unstructured, config);
 
         let wasm = wat::parse_str(TEST_PROGRAM_WAT).unwrap();
-        let module = Module::from_bytes(wasm).unwrap();
+        let module = Module::new(&wasm).unwrap();
         let (module, _) = globals.inject(module).unwrap();
 
         assert_eq!(module.globals_space(), 3);
@@ -158,9 +156,8 @@ mod tests {
             module
                 .export_section()
                 .unwrap()
-                .entries()
                 .iter()
-                .filter(|export| { matches!(export.internal(), Internal::Global(_)) })
+                .filter(|export| { export.kind == ExternalKind::Global })
                 .count(),
             3
         );
@@ -179,13 +176,13 @@ mod tests {
         let globals = InjectGlobals::new(unstructured, config);
 
         let wasm = wat::parse_str(TEST_PROGRAM_WAT).unwrap();
-        let module = Module::from_bytes(wasm).unwrap();
+        let module = Module::new(&wasm).unwrap();
         let (module, _) = globals.inject(module).unwrap();
 
         let engine = wasmi::Engine::default();
         let mut store = wasmi::Store::new(&engine, ());
 
-        let module = wasmi::Module::new(&engine, &module.into_bytes().unwrap()).unwrap();
+        let module = wasmi::Module::new(&engine, &module.serialize().unwrap()).unwrap();
         let instance = wasmi::Instance::new(&mut store, &module, &[]).unwrap();
 
         let gear_fuzz_a = instance

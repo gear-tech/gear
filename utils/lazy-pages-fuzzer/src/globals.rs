@@ -18,10 +18,9 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::Result;
-use gear_wasm_instrument::parity_wasm::elements::Module;
-
 use crate::generate::GLOBAL_NAME_PREFIX;
+use anyhow::Result;
+use gear_wasm_instrument::Module;
 
 pub trait InstanceAccessGlobal {
     fn set_global(&self, name: &str, value: i64) -> Result<()>;
@@ -39,12 +38,11 @@ pub fn globals_list(module: &Module) -> Vec<String> {
         .export_section()
         .map(|section| {
             section
-                .entries()
                 .iter()
                 .filter_map(|entry| {
-                    let export_name = entry.field();
+                    let export_name = &entry.name;
                     if export_name.starts_with(GLOBAL_NAME_PREFIX) {
-                        Some(export_name.to_string())
+                        Some(export_name.clone())
                     } else {
                         None
                     }

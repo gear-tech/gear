@@ -64,7 +64,7 @@ pub fn create_module(num_pages: WasmPage) -> Module {
         },
     );
     mbuilder.push_export(Export {
-        name: "init".to_string(),
+        name: "init".into(),
         kind: ExternalKind::Func,
         index: 0,
     });
@@ -115,7 +115,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
         },
     );
     mbuilder.push_export(Export {
-        name: "init".to_string(),
+        name: "init".into(),
         kind: ExternalKind::Func,
         index: 1,
     });
@@ -136,7 +136,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
         },
     );
     mbuilder.push_export(Export {
-        name: "handle".to_string(),
+        name: "handle".into(),
         kind: ExternalKind::Func,
         index: 2,
     });
