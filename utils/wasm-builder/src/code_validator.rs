@@ -347,7 +347,7 @@ impl CodeValidator {
         match Code::try_new_mock_with_rules(
             self.code,
             |_| CustomConstantCostRules::default(),
-            TryNewCodeConfig::new_no_exports_check(),
+            TryNewCodeConfig::with_no_exports_check(),
         ) {
             Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
             _ => Ok(()),

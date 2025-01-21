@@ -23,7 +23,7 @@ mod registry;
 mod tests;
 
 use crate::result::{Error, Result};
-use gear_core::code::{Code, CodeAndId, InstrumentedCodeAndId, TryNewCodeConfig};
+use gear_core::code::{Code, TryNewCodeConfig};
 use gmeta::{MetadataRepr, MetawasmData, TypesRepr};
 use registry::LocalRegistry as _;
 use scale_info::{scale::Decode, PortableRegistry};
@@ -110,10 +110,11 @@ impl Meta {
         let code = Code::try_new_mock_const_or_no_rules(
             wasm.to_vec(),
             true,
-            TryNewCodeConfig::new_no_exports_check(),
+            TryNewCodeConfig::with_no_exports_check(),
         )?;
-        let (code, _) = InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts();
-        let result = executor::call_metadata(code.code())?;
+
+        let instrumented_code = code.into_parts().1;
+        let result = executor::call_metadata(instrumented_code.bytes())?;
 
         Ok(Self::Wasm(MetawasmData::decode(&mut result.as_ref())?))
     }
