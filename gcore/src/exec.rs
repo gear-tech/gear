@@ -447,10 +447,9 @@ pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {
     Ok((res.hash, res.bn))
 }
 
-/// Perform input data transformation and return data in the same format.
-/// Primarily designed for the Poseidon permutation of Goldilocks field arrays,
-/// represented as fixed-size arrays of u64 type - the key part of the Poseidon
-/// hash function. For the Goldilocks field the array size is equal to 12.
+/// Performs permutation on a fixed-size array in Poseidon hash calculation.
+/// For our GoldilocksField implementation, the array size (as a derivative of
+/// the Poseidon sponge width and sponge rate) is set to 12.
 ///
 /// `data` is the permutation input.
 ///

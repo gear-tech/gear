@@ -20,15 +20,6 @@
 use gprimitives::ReservationId;
 use gprimitives::{ActorId, CodeId, MessageId};
 
-// pub(crate) trait AsRawPtr: AsRef<[u8]> + AsMut<[u8]> {
-//     fn as_ptr(&self) -> *const [u8; 32] {
-//         self.as_ref().as_ptr() as *const _
-//     }
-
-//     fn as_mut_ptr(&mut self) -> *mut [u8; 32] {
-//         self.as_mut().as_mut_ptr() as *mut _
-//     }
-// }
 pub(crate) trait AsRawPtr<U, const N: usize>: AsRef<[U]> + AsMut<[U]>
 where
     U: 'static + Copy,

@@ -215,7 +215,6 @@ where
     T::AccountId: Origin,
 {
     vec![SyscallName::PoseidonPermute].into_iter().for_each(|syscall| {
-    // SyscallName::all().for_each(|syscall| {
         log::info!("run test for {syscall:?}");
         match syscall {
             SyscallName::Send => check_send::<T>(None),
@@ -1050,7 +1049,7 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let input = [1_u64; 12];
-        // TODO: uncomment when the actual host implementatoin of Poseidon permute is ready
+        // TODO: uncomment when the actual host implementation of Poseidon permute is ready
         // let expected_hash: [u64; 12] = [
         //     16428316519797902711,
         //     13351830238340666928,
@@ -1065,7 +1064,7 @@ where
         //     12631792409692871611,
         //     12948832098596279325,
         // ];
-        // TODO: remove this line when the actual host implementatoin of Poseidon permute is ready
+        // TODO: remove this line when the actual host implementation of Poseidon permute is ready
         let expected_hash: [u64; 12] = input;
 
         let mp = vec![Kind::PoseidonPermute(input, expected_hash)]

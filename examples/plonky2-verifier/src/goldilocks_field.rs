@@ -35,7 +35,6 @@ use plonky2::hash::{
 use plonky2_field::{
     extension::{quadratic::QuadraticExtension, Extendable, Frobenius},
     goldilocks_field::GoldilocksField,
-    ops::Square,
     types::{Field, Field64, PrimeField, PrimeField64, Sample},
 };
 
@@ -281,17 +280,6 @@ impl DivAssign for GoldilocksFieldWrapper {
 
 impl RichField for GoldilocksFieldWrapper {}
 
-/// Squares the base N number of times and multiplies the result by the tail
-/// value.
-#[inline(always)]
-fn exp_acc<const N: usize>(
-    base: GoldilocksFieldWrapper,
-    tail: GoldilocksFieldWrapper,
-) -> GoldilocksFieldWrapper {
-    base.exp_power_of_2(N) * tail
-}
-
-/// Goldilocks field wrapper type quadratic extension.
 impl Frobenius<1> for GoldilocksFieldWrapper {}
 
 impl Extendable<2> for GoldilocksFieldWrapper {
