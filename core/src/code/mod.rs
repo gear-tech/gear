@@ -855,7 +855,6 @@ mod tests {
         );
     }
 
-    #[ignore = "We don't support `reference-types` proposal yet"]
     #[test]
     fn table_number_limit() {
         const TABLE_NUMBER_LIMIT: u32 = 50;
@@ -1103,7 +1102,6 @@ mod tests {
         );
     }
 
-    #[ignore = "We don't support `reference-types` proposal yet"]
     #[test]
     fn table_section_bytes() {
         let wat = r#"
