@@ -45,13 +45,6 @@ use {
     },
     ark_ff::fields::field_hashers::DefaultFieldHasher,
     ark_scale::ArkScale,
-    gear_ark::{
-        field::{
-            goldilocks_field::GoldilocksField,
-            types::{Field, PrimeField64},
-        },
-        hash::poseidon::Poseidon,
-    },
     gear_lazy_pages::LazyPagesStorage,
 };
 
@@ -423,15 +416,8 @@ pub trait GearBls12_381 {
 #[runtime_interface]
 pub trait GearPoseidonHash {
     fn poseidon(input: Vec<u64>) -> Vec<u64> {
-        let data: [GoldilocksField; 12] = input
-            .into_iter()
-            .map(GoldilocksField::from_canonical_u64)
-            .collect::<Vec<_>>()
-            .try_into()
-            .expect("Expect input to be of length 12");
-
-        let hash = <GoldilocksField as Poseidon>::poseidon(data);
-
-        hash.iter().map(|x| x.to_canonical_u64()).collect()
+        // Mocked default implementation: does nothing.
+        // The actual implementation is going to be provided in a separate PR.
+        input
     }
 }

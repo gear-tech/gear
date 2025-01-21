@@ -5909,10 +5909,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-ark"
-version = "1.7.0"
-
-[[package]]
 name = "gear-authorship"
 version = "1.7.0"
 dependencies = [
@@ -6360,7 +6356,6 @@ dependencies = [
  "ark-ff 0.4.2",
  "ark-scale",
  "byteorder",
- "gear-ark",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",

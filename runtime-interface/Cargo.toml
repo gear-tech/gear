@@ -15,7 +15,6 @@ gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages = { workspace = true, optional = true }
 gear-sandbox-interface.workspace = true
-gear-ark = { workspace = true, optional = true }
 
 sp-io.workspace = true
 sp-runtime-interface.workspace = true
@@ -54,6 +53,4 @@ std = [
 	"ark-ff/std",
 	"ark-scale/std",
 	"sha2/std",
-
-	"gear-ark/std",
 ]

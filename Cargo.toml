@@ -103,7 +103,6 @@ members = [
     "node/service",
     "node/authorship",
     "node/testing",
-    "node/ark",
     "pallets/*",
     "runtime/*",
     "runtime-interface/sandbox",
@@ -240,7 +239,6 @@ gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gmeta-codegen = { path = "gmeta/codegen" }
 gprimitives = { path = "gprimitives", default-features = false }
-gear-ark = { path = "node/ark" }
 gear-authorship = { path = "node/authorship" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
