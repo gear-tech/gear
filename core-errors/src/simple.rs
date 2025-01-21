@@ -225,7 +225,6 @@ impl ErrorReplyReason {
         bytes
     }
 
-    // TODO: add test this method works correctly for all possible variants #3715
     fn from_bytes(bytes: [u8; 3]) -> Self {
         match bytes[0] {
             b if Self::Execution(Default::default()).discriminant() == b => {
