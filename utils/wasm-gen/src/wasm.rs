@@ -19,35 +19,22 @@
 //! Wasm related entities.
 
 use crate::{config::WasmModuleConfig, EntryPointName};
-use arbitrary::{Arbitrary, Result, Unstructured};
+use arbitrary::{Result, Unstructured};
 use core::mem;
 use gear_core::pages::WasmPage;
-use gear_wasm_instrument::{
-    parity_wasm::{
-        self,
-        elements::{External, Instruction, Internal, Module},
-    },
-    STACK_END_EXPORT_NAME,
-};
+use gear_wasm_instrument::{module::Instruction, Module, STACK_END_EXPORT_NAME};
 use gsys::{Handle, Hash};
 use wasm_smith::Module as WasmSmithModule;
+use wasmparser::{ExternalKind, TypeRef};
 
 /// Wasm module.
 ///
-/// Actually that's a wrapper over `parity-wasm::elements::Module`,
+/// Actually that's a wrapper over `gear_wasm_instrument::Module`,
 /// that functions as an adaptor for it by exposing a higher level API
 /// of a wasm module.
 pub struct WasmModule(Module);
 
 impl WasmModule {
-    /// Same as [`WasmModule::generate_with_config`], but generates an arbitrary config
-    /// instead of using the external one.
-    pub fn generate(u: &mut Unstructured<'_>) -> Result<Self> {
-        let config = WasmModuleConfig::arbitrary(u)?;
-
-        Self::generate_with_config(config, u)
-    }
-
     /// Generate a random wasm module from `Unstructured`.
     ///
     /// Under the hood it uses the `wasm-smith` wasm generator to generate a new valid wasm
@@ -55,28 +42,32 @@ impl WasmModule {
     ///
     /// If generated module hasn't got functions section, i.e. no internal functions were generated,
     /// than this function will return an error.
-    pub fn generate_with_config(
-        config: WasmModuleConfig,
-        u: &mut Unstructured<'_>,
-    ) -> Result<Self> {
-        let pw_module = Self::generate_wasm_smith_module(config, u)?;
-        if pw_module.function_section().is_none() {
+    pub fn generate_with_config(config: WasmModuleConfig, u: &mut Unstructured) -> Result<Self> {
+        let wasm_smith_module = WasmSmithModule::new(config.into_inner(), u)?.to_bytes();
+
+        let module = Module::new(&wasm_smith_module)
+            .expect("internal error: wasm smith generated non-deserializable module");
+        if module.function_section().is_none() {
             panic!("WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!");
         }
 
-        Ok(Self(pw_module))
+        Ok(WasmModule(module))
     }
 
     /// Counts functions in import section.
     pub fn count_import_funcs(&self) -> usize {
-        self.0.import_section().map_or(0, |isec| isec.functions())
+        self.0.import_section().map_or(0, |isec| {
+            isec.iter()
+                .filter(|import| matches!(import.ty, TypeRef::Func(_)))
+                .count()
+        })
     }
 
     /// Counts functions in function section.
     pub fn count_code_funcs(&self) -> usize {
         self.0
             .function_section()
-            .map(|fsec| fsec.entries().len())
+            .map(|fsec| fsec.len())
             .expect("minimal possible is 1 by config")
     }
 
@@ -85,9 +76,9 @@ impl WasmModule {
         self.0
             .code_section()
             .expect("has at least one function by config")
-            .bodies()[func_id]
-            .code()
-            .elements()
+            .get(func_id)
+            .expect("invalid `func_id`")
+            .instructions
             .len()
     }
 
@@ -97,13 +88,10 @@ impl WasmModule {
     /// This is also referred sometime as "min" memory limit.
     pub fn initial_mem_size(&self) -> Option<u32> {
         self.0.import_section().and_then(|import_entry| {
-            import_entry
-                .entries()
-                .iter()
-                .find_map(|entry| match entry.external() {
-                    External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
-                    _ => None,
-                })
+            import_entry.iter().find_map(|entry| match entry.ty {
+                TypeRef::Memory(mem_ty) => Some(mem_ty.initial as u32),
+                _ => None,
+            })
         })
     }
 
@@ -111,24 +99,23 @@ impl WasmModule {
         let stack_end_global_index = self
             .0
             .export_section()?
-            .entries()
             .iter()
-            .find(|export| export.field() == STACK_END_EXPORT_NAME)
-            .and_then(|export_entry| match export_entry.internal() {
-                Internal::Global(idx) => Some(*idx),
+            .find(|export| export.name == STACK_END_EXPORT_NAME)
+            .and_then(|export_entry| match export_entry.kind {
+                ExternalKind::Global => Some(export_entry.index),
                 _ => None,
             })?;
 
         let stack_end_init_expr = self
             .0
             .global_section()?
-            .entries()
             .get(stack_end_global_index as usize)?
-            .init_expr()
-            .code();
+            .init_expr
+            .instructions
+            .as_slice();
 
-        match (&stack_end_init_expr[0], &stack_end_init_expr[1]) {
-            (Instruction::I32Const(offset), Instruction::End) => Some(*offset),
+        match stack_end_init_expr {
+            [Instruction::I32Const { value }] => Some(*value),
             _ => None,
         }
     }
@@ -136,12 +123,12 @@ impl WasmModule {
     /// Gets the export function index of the gear entry point.
     pub fn gear_entry_point(&self, ep: EntryPointName) -> Option<u32> {
         self.0.export_section().and_then(|export_section| {
-            for export in export_section.entries().iter() {
-                if export.field() == ep.to_str() {
-                    let &Internal::Function(init_idx) = export.internal() else {
+            for export in export_section.iter() {
+                if export.name == ep.to_str() {
+                    let ExternalKind::Func = export.kind else {
                         panic!("init export is not a func");
                     };
-                    return Some(init_idx);
+                    return Some(export.index);
                 }
             }
 
@@ -167,17 +154,6 @@ impl WasmModule {
     /// Unwraps the underlying wasm module.
     pub fn into_inner(self) -> Module {
         self.0
-    }
-
-    fn generate_wasm_smith_module(
-        config: WasmModuleConfig,
-        u: &mut Unstructured<'_>,
-    ) -> Result<Module> {
-        let wasm_smith_module = WasmSmithModule::new(config.into_inner(), u)?;
-        Ok(
-            parity_wasm::deserialize_buffer(wasm_smith_module.to_bytes().as_ref())
-                .expect("internal error: wasm smith generated non-deserializable module"),
-        )
     }
 }
 

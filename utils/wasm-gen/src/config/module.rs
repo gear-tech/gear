@@ -23,11 +23,12 @@
 //! can be arbitrary, but some must be constantly set. That's implemented with [`ArbitraryParams`]
 //! and [`ConstantParams`].
 
+pub use wasm_smith::InstructionKind;
+
+use crate::MemoryLayout;
 use arbitrary::{Arbitrary, Result, Unstructured};
 use std::num::NonZero;
 use wasm_smith::{Config, InstructionKind::*, InstructionKinds, MemoryOffsetChoices};
-
-pub use wasm_smith::InstructionKind;
 
 const WASM_PAGE_SIZE: u64 = 0x10_000;
 
@@ -68,6 +69,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             min_memories,
             max_tables,
             memory64_enabled,
+            max_memory64_bytes,
             min_exports,
             min_imports,
             multi_value_enabled,
@@ -83,6 +85,16 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_types,
             min_types,
             memory_offset_choices,
+            reserved_memory_size,
+            gc_enabled,
+            custom_page_sizes_enabled,
+            generate_custom_sections,
+            exports,
+            memory_grow_enabled,
+            shared_everything_threads_enabled,
+            allow_invalid_funcs,
+            wide_arithmetic_enabled,
+            extended_const_enabled,
         } = ConstantParams::default();
 
         let SelectableParams {
@@ -106,6 +118,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_globals,
             max_instances,
             max_modules,
+            max_memory32_bytes,
             max_nesting_depth,
             max_tags,
             max_type_size,
@@ -120,7 +133,6 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             threads_enabled,
             max_table_elements,
             table_max_size_required,
-            max_memory_pages,
         } = arbitrary_params;
 
         let allowed_instructions = InstructionKinds::new(&allowed_instructions);
@@ -133,9 +145,9 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             disallow_traps,
             exceptions_enabled,
             export_everything,
-            gc_enabled: false,
-            custom_page_sizes_enabled: false,
-            generate_custom_sections: false,
+            gc_enabled,
+            custom_page_sizes_enabled,
+            generate_custom_sections,
             max_aliases,
             max_components,
             max_data_segments,
@@ -148,9 +160,8 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_instances,
             max_instructions,
             max_memories,
-            max_memory32_bytes: max_memory_pages * WASM_PAGE_SIZE,
-            // we don't support 64-bit WASM
-            max_memory64_bytes: 0,
+            max_memory32_bytes,
+            max_memory64_bytes,
             max_modules,
             max_nesting_depth,
             max_tables,
@@ -160,11 +171,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_values,
             memory64_enabled,
             memory_max_size_required,
-            memory_offset_choices: MemoryOffsetChoices(
-                memory_offset_choices.0,
-                memory_offset_choices.1,
-                memory_offset_choices.2,
-            ),
+            memory_offset_choices,
             min_data_segments,
             min_element_segments,
             min_elements,
@@ -179,22 +186,23 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             min_uleb_size,
             multi_value_enabled,
             reference_types_enabled,
+            reserved_memory_size,
+            memory_grow_enabled,
             tail_call_enabled,
             relaxed_simd_enabled,
             saturating_float_to_int_enabled,
             sign_extension_ops_enabled,
-            shared_everything_threads_enabled: false,
+            shared_everything_threads_enabled,
             simd_enabled,
             threads_enabled,
-            allow_invalid_funcs: false,
-            wide_arithmetic_enabled: false,
+            allow_invalid_funcs,
+            wide_arithmetic_enabled,
             allowed_instructions,
             max_table_elements,
             table_max_size_required,
-            // do not export anything to pass our checks
-            exports: Some(Vec::new()),
+            exports,
             allow_floats,
-            extended_const_enabled: false,
+            extended_const_enabled,
         })
     }
 }
@@ -229,7 +237,7 @@ pub struct ArbitraryParams {
     threads_enabled: bool,
     max_table_elements: u64,
     table_max_size_required: bool,
-    max_memory_pages: u64,
+    max_memory32_bytes: u64,
 }
 
 impl Arbitrary<'_> for ArbitraryParams {
@@ -289,7 +297,7 @@ impl Arbitrary<'_> for ArbitraryParams {
             threads_enabled,
             max_table_elements,
             table_max_size_required,
-            max_memory_pages: max_memory32_bytes / WASM_PAGE_SIZE,
+            max_memory32_bytes,
         })
     }
 }
@@ -311,6 +319,7 @@ pub struct ConstantParams {
     min_memories: u32,
     max_tables: usize,
     memory64_enabled: bool,
+    max_memory64_bytes: u128,
     min_exports: usize,
     min_data_segments: usize,
     min_imports: usize,
@@ -323,7 +332,19 @@ pub struct ConstantParams {
     simd_enabled: bool,
     allow_floats: bool,
     min_types: usize,
-    memory_offset_choices: (u32, u32, u32),
+    memory_offset_choices: MemoryOffsetChoices,
+    gc_enabled: bool,
+    custom_page_sizes_enabled: bool,
+    generate_custom_sections: bool,
+    // pass empty module to not export anything to pass our checks
+    exports: Option<Vec<u8>>,
+    shared_everything_threads_enabled: bool,
+    allow_invalid_funcs: bool,
+    wide_arithmetic_enabled: bool,
+    extended_const_enabled: bool,
+    // our patches
+    reserved_memory_size: Option<u64>,
+    memory_grow_enabled: bool,
 }
 
 impl Default for ConstantParams {
@@ -340,7 +361,9 @@ impl Default for ConstantParams {
             allow_floats: false,
             relaxed_simd_enabled: false,
             exceptions_enabled: false,
+            // we don't support 64-bit WASM
             memory64_enabled: false,
+            max_memory64_bytes: 0,
             disallow_traps: true,
             allow_start_export: false,
             multi_value_enabled: false,
@@ -354,9 +377,17 @@ impl Default for ConstantParams {
             min_data_segments: 0,
             max_types: 100,
             min_types: 5,
-            memory_offset_choices: (75, 25, 0),
-            // TODO: revert
-            //reserved_memory_size: Some(MemoryLayout::RESERVED_MEMORY_SIZE as u64),
+            memory_offset_choices: MemoryOffsetChoices(75, 25, 0),
+            gc_enabled: false,
+            custom_page_sizes_enabled: false,
+            generate_custom_sections: false,
+            exports: Some(b"\0asm\x01\0\0\0".to_vec()),
+            shared_everything_threads_enabled: false,
+            allow_invalid_funcs: false,
+            wide_arithmetic_enabled: false,
+            extended_const_enabled: false,
+            reserved_memory_size: Some(MemoryLayout::RESERVED_MEMORY_SIZE as u64),
+            memory_grow_enabled: false,
         }
     }
 }

@@ -391,5 +391,8 @@ fn inject_gas_limiter<R: Rules>(
     let module = mbuilder.build();
 
     gas_metering::post_injection_handler(module, rules, gas_charge_index)
+        .inspect_err(|err| {
+            log::debug!("post_injection_handler failed: {err:?}");
+        })
         .map_err(|_| InstrumentationError::GasInjection)
 }

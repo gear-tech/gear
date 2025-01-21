@@ -15,6 +15,19 @@ use alloc::{vec, vec::Vec};
 use core::{cmp::min, mem, num::NonZeroU32};
 use wasmparser::{FuncType, TypeRef, ValType};
 
+#[derive(Debug, derive_more::From)]
+pub enum GasMeteringError {
+    #[from]
+    Counter(CounterError),
+    LocalsInitCost,
+    NoActiveControlBlock,
+    MissingInstructionRule(Instruction),
+    ActiveIndexRelativeDepthUnderflow,
+    UnusedBlock,
+    LocalsCountOverflow,
+    ActiveIndexLabelUnderflow,
+}
+
 /// An interface that describes instruction costs.
 pub trait Rules {
     /// Returns the cost for the passed `instruction`.
@@ -105,8 +118,8 @@ impl Default for ConstantCostRules {
 }
 
 impl Rules for ConstantCostRules {
-    fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
-        (!instruction.is_user_forbidden()).then_some(self.instruction_cost)
+    fn instruction_cost(&self, _instruction: &Instruction) -> Option<u32> {
+        Some(self.instruction_cost)
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
@@ -157,7 +170,7 @@ pub fn inject<R: Rules>(
     module: Module,
     rules: &R,
     gas_module_name: &'static str,
-) -> Result<Module, Module> {
+) -> Result<Module, GasMeteringError> {
     // Injecting gas counting external
     let gas_func = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
 
@@ -184,7 +197,7 @@ pub fn post_injection_handler<R: Rules>(
     mut module: Module,
     rules: &R,
     gas_charge_index: usize,
-) -> Result<Module, Module> {
+) -> Result<Module, GasMeteringError> {
     // calculate actual function index of the imported definition
     //    (subtract all imports that are NOT functions)
 
@@ -198,23 +211,17 @@ pub fn post_injection_handler<R: Rules>(
                 continue;
             }
 
-            let result = func_body
+            let locals_count = func_body
                 .locals
                 .iter()
                 .try_fold(0u32, |count, val_type| count.checked_add(val_type.0))
-                .ok_or(())
-                .and_then(|locals_count| {
-                    inject_counter(
-                        &mut func_body.instructions,
-                        rules,
-                        locals_count,
-                        gas_charge_index as u32,
-                    )
-                });
-
-            if result.is_err() {
-                return Err(module);
-            }
+                .ok_or(GasMeteringError::LocalsCountOverflow)?;
+            inject_counter(
+                &mut func_body.instructions,
+                rules,
+                locals_count,
+                gas_charge_index as u32,
+            )?;
 
             if rules.memory_grow_cost().enabled()
                 && inject_grow_counter(&mut func_body.instructions, total_func) > 0
@@ -357,6 +364,13 @@ impl BlockCostCounter {
     }
 }
 
+#[derive(Debug)]
+pub enum CounterError {
+    StackLast,
+    StackPop,
+    StackGet,
+}
+
 /// Counter is used to manage state during the gas metering algorithm implemented by
 /// `inject_counter`.
 struct Counter {
@@ -394,13 +408,13 @@ impl Counter {
 
     /// Close the last control block. The cursor is the position of the final (pseudo-)instruction
     /// in the block.
-    fn finalize_control_block(&mut self, cursor: usize) -> Result<(), ()> {
+    fn finalize_control_block(&mut self, cursor: usize) -> Result<(), CounterError> {
         // This either finalizes the active metered block or merges its cost into the active
         // metered block in the previous control block on the stack.
         self.finalize_metered_block(cursor)?;
 
         // Pop the control block stack.
-        let closing_control_block = self.stack.pop().ok_or(())?;
+        let closing_control_block = self.stack.pop().ok_or(CounterError::StackPop)?;
         let closing_control_index = self.stack.len();
 
         if self.stack.is_empty() {
@@ -409,7 +423,7 @@ impl Counter {
 
         // Update the lowest_forward_br_target for the control block now on top of the stack.
         {
-            let control_block = self.stack.last_mut().ok_or(())?;
+            let control_block = self.stack.last_mut().ok_or(CounterError::StackLast)?;
             control_block.lowest_forward_br_target = min(
                 control_block.lowest_forward_br_target,
                 closing_control_block.lowest_forward_br_target,
@@ -429,9 +443,9 @@ impl Counter {
     /// Finalize the current active metered block.
     ///
     /// Finalized blocks have final cost which will not change later.
-    fn finalize_metered_block(&mut self, cursor: usize) -> Result<(), ()> {
+    fn finalize_metered_block(&mut self, cursor: usize) -> Result<(), CounterError> {
         let closing_metered_block = {
-            let control_block = self.stack.last_mut().ok_or(())?;
+            let control_block = self.stack.last_mut().ok_or(CounterError::StackLast)?;
             mem::replace(
                 &mut control_block.active_metered_block,
                 MeteredBlock {
@@ -469,20 +483,20 @@ impl Counter {
     /// instruction in the program. The indices are the stack positions of the target control
     /// blocks. Recall that the index is 0 for a `return` and relatively indexed from the top of
     /// the stack by the label of `br`, `br_if`, and `br_table` instructions.
-    fn branch(&mut self, cursor: usize, indices: &[usize]) -> Result<(), ()> {
+    fn branch(&mut self, cursor: usize, indices: &[usize]) -> Result<(), CounterError> {
         self.finalize_metered_block(cursor)?;
 
         // Update the lowest_forward_br_target of the current control block.
         for &index in indices {
             let target_is_loop = {
-                let target_block = self.stack.get(index).ok_or(())?;
+                let target_block = self.stack.get(index).ok_or(CounterError::StackGet)?;
                 target_block.is_loop
             };
             if target_is_loop {
                 continue;
             }
 
-            let control_block = self.stack.last_mut().ok_or(())?;
+            let control_block = self.stack.last_mut().ok_or(CounterError::StackLast)?;
             control_block.lowest_forward_br_target =
                 min(control_block.lowest_forward_br_target, index);
         }
@@ -496,13 +510,13 @@ impl Counter {
     }
 
     /// Get a reference to the currently active metered block.
-    fn active_metered_block(&mut self) -> Result<&mut MeteredBlock, ()> {
-        let top_block = self.stack.last_mut().ok_or(())?;
+    fn active_metered_block(&mut self) -> Result<&mut MeteredBlock, CounterError> {
+        let top_block = self.stack.last_mut().ok_or(CounterError::StackLast)?;
         Ok(&mut top_block.active_metered_block)
     }
 
     /// Increment the cost of the current block by the specified value.
-    fn increment(&mut self, val: u32) -> Result<(), ()> {
+    fn increment(&mut self, val: u32) -> Result<(), CounterError> {
         let top_block = self.active_metered_block()?;
         top_block.cost.increment(val);
         Ok(())
@@ -559,7 +573,7 @@ fn determine_metered_blocks<R: Rules>(
     instructions: &[Instruction],
     rules: &R,
     locals_count: u32,
-) -> Result<Vec<MeteredBlock>, ()> {
+) -> Result<Vec<MeteredBlock>, GasMeteringError> {
     use Instruction::*;
 
     let mut counter = Counter::new();
@@ -571,11 +585,13 @@ fn determine_metered_blocks<R: Rules>(
     let locals_init_cost = rules
         .call_per_local_cost()
         .checked_mul(locals_count)
-        .ok_or(())?;
+        .ok_or(GasMeteringError::LocalsInitCost)?;
     counter.increment(locals_init_cost)?;
 
     for (cursor, instruction) in instructions.iter().enumerate() {
-        let instruction_cost = rules.instruction_cost(instruction).ok_or(())?;
+        let instruction_cost = rules
+            .instruction_cost(instruction)
+            .ok_or_else(|| GasMeteringError::MissingInstructionRule(instruction.clone()))?;
         match instruction {
             Block { .. } => {
                 counter.increment(instruction_cost)?;
@@ -605,22 +621,26 @@ fn determine_metered_blocks<R: Rules>(
                 counter.increment(instruction_cost)?;
 
                 // Label is a relative index into the control stack.
-                let active_index = counter.active_control_block_index().ok_or(())?;
+                let active_index = counter
+                    .active_control_block_index()
+                    .ok_or(GasMeteringError::NoActiveControlBlock)?;
                 let target_index = active_index
                     .checked_sub(*relative_depth as usize)
-                    .ok_or(())?;
+                    .ok_or(GasMeteringError::ActiveIndexRelativeDepthUnderflow)?;
                 counter.branch(cursor, &[target_index])?;
             }
             BrTable { targets } => {
                 counter.increment(instruction_cost)?;
 
-                let active_index = counter.active_control_block_index().ok_or(())?;
+                let active_index = counter
+                    .active_control_block_index()
+                    .ok_or(GasMeteringError::NoActiveControlBlock)?;
                 let target_indices = [targets.default]
                     .into_iter()
                     .chain(targets.targets.clone())
                     .map(|label| active_index.checked_sub(label as usize))
                     .collect::<Option<Vec<_>>>()
-                    .ok_or(())?;
+                    .ok_or(GasMeteringError::ActiveIndexLabelUnderflow)?;
                 counter.branch(cursor, target_indices.as_slice())?;
             }
             Return => {
@@ -645,7 +665,7 @@ fn inject_counter<R: Rules>(
     rules: &R,
     locals_count: u32,
     gas_func: u32,
-) -> Result<(), ()> {
+) -> Result<(), GasMeteringError> {
     let blocks = determine_metered_blocks(instructions, rules, locals_count)?;
     insert_metering_calls(instructions, blocks, gas_func)
 }
@@ -655,7 +675,7 @@ fn insert_metering_calls(
     instructions: &mut Vec<Instruction>,
     blocks: Vec<MeteredBlock>,
     gas_func: u32,
-) -> Result<(), ()> {
+) -> Result<(), GasMeteringError> {
     let block_cost_instrs = calculate_blocks_costs_num(&blocks);
     // To do this in linear time, construct a new vector of instructions, copying over old
     // instructions one by one and injecting new ones as required.
@@ -686,7 +706,7 @@ fn insert_metering_calls(
     }
 
     if block_iter.next().is_some() {
-        return Err(());
+        return Err(GasMeteringError::UnusedBlock);
     }
 
     Ok(())

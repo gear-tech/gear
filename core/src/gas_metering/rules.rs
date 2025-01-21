@@ -59,6 +59,10 @@ impl Default for CustomConstantCostRules {
 
 impl Rules for CustomConstantCostRules {
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
+        if instruction.is_user_forbidden() {
+            return None;
+        }
+
         self.constant_cost_rules.instruction_cost(instruction)
     }
 
