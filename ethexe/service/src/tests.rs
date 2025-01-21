@@ -39,7 +39,6 @@ use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
-use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
 use gear_core::{
@@ -988,6 +987,7 @@ mod utils {
     use super::*;
     use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverService, SimpleBlockData};
+    use ethexe_sequencer::{SequencerService, SequencerServiceConfig};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use std::{
@@ -1625,13 +1625,14 @@ mod utils {
 
             let sequencer = match self.sequencer_public_key.as_ref() {
                 Some(key) => Some(
-                    Sequencer::new(
-                        &ethexe_sequencer::Config {
+                    SequencerService::new(
+                        &SequencerServiceConfig {
                             ethereum_rpc: self.rpc_url.clone(),
                             sign_tx_public: *key,
                             router_address: self.router_address,
                             validators: self.validators.clone(),
                             threshold: self.threshold,
+                            block_time: self.block_time,
                         },
                         self.signer.clone(),
                         Box::new(self.db.clone()),
@@ -1660,7 +1661,6 @@ mod utils {
                 router_query,
                 processor,
                 self.signer.clone(),
-                self.block_time,
                 network,
                 sequencer,
                 validator,

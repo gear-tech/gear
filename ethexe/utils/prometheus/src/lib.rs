@@ -18,7 +18,7 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_observer::ObserverStatus;
-use ethexe_sequencer::SequencerStatus;
+// use ethexe_sequencer::SequencerStatus;
 use ethexe_utils::metrics::register_globals;
 use hyper::{
     http::StatusCode,
@@ -41,6 +41,9 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 use tokio::{sync::watch::Receiver, time};
+
+// TODO: replace me.
+type SequencerStatus = ();
 
 mod sourced;
 
@@ -108,9 +111,9 @@ struct PrometheusMetrics {
     eth_block_height: Gauge<U64>,
     pending_upload_code: Gauge<U64>,
     last_router_state: Gauge<U64>,
-    aggregated_commitments: Gauge<U64>,
-    submitted_code_commitments: Gauge<U64>,
-    submitted_block_commitments: Gauge<U64>,
+    // aggregated_commitments: Gauge<U64>,
+    // submitted_code_commitments: Gauge<U64>,
+    // submitted_block_commitments: Gauge<U64>,
 }
 
 impl PrometheusMetrics {
@@ -167,30 +170,29 @@ impl PrometheusMetrics {
                 )?,
                 registry,
             )?,
+            // aggregated_commitments: register(
+            //     Gauge::<U64>::new(
+            //         "ethexe_aggregated_commitments",
+            //         "Number of commitments aggregated in sequencer",
+            //     )?,
+            //     registry,
+            // )?,
 
-            aggregated_commitments: register(
-                Gauge::<U64>::new(
-                    "ethexe_aggregated_commitments",
-                    "Number of commitments aggregated in sequencer",
-                )?,
-                registry,
-            )?,
+            // submitted_code_commitments: register(
+            //     Gauge::<U64>::new(
+            //         "ethexe_submitted_code_commitments",
+            //         "Number of submitted code commitments in sequencer",
+            //     )?,
+            //     registry,
+            // )?,
 
-            submitted_code_commitments: register(
-                Gauge::<U64>::new(
-                    "ethexe_submitted_code_commitments",
-                    "Number of submitted code commitments in sequencer",
-                )?,
-                registry,
-            )?,
-
-            submitted_block_commitments: register(
-                Gauge::<U64>::new(
-                    "ethexe_submitted_block_commitments",
-                    "Number of submitted block commitments in sequencer",
-                )?,
-                registry,
-            )?,
+            // submitted_block_commitments: register(
+            //     Gauge::<U64>::new(
+            //         "ethexe_submitted_block_commitments",
+            //         "Number of submitted block commitments in sequencer",
+            //     )?,
+            //     registry,
+            // )?,
         })
     }
 
@@ -205,13 +207,13 @@ impl PrometheusMetrics {
         self.last_router_state
             .set(observer_status.last_router_state);
 
-        if let Some(sequencer_status) = maybe_sequencer_status {
-            self.aggregated_commitments
-                .set(sequencer_status.aggregated_commitments);
-            self.submitted_code_commitments
-                .set(sequencer_status.submitted_code_commitments);
-            self.submitted_block_commitments
-                .set(sequencer_status.submitted_block_commitments);
+        if let Some(()) = maybe_sequencer_status {
+            // self.aggregated_commitments
+            //     .set(sequencer_status.aggregated_commitments);
+            // self.submitted_code_commitments
+            //     .set(sequencer_status.submitted_code_commitments);
+            // self.submitted_block_commitments
+            //     .set(sequencer_status.submitted_block_commitments);
         }
     }
 }

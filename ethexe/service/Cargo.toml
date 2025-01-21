@@ -30,6 +30,7 @@ log.workspace = true
 env_logger.workspace = true
 directories.workspace = true
 anyhow.workspace = true
+alloy.workspace = true
 tokio = { workspace = true, features = [
     "signal",
     "macros",

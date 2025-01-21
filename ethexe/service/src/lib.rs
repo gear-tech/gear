@@ -17,29 +17,27 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
+use alloy::primitives::U256;
 use anyhow::{anyhow, bail, Context, Result};
 use ethexe_common::{
     events::{BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
+    maybe_await, option_call,
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
-use ethexe_ethereum::{primitives::U256, router::RouterQuery};
+use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{ObserverService, ObserverServiceEvent, RequestBlockData};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
-use ethexe_sequencer::agro::AggregatedCommitments;
+use ethexe_sequencer::{
+    agro::AggregatedCommitments, SequencerService, SequencerServiceConfig, SequencerServiceEvent,
+};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
-use futures::{future, stream::StreamExt};
+use futures::stream::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::{
-    future::Future,
-    ops::Not,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use utils::*;
+use std::{ops::Not, sync::Arc};
 
 pub mod config;
 
@@ -54,11 +52,10 @@ pub struct Service {
     router_query: RouterQuery,
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
-    block_time: Duration,
 
     // Optional services
     network: Option<NetworkService>,
-    sequencer: Option<ethexe_sequencer::Sequencer>,
+    sequencer: Option<SequencerService>,
     validator: Option<ethexe_validator::Validator>,
     // metrics_service: Option<MetricsService>,
     rpc: Option<ethexe_rpc::RpcService>,
@@ -169,13 +166,14 @@ impl Service {
                 .with_context(|| "failed to get sequencer private key")?
         {
             Some(
-                ethexe_sequencer::Sequencer::new(
-                    &ethexe_sequencer::Config {
+                SequencerService::new(
+                    &SequencerServiceConfig {
                         ethereum_rpc: config.ethereum.rpc.clone(),
                         sign_tx_public: key,
                         router_address: config.ethereum.router_address,
                         validators,
                         threshold,
+                        block_time: config.ethereum.block_time,
                     },
                     signer.clone(),
                     Box::new(db.clone()),
@@ -239,7 +237,6 @@ impl Service {
             validator,
             // metrics_service,
             rpc,
-            block_time: config.ethereum.block_time,
         })
     }
 
@@ -260,9 +257,8 @@ impl Service {
         router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
-        block_time: Duration,
         network: Option<NetworkService>,
-        sequencer: Option<ethexe_sequencer::Sequencer>,
+        sequencer: Option<SequencerService>,
         validator: Option<ethexe_validator::Validator>,
         // metrics_service: Option<MetricsService>,
         rpc: Option<ethexe_rpc::RpcService>,
@@ -274,7 +270,6 @@ impl Service {
             router_query,
             processor,
             signer,
-            block_time,
             network,
             sequencer,
             validator,
@@ -415,49 +410,6 @@ impl Service {
         Ok(commitments)
     }
 
-    async fn process_observer_event(
-        db: &Database,
-        query: &mut ethexe_observer::Query,
-        processor: &mut ethexe_processor::Processor,
-        maybe_sequencer: &mut Option<ethexe_sequencer::Sequencer>,
-        event: ObserverServiceEvent,
-    ) -> Result<(Vec<CodeCommitment>, Vec<BlockCommitment>)> {
-        // TODO (asap): remove this observer_event.clone() (not so simple - needs cross-creates refactoring)
-        let res = match event.clone() {
-            ObserverServiceEvent::Block(block_data) => {
-                log::info!(
-                    "📦 receive a new block {}, hash {}, parent hash {}",
-                    block_data.header.height,
-                    block_data.hash,
-                    block_data.header.parent_hash
-                );
-
-                let commitments =
-                    Self::process_block_event(db, query, processor, block_data).await?;
-
-                Ok((Vec::new(), commitments))
-            }
-            ObserverServiceEvent::Blob { code_id, code } => {
-                let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
-                let commitments: Vec<_> = outcomes
-                    .into_iter()
-                    .map(|outcome| match outcome {
-                        LocalOutcome::CodeValidated { id, valid } => CodeCommitment { id, valid },
-                        _ => unreachable!("Only code outcomes are expected here"),
-                    })
-                    .collect();
-                Ok((commitments, Vec::new()))
-            }
-        };
-
-        // Important: sequencer must process event after event processing by service.
-        if let Some(sequencer) = maybe_sequencer {
-            sequencer.process_observer_event(&event)?;
-        }
-
-        res
-    }
-
     pub async fn run(self) -> Result<()> {
         self.run_inner().await.map_err(|err| {
             log::error!("Service finished work with error: {err:?}");
@@ -477,7 +429,7 @@ impl Service {
             signer: _signer,
             mut validator,
             rpc,
-            block_time,
+            ..
         } = self;
 
         // TODO: support monitoring in observer.
@@ -507,74 +459,229 @@ impl Service {
         }
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
 
-        let mut collection_round_timer = StoppableTimer::new(block_time / 4);
-        let mut validation_round_timer = StoppableTimer::new(block_time / 4);
-
         loop {
             tokio::select! {
                 event = observer.next() => {
-                    let event = event?;
+                    match event? {
+                        ObserverServiceEvent::Block(block) => {
+                            let hash = block.hash;
 
-                    let is_block_event = matches!(event, ObserverServiceEvent::Block(_));
+                            log::info!(
+                                "📦 receive a new block {}, hash {hash}, parent hash {}",
+                                block.header.height,
+                                block.header.parent_hash
+                            );
 
-                    let (code_commitments, block_commitments) = Self::process_observer_event(
-                        &db,
-                        &mut query,
-                        &mut processor,
-                        &mut sequencer,
-                        event,
-                    ).await?;
+                            // TODO: spawn blocking here?
+                            let block_commitments =
+                                Self::process_block_event(&db, &mut query, &mut processor, block).await?;
 
-                    Self::post_process_commitments(
-                        code_commitments,
-                        block_commitments,
-                        validator.as_mut(),
-                        sequencer.as_mut(),
-                        network.as_mut(),
-                    ).await?;
+                            option_call(&mut sequencer, |s| s.on_new_head(hash))?;
 
-                    if is_block_event {
-                        collection_round_timer.start();
-                        validation_round_timer.stop();
+                            option_call(&mut validator, |v| {
+                                if block_commitments.is_empty() {
+                                    return Ok(());
+                                }
+
+                                let aggregated_block_commitments = v.aggregate(block_commitments)?;
+
+                                option_call(&mut network, |n| {
+                                    log::debug!("Publishing block commitments to network...");
+                                    n.publish_message(
+                                        NetworkMessage::PublishCommitments {
+                                            codes: None,
+                                            blocks: Some(aggregated_block_commitments.clone()),
+                                        }
+                                        .encode(),
+                                    );
+                                    Ok(())
+                                })?;
+
+                                option_call(&mut sequencer, |s| {
+                                    log::debug!(
+                                        "Received ({}) signed block commitments from local validator...",
+                                        aggregated_block_commitments.len()
+                                    );
+                                    s.receive_block_commitments(aggregated_block_commitments)
+                                })
+                            })?;
+                        }
+                        ObserverServiceEvent::Blob { code_id, code } => {
+                            // TODO: spawn blocking here?
+                            let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
+
+                            let code_commitments = vec![CodeCommitment { id: code_id, valid }];
+
+                            option_call(&mut validator, |v| {
+                                let aggregated_code_commitments = v.aggregate(code_commitments)?;
+
+                                option_call(&mut network, |n| {
+                                    log::debug!("Publishing code commitments to network...");
+                                    n.publish_message(
+                                        NetworkMessage::PublishCommitments {
+                                            codes: Some(aggregated_code_commitments.clone()),
+                                            blocks: None,
+                                        }
+                                        .encode(),
+                                    );
+                                    Ok(())
+                                })?;
+
+                                option_call(&mut sequencer, |s| {
+                                    log::debug!(
+                                        "Received ({}) signed code commitments from local validator...",
+                                        aggregated_code_commitments.len()
+                                    );
+                                    s.receive_code_commitments(aggregated_code_commitments)
+                                })
+                            })?;
+                        }
                     }
-                }
-                _ = collection_round_timer.wait() => {
-                    log::debug!("Collection round timeout, process collected commitments...");
+                },
+                event = maybe_await(sequencer.as_mut().map(|v| v.next())) => {
+                    let Some(s) = sequencer.as_mut() else {
+                        unreachable!("couldn't produce event without sequencer");
+                    };
 
-                    Self::process_collected_commitments(
-                        &db,
-                        validator.as_mut(),
-                        sequencer.as_mut(),
-                        network.as_mut()
-                    )?;
+                    match event {
+                        SequencerServiceEvent::CollectionRoundEnded { block_hash, validation_started } => {
+                            log::debug!("Collection round for {block_hash} ended, starting validation round = {validation_started}...");
 
-                    collection_round_timer.stop();
-                    validation_round_timer.start();
-                }
-                _ = validation_round_timer.wait() => {
-                    log::debug!("Validation round timeout, process validated commitments...");
+                            if !validation_started {
+                                continue;
+                            }
 
-                    Self::process_approved_commitments(sequencer.as_mut()).await?;
+                            let code_requests: Vec<_> = s
+                                .get_candidate_code_commitments()
+                                .cloned()
+                                .collect();
 
-                    validation_round_timer.stop();
-                }
+                            let block_requests: Vec<_> = s
+                                .get_candidate_block_commitments()
+                                .map(BlockCommitmentValidationRequest::from)
+                                .collect();
+
+                            option_call(&mut network, |n| {
+                                log::debug!("Request validation of aggregated commitments...");
+
+                                // TODO (breathx): remove this clones bypassing as call arguments by ref: anyway we encode.
+                                let message = NetworkMessage::RequestCommitmentsValidation {
+                                    codes: code_requests.clone(),
+                                    blocks: block_requests.clone(),
+                                };
+
+                                n.publish_message(message.encode());
+
+                                Ok(())
+                            })?;
+
+                            option_call(&mut validator, |v| {
+                                log::debug!(
+                                    "Validate collected ({}) code commitments and ({}) block commitments...",
+                                    code_requests.len(),
+                                    block_requests.len()
+                                );
+
+                                // Because sequencer can collect commitments from different sources,
+                                // it's possible that some of collected commitments validation will fail
+                                // on local validator. So we just print warning in this case.
+
+                                if !code_requests.is_empty() {
+                                    match v.validate_code_commitments(&db, code_requests) {
+                                        Ok((digest, signature)) => {
+                                            s.receive_codes_signature(digest, signature)?;
+                                        }
+                                        Err(err) => {
+                                            log::warn!("Collected code commitments validation failed: {err}");
+                                        }
+                                    }
+                                };
+
+                                if !block_requests.is_empty() {
+                                    match v.validate_block_commitments(&db, block_requests) {
+                                        Ok((digest, signature)) => {
+                                            s.receive_blocks_signature(digest, signature)?;
+                                        }
+                                        Err(err) => {
+                                            log::warn!("Collected block commitments validation failed: {err}");
+                                        }
+                                    }
+                                };
+
+                                Ok(())
+                            })?;
+                        },
+                        SequencerServiceEvent::ValidationRoundEnded(_block_hash) => {},
+                        SequencerServiceEvent::CommitmentSubmitted(_res) => {},
+                    }
+                },
                 Some(event) = maybe_await(network.as_mut().map(|v| v.next())) => {
                     match event {
                         NetworkEvent::Message { source, data } => {
                             log::debug!("Received a network message from peer {source:?}");
 
-                            let result = Self::process_network_message(
-                                data.as_slice(),
-                                &db,
-                                validator.as_mut(),
-                                sequencer.as_mut(),
-                                network.as_mut(),
-                            );
+                            let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
+                                .inspect_err(|e| log::warn!("Failed to decode network message: {e}"))
+                            else {
+                                continue;
+                            };
 
-                            if let Err(err) = result {
-                                // TODO: slash peer/validator in case of error #4175
-                                // TODO: consider error log as temporary solution #4175
-                                log::warn!("Failed to process network message: {err}");
+                            let res = match message {
+                                NetworkMessage::PublishCommitments { codes, blocks } => {
+                                    option_call(&mut sequencer, |s| {
+                                        let mut res = Ok(());
+
+                                        if let Some(aggregated) = codes {
+                                            res = s.receive_code_commitments(aggregated);
+                                        }
+
+                                        if let Some(aggregated) = blocks {
+                                            s.receive_block_commitments(aggregated)?;
+                                        }
+
+                                        res
+                                    })
+                                },
+                                NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
+                                    option_call(&mut validator, |v| {
+                                        let codes = codes
+                                            .is_empty()
+                                            .not()
+                                            .then(|| v.validate_code_commitments(&db, codes))
+                                            .transpose()?;
+
+                                        let blocks = blocks
+                                            .is_empty()
+                                            .not()
+                                            .then(|| v.validate_block_commitments(&db, blocks))
+                                            .transpose()?;
+
+                                        let message = NetworkMessage::ApproveCommitments { codes, blocks };
+
+                                        option_call(&mut network, |n| {
+                                            n.publish_message(message.encode());
+                                            Ok(())
+                                        })
+                                    })
+                                },
+                                NetworkMessage::ApproveCommitments { codes, blocks } => {
+                                    option_call(&mut sequencer, |s| {
+                                        if let Some((digest, signature)) = codes {
+                                            s.receive_codes_signature(digest, signature)?;
+                                        }
+
+                                        if let Some((digest, signature)) = blocks {
+                                            s.receive_blocks_signature(digest, signature)?;
+                                        }
+
+                                        Ok(())
+                                    })
+                                },
+                            };
+
+                            if let Err(e) = res {
+                                log::warn!("Failed to process network message: {e}");
+                                continue;
                             }
                         }
                         NetworkEvent::ExternalValidation(validating_response) => {
@@ -591,249 +698,10 @@ impl Service {
                                 .request_validated(res);
                         }
                         _ => {}
-                    }
-                }
+                    }},
                 _ = maybe_await(rpc_handle.as_mut()) => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
-                    break;
                 }
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn post_process_commitments(
-        code_commitments: Vec<CodeCommitment>,
-        block_commitments: Vec<BlockCommitment>,
-        maybe_validator: Option<&mut ethexe_validator::Validator>,
-        maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
-        maybe_network: Option<&mut NetworkService>,
-    ) -> Result<()> {
-        let Some(validator) = maybe_validator else {
-            return Ok(());
-        };
-
-        if maybe_network.is_none() && maybe_sequencer.is_none() {
-            return Ok(());
-        }
-
-        let aggregated_codes = code_commitments
-            .is_empty()
-            .not()
-            .then(|| validator.aggregate(code_commitments))
-            .transpose()?;
-        let aggregated_blocks = block_commitments
-            .is_empty()
-            .not()
-            .then(|| validator.aggregate(block_commitments))
-            .transpose()?;
-
-        if aggregated_codes.is_none() && aggregated_blocks.is_none() {
-            return Ok(());
-        }
-
-        if let Some(network) = maybe_network {
-            log::debug!("Publishing commitments to network...");
-            network.publish_message(
-                NetworkMessage::PublishCommitments {
-                    codes: aggregated_codes.clone(),
-                    blocks: aggregated_blocks.clone(),
-                }
-                .encode(),
-            );
-        }
-
-        if let Some(sequencer) = maybe_sequencer {
-            if let Some(aggregated) = aggregated_codes {
-                log::debug!(
-                    "Received ({}) signed code commitments from local validator...",
-                    aggregated.len()
-                );
-                sequencer.receive_code_commitments(aggregated)?;
-            }
-            if let Some(aggregated) = aggregated_blocks {
-                log::debug!(
-                    "Received ({}) signed block commitments from local validator...",
-                    aggregated.len()
-                );
-                sequencer.receive_block_commitments(aggregated)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn process_collected_commitments(
-        db: &Database,
-        maybe_validator: Option<&mut ethexe_validator::Validator>,
-        maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
-        maybe_network: Option<&mut NetworkService>,
-    ) -> Result<()> {
-        let Some(sequencer) = maybe_sequencer else {
-            return Ok(());
-        };
-
-        let Some(chain_head) = sequencer.chain_head() else {
-            return Err(anyhow!("Chain head is not set in sequencer"));
-        };
-
-        // If chain head is not yet processed by this node, this is normal situation,
-        // so we just skip this round for sequencer.
-
-        let Some(block_is_empty) = db.block_is_empty(chain_head) else {
-            log::warn!("Failed to get block emptiness status for {chain_head}");
-            return Ok(());
-        };
-
-        let last_not_empty_block = match block_is_empty {
-            true => match db.previous_committed_block(chain_head) {
-                Some(prev_commitment) => prev_commitment,
-                None => {
-                    log::warn!("Failed to get previous commitment for {chain_head}");
-                    return Ok(());
-                }
-            },
-            false => chain_head,
-        };
-
-        sequencer.process_collected_commitments(last_not_empty_block)?;
-
-        if maybe_validator.is_none() && maybe_network.is_none() {
-            return Ok(());
-        }
-
-        let code_requests: Vec<_> = sequencer
-            .get_candidate_code_commitments()
-            .cloned()
-            .collect();
-
-        let block_requests: Vec<_> = sequencer
-            .get_candidate_block_commitments()
-            .map(BlockCommitmentValidationRequest::from)
-            .collect();
-
-        if block_requests.is_empty() && code_requests.is_empty() {
-            return Ok(());
-        }
-
-        if let Some(network_sender) = maybe_network {
-            log::debug!("Request validation of aggregated commitments...");
-
-            let message = NetworkMessage::RequestCommitmentsValidation {
-                codes: code_requests.clone(),
-                blocks: block_requests.clone(),
-            };
-            network_sender.publish_message(message.encode());
-        }
-
-        if let Some(validator) = maybe_validator {
-            log::debug!(
-                "Validate collected ({}) code commitments and ({}) block commitments...",
-                code_requests.len(),
-                block_requests.len()
-            );
-
-            // Because sequencer can collect commitments from different sources,
-            // it's possible that some of collected commitments validation will fail
-            // on local validator. So we just print warning in this case.
-
-            if code_requests.is_empty().not() {
-                match validator.validate_code_commitments(db, code_requests) {
-                    Result::Ok((digest, signature)) => {
-                        sequencer.receive_codes_signature(digest, signature)?
-                    }
-                    Result::Err(err) => {
-                        log::warn!("Collected code commitments validation failed: {err}")
-                    }
-                }
-            }
-
-            if block_requests.is_empty().not() {
-                match validator.validate_block_commitments(db, block_requests) {
-                    Result::Ok((digest, signature)) => {
-                        sequencer.receive_blocks_signature(digest, signature)?
-                    }
-                    Result::Err(err) => {
-                        log::warn!("Collected block commitments validation failed: {err}")
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn process_approved_commitments(
-        maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
-    ) -> Result<()> {
-        let Some(sequencer) = maybe_sequencer else {
-            return Ok(());
-        };
-
-        sequencer.submit_multisigned_commitments().await
-    }
-
-    fn process_network_message(
-        mut data: &[u8],
-        db: &Database,
-        maybe_validator: Option<&mut ethexe_validator::Validator>,
-        maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
-        maybe_network: Option<&mut NetworkService>,
-    ) -> Result<()> {
-        let message = NetworkMessage::decode(&mut data)?;
-        match message {
-            NetworkMessage::PublishCommitments { codes, blocks } => {
-                let Some(sequencer) = maybe_sequencer else {
-                    return Ok(());
-                };
-                if let Some(aggregated) = codes {
-                    sequencer.receive_code_commitments(aggregated)?;
-                }
-                if let Some(aggregated) = blocks {
-                    sequencer.receive_block_commitments(aggregated)?;
-                }
-                Ok(())
-            }
-            NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
-                let Some(validator) = maybe_validator else {
-                    return Ok(());
-                };
-                let Some(network_sender) = maybe_network else {
-                    return Ok(());
-                };
-
-                let codes = codes
-                    .is_empty()
-                    .not()
-                    .then(|| validator.validate_code_commitments(db, codes))
-                    .transpose()?;
-
-                let blocks = blocks
-                    .is_empty()
-                    .not()
-                    .then(|| validator.validate_block_commitments(db, blocks))
-                    .transpose()?;
-
-                let message = NetworkMessage::ApproveCommitments { codes, blocks };
-                network_sender.publish_message(message.encode());
-
-                Ok(())
-            }
-            NetworkMessage::ApproveCommitments { codes, blocks } => {
-                let Some(sequencer) = maybe_sequencer else {
-                    return Ok(());
-                };
-
-                if let Some((digest, signature)) = codes {
-                    sequencer.receive_codes_signature(digest, signature)?;
-                }
-
-                if let Some((digest, signature)) = blocks {
-                    sequencer.receive_blocks_signature(digest, signature)?;
-                }
-
-                Ok(())
             }
         }
     }
@@ -861,53 +729,163 @@ impl Service {
 
         Ok(true)
     }
+
+    // async fn post_process_commitments(
+    //     code_commitments: Vec<CodeCommitment>,
+    //     block_commitments: Vec<BlockCommitment>,
+    //     maybe_validator: Option<&mut ethexe_validator::Validator>,
+    //     maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
+    //     maybe_network: Option<&mut NetworkService>,
+    // ) -> Result<()> {
+    //     let Some(validator) = maybe_validator else {
+    //         return Ok(());
+    //     };
+
+    //     if maybe_network.is_none() && maybe_sequencer.is_none() {
+    //         return Ok(());
+    //     }
+
+    //     let aggregated_codes = code_commitments
+    //         .is_empty()
+    //         .not()
+    //         .then(|| validator.aggregate(code_commitments))
+    //         .transpose()?;
+    //     let aggregated_blocks = block_commitments
+    //         .is_empty()
+    //         .not()
+    //         .then(|| validator.aggregate(block_commitments))
+    //         .transpose()?;
+
+    //     if aggregated_codes.is_none() && aggregated_blocks.is_none() {
+    //         return Ok(());
+    //     }
+
+    //     if let Some(network) = maybe_network {
+    //         log::debug!("Publishing commitments to network...");
+    //         network.publish_message(
+    //             NetworkMessage::PublishCommitments {
+    //                 codes: aggregated_codes.clone(),
+    //                 blocks: aggregated_blocks.clone(),
+    //             }
+    //             .encode(),
+    //         );
+    //     }
+
+    //     if let Some(sequencer) = maybe_sequencer {
+    //         if let Some(aggregated) = aggregated_codes {
+    //             log::debug!(
+    //                 "Received ({}) signed code commitments from local validator...",
+    //                 aggregated.len()
+    //             );
+    //             sequencer.receive_code_commitments(aggregated)?;
+    //         }
+    //         if let Some(aggregated) = aggregated_blocks {
+    //             log::debug!(
+    //                 "Received ({}) signed block commitments from local validator...",
+    //                 aggregated.len()
+    //             );
+    //             sequencer.receive_block_commitments(aggregated)?;
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
 }
+// fn process_collected_commitments(
+//     db: &Database,
+//     maybe_validator: Option<&mut ethexe_validator::Validator>,
+//     maybe_network: Option<&mut NetworkService>,
+// ) -> Result<()> {
+//     let Some(sequencer) = maybe_sequencer else {
+//         return Ok(());
+//     };
 
-mod utils {
-    use super::*;
+//     let Some(chain_head) = sequencer.chain_head() else {
+//         return Err(anyhow!("Chain head is not set in sequencer"));
+//     };
 
-    pub(crate) struct StoppableTimer {
-        round_duration: Duration,
-        started: Option<Instant>,
-    }
+//     // If chain head is not yet processed by this node, this is normal situation,
+//     // so we just skip this round for sequencer.
 
-    impl StoppableTimer {
-        pub fn new(round_duration: Duration) -> Self {
-            Self {
-                round_duration,
-                started: None,
-            }
-        }
+//     let Some(block_is_empty) = db.block_is_empty(chain_head) else {
+//         log::warn!("Failed to get block emptiness status for {chain_head}");
+//         return Ok(());
+//     };
 
-        pub fn start(&mut self) {
-            self.started = Some(Instant::now());
-        }
+//     let last_not_empty_block = match block_is_empty {
+//         true => match db.previous_committed_block(chain_head) {
+//             Some(prev_commitment) => prev_commitment,
+//             None => {
+//                 log::warn!("Failed to get previous commitment for {chain_head}");
+//                 return Ok(());
+//             }
+//         },
+//         false => chain_head,
+//     };
 
-        pub fn stop(&mut self) {
-            self.started = None;
-        }
+//     sequencer.process_collected_commitments(last_not_empty_block)?;
 
-        pub async fn wait(&self) {
-            maybe_await(self.remaining().map(|rem| tokio::time::sleep(rem))).await;
-        }
+//     if maybe_validator.is_none() && maybe_network.is_none() {
+//         return Ok(());
+//     }
 
-        fn remaining(&self) -> Option<Duration> {
-            self.started.map(|started| {
-                let elapsed = started.elapsed();
-                if elapsed < self.round_duration {
-                    self.round_duration - elapsed
-                } else {
-                    Duration::ZERO
-                }
-            })
-        }
-    }
+//     let code_requests: Vec<_> = sequencer
+//         .get_candidate_code_commitments()
+//         .cloned()
+//         .collect();
 
-    pub(crate) async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
-        if let Some(f) = f {
-            f.await
-        } else {
-            future::pending().await
-        }
-    }
-}
+//     let block_requests: Vec<_> = sequencer
+//         .get_candidate_block_commitments()
+//         .map(BlockCommitmentValidationRequest::from)
+//         .collect();
+
+//     if block_requests.is_empty() && code_requests.is_empty() {
+//         return Ok(());
+//     }
+
+//     if let Some(network_sender) = maybe_network {
+//         log::debug!("Request validation of aggregated commitments...");
+
+//         let message = NetworkMessage::RequestCommitmentsValidation {
+//             codes: code_requests.clone(),
+//             blocks: block_requests.clone(),
+//         };
+//         network_sender.publish_message(message.encode());
+//     }
+
+//     if let Some(validator) = maybe_validator {
+//         log::debug!(
+//             "Validate collected ({}) code commitments and ({}) block commitments...",
+//             code_requests.len(),
+//             block_requests.len()
+//         );
+
+//         // Because sequencer can collect commitments from different sources,
+//         // it's possible that some of collected commitments validation will fail
+//         // on local validator. So we just print warning in this case.
+
+//         if code_requests.is_empty().not() {
+//             match validator.validate_code_commitments(db, code_requests) {
+//                 Result::Ok((digest, signature)) => {
+//                     sequencer.receive_codes_signature(digest, signature)?
+//                 }
+//                 Result::Err(err) => {
+//                     log::warn!("Collected code commitments validation failed: {err}")
+//                 }
+//             }
+//         }
+
+//         if block_requests.is_empty().not() {
+//             match validator.validate_block_commitments(db, block_requests) {
+//                 Result::Ok((digest, signature)) => {
+//                     sequencer.receive_blocks_signature(digest, signature)?
+//                 }
+//                 Result::Err(err) => {
+//                     log::warn!("Collected block commitments validation failed: {err}")
+//                 }
+//             }
+//         }
+//     }
+
+//     Ok(())
+// }
