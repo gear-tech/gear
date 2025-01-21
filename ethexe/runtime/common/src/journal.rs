@@ -128,7 +128,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                         Program::Active(ActiveProgram { initialized, .. }) if *initialized => {
                             bail!("an attempt to initialize already initialized program")
                         }
-                        Program::Active(ActiveProgram {
+                        &mut Program::Active(ActiveProgram {
                             ref mut initialized,
                             ..
                         }) => *initialized = true,
@@ -323,7 +323,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             };
 
             pages_hash.modify_pages(storage, |pages| {
-                pages.update(storage.write_pages_data(pages_data));
+                pages.update_and_store_regions(storage, storage.write_pages_data(pages_data));
             });
 
             Ok(())
@@ -351,7 +351,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
                 if !removed_pages.is_empty() {
                     pages_hash.modify_pages(storage, |pages| {
-                        pages.remove(&removed_pages);
+                        pages.remove_and_store_regions(storage, &removed_pages);
                     })
                 }
             });

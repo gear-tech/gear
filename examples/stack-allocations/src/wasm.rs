@@ -22,7 +22,7 @@
 //! Then reply summary check_sum back to source account.
 
 use crate::{Action, HandleData, ReplyData, Vec};
-use gstd::msg;
+use gstd::{msg, prelude::*};
 
 struct State {
     actions: Vec<Action>,
@@ -34,7 +34,7 @@ static mut STATE: State = State {
 
 fn do_actions(mut actions: Vec<Action>) -> u32 {
     let check_sum = match actions.pop() {
-        Some(Action::Read) => msg::with_read_on_stack(|payload| {
+        Some(Action::Read) => msg::with_read_on_stack_or_heap(|payload| {
             payload
                 .map(|payload| payload.iter().fold(0u32, |acc, x| acc + *x as u32))
                 .expect("Failed to read payload")
@@ -48,13 +48,13 @@ fn do_actions(mut actions: Vec<Action>) -> u32 {
     check_sum + do_actions(actions)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
-    let check_sum = do_actions(unsafe { STATE.actions.clone() });
+    let check_sum = do_actions(unsafe { static_mut!(STATE).actions.clone() });
     msg::reply(ReplyData { check_sum }, 0).expect("Failed to reply");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe {
         STATE.actions = msg::load().expect("Failed to load init config");

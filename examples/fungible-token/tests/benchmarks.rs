@@ -227,7 +227,7 @@ async fn stress_transfer() -> Result<()> {
     }
     .encode();
 
-    let salt: u8 = rng.gen();
+    let salt: u8 = rng.r#gen();
     let (message_id, program_id, _hash) = api
         .upload_program_bytes(WASM_BINARY, [salt], init_msg, MAX_GAS_LIMIT, 0)
         .await

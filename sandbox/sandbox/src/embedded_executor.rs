@@ -97,8 +97,10 @@ impl Tunables for CustomTunables {
         style: &MemoryStyle,
         vm_definition_location: NonNull<VMMemoryDefinition>,
     ) -> Result<VMMemory, MemoryError> {
-        self.inner
-            .create_vm_memory(ty, style, vm_definition_location)
+        unsafe {
+            self.inner
+                .create_vm_memory(ty, style, vm_definition_location)
+        }
     }
 
     fn create_host_table(&self, ty: &TableType, style: &TableStyle) -> Result<VMTable, String> {
@@ -111,8 +113,10 @@ impl Tunables for CustomTunables {
         style: &TableStyle,
         vm_definition_location: NonNull<VMTableDefinition>,
     ) -> Result<VMTable, String> {
-        self.inner
-            .create_vm_table(ty, style, vm_definition_location)
+        unsafe {
+            self.inner
+                .create_vm_table(ty, style, vm_definition_location)
+        }
     }
 
     fn create_global(&self, ty: GlobalType) -> Result<VMGlobal, String> {
@@ -132,8 +136,10 @@ impl Tunables for CustomTunables {
         >,
         wasmer_compiler::LinkError,
     > {
-        self.inner
-            .create_memories(context, module, memory_styles, memory_definition_locations)
+        unsafe {
+            self.inner
+                .create_memories(context, module, memory_styles, memory_definition_locations)
+        }
     }
 
     unsafe fn create_tables(
@@ -149,8 +155,10 @@ impl Tunables for CustomTunables {
         >,
         wasmer_compiler::LinkError,
     > {
-        self.inner
-            .create_tables(context, module, table_styles, table_definition_locations)
+        unsafe {
+            self.inner
+                .create_tables(context, module, table_styles, table_definition_locations)
+        }
     }
 
     fn create_globals(

@@ -285,7 +285,7 @@ mod fake_gsys {{
     }}
 }}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn metahash() {{
     const METAHASH: [u8; 32] = {:?};
     let mut res: [u8; 36] = [0; 36];
@@ -314,7 +314,7 @@ extern "C" fn metahash() {{
     pub fn postprocess_meta(
         &self,
         original_wasm_path: &PathBuf,
-        file_base_name: &String,
+        file_base_name: &str,
     ) -> Result<()> {
         let meta_wasm_path = self
             .wasm_target_dir
@@ -339,7 +339,6 @@ extern "C" fn metahash() {{
             ),
         )
         .context("unable to write `wasm_binary.rs`")
-        .map_err(Into::into)
     }
 
     fn generate_bin_path(&self, file_base_name: &String) -> Result<()> {
@@ -369,7 +368,7 @@ extern "C" fn metahash() {{
     pub fn postprocess_opt<P: AsRef<Path>>(
         &self,
         original_wasm_path: P,
-        file_base_name: &String,
+        file_base_name: &str,
     ) -> Result<PathBuf> {
         let [original_copy_wasm_path, opt_wasm_path] = [".wasm", ".opt.wasm"]
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
@@ -463,7 +462,9 @@ extern "C" fn metahash() {{
                 .filter(|(target, _)| *target == PreProcessorTarget::Default)
                 .count();
             if default_targets > 1 {
-                return Err(anyhow!("Pre-processor \"{pre_processor_name}\" cannot have more than one default target."));
+                return Err(anyhow!(
+                    "Pre-processor \"{pre_processor_name}\" cannot have more than one default target."
+                ));
             }
 
             for (pre_processor_target, content) in pre_processor_output {

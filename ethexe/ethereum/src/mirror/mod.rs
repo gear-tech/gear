@@ -18,7 +18,7 @@
 
 use crate::{abi::IMirror, AlloyProvider, AlloyTransport, TryGetReceipt};
 use alloy::{
-    primitives::Address,
+    primitives::{Address, U256},
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::BoxTransport,
 };
@@ -129,6 +129,42 @@ impl MirrorQuery {
             .call()
             .await
             .map(|res| H256(*res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn inheritor(&self) -> Result<LocalAddress> {
+        self.0
+            .inheritor()
+            .call()
+            .await
+            .map(|res| LocalAddress(res._0.into()))
+            .map_err(Into::into)
+    }
+
+    pub async fn nonce(&self) -> Result<U256> {
+        self.0
+            .nonce()
+            .call()
+            .await
+            .map(|res| U256::from(res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn router(&self) -> Result<LocalAddress> {
+        self.0
+            .router()
+            .call()
+            .await
+            .map(|res| LocalAddress(res._0.into()))
+            .map_err(Into::into)
+    }
+
+    pub async fn decoder(&self) -> Result<LocalAddress> {
+        self.0
+            .decoder()
+            .call()
+            .await
+            .map(|res| LocalAddress(res._0.into()))
             .map_err(Into::into)
     }
 }

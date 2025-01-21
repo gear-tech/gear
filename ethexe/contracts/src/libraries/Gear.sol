@@ -18,10 +18,23 @@ library Gear {
     // 10 WVara tokens per compute second.
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
 
+    struct Validators {
+        // TODO: After FROST multi signature applied - consider to remove validators map and list.
+        // Replace it with list hash. Any node can access the list of validators using this hash from other nodes.
+        mapping(address => bool) map;
+        address[] list;
+        uint256 useFromTimestamp;
+    }
+
     struct AddressBook {
         address mirror;
         address mirrorProxy;
         address wrappedVara;
+    }
+
+    struct ValidatorsCommitment {
+        address[] validators;
+        uint256 eraIndex;
     }
 
     struct BlockCommitment {
@@ -88,17 +101,26 @@ library Gear {
         Message[] messages;
     }
 
+    struct Timelines {
+        uint256 era;
+        uint256 election;
+        uint256 validationDelay;
+    }
+
     struct ValidationSettings {
         uint16 signingThresholdPercentage;
-        address[] validators;
-        // TODO: replace with one single pubkey and validators amount.
-        mapping(address => bool) validatorsKeyMap;
+        Validators validators0;
+        Validators validators1;
     }
 
     struct ValueClaim {
         bytes32 messageId;
         address destination;
         uint128 value;
+    }
+
+    function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(commitment.validators, commitment.eraIndex));
     }
 
     function blockCommitmentHash(
@@ -164,12 +186,43 @@ library Gear {
         );
     }
 
+    /// @dev Validates signatures of the given data hash.
     function validateSignatures(IRouter.Storage storage router, bytes32 _dataHash, bytes[] calldata _signatures)
         internal
         view
         returns (bool)
     {
-        uint256 threshold = validatorsThresholdOf(router.validationSettings);
+        return validateSignaturesAt(router, _dataHash, _signatures, block.timestamp);
+    }
+
+    /// @dev Validates signatures of the given data hash at the given timestamp.
+    function validateSignaturesAt(
+        IRouter.Storage storage router,
+        bytes32 _dataHash,
+        bytes[] calldata _signatures,
+        uint256 ts
+    ) internal view returns (bool) {
+        uint256 eraStarted = eraStartedAt(router, block.timestamp);
+        if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
+            require(ts >= router.genesisBlock.timestamp, "cannot validate before genesis");
+            require(ts + router.timelines.era >= eraStarted, "timestamp is older than previous era");
+
+            // Validation must be done using validators from previous era,
+            // because `ts` is in the past and we are in the validation delay period.
+        } else {
+            require(ts <= block.timestamp, "timestamp cannot be in the future");
+
+            if (ts < eraStarted) {
+                ts = eraStarted;
+            }
+
+            // Validation must be done using current era validators.
+        }
+
+        Validators storage validators = validatorsAt(router, ts);
+
+        uint256 threshold =
+            validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
 
         bytes32 msgHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(_dataHash));
         uint256 validSignatures = 0;
@@ -179,7 +232,7 @@ library Gear {
 
             address validator = msgHash.recover(signature);
 
-            if (router.validationSettings.validatorsKeyMap[validator]) {
+            if (validators.map[validator]) {
                 if (++validSignatures == threshold) {
                     return true;
                 }
@@ -189,12 +242,72 @@ library Gear {
         return false;
     }
 
-    function validatorsThresholdOf(ValidationSettings storage settings) internal view returns (uint256) {
+    function currentEraValidators(IRouter.Storage storage router) internal view returns (Validators storage) {
+        return validatorsAt(router, block.timestamp);
+    }
+
+    /// @dev Returns previous era validators, if there is no previous era,
+    /// then returns free validators slot, which must be zeroed.
+    function previousEraValidators(IRouter.Storage storage router) internal view returns (Validators storage) {
+        if (validatorsStoredInSlot1At(router, block.timestamp)) {
+            return router.validationSettings.validators0;
+        } else {
+            return router.validationSettings.validators1;
+        }
+    }
+
+    /// @dev Returns validators at the given timestamp.
+    /// @param ts Timestamp for which to get the validators.
+    function validatorsAt(IRouter.Storage storage router, uint256 ts) internal view returns (Validators storage) {
+        if (validatorsStoredInSlot1At(router, ts)) {
+            return router.validationSettings.validators1;
+        } else {
+            return router.validationSettings.validators0;
+        }
+    }
+
+    /// @dev Returns whether validators at `ts` are stored in `router.validationSettings.validators1`.
+    ///      `false` means that current era validators are stored in `router.validationSettings.validators0`.
+    /// @param ts Timestamp for which to check the validators slot.
+    function validatorsStoredInSlot1At(IRouter.Storage storage router, uint256 ts) internal view returns (bool) {
+        uint256 ts0 = router.validationSettings.validators0.useFromTimestamp;
+        uint256 ts1 = router.validationSettings.validators1.useFromTimestamp;
+
+        // Impossible case, because of implementation.
+        require(ts0 != ts1, "eras timestamp must not be equal");
+
+        bool ts1Greater = ts0 < ts1;
+        bool tsGE0 = ts0 <= ts;
+        bool tsGE1 = ts1 <= ts;
+
+        // Both eras are in the future - not supported by this function.
+        require(tsGE0 || tsGE1, "could not identify validators for the given timestamp");
+
+        // Two impossible cases, because of math rules:
+        // 1)  ts1Greater && !tsGE0 &&  tsGE1
+        // 2) !ts1Greater &&  tsGE0 && !tsGE1
+
+        return ts1Greater && (tsGE0 == tsGE1);
+    }
+
+    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage)
+        internal
+        pure
+        returns (uint256)
+    {
         // Dividing by 10000 to adjust for percentage
-        return (settings.validators.length * uint256(settings.signingThresholdPercentage) + 9999) / 10000;
+        return (validatorsAmount * uint256(thresholdPercentage) + 9999) / 10000;
     }
 
     function valueClaimBytes(ValueClaim memory claim) internal pure returns (bytes memory) {
         return abi.encodePacked(claim.messageId, claim.destination, claim.value);
+    }
+
+    function eraIndexAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
+        return (ts - router.genesisBlock.timestamp) / router.timelines.era;
+    }
+
+    function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
+        return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
     }
 }

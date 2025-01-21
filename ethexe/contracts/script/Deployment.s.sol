@@ -41,7 +41,16 @@ contract DeploymentScript is Script {
                 deployerAddress,
                 abi.encodeCall(
                     Router.initialize,
-                    (deployerAddress, mirrorAddress, mirrorProxyAddress, address(wrappedVara), validatorsArray)
+                    (
+                        deployerAddress,
+                        mirrorAddress,
+                        mirrorProxyAddress,
+                        address(wrappedVara),
+                        1 days,
+                        2 hours,
+                        5 minutes,
+                        validatorsArray
+                    )
                 )
             )
         );

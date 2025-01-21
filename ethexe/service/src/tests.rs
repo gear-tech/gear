@@ -18,7 +18,10 @@
 
 //! Integration tests.
 
-use crate::service::Service;
+use crate::{
+    config::{self, Config},
+    Service,
+};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider},
@@ -33,6 +36,8 @@ use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{Event, MockBlobReader, Observer, Query};
 use ethexe_processor::Processor;
+use ethexe_prometheus::PrometheusConfig;
+use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
@@ -41,18 +46,75 @@ use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
+use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
+    net::{Ipv4Addr, SocketAddr},
     sync::Arc,
     time::Duration,
 };
+use tempfile::tempdir;
 use tokio::{
     sync::oneshot,
     task::{self, JoinHandle},
 };
-use utils::{NodeConfig, TestEnv, TestEnvConfig};
+use utils::{NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
+
+#[tokio::test]
+async fn basics() {
+    gear_utils::init_default_logger();
+
+    let tmp_dir = tempdir().unwrap();
+    let tmp_dir = tmp_dir.path().to_path_buf();
+
+    let node_cfg = config::NodeConfig {
+        database_path: tmp_dir.join("db"),
+        key_path: tmp_dir.join("key"),
+        sequencer: Default::default(),
+        validator: Default::default(),
+        max_commitment_depth: 1_000,
+        worker_threads_override: None,
+        virtual_threads: 16,
+    };
+
+    let eth_cfg = crate::config::EthereumConfig {
+        rpc: "wss://reth-rpc.gear-tech.io".into(),
+        beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
+        router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
+            .parse()
+            .expect("infallible"),
+        block_time: Duration::from_secs(12),
+    };
+
+    let mut config = Config {
+        node: node_cfg,
+        ethereum: eth_cfg,
+        network: None,
+        rpc: None,
+        prometheus: None,
+    };
+
+    Service::new(&config).await.unwrap();
+
+    // Enable all optional services
+    config.network = Some(ethexe_network::NetworkEventLoopConfig::new_local(
+        tmp_dir.join("net"),
+    ));
+
+    config.rpc = Some(RpcConfig {
+        listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
+        cors: None,
+    });
+
+    config.prometheus = Some(PrometheusConfig::new_with_default_registry(
+        "DevNode".into(),
+        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
+    ));
+
+    Service::new(&config).await.unwrap();
+}
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
@@ -140,6 +202,149 @@ async fn ping() {
     assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.reply_payload, b"");
     assert_eq!(res.reply_value, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn uninitialized_program() {
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let sequencer_public_key = env.wallets.next();
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_async_init::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    // Case #1: Init failed due to panic in init (decoding).
+    {
+        let res = env
+            .create_program(code_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
+        assert_eq!(res.reply_code, expected_err);
+
+        let res = env
+            .send_message(res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        assert_eq!(res.reply_code, expected_err);
+    }
+
+    // Case #2: async init, replies are acceptable.
+    {
+        let init_payload = demo_async_init::InputArgs {
+            approver_first: env.sender_id,
+            approver_second: env.sender_id,
+            approver_third: env.sender_id,
+        }
+        .encode();
+
+        let mut listener = env.events_publisher().subscribe().await;
+
+        let init_res = env.create_program(code_id, &init_payload, 0).await.unwrap();
+
+        let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
+
+        let mut msgs_for_reply = vec![];
+
+        listener
+            .apply_until_block_event(|event| match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event:
+                        MirrorEvent::Message {
+                            id, destination, ..
+                        },
+                } if actor_id == init_res.program_id && destination == env.sender_id => {
+                    msgs_for_reply.push(id);
+
+                    if msgs_for_reply.len() == 3 {
+                        Ok(Some(()))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                _ => Ok(None),
+            })
+            .await
+            .unwrap();
+
+        // Handle message to uninitialized program.
+        let res = env
+            .send_message(init_res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        assert_eq!(res.reply_code, expected_err);
+        // Checking further initialisation.
+
+        // Required replies.
+        for mid in msgs_for_reply {
+            mirror.send_reply(mid, [], 0).await.unwrap();
+        }
+
+        // Success end of initialisation.
+        let reply_code = listener
+            .apply_until_block_event(|event| match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event:
+                        MirrorEvent::Reply {
+                            reply_code,
+                            reply_to,
+                            ..
+                        },
+                } if actor_id == init_res.program_id && reply_to == init_res.message_id => {
+                    Ok(Some(reply_code))
+                }
+                _ => Ok(None),
+            })
+            .await
+            .unwrap();
+
+        assert!(reply_code.is_success());
+
+        // Handle message handled, but panicked due to incorrect payload as expected.
+        let res = env
+            .send_message(res.program_id, &[], 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
+        assert_eq!(res.reply_code, expected_err);
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -444,8 +649,6 @@ async fn ping_reorg() {
     );
     node.start_service().await;
 
-    let provider = env.observer.provider().clone();
-
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
         .await
@@ -463,19 +666,13 @@ async fn ping_reorg() {
     let create_program = env.create_program(code_id, b"PING", 0).await.unwrap();
 
     // Mine some blocks to check missed blocks support
-    provider
-        .evm_mine(Some(MineOptions::Options {
-            timestamp: None,
-            blocks: Some(10),
-        }))
-        .await
-        .unwrap();
+    env.skip_blocks(10).await;
 
     // Start new service
     node.start_service().await;
 
     // IMPORTANT: Mine one block to sent block event to the new service.
-    provider.evm_mine(None).await.unwrap();
+    env.force_new_block().await;
 
     let res = create_program.wait_for().await.unwrap();
     assert_eq!(res.code_id, code_id);
@@ -487,9 +684,9 @@ async fn ping_reorg() {
 
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
-        provider.get_block_number().await.unwrap()
+        env.observer.provider().get_block_number().await.unwrap()
     );
-    let program_created_snapshot_id = provider.anvil_snapshot().await.unwrap();
+    let program_created_snapshot_id = env.observer.provider().anvil_snapshot().await.unwrap();
 
     let res = env
         .send_message(ping_id, b"PING", 0)
@@ -501,12 +698,9 @@ async fn ping_reorg() {
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.reply_payload, b"PONG");
 
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(env.block_time).await;
-
     log::info!("📗 Test after reverting to the program creation snapshot");
-    provider
+    env.observer
+        .provider()
         .anvil_revert(program_created_snapshot_id)
         .await
         .map(|res| assert!(res))
@@ -530,26 +724,16 @@ async fn ping_reorg() {
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
 
     // Skip some blocks to simulate long time without service
-    provider
-        .evm_mine(Some(MineOptions::Options {
-            timestamp: None,
-            blocks: Some(10),
-        }))
-        .await
-        .unwrap();
+    env.skip_blocks(10).await;
 
     node.start_service().await;
 
     // Important: mine one block to sent block event to the new service.
-    provider.evm_mine(None).await.unwrap();
+    env.force_new_block().await;
 
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.reply_payload, b"PONG");
-
-    // Await for service block with user reply handling
-    // TODO: this is for better logs reading only, should find a better solution #4099
-    tokio::time::sleep(Duration::from_secs(1)).await;
 }
 
 // Mine 150 blocks - send message - mine 150 blocks.
@@ -568,8 +752,6 @@ async fn ping_deep_sync() {
             .validator(env.validators[0]),
     );
     node.start_service().await;
-
-    let provider = env.observer.provider().clone();
 
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
@@ -603,26 +785,14 @@ async fn ping_deep_sync() {
     let ping_id = res.program_id;
 
     // Mine some blocks to check deep sync.
-    provider
-        .evm_mine(Some(MineOptions::Options {
-            timestamp: None,
-            blocks: Some(150),
-        }))
-        .await
-        .unwrap();
+    env.skip_blocks(150).await;
 
     env.approve_wvara(ping_id).await;
 
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
 
     // Mine some blocks to check deep sync.
-    provider
-        .evm_mine(Some(MineOptions::Options {
-            timestamp: None,
-            blocks: Some(150),
-        }))
-        .await
-        .unwrap();
+    env.skip_blocks(150).await;
 
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
@@ -635,13 +805,15 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn multiple_validators() {
     gear_utils::init_default_logger();
 
-    let mut env = TestEnv::new(TestEnvConfig::default().validators_amount(3))
-        .await
-        .unwrap();
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::Generated(3),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting sequencer");
     let sequencer_pub_key = env.wallets.next();
@@ -769,7 +941,7 @@ async fn multiple_validators() {
         .await
         .unwrap();
 
-    let _ = tokio::time::timeout(env.block_time * 3, wait_for_reply_to.clone().wait_for())
+    let _ = tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
         .await
         .expect_err("Timeout expected");
 
@@ -784,7 +956,7 @@ async fn multiple_validators() {
     validator2.start_service().await;
 
     // IMPORTANT: mine one block to sent a new block event.
-    env.observer.provider().evm_mine(None).await.unwrap();
+    env.force_new_block().await;
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
     assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
@@ -795,11 +967,12 @@ mod utils {
     use ethexe_observer::SimpleBlockData;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
+    use std::{ops::Mul, str::FromStr};
     use tokio::sync::{broadcast::Sender, Mutex};
 
     pub struct TestEnv {
         pub rpc_url: String,
-        pub wallets: AnvilWallets,
+        pub wallets: Wallets,
         pub observer: Observer,
         pub blob_reader: Arc<MockBlobReader>,
         pub ethereum: Ethereum,
@@ -812,6 +985,7 @@ mod utils {
         pub genesis_block_hash: H256,
         pub threshold: u64,
         pub block_time: Duration,
+        pub continuous_block_generation: bool,
 
         network_addresses_nonce: u64,
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -823,37 +997,77 @@ mod utils {
     impl TestEnv {
         pub async fn new(config: TestEnvConfig) -> Result<Self> {
             let TestEnvConfig {
-                validators_amount,
+                validators,
                 block_time,
+                rpc_url,
+                wallets,
+                router_address,
+                continuous_block_generation,
             } = config;
 
-            let (rpc_url, anvil) = match std::env::var("__ETHEXE_CLI_TESTS_RPC_URL") {
-                Ok(rpc_url) => {
+            log::info!(
+                "📗 Starting new test environment. Continuous block generation: {}",
+                continuous_block_generation
+            );
+
+            let (rpc_url, anvil) = match rpc_url {
+                Some(rpc_url) => {
                     log::info!("📍 Using provided RPC URL: {}", rpc_url);
                     (rpc_url, None)
                 }
-                Err(_) => {
-                    let anvil = Anvil::new().try_spawn().unwrap();
+                None => {
+                    let anvil = if continuous_block_generation {
+                        Anvil::new().block_time(block_time.as_secs()).spawn()
+                    } else {
+                        Anvil::new().spawn()
+                    };
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
                 }
             };
 
             let signer = Signer::new(tempfile::tempdir()?.into_path())?;
-            let mut wallets = AnvilWallets::new(&signer);
+
+            let mut wallets = if let Some(wallets) = wallets {
+                Wallets::custom(&signer, wallets)
+            } else {
+                Wallets::anvil(&signer)
+            };
+
+            let validators: Vec<_> = match validators {
+                ValidatorsConfig::Generated(amount) => (0..amount)
+                    .map(|_| signer.generate_key().unwrap())
+                    .collect(),
+                ValidatorsConfig::Custom(keys) => keys
+                    .iter()
+                    .map(|k| {
+                        let private_key = k.parse().unwrap();
+                        signer.add_key(private_key).unwrap()
+                    })
+                    .collect(),
+            };
 
             let sender_address = wallets.next().to_address();
-            let validators: Vec<_> = (0..validators_amount)
-                .map(|_| signer.generate_key().unwrap())
-                .collect();
 
-            let ethereum = Ethereum::deploy(
-                &rpc_url,
-                validators.iter().map(|k| k.to_address()).collect(),
-                signer.clone(),
-                sender_address,
-            )
-            .await?;
+            let ethereum = if let Some(router_address) = router_address {
+                log::info!("📗 Connecting to existing router at {}", router_address);
+                Ethereum::new(
+                    &rpc_url,
+                    router_address.parse().unwrap(),
+                    signer.clone(),
+                    sender_address,
+                )
+                .await?
+            } else {
+                log::info!("📗 Deploying new router");
+                Ethereum::deploy(
+                    &rpc_url,
+                    validators.iter().map(|k| k.to_address()).collect(),
+                    signer.clone(),
+                    sender_address,
+                )
+                .await?
+            };
 
             let router = ethereum.router();
             let router_query = router.query();
@@ -919,8 +1133,9 @@ mod utils {
                 genesis_block_hash,
                 threshold,
                 block_time,
-                broadcaster,
+                continuous_block_generation,
                 network_addresses_nonce: 0,
+                broadcaster,
                 _anvil: anvil,
                 _events_stream,
             })
@@ -1017,11 +1232,12 @@ mod utils {
 
             mirror.executable_balance_top_up(EXECUTABLE_BALANCE).await?;
 
-            mirror.send_message(payload, value).await?;
+            let (_, message_id) = mirror.send_message(payload, value).await?;
 
             Ok(WaitForProgramCreation {
                 listener,
                 program_id,
+                message_id,
             })
         }
 
@@ -1070,34 +1286,84 @@ mod utils {
                 broadcaster: self.broadcaster.clone(),
             }
         }
+
+        pub async fn force_new_block(&self) {
+            if self.continuous_block_generation {
+                // nothing to do: new block will be generated automatically
+            } else {
+                self.observer.provider().evm_mine(None).await.unwrap();
+            }
+        }
+
+        pub async fn skip_blocks(&self, blocks_amount: u32) {
+            if self.continuous_block_generation {
+                tokio::time::sleep(self.block_time.mul(blocks_amount)).await;
+            } else {
+                self.observer
+                    .provider()
+                    .evm_mine(Some(MineOptions::Options {
+                        timestamp: None,
+                        blocks: Some(blocks_amount.into()),
+                    }))
+                    .await
+                    .unwrap();
+            }
+        }
+
+        #[allow(unused)]
+        pub async fn process_already_uploaded_code(
+            &self,
+            code: &[u8],
+            blob_tx_hash: &str,
+        ) -> CodeId {
+            let code_id = CodeId::generate(code);
+            let blob_tx_hash = H256::from_str(blob_tx_hash).unwrap();
+            self.blob_reader
+                .add_blob_transaction(blob_tx_hash, code.to_vec())
+                .await;
+            code_id
+        }
+    }
+
+    pub enum ValidatorsConfig {
+        /// Auto generate validators, amount of validators is provided.
+        Generated(usize),
+        /// Custom validator eth-addresses in hex string format.
+        #[allow(unused)]
+        Custom(Vec<String>),
     }
 
     pub struct TestEnvConfig {
-        pub validators_amount: usize,
+        /// How many validators will be in deployed router.
+        /// By default uses 1 auto generated validator.
+        pub validators: ValidatorsConfig,
+        /// By default uses 1 second block time.
         pub block_time: Duration,
+        /// By default creates new anvil instance if rpc is not provided.
+        pub rpc_url: Option<String>,
+        /// By default uses anvil hardcoded wallets if wallets are not provided.
+        pub wallets: Option<Vec<String>>,
+        /// If None (by default) new router will be deployed.
+        /// In case of Some(_), will connect to existing router contract.
+        pub router_address: Option<String>,
+        /// Identify whether networks works (or have to works) in continuous block generation mode.
+        pub continuous_block_generation: bool,
     }
 
     impl Default for TestEnvConfig {
         fn default() -> Self {
             Self {
-                validators_amount: 1,
+                validators: ValidatorsConfig::Generated(1),
                 block_time: Duration::from_secs(1),
+                rpc_url: None,
+                wallets: None,
+                router_address: None,
+                continuous_block_generation: false,
             }
         }
     }
 
-    impl TestEnvConfig {
-        pub fn validators_amount(mut self, validators_amount: usize) -> Self {
-            self.validators_amount = validators_amount;
-            self
-        }
-
-        pub fn block_time(mut self, block_time: Duration) -> Self {
-            self.block_time = block_time;
-            self
-        }
-    }
-
+    // TODO (breathx): consider to remove me in favor of crate::config::NodeConfig.
     #[derive(Default)]
     pub struct NodeConfig {
         /// Database, if not provided, will be created with MemDb.
@@ -1217,15 +1483,15 @@ mod utils {
         }
     }
 
-    /// Provides access to hardcoded anvil wallets.
-    pub struct AnvilWallets {
+    /// Provides access to hardcoded anvil wallets or custom set wallets.
+    pub struct Wallets {
         wallets: Vec<ethexe_signer::PublicKey>,
         next_wallet: usize,
     }
 
-    impl AnvilWallets {
-        pub fn new(signer: &Signer) -> Self {
-            let accounts = [
+    impl Wallets {
+        pub fn anvil(signer: &Signer) -> Self {
+            let accounts = vec![
                 "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
                 "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
                 "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
@@ -1236,11 +1502,17 @@ mod utils {
                 "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
                 "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
                 "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
-            ]
-            .map(|s| signer.add_key(s.parse().unwrap()).unwrap());
+            ];
 
+            Self::custom(signer, accounts)
+        }
+
+        pub fn custom<S: AsRef<str>>(signer: &Signer, accounts: Vec<S>) -> Self {
             Self {
-                wallets: accounts.to_vec(),
+                wallets: accounts
+                    .into_iter()
+                    .map(|s| signer.add_key(s.as_ref().parse().unwrap()).unwrap())
+                    .collect(),
                 next_wallet: 0,
             }
         }
@@ -1322,6 +1594,7 @@ mod utils {
                             threshold: self.threshold,
                         },
                         self.signer.clone(),
+                        Box::new(self.db.clone()),
                     )
                     .await
                     .unwrap(),
@@ -1354,7 +1627,6 @@ mod utils {
                 None,
                 None,
             );
-
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);
 
@@ -1430,14 +1702,13 @@ mod utils {
     pub struct WaitForProgramCreation {
         listener: EventsListener,
         pub program_id: ActorId,
+        pub message_id: MessageId,
     }
 
     #[derive(Debug)]
     pub struct ProgramCreationInfo {
         pub program_id: ActorId,
         pub code_id: CodeId,
-        #[allow(unused)]
-        pub init_message_id: MessageId,
         pub init_message_source: ActorId,
         pub init_message_payload: Vec<u8>,
         pub init_message_value: u128,
@@ -1465,21 +1736,19 @@ mod utils {
                         BlockEvent::Mirror { actor_id, event } if actor_id == self.program_id => {
                             match event {
                                 MirrorEvent::MessageQueueingRequested {
-                                    id,
                                     source,
                                     payload,
                                     value,
+                                    ..
                                 } => {
-                                    init_message_info = Some((id, source, payload, value));
+                                    init_message_info = Some((source, payload, value));
                                 }
                                 MirrorEvent::Reply {
                                     payload,
                                     reply_to,
                                     reply_code,
                                     value,
-                                } if init_message_info.as_ref().map(|(id, ..)| *id)
-                                    == Some(reply_to) =>
-                                {
+                                } if self.message_id == reply_to => {
                                     reply_info = Some((payload, reply_code, value));
                                     return Ok(Some(()));
                                 }
@@ -1493,7 +1762,7 @@ mod utils {
                 .await?;
 
             let code_id = code_id_info.expect("Code ID must be set");
-            let (init_message_id, init_message_source, init_message_payload, init_message_value) =
+            let (init_message_source, init_message_payload, init_message_value) =
                 init_message_info.expect("Init message info must be set");
             let (reply_payload, reply_code, reply_value) =
                 reply_info.expect("Reply info must be set");
@@ -1501,7 +1770,6 @@ mod utils {
             Ok(ProgramCreationInfo {
                 program_id: self.program_id,
                 code_id,
-                init_message_id,
                 init_message_source,
                 init_message_payload,
                 init_message_value,

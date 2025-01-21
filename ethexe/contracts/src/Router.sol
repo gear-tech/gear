@@ -11,6 +11,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
+// TODO (gsobol): append middleware for slashing support.
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
@@ -25,9 +26,20 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address _mirror,
         address _mirrorProxy,
         address _wrappedVara,
+        uint256 _eraDuration,
+        uint256 _electionDuration,
+        uint256 _validationDelay,
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
+
+        // Because of validator storages impl we have to check, that current timestamp is greater than 0.
+        require(block.timestamp > 0, "current timestamp must be greater than 0");
+        require(_electionDuration > 0, "election duration must be greater than 0");
+        require(_eraDuration > _electionDuration, "era duration must be greater than election duration");
+        // _validationDelay must be small enough,
+        // in order to restrict old era validators to make commitments, which can damage the system.
+        require(_validationDelay < (_eraDuration - _electionDuration) / 10, "validation delay is too big");
 
         _setStorageSlot("router.storage.RouterV1");
         Storage storage router = _router();
@@ -35,8 +47,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.genesisBlock = Gear.newGenesis();
         router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
-        _setValidators(router, _validators);
         router.computeSettings = Gear.defaultComputationSettings();
+        router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
+
+        // Set validators for the era 0.
+        _resetValidators(router.validationSettings.validators0, _validators, block.timestamp);
     }
 
     function reinitialize() public onlyOwner reinitializer(2) {
@@ -45,19 +60,42 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         _setStorageSlot("router.storage.RouterV2");
         Storage storage newRouter = _router();
 
+        // Set current block as genesis.
         newRouter.genesisBlock = Gear.newGenesis();
+
+        // New router latestCommittedBlock is already zeroed.
+
+        // Copy impl addresses from the old router.
         newRouter.implAddresses = oldRouter.implAddresses;
 
+        // Copy signing threshold percentage from the old router.
         newRouter.validationSettings.signingThresholdPercentage =
             oldRouter.validationSettings.signingThresholdPercentage;
-        _setValidators(newRouter, oldRouter.validationSettings.validators);
 
+        // Copy validators from the old router.
+        // TODO (gsobol): consider what to do. Maybe we should start reelection process.
+        // Skipping validators1 copying - means we forget election results
+        // if an election is already done for the next era.
+        _resetValidators(
+            newRouter.validationSettings.validators0, Gear.currentEraValidators(oldRouter).list, block.timestamp
+        );
+
+        // Copy computation settings from the old router.
         newRouter.computeSettings = oldRouter.computeSettings;
+
+        // Copy timelines from the old router.
+        newRouter.timelines = oldRouter.timelines;
+
+        // All protocol data must be removed - so leave it zeroed in new router.
     }
 
     // # Views.
     function genesisBlockHash() public view returns (bytes32) {
         return _router().genesisBlock.hash;
+    }
+
+    function genesisTimestamp() public view returns (uint48) {
+        return _router().genesisBlock.timestamp;
     }
 
     function latestCommittedBlockHash() public view returns (bytes32) {
@@ -77,10 +115,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function areValidators(address[] calldata _validators) public view returns (bool) {
-        Storage storage router = _router();
+        Gear.Validators storage _currentValidators = Gear.currentEraValidators(_router());
 
         for (uint256 i = 0; i < _validators.length; i++) {
-            if (!router.validationSettings.validatorsKeyMap[_validators[i]]) {
+            if (!_currentValidators.map[_validators[i]]) {
                 return false;
             }
         }
@@ -89,7 +127,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function isValidator(address _validator) public view returns (bool) {
-        return _router().validationSettings.validatorsKeyMap[_validator];
+        return Gear.currentEraValidators(_router()).map[_validator];
     }
 
     function signingThresholdPercentage() public view returns (uint16) {
@@ -97,15 +135,18 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function validators() public view returns (address[] memory) {
-        return _router().validationSettings.validators;
+        return Gear.currentEraValidators(_router()).list;
     }
 
     function validatorsCount() public view returns (uint256) {
-        return _router().validationSettings.validators.length;
+        return Gear.currentEraValidators(_router()).list.length;
     }
 
     function validatorsThreshold() public view returns (uint256) {
-        return Gear.validatorsThresholdOf(_router().validationSettings);
+        IRouter.Storage storage router = _router();
+        return Gear.validatorsThreshold(
+            Gear.currentEraValidators(router).list.length, router.validationSettings.signingThresholdPercentage
+        );
     }
 
     function computeSettings() public view returns (Gear.ComputationSettings memory) {
@@ -207,6 +248,33 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     // # Validators calls.
+
+    /// @dev Set validators for the next era.
+    function commitValidators(Gear.ValidatorsCommitment calldata commitment, bytes[] calldata signatures) external {
+        Storage storage router = _router();
+
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+
+        require(commitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
+
+        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * commitment.eraIndex;
+        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
+
+        // Maybe free slot for new validators:
+        Gear.Validators storage _validators = Gear.previousEraValidators(router);
+        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
+
+        bytes32 commitmentHash = Gear.validatorsCommitmentHash(commitment);
+        require(
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), signatures),
+            "next era validators signatures verification failed"
+        );
+
+        _resetValidators(_validators, commitment.validators, nextEraStart);
+
+        emit NextEraValidatorsCommitted(nextEraStart);
+    }
+
     function commitCodes(Gear.CodeCommitment[] calldata _codeCommitments, bytes[] calldata _signatures) external {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
@@ -246,15 +314,24 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
+        require(_blockCommitments.length > 0, "no block commitments to commit");
+
         bytes memory blockCommitmentsHashes;
+        uint256 maxTimestamp = 0;
 
         for (uint256 i = 0; i < _blockCommitments.length; i++) {
             Gear.BlockCommitment calldata blockCommitment = _blockCommitments[i];
             blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
+            if (blockCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = blockCommitment.timestamp;
+            }
         }
 
+        // NOTE: Use maxTimestamp to validate signatures for all block commitments.
+        // This means that if at least one commitment is for block from current era,
+        // then all commitments should be checked with current era validators.
         require(
-            Gear.validateSignatures(router, keccak256(blockCommitmentsHashes), _signatures),
+            Gear.validateSignaturesAt(router, keccak256(blockCommitmentsHashes), _signatures, maxTimestamp),
             "signatures verification failed"
         );
     }
@@ -343,22 +420,21 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return keccak256(transitionsHashes);
     }
 
-    function _setValidators(Storage storage router, address[] memory _validators) private {
-        require(router.validationSettings.validators.length == 0, "remove previous validators first");
-
-        for (uint256 i = 0; i < _validators.length; i++) {
-            router.validationSettings.validatorsKeyMap[_validators[i]] = true;
+    function _resetValidators(
+        Gear.Validators storage _validators,
+        address[] memory _newValidators,
+        uint256 _useFromTimestamp
+    ) private {
+        for (uint256 i = 0; i < _validators.list.length; i++) {
+            address _validator = _validators.list[i];
+            _validators.map[_validator] = false;
         }
-
-        router.validationSettings.validators = _validators;
-    }
-
-    function _removeValidators(Storage storage router) private {
-        for (uint256 i = 0; i < router.validationSettings.validators.length; i++) {
-            delete router.validationSettings.validatorsKeyMap[router.validationSettings.validators[i]];
+        for (uint256 i = 0; i < _newValidators.length; i++) {
+            address _validator = _newValidators[i];
+            _validators.map[_validator] = true;
         }
-
-        delete router.validationSettings.validators;
+        _validators.list = _newValidators;
+        _validators.useFromTimestamp = _useFromTimestamp;
     }
 
     function _router() private view returns (Storage storage router) {

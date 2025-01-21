@@ -71,18 +71,22 @@ fn read_write_flag_works() {
             Protection::NONE
         };
         let page_size = region::page::size();
-        let addr = MEM_ADDR;
-        region::protect(addr, page_size, protection).unwrap();
+        let addr = unsafe { MEM_ADDR };
+        unsafe { region::protect(addr, page_size, protection) }.unwrap();
     }
 
     unsafe fn invalid_write() {
-        core::ptr::write_volatile(MEM_ADDR as *mut _, 123);
-        protect(false);
+        unsafe {
+            core::ptr::write_volatile(MEM_ADDR as *mut _, 123);
+            protect(false);
+        }
     }
 
     unsafe fn invalid_read() {
-        let _: u8 = core::ptr::read_volatile(MEM_ADDR);
-        protect(false);
+        unsafe {
+            let _: u8 = core::ptr::read_volatile(MEM_ADDR);
+            protect(false);
+        }
     }
 
     static mut COUNTER: u32 = 0;
@@ -92,12 +96,14 @@ fn read_write_flag_works() {
 
     impl UserSignalHandler for TestHandler {
         unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
-            let write_expected = COUNTER % 2 == 0;
+            let write_expected = unsafe { COUNTER } % 2 == 0;
             assert_eq!(info.is_write, Some(write_expected));
 
-            protect(true);
+            unsafe {
+                protect(true);
 
-            COUNTER += 1;
+                COUNTER += 1;
+            }
 
             Ok(())
         }
@@ -133,9 +139,11 @@ fn test_mprotect_pages() {
         unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
             let mem = info.fault_addr as usize;
             let addr = region::page::floor(info.fault_addr);
-            region::protect(addr, GEAR_PAGE_SIZE, region::Protection::READ_WRITE).unwrap();
-            *(mem as *mut u8) = NEW_VALUE;
-            region::protect(addr, GEAR_PAGE_SIZE, region::Protection::READ).unwrap();
+            unsafe {
+                region::protect(addr, GEAR_PAGE_SIZE, region::Protection::READ_WRITE).unwrap();
+                *(mem as *mut u8) = NEW_VALUE;
+                region::protect(addr, GEAR_PAGE_SIZE, region::Protection::READ).unwrap();
+            }
 
             Ok(())
         }

@@ -25,7 +25,7 @@ use gstd::{
 
 static mut DESTINATION: ActorId = ActorId::zero();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let destination = msg::load().expect("Failed to load destination");
     unsafe { DESTINATION = destination };

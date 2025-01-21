@@ -24,7 +24,10 @@ use common::scheduler::SchedulingCostsPerBlock;
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
-    costs::{ExtCosts, InstantiationCosts, LazyPagesCosts, ProcessCosts, RentCosts, SyscallCosts},
+    costs::{
+        ExtCosts, InstantiationCosts, IoCosts, LazyPagesCosts, PagesCosts, ProcessCosts, RentCosts,
+        SyscallCosts,
+    },
     message,
     pages::{GearPage, WasmPage},
 };
@@ -1307,6 +1310,27 @@ impl<T: Config> Default for MemoryWeights<T> {
     }
 }
 
+impl<T: Config> From<MemoryWeights<T>> for IoCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            common: PagesCosts::from(val.clone()),
+            lazy_pages: LazyPagesCosts::from(val),
+        }
+    }
+}
+
+impl<T: Config> From<MemoryWeights<T>> for PagesCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            load_page_data: val.load_page_data.ref_time().into(),
+            upload_page_data: val.upload_page_data.ref_time().into(),
+            mem_grow: val.mem_grow.ref_time().into(),
+            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
+            parachain_read_heuristic: val.parachain_read_heuristic.ref_time().into(),
+        }
+    }
+}
+
 impl<T: Config> From<MemoryWeights<T>> for LazyPagesCosts {
     fn from(val: MemoryWeights<T>) -> Self {
         Self {
@@ -1410,7 +1434,7 @@ struct ScheduleRules<'a, T: Config> {
     funcs: Vec<(u32, u32)>,
 }
 
-impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
+impl<T: Config> Rules for ScheduleRules<'_, T> {
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
         use Instruction::*;
         use SignExtInstruction::*;
@@ -1545,7 +1569,7 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &Module) -> impl Rules + '_ {
+    pub fn rules(&self, module: &Module) -> impl Rules + use<'_, T> {
         ScheduleRules {
             schedule: self,
             funcs: module

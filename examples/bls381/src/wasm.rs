@@ -49,7 +49,7 @@ pub struct Contract {
 
 static mut CONTRACT: Option<Contract> = None;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let init_msg: InitMessage = msg::load().expect("Unable to decode `InitMessage`");
 
@@ -83,7 +83,11 @@ extern "C" fn init() {
 #[gstd::async_main]
 async fn main() {
     let msg: HandleMessage = msg::load().expect("Unable to decode `HandleMessage`");
-    let contract = unsafe { CONTRACT.as_mut().expect("The contract is not initialized") };
+    let contract = unsafe {
+        static_mut!(CONTRACT)
+            .as_mut()
+            .expect("The contract is not initialized")
+    };
 
     match msg {
         HandleMessage::MillerLoop {

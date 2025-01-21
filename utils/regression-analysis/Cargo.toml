@@ -11,7 +11,7 @@ quick-xml = { workspace = true, features = [ "serialize" ] }
 tabled.workspace = true
 junit-common.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
+serde_json = { workspace = true, features = [ "std" ] }
 thousands.workspace = true
 
 vara-runtime = { workspace = true, features = ["std"] }

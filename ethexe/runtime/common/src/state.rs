@@ -25,8 +25,14 @@ use alloc::{
     vec::Vec,
 };
 use anyhow::{anyhow, Result};
-use core::{any::Any, marker::PhantomData, mem};
+use core::{
+    any::Any,
+    marker::PhantomData,
+    mem,
+    ops::{Index, IndexMut},
+};
 use ethexe_common::gear::Message;
+pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
     ids::{prelude::MessageIdExt as _, ProgramId},
     memory::PageBuf,
@@ -41,8 +47,6 @@ use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
 
-pub use gear_core::program::ProgramState as InitStatus;
-
 /// 3h validity in mailbox for 12s blocks.
 pub const MAILBOX_VALIDITY: u32 = 54_000;
 
@@ -55,6 +59,7 @@ mod private {
     impl Sealed for DispatchStash {}
     impl Sealed for Mailbox {}
     impl Sealed for MemoryPages {}
+    impl Sealed for MemoryPagesRegion {}
     impl Sealed for MessageQueue {}
     impl Sealed for Payload {}
     impl Sealed for PageBuf {}
@@ -420,8 +425,8 @@ pub struct ActiveProgram {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Program {
     Active(ActiveProgram),
-    Exited(ProgramId),
-    Terminated(ProgramId),
+    Exited(ActorId),
+    Terminated(ActorId),
 }
 
 impl Program {
@@ -811,20 +816,143 @@ impl Mailbox {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct MemoryPages(BTreeMap<GearPage, HashOf<PageBuf>>);
+pub struct MemoryPages(MemoryPagesInner);
+
+impl Default for MemoryPages {
+    fn default() -> Self {
+        Self([MaybeHashOf::empty(); MemoryPages::REGIONS_AMOUNT])
+    }
+}
+
+impl Index<RegionIdx> for MemoryPages {
+    type Output = MaybeHashOf<MemoryPagesRegion>;
+
+    fn index(&self, idx: RegionIdx) -> &Self::Output {
+        &self.0[idx.0 as usize]
+    }
+}
+
+impl IndexMut<RegionIdx> for MemoryPages {
+    fn index_mut(&mut self, index: RegionIdx) -> &mut Self::Output {
+        &mut self.0[index.0 as usize]
+    }
+}
+
+/// An inner structure for [`MemoryPages`]. Has at [`REGIONS_AMOUNT`](MemoryPages::REGIONS_AMOUNT)
+/// entries.
+pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; MemoryPages::REGIONS_AMOUNT];
 
 impl MemoryPages {
-    pub fn update(&mut self, new_pages: BTreeMap<GearPage, HashOf<PageBuf>>) {
+    /// Copy of the gear_core constant defining max pages amount per program.
+    pub const MAX_PAGES: usize = gear_core::code::MAX_WASM_PAGES_AMOUNT as usize;
+
+    /// Granularity parameter of how memory pages hashes are stored.
+    ///
+    /// Instead of a single huge map of GearPage to HashOf<PageBuf>, memory is
+    /// stored in page regions. Each region represents the same map,
+    /// but with a specific range of GearPage as keys.
+    ///
+    /// # Safety
+    /// Be careful adjusting this value, as it affects the storage invariants.
+    /// In case of a change, not only should the database be migrated, but
+    /// necessary changes should also be applied in the ethexe lazy pages
+    /// host implementation: see the `ThreadParams` struct.
+    pub const REGIONS_AMOUNT: usize = 16;
+
+    /// Pages amount per each region.
+    pub const PAGES_PER_REGION: usize = Self::MAX_PAGES / Self::REGIONS_AMOUNT;
+    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES % Self::REGIONS_AMOUNT == 0);
+
+    pub fn page_region(page: GearPage) -> RegionIdx {
+        RegionIdx((u32::from(page) as usize / Self::PAGES_PER_REGION) as u8)
+    }
+
+    pub fn update_and_store_regions<S: Storage>(
+        &mut self,
+        storage: &S,
+        new_pages: BTreeMap<GearPage, HashOf<PageBuf>>,
+    ) {
+        let mut updated_regions = BTreeMap::new();
+
+        let mut current_region_idx = None;
+        let mut current_region_entry = None;
+
         for (page, data) in new_pages {
-            self.0.insert(page, data);
+            let region_idx = Self::page_region(page);
+
+            if current_region_idx != Some(region_idx) {
+                let region_entry = updated_regions.entry(region_idx).or_insert_with(|| {
+                    self[region_idx]
+                        .0
+                        .take()
+                        .map(|region_hash| {
+                            storage
+                                .read_pages_region(region_hash)
+                                .expect("failed to read region from storage")
+                        })
+                        .unwrap_or_default()
+                });
+
+                current_region_idx = Some(region_idx);
+                current_region_entry = Some(region_entry);
+            }
+
+            current_region_entry
+                .as_mut()
+                .expect("infallible; inserted above")
+                .0
+                .insert(page, data);
+        }
+
+        for (region_idx, region) in updated_regions {
+            let region_hash = region
+                .store(storage)
+                .hash()
+                .expect("infallible; pages are only appended here, none are removed");
+
+            self[region_idx] = region_hash.into();
         }
     }
 
-    pub fn remove(&mut self, pages: &Vec<GearPage>) {
+    pub fn remove_and_store_regions<S: Storage>(&mut self, storage: &S, pages: &Vec<GearPage>) {
+        let mut updated_regions = BTreeMap::new();
+
+        let mut current_region_idx = None;
+        let mut current_region_entry = None;
+
         for page in pages {
-            self.0.remove(page);
+            let region_idx = Self::page_region(*page);
+
+            if current_region_idx != Some(region_idx) {
+                let region_entry = updated_regions.entry(region_idx).or_insert_with(|| {
+                    self[region_idx]
+                        .0
+                        .take()
+                        .map(|region_hash| {
+                            storage
+                                .read_pages_region(region_hash)
+                                .expect("failed to read region from storage")
+                        })
+                        .unwrap_or_default()
+                });
+
+                current_region_idx = Some(region_idx);
+                current_region_entry = Some(region_entry);
+            }
+
+            current_region_entry
+                .as_mut()
+                .expect("infallible; inserted above")
+                .0
+                .remove(page);
+        }
+
+        for (region_idx, region) in updated_regions {
+            if let Some(region_hash) = region.store(storage).hash() {
+                self[region_idx] = region_hash.into();
+            }
         }
     }
 
@@ -833,7 +961,23 @@ impl MemoryPages {
     }
 }
 
-#[derive(Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct MemoryPagesRegion(MemoryPagesRegionInner);
+
+pub type MemoryPagesRegionInner = BTreeMap<GearPage, HashOf<PageBuf>>;
+
+impl MemoryPagesRegion {
+    pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
+        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages_region(self)))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct RegionIdx(u8);
+
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 pub struct Allocations {
     inner: IntervalsTree<WasmPage>,
     #[into(ignore)]
@@ -854,9 +998,7 @@ impl Allocations {
             .flat_map(|i| i.to_iter())
             .collect();
 
-        if !removed_pages.is_empty()
-            || allocations.intervals_amount() != self.inner.intervals_amount()
-        {
+        if !removed_pages.is_empty() || allocations.difference(&self.inner).next().is_some() {
             self.changed = true;
             self.inner = allocations;
         }
@@ -904,12 +1046,17 @@ pub trait Storage {
     /// Writes mailbox and returns its hash.
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox>;
 
-    // TODO: #4355.
     /// Reads memory pages by pages hash.
     fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;
 
+    /// Writes memory pages region and returns its hash.
+    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion>;
+
     /// Writes memory pages and returns its hash.
     fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages>;
+
+    /// Writes memory pages region and returns its hash.
+    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion>;
 
     /// Reads allocations by allocations hash.
     fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations>;

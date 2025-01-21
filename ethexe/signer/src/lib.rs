@@ -77,6 +77,12 @@ impl TryFrom<ActorId> for Address {
     }
 }
 
+impl From<Address> for ActorId {
+    fn from(value: Address) -> Self {
+        H160(value.0).into()
+    }
+}
+
 fn strip_prefix(s: &str) -> &str {
     if let Some(s) = s.strip_prefix("0x") {
         s
@@ -249,11 +255,12 @@ impl Signer {
 
         let local_public = PublicKey::from_bytes(public_key.serialize());
 
-        let key_file = self.key_store.join(local_public.to_hex());
-        println!(
-            "Secret key: {}",
+        log::debug!(
+            "Secret key generated: {}",
             secret_key.secret_bytes().to_hex_string(Case::Lower)
         );
+
+        let key_file = self.key_store.join(local_public.to_hex());
         fs::write(key_file, secret_key.secret_bytes())?;
         Ok(local_public)
     }
@@ -296,7 +303,7 @@ impl Signer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{keccak256, Signature};
+    use alloy::primitives::{keccak256, PrimitiveSignature as Signature};
     use std::env::temp_dir;
 
     #[test]

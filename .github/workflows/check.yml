@@ -28,8 +28,6 @@ jobs:
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v4
@@ -45,7 +43,7 @@ jobs:
         run: |
           npm cache clean --force
           # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
-          npx @openzeppelin/upgrades-core@^1.32.3
+          npx @openzeppelin/upgrades-core@^1.37.0
 
           cd ethexe/contracts
           forge fmt --check

@@ -86,8 +86,7 @@ impl<Ext: BackendExternalities, Mem> State<Ext, Mem> {
         ) {
             termination_reason
         } else {
-            let err_msg =
-                "State::terminate: Termination reason is not success, but executor successfully ends execution";
+            let err_msg = "State::terminate: Termination reason is not success, but executor successfully ends execution";
 
             log::error!("{err_msg}");
             unreachable!("{err_msg}")

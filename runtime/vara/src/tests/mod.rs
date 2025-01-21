@@ -16,18 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Weight tests for the runtime.
+
 use super::*;
 use crate::Runtime;
 use frame_support::dispatch::GetDispatchInfo;
 use frame_system::limits::WeightsPerClass;
-use gear_core::costs::LazyPagesCosts;
+use gear_core::costs::{IoCosts, LazyPagesCosts, PagesCosts};
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use pallet_staking::WeightInfo as _;
-use runtime_common::weights::{
-    check_instructions_weights, check_lazy_pages_costs, check_pages_costs, check_syscall_weights,
-    PagesCosts,
-};
 use sp_runtime::AccountId32;
+
+mod utils;
+
+use utils::*;
 
 #[cfg(feature = "dev")]
 #[test]
@@ -227,7 +229,10 @@ fn instruction_weights_heuristics_test() {
         i32rotr: 300,
     };
 
-    check_instructions_weights(weights, expected_weights);
+    let result = check_instructions_weights(weights, expected_weights);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_instructions_weights_count());
 }
 
 #[test]
@@ -308,12 +313,15 @@ fn syscall_weights_test() {
         _phantom: Default::default(),
     };
 
-    check_syscall_weights(weights, expected);
+    let result = check_syscall_weights(weights, expected);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_syscall_weights_count());
 }
 
 #[test]
 fn page_costs_heuristic_test() {
-    let page_costs: PagesCosts = MemoryWeights::<Runtime>::default().into();
+    let io_costs: IoCosts = MemoryWeights::<Runtime>::default().into();
 
     let expected_page_costs = PagesCosts {
         load_page_data: 10_000_000.into(),
@@ -323,12 +331,15 @@ fn page_costs_heuristic_test() {
         parachain_read_heuristic: 0.into(),
     };
 
-    check_pages_costs(page_costs, expected_page_costs);
+    let result = check_pages_costs(io_costs.common, expected_page_costs);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_pages_costs_count());
 }
 
 #[test]
 fn lazy_page_costs_heuristic_test() {
-    let lazy_pages_costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
+    let io_costs: IoCosts = MemoryWeights::<Runtime>::default().into();
 
     let expected_lazy_pages_costs = LazyPagesCosts {
         signal_read: 28_000_000.into(),
@@ -340,22 +351,33 @@ fn lazy_page_costs_heuristic_test() {
         load_page_storage_data: 10_000_000.into(),
     };
 
-    check_lazy_pages_costs(lazy_pages_costs, expected_lazy_pages_costs);
+    let result = check_lazy_pages_costs(io_costs.lazy_pages, expected_lazy_pages_costs);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_lazy_pages_costs_count());
 }
 
 /// Check that it is not possible to write/change memory pages too cheaply,
 /// because this may cause runtime heap memory overflow.
 #[test]
 fn write_is_not_too_cheap() {
-    let costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
+    let costs: IoCosts = MemoryWeights::<Runtime>::default().into();
+
     #[allow(clippy::unnecessary_min_or_max)]
     let cheapest_write = u64::MAX
-        .min(costs.signal_write.cost_for_one())
-        .min(costs.signal_read.cost_for_one() + costs.signal_write_after_read.cost_for_one())
-        .min(costs.host_func_write.cost_for_one())
-        .min(costs.host_func_read.cost_for_one() + costs.host_func_write_after_read.cost_for_one());
+        .min(costs.lazy_pages.signal_write.cost_for_one())
+        .min(
+            costs.lazy_pages.signal_read.cost_for_one()
+                + costs.lazy_pages.signal_write_after_read.cost_for_one(),
+        )
+        .min(costs.lazy_pages.host_func_write.cost_for_one())
+        .min(
+            costs.lazy_pages.host_func_read.cost_for_one()
+                + costs.lazy_pages.host_func_write_after_read.cost_for_one(),
+        );
 
     let block_max_gas = 3 * (10 ^ 12); // 3 seconds
     let runtime_heap_size_in_wasm_pages = 0x4000; // 1GB
+
     assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);
 }

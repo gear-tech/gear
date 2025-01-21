@@ -18,7 +18,7 @@ hex-literal.workspace = true
 jsonrpsee = { workspace = true, features = ["server"] }
 log.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = [ "std" ] }
 
 # Gear
 common = { workspace = true, features = ["std"] }
@@ -119,4 +119,7 @@ runtime-benchmarks-checkers = [
 ]
 try-runtime = [
 	"vara-runtime?/try-runtime",
+]
+metadata-hash = [
+	"vara-runtime?/metadata-hash",
 ]

@@ -23,7 +23,7 @@ mod instrument;
 mod run;
 
 #[cfg(target_arch = "wasm32")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn instrument_code(code_ptr: i32, code_len: i32) -> i64 {
     _instrument_code(code_ptr, code_len)
 }
@@ -36,7 +36,7 @@ fn _instrument_code(original_code_ptr: i32, original_code_len: i32) -> i64 {
 }
 
 #[cfg(target_arch = "wasm32")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn run(arg_ptr: i32, arg_len: i32) -> i64 {
     _run(arg_ptr, arg_len)
 }
@@ -46,12 +46,17 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     let (program_id, original_code_id, state_root, maybe_instrumented_code) =
         Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
 
-    let res = run::run(
+    let journal = run::run(
         program_id,
         original_code_id,
         state_root,
         maybe_instrumented_code,
     );
+
+    let chunks = journal.encoded_size() / 32 * 1024 * 1024 + 1; // never zero
+    let chunk_size = (journal.len() / chunks).max(1); // never zero
+
+    let res: Vec<_> = journal.chunks(chunk_size).map(return_val).collect();
 
     return_val(res)
 }

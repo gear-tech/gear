@@ -40,6 +40,7 @@ sol!(
 );
 
 sol!(
+    #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IRouter,
     "Router.json"
@@ -118,7 +119,7 @@ pub(crate) mod utils {
         assert_eq!(uint256_to_u128_lossy(Uint256::MAX), u128::MAX);
 
         for _ in 0..10 {
-            let val: u128 = rng.gen();
+            let val: u128 = rng.r#gen();
             let uint256 = Uint256::from(val);
 
             assert_eq!(uint256_to_u128_lossy(uint256), val);
