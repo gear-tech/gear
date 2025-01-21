@@ -4689,6 +4689,7 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-observer",
  "ethexe-processor",
  "ethexe-runtime-common",
  "futures",

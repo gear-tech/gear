@@ -55,7 +55,7 @@ impl RpcParams {
     pub const DEFAULT_RPC_PORT: u16 = 9944;
 
     /// Convert self into a proper `RpcConfig` object, if RPC service is enabled.
-    pub fn into_config(self) -> Option<RpcConfig> {
+    pub fn into_config(self, dev: bool) -> Option<RpcConfig> {
         if self.no_rpc {
             return None;
         }
@@ -83,7 +83,11 @@ impl RpcParams {
             })
             .into();
 
-        Some(RpcConfig { listen_addr, cors })
+        Some(RpcConfig {
+            listen_addr,
+            cors,
+            dev,
+        })
     }
 }
 
