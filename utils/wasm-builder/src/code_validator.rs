@@ -160,7 +160,7 @@ impl TryFrom<(Module, ExportError)> for ExportErrorWithContext {
                     .ok_or_else(|| anyhow!("failed to get function type"))?;
                 let func_type = module
                     .type_section()
-                    .and_then(|section| section.get_index(type_id as usize))
+                    .and_then(|section| section.get(type_id as usize))
                     .ok_or_else(|| anyhow!("failed to get function signature"))?
                     .clone();
 
@@ -249,7 +249,7 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
 
                 let Some(func_type) = module
                     .type_section()
-                    .and_then(|section| section.get_index(func_index as usize).cloned())
+                    .and_then(|section| section.get(func_index as usize).cloned())
                 else {
                     bail!("failed to get function type");
                 };

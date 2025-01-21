@@ -30,8 +30,6 @@ use arbitrary::{Arbitrary, Result, Unstructured};
 use std::num::NonZero;
 use wasm_smith::{Config, InstructionKind::*, InstructionKinds, MemoryOffsetChoices};
 
-const WASM_PAGE_SIZE: u64 = 0x10_000;
-
 /// Wasm module generation config.
 ///
 /// This config wraps the [`wasm_smith::Config`]. That's to make it
