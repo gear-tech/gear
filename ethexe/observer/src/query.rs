@@ -12,7 +12,7 @@ use alloy::{
     providers::{Provider, ProviderBuilder},
     rpc::{client::BatchRequest, types::eth::BlockTransactionsKind},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
     events::{BlockEvent, BlockRequestEvent, RouterEvent},
@@ -87,7 +87,8 @@ impl Query {
         // TODO (breathx): optimize me ASAP.
         Ok(self
             .get_block_events(block_hash)
-            .await?
+            .await
+            .context("failed rpc (alloy) request to get block events")?
             .into_iter()
             .filter_map(|event| match event {
                 BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => Some(hash),
@@ -117,14 +118,16 @@ impl Query {
             })
             .collect();
 
-        batch.send().await?;
+        batch.send().await.context("failed to send batch request by rpc (alloy")?;
 
         let blocks: Vec<_> = future::join_all(handles).await;
 
         let mut res = Vec::with_capacity(blocks.len());
 
         for block in blocks {
-            let block = block?.ok_or_else(|| anyhow!("Block not found"))?;
+            let block = block
+                .context("failed 'eth_getBlockByNumber' rpc call (alloy)")?
+                .ok_or_else(|| anyhow!("Block not found"))?;
             let block_hash = H256(block.header.hash.0);
 
             let height = block.header.number as u32;
@@ -166,6 +169,7 @@ impl Query {
                 tokio::spawn(async move {
                     Self::batch_get_block_headers(provider, database, start as u64, end as u64)
                         .await
+                        .context("failed to get block headers in batch")
                 })
             })
             .collect();
@@ -180,12 +184,14 @@ impl Query {
         );
 
         let (headers_batches, maybe_events) = future::join(headers_fut, events_fut).await;
-        let mut events = maybe_events?;
+        let mut events = maybe_events
+            .context("failed to read block request events when loading chain in batch")?;
 
         let mut res = HashMap::with_capacity(total_blocks as usize);
 
         for batch in headers_batches {
-            let batch = batch??;
+            let batch = batch?
+                .context("failed to request block headers batch")?;
 
             for (hash, header) in batch {
                 self.database
@@ -201,7 +207,12 @@ impl Query {
     }
 
     pub async fn get_last_committed_chain(&mut self, block_hash: H256) -> Result<Vec<H256>> {
-        let current_block = self.get_block_header_meta(block_hash).await?;
+        let current_block = self
+            .get_block_header_meta(block_hash)
+            .await
+            .with_context(|| {
+                format!("failed getting current block {block_hash} header meta")
+            })?;
         let latest_valid_block_height = self
             .database
             .latest_valid_block()
@@ -231,19 +242,27 @@ impl Query {
         let mut chain = Vec::new();
         let mut headers_map = HashMap::new();
 
+        let from_block = latest_valid_block_height + 1;
+        let to_block = current_block.height;
         let committed_blocks = read_committed_blocks_batch(
             latest_valid_block_height + 1,
             current_block.height,
             &self.provider,
             self.router_address,
         )
-        .await?;
+        .await
+        .with_context(|| {
+            format!("failed to read committed blocks batch from {from_block} to {to_block} block")
+        })?;
 
         if is_deep_sync {
             // Load blocks in batch from provider by numbers.
             headers_map = self
                 .load_chain_batch(latest_valid_block_height + 1, current_block.height)
-                .await?;
+                .await
+                .with_context(|| {
+                    format!("failed to load chain from {from_block} to {to_block} block")
+                })?;
         }
 
         // Continue loading chain by parent hashes from the current block to the latest valid block.
@@ -258,7 +277,8 @@ impl Query {
             {
                 let header = match headers_map.get(&hash) {
                     Some(header) => header.clone(),
-                    None => self.get_block_header_meta(hash).await?,
+                    None => self.get_block_header_meta(hash).await
+                        .with_context(|| format!("failed getting block {hash} header meta for chain recovery"))?,
                 };
 
                 self.database.set_latest_valid_block(hash, header);
@@ -273,7 +293,7 @@ impl Query {
             // Fetch parent hash from headers_map or database
             hash = match headers_map.get(&hash) {
                 Some(header) => header.parent_hash,
-                None => self.get_block_parent_hash(hash).await?,
+                None => self.get_block_parent_hash(hash).await.with_context(|| format!("failed getting block {hash} parent hash for chain recovery"))?,
             };
         }
 
@@ -299,7 +319,7 @@ impl Query {
             log::trace!("Include block {hash} in chain for processing");
             chain.push(hash);
 
-            hash = self.get_block_parent_hash(hash).await?;
+            hash = self.get_block_parent_hash(hash).await.with_context(|| format!("failed getting block {hash} parent hash for finding oldest not committed block"))?;
         }
 
         log::trace!("Oldest not committed block reached: {}", hash);
@@ -308,7 +328,8 @@ impl Query {
     }
 
     pub async fn propagate_meta_for_block(&mut self, block_hash: H256) -> Result<()> {
-        let parent = self.get_block_parent_hash(block_hash).await?;
+        let parent = self.get_block_parent_hash(block_hash).await
+            .with_context(|| format!("failed getting block {block_hash} parent hash"))?;
 
         if !self
             .database
@@ -338,7 +359,7 @@ impl Query {
             .database
             .block_commitment_queue(parent)
             .ok_or_else(|| anyhow!("parent block commitment queue not found"))?;
-        let committed_blocks = self.get_committed_blocks(block_hash).await?;
+        let committed_blocks = self.get_committed_blocks(block_hash).await.with_context(|| format!("failed to get commited blocks in {block_hash} block"))?;
         let current_queue = queue
             .into_iter()
             .filter(|hash| !committed_blocks.contains(hash))
@@ -373,8 +394,9 @@ impl Query {
                 let block = self
                     .provider
                     .get_block_by_hash(block_hash.0.into(), BlockTransactionsKind::Hashes)
-                    .await?
-                    .ok_or_else(|| anyhow!("Block not found"))?;
+                    .await
+                    .with_context(|| format!("failed getting block {block_hash} by rpc (alloy)"))?
+                    .ok_or_else(|| anyhow!("Block {block_hash} not found"))?;
 
                 let height = u32::try_from(block.header.number).unwrap_or_else(|err| {
                     unreachable!("Ethereum block number not fit in u32: {err}")
@@ -393,7 +415,10 @@ impl Query {
                 // Populate block events in db.
                 let events =
                     read_block_request_events(block_hash, &self.provider, self.router_address)
-                        .await?;
+                        .await
+                        .with_context(|| {
+                            format!("failed reading block {block_hash} request events")
+                        })?;
                 self.database.set_block_events(block_hash, events);
 
                 Ok(meta)
@@ -402,7 +427,7 @@ impl Query {
     }
 
     pub async fn get_block_parent_hash(&mut self, block_hash: H256) -> Result<H256> {
-        Ok(self.get_block_header_meta(block_hash).await?.parent_hash)
+        Ok(self.get_block_header_meta(block_hash).await.context("failed getting block header meta to get parent hash")?.parent_hash)
     }
 
     pub async fn get_block_events(&mut self, block_hash: H256) -> Result<Vec<BlockEvent>> {
@@ -418,7 +443,8 @@ impl Query {
         }
 
         let events =
-            read_block_request_events(block_hash, &self.provider, self.router_address).await?;
+            read_block_request_events(block_hash, &self.provider, self.router_address).await
+            .with_context(|| format!("failed reading block {block_hash} request events"))?;
         self.database.set_block_events(block_hash, events.clone());
 
         Ok(events)
@@ -435,5 +461,6 @@ impl Query {
         read_code_from_tx_hash(blob_reader, expected_code_id, blob_tx_hash, attempts)
             .await
             .map(|res| res.1)
+            .with_context(|| format!("failed reading code from tx hash {blob_tx_hash}"))
     }
 }

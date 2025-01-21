@@ -64,10 +64,8 @@ pub struct Params {
 impl Params {
     /// Load the parameters from a TOML file.
     pub fn from_file(path: PathBuf) -> Result<Self> {
-        let content =
-            std::fs::read_to_string(path).with_context(|| "failed to read params file")?;
-        let params =
-            toml::from_str(&content).with_context(|| "failed to parse toml params file")?;
+        let content = std::fs::read_to_string(path).context("failed to read params file")?;
+        let params = toml::from_str(&content).context("failed to parse toml params file")?;
 
         Ok(params)
     }

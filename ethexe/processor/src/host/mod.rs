@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use core_processor::common::JournalNote;
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
@@ -78,7 +78,7 @@ impl InstanceCreator {
     pub fn instantiate(&self) -> Result<InstanceWrapper> {
         let mut store = Store::new(&self.engine, Default::default());
 
-        let instance = self.instance_pre.instantiate(&mut store)?;
+        let instance = self.instance_pre.instantiate(&mut store).context("failed instantiating wasm module from pre-instantiation state")?;
 
         let mut instance_wrapper = InstanceWrapper {
             instance,

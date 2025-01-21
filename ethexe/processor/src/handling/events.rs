@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::ProcessingHandler;
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context, Result};
 use ethexe_common::{
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::ValueClaim,
@@ -115,10 +115,11 @@ impl ProcessingHandler {
                         });
                     });
 
+                    let task = ScheduledTask::RemoveFromMailbox((actor_id, source), replied_to);
                     transitions.remove_task(
                         expiry,
-                        &ScheduledTask::RemoveFromMailbox((actor_id, source), replied_to),
-                    )?;
+                        &task,
+                    ).with_context(|| format!("failed removing task {task:#?} from transitions"))?;
 
                     let reply = Dispatch::new_reply(storage, replied_to, source, payload, value)?;
 
@@ -145,10 +146,12 @@ impl ProcessingHandler {
                         });
                     });
 
+                    let task = ScheduledTask::RemoveFromMailbox((actor_id, source), claimed_id);
                     transitions.remove_task(
                         expiry,
-                        &ScheduledTask::RemoveFromMailbox((actor_id, source), claimed_id),
-                    )?;
+                        &task
+                    )
+                    .with_context(|| format!("failed removing task {task:#?} from transitions"))?;
 
                     let reply = Dispatch::reply(
                         claimed_id,

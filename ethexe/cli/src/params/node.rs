@@ -77,10 +77,8 @@ impl NodeParams {
         Ok(NodeConfig {
             database_path: self.db_dir(),
             key_path: self.keys_dir(),
-            sequencer: ConfigPublicKey::new(&self.sequencer)
-                .with_context(|| "invalid `sequencer` key")?,
-            validator: ConfigPublicKey::new(&self.validator)
-                .with_context(|| "invalid `validator` key")?,
+            sequencer: ConfigPublicKey::new(&self.sequencer).context("invalid `sequencer` key")?,
+            validator: ConfigPublicKey::new(&self.validator).context("invalid `validator` key")?,
             max_commitment_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
             worker_threads_override: self.physical_threads.map(|v| v.get() as usize),
             virtual_threads: self

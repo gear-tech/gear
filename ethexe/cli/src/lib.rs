@@ -44,7 +44,7 @@ impl Cli {
     pub async fn run(self) -> Result<()> {
         let params = self
             .file_params()
-            .with_context(|| "failed to read params from file")?
+            .context("failed to read params from file")?
             .unwrap_or_default();
 
         self.command.run(params).await

@@ -78,7 +78,7 @@ impl TxCommand {
     pub async fn exec(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
-        let signer = Signer::new(key_store).with_context(|| "failed to create signer")?;
+        let signer = Signer::new(key_store).context("failed to create signer")?;
 
         let rpc = self
             .ethereum_rpc
@@ -88,17 +88,17 @@ impl TxCommand {
             .ethereum_router
             .ok_or_else(|| anyhow!("missing `ethereum-router`"))?
             .parse()
-            .with_context(|| "invalid `ethereum-router`")?;
+            .context("invalid `ethereum-router`")?;
 
         let sender = self
             .sender
             .ok_or_else(|| anyhow!("missing `sender`"))?
             .parse()
-            .with_context(|| "invalid `sender`")?;
+            .context("invalid `sender`")?;
 
         let ethereum = Ethereum::new(&rpc, router_addr, signer, sender)
             .await
-            .with_context(|| "failed to create Ethereum client")?;
+            .context("failed to create Ethereum client")?;
 
         let router = ethereum.router();
         let router_query = router.query();
@@ -108,12 +108,12 @@ impl TxCommand {
                 let code_id = code_id
                     .parse()
                     .map_err(|e| anyhow!("{e:?}"))
-                    .with_context(|| "invalid `code-id`")?;
+                    .context("invalid `code-id`")?;
 
                 let salt = salt
                     .map(|s| s.parse())
                     .transpose()
-                    .with_context(|| "invalid `salt`")?
+                    .context("invalid `salt`")?
                     .unwrap_or_else(H256::random);
 
                 println!("Creating program on Ethereum from code id {code_id}");
@@ -121,7 +121,7 @@ impl TxCommand {
                 let (tx, actor_id) = router
                     .create_program(code_id, salt)
                     .await
-                    .with_context(|| "failed to create program")?;
+                    .context("failed to create program")?;
 
                 println!("Completed in transaction {tx:?}");
                 println!(
@@ -137,15 +137,14 @@ impl TxCommand {
                 approve,
                 watch,
             } => {
-                let mirror_addr: Address = mirror.parse().with_context(|| "invalid `mirror`")?;
+                let mirror_addr: Address = mirror.parse().context("invalid `mirror`")?;
 
-                let payload =
-                    utils::hex_str_to_vec(payload).with_context(|| "invalid `payload`")?;
+                let payload = utils::hex_str_to_vec(payload).context("invalid `payload`")?;
 
                 let maybe_code_id = router_query
                     .program_code_id(mirror_addr.into())
                     .await
-                    .with_context(|| "failed to check if mirror in known by router")?;
+                    .context("failed to check if mirror in known by router")?;
 
                 ensure!(
                     maybe_code_id.is_some(),
@@ -160,7 +159,7 @@ impl TxCommand {
                         .wvara()
                         .approve(mirror_addr.0.into(), value)
                         .await
-                        .with_context(|| "failed to approve wvara")?;
+                        .context("failed to approve wvara")?;
 
                     println!("Completed in transaction {tx:?}");
                 }
@@ -172,7 +171,7 @@ impl TxCommand {
                 let (tx, message_id) = mirror
                     .send_message(payload, value)
                     .await
-                    .with_context(|| "failed to send message to mirror")?;
+                    .context("failed to send message to mirror")?;
 
                 println!("Completed in transaction {tx:?}");
                 println!("Message with id {message_id} successfully sent");
@@ -182,15 +181,14 @@ impl TxCommand {
                 }
             }
             TxSubcommand::Upload { path_to_wasm } => {
-                let code =
-                    fs::read(&path_to_wasm).with_context(|| "failed to read wasm from file")?;
+                let code = fs::read(&path_to_wasm).context("failed to read wasm from file")?;
 
                 println!("Uploading {} to Ethereum", path_to_wasm.display(),);
 
                 let (tx, code_id) = router
                     .request_code_validation_with_sidecar(&code)
                     .await
-                    .with_context(|| "failed to request code validation")?;
+                    .context("failed to request code validation")?;
 
                 println!("Completed in transaction {tx:?}");
                 println!("Waiting for approval of code id {code_id}...");
@@ -198,7 +196,7 @@ impl TxCommand {
                 let valid = router
                     .wait_code_validation(code_id)
                     .await
-                    .with_context(|| "failed to wait for code validation")?;
+                    .context("failed to wait for code validation")?;
 
                 if valid {
                     println!("Now you can create program from code id {code_id}!");

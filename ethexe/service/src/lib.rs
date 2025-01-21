@@ -91,11 +91,11 @@ impl Service {
                 config.ethereum.block_time,
             )
             .await
-            .with_context(|| "failed to create blob reader")?,
+            .context("failed to create blob reader")?,
         );
 
         let rocks_db = ethexe_db::RocksDatabase::open(config.node.database_path.clone())
-            .with_context(|| "failed to open database")?;
+            .context("failed to open database")?;
         let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
 
         let observer = ethexe_observer::Observer::new(
@@ -104,16 +104,16 @@ impl Service {
             blob_reader.clone(),
         )
         .await
-        .with_context(|| "failed to create observer")?;
+        .context("failed to create observer")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
-            .with_context(|| "failed to create router query")?;
+            .context("failed to create router query")?;
 
         let genesis_block_hash = router_query
             .genesis_block_hash()
             .await
-            .with_context(|| "failed to query genesis hash")?;
+            .context("failed to query genesis hash")?;
 
         if genesis_block_hash.is_zero() {
             log::error!(
@@ -128,13 +128,13 @@ impl Service {
         let validators = router_query
             .validators()
             .await
-            .with_context(|| "failed to query validators")?;
+            .context("failed to query validators")?;
         log::info!("👥 Validators set: {validators:?}");
 
         let threshold = router_query
             .threshold()
             .await
-            .with_context(|| "failed to query validators threshold")?;
+            .context("failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
         let query = ethexe_observer::Query::new(
@@ -146,7 +146,7 @@ impl Service {
             config.node.max_commitment_depth,
         )
         .await
-        .with_context(|| "failed to create observer query")?;
+        .context("failed to create observer query")?;
 
         let processor = ethexe_processor::Processor::with_config(
             ProcessorConfig {
@@ -155,7 +155,7 @@ impl Service {
             },
             db.clone(),
         )
-        .with_context(|| "failed to create processor")?;
+        .context("failed to create processor")?;
 
         if let Some(worker_threads) = processor.config().worker_threads_override {
             log::info!("🔧 Overriding amount of physical threads for runtime: {worker_threads}");
@@ -167,11 +167,11 @@ impl Service {
         );
 
         let signer = ethexe_signer::Signer::new(config.node.key_path.clone())
-            .with_context(|| "failed to create signer")?;
+            .context("failed to create signer")?;
 
         let sequencer = if let Some(key) =
             Self::get_config_public_key(config.node.sequencer, &signer)
-                .with_context(|| "failed to get sequencer private key")?
+                .context("failed to get sequencer private key")?
         {
             Some(
                 ethexe_sequencer::Sequencer::new(
@@ -186,14 +186,14 @@ impl Service {
                     Box::new(db.clone()),
                 )
                 .await
-                .with_context(|| "failed to create sequencer")?,
+                .context("failed to create sequencer")?,
             )
         } else {
             None
         };
 
         let validator = Self::get_config_public_key(config.node.validator, &signer)
-            .with_context(|| "failed to get validator private key")?
+            .context("failed to get validator key")?
             .map(|key| {
                 ethexe_validator::Validator::new(
                     &ethexe_validator::Config {
@@ -208,7 +208,7 @@ impl Service {
         let metrics_service = if let Some(config) = config.prometheus.clone() {
             // Set static metrics.
             let metrics =
-                MetricsService::new(&config).with_context(|| "failed to create metrics service")?;
+                MetricsService::new(&config).context("failed to create metrics service")?;
             tokio::spawn(
                 ethexe_prometheus::init_prometheus(config.addr, config.registry).map(drop),
             );
@@ -221,7 +221,7 @@ impl Service {
         let network = if let Some(net_config) = &config.network {
             Some(
                 ethexe_network::NetworkService::new(net_config.clone(), &signer, db.clone())
-                    .with_context(|| "failed to create network service")?,
+                    .context("failed to create network service")?,
             )
         } else {
             None
@@ -296,7 +296,7 @@ impl Service {
         processor: &mut ethexe_processor::Processor,
         block_hash: H256,
     ) -> Result<()> {
-        let events = query.get_block_request_events(block_hash).await?;
+        let events = query.get_block_request_events(block_hash).await.context("failed getting block request events")?;
 
         for event in events {
             match event {
@@ -319,9 +319,13 @@ impl Service {
                         .code_blob_tx(code_id)
                         .ok_or_else(|| anyhow!("Blob tx hash not found"))?;
 
-                    let code = query.download_code(code_id, blob_tx_hash).await?;
+                    let code = query
+                        .download_code(code_id, blob_tx_hash)
+                        .await
+                        .context("failed downloading code")?;
 
-                    processor.process_upload_code(code_id, code.as_slice())?;
+                    processor.process_upload_code(code_id, code.as_slice())
+                        .context("failed processing upload code from `RequestEvent::Block`")?;
                 }
                 _ => continue,
             }
@@ -340,13 +344,14 @@ impl Service {
             return Ok(transitions);
         }
 
-        query.propagate_meta_for_block(block_hash).await?;
+        query.propagate_meta_for_block(block_hash).await
+            .with_context(|| format!("failed to propogate meta for block {block_hash}"))?;
 
-        Self::process_upload_codes(db, query, processor, block_hash).await?;
+        Self::process_upload_codes(db, query, processor, block_hash).await.context("failed processing upload codes during block processing")?;
 
-        let block_request_events = query.get_block_request_events(block_hash).await?;
+        let block_request_events = query.get_block_request_events(block_hash).await.context("failed getting block request events")?;
 
-        let block_outcomes = processor.process_block_events(block_hash, block_request_events)?;
+        let block_outcomes = processor.process_block_events(block_hash, block_request_events).context("failed processing block events")?;
 
         let transition_outcomes: Vec<_> = block_outcomes
             .into_iter()
@@ -392,10 +397,15 @@ impl Service {
 
         let mut commitments = vec![];
 
-        let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
+        let last_committed_chain = query
+            .get_last_committed_chain(block_data.hash)
+            .await
+            .context("failed to get last committed chain")?;
 
         for block_hash in last_committed_chain.into_iter().rev() {
-            let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
+            let transitions = Self::process_one_block(db, query, processor, block_hash)
+                .await
+                .context("failed to get block state transitions")?;
 
             if transitions.is_empty() {
                 // Skip empty blocks
@@ -437,13 +447,16 @@ impl Service {
                     block_data.header.parent_hash
                 );
 
-                let commitments =
-                    Self::process_block_event(db, query, processor, block_data).await?;
+                let commitments = Self::process_block_event(db, query, processor, block_data)
+                    .await
+                    .context("failed processing block event")?;
 
                 Ok((Vec::new(), commitments))
             }
             RequestEvent::CodeLoaded { code_id, code } => {
-                let outcomes = processor.process_upload_code(code_id, code.as_slice())?;
+                let outcomes = processor
+                    .process_upload_code(code_id, code.as_slice())
+                    .context("failed processing upload code from `RequestEvent::CodeLoaded`")?;
                 let commitments: Vec<_> = outcomes
                     .into_iter()
                     .map(|outcome| match outcome {
@@ -457,7 +470,9 @@ impl Service {
 
         // Important: sequencer must process event after event processing by service.
         if let Some(sequencer) = maybe_sequencer {
-            sequencer.process_observer_event(&observer_event)?;
+            sequencer
+                .process_observer_event(&observer_event)
+                .context("failed sequencer processing observer event")?;
         }
 
         res
@@ -510,7 +525,10 @@ impl Service {
         let mut rpc_handle = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
 
-            let rpc_run = rpc.run_server().await?;
+            let rpc_run = rpc
+                .run_server()
+                .await
+                .context("failed to start rpc server")?;
 
             Some(tokio::spawn(rpc_run.stopped()))
         } else {
@@ -545,7 +563,9 @@ impl Service {
                         &mut processor,
                         &mut sequencer,
                         observer_event,
-                    ).await?;
+                    )
+                    .await
+                    .context("failed processing observer event")?;
 
                     Self::post_process_commitments(
                         code_commitments,
@@ -626,7 +646,7 @@ impl Service {
             }
         }
 
-        Ok(())
+        return Ok(());
     }
 
     async fn post_process_commitments(

@@ -18,7 +18,7 @@
 
 //! Program's execution service for eGPU.
 
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::Storage;
@@ -93,7 +93,7 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing upload code {code_id:?}");
 
-        let valid = code_id == CodeId::generate(code) && self.handle_new_code(code)?.is_some();
+        let valid = code_id == CodeId::generate(code) && self.handle_new_code(code).context("failed handling new code")?.is_some();
 
         self.db.set_code_valid(code_id, valid);
         Ok(vec![LocalOutcome::CodeValidated { id: code_id, valid }])
@@ -106,15 +106,15 @@ impl Processor {
     ) -> Result<Vec<LocalOutcome>> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
-        let mut handler = self.handler(block_hash)?;
+        let mut handler = self.handler(block_hash).context("failed creating processing handler")?;
 
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
-                    handler.handle_router_event(event)?;
+                    handler.handle_router_event(event).context("failed handling router event")?;
                 }
                 BlockRequestEvent::Mirror { actor_id, event } => {
-                    handler.handle_mirror_event(actor_id, event)?;
+                    handler.handle_mirror_event(actor_id, event).context("failed handling mirror event")?;
                 }
                 BlockRequestEvent::WVara(event) => {
                     handler.handle_wvara_event(event);

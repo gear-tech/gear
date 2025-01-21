@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Processor;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::{
     state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,
@@ -82,11 +82,11 @@ impl Processor {
         &mut self,
         original_code: impl AsRef<[u8]>,
     ) -> Result<Option<CodeId>> {
-        let mut executor = self.creator.instantiate()?;
+        let mut executor = self.creator.instantiate().context("failed creating instance wrapper")?;
 
         let original_code = original_code.as_ref();
 
-        let Some(instrumented_code) = executor.instrument(original_code)? else {
+        let Some(instrumented_code) = executor.instrument(original_code).context("failed instrumenting the code")? else {
             return Ok(None);
         };
 

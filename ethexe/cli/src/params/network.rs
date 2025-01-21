@@ -75,7 +75,7 @@ impl NetworkParams {
             .network_key
             .map(|k| k.parse())
             .transpose()
-            .with_context(|| "invalid `network-key`")?;
+            .context("invalid `network-key`")?;
 
         let external_addresses = self
             .network_public_addr

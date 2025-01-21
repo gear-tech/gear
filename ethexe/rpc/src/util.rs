@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use hyper::header::HeaderValue;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
@@ -25,7 +25,9 @@ pub(crate) fn try_into_cors(maybe_cors: Option<Vec<String>>) -> Result<CorsLayer
         let mut list = Vec::new();
 
         for origin in cors {
-            list.push(HeaderValue::from_str(&origin)?)
+            let v = HeaderValue::from_str(&origin)
+                .with_context(|| format!("invalid cors value - {origin}"))?;
+            list.push(v);
         }
 
         Ok(CorsLayer::new().allow_origin(AllowOrigin::list(list)))
