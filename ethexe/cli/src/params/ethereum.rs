@@ -41,6 +41,11 @@ pub struct EthereumParams {
     #[arg(long, alias = "eth-router")]
     #[serde(rename = "router")]
     pub ethereum_router: Option<String>,
+
+    /// Ethereum block time in seconds.
+    #[arg(long, alias = "eth-block-time")]
+    #[serde(rename = "block-time")]
+    pub block_time: Option<usize>,
 }
 
 impl EthereumParams {
@@ -67,7 +72,7 @@ impl EthereumParams {
                 .ok_or_else(|| anyhow!("missing `ethereum-router`"))?
                 .parse()
                 .with_context(|| "invalid `ethereum-router`")?,
-            block_time: Duration::from_secs(Self::BLOCK_TIME as u64),
+            block_time: Duration::from_secs(self.block_time.unwrap_or(Self::BLOCK_TIME) as u64),
         })
     }
 }
@@ -78,6 +83,7 @@ impl MergeParams for EthereumParams {
             ethereum_rpc: self.ethereum_rpc.or(with.ethereum_rpc),
             ethereum_beacon_rpc: self.ethereum_beacon_rpc.or(with.ethereum_beacon_rpc),
             ethereum_router: self.ethereum_router.or(with.ethereum_router),
+            block_time: self.block_time.or(with.block_time),
         }
     }
 }
