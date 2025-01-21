@@ -60,7 +60,7 @@ use gear_core_errors::{
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInterface, ProcessAccessError, Status};
 #[cfg(not(feature = "ethexe"))]
-use gear_runtime_interface::poseidon_hash::poseidon;
+use gear_runtime_interface::gear_poseidon_hash::poseidon;
 use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Processor context.

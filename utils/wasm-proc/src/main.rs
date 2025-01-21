@@ -114,8 +114,8 @@ const RT_ALLOWED_IMPORTS: [&str; 77] = [
     // From `GearBls12_381`
     "ext_gear_bls_12_381_aggregate_g1_version_1",
     "ext_gear_bls_12_381_map_to_g2affine_version_1",
-    // From `PoseidonHash`
-    "ext_poseidon_hash_poseidon_version_1",
+    // From `GearPoseidonHash`
+    "ext_gear_poseidon_hash_poseidon_version_1",
 ];
 
 #[derive(Debug, clap::Parser)]

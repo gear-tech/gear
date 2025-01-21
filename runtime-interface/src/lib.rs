@@ -421,7 +421,7 @@ pub trait GearBls12_381 {
 }
 
 #[runtime_interface]
-pub trait PoseidonHash {
+pub trait GearPoseidonHash {
     fn poseidon(input: Vec<u64>) -> Vec<u64> {
         let data: [GoldilocksField; 12] = input
             .into_iter()
