@@ -296,7 +296,10 @@ impl Service {
         processor: &mut ethexe_processor::Processor,
         block_hash: H256,
     ) -> Result<()> {
-        let events = query.get_block_request_events(block_hash).await.context("failed getting block request events")?;
+        let events = query
+            .get_block_request_events(block_hash)
+            .await
+            .context("failed getting block request events")?;
 
         for event in events {
             match event {
@@ -324,7 +327,8 @@ impl Service {
                         .await
                         .context("failed downloading code")?;
 
-                    processor.process_upload_code(code_id, code.as_slice())
+                    processor
+                        .process_upload_code(code_id, code.as_slice())
                         .context("failed processing upload code from `RequestEvent::Block`")?;
                 }
                 _ => continue,
@@ -344,14 +348,23 @@ impl Service {
             return Ok(transitions);
         }
 
-        query.propagate_meta_for_block(block_hash).await
+        query
+            .propagate_meta_for_block(block_hash)
+            .await
             .with_context(|| format!("failed to propogate meta for block {block_hash}"))?;
 
-        Self::process_upload_codes(db, query, processor, block_hash).await.context("failed processing upload codes during block processing")?;
+        Self::process_upload_codes(db, query, processor, block_hash)
+            .await
+            .context("failed processing upload codes during block processing")?;
 
-        let block_request_events = query.get_block_request_events(block_hash).await.context("failed getting block request events")?;
+        let block_request_events = query
+            .get_block_request_events(block_hash)
+            .await
+            .context("failed getting block request events")?;
 
-        let block_outcomes = processor.process_block_events(block_hash, block_request_events).context("failed processing block events")?;
+        let block_outcomes = processor
+            .process_block_events(block_hash, block_request_events)
+            .context("failed processing block events")?;
 
         let transition_outcomes: Vec<_> = block_outcomes
             .into_iter()
@@ -573,7 +586,8 @@ impl Service {
                         validator.as_mut(),
                         sequencer.as_mut(),
                         network_sender.as_mut(),
-                    ).await?;
+                    ).await
+                    .context("failed commitments post-processing")?;
 
                     if is_block_event {
                         collection_round_timer.start();
@@ -588,7 +602,7 @@ impl Service {
                         validator.as_mut(),
                         sequencer.as_mut(),
                         network_sender.as_mut()
-                    )?;
+                    ).context("failed collected commitments processing")?;
 
                     collection_round_timer.stop();
                     validation_round_timer.start();
@@ -596,7 +610,7 @@ impl Service {
                 _ = validation_round_timer.wait() => {
                     log::debug!("Validation round timeout, process validated commitments...");
 
-                    Self::process_approved_commitments(sequencer.as_mut()).await?;
+                    Self::process_approved_commitments(sequencer.as_mut()).await.context("failed approved commitments processing")?;
 
                     validation_round_timer.stop();
                 }
@@ -611,7 +625,7 @@ impl Service {
                                 validator.as_mut(),
                                 sequencer.as_mut(),
                                 network_sender.as_mut(),
-                            );
+                            ).context("failed processing network message");
 
                             if let Err(err) = result {
                                 // TODO: slash peer/validator in case of error #4175
@@ -620,7 +634,7 @@ impl Service {
                             }
                         }
                         NetworkReceiverEvent::ExternalValidation(validating_response) => {
-                            let validated = Self::process_response_validation(&validating_response, &mut router_query).await?;
+                            let validated = Self::process_response_validation(&validating_response, &mut router_query).await.context("failed response validation processing")?;
                             let res = if validated {
                                 Ok(validating_response)
                             } else {
@@ -646,7 +660,7 @@ impl Service {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 
     async fn post_process_commitments(
@@ -668,12 +682,14 @@ impl Service {
             .is_empty()
             .not()
             .then(|| validator.aggregate(code_commitments))
-            .transpose()?;
+            .transpose()
+            .context("failed to aggregate code commitments")?;
         let aggregated_blocks = block_commitments
             .is_empty()
             .not()
             .then(|| validator.aggregate(block_commitments))
-            .transpose()?;
+            .transpose()
+            .context("failed to aggregate block commitments")?;
 
         if aggregated_codes.is_none() && aggregated_blocks.is_none() {
             return Ok(());
@@ -696,14 +712,18 @@ impl Service {
                     "Received ({}) signed code commitments from local validator...",
                     aggregated.len()
                 );
-                sequencer.receive_code_commitments(aggregated)?;
+                sequencer
+                    .receive_code_commitments(aggregated)
+                    .context("failed receiving code commitments for post processing commitments")?;
             }
             if let Some(aggregated) = aggregated_blocks {
                 log::debug!(
                     "Received ({}) signed block commitments from local validator...",
                     aggregated.len()
                 );
-                sequencer.receive_block_commitments(aggregated)?;
+                sequencer.receive_block_commitments(aggregated).context(
+                    "failed receiving block commitments for post processing commitments",
+                )?;
             }
         }
 
@@ -787,7 +807,8 @@ impl Service {
             if code_requests.is_empty().not() {
                 match validator.validate_code_commitments(db, code_requests) {
                     Result::Ok((digest, signature)) => {
-                        sequencer.receive_codes_signature(digest, signature)?
+                        sequencer.receive_codes_signature(digest, signature)
+                            .context("failed to receive codes signature when processing collected commitments")?
                     }
                     Result::Err(err) => {
                         log::warn!("Collected code commitments validation failed: {err}")
@@ -798,7 +819,8 @@ impl Service {
             if block_requests.is_empty().not() {
                 match validator.validate_block_commitments(db, block_requests) {
                     Result::Ok((digest, signature)) => {
-                        sequencer.receive_blocks_signature(digest, signature)?
+                        sequencer.receive_blocks_signature(digest, signature)
+                            .context("failed to receive blocks signature when processing collected commitments")?
                     }
                     Result::Err(err) => {
                         log::warn!("Collected block commitments validation failed: {err}")
@@ -817,7 +839,10 @@ impl Service {
             return Ok(());
         };
 
-        sequencer.submit_multisigned_commitments().await
+        sequencer
+            .submit_multisigned_commitments()
+            .await
+            .context("failed submitting multisigned commitments")
     }
 
     fn process_network_message(
@@ -827,17 +852,22 @@ impl Service {
         maybe_sequencer: Option<&mut ethexe_sequencer::Sequencer>,
         maybe_network_sender: Option<&mut ethexe_network::NetworkSender>,
     ) -> Result<()> {
-        let message = NetworkMessage::decode(&mut data)?;
+        let message = NetworkMessage::decode(&mut data)
+            .context("failed decoding data into network message")?;
         match message {
             NetworkMessage::PublishCommitments { codes, blocks } => {
                 let Some(sequencer) = maybe_sequencer else {
                     return Ok(());
                 };
                 if let Some(aggregated) = codes {
-                    sequencer.receive_code_commitments(aggregated)?;
+                    sequencer
+                        .receive_code_commitments(aggregated)
+                        .context("failed receiving external code commitments")?;
                 }
                 if let Some(aggregated) = blocks {
-                    sequencer.receive_block_commitments(aggregated)?;
+                    sequencer
+                        .receive_block_commitments(aggregated)
+                        .context("failed receiving external block commitments")?;
                 }
                 Ok(())
             }
@@ -853,13 +883,15 @@ impl Service {
                     .is_empty()
                     .not()
                     .then(|| validator.validate_code_commitments(db, codes))
-                    .transpose()?;
+                    .transpose()
+                    .context("failed to validate externally received code commitments")?;
 
                 let blocks = blocks
                     .is_empty()
                     .not()
                     .then(|| validator.validate_block_commitments(db, blocks))
-                    .transpose()?;
+                    .transpose()
+                    .context("failed to validate externally received block commitments")?;
 
                 let message = NetworkMessage::ApproveCommitments { codes, blocks };
                 network_sender.publish_message(message.encode());
@@ -872,11 +904,15 @@ impl Service {
                 };
 
                 if let Some((digest, signature)) = codes {
-                    sequencer.receive_codes_signature(digest, signature)?;
+                    sequencer
+                        .receive_codes_signature(digest, signature)
+                        .context("failed to receive external codes signature")?;
                 }
 
                 if let Some((digest, signature)) = blocks {
-                    sequencer.receive_blocks_signature(digest, signature)?;
+                    sequencer
+                        .receive_blocks_signature(digest, signature)
+                        .context("failed to receive external blocks signature")?;
                 }
 
                 Ok(())
@@ -891,14 +927,20 @@ impl Service {
         let response = validating_response.response();
 
         if let db_sync::Response::ProgramIds(ids) = response {
-            let ethereum_programs = router_query.programs_count().await?;
+            let ethereum_programs = router_query
+                .programs_count()
+                .await
+                .context("failed to get programs count")?;
             if ethereum_programs != U256::from(ids.len()) {
                 return Ok(false);
             }
 
             // TODO: #4309
             for &id in ids {
-                let code_id = router_query.program_code_id(id).await?;
+                let code_id = router_query
+                    .program_code_id(id)
+                    .await
+                    .with_context(|| format!("failed to get program's {id} code is"))?;
                 if code_id.is_none() {
                     return Ok(false);
                 }

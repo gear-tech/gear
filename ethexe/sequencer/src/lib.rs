@@ -21,7 +21,7 @@
 pub mod agro;
 
 use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use ethexe_common::{
     db::BlockMetaStorage,
     gear::{BlockCommitment, CodeCommitment},
@@ -203,11 +203,15 @@ impl Sequencer {
         match (codes_future, blocks_future) {
             (Some(codes_future), Some(transitions_future)) => {
                 let (codes_tx, transitions_tx) = futures::join!(codes_future, transitions_future);
-                codes_tx?;
-                transitions_tx?;
+                codes_tx.context("failed submitting code commitments")?;
+                transitions_tx.context("failed submitting block commitments")?;
             }
-            (Some(codes_future), None) => codes_future.await?,
-            (None, Some(transitions_future)) => transitions_future.await?,
+            (Some(codes_future), None) => codes_future
+                .await
+                .context("failed submitting code commitments")?,
+            (None, Some(transitions_future)) => transitions_future
+                .await
+                .context("failed submitting block commitments")?,
             (None, None) => {}
         }
 
@@ -438,7 +442,9 @@ impl Sequencer {
         commitments_storage: &mut CommitmentsMap<C>,
         commitments_filter: impl Fn(&C) -> bool,
     ) -> Result<()> {
-        let origin = aggregated.recover(router_address)?;
+        let origin = aggregated
+            .recover(router_address)
+            .context("failed to recover address from aggregated commitments")?;
 
         if validators.contains(&origin).not() {
             return Err(anyhow!("Unknown validator {origin} or invalid signature"));
@@ -473,17 +479,14 @@ impl Sequencer {
             return Err(anyhow!("No candidate found"));
         };
 
-        candidate.append_signature_with_check(
-            commitments_digest,
-            signature,
-            router_address,
-            |origin| {
+        candidate
+            .append_signature_with_check(commitments_digest, signature, router_address, |origin| {
                 validators
                     .contains(&origin)
                     .then_some(())
                     .ok_or_else(|| anyhow!("Unknown validator {origin} or invalid signature"))
-            },
-        )
+            })
+            .context("failed to append signature to candidate for multisigned commitment")
     }
 
     fn update_status<F>(&mut self, update_fn: F)

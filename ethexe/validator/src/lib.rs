@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
     gear::{BlockCommitment, CodeCommitment},
@@ -113,6 +113,7 @@ impl Validator {
             self.pub_key,
             self.router_address,
         )
+        .context("failed to aggregate commitments")
     }
 
     pub fn validate_code_commitments(
@@ -124,7 +125,8 @@ impl Validator {
         for request in requests {
             log::debug!("Receive code commitment for validation: {:?}", request);
             commitment_digests.push(request.to_digest());
-            Self::validate_code_commitment(db, request)?;
+            Self::validate_code_commitment(db, request)
+                .context("failed code commitments validation")?;
         }
 
         let commitments_digest = commitment_digests.iter().collect();
@@ -135,6 +137,7 @@ impl Validator {
             self.router_address,
         )
         .map(|signature| (commitments_digest, signature))
+        .context("failed to sign code commitments digest")
     }
 
     pub fn validate_block_commitments(
@@ -146,7 +149,8 @@ impl Validator {
         for request in requests.into_iter() {
             log::debug!("Receive block commitment for validation: {:?}", request);
             commitment_digests.push(request.to_digest());
-            Self::validate_block_commitment(db, request)?;
+            Self::validate_block_commitment(db, request)
+                .context("failed block commitments validation")?;
         }
 
         let commitments_digest = commitment_digests.iter().collect();
@@ -157,6 +161,7 @@ impl Validator {
             self.router_address,
         )
         .map(|signature| (commitments_digest, signature))
+        .context("failed to sign block commitments digest")
     }
 
     fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {

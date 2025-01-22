@@ -257,7 +257,9 @@ impl NetworkEventLoop {
             }
         };
 
-        let mut key = signer.get_private_key(key)?;
+        let mut key = signer
+            .get_private_key(key)
+            .context("failed to get a private key for the public one")?;
         let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key.0)
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
@@ -281,7 +283,9 @@ impl NetworkEventLoop {
             TransportType::QuicOrTcp => {
                 let tcp = libp2p::tcp::tokio::Transport::default()
                     .upgrade(upgrade::Version::V1Lazy)
-                    .authenticate(libp2p::tls::Config::new(&keypair)?)
+                    .authenticate(
+                        libp2p::tls::Config::new(&keypair).context("failed tls config creation")?,
+                    )
                     .multiplex(yamux::Config::default())
                     .timeout(Duration::from_secs(20));
 
@@ -302,7 +306,8 @@ impl NetworkEventLoop {
                 .boxed(),
         };
 
-        let behaviour = Behaviour::new(&keypair, db)?;
+        let behaviour =
+            Behaviour::new(&keypair, db).context("failed ethexe network behaviour creation")?;
         let local_peer_id = keypair.public().to_peer_id();
         let config = SwarmConfig::with_tokio_executor();
 
@@ -482,7 +487,7 @@ impl NetworkEventLoop {
                     .gossipsub
                     .publish(gpu_commitments_topic(), data)
                 {
-                    log::debug!("gossipsub publishing failed: {e}")
+                    log::error!("gossipsub publishing failed: {e}")
                 }
             }
             NetworkSenderEvent::RequestDbData(request) => {

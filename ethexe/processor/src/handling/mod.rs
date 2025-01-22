@@ -82,11 +82,17 @@ impl Processor {
         &mut self,
         original_code: impl AsRef<[u8]>,
     ) -> Result<Option<CodeId>> {
-        let mut executor = self.creator.instantiate().context("failed creating instance wrapper")?;
+        let mut executor = self
+            .creator
+            .instantiate()
+            .context("failed creating instance wrapper")?;
 
         let original_code = original_code.as_ref();
 
-        let Some(instrumented_code) = executor.instrument(original_code).context("failed instrumenting the code")? else {
+        let Some(instrumented_code) = executor
+            .instrument(original_code)
+            .context("failed instrumenting the code")?
+        else {
             return Ok(None);
         };
 

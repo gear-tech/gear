@@ -18,7 +18,7 @@
 
 //! Abstract commitment aggregator.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode};
@@ -93,8 +93,9 @@ impl MultisignedCommitmentDigests {
             return Err(anyhow!("Aggregated commitments digest mismatch"));
         }
 
-        let origin = recover_from_commitments_digest(digest, &signature, router_address)?;
-        check_origin(origin)?;
+        let origin = recover_from_commitments_digest(digest, &signature, router_address)
+            .context("failed to recover signature origin")?;
+        check_origin(origin).context("failed commitment digests signature origin check")?;
 
         self.signatures.insert(origin, signature);
 
@@ -148,7 +149,9 @@ pub fn sign_commitments_digest(
     router_address: Address,
 ) -> Result<Signature> {
     let digest = to_router_digest(commitments_digest, router_address);
-    signer.sign_digest(pub_key, digest)
+    signer
+        .sign_digest(pub_key, digest)
+        .context("failed to sign commitments digest")
 }
 
 fn recover_from_commitments_digest(
@@ -159,6 +162,7 @@ fn recover_from_commitments_digest(
     signature
         .recover_from_digest(to_router_digest(commitments_digest, router_address))
         .map(|k| k.to_address())
+        .context("failed to recover address from commitments digest")
 }
 
 fn to_router_digest(commitments_digest: Digest, router_address: Address) -> Digest {

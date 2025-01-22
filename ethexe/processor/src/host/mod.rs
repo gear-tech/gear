@@ -78,7 +78,10 @@ impl InstanceCreator {
     pub fn instantiate(&self) -> Result<InstanceWrapper> {
         let mut store = Store::new(&self.engine, Default::default());
 
-        let instance = self.instance_pre.instantiate(&mut store).context("failed instantiating wasm module from pre-instantiation state")?;
+        let instance = self
+            .instance_pre
+            .instantiate(&mut store)
+            .context("failed instantiating wasm module from pre-instantiation state")?;
 
         let mut instance_wrapper = InstanceWrapper {
             instance,
