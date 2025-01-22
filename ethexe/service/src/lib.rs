@@ -91,7 +91,7 @@ impl Service {
         };
 
         let blob_reader: Arc<dyn ethexe_observer::BlobReader> = if config.node.dev {
-            mock_blob_reader.clone().unwrap().clone()
+            mock_blob_reader.clone().unwrap()
         } else {
             Arc::new(
                 ethexe_observer::ConsensusLayerBlobReader::new(

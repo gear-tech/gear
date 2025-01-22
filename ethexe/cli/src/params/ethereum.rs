@@ -45,12 +45,12 @@ pub struct EthereumParams {
     /// Ethereum block time in seconds.
     #[arg(long, alias = "eth-block-time")]
     #[serde(rename = "block-time")]
-    pub block_time: Option<usize>,
+    pub block_time: Option<u64>,
 }
 
 impl EthereumParams {
     /// Default block time in seconds.
-    pub const BLOCK_TIME: usize = 12;
+    pub const BLOCK_TIME: u64 = 12;
 
     /// Default Ethereum RPC.
     pub const DEFAULT_ETHEREUM_RPC: &str = "http://localhost:8545";
@@ -72,7 +72,7 @@ impl EthereumParams {
                 .ok_or_else(|| anyhow!("missing `ethereum-router`"))?
                 .parse()
                 .with_context(|| "invalid `ethereum-router`")?,
-            block_time: Duration::from_secs(self.block_time.unwrap_or(Self::BLOCK_TIME) as u64),
+            block_time: Duration::from_secs(self.block_time.unwrap_or(Self::BLOCK_TIME)),
         })
     }
 }
