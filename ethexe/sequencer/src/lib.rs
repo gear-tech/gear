@@ -67,20 +67,24 @@ impl<T> Timer<T> {
         Self::new(Duration::from_millis(millis))
     }
 
+    pub fn started(&self) -> bool {
+        self.start.is_some()
+    }
+
     pub fn start(&mut self, data: T) {
         self.start = Some(Instant::now());
         self.data = Some(data);
     }
 
-    pub fn stop(&mut self) -> T {
+    pub fn stop(&mut self) -> Option<T> {
         self.start = None;
-        self.data.take().expect("must be")
+        self.data.take()
     }
 
     pub async fn rings(&mut self) -> T {
         maybe_await(self.remaining().map(async |dur| {
             time::sleep(dur).await;
-            self.data.take().expect("must be")
+            self.stop().expect("must be")
         }))
         .await
     }
@@ -172,8 +176,8 @@ impl SequencerService {
             blocks_candidate: None,
             codes_candidate: None,
 
-            collection_round: Timer::new(config.block_time * 2 / 5),
-            validation_round: Timer::new(config.block_time / 5),
+            collection_round: Timer::new(config.block_time / 2),
+            validation_round: Timer::new(config.block_time / 4),
 
             transactions: FuturesUnordered::new(),
         })
@@ -261,6 +265,10 @@ impl SequencerService {
     }
 
     pub fn receive_blocks_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
+        log::debug!("Received block commitments signature: {digest:?} {signature:?}");
+        log::debug!("Collection round started: {}", self.collection_round.started());
+        log::debug!("Validation round started: {}", self.validation_round.started());
+
         Self::receive_signature(
             digest,
             signature,

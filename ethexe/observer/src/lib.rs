@@ -21,17 +21,18 @@
 use crate::observer::{read_block_request_events, read_code_from_tx_hash};
 use alloy::{
     providers::{Provider as _, ProviderBuilder, RootProvider},
-    pubsub::SubscriptionStream,
+    pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
     transports::BoxTransport,
 };
-use anyhow::{anyhow, Context, Result};
-use ethexe_common::events::{BlockRequestEvent, RouterRequestEvent};
+use anyhow::{anyhow, Context as _, Result};
+use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent, RouterRequestEvent};
 use ethexe_db::BlockHeader;
 use ethexe_signer::Address;
-use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use futures::{future::BoxFuture, stream::{FusedStream, FuturesUnordered}, Future, FutureExt, Stream, StreamExt};
 use gprimitives::{CodeId, H256};
-use std::{sync::Arc, time::Duration};
+use observer::read_block_events;
+use std::{future::IntoFuture, pin::{pin, Pin}, sync::Arc, task::{Context, Poll}, time::Duration};
 
 type Provider = RootProvider<BoxTransport>;
 
@@ -56,6 +57,7 @@ pub struct EthereumConfig {
 pub struct ObserverService {
     blobs: Arc<dyn BlobReader>,
     provider: Provider,
+    subscription: Subscription<Header>,
 
     router: Address,
 
@@ -67,18 +69,44 @@ pub struct ObserverService {
 
 type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, Vec<u8>)>>;
 
-impl ObserverService {
-    pub async fn cloned(&self) -> Result<Self> {
-        Ok(Self {
+impl Clone for ObserverService {
+    fn clone(&self) -> Self {
+        let subscription = self.subscription.resubscribe();
+        let blocks_stream = subscription.resubscribe().into_stream();
+
+        Self {
             blobs: self.blobs.clone(),
             provider: self.provider.clone(),
+            subscription,
             router: self.router,
             last_block_number: self.last_block_number,
-            blocks_stream: self.provider.subscribe_blocks().await?.into_stream(),
+            blocks_stream,
             codes_futures: FuturesUnordered::new(),
-        })
+        }
     }
+}
 
+// impl Stream for ObserverService {
+//     type Item = Result<ObserverServiceEvent>;
+
+//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+//         if let Poll::Ready(event) = pin!(self.next_event()).poll(cx) {
+//             log::debug!("READY {event:?}");
+//             Poll::Ready(Some(event))
+//         } else {
+//             cx.waker().wake_by_ref();
+//             Poll::Ready(None)
+//         }
+//     }
+// }
+
+// impl FusedStream for ObserverService {
+//     fn is_terminated(&self) -> bool {
+//         false
+//     }
+// }
+
+impl ObserverService {
     pub async fn new(config: &EthereumConfig) -> Result<Self> {
         let blobs = Arc::new(
             ConsensusLayerBlobReader::new(&config.rpc, &config.beacon_rpc, config.block_time)
@@ -103,16 +131,21 @@ impl ObserverService {
             .await
             .context("failed to subscribe blocks")?;
 
-        let blocks_stream = subscription.into_stream();
+        let blocks_stream = subscription.resubscribe().into_stream();
 
         Ok(Self {
             blobs,
             provider,
+            subscription,
             router: config.router_address,
             last_block_number: 0,
             blocks_stream,
             codes_futures: FuturesUnordered::new(),
         })
+    }
+
+    pub fn provider(&self) -> &Provider {
+        &self.provider
     }
 
     pub fn get_status(&self) -> ObserverStatus {
@@ -152,18 +185,18 @@ impl ObserverService {
                     parent_hash,
                 };
 
-                let events = read_block_request_events(block_hash, &self.provider, self.router.0.into())
+                let events = read_block_events(block_hash, &self.provider, self.router.0.into())
                     .await
                     .map_err(|err| anyhow!("Failed to read events for block {block_hash:?}: {err}"))?;
 
                 // TODO: replace me with proper processing of all events, including commitments.
                 for event in &events {
-                    if let BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
+                    if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
                         self.lookup_code(*code_id, *blob_tx_hash);
                     }
                 }
 
-                Ok(ObserverServiceEvent::Block(RequestBlockData {
+                Ok(ObserverServiceEvent::Block(BlockData {
                     hash: block_hash,
                     header,
                     events,
@@ -179,5 +212,5 @@ impl ObserverService {
 #[derive(Clone, Debug)]
 pub enum ObserverServiceEvent {
     Blob { code_id: CodeId, code: Vec<u8> },
-    Block(RequestBlockData),
+    Block(BlockData),
 }

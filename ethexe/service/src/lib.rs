@@ -20,7 +20,7 @@ use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{anyhow, bail, Context, Result};
 use ethexe_common::{
-    events::{BlockRequestEvent, RouterRequestEvent},
+    events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
     maybe_await, option_call,
 };
@@ -37,7 +37,7 @@ use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::stream::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::{ops::Not, sync::Arc};
+use std::{ops::Not, sync::Arc, time::Duration};
 
 pub mod config;
 
@@ -471,6 +471,12 @@ impl Service {
                                 block.header.height,
                                 block.header.parent_hash
                             );
+
+                            let block = RequestBlockData {
+                                hash,
+                                header: block.header,
+                                events: block.events.into_iter().flat_map(BlockEvent::as_request).collect(),
+                            };
 
                             // TODO: spawn blocking here?
                             let block_commitments =
