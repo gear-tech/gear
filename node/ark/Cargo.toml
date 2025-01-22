@@ -1,0 +1,22 @@
+[package]
+name = "gear-ark"
+description = "Host primitives for supported Argument of Knowledge systems"
+documentation = "https://docs.rs/gear-ark"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+unroll.workspace = true
+num = { workspace = true, features = ["alloc"] }
+
+[dev-dependencies]
+rand = { workspace = true, features = ["std", "std_rng"] }
+
+[features]
+default = ["std"]
+std = []
