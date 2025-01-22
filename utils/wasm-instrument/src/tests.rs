@@ -46,7 +46,7 @@ where
         .instrument(module)
 }
 
-fn get_function_body(module: Module, index: usize) -> Option<&[Instruction]> {
+fn get_function_body(module: &Module, index: usize) -> Option<&[Instruction]> {
     module
         .code_section()
         .and_then(|code_section| code_section.get(index))
