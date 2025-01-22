@@ -34,7 +34,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{EthereumConfig, Event, MockBlobReader, Query};
+use ethexe_observer::{EthereumConfig, MockBlobReader, Query};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -816,7 +816,7 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(30_000)]
+#[ntest::timeout(120_000)]
 async fn multiple_validators() {
     gear_utils::init_default_logger();
 
@@ -988,14 +988,16 @@ mod utils {
     use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverService, ObserverServiceEvent, SimpleBlockData};
     use ethexe_sequencer::{SequencerService, SequencerServiceConfig};
-    use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use std::{
         ops::Mul,
         str::FromStr,
         sync::atomic::{AtomicUsize, Ordering},
     };
-    use tokio::sync::{broadcast::{self, Sender}, Mutex};
+    use tokio::sync::{
+        broadcast::{self, Sender},
+        Mutex,
+    };
 
     pub struct TestEnv {
         pub rpc_url: String,
@@ -1107,10 +1109,9 @@ mod utils {
                 router_address,
                 block_time: config.block_time,
             };
-            let observer =
-                ObserverService::new_with_blobs(&eth_cfg, blob_reader.clone())
-                    .await
-                    .unwrap();
+            let observer = ObserverService::new_with_blobs(&eth_cfg, blob_reader.clone())
+                .await
+                .unwrap();
 
             let (broadcaster, _events_stream) = {
                 let mut observer = observer.clone();

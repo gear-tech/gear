@@ -29,10 +29,6 @@ use ethexe_common::{
 };
 use ethexe_ethereum::{router::Router, Ethereum};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
-use futures::{
-    future::BoxFuture,
-    stream::{FuturesUnordered, StreamExt},
-};
 use gprimitives::H256;
 use indexmap::IndexSet;
 use std::{
@@ -51,6 +47,8 @@ pub struct Timer<T = ()> {
 
 impl<T> Timer<T> {
     pub fn new(duration: Duration) -> Self {
+        log::debug!("[TIMER] Created timer with duration: {duration:?}");
+
         Self {
             duration,
 
@@ -72,8 +70,10 @@ impl<T> Timer<T> {
     }
 
     pub fn start(&mut self, data: T) {
-        self.start = Some(Instant::now());
         self.data = Some(data);
+        let now = Instant::now();
+        log::debug!("[TIMER] Started timer at {now:?}");
+        self.start = Some(now);
     }
 
     pub fn stop(&mut self) -> Option<T> {
@@ -83,7 +83,9 @@ impl<T> Timer<T> {
 
     pub async fn rings(&mut self) -> T {
         maybe_await(self.remaining().map(async |dur| {
+            log::debug!("[TIMER] Timer will ring in {dur:?}");
             time::sleep(dur).await;
+            log::debug!("[TIMER] Timer rings");
             self.stop().expect("must be")
         }))
         .await
@@ -135,8 +137,7 @@ pub struct SequencerService {
     // TODO: merge into single timer.
     collection_round: Timer<H256>,
     validation_round: Timer<H256>,
-
-    transactions: FuturesUnordered<BoxFuture<'static, Result<()>>>,
+    // transactions: FuturesUnordered<BoxFuture<'static, Result<()>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -178,8 +179,6 @@ impl SequencerService {
 
             collection_round: Timer::new(config.block_time / 2),
             validation_round: Timer::new(config.block_time / 4),
-
-            transactions: FuturesUnordered::new(),
         })
     }
 
@@ -211,7 +210,12 @@ impl SequencerService {
         self.blocks_candidate.take();
         self.codes_candidate.take();
 
-        self.start_collection_round(hash);
+        log::debug!("[SEQUENCER] Collection round for {hash} started");
+        self.collection_round.start(hash);
+
+        if let Some(block) = self.validation_round.stop() {
+            log::debug!("[SEQUENCER] Validation round for {block} stopped");
+        }
 
         Ok(())
     }
@@ -228,7 +232,7 @@ impl SequencerService {
         &mut self,
         aggregated: AggregatedCommitments<CodeCommitment>,
     ) -> Result<()> {
-        log::debug!("Received code commitments: {aggregated:?}");
+        log::debug!("[SEQUENCER] Received code commitments: {aggregated:?}");
 
         Self::receive_commitments(
             aggregated,
@@ -243,7 +247,7 @@ impl SequencerService {
         &mut self,
         aggregated: AggregatedCommitments<BlockCommitment>,
     ) -> Result<()> {
-        log::debug!("Received block commitments: {aggregated:?}");
+        log::debug!("[SEQUENCER] Received block commitments: {aggregated:?}");
 
         Self::receive_commitments(
             aggregated,
@@ -255,6 +259,8 @@ impl SequencerService {
     }
 
     pub fn receive_codes_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
+        log::debug!("[SEQUENCER] Received codes signature: {digest:?} {signature:?}");
+
         Self::receive_signature(
             digest,
             signature,
@@ -265,9 +271,7 @@ impl SequencerService {
     }
 
     pub fn receive_blocks_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
-        log::debug!("Received block commitments signature: {digest:?} {signature:?}");
-        log::debug!("Collection round started: {}", self.collection_round.started());
-        log::debug!("Validation round started: {}", self.validation_round.started());
+        log::debug!("[SEQUENCER] Received block signature: {digest:?} {signature:?}");
 
         Self::receive_signature(
             digest,
@@ -278,42 +282,56 @@ impl SequencerService {
         )
     }
 
-    pub fn submit_multisigned_commitments(&mut self) {
-        let router = self.ethereum.router();
+    pub async fn submit_multisigned_commitments(&mut self) -> Result<()> {
+        let mut codes_future = None;
+        let mut blocks_future = None;
 
-        if let Some(codes_candidate) = Self::process_multisigned_candidate(
+        let codes_candidate = Self::process_multisigned_candidate(
             &mut self.codes_candidate,
             &mut self.code_commitments,
             self.threshold,
-        ) {
-            log::debug!(
-                "Collected {} codes commitments. Trying to submit...",
-                codes_candidate.commitments().len()
-            );
+        );
 
-            self.transactions
-                .push(Box::pin(Self::submit_codes_commitments(
-                    router.clone(),
-                    codes_candidate,
-                )));
-        };
-
-        if let Some(blocks_candidate) = Self::process_multisigned_candidate(
+        let blocks_candidate = Self::process_multisigned_candidate(
             &mut self.blocks_candidate,
             &mut self.block_commitments,
             self.threshold,
-        ) {
-            log::debug!(
-                "Collected {} blocks commitments. Trying to submit...",
-                blocks_candidate.commitments().len()
-            );
+        );
 
-            self.transactions
-                .push(Box::pin(Self::submit_block_commitments(
-                    router,
-                    blocks_candidate,
-                )));
+        if let Some(candidate) = codes_candidate {
+            log::debug!(
+                "Collected {} code commitments. Trying to submit...",
+                candidate.commitments().len()
+            );
+            codes_future = Some(Self::submit_codes_commitments(
+                self.ethereum.router(),
+                candidate,
+            ));
         };
+
+        if let Some(candidate) = blocks_candidate {
+            log::debug!(
+                "Collected {} block commitments. Trying to submit...",
+                candidate.commitments().len()
+            );
+            blocks_future = Some(Self::submit_block_commitments(
+                self.ethereum.router(),
+                candidate,
+            ));
+        };
+
+        match (codes_future, blocks_future) {
+            (Some(codes_future), Some(transitions_future)) => {
+                let (codes_tx, transitions_tx) = futures::join!(codes_future, transitions_future);
+                codes_tx?;
+                transitions_tx?;
+            }
+            (Some(codes_future), None) => codes_future.await?,
+            (None, Some(transitions_future)) => transitions_future.await?,
+            (None, None) => {}
+        }
+
+        Ok(())
     }
 
     async fn submit_codes_commitments(
@@ -362,7 +380,6 @@ impl SequencerService {
             block_hash = self.collection_round.rings() => {
                 // If chain head is not yet processed by this node, this is normal situation,
                 // so we just skip this round for sequencer.
-
                 let Some(block_is_empty) = self.db.block_is_empty(block_hash) else {
                     log::warn!("Failed to get block emptiness status for {block_hash}");
                     return SequencerServiceEvent::CollectionRoundEnded { block_hash, validation_started: false };
@@ -378,46 +395,32 @@ impl SequencerService {
                     block_hash
                 };
 
-                self.nominate_candidates(last_non_empty_block);
+                self.blocks_candidate =
+                    Self::blocks_commitment_candidate(&self.block_commitments, last_non_empty_block, self.threshold);
+                self.codes_candidate =
+                    Self::codes_commitment_candidate(&self.code_commitments, self.threshold);
 
-                let validation_started = self.codes_candidate.is_some() || self.blocks_candidate.is_some();
+                let to_start_validation = self.blocks_candidate.is_some() || self.codes_candidate.is_some();
 
-                if validation_started {
-                    self.start_validation_round(block_hash);
+                if to_start_validation {
+                    log::debug!("[SEQUENCER] Validation round for {block_hash} started");
+                    self.validation_round.start(block_hash);
+                } else {
+                    log::debug!("[SEQUENCER] Skipping validation round for {block_hash}");
                 }
 
-                SequencerServiceEvent::CollectionRoundEnded { block_hash, validation_started }
+                SequencerServiceEvent::CollectionRoundEnded { block_hash, validation_started: to_start_validation }
             }
             block_hash = self.validation_round.rings() => {
-                log::debug!("Validation round for {block_hash} ended, trying to submit multisigned commitments...");
-
-                self.submit_multisigned_commitments();
-
+                log::debug!("Validation round for {block_hash} ended");
                 SequencerServiceEvent::ValidationRoundEnded(block_hash)
             }
-            Some(res) = self.transactions.next() => {
-                log::debug!("Transaction completed: {res:?}");
+            // Some(res) = self.transactions.next() => {
+            //     log::debug!("Transaction completed: {res:?}");
 
-                SequencerServiceEvent::CommitmentSubmitted(res)
-            }
+            //     SequencerServiceEvent::CommitmentSubmitted(res)
+            // }
         }
-    }
-
-    fn start_collection_round(&mut self, hash: H256) {
-        self.collection_round.start(hash);
-        self.validation_round.stop();
-    }
-
-    fn start_validation_round(&mut self, hash: H256) {
-        self.collection_round.stop();
-        self.validation_round.start(hash);
-    }
-
-    fn nominate_candidates(&mut self, from_block: H256) {
-        self.blocks_candidate =
-            Self::blocks_commitment_candidate(&self.block_commitments, from_block, self.threshold);
-        self.codes_candidate =
-            Self::codes_commitment_candidate(&self.code_commitments, self.threshold);
     }
 
     fn blocks_commitment_candidate(

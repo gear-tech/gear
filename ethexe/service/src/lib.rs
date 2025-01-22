@@ -37,7 +37,7 @@ use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::stream::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::{ops::Not, sync::Arc, time::Duration};
+use std::{ops::Not, sync::Arc};
 
 pub mod config;
 
@@ -617,14 +617,16 @@ impl Service {
                                 Ok(())
                             })?;
                         },
-                        SequencerServiceEvent::ValidationRoundEnded(_block_hash) => {},
+                        SequencerServiceEvent::ValidationRoundEnded(_block_hash) => {
+                            s.submit_multisigned_commitments().await?;
+                        },
                         SequencerServiceEvent::CommitmentSubmitted(_res) => {},
                     }
                 },
                 Some(event) = maybe_await(network.as_mut().map(|v| v.next())) => {
                     match event {
                         NetworkEvent::Message { source, data } => {
-                            log::debug!("Received a network message from peer {source:?}");
+                            log::trace!("Received a network message from peer {source:?}");
 
                             let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
                                 .inspect_err(|e| log::warn!("Failed to decode network message: {e}"))
@@ -632,9 +634,9 @@ impl Service {
                                 continue;
                             };
 
-                            let res = match message {
+                            match message {
                                 NetworkMessage::PublishCommitments { codes, blocks } => {
-                                    option_call(&mut sequencer, |s| {
+                                    if let Err(e) = option_call(&mut sequencer, |s| {
                                         let mut res = Ok(());
 
                                         if let Some(aggregated) = codes {
@@ -646,10 +648,12 @@ impl Service {
                                         }
 
                                         res
-                                    })
+                                    }) {
+                                        log::warn!("[SEQUENCER] Failed to process network message \"PublishCommitments\": {e}");
+                                    }
                                 },
                                 NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
-                                    option_call(&mut validator, |v| {
+                                    if let Err(e) = option_call(&mut validator, |v| {
                                         let codes = codes
                                             .is_empty()
                                             .not()
@@ -668,27 +672,28 @@ impl Service {
                                             n.publish_message(message.encode());
                                             Ok(())
                                         })
-                                    })
+                                    }) {
+                                        log::warn!("[VALIDATOR] Failed to process network message \"RequestCommitmentsValidation\": {e}");
+                                    }
                                 },
                                 NetworkMessage::ApproveCommitments { codes, blocks } => {
-                                    option_call(&mut sequencer, |s| {
+                                    if let Err(e) = option_call(&mut sequencer, |s| {
+                                        let mut res = Ok(());
+
                                         if let Some((digest, signature)) = codes {
-                                            s.receive_codes_signature(digest, signature)?;
+                                            res = s.receive_codes_signature(digest, signature);
                                         }
 
                                         if let Some((digest, signature)) = blocks {
                                             s.receive_blocks_signature(digest, signature)?;
                                         }
 
-                                        Ok(())
-                                    })
+                                        res
+                                    }) {
+                                        log::warn!("[SEQUENCER] Failed to process network message \"ApproveCommitments\": {e}");
+                                    }
                                 },
                             };
-
-                            if let Err(e) = res {
-                                log::warn!("Failed to process network message: {e}");
-                                continue;
-                            }
                         }
                         NetworkEvent::ExternalValidation(validating_response) => {
                             let validated = Self::process_response_validation(&validating_response, &mut router_query).await?;

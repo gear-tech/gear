@@ -18,7 +18,7 @@
 
 //! Ethereum state observer for ethexe.
 
-use crate::observer::{read_block_request_events, read_code_from_tx_hash};
+use crate::observer::read_code_from_tx_hash;
 use alloy::{
     providers::{Provider as _, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
@@ -26,13 +26,13 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent, RouterRequestEvent};
+use ethexe_common::events::{BlockEvent, RouterEvent};
 use ethexe_db::BlockHeader;
 use ethexe_signer::Address;
-use futures::{future::BoxFuture, stream::{FusedStream, FuturesUnordered}, Future, FutureExt, Stream, StreamExt};
+use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use gprimitives::{CodeId, H256};
 use observer::read_block_events;
-use std::{future::IntoFuture, pin::{pin, Pin}, sync::Arc, task::{Context, Poll}, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 type Provider = RootProvider<BoxTransport>;
 
@@ -168,6 +168,7 @@ impl ObserverService {
     pub async fn next(&mut self) -> Result<ObserverServiceEvent> {
         tokio::select! {
             header = self.blocks_stream.next() => {
+                log::debug!("Received block header: {header:?}");
                 let header = header.ok_or_else(|| anyhow!("blocks stream closed"))?;
 
                 let block_hash = (*header.hash).into();
