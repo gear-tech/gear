@@ -146,7 +146,10 @@ impl CargoCommand {
         self.remove_cargo_encoded_rustflags(&mut cargo);
 
         if self.reduce_wasm_proposals {
-            cargo.env("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-feature=");
+            cargo.env(
+                "CARGO_ENCODED_RUSTFLAGS",
+                "-Ctarget-feature=-multivalue,-reference-types",
+            );
             if !self.toolchain.is_nightly() {
                 cargo.env("RUSTC_BOOTSTRAP", "1");
             }
