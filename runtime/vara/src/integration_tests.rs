@@ -27,10 +27,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::gas_metering::CustomConstantCostRules;
-use gwasm_instrument::{
-    gas_metering::Rules,
-    parity_wasm::elements::{Instruction, Module},
-};
+use gear_wasm_instrument::{module::MemArg, BlockType, Instruction, Module, Rules};
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     Slot, BABE_ENGINE_ID,
@@ -792,10 +789,11 @@ fn process_costs_are_same() {
 }
 
 fn all_measured_instructions() -> Vec<Instruction> {
-    use gwasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction::*};
-    let default_table_data = BrTableData {
-        table: Default::default(),
+    use Instruction::*;
+
+    let default_table_data = gear_wasm_instrument::module::BrTable {
         default: 0,
+        targets: vec![],
     };
 
     // A set of instructions weights for which the Gear provides.
@@ -805,44 +803,150 @@ fn all_measured_instructions() -> Vec<Instruction> {
         Unreachable,
         Return,
         Else,
-        I32Const(0),
-        I64Const(0),
-        Block(BlockType::NoResult),
-        Loop(BlockType::NoResult),
+        I32Const { value: 0 },
+        I64Const { value: 0 },
+        Block {
+            blockty: BlockType::Empty,
+        },
+        Loop {
+            blockty: BlockType::Empty,
+        },
         Nop,
         Drop,
-        I32Load(0, 0),
-        I32Load8S(0, 0),
-        I32Load8U(0, 0),
-        I32Load16S(0, 0),
-        I32Load16U(0, 0),
-        I64Load(0, 0),
-        I64Load8S(0, 0),
-        I64Load8U(0, 0),
-        I64Load16S(0, 0),
-        I64Load16U(0, 0),
-        I64Load32S(0, 0),
-        I64Load32U(0, 0),
-        I32Store(0, 0),
-        I32Store8(0, 0),
-        I32Store16(0, 0),
-        I64Store(0, 0),
-        I64Store8(0, 0),
-        I64Store16(0, 0),
-        I64Store32(0, 0),
+        I32Load {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I32Load8S {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I32Load8U {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I32Load16S {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I32Load16U {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Load {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Load8S {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Load8U {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Load16S {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Load16U {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Load32S {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Load32U {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I32Store {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I32Store8 {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I32Store16 {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Store {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Store8 {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Store16 {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
+        I64Store32 {
+            memarg: MemArg {
+                align: 0,
+                offset: 0,
+            },
+        },
         Select,
-        If(BlockType::NoResult),
-        Br(0),
-        BrIf(0),
-        Call(0),
-        GetLocal(0),
-        SetLocal(0),
-        TeeLocal(0),
-        GetGlobal(0),
-        SetGlobal(0),
-        CurrentMemory(0),
-        CallIndirect(0, 0),
-        BrTable(default_table_data.into()),
+        If {
+            blockty: BlockType::Empty,
+        },
+        Br { relative_depth: 0 },
+        BrIf { relative_depth: 0 },
+        Call { function_index: 0 },
+        LocalGet { local_index: 0 },
+        LocalSet { local_index: 0 },
+        LocalTee { local_index: 0 },
+        GlobalGet { global_index: 0 },
+        GlobalSet { global_index: 0 },
+        MemorySize { mem: 0 },
+        CallIndirect {
+            type_index: 0,
+            table_index: 0,
+        },
+        BrTable {
+            targets: default_table_data,
+        },
         I32Clz,
         I64Clz,
         I32Ctz,
@@ -851,8 +955,8 @@ fn all_measured_instructions() -> Vec<Instruction> {
         I64Popcnt,
         I32Eqz,
         I64Eqz,
-        I64ExtendSI32,
-        I64ExtendUI32,
+        I64ExtendI32S,
+        I64ExtendI32U,
         I32WrapI64,
         I32Eq,
         I64Eq,
@@ -916,11 +1020,12 @@ fn default_wasm_module() -> Module {
         (func $handle)
         (func $init)
     )"#;
-    Module::from_bytes(
+    Module::new(
         wabt::Wat2Wasm::new()
             .validate(false)
             .convert(simple_wat)
-            .expect("failed to parse module"),
+            .expect("failed to parse module")
+            .as_ref(),
     )
     .expect("module instantiation failed")
 }
