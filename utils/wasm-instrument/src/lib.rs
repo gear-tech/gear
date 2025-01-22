@@ -22,17 +22,17 @@
 #![allow(clippy::result_large_err)]
 
 extern crate alloc;
-extern crate core;
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use module::{
     ConstExpr, Export, Function, Global, Import, Instruction, Module, ModuleBuilder, ModuleError,
 };
-pub use wasmparser::{ExternalKind, FuncType, GlobalType, MemoryType, TypeRef, ValType};
+pub use wasmparser::{
+    BlockType, ExternalKind, FuncType, GlobalType, MemoryType, RefType, TableType, TypeRef, ValType,
+};
 
 use crate::stack_limiter::InjectionConfig;
 use alloc::{string::ToString, vec};
-use wasmparser::BlockType;
 
 mod export_globals;
 
