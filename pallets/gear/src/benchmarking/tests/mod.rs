@@ -35,14 +35,14 @@ use crate::{
     Ext, HandleKind,
 };
 use common::benchmarking;
-use gear_wasm_instrument::parity_wasm::elements::Instruction;
+use gear_wasm_instrument::{Instruction, ValType};
 
 pub fn check_stack_overflow<T>()
 where
     T: Config,
     T::AccountId: Origin,
 {
-    let instrs = vec![Instruction::Call(0)];
+    let instrs = vec![Instruction::Call { function_index: 0 }];
 
     let module: WasmModule<T> = ModuleDefinition {
         memory: Some(ImportedMemory::new(0)),
@@ -87,12 +87,17 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let aux_instrs = vec![Instruction::GetLocal(0), Instruction::GetLocal(1)];
+    let aux_instrs = vec![
+        Instruction::LocalGet { local_index: 0 },
+        Instruction::LocalGet { local_index: 1 },
+    ];
 
     let init_instrs = vec![
-        Instruction::I64Const(0),
-        Instruction::I64Const(1),
-        Instruction::Call(OFFSET_AUX),
+        Instruction::I64Const { value: 0 },
+        Instruction::I64Const { value: 1 },
+        Instruction::Call {
+            function_index: OFFSET_AUX,
+        },
         Instruction::Drop,
         Instruction::Drop,
     ];
@@ -102,7 +107,7 @@ where
         init_body: Some(body::from_instructions(init_instrs)),
         aux_body: Some(body::from_instructions(aux_instrs)),
         aux_arg_num: 2,
-        aux_res: vec![ValueType::I64, ValueType::I64],
+        aux_res: vec![ValType::I64, ValType::I64],
         ..Default::default()
     }
     .into();

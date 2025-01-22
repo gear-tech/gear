@@ -66,7 +66,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gear_wasm_instrument::{Instruction, Module, STACK_END_EXPORT_NAME};
 use gstd::{
     collections::BTreeMap,
     errors::{CoreError, Error as GstdError},
@@ -7948,11 +7948,6 @@ fn gas_spent_vs_balance() {
 
 #[test]
 fn gas_spent_precalculated() {
-    use gear_wasm_instrument::parity_wasm::{
-        self,
-        elements::{Instruction, Module},
-    };
-
     // After instrumentation will be:
     // (export "handle" (func $handle_export))
     // (func $add
@@ -8067,33 +8062,31 @@ fn gas_spent_precalculated() {
         };
 
         let instrumented_code = get_program_code(pid);
-        let module = parity_wasm::deserialize_buffer::<Module>(instrumented_code.code())
-            .expect("invalid wasm bytes");
+        let module = Module::new(instrumented_code.code()).expect("invalid wasm bytes");
 
         let (handle_export_func_body, gas_charge_func_body) = module
             .code_section()
-            .and_then(|section| match section.bodies() {
+            .and_then(|section| match &section[..] {
                 [.., handle_export, gas_charge] => Some((handle_export, gas_charge)),
                 _ => None,
             })
             .expect("failed to locate `handle_export()` and `gas_charge()` functions");
 
         let gas_charge_call_cost = gas_charge_func_body
-            .code()
-            .elements()
+            .instructions
             .iter()
             .find_map(|instruction| match instruction {
-                Instruction::I64Const(cost) => Some(*cost as u64),
+                Instruction::I64Const { value } => Some(*value as u64),
                 _ => None,
             })
             .expect("failed to get cost of `gas_charge()` function");
 
-        let handle_export_instructions = handle_export_func_body.code().elements();
+        let handle_export_instructions = &handle_export_func_body.instructions;
         assert!(matches!(
-            handle_export_instructions,
+            handle_export_instructions[..],
             [
-                Instruction::I32Const(_), //stack check limit cost
-                Instruction::Call(_),     //call to `gas_charge()`
+                Instruction::I32Const { .. }, //stack check limit cost
+                Instruction::Call { .. },     //call to `gas_charge()`
                 ..
             ]
         ));
@@ -8107,7 +8100,7 @@ fn gas_spent_precalculated() {
         let stack_check_limit_cost = handle_export_instructions
             .iter()
             .find_map(|instruction| match instruction {
-                Instruction::I32Const(cost) => Some(*cost as u64),
+                Instruction::I32Const { value } => Some(*value as u64),
                 _ => None,
             })
             .expect("failed to get stack check limit cost")

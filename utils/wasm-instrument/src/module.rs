@@ -625,6 +625,7 @@ impl Element {
 pub enum DataKind {
     Passive,
     Active {
+        // TODO: remove field
         memory_index: u32,
         offset_expr: ConstExpr,
     },
@@ -677,6 +678,25 @@ impl Function {
             locals,
             instructions,
         })
+    }
+
+    fn reencode(&self) -> Result<wasm_encoder::Function> {
+        let mut encoder_func = wasm_encoder::Function::new(
+            self.locals
+                .iter()
+                .map(|&(cnt, ty)| Ok((cnt, RoundtripReencoder.val_type(ty)?)))
+                .collect::<Result<Vec<_>, reencode::Error>>()?,
+        );
+
+        for op in &self.instructions {
+            encoder_func.instruction(&op.reencode()?);
+        }
+
+        if self.instructions.is_empty() {
+            encoder_func.instruction(&wasm_encoder::Instruction::End);
+        }
+
+        Ok(encoder_func)
     }
 }
 
@@ -784,6 +804,10 @@ impl ModuleBuilder {
         self.module.function_section.get_or_insert_with(Vec::new)
     }
 
+    fn table_section(&mut self) -> &mut Vec<Table> {
+        self.module.table_section.get_or_insert_with(Vec::new)
+    }
+
     fn global_section(&mut self) -> &mut Vec<Global> {
         self.module.global_section.get_or_insert_with(Vec::new)
     }
@@ -792,12 +816,28 @@ impl ModuleBuilder {
         self.module.export_section.get_or_insert_with(Vec::new)
     }
 
-    fn data_section(&mut self) -> &mut DataSection {
-        self.module.data_section.get_or_insert_with(Vec::new)
+    fn element_section(&mut self) -> &mut Vec<Element> {
+        self.module.element_section.get_or_insert_with(Vec::new)
     }
 
     fn code_section(&mut self) -> &mut CodeSection {
         self.module.code_section.get_or_insert_with(Vec::new)
+    }
+
+    fn data_section(&mut self) -> &mut DataSection {
+        self.module.data_section.get_or_insert_with(Vec::new)
+    }
+
+    fn custom_section(&mut self) -> &mut Vec<CustomSection> {
+        self.module.custom_section.get_or_insert_with(Vec::new)
+    }
+
+    pub fn push_custom_section(
+        &mut self,
+        name: impl Into<Cow<'static, str>>,
+        data: impl Into<Vec<u8>>,
+    ) {
+        self.custom_section().push((name.into(), data.into()));
     }
 
     /// Adds a new function to the module.
@@ -823,6 +863,11 @@ impl ModuleBuilder {
         self.import_section().push(import);
     }
 
+    pub fn push_table(&mut self, table: Table) -> u32 {
+        self.table_section().push(table);
+        self.table_section().len() as u32 - 1
+    }
+
     pub fn push_global(&mut self, global: Global) -> u32 {
         self.global_section().push(global);
         self.global_section().len() as u32 - 1
@@ -832,6 +877,10 @@ impl ModuleBuilder {
         self.export_section().push(export);
     }
 
+    pub fn push_element(&mut self, element: Element) {
+        self.element_section().push(element);
+    }
+
     pub fn push_data(&mut self, data: Data) {
         self.data_section().push(data);
     }
@@ -839,8 +888,9 @@ impl ModuleBuilder {
 
 pub type TypeSection = Vec<FuncType>;
 pub type FuncSection = Vec<u32>;
-pub type DataSection = Vec<Data>;
 pub type CodeSection = Vec<Function>;
+pub type DataSection = Vec<Data>;
+pub type CustomSection = (Cow<'static, str>, Vec<u8>);
 
 #[derive(derive_more::DebugCustom, Default)]
 #[debug(fmt = "Module {{ .. }}")]
@@ -854,8 +904,9 @@ pub struct Module {
     pub export_section: Option<Vec<Export>>,
     pub start_section: Option<u32>,
     pub element_section: Option<Vec<Element>>,
-    pub data_section: Option<DataSection>,
     pub code_section: Option<CodeSection>,
+    pub data_section: Option<DataSection>,
+    pub custom_section: Option<Vec<CustomSection>>,
 }
 
 impl Module {
@@ -869,8 +920,8 @@ impl Module {
         let mut export_section = None;
         let mut start_section = None;
         let mut element_section = None;
-        let mut data_section = None;
         let mut code_section = None;
+        let mut data_section = None;
 
         let payloads = wasmparser::Parser::new(0).parse_all(code);
         for payload in payloads {
@@ -987,8 +1038,9 @@ impl Module {
             export_section,
             start_section,
             element_section,
-            data_section,
             code_section,
+            data_section,
+            custom_section: None,
         })
     }
 
@@ -1075,18 +1127,7 @@ impl Module {
         if let Some(crate_section) = self.code_section() {
             let mut encoder_section = wasm_encoder::CodeSection::new();
             for function in crate_section {
-                let mut encoder_func = wasm_encoder::Function::new(
-                    function
-                        .locals
-                        .iter()
-                        .map(|&(cnt, ty)| Ok((cnt, RoundtripReencoder.val_type(ty)?)))
-                        .collect::<Result<Vec<_>, reencode::Error>>()?,
-                );
-                for op in function.instructions.clone() {
-                    encoder_func.instruction(&op.reencode()?);
-                }
-
-                encoder_section.function(&encoder_func);
+                encoder_section.function(&function.reencode()?);
             }
             module.section(&encoder_section);
         }
@@ -1211,6 +1252,13 @@ impl Module {
     pub fn element_section_mut(&mut self) -> Option<&mut Vec<Element>> {
         self.element_section.as_mut()
     }
+    pub fn code_section(&self) -> Option<&Vec<Function>> {
+        self.code_section.as_ref()
+    }
+
+    pub fn code_section_mut(&mut self) -> Option<&mut CodeSection> {
+        self.code_section.as_mut()
+    }
 
     pub fn data_section(&self) -> Option<&DataSection> {
         self.data_section.as_ref()
@@ -1218,13 +1266,5 @@ impl Module {
 
     pub fn data_section_mut(&mut self) -> Option<&mut DataSection> {
         self.data_section.as_mut()
-    }
-
-    pub fn code_section(&self) -> Option<&Vec<Function>> {
-        self.code_section.as_ref()
-    }
-
-    pub fn code_section_mut(&mut self) -> Option<&mut CodeSection> {
-        self.code_section.as_mut()
     }
 }

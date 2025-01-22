@@ -6158,8 +6158,6 @@ dependencies = [
  "gear-wasm-instrument",
  "gprimitives",
  "gsys",
- "gwasm-instrument",
- "hashbrown 0.14.5",
  "hex",
  "impl-serde",
  "log",
@@ -6174,7 +6172,6 @@ dependencies = [
  "serde",
  "wabt",
  "wasmparser 0.222.0",
- "wasmprinter",
 ]
 
 [[package]]
@@ -6184,6 +6181,7 @@ dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
  "derive_more 0.99.18",
+ "env_logger",
  "gear-core",
  "gear-core-errors",
  "gear-lazy-pages-common",
@@ -18887,10 +18885,9 @@ dependencies = [
  "gbuiltin-staking",
  "gear-common",
  "gear-core",
- "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "gwasm-instrument",
+ "gear-wasm-instrument",
  "hex-literal",
  "log",
  "pallet-authority-discovery",

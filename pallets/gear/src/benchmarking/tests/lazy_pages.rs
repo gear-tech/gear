@@ -37,7 +37,7 @@ use gear_core::{
     pages::{numerated::iterators::IntervalIterator, GearPage, GearPagesAmount},
 };
 use gear_lazy_pages_common::Status;
-use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
+use gear_wasm_instrument::{module::MemArg, Instruction, SyscallName};
 use rand::{Rng, SeedableRng};
 use sp_runtime::codec::MaxEncodedLen;
 
@@ -220,8 +220,13 @@ where
             if prob_number < load_prob {
                 // Generate load
                 let addr = rng.gen_range(0..max_addr - access_size) as i32;
-                instrs.push(Instruction::I32Const(addr));
-                instrs.push(Instruction::I32Load(2, 0));
+                instrs.push(Instruction::I32Const { value: addr });
+                instrs.push(Instruction::I32Load {
+                    memarg: MemArg {
+                        align: 2,
+                        offset: 0,
+                    },
+                });
                 instrs.push(Instruction::Drop);
 
                 page_sets.add_signal_read(MemoryInterval {
@@ -238,9 +243,11 @@ where
                 let subject_ptr = rng.gen_range(0..max_addr - subject_size) as i32;
                 let bn_random_ptr = rng.gen_range(0..max_addr - bn_random_size) as i32;
 
-                instrs.push(Instruction::I32Const(subject_ptr));
-                instrs.push(Instruction::I32Const(bn_random_ptr));
-                instrs.push(Instruction::Call(0));
+                instrs.push(Instruction::I32Const { value: subject_ptr });
+                instrs.push(Instruction::I32Const {
+                    value: bn_random_ptr,
+                });
+                instrs.push(Instruction::Call { function_index: 0 });
 
                 page_sets.add_syscall_read(MemoryInterval {
                     offset: subject_ptr as u32,
@@ -253,9 +260,16 @@ where
             } else {
                 // Generate store
                 let addr = rng.gen_range(0..max_addr - access_size) as i32;
-                instrs.push(Instruction::I32Const(addr));
-                instrs.push(Instruction::I32Const(u32::MAX as i32));
-                instrs.push(Instruction::I32Store(2, 0));
+                instrs.push(Instruction::I32Const { value: addr });
+                instrs.push(Instruction::I32Const {
+                    value: u32::MAX as i32,
+                });
+                instrs.push(Instruction::I32Store {
+                    memarg: MemArg {
+                        align: 2,
+                        offset: 0,
+                    },
+                });
 
                 page_sets.add_signal_write(MemoryInterval {
                     offset: addr as u32,
@@ -411,13 +425,23 @@ where
     test(
         vec![
             // Read 0st and 1st gear pages
-            Instruction::I32Const(size - 1),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Const { value: size - 1 },
+            Instruction::I32Load {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
             Instruction::Drop,
             // Write after read 1st gear page
-            Instruction::I32Const(size),
-            Instruction::I32Const(42),
-            Instruction::I32Store(2, 0),
+            Instruction::I32Const { value: size },
+            Instruction::I32Const { value: 42 },
+            Instruction::I32Store {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
         ],
         2 * read_cost + write_after_read_cost,
     );
@@ -425,13 +449,23 @@ where
     test(
         vec![
             // Read 0st and 1st gear pages
-            Instruction::I32Const(size - 1),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Const { value: size - 1 },
+            Instruction::I32Load {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
             Instruction::Drop,
             // Write after read 0st and 1st gear page
-            Instruction::I32Const(size - 3),
-            Instruction::I32Const(42),
-            Instruction::I32Store(2, 0),
+            Instruction::I32Const { value: size - 3 },
+            Instruction::I32Const { value: 42 },
+            Instruction::I32Store {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
         ],
         2 * read_cost + 2 * write_after_read_cost,
     );
@@ -439,13 +473,25 @@ where
     test(
         vec![
             // Read 0st and 1st gear pages
-            Instruction::I32Const(size - 1),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Const { value: size - 1 },
+            Instruction::I32Load {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
             Instruction::Drop,
             // Write after read 1st gear page and write 2st gear page
-            Instruction::I32Const(2 * size - 1),
-            Instruction::I32Const(42),
-            Instruction::I32Store(2, 0),
+            Instruction::I32Const {
+                value: 2 * size - 1,
+            },
+            Instruction::I32Const { value: 42 },
+            Instruction::I32Store {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
         ],
         2 * read_cost + write_after_read_cost + write_cost,
     );
@@ -453,13 +499,23 @@ where
     test(
         vec![
             // Read 1st gear page
-            Instruction::I32Const(size),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Const { value: size },
+            Instruction::I32Load {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
             Instruction::Drop,
             // Write after read 1st gear page and write 0st gear page
-            Instruction::I32Const(size - 1),
-            Instruction::I32Const(42),
-            Instruction::I32Store(2, 0),
+            Instruction::I32Const { value: size - 1 },
+            Instruction::I32Const { value: 42 },
+            Instruction::I32Store {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
         ],
         read_cost + write_after_read_cost + write_cost,
     );
@@ -467,12 +523,22 @@ where
     test(
         vec![
             // Read 1st gear page
-            Instruction::I32Const(size),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Const { value: size },
+            Instruction::I32Load {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
             Instruction::Drop,
             // Read 0st and 1st gear pages, but pay only for 0st.
-            Instruction::I32Const(size - 1),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Const { value: size - 1 },
+            Instruction::I32Load {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
             Instruction::Drop,
         ],
         2 * read_cost,
@@ -481,13 +547,25 @@ where
     test(
         vec![
             // Write 0st and 1st gear page
-            Instruction::I32Const(size - 1),
-            Instruction::I32Const(42),
-            Instruction::I32Store(2, 0),
+            Instruction::I32Const { value: size - 1 },
+            Instruction::I32Const { value: 42 },
+            Instruction::I32Store {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
             // Write 1st and 2st gear pages, but pay only for 2st page
-            Instruction::I32Const(2 * size - 1),
-            Instruction::I32Const(42),
-            Instruction::I32Store(2, 0),
+            Instruction::I32Const {
+                value: 2 * size - 1,
+            },
+            Instruction::I32Const { value: 42 },
+            Instruction::I32Store {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
         ],
         3 * write_cost,
     );
@@ -495,12 +573,24 @@ where
     test(
         vec![
             // Write 0st and 1st gear page
-            Instruction::I32Const(size - 1),
-            Instruction::I32Const(42),
-            Instruction::I32Store(2, 0),
+            Instruction::I32Const { value: size - 1 },
+            Instruction::I32Const { value: 42 },
+            Instruction::I32Store {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
             // Read 1st and 2st gear pages, but pay only for 2st page
-            Instruction::I32Const(2 * size - 1),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Const {
+                value: 2 * size - 1,
+            },
+            Instruction::I32Load {
+                memarg: MemArg {
+                    align: 2,
+                    offset: 0,
+                },
+            },
             Instruction::Drop,
         ],
         read_cost + 2 * write_cost,
@@ -513,9 +603,14 @@ where
     T::AccountId: Origin,
 {
     let instrs = vec![
-        Instruction::I32Const(0),
-        Instruction::I32Const(42),
-        Instruction::I32Store(2, 0),
+        Instruction::I32Const { value: 0 },
+        Instruction::I32Const { value: 42 },
+        Instruction::I32Store {
+            memarg: MemArg {
+                align: 2,
+                offset: 0,
+            },
+        },
     ];
     let module = ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),

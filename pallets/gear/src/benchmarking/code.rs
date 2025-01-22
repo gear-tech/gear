@@ -37,17 +37,13 @@ use gear_sandbox::{
     SandboxEnvironmentBuilder, SandboxMemory,
 };
 use gear_wasm_instrument::{
-    parity_wasm::{
-        builder,
-        elements::{
-            self, BlockType, CustomSection, FuncBody, FunctionType, Instruction, Instructions,
-            Section, Type, ValueType,
-        },
-    },
+    module::{Data, DataKind, Element, ElementItems, ElementKind, Table, TableInit},
     syscalls::SyscallName,
+    BlockType, ConstExpr, Export, ExternalKind, FuncType, Function, Global, GlobalType, Import,
+    Instruction, MemoryType, ModuleBuilder, RefType, TableType, TypeRef, ValType,
     STACK_END_EXPORT_NAME,
 };
-use sp_std::{borrow::ToOwned, convert::TryFrom, marker::PhantomData, prelude::*};
+use sp_std::{convert::TryFrom, marker::PhantomData, prelude::*};
 
 /// The location where to put the generated code.
 pub enum Location {
@@ -76,21 +72,21 @@ pub struct ModuleDefinition {
     pub imported_functions: Vec<SyscallName>,
     /// Function body of the exported `init` function. Body is empty if `None`.
     /// Its index is `imported_functions.len()`.
-    pub init_body: Option<FuncBody>,
+    pub init_body: Option<Function>,
     /// Function body of the exported `handle` function. Body is empty if `None`.
     /// Its index is `imported_functions.len() + 1`.
-    pub handle_body: Option<FuncBody>,
+    pub handle_body: Option<Function>,
     /// Function body of the exported `handle_reply` function. Body is empty if `None`.
     /// Its index is `imported_functions.len() + 2`.
-    pub reply_body: Option<FuncBody>,
+    pub reply_body: Option<Function>,
     /// Function body of the exported `handle_signal` function. Body is empty if `None`.
     /// Its index is `imported_functions.len() + 3`.
-    pub signal_body: Option<FuncBody>,
+    pub signal_body: Option<Function>,
     /// Function body of a non-exported function with index `imported_functions.len() + 4`.
-    pub aux_body: Option<FuncBody>,
+    pub aux_body: Option<Function>,
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
-    pub aux_res: Vec<ValueType>,
+    pub aux_res: Vec<ValType>,
     /// Create a table containing function pointers.
     pub table: Option<TableSegment>,
     /// Create a type section with the specified amount of types.
@@ -152,8 +148,8 @@ impl ImportedMemory {
 pub struct ImportedFunction {
     pub module: &'static str,
     pub name: &'static str,
-    pub params: Vec<ValueType>,
-    pub return_type: Option<ValueType>,
+    pub params: Vec<ValType>,
+    pub return_type: Option<ValType>,
 }
 
 /// A wasm module ready to be put on chain.
@@ -181,117 +177,119 @@ where
         let func_offset = u32::try_from(def.imported_functions.len()).unwrap();
 
         // Every program must export "init" and "handle" functions
-        let mut program = builder::module()
-            // init function (first internal function)
-            .function()
-            .signature()
-            .build()
-            .with_body(def.init_body.unwrap_or_else(body::empty))
-            .build()
-            // handle function (second internal function)
-            .function()
-            .signature()
-            .build()
-            .with_body(def.handle_body.unwrap_or_else(body::empty))
-            .build()
-            .function()
-            .signature()
-            .build()
-            .with_body(def.reply_body.unwrap_or_else(body::empty))
-            .build()
-            .function()
-            .signature()
-            .build()
-            .with_body(def.signal_body.unwrap_or_else(body::empty))
-            .build()
-            .export()
-            .field("init")
-            .internal()
-            .func(func_offset + OFFSET_INIT)
-            .build()
-            .export()
-            .field("handle")
-            .internal()
-            .func(func_offset + OFFSET_HANDLE)
-            .build()
-            .export()
-            .field("handle_reply")
-            .internal()
-            .func(func_offset + OFFSET_REPLY)
-            .build()
-            .export()
-            .field("handle_signal")
-            .internal()
-            .func(func_offset + OFFSET_SIGNAL)
-            .build();
+        let mut program = ModuleBuilder::default();
+        // init function (first internal function)
+        program.add_func(
+            FuncType::new([], []),
+            def.init_body.unwrap_or_else(body::empty),
+        );
+        // handle function (second internal function)
+        program.add_func(
+            FuncType::new([], []),
+            def.handle_body.unwrap_or_else(body::empty),
+        );
+
+        program.add_func(
+            FuncType::new([], []),
+            def.reply_body.unwrap_or_else(body::empty),
+        );
+
+        program.add_func(
+            FuncType::new([], []),
+            def.signal_body.unwrap_or_else(body::empty),
+        );
+
+        program.push_export(Export {
+            name: "init".into(),
+            kind: ExternalKind::Func,
+            index: func_offset + OFFSET_INIT,
+        });
+
+        program.push_export(Export {
+            name: "handle".into(),
+            kind: ExternalKind::Func,
+            index: func_offset + OFFSET_HANDLE,
+        });
+
+        program.push_export(Export {
+            name: "handle_reply".into(),
+            kind: ExternalKind::Func,
+            index: func_offset + OFFSET_REPLY,
+        });
+
+        program.push_export(Export {
+            name: "handle_signal".into(),
+            kind: ExternalKind::Func,
+            index: func_offset + OFFSET_SIGNAL,
+        });
 
         // If specified we add an additional internal function
         if let Some(body) = def.aux_body {
-            let mut signature = program.function().signature();
-            for _ in 0..def.aux_arg_num {
-                signature = signature.with_param(ValueType::I64);
-            }
-            for ty in def.aux_res {
-                signature = signature.with_result(ty);
-            }
-            program = signature.build().with_body(body).build();
+            let ty = FuncType::new(vec![ValType::I64; def.aux_arg_num as usize], def.aux_res);
+            program.add_func(ty, body);
         }
 
         // Grant access to linear memory.
         if let Some(memory) = &def.memory {
-            program = program
-                .import()
-                .module("env")
-                .field("memory")
-                .external()
-                .memory(memory.min_pages.into(), None)
-                .build();
+            program.push_import(Import {
+                module: "env".into(),
+                name: "memory".into(),
+                ty: TypeRef::Memory(MemoryType {
+                    memory64: false,
+                    shared: false,
+                    initial: u32::from(memory.min_pages) as u64,
+                    maximum: None,
+                    page_size_log2: None,
+                }),
+            });
         }
 
         // Import supervisor functions. They start with idx 0.
         for name in def.imported_functions {
             let sign = name.signature();
-            let sig_builder =
-                builder::signature().with_params(sign.params().iter().copied().map(Into::into));
-            let results = sign
-                .results()
-                .map(|results| results.to_vec())
-                .unwrap_or_default();
-            let sig = sig_builder.with_results(results.into_iter()).build_sig();
-            let sig = program.push_signature(sig);
-            program = program
-                .import()
-                .module("env")
-                .field(name.to_str())
-                .with_external(elements::External::Function(sig))
-                .build();
+            let sig = program.push_type(sign.func_type());
+            program.push_import(Import {
+                module: "env".into(),
+                name: name.to_str().into(),
+                ty: TypeRef::Func(sig),
+            });
         }
 
         // Initialize memory
         for data in def.data_segments {
-            program = program
-                .data()
-                .offset(Instruction::I32Const(data.offset as i32))
-                .value(data.value)
-                .build()
+            program.push_data(Data {
+                kind: DataKind::Active {
+                    memory_index: 0,
+                    offset_expr: ConstExpr {
+                        instructions: vec![Instruction::I32Const {
+                            value: data.offset as i32,
+                        }],
+                    },
+                },
+                data: data.value.into(),
+            })
         }
 
         // Add global variables
         if def.num_globals > 0 {
             use rand::{distributions::Standard, prelude::*};
             let rng = rand_pcg::Pcg32::seed_from_u64(3112244599778833558);
-            for mut val in rng.sample_iter(Standard).take(def.num_globals as usize) {
+            for mut value in rng.sample_iter(Standard).take(def.num_globals as usize) {
                 // Make i64 const init expr use full length
                 if def.full_length_globals {
-                    val |= 1 << 63;
+                    value |= 1 << 63;
                 }
-                program = program
-                    .global()
-                    .value_type()
-                    .i64()
-                    .mutable()
-                    .init_expr(Instruction::I64Const(val))
-                    .build()
+
+                program.push_global(Global {
+                    ty: GlobalType {
+                        content_type: ValType::I64,
+                        mutable: true,
+                        shared: false,
+                    },
+                    init_expr: ConstExpr {
+                        instructions: vec![Instruction::I64Const { value }],
+                    },
+                });
             }
         }
 
@@ -308,64 +306,73 @@ where
                 })
                 .unwrap_or(0.into()),
         );
-        program = program
-            .global()
-            .value_type()
-            .i32()
-            .init_expr(Instruction::I32Const(stack_end.offset() as i32))
-            .build()
-            .export()
-            .field(STACK_END_EXPORT_NAME)
-            .internal()
-            .global(def.num_globals)
-            .build();
+
+        program.push_global(Global {
+            ty: GlobalType {
+                content_type: ValType::I32,
+                mutable: false,
+                shared: false,
+            },
+            init_expr: ConstExpr {
+                instructions: vec![Instruction::I32Const {
+                    value: stack_end.offset() as i32,
+                }],
+            },
+        });
+        program.push_export(Export {
+            name: STACK_END_EXPORT_NAME.into(),
+            kind: ExternalKind::Global,
+            index: def.num_globals,
+        });
 
         // Add function pointer table
         if let Some(table) = def.table {
-            let mut table_builder = program
-                .table()
-                .with_min(table.num_elements)
-                .with_max(Some(table.num_elements));
-
-            table_builder = match table.init_elements {
-                InitElements::NoInit => table_builder,
-                InitElements::Number(num) => {
-                    table_builder.with_element(0, vec![table.function_index; num as usize])
+            let functions = match table.init_elements {
+                InitElements::NoInit => {
+                    vec![]
                 }
-                InitElements::All => table_builder
-                    .with_element(0, vec![table.function_index; table.num_elements as usize]),
+                InitElements::Number(num) => {
+                    vec![table.function_index; num as usize]
+                }
+                InitElements::All => {
+                    vec![table.function_index; table.num_elements as usize]
+                }
             };
 
-            program = table_builder.build();
+            let table_index = program.push_table(Table {
+                ty: TableType {
+                    element_type: RefType::FUNCREF,
+                    table64: false,
+                    initial: table.num_elements as u64,
+                    maximum: Some(table.num_elements as u64),
+                    shared: false,
+                },
+                init: TableInit::RefNull,
+            });
+            program.push_element(Element {
+                kind: ElementKind::Active {
+                    table_index: Some(table_index),
+                    offset_expr: ConstExpr {
+                        instructions: vec![Instruction::I32Const { value: 0 }],
+                    },
+                },
+                items: ElementItems::Functions(functions),
+            });
         }
 
         // Add the dummy section
         if def.dummy_section > 0 {
-            program = program.with_section(Section::Custom(CustomSection::new(
-                "dummy".to_owned(),
-                vec![42; def.dummy_section as usize],
-            )));
+            program.push_custom_section("dummy", vec![42; def.dummy_section as usize]);
         }
-
-        let mut code = program.build();
 
         // Add dummy type section
         if let Some(types) = def.types {
-            for section in code.sections_mut() {
-                if let Section::Type(sec) = section {
-                    for _ in 0..types.num_elements {
-                        sec.types_mut().push(Type::Function(FunctionType::new(
-                            vec![ValueType::I64; 6],
-                            vec![ValueType::I64; 1],
-                        )));
-                    }
-                    // Add the types only to the first type section
-                    break;
-                }
+            for _ in 0..types.num_elements {
+                program.push_type(FuncType::new([ValType::I64; 6], [ValType::I64; 1]));
             }
         }
 
-        let code = code.into_bytes().unwrap();
+        let code = program.build().serialize().unwrap();
         let hash = CodeId::generate(&code);
         Self {
             code: code.to_vec(),
@@ -394,7 +401,7 @@ where
     /// instrumentation runtime by nesting blocks as deeply as possible given the byte budget.
     /// `code_location`: Whether to place the code into `init` or `handle`.
     pub fn sized(target_bytes: u32, code_location: Location) -> Self {
-        use self::elements::Instruction::{Drop, End, I32Const, I64Const, I64Eq, If, Return};
+        use Instruction::{Drop, End, I32Const, I64Const, I64Eq, If, Return};
         // Base size of a program is 63 bytes and each expansion adds 20 bytes.
         // We do one expansion less to account for the code section and function body
         // size fields inside the binary wasm module representation which are leb128 encoded
@@ -402,16 +409,20 @@ where
         // because of the maximum code size that is enforced by `instantiate_with_code`.
         let expansions = (target_bytes.saturating_sub(63) / 20).saturating_sub(1);
         const EXPANSION: &[Instruction] = &[
-            I64Const(0),
-            I64Const(1),
+            I64Const { value: 0 },
+            I64Const { value: 1 },
             I64Eq,
-            If(BlockType::NoResult),
+            If {
+                blockty: BlockType::Empty,
+            },
             Return,
             End,
-            I32Const(0xffffff),
+            I32Const { value: 0xffffff },
             Drop,
-            I32Const(0),
-            If(BlockType::NoResult),
+            I32Const { value: 0 },
+            If {
+                blockty: BlockType::Empty,
+            },
             Return,
             End,
         ];
@@ -584,9 +595,9 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage};
-
     use super::*;
+    use gear_core::pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage};
+    use gear_wasm_instrument::{module::MemArg, BlockType};
 
     /// When generating program code by repeating a wasm sequence, it's sometimes necessary
     /// to change those instructions on each repetition. The variants of this enum describe
@@ -600,7 +611,7 @@ pub mod body {
         /// Insert `call self.0` operation
         InstrCall(u32),
         /// Insert `i32.load align=self.0, offset=self.1` operation
-        InstrI32Load(u32, u32),
+        InstrI32Load(u8, u32),
         /// Insert the associated instruction.
         Regular(Instruction),
         /// Insert a I32Const with incrementing value for each insertion.
@@ -645,9 +656,16 @@ pub mod body {
         IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
-                head.push(Instruction::I32Const(page.offset() as i32));
-                head.push(Instruction::I32Const(42));
-                head.push(Instruction::I32Store(2, 0));
+                head.push(Instruction::I32Const {
+                    value: page.offset() as i32,
+                });
+                head.push(Instruction::I32Const { value: 42 });
+                head.push(Instruction::I32Store {
+                    memarg: MemArg {
+                        align: 2,
+                        offset: 0,
+                    },
+                });
             });
         head
     }
@@ -659,8 +677,15 @@ pub mod body {
         IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
-                head.push(Instruction::I32Const(page.offset() as i32));
-                head.push(Instruction::I32Load(2, 0));
+                head.push(Instruction::I32Const {
+                    value: page.offset() as i32,
+                });
+                head.push(Instruction::I32Load {
+                    memarg: MemArg {
+                        align: 2,
+                        offset: 0,
+                    },
+                });
                 head.push(Instruction::Drop);
             });
         head
@@ -681,52 +706,75 @@ pub mod body {
             .cycle()
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
-                DynInstr::InstrI32Const(c) => vec![Instruction::I32Const(*c as i32)],
-                DynInstr::InstrI64Const(c) => vec![Instruction::I64Const(*c as i64)],
-                DynInstr::InstrCall(c) => vec![Instruction::Call(*c)],
+                DynInstr::InstrI32Const(c) => vec![Instruction::I32Const { value: *c as i32 }],
+                DynInstr::InstrI64Const(c) => vec![Instruction::I64Const { value: *c as i64 }],
+                DynInstr::InstrCall(c) => vec![Instruction::Call { function_index: *c }],
                 DynInstr::InstrI32Load(align, offset) => {
-                    vec![Instruction::I32Load(*align, *offset)]
+                    vec![Instruction::I32Load {
+                        memarg: MemArg {
+                            align: *align,
+                            offset: *offset,
+                        },
+                    }]
                 }
                 DynInstr::Regular(instruction) => vec![instruction.clone()],
                 DynInstr::Counter(offset, increment_by) => {
                     let current = *offset;
                     *offset += *increment_by;
-                    vec![Instruction::I32Const(current as i32)]
+                    vec![Instruction::I32Const {
+                        value: current as i32,
+                    }]
                 }
                 DynInstr::RandomUnaligned(low, high) => {
                     let unaligned = rng.gen_range(*low..*high) | 1;
-                    vec![Instruction::I32Const(unaligned as i32)]
+                    vec![Instruction::I32Const {
+                        value: unaligned as i32,
+                    }]
                 }
                 DynInstr::RandomI32(low, high) => {
-                    vec![Instruction::I32Const(rng.gen_range(*low..*high))]
+                    vec![Instruction::I32Const {
+                        value: rng.gen_range(*low..*high),
+                    }]
                 }
                 DynInstr::RandomI64(low, high) => {
-                    vec![Instruction::I64Const(rng.gen_range(*low..*high))]
+                    vec![Instruction::I64Const {
+                        value: rng.gen_range(*low..*high),
+                    }]
                 }
                 DynInstr::RandomI32Repeated(num) => (&mut rng)
                     .sample_iter(Standard)
                     .take(*num)
-                    .map(Instruction::I32Const)
+                    .map(|value| Instruction::I32Const { value })
                     .collect(),
                 DynInstr::RandomI64Repeated(num) => (&mut rng)
                     .sample_iter(Standard)
                     .take(*num)
-                    .map(Instruction::I64Const)
+                    .map(|value| Instruction::I64Const { value })
                     .collect(),
                 DynInstr::RandomGetLocal(low, high) => {
-                    vec![Instruction::GetLocal(rng.gen_range(*low..*high))]
+                    vec![Instruction::LocalGet {
+                        local_index: rng.gen_range(*low..*high),
+                    }]
                 }
                 DynInstr::RandomSetLocal(low, high) => {
-                    vec![Instruction::SetLocal(rng.gen_range(*low..*high))]
+                    vec![Instruction::LocalSet {
+                        local_index: rng.gen_range(*low..*high),
+                    }]
                 }
                 DynInstr::RandomTeeLocal(low, high) => {
-                    vec![Instruction::TeeLocal(rng.gen_range(*low..*high))]
+                    vec![Instruction::LocalTee {
+                        local_index: rng.gen_range(*low..*high),
+                    }]
                 }
                 DynInstr::RandomGetGlobal(low, high) => {
-                    vec![Instruction::GetGlobal(rng.gen_range(*low..*high))]
+                    vec![Instruction::GlobalGet {
+                        global_index: rng.gen_range(*low..*high),
+                    }]
                 }
                 DynInstr::RandomSetGlobal(low, high) => {
-                    vec![Instruction::SetGlobal(rng.gen_range(*low..*high))]
+                    vec![Instruction::GlobalSet {
+                        global_index: rng.gen_range(*low..*high),
+                    }]
                 }
                 DynInstr::DropRepeated(num) => vec![Instruction::Drop; *num],
             });
@@ -744,11 +792,13 @@ pub mod body {
 
     pub fn with_result_check_dyn(res_offset: DynInstr, instructions: &[DynInstr]) -> Vec<DynInstr> {
         let mut res = vec![
-            DynInstr::Regular(Instruction::Block(BlockType::NoResult)),
+            DynInstr::Regular(Instruction::Block {
+                blockty: BlockType::Empty,
+            }),
             res_offset,
             DynInstr::InstrI32Load(2, 0),
             DynInstr::Regular(Instruction::I32Eqz),
-            DynInstr::Regular(Instruction::BrIf(0)),
+            DynInstr::Regular(Instruction::BrIf { relative_depth: 0 }),
             DynInstr::Regular(Instruction::Unreachable),
             DynInstr::Regular(Instruction::End),
         ];
@@ -770,16 +820,22 @@ pub mod body {
         repeated_dyn_instr(repetitions, instructions, vec![])
     }
 
-    pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
+    pub fn from_instructions(mut instructions: Vec<Instruction>) -> Function {
         instructions.push(Instruction::End);
-        FuncBody::new(vec![], Instructions::new(instructions))
+        Function {
+            locals: vec![],
+            instructions,
+        }
     }
 
-    pub fn empty() -> FuncBody {
-        FuncBody::new(vec![], Instructions::empty())
+    pub fn empty() -> Function {
+        Function {
+            locals: vec![],
+            instructions: vec![],
+        }
     }
 
-    pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> FuncBody {
+    pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> Function {
         let instructions = instructions
             .iter()
             .cycle()
@@ -789,12 +845,12 @@ pub mod body {
         from_instructions(instructions)
     }
 
-    pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
+    pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> Function {
         let instructions = repeated_dyn_instr(repetitions, instructions, vec![]);
         from_instructions(instructions)
     }
 
-    pub fn fallible_syscall(repetitions: u32, res_offset: u32, params: &[DynInstr]) -> FuncBody {
+    pub fn fallible_syscall(repetitions: u32, res_offset: u32, params: &[DynInstr]) -> Function {
         let mut instructions = params.to_vec();
         instructions.extend([DynInstr::InstrI32Const(res_offset), DynInstr::InstrCall(0)]);
         if cfg!(feature = "runtime-benchmarks-checkers") {
@@ -804,22 +860,19 @@ pub mod body {
         repeated_dyn(repetitions, instructions)
     }
 
-    pub fn syscall(repetitions: u32, params: &[DynInstr]) -> FuncBody {
+    pub fn syscall(repetitions: u32, params: &[DynInstr]) -> Function {
         let mut instructions = params.to_vec();
         instructions.push(DynInstr::InstrCall(0));
         repeated_dyn(repetitions, instructions)
     }
 
-    pub fn prepend(body: &mut FuncBody, instructions: Vec<Instruction>) {
-        body.code_mut()
-            .elements_mut()
-            .splice(0..0, instructions.iter().cloned());
+    pub fn prepend(body: &mut Function, instructions: Vec<Instruction>) {
+        body.instructions.splice(0..0, instructions.iter().cloned());
     }
 
     /// Replace the locals of the supplied `body` with `num` i64 locals.
-    pub fn inject_locals(body: &mut FuncBody, num: u32) {
-        use self::elements::Local;
-        *body.locals_mut() = vec![Local::new(num, ValueType::I64)];
+    pub fn inject_locals(body: &mut Function, num: u32) {
+        body.locals = vec![(num, ValType::I64)];
     }
 
     pub fn unreachable_condition_i32(
@@ -828,9 +881,13 @@ pub mod body {
         compare_with: i32,
     ) {
         let additional = vec![
-            Instruction::I32Const(compare_with),
+            Instruction::I32Const {
+                value: compare_with,
+            },
             flag,
-            Instruction::If(BlockType::NoResult),
+            Instruction::If {
+                blockty: BlockType::Empty,
+            },
             Instruction::Unreachable,
             Instruction::End,
         ];
