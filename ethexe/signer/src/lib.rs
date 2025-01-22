@@ -26,7 +26,7 @@ use secp256k1::hashes::hex::{Case, DisplayHex};
 pub use sha3;
 pub use signature::Signature;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
@@ -175,7 +175,9 @@ pub struct Signer {
 
 impl Signer {
     pub fn new(key_store: PathBuf) -> Result<Self> {
-        fs::create_dir_all(key_store.as_path())?;
+        let path = key_store.as_path();
+        fs::create_dir_all(path)
+            .with_context(|| format!("failed to create dir on path {}", path.display()))?;
 
         Ok(Self { key_store })
     }
@@ -245,7 +247,12 @@ impl Signer {
         let local_public = PublicKey::from_bytes(public_key.serialize());
 
         let key_file = self.key_store.join(local_public.to_hex());
-        fs::write(key_file, secret_key.secret_bytes())?;
+        fs::write(&key_file, secret_key.secret_bytes()).with_context(|| {
+            format!(
+                "failed to write private key to the file - {}",
+                key_file.display()
+            )
+        })?;
         Ok(local_public)
     }
 
@@ -261,7 +268,12 @@ impl Signer {
         );
 
         let key_file = self.key_store.join(local_public.to_hex());
-        fs::write(key_file, secret_key.secret_bytes())?;
+        fs::write(&key_file, secret_key.secret_bytes()).with_context(|| {
+            format!(
+                "failed to write private key to the file - {}",
+                key_file.display()
+            )
+        })?;
         Ok(local_public)
     }
 
@@ -274,10 +286,15 @@ impl Signer {
     pub fn list_keys(&self) -> Result<Vec<PublicKey>> {
         let mut keys = vec![];
 
-        for entry in fs::read_dir(&self.key_store)? {
-            let entry = entry?;
-            let file_name = entry.file_name();
-            let key = PublicKey::from_str(file_name.to_string_lossy().as_ref())?;
+        let dir_entries = fs::read_dir(&self.key_store)
+            .with_context(|| format!("failed to read dir {}", self.key_store.display()))?;
+        for entry in dir_entries {
+            let entry = entry.context("failed to get key store dir entry")?;
+            let os_file_name = entry.file_name();
+            let string_file_name = os_file_name.to_string_lossy();
+            let key = PublicKey::from_str(string_file_name.as_ref()).with_context(|| {
+                format!("can't convert file name {string_file_name} to public key")
+            })?;
             keys.push(key);
         }
 
@@ -288,7 +305,8 @@ impl Signer {
         let mut buf = [0u8; 32];
 
         let key_path = self.key_store.join(key.to_hex());
-        let bytes = fs::read(key_path)?;
+        let bytes = fs::read(&key_path)
+            .with_context(|| format!("failed to read key from path {}", key_path.display()))?;
 
         if bytes.len() != 32 {
             bail!("Invalid key length: {:?}", bytes);

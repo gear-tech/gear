@@ -33,7 +33,7 @@ pub struct RawSignature([u8; 65]);
 impl RawSignature {
     pub fn create_for_digest(private_key: PrivateKey, digest: Digest) -> Result<RawSignature> {
         let secp_secret_key = secp256k1::SecretKey::from_slice(&private_key.0)
-            .with_context(|| "Invalid secret key format")?;
+            .context("Invalid secret key format")?;
 
         let message = Message::from_digest(digest.into());
 
@@ -84,12 +84,14 @@ impl Signature {
     pub fn recover_from_digest(&self, digest: Digest) -> Result<PublicKey> {
         let sig = (*self).try_into()?;
         let public_key = secp256k1::global::SECP256K1
-            .recover_ecdsa(&Message::from_digest(digest.into()), &sig)?;
+            .recover_ecdsa(&Message::from_digest(digest.into()), &sig)
+            .context("failed to recover public key from ecdsa signature")?;
         Ok(PublicKey::from_bytes(public_key.serialize()))
     }
 
     pub fn create_for_digest(private_key: PrivateKey, digest: Digest) -> Result<Signature> {
-        let raw_signature = RawSignature::create_for_digest(private_key, digest)?;
+        let raw_signature = RawSignature::create_for_digest(private_key, digest)
+            .context("failed creating raw signature for digest")?;
         Ok(raw_signature.into())
     }
 }

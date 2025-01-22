@@ -9,7 +9,7 @@ use alloy::{
     rpc::types::eth::{Filter, Header, Topic},
     transports::BoxTransport,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent, RouterRequestEvent};
 use ethexe_db::BlockHeader;
 use ethexe_ethereum::{
@@ -230,6 +230,7 @@ pub(crate) async fn read_code_from_tx_hash(
     let code = blob_reader
         .read_blob_from_tx_hash(tx_hash, attempts)
         .await
+        .context("blob reader failed to read blob from tx hash")
         .map_err(|err| anyhow!("failed to read blob: {err}"))?;
 
     (CodeId::generate(&code) == expected_code_id)
@@ -248,7 +249,10 @@ pub(crate) async fn read_block_events(
     router_address: AlloyAddress,
 ) -> Result<Vec<BlockEvent>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
-    let wvara_address = router_query.wvara_address().await?;
+    let wvara_address = router_query
+        .wvara_address()
+        .await
+        .context("failed to get wvara address")?;
 
     let filter = Filter::new().at_block_hash(block_hash.to_fixed_bytes());
 
@@ -265,7 +269,10 @@ pub(crate) async fn read_block_events_batch(
     router_address: AlloyAddress,
 ) -> Result<HashMap<H256, Vec<BlockEvent>>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
-    let wvara_address = router_query.wvara_address().await?;
+    let wvara_address = router_query
+        .wvara_address()
+        .await
+        .context("failed to get wvara address")?;
 
     let mut res = HashMap::new();
 
@@ -313,12 +320,13 @@ async fn read_events_impl(
         provider.get_logs(&router_and_wvara_filter),
         provider.get_logs(&mirror_filter),
     )
-    .await?;
+    .await
+    .context("failed getting logs from router | wvara | mirror contracts")?;
 
     let block_hash_of = |log: &alloy::rpc::types::Log| -> Result<H256> {
         log.block_hash
             .map(|v| v.0.into())
-            .ok_or_else(|| anyhow!("Block hash is missing"))
+            .ok_or_else(|| anyhow!("Block hash of the log is missing"))
     };
 
     let mut res: HashMap<_, Vec<_>> = HashMap::new();
@@ -327,9 +335,13 @@ async fn read_events_impl(
         let block_hash = block_hash_of(&router_or_wvara_log)?;
 
         let maybe_block_event = if router_or_wvara_log.address() == router_address {
-            router::events::try_extract_event(&router_or_wvara_log)?.map(Into::into)
+            router::events::try_extract_event(&router_or_wvara_log)
+                .context("failed extracting router event")?
+                .map(Into::into)
         } else {
-            wvara::events::try_extract_event(&router_or_wvara_log)?.map(Into::into)
+            wvara::events::try_extract_event(&router_or_wvara_log)
+                .context("failed extracting wvara event")?
+                .map(Into::into)
         };
 
         if let Some(block_event) = maybe_block_event {
@@ -344,7 +356,9 @@ async fn read_events_impl(
 
         // TODO (breathx): if address is unknown, then continue.
 
-        if let Some(event) = mirror::events::try_extract_event(&mirror_log)? {
+        let maybe_event = mirror::events::try_extract_event(&mirror_log)
+            .context("failed extracting mirror events")?;
+        if let Some(event) = maybe_event {
             res.entry(block_hash)
                 .or_default()
                 .push(BlockEvent::mirror(address, event));
@@ -362,7 +376,10 @@ pub(crate) async fn read_block_request_events(
     router_address: AlloyAddress,
 ) -> Result<Vec<BlockRequestEvent>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
-    let wvara_address = router_query.wvara_address().await?;
+    let wvara_address = router_query
+        .wvara_address()
+        .await
+        .context("failed to get wvara address")?;
 
     let filter = Filter::new().at_block_hash(block_hash.to_fixed_bytes());
 
@@ -378,7 +395,10 @@ pub(crate) async fn read_block_request_events_batch(
     router_address: AlloyAddress,
 ) -> Result<HashMap<H256, Vec<BlockRequestEvent>>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
-    let wvara_address = router_query.wvara_address().await?;
+    let wvara_address = router_query
+        .wvara_address()
+        .await
+        .context("failed to get wvara address")?;
 
     let mut res = HashMap::new();
 
@@ -428,12 +448,13 @@ async fn read_request_events_impl(
         provider.get_logs(&router_and_wvara_filter),
         provider.get_logs(&mirror_filter),
     )
-    .await?;
+    .await
+    .context("failed getting logs from router | wvara | mirror contracts")?;
 
     let block_hash_of = |log: &alloy::rpc::types::Log| -> Result<H256> {
         log.block_hash
             .map(|v| v.0.into())
-            .ok_or(anyhow!("Block hash is missing"))
+            .ok_or(anyhow!("Block hash of the log is missing"))
     };
 
     let out_of_scope_addresses = [
@@ -448,9 +469,12 @@ async fn read_request_events_impl(
         let block_hash = block_hash_of(&router_or_wvara_log)?;
 
         let maybe_block_request_event = if router_or_wvara_log.address() == router_address {
-            router::events::try_extract_request_event(&router_or_wvara_log)?.map(Into::into)
+            router::events::try_extract_request_event(&router_or_wvara_log)
+                .context("failed extracting router request event")?
+                .map(Into::into)
         } else {
-            wvara::events::try_extract_request_event(&router_or_wvara_log)?
+            wvara::events::try_extract_request_event(&router_or_wvara_log)
+                .context("failed extracting wvara request event")?
                 .filter(|v| !v.involves_addresses(&out_of_scope_addresses))
                 .map(Into::into)
         };
@@ -467,7 +491,9 @@ async fn read_request_events_impl(
 
         // TODO (breathx): if address is unknown, then continue.
 
-        if let Some(request_event) = mirror::events::try_extract_request_event(&mirror_log)? {
+        let maybe_request_event = mirror::events::try_extract_request_event(&mirror_log)
+            .context("failed extracting mirror request event")?;
+        if let Some(request_event) = maybe_request_event {
             res.entry(block_hash)
                 .or_default()
                 .push(BlockRequestEvent::mirror(address, request_event));
@@ -517,7 +543,9 @@ async fn read_committed_blocks_impl(
     let mut res = Vec::with_capacity(logs.len());
 
     for log in logs {
-        if let Some(hash) = router::events::try_extract_committed_block_hash(&log)? {
+        let maybe_hash = router::events::try_extract_committed_block_hash(&log)
+            .context("failed extracting committedd block hash from router log")?;
+        if let Some(hash) = maybe_hash {
             res.push(hash);
         }
     }

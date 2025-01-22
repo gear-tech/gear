@@ -54,18 +54,15 @@ impl RunCommand {
             .filter_module("wasmtime_cranelift", LevelFilter::Off)
             .filter_module("cranelift", LevelFilter::Off)
             .try_init()
-            .with_context(|| "failed to initialize logger")?;
+            .context("failed to initialize logger")?;
 
-        let config = self
-            .params
-            .into_config()
-            .with_context(|| "invalid configuration")?;
+        let config = self.params.into_config().context("invalid configuration")?;
 
         config.log_info();
 
         let service = Service::new(&config)
             .await
-            .with_context(|| "failed to create ethexe primary service")?;
+            .context("failed to create ethexe primary service")?;
 
         tokio::select! {
             res = service.run() => res,

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use apis::{BlockApi, BlockServer, ProgramApi, ProgramServer};
 use ethexe_db::Database;
 use futures::FutureExt;
@@ -68,9 +68,12 @@ impl RpcService {
     }
 
     pub async fn run_server(self) -> Result<ServerHandle> {
-        let listener = TcpListener::bind(self.config.listen_addr).await?;
+        let listener = TcpListener::bind(self.config.listen_addr)
+            .await
+            .context("failed to bing tcp listener for rpc server")?;
 
-        let cors = util::try_into_cors(self.config.cors)?;
+        let cors = util::try_into_cors(self.config.cors)
+            .context("failed to convert config cors to `CorsLayer`")?;
 
         let http_middleware = tower::ServiceBuilder::new().layer(cors);
 
@@ -79,8 +82,12 @@ impl RpcService {
             .to_service_builder();
 
         let mut module = JsonrpcModule::new(());
-        module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
-        module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
+        module
+            .merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))
+            .context("failed to define `Program` api methods")?;
+        module
+            .merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))
+            .context("failed to define `Block` api methods")?;
 
         let (stop_handle, server_handle) = stop_channel();
 
@@ -111,6 +118,8 @@ impl RpcService {
                 let cfg2 = cfg.clone();
 
                 let svc = tower::service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
+                    log::trace!("Received request - {req:#?}");
+
                     let PerConnection {
                         methods,
                         stop_handle,
@@ -132,12 +141,20 @@ impl RpcService {
                         async move {
                             log::info!("WebSocket connection accepted");
 
-                            svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e))
+                            svc.call(req)
+                                .await
+                                .map_err(|e| anyhow!("Error: {:?}", e))
+                                .context("rpc service failed processing websocket request")
                         }
                         .boxed()
                     } else {
-                        async move { svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e)) }
-                            .boxed()
+                        async move {
+                            svc.call(req)
+                                .await
+                                .map_err(|e| anyhow!("Error: {:?}", e))
+                                .context("rpc service failed processing request")
+                        }
+                        .boxed()
                     }
                 });
 

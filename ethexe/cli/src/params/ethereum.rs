@@ -66,7 +66,7 @@ impl EthereumParams {
                 .ethereum_router
                 .ok_or_else(|| anyhow!("missing `ethereum-router`"))?
                 .parse()
-                .with_context(|| "invalid `ethereum-router`")?,
+                .context("invalid `ethereum-router`")?,
             block_time: Duration::from_secs(Self::BLOCK_TIME as u64),
         })
     }
