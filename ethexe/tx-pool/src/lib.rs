@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,22 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use jsonrpsee::types::ErrorObject;
+//! Ethexe transaction pool.
 
-// TODO #4364: https://github.com/gear-tech/gear/issues/4364
+mod service;
+mod transaction;
+mod validation;
 
-pub fn db(err: &'static str) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Database error", Some(err))
-}
+#[cfg(test)]
+mod tests;
 
-pub fn runtime(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
-}
+pub use service::{
+    new, InputTask, OutputTask, TxPoolInputTaskSender, TxPoolKit, TxPoolOutputTaskReceiver,
+    TxPoolService,
+};
+pub use transaction::{RawTransacton, SignedTransaction, Transaction};
 
-pub fn internal() -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Internal error", None::<&str>)
-}
+use validation::TxValidator;
 
-pub fn tx_pool(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Transaction pool error", Some(format!("{err}")))
-}
+/// Transaction pool input task sender with a [`SignedEthexeTransaction`] transaction type.
+pub type TxPoolSender = TxPoolInputTaskSender<SignedTransaction>;
+/// Transaction pool output task receiver with a [`SignedEthexeTransaction`] transaction type.
+pub type TxPoolReceiver = TxPoolOutputTaskReceiver<SignedTransaction>;

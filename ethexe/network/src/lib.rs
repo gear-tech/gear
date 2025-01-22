@@ -33,7 +33,8 @@ use libp2p::{
     connection_limits,
     core::{muxing::StreamMuxerBox, upgrade},
     futures::StreamExt,
-    gossipsub, identify, identity, kad, mdns,
+    gossipsub::{self, IdentTopic},
+    identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
@@ -120,7 +121,7 @@ impl NetworkService {
 
 #[derive(Debug)]
 enum NetworkSenderEvent {
-    PublishMessage { data: Vec<u8> },
+    PublishMessage { data: Vec<u8>, topic: IdentTopic },
     RequestDbData(db_sync::Request),
     RequestValidated(Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>),
 }
@@ -136,13 +137,21 @@ impl NetworkSender {
         (Self { tx }, rx)
     }
 
+    pub fn publish_transaction(&self, data: impl Into<Vec<u8>>) {
+        let _res = self.tx.send(NetworkSenderEvent::PublishMessage {
+            data: data.into(),
+            topic: tx_topic(),
+        });
+    }
+
     // TODO: consider to append salt here to be sure that message is unique.
     // This is important for the cases of malfunctions in ethexe, when the same message
     // needs to be sent again #4255
-    pub fn publish_message(&self, data: impl Into<Vec<u8>>) {
-        let _res = self
-            .tx
-            .send(NetworkSenderEvent::PublishMessage { data: data.into() });
+    pub fn publish_commitment(&self, data: impl Into<Vec<u8>>) {
+        let _res = self.tx.send(NetworkSenderEvent::PublishMessage {
+            data: data.into(),
+            topic: gpu_commitments_topic(),
+        });
     }
 
     pub fn request_db_data(&self, request: db_sync::Request) {
@@ -431,7 +440,7 @@ impl NetworkEventLoop {
                         topic,
                     },
                 ..
-            }) if gpu_commitments_topic().hash() == topic => {
+            }) if gpu_commitments_topic().hash() == topic || tx_topic().hash() == topic => {
                 let _res = self
                     .external_tx
                     .send(NetworkReceiverEvent::Message { source, data });
@@ -475,13 +484,8 @@ impl NetworkEventLoop {
 
     fn handle_network_rx_event(&mut self, event: NetworkSenderEvent) {
         match event {
-            NetworkSenderEvent::PublishMessage { data } => {
-                if let Err(e) = self
-                    .swarm
-                    .behaviour_mut()
-                    .gossipsub
-                    .publish(gpu_commitments_topic(), data)
-                {
+            NetworkSenderEvent::PublishMessage { data, topic } => {
+                if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(topic, data) {
                     log::debug!("gossipsub publishing failed: {e}")
                 }
             }
@@ -577,6 +581,7 @@ impl Behaviour {
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
+        gossipsub.subscribe(&tx_topic())?;
 
         let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), peer_score_handle, db);
 
@@ -599,6 +604,10 @@ fn gpu_commitments_topic() -> gossipsub::IdentTopic {
     gossipsub::IdentTopic::new("gpu-commitments")
 }
 
+fn tx_topic() -> gossipsub::IdentTopic {
+    gossipsub::IdentTopic::new("tx")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -612,6 +621,7 @@ mod tests {
 
         let tmp_dir1 = tempfile::tempdir().unwrap();
         let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/1");
+
         let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
         let db = Database::from_one(&MemDb::default(), [0; 20]);
         let service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
@@ -640,7 +650,7 @@ mod tests {
         // Send a commitment from service1
         let commitment_data = b"test commitment".to_vec();
 
-        sender.publish_message(commitment_data.clone());
+        sender.publish_commitment(commitment_data.clone());
 
         let mut receiver = service2.receiver;
 

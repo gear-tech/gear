@@ -23,6 +23,7 @@ ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
 ethexe-utils.workspace = true
+ethexe-tx-pool.workspace = true
 gprimitives.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
@@ -67,6 +68,8 @@ ntest = "0.9.3"
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-utils.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
