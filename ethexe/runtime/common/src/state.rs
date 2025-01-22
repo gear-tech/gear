@@ -58,6 +58,7 @@ mod private {
     impl Sealed for Allocations {}
     impl Sealed for DispatchStash {}
     impl Sealed for Mailbox {}
+    impl Sealed for UserMailbox {}
     impl Sealed for MemoryPages {}
     impl Sealed for MemoryPagesRegion {}
     impl Sealed for MessageQueue {}
@@ -312,11 +313,11 @@ impl MaybeHashOf<Mailbox> {
     pub fn modify_mailbox<S: Storage, T>(
         &mut self,
         storage: &S,
-        f: impl FnOnce(&mut Mailbox) -> T,
+        f: impl FnOnce(&S, &mut Mailbox) -> T,
     ) -> T {
         let mut mailbox = self.query(storage).expect("failed to modify mailbox");
 
-        let r = f(&mut mailbox);
+        let r = f(storage, &mut mailbox);
 
         self.replace(mailbox.store(storage));
 
@@ -767,43 +768,96 @@ impl DispatchStash {
     }
 }
 
-// TODO (breathx): consider here LocalMailbox for each user.
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct UserMailbox(BTreeMap<MessageId, ValueWithExpiry<Value>>);
+
+impl UserMailbox {
+    fn add(&mut self, message_id: MessageId, value: Value, expiry: u32) {
+        let r = self.0.insert(message_id, ValueWithExpiry { value, expiry });
+        debug_assert!(r.is_none())
+    }
+
+    fn remove(&mut self, message_id: MessageId) -> Option<ValueWithExpiry<u128>> {
+        self.0.remove(&message_id)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
+        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
+    }
+}
+
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mailbox {
-    inner: BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>,
+    inner: BTreeMap<ActorId, HashOf<UserMailbox>>,
     #[into(ignore)]
     #[codec(skip)]
     changed: bool,
 }
 
 impl Mailbox {
-    pub fn add(&mut self, user_id: ActorId, message_id: MessageId, value: Value, expiry: u32) {
+    pub fn add_and_store_user_mailbox<S: Storage>(
+        &mut self,
+        storage: &S,
+        user_id: ActorId,
+        message_id: MessageId,
+        value: Value,
+        expiry: u32,
+    ) {
         self.changed = true;
 
-        let r = self
-            .inner
-            .entry(user_id)
-            .or_default()
-            .insert(message_id, ValueWithExpiry { value, expiry });
-        debug_assert!(r.is_none())
+        let user_mailbox = self.inner.get(&user_id).map_or_else(
+            || {
+                let mut user_mailbox = UserMailbox::default();
+                user_mailbox.add(message_id, value, expiry);
+                user_mailbox
+            },
+            |hash| {
+                let mut user_mailbox = storage
+                    .read_user_mailbox(*hash)
+                    .expect("failed to read user mailbox from storage");
+
+                user_mailbox.add(message_id, value, expiry);
+                user_mailbox
+            },
+        );
+
+        let hash = storage.write_user_mailbox(user_mailbox);
+
+        let _ = self.inner.insert(user_id, hash);
     }
 
-    pub fn remove(
+    pub fn remove_and_store_user_mailbox<S: Storage>(
         &mut self,
+        storage: &S,
         user_id: ActorId,
         message_id: MessageId,
     ) -> Option<ValueWithExpiry<u128>> {
-        let local_mailbox = self.inner.get_mut(&user_id)?;
-        let claimed_value = local_mailbox.remove(&message_id)?;
-
         self.changed = true;
 
-        if local_mailbox.is_empty() {
+        let user_mailbox_hash = self.inner.get(&user_id)?;
+        let mut user_mailbox = storage
+            .read_user_mailbox(*user_mailbox_hash)
+            .expect("failed to read user mailbox from storage");
+
+        let claimed_value = user_mailbox.remove(message_id);
+
+        if user_mailbox.is_empty() {
             self.inner.remove(&user_id);
+        } else {
+            let hash = user_mailbox
+                .store(storage)
+                .hash()
+                .expect("failed to store user mailbox");
+            self.inner.insert(user_id, hash);
         }
 
-        Some(claimed_value)
+        claimed_value
     }
 
     pub fn store<S: Storage>(self, storage: &S) -> Option<MaybeHashOf<Self>> {
@@ -811,8 +865,22 @@ impl Mailbox {
             .then(|| MaybeHashOf((!self.inner.is_empty()).then(|| storage.write_mailbox(self))))
     }
 
-    pub fn into_inner(self) -> BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>> {
-        self.into()
+    pub fn into_inner<S: Storage>(
+        self,
+        storage: &S,
+    ) -> BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>> {
+        self.inner
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    storage
+                        .read_user_mailbox(v)
+                        .expect("failed to read user mailbox from store")
+                        .0,
+                )
+            })
+            .collect()
     }
 }
 
@@ -1043,8 +1111,14 @@ pub trait Storage {
     /// Reads mailbox by mailbox hash.
     fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox>;
 
+    /// Reads user mailbox and returns its hash.
+    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox>;
+
     /// Writes mailbox and returns its hash.
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox>;
+
+    /// Writes user mailbox and returns its hash.
+    fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox>;
 
     /// Reads memory pages by pages hash.
     fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;

@@ -470,7 +470,7 @@ async fn mailbox() {
         .mailbox_hash
         .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
-    assert_eq!(mailbox.into_inner(), expected_mailbox);
+    assert_eq!(mailbox.into_inner(&node.db), expected_mailbox);
 
     mirror
         .send_reply(ping_expected_message, "PONG", 0)
@@ -498,7 +498,7 @@ async fn mailbox() {
         BTreeMap::from_iter([(mid_expected_message, ValueWithExpiry { value: 0, expiry })]),
     )]);
 
-    assert_eq!(mailbox.into_inner(), expected_mailbox);
+    assert_eq!(mailbox.into_inner(&node.db), expected_mailbox);
 
     mirror.claim_value(mid_expected_message).await.unwrap();
 

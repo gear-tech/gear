@@ -91,14 +91,17 @@ impl<S: Storage> Handler<'_, S> {
                     ),
                 );
 
-                state.mailbox_hash.modify_mailbox(storage, |mailbox| {
-                    mailbox.add(
-                        dispatch.destination(),
-                        dispatch.id(),
-                        dispatch.value(),
-                        expiry,
-                    );
-                });
+                state
+                    .mailbox_hash
+                    .modify_mailbox(storage, |storage, mailbox| {
+                        mailbox.add_and_store_user_mailbox(
+                            storage,
+                            dispatch.destination(),
+                            dispatch.id(),
+                            dispatch.value(),
+                            expiry,
+                        );
+                    });
 
                 transitions.modify_transition(dispatch.source(), |transition| {
                     transition.messages.push(dispatch.into_parts().1.into())

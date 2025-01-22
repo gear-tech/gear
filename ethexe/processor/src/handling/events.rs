@@ -102,7 +102,9 @@ impl ProcessingHandler {
                         expiry,
                     }) = state
                         .mailbox_hash
-                        .modify_mailbox(storage, |mailbox| mailbox.remove(source, replied_to))
+                        .modify_mailbox(storage, |storage, mailbox| {
+                            mailbox.remove_and_store_user_mailbox(storage, source, replied_to)
+                        })
                     else {
                         return Ok(());
                     };
@@ -133,7 +135,9 @@ impl ProcessingHandler {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
                     let Some(ValueWithExpiry { value, expiry }) = state
                         .mailbox_hash
-                        .modify_mailbox(storage, |mailbox| mailbox.remove(source, claimed_id))
+                        .modify_mailbox(storage, |storage, mailbox| {
+                            mailbox.remove_and_store_user_mailbox(storage, source, claimed_id)
+                        })
                     else {
                         return Ok(());
                     };
