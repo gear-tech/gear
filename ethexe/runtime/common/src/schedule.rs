@@ -23,13 +23,11 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     ) -> u64 {
         self.update_state(program_id, |state, storage, transitions| {
             let ValueWithExpiry { value, .. } =
-                state
-                    .mailbox_hash
-                    .modify_mailbox(storage, |storage, mailbox| {
-                        mailbox
-                            .remove_and_store_user_mailbox(storage, user_id, message_id)
-                            .expect("failed to find message in mailbox")
-                    });
+                state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    mailbox
+                        .remove_and_store_user_mailbox(storage, user_id, message_id)
+                        .expect("failed to find message in mailbox")
+                });
 
             transitions.modify_transition(program_id, |transition| {
                 transition.claims.push(ValueClaim {
@@ -80,17 +78,15 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
             );
 
-            state
-                .mailbox_hash
-                .modify_mailbox(storage, |storage, mailbox| {
-                    mailbox.add_and_store_user_mailbox(
-                        storage,
-                        user_id,
-                        stashed_message_id,
-                        dispatch.value,
-                        expiry,
-                    );
-                });
+            state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                mailbox.add_and_store_user_mailbox(
+                    storage,
+                    user_id,
+                    stashed_message_id,
+                    dispatch.value,
+                    expiry,
+                );
+            });
 
             transitions.modify_transition(program_id, |transition| {
                 transition

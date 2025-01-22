@@ -313,11 +313,11 @@ impl MaybeHashOf<Mailbox> {
     pub fn modify_mailbox<S: Storage, T>(
         &mut self,
         storage: &S,
-        f: impl FnOnce(&S, &mut Mailbox) -> T,
+        f: impl FnOnce(&mut Mailbox) -> T,
     ) -> T {
         let mut mailbox = self.query(storage).expect("failed to modify mailbox");
 
-        let r = f(storage, &mut mailbox);
+        let r = f(&mut mailbox);
 
         self.replace(mailbox.store(storage));
 
