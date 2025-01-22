@@ -34,6 +34,8 @@ pub struct CrateInfo {
     pub features: BTreeMap<String, Vec<String>>,
     /// Crate custom profiles
     pub profiles: BTreeMap<String, toml::Value>,
+    /// Workspace patches
+    pub patch: BTreeMap<String, toml::Value>,
 }
 
 impl CrateInfo {
@@ -63,6 +65,12 @@ impl CrateInfo {
             .map(|(k, v)| Ok((k, toml::Value::try_from(v)?)))
             .collect::<Result<_>>()
             .context("failed to convert profile to `toml::Value`")?;
+        let patch = manifest
+            .patch
+            .into_iter()
+            .map(|(k, v)| Ok((k, toml::Value::try_from(v)?)))
+            .collect::<Result<_>>()
+            .context("failed to convert patch to `toml::Value`")?;
 
         multiple_crate_versions::check(&metadata, &root_package.id)?;
 
@@ -77,6 +85,7 @@ impl CrateInfo {
             version,
             features,
             profiles,
+            patch,
         })
     }
 
