@@ -180,7 +180,7 @@ pub enum ImportError {
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum CodeError {
     /// Validation by wasmparser failed.
-    #[display(fmt = "Wasmer validation error: {_0}")]
+    #[display(fmt = "wasmparser validation error: {_0}")]
     Validation(BinaryReaderError),
     /// Module encode/decode error.
     #[display(fmt = "Codec error: {_0}")]
