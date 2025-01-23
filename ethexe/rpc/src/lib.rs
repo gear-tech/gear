@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, Result};
-use apis::{BlockApi, BlockServer, ProgramApi, ProgramServer};
+use apis::{BlockApi, BlockServer, DevApi, DevServer, ProgramApi, ProgramServer};
 use ethexe_db::Database;
+use ethexe_observer::MockBlobReader;
 use futures::FutureExt;
 use jsonrpsee::{
     server::{
@@ -27,7 +28,7 @@ use jsonrpsee::{
     },
     Methods, RpcModule as JsonrpcModule,
 };
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 use tower::Service;
 
@@ -51,16 +52,23 @@ pub struct RpcConfig {
     pub listen_addr: SocketAddr,
     /// CORS.
     pub cors: Option<Vec<String>>,
+    /// Dev mode.
+    pub dev: bool,
 }
 
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
+    blob_reader: Option<Arc<MockBlobReader>>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database) -> Self {
-        Self { config, db }
+    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<Arc<MockBlobReader>>) -> Self {
+        Self {
+            config,
+            db,
+            blob_reader,
+        }
     }
 
     pub const fn port(&self) -> u16 {
@@ -81,6 +89,12 @@ impl RpcService {
         let mut module = JsonrpcModule::new(());
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
+
+        if self.config.dev {
+            module.merge(DevServer::into_rpc(DevApi::new(
+                self.blob_reader.unwrap().clone(),
+            )))?;
+        }
 
         let (stop_handle, server_handle) = stop_channel();
 

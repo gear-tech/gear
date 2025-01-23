@@ -41,6 +41,11 @@ pub struct NodeParams {
     #[serde(default)]
     pub tmp: bool,
 
+    /// Flag to run node in development mode.
+    #[arg(long)]
+    #[serde(default)]
+    pub dev: bool,
+
     /// Public key of the sequencer, if node should act as one.
     #[arg(long)]
     pub sequencer: Option<String>,
@@ -87,12 +92,13 @@ impl NodeParams {
                 .virtual_threads
                 .unwrap_or(Self::DEFAULT_VIRTUAL_THREADS)
                 .get() as usize,
+            dev: self.dev,
         })
     }
 
     /// Get path to the database directory.
     pub fn db_dir(&self) -> PathBuf {
-        if self.tmp {
+        if self.tmp || self.dev {
             Self::tmp_db()
         } else {
             self.base().join("db")
@@ -144,7 +150,7 @@ impl MergeParams for NodeParams {
         Self {
             base: self.base.or(with.base),
             tmp: self.tmp || with.tmp,
-
+            dev: self.dev || with.dev,
             sequencer: self.sequencer.or(with.sequencer),
             validator: self.validator.or(with.validator),
 

@@ -77,6 +77,7 @@ async fn basics() {
         max_commitment_depth: 1_000,
         worker_threads_override: None,
         virtual_threads: 16,
+        dev: true,
     };
 
     let eth_cfg = crate::config::EthereumConfig {
@@ -106,6 +107,7 @@ async fn basics() {
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
+        dev: true,
     });
 
     config.prometheus = Some(PrometheusConfig::new_with_default_registry(
