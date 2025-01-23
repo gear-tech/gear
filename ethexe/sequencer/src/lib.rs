@@ -110,12 +110,8 @@ pub struct SequencerServiceConfig {
 }
 
 pub enum SequencerServiceEvent {
-    CollectionRoundEnded {
-        block_hash: H256,
-        validation_started: bool,
-    },
-    ValidationRoundEnded(H256),
-    CommitmentSubmitted(Result<()>),
+    CollectionRoundEnded { block_hash: H256 },
+    ValidationRoundEnded { block_hash: H256, submitted: bool },
 }
 
 pub struct SequencerService {
@@ -137,16 +133,15 @@ pub struct SequencerService {
     // TODO: merge into single timer.
     collection_round: Timer<H256>,
     validation_round: Timer<H256>,
-    // transactions: FuturesUnordered<BoxFuture<'static, Result<()>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct CommitmentAndOrigins<C> {
+pub struct CommitmentAndOrigins<C> {
     commitment: C,
     origins: BTreeSet<Address>,
 }
 
-type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
+pub type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
 
 impl SequencerService {
     pub async fn new(
@@ -382,12 +377,12 @@ impl SequencerService {
                 // so we just skip this round for sequencer.
                 let Some(block_is_empty) = self.db.block_is_empty(block_hash) else {
                     log::warn!("Failed to get block emptiness status for {block_hash}");
-                    return SequencerServiceEvent::CollectionRoundEnded { block_hash, validation_started: false };
+                    return SequencerServiceEvent::CollectionRoundEnded { block_hash };
                 };
 
                 let last_non_empty_block = if block_is_empty {
                     let Some(prev_commitment) = self.db.previous_committed_block(block_hash) else {
-                        return SequencerServiceEvent::CollectionRoundEnded { block_hash, validation_started: false };
+                        return SequencerServiceEvent::CollectionRoundEnded { block_hash };
                     };
 
                     prev_commitment
@@ -405,21 +400,29 @@ impl SequencerService {
                 if to_start_validation {
                     log::debug!("[SEQUENCER] Validation round for {block_hash} started");
                     self.validation_round.start(block_hash);
-                } else {
-                    log::debug!("[SEQUENCER] Skipping validation round for {block_hash}");
                 }
 
-                SequencerServiceEvent::CollectionRoundEnded { block_hash, validation_started: to_start_validation }
+                SequencerServiceEvent::CollectionRoundEnded { block_hash }
             }
             block_hash = self.validation_round.rings() => {
                 log::debug!("Validation round for {block_hash} ended");
-                SequencerServiceEvent::ValidationRoundEnded(block_hash)
-            }
-            // Some(res) = self.transactions.next() => {
-            //     log::debug!("Transaction completed: {res:?}");
 
-            //     SequencerServiceEvent::CommitmentSubmitted(res)
-            // }
+                let mut submitted = false;
+
+                if self.blocks_candidate.is_some() || self.codes_candidate.is_some() {
+                    log::debug!("Submitting commitments");
+
+                    if let Err(e) = self.submit_multisigned_commitments().await {
+                        log::error!("Failed to submit multisigned commitments: {e}");
+                    } else {
+                        submitted = true;
+                    }
+                } else {
+                    log::debug!("No commitments to submit, skipping");
+                }
+
+                SequencerServiceEvent::ValidationRoundEnded { block_hash, submitted }
+            }
         }
     }
 

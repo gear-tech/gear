@@ -240,10 +240,7 @@ pub(crate) async fn read_code_from_tx_hash(
     Ok((expected_code_id, code))
 }
 
-// TODO (breathx): only read events that require some activity.
-// TODO (breathx): don't store not our events.
-#[allow(unused)] // TODO (breathx).
-pub(crate) async fn read_block_events(
+pub async fn read_block_events(
     block_hash: H256,
     provider: &ObserverProvider,
     router_address: AlloyAddress,
@@ -258,8 +255,7 @@ pub(crate) async fn read_block_events(
         .map(|v| v.into_values().next().unwrap_or_default())
 }
 
-#[allow(unused)] // TODO (breathx)
-pub(crate) async fn read_block_events_batch(
+pub async fn read_block_events_batch(
     from_block: u32,
     to_block: u32,
     provider: &ObserverProvider,
@@ -355,8 +351,6 @@ async fn read_events_impl(
     Ok(res)
 }
 
-// TODO (breathx): only read events that require some activity.
-// TODO (breathx): don't store not our events.
 pub(crate) async fn read_block_request_events(
     block_hash: H256,
     provider: &ObserverProvider,

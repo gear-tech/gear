@@ -25,20 +25,20 @@ use alloy::{
     rpc::types::eth::Header,
     transports::BoxTransport,
 };
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{Context as _, Result};
 use ethexe_common::events::{BlockEvent, RouterEvent};
 use ethexe_db::BlockHeader;
 use ethexe_signer::Address;
-use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use futures::{future::BoxFuture, stream::FuturesUnordered, Stream, StreamExt};
 use gprimitives::{CodeId, H256};
 use observer::read_block_events;
-use std::{sync::Arc, time::Duration};
+use std::{pin::Pin, sync::Arc, time::Duration};
 
 type Provider = RootProvider<BoxTransport>;
 
 mod blobs;
 mod event;
-mod observer;
+pub mod observer;
 mod query;
 
 pub use blobs::{BlobReader, ConsensusLayerBlobReader, MockBlobReader};
@@ -63,16 +63,19 @@ pub struct ObserverService {
 
     last_block_number: u64,
 
-    blocks_stream: SubscriptionStream<Header>,
+    stream: Pin<Box<BlocksStream>>,
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
 
 type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, Vec<u8>)>>;
+type BlocksStream = dyn Stream<Item = (H256, BlockHeader, Vec<BlockEvent>)> + Send;
 
 impl Clone for ObserverService {
     fn clone(&self) -> Self {
         let subscription = self.subscription.resubscribe();
-        let blocks_stream = subscription.resubscribe().into_stream();
+        let stream = subscription.resubscribe().into_stream();
+
+        let stream = Self::events_all(stream, self.provider.clone(), self.router);
 
         Self {
             blobs: self.blobs.clone(),
@@ -80,7 +83,7 @@ impl Clone for ObserverService {
             subscription,
             router: self.router,
             last_block_number: self.last_block_number,
-            blocks_stream,
+            stream: Box::pin(stream),
             codes_futures: FuturesUnordered::new(),
         }
     }
@@ -133,13 +136,19 @@ impl ObserverService {
 
         let blocks_stream = subscription.resubscribe().into_stream();
 
+        let stream = Box::pin(Self::events_all(
+            blocks_stream,
+            provider.clone(),
+            config.router_address,
+        ));
+
         Ok(Self {
             blobs,
             provider,
             subscription,
             router: config.router_address,
             last_block_number: 0,
-            blocks_stream,
+            stream,
             codes_futures: FuturesUnordered::new(),
         })
     }
@@ -165,20 +174,17 @@ impl ObserverService {
         )));
     }
 
-    pub async fn next(&mut self) -> Result<ObserverServiceEvent> {
-        tokio::select! {
-            header = self.blocks_stream.next() => {
-                log::debug!("Received block header: {header:?}");
-                let header = header.ok_or_else(|| anyhow!("blocks stream closed"))?;
-
-                let block_hash = (*header.hash).into();
+    fn events_all(
+        mut stream: SubscriptionStream<Header>,
+        provider: Provider,
+        router: Address,
+    ) -> impl Stream<Item = (H256, BlockHeader, Vec<BlockEvent>)> {
+        async_stream::stream! {
+            while let Some(header) = stream.next().await {
+                let hash = (*header.hash).into();
                 let parent_hash = (*header.parent_hash).into();
                 let block_number = header.number as u32;
                 let block_timestamp = header.timestamp;
-
-                log::trace!("Received block: {block_hash:?}");
-
-                self.last_block_number = block_number as u64;
 
                 let header = BlockHeader {
                     height: block_number,
@@ -186,9 +192,20 @@ impl ObserverService {
                     parent_hash,
                 };
 
-                let events = read_block_events(block_hash, &self.provider, self.router.0.into())
-                    .await
-                    .map_err(|err| anyhow!("Failed to read events for block {block_hash:?}: {err}"))?;
+                let events = read_block_events(hash, &provider, router.0.into()).await.unwrap();
+
+                yield (hash, header, events);
+            }
+        }
+    }
+
+    pub async fn next(&mut self) -> Result<ObserverServiceEvent> {
+        tokio::select! {
+            Some((hash, header, events)) = self.stream.next() => {
+                // TODO (breathx): set in db?
+                log::trace!("Received block: {hash:?}");
+
+                self.last_block_number = header.height as u64;
 
                 // TODO: replace me with proper processing of all events, including commitments.
                 for event in &events {
@@ -198,7 +215,7 @@ impl ObserverService {
                 }
 
                 Ok(ObserverServiceEvent::Block(BlockData {
-                    hash: block_hash,
+                    hash,
                     header,
                     events,
                 }))

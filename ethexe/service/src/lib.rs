@@ -550,13 +550,7 @@ impl Service {
                     };
 
                     match event {
-                        SequencerServiceEvent::CollectionRoundEnded { block_hash, validation_started } => {
-                            log::debug!("Collection round for {block_hash} ended, starting validation round = {validation_started}...");
-
-                            if !validation_started {
-                                continue;
-                            }
-
+                        SequencerServiceEvent::CollectionRoundEnded { block_hash: _} => {
                             let code_requests: Vec<_> = s
                                 .get_candidate_code_commitments()
                                 .cloned()
@@ -568,13 +562,13 @@ impl Service {
                                 .collect();
 
                             option_call(&mut network, |n| {
-                                log::debug!("Request validation of aggregated commitments...");
-
                                 // TODO (breathx): remove this clones bypassing as call arguments by ref: anyway we encode.
                                 let message = NetworkMessage::RequestCommitmentsValidation {
                                     codes: code_requests.clone(),
                                     blocks: block_requests.clone(),
                                 };
+
+                                log::debug!("Request validation of aggregated commitments: {message:?}");
 
                                 n.publish_message(message.encode());
 
@@ -617,10 +611,7 @@ impl Service {
                                 Ok(())
                             })?;
                         },
-                        SequencerServiceEvent::ValidationRoundEnded(_block_hash) => {
-                            s.submit_multisigned_commitments().await?;
-                        },
-                        SequencerServiceEvent::CommitmentSubmitted(_res) => {},
+                        SequencerServiceEvent::ValidationRoundEnded { .. } => {},
                     }
                 },
                 Some(event) = maybe_await(network.as_mut().map(|v| v.next())) => {
