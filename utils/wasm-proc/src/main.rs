@@ -21,7 +21,7 @@ use gear_wasm_builder::{
     code_validator::validate_program,
     optimize::{self, Optimizer},
 };
-use parity_wasm::elements::External;
+use gear_wasm_instrument::{Module, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
 
 const RT_ALLOWED_IMPORTS: [&str; 76] = [
@@ -147,10 +147,15 @@ struct Args {
 }
 
 fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), String> {
-    let module = parity_wasm::deserialize_file(path_to_wasm)
-        .map_err(|e| format!("Deserialization error: {e}"))?;
+    let wasm = fs::read(path_to_wasm).map_err(|e| format!("Read error: {e}"))?;
+    let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
 
-    let is_dev = module.custom_sections().any(|v| v.name() == "dev_runtime");
+    let is_dev = module
+        .custom_section()
+        .iter()
+        .copied()
+        .flatten()
+        .any(|v| v.0 == "dev_runtime");
 
     match (expected_to_be_dev, is_dev) {
         (true, false) => Err(String::from("Runtime expected to be DEV, but it's NOT DEV")),
@@ -160,19 +165,15 @@ fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), S
 }
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
-    let module = parity_wasm::deserialize_file(path_to_wasm)
-        .map_err(|e| format!("Deserialization error: {e}"))?;
-    let imports = module
-        .import_section()
-        .ok_or("Import section not found")?
-        .entries();
+    let wasm = fs::read(path_to_wasm).map_err(|e| format!("Read error: {e}"))?;
+    let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
+    let imports = module.import_section().ok_or("Import section not found")?;
 
     let mut unexpected_imports = vec![];
 
     for import in imports {
-        if matches!(import.external(), External::Function(_) if !allowed_imports.contains(import.field()))
-        {
-            unexpected_imports.push(import.field().to_string());
+        if matches!(import.ty, TypeRef::Func(_) if !allowed_imports.contains(&*import.name)) {
+            unexpected_imports.push(import.name.clone());
         }
     }
 

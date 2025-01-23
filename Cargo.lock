@@ -19249,8 +19249,8 @@ dependencies = [
  "clap 4.5.13",
  "env_logger",
  "gear-wasm-builder",
+ "gear-wasm-instrument",
  "log",
- "parity-wasm",
 ]
 
 [[package]]
