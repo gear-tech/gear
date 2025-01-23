@@ -28,8 +28,8 @@ use wasm_encoder::{
     reencode::{Reencode, RoundtripReencoder},
 };
 use wasmparser::{
-    BinaryReaderError, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType, KnownCustom,
-    MemoryType, Payload, RefType, TableType, TypeRef, ValType,
+    BinaryReader, BinaryReaderError, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType,
+    MemoryType, NameSectionReader, Payload, RefType, TableType, TypeRef, ValType,
 };
 
 macro_rules! define_for_each_instruction_helper {
@@ -1182,7 +1182,11 @@ impl Module {
                         .push(Function::from_entry(entry)?);
                 }
                 Payload::CustomSection(section) => {
-                    if let KnownCustom::Name(section) = section.as_known() {
+                    // we avoid usage of `CustomSectionReader::as_known()`
+                    // because compiler is unable to remove branch with `CoreDumpSection`
+                    // which reads f32 and f64 values
+                    if section.name() == "name" {
+                        let section = NameSectionReader::new(BinaryReader::new(section.data(), 0));
                         name_section = Some(
                             section
                                 .into_iter()
