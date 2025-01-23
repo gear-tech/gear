@@ -60,7 +60,7 @@ pub fn generate_gear_program_code(
     Ok(bytes)
 }
 
-/// Generate gear program as [`parity_wasm::elements::Module`](https://docs.rs/parity-wasm/latest/parity_wasm/elements/struct.Module.html)
+/// Generate gear program as [`gear_wasm_instrument::Module`]
 pub fn generate_gear_program_module(
     u: &mut Unstructured<'_>,
     configs_bundle: impl ConfigsBundle,

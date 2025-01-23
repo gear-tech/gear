@@ -14558,7 +14558,7 @@ fn remove_from_waitlist_after_exit_reply() {
     })
 }
 
-// currently `parity_wasm` doesn't support WASM reference types
+// currently we don't support WASM reference types
 #[test]
 fn wasm_ref_types_doesnt_work() {
     const WAT: &str = r#"

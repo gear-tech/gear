@@ -148,7 +148,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     /// 1. The method is intended to generate just exports, not only gear entry points.
     /// 2. If the generator was used to generate some export with a custom name (not gear entry point)
     ///    and then disabled, that export index can be retrieved from [`DisabledEntryPointsGenerator`], by
-    ///    accessing the underlying `parity_wasm::module::Module` and iterating over it's export section.
+    ///    accessing the underlying `gear_wasm_instrument::Module` and iterating over it's export section.
     pub fn generate_export(&mut self, name: &str) -> Result<GearEntryPointGenerationProof> {
         log::trace!(
             "Random data before generating {name} export - {}",
