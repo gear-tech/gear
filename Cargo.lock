@@ -6744,7 +6744,6 @@ version = "1.7.0"
 dependencies = [
  "anyhow",
  "colored",
- "gear-pwasm-utils",
  "gear-wasm-instrument",
  "log",
  "regex",

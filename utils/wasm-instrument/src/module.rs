@@ -28,8 +28,8 @@ use wasm_encoder::{
     reencode::{Reencode, RoundtripReencoder},
 };
 use wasmparser::{
-    BinaryReaderError, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType, MemoryType,
-    Payload, RefType, TableType, TypeRef, ValType,
+    BinaryReaderError, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType, KnownCustom,
+    MemoryType, Payload, RefType, TableType, TypeRef, ValType,
 };
 
 macro_rules! define_for_each_instruction_helper {
@@ -491,6 +491,7 @@ impl Table {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Global {
     pub ty: GlobalType,
     pub init_expr: ConstExpr,
@@ -505,6 +506,7 @@ impl Global {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Export {
     pub name: String,
     pub kind: ExternalKind,
@@ -622,6 +624,7 @@ impl Element {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum DataKind {
     Passive,
     Active {
@@ -631,6 +634,7 @@ pub enum DataKind {
     },
 }
 
+#[derive(Debug, Clone)]
 pub struct Data {
     pub kind: DataKind,
     pub data: Cow<'static, [u8]>,
@@ -654,7 +658,7 @@ impl Data {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Function {
     pub locals: Vec<(u32, ValType)>,
     pub instructions: Vec<Instruction>,
@@ -697,6 +701,149 @@ impl Function {
         }
 
         Ok(encoder_func)
+    }
+}
+
+pub type NameMap = Vec<Naming>;
+
+/// Represents a name for an index from the names section.
+#[derive(Debug, Clone)]
+pub struct Naming {
+    /// The index being named.
+    pub index: u32,
+    /// The name for the index.
+    pub name: Cow<'static, str>,
+}
+
+pub type IndirectNameMap = Vec<IndirectNaming>;
+
+/// Represents an indirect name in the names custom section.
+#[derive(Debug, Clone)]
+pub struct IndirectNaming {
+    /// The indirect index of the name.
+    pub index: u32,
+    /// The map of names within the `index` prior.
+    pub names: NameMap,
+}
+
+#[derive(Debug, Clone)]
+pub enum Name {
+    /// The name is for the module.
+    Module(Cow<'static, str>),
+    /// The name is for the functions.
+    Function(NameMap),
+    /// The name is for the function locals.
+    Local(IndirectNameMap),
+    /// The name is for the function labels.
+    Label(IndirectNameMap),
+    /// The name is for the types.
+    Type(NameMap),
+    /// The name is for the tables.
+    Table(NameMap),
+    /// The name is for the memories.
+    Memory(NameMap),
+    /// The name is for the globals.
+    Global(NameMap),
+    /// The name is for the element segments.
+    Element(NameMap),
+    /// The name is for the data segments.
+    Data(NameMap),
+    /// The name is for fields.
+    Field(IndirectNameMap),
+    /// The name is for tags.
+    Tag(NameMap),
+    /// An unknown [name subsection](https://webassembly.github.io/spec/core/appendix/custom.html#subsections).
+    Unknown {
+        /// The identifier for this subsection.
+        ty: u8,
+        /// The contents of this subsection.
+        data: Cow<'static, [u8]>,
+    },
+}
+
+impl Name {
+    fn new(name: wasmparser::Name) -> Result<Self> {
+        let name_map = |map: wasmparser::NameMap| {
+            map.into_iter()
+                .map(|n| {
+                    n.map(|n| Naming {
+                        index: n.index,
+                        name: n.name.to_string().into(),
+                    })
+                })
+                .collect::<Result<Vec<_>, BinaryReaderError>>()
+        };
+
+        let indirect_name_map = |map: wasmparser::IndirectNameMap| {
+            map.into_iter()
+                .map(|n| {
+                    n.and_then(|n| {
+                        Ok(IndirectNaming {
+                            index: n.index,
+                            names: name_map(n.names)?,
+                        })
+                    })
+                })
+                .collect::<Result<Vec<_>, BinaryReaderError>>()
+        };
+
+        Ok(match name {
+            wasmparser::Name::Module {
+                name,
+                name_range: _,
+            } => Self::Module(name.to_string().into()),
+            wasmparser::Name::Function(map) => Self::Function(name_map(map)?),
+            wasmparser::Name::Local(map) => Self::Local(indirect_name_map(map)?),
+            wasmparser::Name::Label(map) => Self::Label(indirect_name_map(map)?),
+            wasmparser::Name::Type(map) => Self::Type(name_map(map)?),
+            wasmparser::Name::Table(map) => Self::Table(name_map(map)?),
+            wasmparser::Name::Memory(map) => Self::Memory(name_map(map)?),
+            wasmparser::Name::Global(map) => Self::Global(name_map(map)?),
+            wasmparser::Name::Element(map) => Self::Element(name_map(map)?),
+            wasmparser::Name::Data(map) => Self::Data(name_map(map)?),
+            wasmparser::Name::Field(map) => Self::Field(indirect_name_map(map)?),
+            wasmparser::Name::Tag(map) => Self::Tag(name_map(map)?),
+            wasmparser::Name::Unknown { ty, data, range: _ } => Self::Unknown {
+                ty,
+                data: data.to_vec().into(),
+            },
+        })
+    }
+
+    fn reencode(&self, section: &mut wasm_encoder::NameSection) {
+        let name_map = |map: &NameMap| {
+            map.iter()
+                .fold(wasm_encoder::NameMap::new(), |mut map, naming| {
+                    map.append(naming.index, &naming.name);
+                    map
+                })
+        };
+
+        let indirect_name_map = |map: &IndirectNameMap| {
+            map.iter()
+                .fold(wasm_encoder::IndirectNameMap::new(), |mut map, naming| {
+                    map.append(naming.index, &name_map(&naming.names));
+                    map
+                })
+        };
+
+        match self {
+            Name::Module(name) => {
+                section.module(name);
+            }
+            Name::Function(map) => section.functions(&name_map(map)),
+            Name::Local(map) => section.locals(&indirect_name_map(map)),
+            Name::Label(map) => section.labels(&indirect_name_map(map)),
+            Name::Type(map) => section.types(&name_map(map)),
+            Name::Table(map) => section.tables(&name_map(map)),
+            Name::Memory(map) => section.memories(&name_map(map)),
+            Name::Global(map) => section.globals(&name_map(map)),
+            Name::Element(map) => section.elements(&name_map(map)),
+            Name::Data(map) => section.data(&name_map(map)),
+            Name::Field(map) => section.fields(&indirect_name_map(map)),
+            Name::Tag(map) => section.tags(&name_map(map)),
+            Name::Unknown { ty, data } => section.raw(*ty, data),
+        }
     }
 }
 
@@ -773,7 +920,17 @@ impl ModuleBuilder {
             }
         }
 
-        // TODO: decode name section and rewrite
+        if let Some(section) = self.module.name_section_mut() {
+            for name in section {
+                if let Name::Function(map) = name {
+                    for naming in map {
+                        if naming.index >= inserted_index {
+                            naming.index += inserted_count;
+                        }
+                    }
+                }
+            }
+        }
 
         self
     }
@@ -892,7 +1049,7 @@ pub type CodeSection = Vec<Function>;
 pub type DataSection = Vec<Data>;
 pub type CustomSection = (Cow<'static, str>, Vec<u8>);
 
-#[derive(derive_more::DebugCustom, Default)]
+#[derive(derive_more::DebugCustom, Clone, Default)]
 #[debug(fmt = "Module {{ .. }}")]
 pub struct Module {
     pub type_section: Option<TypeSection>,
@@ -906,6 +1063,7 @@ pub struct Module {
     pub element_section: Option<Vec<Element>>,
     pub code_section: Option<CodeSection>,
     pub data_section: Option<DataSection>,
+    pub name_section: Option<Vec<Name>>,
     pub custom_section: Option<Vec<CustomSection>>,
 }
 
@@ -922,6 +1080,7 @@ impl Module {
         let mut element_section = None;
         let mut code_section = None;
         let mut data_section = None;
+        let mut name_section = None;
 
         let payloads = wasmparser::Parser::new(0).parse_all(code);
         for payload in payloads {
@@ -1022,7 +1181,16 @@ impl Module {
                         .expect("code section start missing")
                         .push(Function::from_entry(entry)?);
                 }
-                Payload::CustomSection(_) => {}
+                Payload::CustomSection(section) => {
+                    if let KnownCustom::Name(section) = section.as_known() {
+                        name_section = Some(
+                            section
+                                .into_iter()
+                                .map(|name| name.map_err(Into::into).and_then(Name::new))
+                                .collect::<Result<Vec<_>>>()?,
+                        );
+                    }
+                }
                 Payload::UnknownSection { .. } => {}
                 _ => {}
             }
@@ -1040,6 +1208,7 @@ impl Module {
             element_section,
             code_section,
             data_section,
+            name_section,
             custom_section: None,
         })
     }
@@ -1154,7 +1323,31 @@ impl Module {
             module.section(&encoder_section);
         }
 
+        if let Some(name_section) = self.name_section() {
+            let mut encoder_section = wasm_encoder::NameSection::new();
+            for name in name_section {
+                name.reencode(&mut encoder_section);
+            }
+            module.section(&encoder_section);
+        }
+
         Ok(module.finish())
+    }
+
+    pub fn count_sections(&self) -> usize {
+        self.type_section.is_some() as usize
+            + self.import_section.is_some() as usize
+            + self.function_section.is_some() as usize
+            + self.table_section.is_some() as usize
+            + self.memory_section.is_some() as usize
+            + self.global_section.is_some() as usize
+            + self.export_section.is_some() as usize
+            + self.start_section.is_some() as usize
+            + self.element_section.is_some() as usize
+            + self.code_section.is_some() as usize
+            + self.data_section.is_some() as usize
+            + self.name_section.is_some() as usize
+            + self.custom_section.as_ref().map(|s| s.len()).unwrap_or(0)
     }
 
     pub fn import_count(&self, pred: impl Fn(&TypeRef) -> bool) -> usize {
@@ -1266,5 +1459,21 @@ impl Module {
 
     pub fn data_section_mut(&mut self) -> Option<&mut DataSection> {
         self.data_section.as_mut()
+    }
+
+    pub fn name_section(&self) -> Option<&Vec<Name>> {
+        self.name_section.as_ref()
+    }
+
+    pub fn name_section_mut(&mut self) -> Option<&mut Vec<Name>> {
+        self.name_section.as_mut()
+    }
+
+    pub fn custom_section(&self) -> Option<&Vec<CustomSection>> {
+        self.custom_section.as_ref()
+    }
+
+    pub fn custom_section_mut(&mut self) -> Option<&mut Vec<CustomSection>> {
+        self.custom_section.as_mut()
     }
 }

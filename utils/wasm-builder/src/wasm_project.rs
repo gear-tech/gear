@@ -23,7 +23,7 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
-use gear_wasm_optimizer::{self as optimize, OptType, Optimizer};
+use gear_wasm_optimizer::{self as optimize, Optimizer};
 use gmeta::MetadataRepr;
 use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
@@ -238,7 +238,7 @@ impl WasmProject {
         cargo_toml.insert("profile".into(), profile.into());
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
-        cargo_toml.insert("patch".into(), crate_info.patch.try_into()?);
+        cargo_toml.insert("patch".into(), crate_info.patch.into());
 
         smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
             .context("Failed to write generated manifest path")?;
@@ -322,10 +322,7 @@ extern "C" fn metahash() {{
             .join([file_base_name, ".meta.wasm"].concat());
 
         if smart_fs::check_if_newer(original_wasm_path, &meta_wasm_path)? {
-            fs::write(
-                meta_wasm_path.clone(),
-                Optimizer::new(original_wasm_path.clone())?.optimize(OptType::Meta)?,
-            )?;
+            Optimizer::new(original_wasm_path.clone())?.flush_to_file(&meta_wasm_path)?;
         }
 
         smart_fs::write(
@@ -399,7 +396,8 @@ extern "C" fn metahash() {{
                 .insert_stack_end_export()
                 .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
             optimizer.strip_custom_sections();
-            fs::write(&opt_wasm_path, optimizer.optimize(OptType::Opt)?)
+            optimizer
+                .flush_to_file(&opt_wasm_path)
                 .context("Failed to write optimized WASM binary")?;
         }
 

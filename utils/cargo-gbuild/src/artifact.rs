@@ -160,7 +160,9 @@ impl Artifact {
             optimizer.strip_custom_sections();
         }
 
-        fs::write(output, optimizer.optimize(self.opt)?).map_err(Into::into)
+        optimizer.flush_to_file(&output)?;
+
+        Ok(())
     }
 }
 

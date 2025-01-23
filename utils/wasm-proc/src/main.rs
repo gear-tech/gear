@@ -19,7 +19,7 @@
 use clap::Parser;
 use gear_wasm_builder::{
     code_validator::validate_program,
-    optimize::{self, OptType, Optimizer},
+    optimize::{self, Optimizer},
 };
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
@@ -244,7 +244,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimizer
                 .move_mut_globals_to_static()
                 .expect("Failed to move mutable globals to static");
-            optimizer.flush_to_file(&optimized_wasm_path);
+            optimizer.flush_to_file(&optimized_wasm_path)?;
             optimized_wasm_path.clone()
         } else {
             original_wasm_path.clone()
@@ -275,7 +275,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "*** Processing chain optimization: {}",
             optimized_wasm_path.display()
         );
-        let code = optimizer.optimize(OptType::Opt)?;
+        let code = optimizer.serialize()?;
         log::info!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
         fs::write(&optimized_wasm_path, &code)?;

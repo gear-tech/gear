@@ -16,24 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::stack_end;
-use anyhow::{anyhow, Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use pwasm_utils::{
-    parity_wasm,
-    parity_wasm::elements::{Internal, Module, Section, Serialize},
-};
 #[cfg(not(feature = "wasm-opt"))]
 use std::process::Command;
+
+#[cfg(feature = "wasm-opt")]
+use wasm_opt::{OptimizationOptions, Pass};
+
+use crate::stack_end;
+use anyhow::{anyhow, Context, Result};
+use gear_wasm_instrument::{Module, STACK_END_EXPORT_NAME};
 use std::{
     fs::{self, metadata},
     path::{Path, PathBuf},
 };
-
-#[cfg(feature = "wasm-opt")]
-use wasm_opt::{OptimizationOptions, Pass};
 
 pub const FUNC_EXPORTS: [&str; 4] = ["init", "handle", "handle_reply", "handle_signal"];
 
@@ -69,8 +66,7 @@ pub struct Optimizer {
 impl Optimizer {
     pub fn new(file: PathBuf) -> Result<Self> {
         let contents = fs::read(&file).context("Failed to read file by optimizer")?;
-        let module = parity_wasm::deserialize_buffer(&contents)
-            .with_context(|| format!("File path: {file:?}"))?;
+        let module = Module::new(&contents).with_context(|| format!("File path: {file:?}"))?;
         Ok(Self { module, file })
     }
 
@@ -91,51 +87,20 @@ impl Optimizer {
     /// Presently all custom sections are not required so they can be stripped
     /// safely. The name section is already stripped by `wasm-opt`.
     pub fn strip_custom_sections(&mut self) {
+        // we also should strip `reloc` section
+        // if it will be present in the module in the future
+        self.module.custom_section = None;
+        self.module.name_section = None;
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>> {
         self.module
-            .sections_mut()
-            .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
+            .serialize()
+            .context("Failed to serialize module")
     }
 
-    pub fn flush_to_file(self, path: &PathBuf) {
-        fs::write(path, self.module.into_bytes().unwrap()).unwrap();
-    }
-
-    /// Process optimization.
-    pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
-        let mut module = self.module.clone();
-
-        let exports = if ty == OptType::Opt {
-            OPTIMIZED_EXPORTS.to_vec()
-        } else {
-            self.module
-                .export_section()
-                .ok_or_else(|| anyhow!("Export section not found"))?
-                .entries()
-                .iter()
-                .flat_map(|entry| {
-                    if let Internal::Function(_) = entry.internal() {
-                        let entry = entry.field();
-                        (!OPTIMIZED_EXPORTS.contains(&entry)).then_some(entry)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        };
-
-        pwasm_utils::optimize(&mut module, exports)
-            .map_err(|e| anyhow!("{e:?}"))
-            .with_context(|| {
-                format!(
-                    "unable to optimize the WASM file `{0}`",
-                    self.file.display()
-                )
-            })?;
-
-        let mut code = vec![];
-        module.serialize(&mut code)?;
-
-        Ok(code)
+    pub fn flush_to_file(self, path: &PathBuf) -> Result<()> {
+        fs::write(path, self.serialize()?).context("Failed to flush optimizer's module")
     }
 }
 
