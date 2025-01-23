@@ -34,12 +34,11 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{EthereumConfig, Event, MockBlobReader, Observer, Query};
+use ethexe_observer::{EthereumConfig, MockBlobReader, Query};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
-use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
 use gear_core::{
@@ -987,7 +986,8 @@ async fn multiple_validators() {
 mod utils {
     use super::*;
     use ethexe_network::export::Multiaddr;
-    use ethexe_observer::{ObserverService, SimpleBlockData};
+    use ethexe_observer::{ObserverService, ObserverServiceEvent, SimpleBlockData};
+    use ethexe_sequencer::{SequencerService, SequencerServiceConfig};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use std::{
@@ -995,12 +995,15 @@ mod utils {
         str::FromStr,
         sync::atomic::{AtomicUsize, Ordering},
     };
-    use tokio::sync::{broadcast::Sender, Mutex};
+    use tokio::sync::{
+        broadcast::{self, Sender},
+        Mutex,
+    };
 
     pub struct TestEnv {
         pub rpc_url: String,
         pub wallets: Wallets,
-        pub observer: Observer,
+        pub observer: ObserverService,
         pub blob_reader: Arc<MockBlobReader>,
         pub ethereum: Ethereum,
         #[allow(unused)]
@@ -1015,7 +1018,7 @@ mod utils {
         pub continuous_block_generation: bool,
 
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
-        broadcaster: Arc<Mutex<Sender<Event>>>,
+        broadcaster: Arc<Mutex<Sender<ObserverServiceEvent>>>,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
     }
@@ -1101,25 +1104,28 @@ mod utils {
 
             let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
-            let observer = Observer::new(&rpc_url, router_address, blob_reader.clone())
+            let eth_cfg = EthereumConfig {
+                rpc: rpc_url.clone(),
+                beacon_rpc: Default::default(),
+                router_address,
+                block_time: config.block_time,
+            };
+            let observer = ObserverService::new_with_blobs(&eth_cfg, blob_reader.clone())
                 .await
-                .expect("failed to create observer");
+                .unwrap();
 
             let (broadcaster, _events_stream) = {
                 let mut observer = observer.clone();
-                let (sender, mut receiver) = tokio::sync::broadcast::channel::<Event>(2048);
+                let (sender, mut receiver) = tokio::sync::broadcast::channel(2048);
                 let sender = Arc::new(Mutex::new(sender));
                 let cloned_sender = sender.clone();
 
                 let (send_subscription_created, receive_subscription_created) =
                     oneshot::channel::<()>();
                 let handle = task::spawn(async move {
-                    let observer_events = observer.events_all();
-                    futures::pin_mut!(observer_events);
-
                     send_subscription_created.send(()).unwrap();
 
-                    while let Some(event) = observer_events.next().await {
+                    while let Ok(event) = observer.select_next_some().await {
                         log::trace!(target: "test-event", "📗 Event: {:?}", event);
 
                         cloned_sender
@@ -1136,6 +1142,8 @@ mod utils {
                             .inspect_err(|err| log::error!("Failed to receive event: {err}"))
                             .unwrap();
                     }
+
+                    panic!("📗 Observer stream ended");
                 });
                 receive_subscription_created.await.unwrap();
 
@@ -1187,24 +1195,13 @@ mod utils {
 
             let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
 
-            let eth_cfg = EthereumConfig {
-                rpc: self.rpc_url.clone(),
-                beacon_rpc: Default::default(),
-                router_address: self.router_address,
-                block_time: self.block_time,
-            };
-            let observer_service =
-                ObserverService::new_with_blobs(&eth_cfg, self.blob_reader.clone())
-                    .await
-                    .unwrap();
-
             Node {
                 db,
                 multiaddr: None,
                 rpc_url: self.rpc_url.clone(),
                 genesis_block_hash: self.genesis_block_hash,
                 blob_reader: self.blob_reader.clone(),
-                observer: observer_service,
+                observer: self.observer.clone(),
                 signer: self.signer.clone(),
                 block_time: self.block_time,
                 validators: self.validators.iter().map(|k| k.to_address()).collect(),
@@ -1451,7 +1448,7 @@ mod utils {
     }
 
     pub struct EventsPublisher {
-        broadcaster: Arc<Mutex<Sender<Event>>>,
+        broadcaster: Arc<Mutex<Sender<ObserverServiceEvent>>>,
     }
 
     impl EventsPublisher {
@@ -1463,7 +1460,7 @@ mod utils {
     }
 
     pub struct EventsListener {
-        receiver: tokio::sync::broadcast::Receiver<Event>,
+        receiver: broadcast::Receiver<ObserverServiceEvent>,
     }
 
     impl Clone for EventsListener {
@@ -1475,13 +1472,13 @@ mod utils {
     }
 
     impl EventsListener {
-        pub async fn next_event(&mut self) -> Result<Event> {
+        pub async fn next_event(&mut self) -> Result<ObserverServiceEvent> {
             self.receiver.recv().await.map_err(Into::into)
         }
 
         pub async fn apply_until<R: Sized>(
             &mut self,
-            mut f: impl FnMut(Event) -> Result<Option<R>>,
+            mut f: impl FnMut(ObserverServiceEvent) -> Result<Option<R>>,
         ) -> Result<R> {
             loop {
                 let event = self.next_event().await?;
@@ -1505,7 +1502,7 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let Event::Block(block) = event else {
+                let ObserverServiceEvent::Block(block) = event else {
                     continue;
                 };
 
@@ -1625,13 +1622,14 @@ mod utils {
 
             let sequencer = match self.sequencer_public_key.as_ref() {
                 Some(key) => Some(
-                    Sequencer::new(
-                        &ethexe_sequencer::Config {
+                    SequencerService::new(
+                        &SequencerServiceConfig {
                             ethereum_rpc: self.rpc_url.clone(),
                             sign_tx_public: *key,
                             router_address: self.router_address,
                             validators: self.validators.clone(),
                             threshold: self.threshold,
+                            block_time: self.block_time,
                         },
                         self.signer.clone(),
                         Box::new(self.db.clone()),
@@ -1655,12 +1653,11 @@ mod utils {
 
             let service = Service::new_from_parts(
                 self.db.clone(),
-                self.observer.cloned().await.unwrap(),
+                self.observer.clone(),
                 query,
                 router_query,
                 processor,
                 self.signer.clone(),
-                self.block_time,
                 network,
                 sequencer,
                 validator,
@@ -1706,7 +1703,7 @@ mod utils {
 
             self.listener
                 .apply_until(|event| match event {
-                    Event::CodeLoaded {
+                    ObserverServiceEvent::Blob {
                         code_id: loaded_id,
                         code,
                     } if loaded_id == self.code_id => {

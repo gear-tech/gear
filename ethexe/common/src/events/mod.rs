@@ -42,6 +42,17 @@ impl BlockEvent {
     pub fn mirror(actor_id: ActorId, event: MirrorEvent) -> Self {
         Self::Mirror { actor_id, event }
     }
+
+    pub fn as_request(self) -> Option<BlockRequestEvent> {
+        Some(match self {
+            Self::Mirror { actor_id, event } => BlockRequestEvent::Mirror {
+                actor_id,
+                event: event.as_request()?,
+            },
+            Self::Router(event) => BlockRequestEvent::Router(event.as_request()?),
+            Self::WVara(event) => BlockRequestEvent::WVara(event.as_request()?),
+        })
+    }
 }
 
 impl From<(ActorId, MirrorEvent)> for BlockEvent {

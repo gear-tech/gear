@@ -44,6 +44,7 @@ type Instance = IRouter::IRouterInstance<AlloyTransport, InstanceProvider>;
 
 type QueryInstance = IRouter::IRouterInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
 
+#[derive(Clone)]
 pub struct Router {
     instance: Instance,
     wvara_address: Address,
