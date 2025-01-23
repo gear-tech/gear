@@ -115,6 +115,11 @@ pub(crate) mod utils {
         Uint256::from_le_bytes(bytes)
     }
 
+    pub fn uint256_to_u256(value: Uint256) -> U256 {
+        let bytes: [u8; Uint256::BYTES] = value.to_le_bytes();
+        U256::from_little_endian(&bytes)
+    }
+
     #[test]
     fn casts_are_correct() {
         use rand::Rng;

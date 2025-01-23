@@ -124,6 +124,14 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return _router().implAddresses.wrappedVara;
     }
 
+    function validatorsAggregatedPublicKey() public view returns (Gear.AggregatedPublicKey memory) {
+        return Gear.currentEraValidators(_router()).aggregatedPublicKey;
+    }
+
+    function validatorsVerifyingShares() public view returns (Gear.VerifyingShare[] memory) {
+        return Gear.currentEraValidators(_router()).verifyingShares;
+    }
+
     function areValidators(address[] calldata _validators) public view returns (bool) {
         Gear.Validators storage _currentValidators = Gear.currentEraValidators(_router());
 
@@ -146,10 +154,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function validators() public view returns (address[] memory) {
         return Gear.currentEraValidators(_router()).list;
-    }
-
-    function validatorsVerifyingShares() public view returns (Gear.VerifyingShare[] memory) {
-        return Gear.currentEraValidators(_router()).verifyingShares;
     }
 
     function validatorsCount() public view returns (uint256) {
