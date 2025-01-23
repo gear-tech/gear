@@ -6375,17 +6375,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-pwasm-utils"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ea09901ce41f64d1be7369b8c2efc774e89b200ac434496ab24e6af96e68f97"
-dependencies = [
- "byteorder",
- "gear-wasm",
- "log",
-]
-
-[[package]]
 name = "gear-replay-cli"
 version = "1.0.0"
 dependencies = [
@@ -6677,19 +6666,16 @@ dependencies = [
  "cargo_toml",
  "chrono",
  "gear-core",
- "gear-pwasm-utils",
  "gear-wasm-instrument",
  "gear-wasm-optimizer",
  "gmeta",
  "itertools 0.13.0",
  "log",
- "parity-wasm",
  "pathdiff",
  "regex",
  "rustc_version 0.4.0",
  "thiserror 1.0.62",
  "toml 0.8.14",
- "wabt",
 ]
 
 [[package]]
@@ -11387,22 +11373,15 @@ dependencies = [
  "env_logger",
  "frame-benchmarking",
  "frame-support",
- "frame-support-test",
  "frame-system",
  "gear-common",
  "gear-core",
  "log",
- "pallet-authorship",
  "pallet-balances",
  "pallet-gear-messenger",
- "pallet-gear-program",
- "pallet-gear-scheduler",
- "pallet-timestamp",
  "parity-scale-codec",
- "parity-wasm",
  "primitive-types",
  "scale-info",
- "sp-core 34.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sp-io 38.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sp-runtime 39.0.1",
  "sp-std 14.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
@@ -11437,7 +11416,6 @@ dependencies = [
 name = "pallet-gear-payment"
 version = "1.7.0"
 dependencies = [
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -11457,13 +11435,11 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
- "parity-wasm",
  "primitive-types",
  "scale-info",
  "sp-io 38.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sp-runtime 39.0.1",
  "sp-std 14.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
- "wabt",
 ]
 
 [[package]]
@@ -11624,11 +11600,9 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "hex",
  "log",
  "pallet-balances",
  "parity-scale-codec",
- "parity-wasm",
  "primitive-types",
  "scale-info",
  "sp-core 34.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
