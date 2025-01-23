@@ -182,13 +182,11 @@ impl<T: Numerated> IntervalsTree<T> {
     /// - `n` is amount of intervals in `self`
     /// - `m` is amount of intervals in `self` ⋂ `interval`
     ///
-    /// Returns:
-    /// - false: if `interval` is non-empty and for each `p` ∈ `interval` ⇒ `p` ∈ `self`
-    /// - true: in other cases
+    /// Returns whether `self` has been changed.
     pub fn insert<I: Into<IntervalIterator<T>>>(&mut self, interval: I) -> bool {
         let Some((start, end)) = Self::into_start_end(interval) else {
             // Empty interval - nothing to insert.
-            return true;
+            return false;
         };
 
         let Some(last) = self.end() else {
@@ -289,13 +287,11 @@ impl<T: Numerated> IntervalsTree<T> {
     /// - `n` is amount of intervals in `self`
     /// - `m` is amount of intervals in `self` ⋂ `interval`
     ///
-    /// Returns:
-    /// - false: if `interval` is not empty and for each `p` ∈ `interval` ⇒ `p` ∉ `self`.
-    /// - true: in other cases
+    /// Returns whether `self` has been changed.
     pub fn remove<I: Into<IntervalIterator<T>>>(&mut self, interval: I) -> bool {
         let Some((start, end)) = Self::into_start_end(interval) else {
             // Empty interval - nothing to remove.
-            return true;
+            return false;
         };
 
         // `iter` iterates over all intervals, which starts before or inside `interval`.
@@ -530,13 +526,15 @@ mod tests {
         assert_eq!(tree.to_vec(), vec![1..=10]);
 
         let mut tree = IntervalsTree::new();
-        assert!(
-            tree.insert(IntervalIterator::empty()),
-            "Expected true, because empty interval is allowed"
-        );
         assert_eq!(tree.to_vec(), vec![]);
         assert!(tree.insert(0..));
         assert_eq!(tree.to_vec(), vec![0..=u32::MAX]);
+
+        let mut tree = IntervalsTree::<i32>::new();
+        assert!(
+            !tree.insert(IntervalIterator::empty()),
+            "Expected false, because empty interval don't change self"
+        );
     }
 
     #[test]
@@ -587,7 +585,6 @@ mod tests {
         assert_eq!(tree.to_vec(), vec![4..=5]);
 
         let mut tree: IntervalsTree<u32> = [1, 2, 5, 6, 7, 9, 10, 11].into_iter().collect();
-        assert!(tree.remove(IntervalIterator::empty()));
         assert_eq!(tree.to_vec(), vec![1..=2, 5..=7, 9..=11]);
         assert!(tree.remove(Interval::try_from(1..2).unwrap()));
         assert_eq!(tree.to_vec(), vec![2..=2, 5..=7, 9..=11]);
@@ -595,6 +592,12 @@ mod tests {
         assert_eq!(tree.to_vec(), vec![7..=7, 9..=11]);
         assert!(tree.remove(..));
         assert_eq!(tree.to_vec(), vec![]);
+
+        let mut tree = IntervalsTree::<i32>::new();
+        assert!(
+            !tree.remove(IntervalIterator::empty()),
+            "Expected false, because empty interval don't change self"
+        );
     }
 
     #[test]
