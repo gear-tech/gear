@@ -159,9 +159,6 @@ impl Code {
                 config.data_segments_amount_limit,
             )?;
         }
-        if config.check_table_section {
-            utils::check_table_section(&module, config.table_number_limit)?;
-        }
         if config.check_mut_global_exports {
             utils::check_mut_global_exports(&module)?;
         }
@@ -190,7 +187,7 @@ impl Code {
         // Use instrumented module to get section sizes.
         let data_section_size = utils::get_data_section_size(&module)?;
         let global_section_size = utils::get_instantiated_global_section_size(&module)?;
-        let table_section_size = utils::get_instantiated_table_section_size(&module)?;
+        let table_section_size = utils::get_instantiated_table_section_size(&module);
         let element_section_size = utils::get_instantiated_element_section_size(&module)?;
 
         let code = module.serialize()?;
@@ -436,7 +433,7 @@ mod tests {
     use crate::{
         code::{
             utils::REF_TYPE_SIZE, Code, CodeError, DataSectionError, ExportError, ImportError,
-            StackEndError, TableSectionError, TryNewCodeConfig, GENERIC_OS_PAGE_SIZE,
+            StackEndError, TryNewCodeConfig, GENERIC_OS_PAGE_SIZE,
         },
         gas_metering::CustomConstantCostRules,
     };
@@ -856,39 +853,6 @@ mod tests {
     }
 
     #[test]
-    fn table_number_limit() {
-        const TABLE_NUMBER_LIMIT: u32 = 50;
-
-        let table = r#"(table 10 10 funcref)"#;
-
-        let wat = format!(
-            r#"
-            (module
-                (import "env" "memory" (memory 1))
-                (func $init)
-                (export "init" (func $init))
-                {}
-            )
-        "#,
-            table.repeat(100)
-        );
-
-        assert_code_err!(
-            try_new_code_from_wat_with_params(
-                wat.as_str(),
-                None,
-                None,
-                TABLE_NUMBER_LIMIT.into(),
-                true
-            ),
-            CodeError::TableSection(TableSectionError::TableNumberLimit {
-                limit: TABLE_NUMBER_LIMIT,
-                actual: 100
-            })
-        );
-    }
-
-    #[test]
     fn data_section_bytes() {
         // Smoke
         let wat = r#"
@@ -1099,37 +1063,6 @@ mod tests {
                 .instantiated_section_sizes
                 .global_section,
             (INSTRUMENTATION_GLOBALS_SIZE + size_of::<i32>() * 2 + size_of::<i64>()) as u32,
-        );
-    }
-
-    #[test]
-    fn table_section_bytes() {
-        let wat = r#"
-            (module
-                (import "env" "memory" (memory 3))
-                (func $init)
-                (export "init" (func $init))
-                (table 10 10 funcref)
-                (table 10 10 funcref)
-                (table 10 10 funcref)
-                (table 10 10 funcref)
-            )
-        "#;
-
-        assert_eq!(
-            try_new_code_from_wat(wat, Some(1024))
-                .unwrap()
-                .instantiated_section_sizes
-                .table_section,
-            40 * REF_TYPE_SIZE,
-        );
-
-        assert_eq!(
-            try_new_code_from_wat(wat, Some(1024))
-                .unwrap()
-                .instantiated_section_sizes
-                .element_section,
-            0,
         );
     }
 

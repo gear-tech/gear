@@ -323,28 +323,6 @@ pub fn check_data_section(
     Ok(())
 }
 
-pub fn check_table_section(
-    module: &Module,
-    table_number_limit: Option<u32>,
-) -> Result<(), CodeError> {
-    let Some(table_section) = module.table_section() else {
-        // No table section - nothing to check.
-        return Ok(());
-    };
-
-    if let Some(table_number_limit) = table_number_limit {
-        let table_number = table_section.len() as u32;
-        if table_number > table_number_limit {
-            Err(TableSectionError::TableNumberLimit {
-                limit: table_number_limit,
-                actual: table_number,
-            })?;
-        }
-    }
-
-    Ok(())
-}
-
 fn get_stack_end_offset(module: &Module) -> Result<Option<u32>, CodeError> {
     let Some((export_index, global_index)) =
         get_export_global_with_index(module, STACK_END_EXPORT_NAME)
@@ -485,17 +463,15 @@ pub fn get_instantiated_global_section_size(module: &Module) -> Result<u32, Code
 }
 
 /// Calculates the amount of bytes in the table section that will be allocated during module instantiation.
-pub fn get_instantiated_table_section_size(module: &Module) -> Result<u32, CodeError> {
-    let Some(table_section) = module.table_section() else {
-        return Ok(0);
+pub fn get_instantiated_table_section_size(module: &Module) -> u32 {
+    let Some(table) = module.table_section() else {
+        return 0;
     };
 
-    Ok(table_section.iter().fold(0, |total_bytes, table| {
-        let count = u32::try_from(table.ty.initial)
-            .unwrap_or_else(|_| unreachable!("only WASM32 is supported"));
-        // Tables may hold only reference types, which are 4 bytes long.
-        total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
-    }))
+    let count = u32::try_from(table.ty.initial)
+        .unwrap_or_else(|_| unreachable!("only WASM32 is supported"));
+    // Tables may hold only reference types, which are 4 bytes long.
+    count.saturating_mul(REF_TYPE_SIZE)
 }
 
 /// Calculates the amount of bytes in the table/element section that will be initialized during module instantiation.

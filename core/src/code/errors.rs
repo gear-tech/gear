@@ -115,19 +115,6 @@ pub enum DataSectionError {
     },
 }
 
-/// Table section error in WASM module.
-#[derive(Debug, derive_more::Display)]
-pub enum TableSectionError {
-    /// Number of table exceeds the limit.
-    #[display(fmt = "Number of table limit exceeded: limit={limit}, actual={actual}")]
-    TableNumberLimit {
-        /// Limit on the number of tables.
-        limit: u32,
-        /// Actual number of tables.
-        actual: u32,
-    },
-}
-
 /// Export error in WASM module.
 #[derive(Debug, derive_more::Display)]
 pub enum ExportError {
@@ -197,9 +184,6 @@ pub enum CodeError {
     /// The provided code contains data section error.
     #[display(fmt = "Data section error: {_0}")]
     DataSection(DataSectionError),
-    /// The provided code contains table section error.
-    #[display(fmt = "Table section error: {_0}")]
-    TableSection(TableSectionError),
     /// The provided code contains export error.
     #[display(fmt = "Export error: {_0}")]
     Export(ExportError),

@@ -276,13 +276,7 @@ impl CodeErrorWithContext {
     fn new(module: Module, error: CodeError) -> Result<Self, anyhow::Error> {
         use CodeError::*;
         match error {
-            Validation(_)
-            | Module(_)
-            | Section(_)
-            | Memory(_)
-            | StackEnd(_)
-            | DataSection(_)
-            | TableSection { .. }
+            Validation(_) | Module(_) | Section(_) | Memory(_) | StackEnd(_) | DataSection(_)
             | Instrumentation(_) => Ok(Self::Code(error)),
             Export(error) => {
                 let error_with_context: ExportErrorWithContext = (module, error).try_into()?;

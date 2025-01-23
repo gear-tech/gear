@@ -313,6 +313,8 @@ pub enum ModuleError {
     TryFromInt(core::num::TryFromIntError),
     #[display(fmt = "Unsupported instruction: {}", _0)]
     UnsupportedInstruction(String),
+    #[display(fmt = "Multiple tables")]
+    MultipleTables,
 }
 
 impl core::error::Error for ModuleError {
@@ -322,6 +324,7 @@ impl core::error::Error for ModuleError {
             ModuleError::Reencode(e) => Some(e),
             ModuleError::TryFromInt(e) => Some(e),
             ModuleError::UnsupportedInstruction(_) => None,
+            ModuleError::MultipleTables => None,
         }
     }
 }
@@ -401,7 +404,7 @@ impl TryFrom<wasmparser::BrTable<'_>> for BrTable {
     }
 }
 
-#[derive(Default, Clone, derive_more::DebugCustom)]
+#[derive(Default, Clone, derive_more::DebugCustom, Eq, PartialEq)]
 #[debug(fmt = "ConstExpr {{ .. }}")]
 pub struct ConstExpr {
     pub instructions: Vec<Instruction>,
@@ -454,13 +457,13 @@ impl Import {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TableInit {
     RefNull,
     Expr(ConstExpr),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Table {
     pub ty: TableType,
     pub init: TableInit,
@@ -961,10 +964,6 @@ impl ModuleBuilder {
         self.module.function_section.get_or_insert_with(Vec::new)
     }
 
-    fn table_section(&mut self) -> &mut Vec<Table> {
-        self.module.table_section.get_or_insert_with(Vec::new)
-    }
-
     fn global_section(&mut self) -> &mut Vec<Global> {
         self.module.global_section.get_or_insert_with(Vec::new)
     }
@@ -1020,9 +1019,9 @@ impl ModuleBuilder {
         self.import_section().push(import);
     }
 
-    pub fn push_table(&mut self, table: Table) -> u32 {
-        self.table_section().push(table);
-        self.table_section().len() as u32 - 1
+    pub fn set_table(&mut self, table: Table) {
+        debug_assert_eq!(self.module.table_section, None);
+        self.module.table_section = Some(table);
     }
 
     pub fn push_global(&mut self, global: Global) -> u32 {
@@ -1055,7 +1054,7 @@ pub struct Module {
     pub type_section: Option<TypeSection>,
     pub import_section: Option<Vec<Import>>,
     pub function_section: Option<FuncSection>,
-    pub table_section: Option<Vec<Table>>,
+    pub table_section: Option<Table>,
     pub memory_section: Option<Vec<MemoryType>>,
     pub global_section: Option<Vec<Global>>,
     pub export_section: Option<Vec<Export>>,
@@ -1115,12 +1114,16 @@ impl Module {
                 }
                 Payload::TableSection(section) => {
                     debug_assert!(table_section.is_none());
-                    table_section = Some(
-                        section
-                            .into_iter()
-                            .map(|table| table.map_err(Into::into).and_then(Table::new))
-                            .collect::<Result<_, _>>()?,
-                    );
+                    let mut section = section.into_iter();
+
+                    table_section = section
+                        .next()
+                        .map(|table| table.map_err(Into::into).and_then(Table::new))
+                        .transpose()?;
+
+                    if section.next().is_some() {
+                        return Err(ModuleError::MultipleTables);
+                    }
                 }
                 Payload::MemorySection(section) => {
                     debug_assert!(memory_section.is_none());
@@ -1248,9 +1251,7 @@ impl Module {
 
         if let Some(crate_section) = self.table_section() {
             let mut encoder_section = wasm_encoder::TableSection::new();
-            for table in crate_section.clone() {
-                table.reencode(&mut encoder_section)?;
-            }
+            crate_section.reencode(&mut encoder_section)?;
             module.section(&encoder_section);
         }
 
@@ -1338,22 +1339,6 @@ impl Module {
         Ok(module.finish())
     }
 
-    pub fn count_sections(&self) -> usize {
-        self.type_section.is_some() as usize
-            + self.import_section.is_some() as usize
-            + self.function_section.is_some() as usize
-            + self.table_section.is_some() as usize
-            + self.memory_section.is_some() as usize
-            + self.global_section.is_some() as usize
-            + self.export_section.is_some() as usize
-            + self.start_section.is_some() as usize
-            + self.element_section.is_some() as usize
-            + self.code_section.is_some() as usize
-            + self.data_section.is_some() as usize
-            + self.name_section.is_some() as usize
-            + self.custom_section.as_ref().map(|s| s.len()).unwrap_or(0)
-    }
-
     pub fn import_count(&self, pred: impl Fn(&TypeRef) -> bool) -> usize {
         self.import_section()
             .map(|imports| imports.iter().filter(|import| pred(&import.ty)).count())
@@ -1402,11 +1387,11 @@ impl Module {
         self.function_section.as_mut()
     }
 
-    pub fn table_section(&self) -> Option<&Vec<Table>> {
+    pub fn table_section(&self) -> Option<&Table> {
         self.table_section.as_ref()
     }
 
-    pub fn table_section_mut(&mut self) -> Option<&mut Vec<Table>> {
+    pub fn table_section_mut(&mut self) -> Option<&mut Table> {
         self.table_section.as_mut()
     }
 

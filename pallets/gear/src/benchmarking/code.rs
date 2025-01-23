@@ -339,7 +339,7 @@ where
                 }
             };
 
-            let table_index = program.push_table(Table {
+            program.set_table(Table {
                 ty: TableType {
                     element_type: RefType::FUNCREF,
                     table64: false,
@@ -351,7 +351,7 @@ where
             });
             program.push_element(Element {
                 kind: ElementKind::Active {
-                    table_index: Some(table_index),
+                    table_index: Some(0),
                     offset_expr: ConstExpr {
                         instructions: vec![Instruction::I32Const { value: 0 }],
                     },
