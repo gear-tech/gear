@@ -25,9 +25,9 @@ use anyhow::{anyhow, bail, Result};
 use ethexe_common::{
     db::BlockMetaStorage,
     gear::{BlockCommitment, CodeCommitment},
-    maybe_await,
 };
 use ethexe_ethereum::{router::Router, Ethereum};
+use ethexe_service_common::Timer;
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use futures::{ready, stream::FusedStream, Future, Stream};
 use gprimitives::H256;
@@ -39,69 +39,6 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
-use tokio::time::{self, Instant};
-
-pub struct Timer<T = ()> {
-    duration: Duration,
-
-    start: Option<Instant>,
-    data: Option<T>,
-}
-
-impl<T> Timer<T> {
-    pub fn new(duration: Duration) -> Self {
-        log::debug!("[TIMER] Created timer with duration: {duration:?}");
-
-        Self {
-            duration,
-
-            start: None,
-            data: None,
-        }
-    }
-
-    pub fn from_secs(sec: u64) -> Self {
-        Self::new(Duration::from_secs(sec))
-    }
-
-    pub fn from_millis(millis: u64) -> Self {
-        Self::new(Duration::from_millis(millis))
-    }
-
-    pub fn started(&self) -> bool {
-        self.start.is_some()
-    }
-
-    pub fn start(&mut self, data: T) {
-        self.data = Some(data);
-        let now = Instant::now();
-        log::debug!("[TIMER] Started timer at {now:?}");
-        self.start = Some(now);
-    }
-
-    pub fn stop(&mut self) -> Option<T> {
-        self.start = None;
-        self.data.take()
-    }
-
-    pub async fn rings(&mut self) -> T {
-        maybe_await(self.remaining().map(async |dur| {
-            log::debug!("[TIMER] Timer will ring in {dur:?}");
-            time::sleep(dur).await;
-            log::debug!("[TIMER] Timer rings");
-            self.stop().expect("must be")
-        }))
-        .await
-    }
-
-    fn remaining(&self) -> Option<Duration> {
-        self.start.map(|start| {
-            self.duration
-                .checked_sub(start.elapsed())
-                .unwrap_or(Duration::ZERO)
-        })
-    }
-}
 
 pub struct SequencerServiceConfig {
     pub ethereum_rpc: String,
@@ -133,7 +70,7 @@ pub struct SequencerService {
     blocks_candidate: Option<MultisignedCommitmentDigests>,
     codes_candidate: Option<MultisignedCommitmentDigests>,
 
-    // TODO: merge into single timer.
+    // TODO: consider merging into single timer.
     collection_round: Timer<H256>,
     validation_round: Timer<H256>,
 }
@@ -190,8 +127,8 @@ impl SequencerService {
             blocks_candidate: None,
             codes_candidate: None,
 
-            collection_round: Timer::new(config.block_time / 2),
-            validation_round: Timer::new(config.block_time / 4),
+            collection_round: Timer::new("collection", config.block_time / 2),
+            validation_round: Timer::new("validation", config.block_time / 4),
         })
     }
 

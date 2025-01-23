@@ -110,6 +110,7 @@ members = [
     "utils/lazy-pages-fuzzer/fuzz",
     "ethexe/*",
     "ethexe/runtime/common",
+    "ethexe/service/common",
 ]
 
 [workspace.dependencies]
@@ -301,6 +302,7 @@ ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
 ethexe-signer = { path = "ethexe/signer", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
+ethexe-service-common = { path = "ethexe/service/common", default-features = false }
 ethexe-sequencer = { path = "ethexe/sequencer", default-features = false }
 ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
 ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }

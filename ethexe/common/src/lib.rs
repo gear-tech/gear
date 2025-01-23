@@ -22,9 +22,6 @@
 
 extern crate alloc;
 
-use anyhow::Result;
-use core::future::{self, Future};
-
 pub mod db;
 pub mod events;
 pub mod gear;
@@ -38,14 +35,9 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     [b1, b2, b3, b4, b5, b6]
 }
 
-pub async fn maybe_await<F: Future>(f: Option<F>) -> F::Output {
-    if let Some(f) = f {
-        f.await
-    } else {
-        future::pending().await
-    }
-}
-
-pub fn option_call<S>(svc: &mut Option<S>, f: impl FnOnce(&mut S) -> Result<()>) -> Result<()> {
+pub fn option_call<S>(
+    svc: &mut Option<S>,
+    f: impl FnOnce(&mut S) -> anyhow::Result<()>,
+) -> anyhow::Result<()> {
     svc.as_mut().map_or(Ok(()), f)
 }

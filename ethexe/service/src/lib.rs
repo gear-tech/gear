@@ -22,7 +22,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use ethexe_common::{
     events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
-    maybe_await, option_call,
+    option_call,
 };
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
@@ -32,6 +32,7 @@ use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerService, SequencerServiceConfig, SequencerServiceEvent,
 };
+use ethexe_service_common::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::stream::StreamExt;
@@ -544,7 +545,7 @@ impl Service {
                         }
                     }
                 },
-                Some(event) = maybe_await(sequencer.as_mut().map(|v| v.next())) => {
+                Some(event) = sequencer.maybe_next() => {
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
                     };
@@ -614,7 +615,7 @@ impl Service {
                         SequencerServiceEvent::ValidationRoundEnded { .. } => {},
                     }
                 },
-                Some(event) = maybe_await(network.as_mut().map(|v| v.next())) => {
+                Some(event) = network.maybe_next() => {
                     match event {
                         NetworkEvent::Message { source, data } => {
                             log::trace!("Received a network message from peer {source:?}");
@@ -701,7 +702,7 @@ impl Service {
                         }
                         _ => {}
                     }},
-                _ = maybe_await(rpc_handle.as_mut()) => {
+                _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                 }
             }
