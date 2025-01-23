@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -77,6 +77,7 @@ async fn basics() {
         max_commitment_depth: 1_000,
         worker_threads_override: None,
         virtual_threads: 16,
+        dev: true,
     };
 
     let eth_cfg = crate::config::EthereumConfig {
@@ -106,6 +107,7 @@ async fn basics() {
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
+        dev: true,
     });
 
     config.prometheus = Some(PrometheusConfig::new_with_default_registry(
