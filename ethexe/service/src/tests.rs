@@ -988,6 +988,7 @@ mod utils {
     use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverService, ObserverServiceEvent, SimpleBlockData};
     use ethexe_sequencer::{SequencerService, SequencerServiceConfig};
+    use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use std::{
         ops::Mul,
@@ -1124,7 +1125,7 @@ mod utils {
                 let handle = task::spawn(async move {
                     send_subscription_created.send(()).unwrap();
 
-                    while let Ok(event) = observer.next().await {
+                    while let Ok(event) = observer.select_next_some().await {
                         log::trace!(target: "test-event", "📗 Event: {:?}", event);
 
                         cloned_sender

@@ -461,7 +461,7 @@ impl Service {
 
         loop {
             tokio::select! {
-                event = observer.next() => {
+                Some(event) = observer.next() => {
                     match event? {
                         ObserverServiceEvent::Block(block) => {
                             let hash = block.hash;

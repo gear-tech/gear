@@ -29,10 +29,20 @@ use anyhow::{Context as _, Result};
 use ethexe_common::events::{BlockEvent, RouterEvent};
 use ethexe_db::BlockHeader;
 use ethexe_signer::Address;
-use futures::{future::BoxFuture, stream::FuturesUnordered, Stream, StreamExt};
+use futures::{
+    future::{BoxFuture, Future},
+    ready,
+    stream::{FusedStream, FuturesUnordered},
+    Stream, StreamExt,
+};
 use gprimitives::{CodeId, H256};
 use observer::read_block_events;
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{
+    pin::{pin, Pin},
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 type Provider = RootProvider<BoxTransport>;
 
@@ -89,25 +99,20 @@ impl Clone for ObserverService {
     }
 }
 
-// impl Stream for ObserverService {
-//     type Item = Result<ObserverServiceEvent>;
+impl Stream for ObserverService {
+    type Item = Result<ObserverServiceEvent>;
 
-//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-//         if let Poll::Ready(event) = pin!(self.next_event()).poll(cx) {
-//             log::debug!("READY {event:?}");
-//             Poll::Ready(Some(event))
-//         } else {
-//             cx.waker().wake_by_ref();
-//             Poll::Ready(None)
-//         }
-//     }
-// }
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let e = ready!(pin!(self.next_event()).poll(cx));
+        Poll::Ready(Some(e))
+    }
+}
 
-// impl FusedStream for ObserverService {
-//     fn is_terminated(&self) -> bool {
-//         false
-//     }
-// }
+impl FusedStream for ObserverService {
+    fn is_terminated(&self) -> bool {
+        false
+    }
+}
 
 impl ObserverService {
     pub async fn new(config: &EthereumConfig) -> Result<Self> {
@@ -199,7 +204,7 @@ impl ObserverService {
         }
     }
 
-    pub async fn next(&mut self) -> Result<ObserverServiceEvent> {
+    async fn next_event(&mut self) -> Result<ObserverServiceEvent> {
         tokio::select! {
             Some((hash, header, events)) = self.stream.next() => {
                 // TODO (breathx): set in db?
