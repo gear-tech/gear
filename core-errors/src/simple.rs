@@ -419,54 +419,14 @@ impl SignalCode {
     }
 }
 
+#[cfg(feature = "codec")]
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ReplyCode, SignalCode};
 
     #[test]
     fn test_reply_code_encode_decode() {
-        let reply_codes: [ReplyCode; 16] = [
-            // Success
-            ReplyCode::Success(SuccessReplyReason::Auto),
-            ReplyCode::Success(SuccessReplyReason::Manual),
-            ReplyCode::Success(SuccessReplyReason::Unsupported),
-            // Error SimpleExecutionError
-            ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::RanOutOfGas,
-            )),
-            ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::MemoryOverflow,
-            )),
-            ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::BackendError,
-            )),
-            ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::UserspacePanic,
-            )),
-            ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::UnreachableInstruction,
-            )),
-            ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::StackLimitExceeded,
-            )),
-            ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::Unsupported,
-            )),
-            // SimpleProgramCreationError
-            ReplyCode::Error(ErrorReplyReason::FailedToCreateProgram(
-                SimpleProgramCreationError::CodeNotExists,
-            )),
-            ReplyCode::Error(ErrorReplyReason::FailedToCreateProgram(
-                SimpleProgramCreationError::Unsupported,
-            )),
-            // Other ErrorReplyReason
-            ReplyCode::Error(ErrorReplyReason::InactiveActor),
-            ReplyCode::Error(ErrorReplyReason::RemovedFromWaitlist),
-            ReplyCode::Error(ErrorReplyReason::ReinstrumentationFailure),
-            ReplyCode::Error(ErrorReplyReason::Unsupported),
-        ];
-
-        for code in reply_codes {
+        for code in enum_iterator::all::<ReplyCode>() {
             let bytes = code.to_bytes();
             assert_eq!(code, ReplyCode::from_bytes(bytes));
         }
@@ -474,18 +434,7 @@ mod tests {
 
     #[test]
     fn test_signal_code_encode_decode() {
-        let signal_codes: [SignalCode; 8] = [
-            SignalCode::Execution(SimpleExecutionError::RanOutOfGas),
-            SignalCode::Execution(SimpleExecutionError::MemoryOverflow),
-            SignalCode::Execution(SimpleExecutionError::BackendError),
-            SignalCode::Execution(SimpleExecutionError::UserspacePanic),
-            SignalCode::Execution(SimpleExecutionError::UnreachableInstruction),
-            SignalCode::Execution(SimpleExecutionError::StackLimitExceeded),
-            SignalCode::Execution(SimpleExecutionError::Unsupported),
-            SignalCode::RemovedFromWaitlist,
-        ];
-
-        for signal in signal_codes {
+        for signal in enum_iterator::all::<SignalCode>() {
             let code = signal.to_u32();
             assert_eq!(signal, SignalCode::from_u32(code).unwrap());
         }
