@@ -544,7 +544,7 @@ impl Service {
                         }
                     }
                 },
-                event = maybe_await(sequencer.as_mut().map(|v| v.next())) => {
+                Some(event) = maybe_await(sequencer.as_mut().map(|v| v.next())) => {
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
                     };

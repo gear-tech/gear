@@ -29,11 +29,14 @@ use ethexe_common::{
 };
 use ethexe_ethereum::{router::Router, Ethereum};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
+use futures::{ready, stream::FusedStream, Future, Stream};
 use gprimitives::H256;
 use indexmap::IndexSet;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     ops::Not,
+    pin::{pin, Pin},
+    task::{Context, Poll},
     time::Duration,
 };
 use tokio::time::{self, Instant};
@@ -133,6 +136,21 @@ pub struct SequencerService {
     // TODO: merge into single timer.
     collection_round: Timer<H256>,
     validation_round: Timer<H256>,
+}
+
+impl Stream for SequencerService {
+    type Item = SequencerServiceEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let e = ready!(pin!(self.next_event()).poll(cx));
+        Poll::Ready(Some(e))
+    }
+}
+
+impl FusedStream for SequencerService {
+    fn is_terminated(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -370,7 +388,7 @@ impl SequencerService {
         Ok(())
     }
 
-    pub async fn next(&mut self) -> SequencerServiceEvent {
+    async fn next_event(&mut self) -> SequencerServiceEvent {
         tokio::select! {
             block_hash = self.collection_round.rings() => {
                 // If chain head is not yet processed by this node, this is normal situation,
