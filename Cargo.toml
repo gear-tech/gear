@@ -206,8 +206,6 @@ indexmap = { version = "2.2.6", default-features = false }
 dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
 # https://github.com/gear-tech/wasm-instrument/tree/gear-stable-v0.3.0
 gwasm-instrument = { version = "0.3.0", default-features = false }
-# https://github.com/gear-tech/wasm-utils/tree/v0.19.0
-pwasm-utils = { version = "0.19.0", package = "gear-pwasm-utils" }
 
 # Internal deps
 numerated = { path = "common/numerated" }
