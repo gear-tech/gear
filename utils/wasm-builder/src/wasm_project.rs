@@ -23,9 +23,9 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
+use gear_wasm_instrument::{ExternalKind, Module};
 use gear_wasm_optimizer::{self as optimize, Optimizer};
 use gmeta::MetadataRepr;
-use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -531,17 +531,16 @@ extern "C" fn metahash() {{
     }
 
     fn get_exports(file: &PathBuf) -> Result<Vec<String>> {
-        let module =
-            parity_wasm::deserialize_file(file).with_context(|| format!("File path: {file:?}"))?;
+        let wasm = fs::read(file).context("Failed to read wasm file")?;
+        let module = Module::new(&wasm).with_context(|| format!("File path: {file:?}"))?;
 
         let exports = module
             .export_section()
             .ok_or_else(|| anyhow!("Export section not found"))?
-            .entries()
             .iter()
             .flat_map(|entry| {
-                if let Internal::Function(_) = entry.internal() {
-                    Some(entry.field().to_string())
+                if let ExternalKind::Func = entry.kind {
+                    Some(entry.name.clone())
                 } else {
                     None
                 }
