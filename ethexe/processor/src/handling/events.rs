@@ -84,7 +84,7 @@ impl ProcessingHandler {
                     let dispatch = Dispatch::new(storage, id, source, payload, value, is_init)?;
 
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(dispatch));
 
                     Ok(())
@@ -123,7 +123,7 @@ impl ProcessingHandler {
                     let reply = Dispatch::new_reply(storage, replied_to, source, payload, value)?;
 
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())
@@ -159,7 +159,7 @@ impl ProcessingHandler {
                     );
 
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())

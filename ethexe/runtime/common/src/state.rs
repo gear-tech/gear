@@ -348,30 +348,6 @@ impl MaybeHashOf<MemoryPages> {
     }
 }
 
-impl MaybeHashOf<MessageQueue> {
-    pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
-        self.with_hash_or_default_fallible(|hash| {
-            storage.read_queue(hash).ok_or(anyhow!(
-                "failed to read ['MessageQueue'] from storage by hash"
-            ))
-        })
-    }
-
-    pub fn modify_queue<S: Storage, T>(
-        &mut self,
-        storage: &S,
-        f: impl FnOnce(&mut MessageQueue) -> T,
-    ) -> T {
-        let mut queue = self.query(storage).expect("failed to modify queue");
-
-        let r = f(&mut queue);
-
-        *self = queue.store(storage);
-
-        r
-    }
-}
-
 impl MaybeHashOf<Payload> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Payload> {
         self.with_hash_or_default_fallible(|hash| {
@@ -445,14 +421,52 @@ impl Program {
     }
 }
 
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct QueueHashAndFlag {
+    /// Hash of incoming message queue, see [`MessageQueue`].
+    pub queue_hash: MaybeHashOf<MessageQueue>,
+    /// Flag indicating that queue is empty.
+    pub is_queue_empty: bool,
+}
+
+impl QueueHashAndFlag {
+    pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
+        self.queue_hash.with_hash_or_default_fallible(|hash| {
+            storage.read_queue(hash).ok_or(anyhow!(
+                "failed to read ['MessageQueue'] from storage by hash"
+            ))
+        })
+    }
+
+    pub fn modify_queue<S: Storage, T>(
+        &mut self,
+        storage: &S,
+        f: impl FnOnce(&mut MessageQueue) -> T,
+    ) -> T {
+        let mut queue = self.query(storage).expect("failed to modify queue");
+
+        let r = f(&mut queue);
+
+        self.is_queue_empty = queue.is_empty();
+        self.queue_hash = queue.store(storage);
+
+        r
+    }
+
+    pub fn is_queue_empty(&self) -> bool {
+        self.is_queue_empty
+    }
+}
+
 /// ethexe program state.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
-    /// Hash of incoming message queue, see [`MessageQueue`].
-    pub queue_hash: MaybeHashOf<MessageQueue>,
+    /// Queue hash and flag.
+    pub queue: QueueHashAndFlag,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHashOf<Waitlist>,
     /// Hash of dispatch stash, see [`DispatchStash`].
@@ -474,7 +488,10 @@ impl ProgramState {
                 memory_infix: MemoryInfix::new(0),
                 initialized: false,
             }),
-            queue_hash: MaybeHashOf::empty(),
+            queue: QueueHashAndFlag {
+                queue_hash: MaybeHashOf::empty(),
+                is_queue_empty: true,
+            },
             waitlist_hash: MaybeHashOf::empty(),
             stash_hash: MaybeHashOf::empty(),
             mailbox_hash: MaybeHashOf::empty(),
@@ -498,7 +515,7 @@ impl ProgramState {
             return false;
         }
 
-        self.queue_hash.is_empty() && self.waitlist_hash.is_empty()
+        self.queue.queue_hash.is_empty() && self.waitlist_hash.is_empty()
     }
 }
 

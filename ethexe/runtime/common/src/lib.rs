@@ -109,15 +109,15 @@ where
 
     log::trace!("Processing next message for program {program_id}");
 
-    let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
+    if program_state.queue.is_queue_empty() {
+        return Vec::new();
+    }
+
+    let mut queue = program_state.queue.queue_hash.with_hash_or_default(|hash| {
         ri.storage()
             .read_queue(hash)
             .expect("Cannot get message queue")
     });
-
-    if queue.is_empty() {
-        return Vec::new();
-    }
 
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {
