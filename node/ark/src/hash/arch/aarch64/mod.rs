@@ -16,5 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Hardware acceleration for aarch64 architecture.
+//! Derived from the implementation in the [`plonky2`](https://crates.io/crates/plonky2) crate.
+
 #[cfg(target_feature = "neon")]
 pub(crate) mod poseidon_goldilocks_neon;

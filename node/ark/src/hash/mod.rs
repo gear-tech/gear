@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! plonky2 hashing logic for Merkle proof verification,
-//! as well as specific hash functions implementation.
+//! Specific hash functions implementations for plonky2 proofs verification.
 
 mod arch;
 pub mod hash_types;

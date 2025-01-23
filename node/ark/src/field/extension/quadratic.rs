@@ -204,23 +204,6 @@ impl<F: Extendable<2>> SubAssign for QuadraticExtension<F> {
     }
 }
 
-// Note: disable the default `Mul` implementation to avoid overlapping with the
-// specialisation for the GoldilocksField quadratic extension.
-// impl<F: Extendable<2>> Mul for QuadraticExtension<F> {
-//     type Output = Self;
-
-//     #[inline]
-//     default fn mul(self, rhs: Self) -> Self {
-//         let Self([a0, a1]) = self;
-//         let Self([b0, b1]) = rhs;
-
-//         let c0 = a0 * b0 + <Self as OEF<2>>::W * a1 * b1;
-//         let c1 = a0 * b1 + a1 * b0;
-
-//         Self([c0, c1])
-//     }
-// }
-
 impl<F: Extendable<2>> MulAssign for QuadraticExtension<F>
 where
     Self: Mul<Output = Self>,

@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Some necessary self-contained primitives that need to be compiled as a part of the node.
-//! Includes some Goldilocks finite field arithmetic used in Poseidon hashing logic,
-//! as well as some Poseidon hashing functions over the Goldilocks field.
+//! Includes Goldilocks finite field arithmetic used in Poseidon hashing logic, as well as
+//! some Poseidon hashing functions over the Goldilocks field.
+//! Based on the [`plonky2`](https://crates.io/crates/plonky2) crate.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 

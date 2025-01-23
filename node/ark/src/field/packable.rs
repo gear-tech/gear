@@ -27,12 +27,16 @@ pub trait Packable: Field {
     type Packing: PackedField<Scalar = Self>;
 }
 
+// TODO: uncomment the below upon adding the x86_64 specific code which
+// has been omitted for now for the sake of controlling the PR size.
+/*
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 impl Packable for crate::field::goldilocks_field::GoldilocksField {
     type Packing = crate::field::arch::x86_64::avx2_goldilocks_field::Avx2GoldilocksField;
 }
 
 #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+*/
 impl Packable for crate::field::goldilocks_field::GoldilocksField {
     type Packing = Self;
 }
