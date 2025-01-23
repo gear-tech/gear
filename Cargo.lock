@@ -2754,8 +2754,7 @@ dependencies = [
 [[package]]
 name = "corosensei"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80128832c58ea9cbd041d2a759ec449224487b2c1e400453d99d244eead87a8e"
+source = "git+https://github.com/gear-tech/corosensei?branch=rmasl-precommit-1mb-stack-on-windows#6a05a1eb84e505edd68e941195221936a6f634a0"
 dependencies = [
  "autocfg",
  "cfg-if",
@@ -4690,6 +4689,7 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-observer",
  "ethexe-processor",
  "ethexe-runtime-common",
  "futures",
