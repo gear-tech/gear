@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Gear} from "./libraries/Gear.sol";
+import {Secp256k1} from "frost-secp256k1-evm/utils/cryptography/Secp256k1.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
 import {IMirrorDecoder} from "./IMirrorDecoder.sol";
@@ -31,6 +32,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         uint256 _electionDuration,
         uint256 _validationDelay,
         Gear.AggregatedPublicKey calldata _aggregatedPublicKey,
+        Gear.VerifyingShare[] calldata _verifyingShares,
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
@@ -53,7 +55,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
 
         // Set validators for the era 0.
-        _resetValidators(router.validationSettings.validators0, _aggregatedPublicKey, _validators, block.timestamp);
+        _resetValidators(
+            router.validationSettings.validators0, _aggregatedPublicKey, _verifyingShares, _validators, block.timestamp
+        );
     }
 
     function reinitialize() public onlyOwner reinitializer(2) {
@@ -81,6 +85,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         _resetValidators(
             oldRouter.validationSettings.validators0,
             Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
+            Gear.currentEraValidators(oldRouter).verifyingShares,
             Gear.currentEraValidators(oldRouter).list,
             block.timestamp
         );
@@ -141,6 +146,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function validators() public view returns (address[] memory) {
         return Gear.currentEraValidators(_router()).list;
+    }
+
+    function validatorsVerifyingShares() public view returns (Gear.VerifyingShare[] memory) {
+        return Gear.currentEraValidators(_router()).verifyingShares;
     }
 
     function validatorsCount() public view returns (uint256) {
@@ -280,7 +289,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         );
 
         _resetValidators(
-            _validators, _validatorsCommitment.aggregatedPublicKey, _validatorsCommitment.validators, nextEraStart
+            _validators,
+            _validatorsCommitment.aggregatedPublicKey,
+            _validatorsCommitment.verifyingShares,
+            _validatorsCommitment.validators,
+            nextEraStart
         );
 
         emit NextEraValidatorsCommitted(nextEraStart);
@@ -441,14 +454,29 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function _resetValidators(
         Gear.Validators storage _validators,
         Gear.AggregatedPublicKey memory _newAggregatedPublicKey,
+        Gear.VerifyingShare[] memory _verifyingShares,
         address[] memory _newValidators,
         uint256 _useFromTimestamp
     ) private {
+        // basic checks for aggregated public key
+        // but it probably should be checked with
+        // [`frost_core::keys::PublicKeyPackage::{from_commitment, from_dkg_commitments}`]
+        // https://docs.rs/frost-core/latest/frost_core/keys/struct.PublicKeyPackage.html#method.from_dkg_commitments
+        // ideally onchain
         require(
             FROST.isValidPublicKey(_newAggregatedPublicKey.x, _newAggregatedPublicKey.y),
             "FROST aggregated public key is invalid"
         );
         _validators.aggregatedPublicKey = _newAggregatedPublicKey;
+        // NOTE: we do not checked that aggregated public key is equal to the sum of verifying shares right now
+        require(
+            _verifyingShares.length == _newValidators.length, "verifying shares count must be equal to validators count"
+        );
+        for (uint256 i = 0; i < _verifyingShares.length; i++) {
+            Gear.VerifyingShare memory verifyingShare = _verifyingShares[i];
+            require(Secp256k1.isOnCurve(verifyingShare.x, verifyingShare.y), "verifying share is not on curve");
+        }
+        _validators.verifyingShares = _verifyingShares;
         for (uint256 i = 0; i < _validators.list.length; i++) {
             address _validator = _validators.list[i];
             _validators.map[_validator] = false;

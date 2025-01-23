@@ -53,6 +53,7 @@ contract DeploymentScript is Script {
                         2 hours,
                         5 minutes,
                         Gear.AggregatedPublicKey(aggregatedPublicKeyX, aggregatedPublicKeyY),
+                        Gear.dummyVerifingShares(validatorsArray.length),
                         validatorsArray
                     )
                 )

@@ -82,6 +82,7 @@ interface IRouter {
     function isValidator(address validator) external view returns (bool);
     function signingThresholdPercentage() external view returns (uint16);
     function validators() external view returns (address[] memory);
+    function validatorsVerifyingShares() external view returns (Gear.VerifyingShare[] memory);
     function validatorsCount() external view returns (uint256);
     function validatorsThreshold() external view returns (uint256);
 

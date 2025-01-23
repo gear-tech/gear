@@ -33,6 +33,15 @@ impl From<AggregatedPublicKey> for Gear::AggregatedPublicKey {
     }
 }
 
+impl From<VerifyingShare> for Gear::VerifyingShare {
+    fn from(value: VerifyingShare) -> Self {
+        Self {
+            x: u256_to_uint256(value.x),
+            y: u256_to_uint256(value.y),
+        }
+    }
+}
+
 impl From<BlockCommitment> for Gear::BlockCommitment {
     fn from(value: BlockCommitment) -> Self {
         Self {
@@ -58,6 +67,7 @@ impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
     fn from(value: ValidatorsCommitment) -> Self {
         Self {
             aggregatedPublicKey: value.aggregated_public_key.into(),
+            verifyingShares: value.verifying_shares.into_iter().map(Into::into).collect(),
             validators: value
                 .validators
                 .into_iter()

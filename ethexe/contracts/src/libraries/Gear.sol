@@ -24,10 +24,16 @@ library Gear {
         uint256 y;
     }
 
+    struct VerifyingShare {
+        uint256 x;
+        uint256 y;
+    }
+
     struct Validators {
         // TODO: After FROST multi signature applied - consider to remove validators map and list.
         // Replace it with list hash. Any node can access the list of validators using this hash from other nodes.
         AggregatedPublicKey aggregatedPublicKey;
+        VerifyingShare[] verifyingShares;
         mapping(address => bool) map;
         address[] list;
         uint256 useFromTimestamp;
@@ -41,6 +47,7 @@ library Gear {
 
     struct ValidatorsCommitment {
         AggregatedPublicKey aggregatedPublicKey;
+        VerifyingShare[] verifyingShares;
         address[] validators;
         uint256 eraIndex;
     }
@@ -365,5 +372,16 @@ library Gear {
 
     function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
         return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
+    }
+
+    function dummyVerifingShares(uint256 _count) internal pure returns (Gear.VerifyingShare[] memory) {
+        Gear.VerifyingShare[] memory _verifyingShares = new Gear.VerifyingShare[](_count);
+        for (uint256 i = 0; i < _count; i++) {
+            _verifyingShares[i] = Gear.VerifyingShare({
+                x: 0x0000000000000000000000000000000000000000000000000000000000000001,
+                y: 0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+            });
+        }
+        return _verifyingShares;
     }
 }

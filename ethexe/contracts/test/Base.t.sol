@@ -122,6 +122,7 @@ contract Base is POCBaseTest {
                             uint256(electionDuration),
                             uint256(validationDelay),
                             _aggregatedPublicKey,
+                            Gear.dummyVerifingShares(_validators.length),
                             _validators
                         )
                     )

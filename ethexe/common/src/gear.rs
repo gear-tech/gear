@@ -34,6 +34,12 @@ pub struct AggregatedPublicKey {
     pub y: U256,
 }
 
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct VerifyingShare {
+    pub x: U256,
+    pub y: U256,
+}
+
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 #[repr(u8)]
 pub enum SignatureType {
@@ -67,6 +73,7 @@ pub struct CodeCommitment {
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct ValidatorsCommitment {
     pub aggregated_public_key: AggregatedPublicKey,
+    pub verifying_shares: Vec<VerifyingShare>,
     pub validators: Vec<ActorId>,
     pub era_index: u64,
 }
