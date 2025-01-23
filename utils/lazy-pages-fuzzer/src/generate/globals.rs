@@ -86,7 +86,7 @@ impl<'u> InjectGlobals<'u> {
                         Instruction::I64Const {
                             value: self.unstructured.int_in_range(0..=i64::MAX)?,
                         },
-                        Instruction::GlobalGet { global_index },
+                        Instruction::GlobalSet { global_index },
                     ]
                 } else {
                     [Instruction::GlobalGet { global_index }, Instruction::Drop]
