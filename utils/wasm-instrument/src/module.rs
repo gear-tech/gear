@@ -411,6 +411,24 @@ pub struct ConstExpr {
 }
 
 impl ConstExpr {
+    pub fn empty() -> Self {
+        Self {
+            instructions: Vec::new(),
+        }
+    }
+
+    pub fn i32_value(value: i32) -> Self {
+        Self {
+            instructions: vec![Instruction::I32Const { value }],
+        }
+    }
+
+    pub fn i64_value(value: i64) -> Self {
+        Self {
+            instructions: vec![Instruction::I64Const { value }],
+        }
+    }
+
     fn new(expr: wasmparser::ConstExpr) -> Result<Self> {
         let mut instructions = Vec::new();
         let mut ops = expr.get_operators_reader();

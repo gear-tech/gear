@@ -112,11 +112,7 @@ impl<'u> InjectGlobals<'u> {
                     mutable: true,
                     shared: false,
                 },
-                init_expr: ConstExpr {
-                    instructions: vec![Instruction::I64Const {
-                        value: INITIAL_GLOBAL_VALUE,
-                    }],
-                },
+                init_expr: ConstExpr::i64_value(INITIAL_GLOBAL_VALUE),
             });
 
             next_global_idx += 1;

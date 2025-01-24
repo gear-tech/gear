@@ -263,11 +263,7 @@ where
             program.push_data(Data {
                 kind: DataKind::Active {
                     memory_index: 0,
-                    offset_expr: ConstExpr {
-                        instructions: vec![Instruction::I32Const {
-                            value: data.offset as i32,
-                        }],
-                    },
+                    offset_expr: ConstExpr::i32_value(data.offset as i32),
                 },
                 data: data.value.into(),
             })
@@ -289,9 +285,7 @@ where
                         mutable: true,
                         shared: false,
                     },
-                    init_expr: ConstExpr {
-                        instructions: vec![Instruction::I64Const { value }],
-                    },
+                    init_expr: ConstExpr::i64_value(value),
                 });
             }
         }
@@ -316,11 +310,7 @@ where
                 mutable: false,
                 shared: false,
             },
-            init_expr: ConstExpr {
-                instructions: vec![Instruction::I32Const {
-                    value: stack_end.offset() as i32,
-                }],
-            },
+            init_expr: ConstExpr::i32_value(stack_end.offset() as i32),
         });
         program.push_export(Export {
             name: STACK_END_EXPORT_NAME.into(),
@@ -355,9 +345,7 @@ where
             program.push_element(Element {
                 kind: ElementKind::Active {
                     table_index: Some(0),
-                    offset_expr: ConstExpr {
-                        instructions: vec![Instruction::I32Const { value: 0 }],
-                    },
+                    offset_expr: ConstExpr::i32_value(0),
                 },
                 items: ElementItems::Functions(functions),
             });

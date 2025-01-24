@@ -157,11 +157,7 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
             builder.push_data(Data {
                 kind: DataKind::Active {
                     memory_index: 0,
-                    offset_expr: ConstExpr {
-                        instructions: vec![Instruction::I32Const {
-                            value: log_info_offset as i32,
-                        }],
-                    },
+                    offset_expr: ConstExpr::i32_value(log_info_offset as i32),
                 },
                 data: log_bytes.into(),
             });

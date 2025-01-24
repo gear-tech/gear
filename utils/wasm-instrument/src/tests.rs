@@ -62,9 +62,7 @@ fn prebuilt_simple_module() -> Module {
             mutable: false,
             shared: false,
         },
-        init_expr: ConstExpr {
-            instructions: vec![],
-        },
+        init_expr: ConstExpr::empty(),
     });
 
     builder.add_func(

@@ -149,9 +149,7 @@ fn generate_stack_height_global(
             mutable: true,
             shared: false,
         },
-        init_expr: ConstExpr {
-            instructions: vec![Instruction::I32Const { value: 0 }],
-        },
+        init_expr: ConstExpr::i32_value(0),
     };
 
     let mut mbuilder = ModuleBuilder::from_module(module);

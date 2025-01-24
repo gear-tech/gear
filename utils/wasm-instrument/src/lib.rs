@@ -260,9 +260,7 @@ fn inject_gas_limiter<R: Rules>(
             mutable: true,
             shared: false,
         },
-        init_expr: ConstExpr {
-            instructions: vec![Instruction::I64Const { value: 0 }],
-        },
+        init_expr: ConstExpr::i64_value(0),
     });
 
     mbuilder.push_export(Export {

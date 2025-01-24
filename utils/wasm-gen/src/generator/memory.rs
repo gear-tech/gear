@@ -116,11 +116,7 @@ impl MemoryGenerator {
                         mutable: false,
                         shared: false,
                     },
-                    init_expr: ConstExpr {
-                        instructions: vec![Instruction::I32Const {
-                            value: stack_end as i32,
-                        }],
-                    },
+                    init_expr: ConstExpr::i32_value(stack_end as i32),
                 });
 
                 let stack_end_index = builder
