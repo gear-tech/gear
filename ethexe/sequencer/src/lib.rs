@@ -40,6 +40,12 @@ use std::{
     time::Duration,
 };
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SequencerStatus {
+    pub submitted_code_commitments: usize,
+    pub submitted_block_commitments: usize,
+}
+
 pub struct SequencerServiceConfig {
     pub ethereum_rpc: String,
     pub sign_tx_public: PublicKey,
@@ -69,6 +75,8 @@ pub struct SequencerService {
 
     blocks_candidate: Option<MultisignedCommitmentDigests>,
     codes_candidate: Option<MultisignedCommitmentDigests>,
+
+    status: SequencerStatus,
 
     // TODO: consider merging into single timer.
     collection_round: Timer<H256>,
@@ -127,6 +135,8 @@ impl SequencerService {
             blocks_candidate: None,
             codes_candidate: None,
 
+            status: Default::default(),
+
             collection_round: Timer::new("collection", config.block_time / 2),
             validation_round: Timer::new("validation", config.block_time / 4),
         })
@@ -134,6 +144,10 @@ impl SequencerService {
 
     pub fn address(&self) -> Address {
         self.key.to_address()
+    }
+
+    pub fn status(&self) -> SequencerStatus {
+        self.status
     }
 
     pub fn on_new_head(&mut self, hash: H256) -> Result<()> {
@@ -249,10 +263,11 @@ impl SequencerService {
         );
 
         if let Some(candidate) = codes_candidate {
-            log::debug!(
-                "Collected {} code commitments. Trying to submit...",
-                candidate.commitments().len()
-            );
+            let n = candidate.commitments().len();
+
+            log::debug!("Collected {n} code commitments. Submitting...");
+            self.status.submitted_code_commitments += n;
+
             codes_future = Some(Self::submit_codes_commitments(
                 self.ethereum.router(),
                 candidate,
@@ -260,10 +275,11 @@ impl SequencerService {
         };
 
         if let Some(candidate) = blocks_candidate {
-            log::debug!(
-                "Collected {} block commitments. Trying to submit...",
-                candidate.commitments().len()
-            );
+            let n = candidate.commitments().len();
+
+            log::debug!("Collected {n} block commitments. Submitting...",);
+            self.status.submitted_block_commitments += n;
+
             blocks_future = Some(Self::submit_block_commitments(
                 self.ethereum.router(),
                 candidate,

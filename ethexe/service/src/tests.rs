@@ -107,7 +107,7 @@ async fn basics() {
         cors: None,
     });
 
-    config.prometheus = Some(PrometheusConfig::new_with_default_registry(
+    config.prometheus = Some(PrometheusConfig::new(
         "DevNode".into(),
         SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
     ));
@@ -1661,6 +1661,7 @@ mod utils {
                 network,
                 sequencer,
                 validator,
+                None,
                 None,
             );
             let handle = task::spawn(service.run());

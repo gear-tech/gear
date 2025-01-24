@@ -29,6 +29,7 @@ use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{ObserverService, ObserverServiceEvent, RequestBlockData};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
+use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerService, SequencerServiceConfig, SequencerServiceEvent,
 };
@@ -58,7 +59,7 @@ pub struct Service {
     network: Option<NetworkService>,
     sequencer: Option<SequencerService>,
     validator: Option<ethexe_validator::Validator>,
-    // metrics_service: Option<MetricsService>,
+    prometheus: Option<PrometheusService>,
     rpc: Option<ethexe_rpc::RpcService>,
 }
 
@@ -198,19 +199,11 @@ impl Service {
                 )
             });
 
-        // Prometheus metrics.
-        // let metrics_service = if let Some(config) = config.prometheus.clone() {
-        //     // Set static metrics.
-        //     let metrics =
-        //         MetricsService::new(&config).with_context(|| "failed to create metrics service")?;
-        //     tokio::spawn(
-        //         ethexe_prometheus::init_prometheus(config.addr, config.registry).map(drop),
-        //     );
-
-        //     Some(metrics)
-        // } else {
-        //     None
-        // };
+        let prometheus = if let Some(config) = config.prometheus.clone() {
+            Some(PrometheusService::new(config)?)
+        } else {
+            None
+        };
 
         let network = if let Some(net_config) = &config.network {
             Some(
@@ -236,7 +229,7 @@ impl Service {
             sequencer,
             signer,
             validator,
-            // metrics_service,
+            prometheus,
             rpc,
         })
     }
@@ -261,7 +254,7 @@ impl Service {
         network: Option<NetworkService>,
         sequencer: Option<SequencerService>,
         validator: Option<ethexe_validator::Validator>,
-        // metrics_service: Option<MetricsService>,
+        prometheus: Option<PrometheusService>,
         rpc: Option<ethexe_rpc::RpcService>,
     ) -> Self {
         Self {
@@ -274,7 +267,7 @@ impl Service {
             network,
             sequencer,
             validator,
-            // metrics_service,
+            prometheus,
             rpc,
         }
     }
@@ -429,18 +422,9 @@ impl Service {
             mut sequencer,
             signer: _signer,
             mut validator,
+            mut prometheus,
             rpc,
-            ..
         } = self;
-
-        // TODO: support monitoring in observer.
-        // if let Some(metrics_service) = metrics_service {
-        //     tokio::spawn(metrics_service.run(
-        //         observer.get_status_receiver(),
-        //         sequencer.as_mut().map(|s| s.get_status_receiver()),
-        //     ));
-        // }
-
         let mut rpc_handle = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
 
@@ -702,6 +686,33 @@ impl Service {
                         }
                         _ => {}
                     }},
+                Some(event) = prometheus.maybe_next() => {
+                    let Some(p) = prometheus.as_mut() else {
+                        unreachable!("couldn't produce event without prometheus");
+                    };
+
+                    match event {
+                        PrometheusEvent::CollectMetrics => {
+                            let status = observer.status();
+
+                            p.update_observer_metrics(
+                                status.eth_best_height,
+                                status.pending_codes,
+                            );
+
+                            option_call(&mut sequencer, |s| {
+                                let status = s.status();
+
+                                p.update_sequencer_metrics(
+                                    status.submitted_code_commitments,
+                                    status.submitted_block_commitments,
+                                );
+
+                                Ok(())
+                            })?;
+                        }
+                    }
+                }
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                 }
