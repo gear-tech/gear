@@ -18,7 +18,10 @@
 
 //! ethexe common db types and traits.
 
-use crate::{events::BlockRequestEvent, gear::StateTransition};
+use crate::{
+    events::BlockRequestEvent,
+    gear::{Origin, StateTransition},
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
@@ -31,13 +34,13 @@ use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
-pub type Rfm = (ProgramId, ActorId);
+pub type Rfm = (ProgramId, ActorId, Origin);
 
 /// SendDispatch key; (msgs destinations program (stash and queue provider), message id)
 pub type Sd = (ProgramId, MessageId);
 
 /// SendUserMessage key; (msgs sources program (mailbox and stash provider))
-pub type Sum = ProgramId;
+pub type Sum = (ProgramId, Origin);
 
 /// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
 pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;

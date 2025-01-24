@@ -106,14 +106,32 @@ async fn run_in_async(
             }
 
             for (program_id, journal) in super_journal {
-                let mut handler = JournalHandler {
-                    program_id,
-                    controller: TransitionController {
-                        transitions: in_block_transitions,
-                        storage: &db,
-                    },
+                let controller = TransitionController {
+                    transitions: in_block_transitions,
+                    storage: &db,
                 };
-                core_processor::handle_journal(journal, &mut handler);
+
+                let dispatch_origin = controller.access_state(program_id, |state, storage, _| {
+                    let queue = state
+                        .queue_hash
+                        .query(storage)
+                        .expect("failed to query queue");
+
+                    queue.peek().map(|message| message.origin)
+                });
+
+                // Absence of `dispatch_origin` means journal is empty, so we can skip journal handling
+                if let Some(dispatch_origin) = dispatch_origin {
+                    let mut handler = JournalHandler {
+                        program_id,
+                        controller: TransitionController {
+                            transitions: in_block_transitions,
+                            storage: &db,
+                        },
+                        dispatch_origin,
+                    };
+                    core_processor::handle_journal(journal, &mut handler);
+                }
             }
         }
 
