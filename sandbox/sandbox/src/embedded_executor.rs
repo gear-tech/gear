@@ -586,7 +586,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
             [] => Ok(ReturnValue::Unit),
             [val] => {
                 let val = to_interface(val.clone()).ok_or_else(|| {
-                    log::trace!(target: TARGET, "error converting return value to interface: {val}");
+                    log::trace!(target: TARGET, "error converting return value to interface: {val:?}");
                     Error::Execution
                 })?;
                 Ok(ReturnValue::Value(val))
