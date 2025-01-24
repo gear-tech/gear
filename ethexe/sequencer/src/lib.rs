@@ -25,16 +25,13 @@ use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment},
 };
 use ethexe_ethereum::{router::Router, Ethereum};
-use ethexe_service_common::Timer;
+use ethexe_service_common::{StreamAlike, Timer};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
-use futures::{ready, stream::FusedStream, Future, Stream};
 use gprimitives::H256;
 use indexmap::IndexSet;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     ops::Not,
-    pin::{pin, Pin},
-    task::{Context, Poll},
     time::Duration,
 };
 
@@ -83,20 +80,29 @@ pub struct SequencerService {
     validation_round: Timer<H256>,
 }
 
-impl Stream for SequencerService {
+impl StreamAlike for SequencerService {
     type Item = SequencerEvent;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let e = ready!(pin!(self.next_event()).poll(cx));
-        Poll::Ready(Some(e))
+    async fn like_next(&mut self) -> Option<Self::Item> {
+        Some(self.next().await)
     }
 }
 
-impl FusedStream for SequencerService {
-    fn is_terminated(&self) -> bool {
-        false
-    }
-}
+// TODO: fix it by some wrapper. It's not possible to implement Stream for SequencerService like this.
+// impl Stream for SequencerService {
+//     type Item = SequencerEvent;
+
+//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+//         let e = ready!(pin!(self.next_event()).poll(cx));
+//         Poll::Ready(Some(e))
+//     }
+// }
+
+// impl FusedStream for SequencerService {
+//     fn is_terminated(&self) -> bool {
+//         false
+//     }
+// }
 
 impl SequencerService {
     pub async fn new(
@@ -333,7 +339,7 @@ impl SequencerService {
         Ok(())
     }
 
-    async fn next_event(&mut self) -> SequencerEvent {
+    pub async fn next(&mut self) -> SequencerEvent {
         tokio::select! {
             block_hash = self.collection_round.rings() => {
                 // If chain head is not yet processed by this node, this is normal situation,

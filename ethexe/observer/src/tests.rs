@@ -94,7 +94,7 @@ async fn test_deployment() -> Result<()> {
         .await
         .expect("observer did not receive event");
 
-    assert!(matches!(event, Ok(ObserverEvent::Block(..))));
+    assert!(matches!(event, ObserverEvent::Block(..)));
 
     let event = observer
         .next()
@@ -102,7 +102,7 @@ async fn test_deployment() -> Result<()> {
         .expect("observer did not receive event");
 
     assert_eq!(
-        event.expect("mustn't fail"),
+        event,
         ObserverEvent::Blob {
             code_id,
             code: wasm

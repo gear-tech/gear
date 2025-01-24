@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(async_fn_in_trait)]
+
 use futures::{future, StreamExt};
 use std::future::Future;
 
@@ -29,11 +31,10 @@ mod private {
     pub trait Sealed {}
 
     impl<F: Future> Sealed for Option<F> {}
-    impl<S: StreamExt> Sealed for &mut Option<S> {}
+    impl<S: StreamAlike> Sealed for &mut Option<S> {}
 }
 
 pub trait OptionFuture<T>: private::Sealed {
-    #[allow(async_fn_in_trait)]
     async fn maybe(self) -> T;
 }
 
@@ -47,14 +48,27 @@ impl<F: Future> OptionFuture<F::Output> for Option<F> {
     }
 }
 
+pub trait StreamAlike {
+    type Item;
+
+    async fn like_next(&mut self) -> Option<Self::Item>;
+}
+
+impl<T: StreamExt + Unpin> StreamAlike for T {
+    type Item = T::Item;
+
+    async fn like_next(&mut self) -> Option<Self::Item> {
+        StreamExt::next(self).await
+    }
+}
+
 pub trait OptionStreamNext<T>: private::Sealed {
-    #[allow(async_fn_in_trait)]
     async fn maybe_next(self) -> Option<T>;
 }
 
-impl<S: StreamExt + Unpin> OptionStreamNext<S::Item> for &mut Option<S> {
+impl<S: StreamAlike> OptionStreamNext<S::Item> for &mut Option<S> {
     async fn maybe_next(self) -> Option<S::Item> {
-        self.as_mut().map(StreamExt::next).maybe().await
+        self.as_mut().map(StreamAlike::like_next).maybe().await
     }
 }
 

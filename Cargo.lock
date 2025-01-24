@@ -4631,6 +4631,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
+ "ethexe-service-common",
  "ethexe-signer",
  "futures",
  "gear-core",

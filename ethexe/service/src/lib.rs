@@ -36,7 +36,6 @@ use ethexe_sequencer::{
 use ethexe_service_common::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
-use futures::stream::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::Not, sync::Arc};
@@ -455,7 +454,7 @@ impl Service {
 
         loop {
             tokio::select! {
-                Some(event) = observer.next() => {
+                event = observer.next() => {
                     match event? {
                         ObserverEvent::Block(block) => {
                             let hash = block.hash;
