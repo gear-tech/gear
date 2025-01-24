@@ -22,7 +22,6 @@ use futures::{future, stream::FuturesUnordered, Stream, StreamExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::watch;
 
 /// Max number of blocks to query in alloy.
 pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
@@ -35,22 +34,12 @@ pub struct Observer {
     // Always `Some`
     blocks_subscription: Option<Subscription<Header>>,
     blob_reader: Arc<dyn BlobReader>,
-    status_sender: watch::Sender<ObserverStatus>,
-    status: ObserverStatus,
 }
 
 impl Clone for Observer {
     fn clone(&self) -> Self {
         self.clone_with_resubscribe()
     }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ObserverStatus {
-    // TODO: change to u32
-    pub eth_block_number: u64,
-    pub pending_upload_code: u64,
-    pub last_router_state: u64,
 }
 
 macro_rules! define_event_stream_method {
@@ -93,11 +82,8 @@ macro_rules! define_event_stream_method {
                                 }
                             };
 
-                            let mut codes_len = 0;
-
                             for event in events.iter() {
                                 if let $block_event_type::Router($router_event_type::CodeValidationRequested { code_id, blob_tx_hash }) = event {
-                                    codes_len += 1;
 
                                     let blob_reader = self.blob_reader.clone();
                                     let code_id = *code_id;
@@ -109,14 +95,6 @@ macro_rules! define_event_stream_method {
                                     });
                                 }
                             }
-
-                            self.update_status(|status| {
-                                status.eth_block_number = block_number;
-                                if codes_len > 0 {
-                                    status.last_router_state = block_number;
-                                }
-                                status.pending_upload_code = codes_len as u64;
-                            });
 
                             let block_data = $block_data_type {
                                 hash: block_hash,
@@ -150,7 +128,6 @@ impl Observer {
         router_address: Address,
         blob_reader: Arc<dyn BlobReader>,
     ) -> Result<Self> {
-        let (status_sender, _status_receiver) = watch::channel(ObserverStatus::default());
         let provider = ProviderBuilder::new().on_builtin(ethereum_rpc).await?;
         let blocks_subscription = provider.subscribe_blocks().await?;
         Ok(Self {
@@ -158,21 +135,7 @@ impl Observer {
             router_address: AlloyAddress::new(router_address.0),
             blocks_subscription: Some(blocks_subscription),
             blob_reader,
-            status: Default::default(),
-            status_sender,
         })
-    }
-
-    pub fn get_status_receiver(&self) -> watch::Receiver<ObserverStatus> {
-        self.status_sender.subscribe()
-    }
-
-    fn update_status<F>(&mut self, update_fn: F)
-    where
-        F: FnOnce(&mut ObserverStatus),
-    {
-        update_fn(&mut self.status);
-        let _ = self.status_sender.send_replace(self.status);
     }
 
     pub fn provider(&self) -> &ObserverProvider {
@@ -209,8 +172,6 @@ impl Observer {
             router_address: self.router_address,
             blocks_subscription: Some(self.resubscribe_blocks()),
             blob_reader: self.blob_reader.clone(),
-            status_sender: self.status_sender.clone(),
-            status: self.status,
         }
     }
 

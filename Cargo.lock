@@ -4677,9 +4677,7 @@ name = "ethexe-prometheus"
 version = "1.7.0"
 dependencies = [
  "anyhow",
- "ethexe-observer",
- "ethexe-sequencer",
- "ethexe-utils",
+ "futures",
  "hyper 0.14.31",
  "log",
  "prometheus",
@@ -4790,7 +4788,6 @@ dependencies = [
  "ethexe-sequencer",
  "ethexe-service-common",
  "ethexe-signer",
- "ethexe-utils",
  "ethexe-validator",
  "futures",
  "futures-timer",
@@ -4835,20 +4832,6 @@ dependencies = [
  "secp256k1 0.30.0",
  "sha3",
  "tempfile",
-]
-
-[[package]]
-name = "ethexe-utils"
-version = "1.7.0"
-dependencies = [
- "async-channel 1.9.0",
- "futures",
- "futures-timer",
- "log",
- "parking_lot 0.12.3",
- "prometheus",
- "sp-arithmetic 26.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
- "tokio-test",
 ]
 
 [[package]]
@@ -18090,19 +18073,6 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tokio-util",
-]
-
-[[package]]
-name = "tokio-test"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2468baabc3311435b55dd935f702f42cd1b8abb7e754fb7dfb16bd36aa88f9f7"
-dependencies = [
- "async-stream",
- "bytes",
- "futures-core",
- "tokio",
- "tokio-stream",
 ]
 
 [[package]]

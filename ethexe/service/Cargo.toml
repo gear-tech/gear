@@ -23,7 +23,6 @@ ethexe-common.workspace = true
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
-ethexe-utils.workspace = true
 gprimitives.workspace = true
 
 clap = { workspace = true, features = ["derive"] }

@@ -53,7 +53,7 @@ mod query;
 
 pub use blobs::{BlobReader, ConsensusLayerBlobReader, MockBlobReader};
 pub use event::{BlockData, Event, RequestBlockData, RequestEvent, SimpleBlockData};
-pub use observer::{Observer, ObserverStatus};
+pub use observer::Observer;
 pub use query::Query;
 
 #[derive(Clone, Debug)]
@@ -64,6 +64,12 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ObserverStatus {
+    pub eth_best_height: u32,
+    pub pending_codes: usize,
+}
+
 pub struct ObserverService {
     blobs: Arc<dyn BlobReader>,
     provider: Provider,
@@ -71,7 +77,7 @@ pub struct ObserverService {
 
     router: Address,
 
-    last_block_number: u64,
+    last_block_number: u32,
 
     stream: Pin<Box<BlocksStream>>,
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
@@ -162,11 +168,10 @@ impl ObserverService {
         &self.provider
     }
 
-    pub fn get_status(&self) -> ObserverStatus {
+    pub fn status(&self) -> ObserverStatus {
         ObserverStatus {
-            eth_block_number: self.last_block_number,
-            last_router_state: 0, // what is this?
-            pending_upload_code: self.codes_futures.len() as u64,
+            eth_best_height: self.last_block_number,
+            pending_codes: self.codes_futures.len(),
         }
     }
 
@@ -210,7 +215,7 @@ impl ObserverService {
                 // TODO (breathx): set in db?
                 log::trace!("Received block: {hash:?}");
 
-                self.last_block_number = header.height as u64;
+                self.last_block_number = header.height;
 
                 // TODO: replace me with proper processing of all events, including commitments.
                 for event in &events {
