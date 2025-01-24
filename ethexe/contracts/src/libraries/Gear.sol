@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IRouter} from "../IRouter.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
@@ -18,9 +19,21 @@ library Gear {
     // 10 WVara tokens per compute second.
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
 
+    struct AggregatedPublicKey {
+        uint256 x;
+        uint256 y;
+    }
+
+    struct VerifyingShare {
+        uint256 x;
+        uint256 y;
+    }
+
     struct Validators {
         // TODO: After FROST multi signature applied - consider to remove validators map and list.
         // Replace it with list hash. Any node can access the list of validators using this hash from other nodes.
+        AggregatedPublicKey aggregatedPublicKey;
+        VerifyingShare[] verifyingShares;
         mapping(address => bool) map;
         address[] list;
         uint256 useFromTimestamp;
@@ -33,6 +46,8 @@ library Gear {
     }
 
     struct ValidatorsCommitment {
+        AggregatedPublicKey aggregatedPublicKey;
+        VerifyingShare[] verifyingShares;
         address[] validators;
         uint256 eraIndex;
     }
@@ -104,6 +119,7 @@ library Gear {
     struct Timelines {
         uint256 era;
         uint256 election;
+        uint256 validationDelay;
     }
 
     struct ValidationSettings {
@@ -118,8 +134,20 @@ library Gear {
         uint128 value;
     }
 
+    enum SignatureType {
+        FROST,
+        ECDSA
+    }
+
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(commitment.validators, commitment.eraIndex));
+        return keccak256(
+            abi.encodePacked(
+                commitment.aggregatedPublicKey.x,
+                commitment.aggregatedPublicKey.y,
+                commitment.validators,
+                commitment.eraIndex
+            )
+        );
     }
 
     function blockCommitmentHash(
@@ -186,54 +214,125 @@ library Gear {
     }
 
     /// @dev Validates signatures of the given data hash.
-    function validateSignatures(IRouter.Storage storage router, bytes32 _dataHash, bytes[] calldata _signatures)
-        internal
-        view
-        returns (bool)
-    {
-        Validators storage validators = currentEraValidators(router);
+    function validateSignatures(
+        IRouter.Storage storage router,
+        bytes32 _dataHash,
+        Gear.SignatureType _signatureType,
+        bytes[] calldata _signatures
+    ) internal view returns (bool) {
+        return validateSignaturesAt(router, _dataHash, _signatureType, _signatures, block.timestamp);
+    }
 
-        uint256 threshold =
-            validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
+    /// @dev Validates signatures of the given data hash at the given timestamp.
+    function validateSignaturesAt(
+        IRouter.Storage storage router,
+        bytes32 _dataHash,
+        SignatureType _signatureType,
+        bytes[] calldata _signatures,
+        uint256 ts
+    ) internal view returns (bool) {
+        uint256 eraStarted = eraStartedAt(router, block.timestamp);
+        if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
+            require(ts >= router.genesisBlock.timestamp, "cannot validate before genesis");
+            require(ts + router.timelines.era >= eraStarted, "timestamp is older than previous era");
 
-        bytes32 msgHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(_dataHash));
-        uint256 validSignatures = 0;
+            // Validation must be done using validators from previous era,
+            // because `ts` is in the past and we are in the validation delay period.
+        } else {
+            require(ts <= block.timestamp, "timestamp cannot be in the future");
 
-        for (uint256 i = 0; i < _signatures.length; i++) {
-            bytes calldata signature = _signatures[i];
+            if (ts < eraStarted) {
+                ts = eraStarted;
+            }
 
-            address validator = msgHash.recover(signature);
+            // Validation must be done using current era validators.
+        }
 
-            if (validators.map[validator]) {
-                if (++validSignatures == threshold) {
-                    return true;
+        Validators storage validators = validatorsAt(router, ts);
+        bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(_dataHash));
+
+        if (_signatureType == SignatureType.FROST) {
+            require(_signatures.length == 1, "FROST signature must be single");
+
+            bytes memory _signature = _signatures[0];
+            require(_signature.length == 96, "FROST signature length must be 96 bytes");
+
+            uint256 _signatureRX;
+            uint256 _signatureRY;
+            uint256 _signatureZ;
+
+            assembly ("memory-safe") {
+                _signatureRX := mload(add(_signature, 0x20))
+                _signatureRY := mload(add(_signature, 0x40))
+                _signatureZ := mload(add(_signature, 0x60))
+            }
+
+            // extra security check (`FROST.verifySignature()` does not check public key validity)
+            require(
+                FROST.isValidPublicKey(validators.aggregatedPublicKey.x, validators.aggregatedPublicKey.y),
+                "FROST aggregated public key is invalid"
+            );
+
+            return FROST.verifySignature(
+                validators.aggregatedPublicKey.x,
+                validators.aggregatedPublicKey.y,
+                _signatureRX,
+                _signatureRY,
+                _signatureZ,
+                _messageHash
+            );
+        } else if (_signatureType == SignatureType.ECDSA) {
+            uint256 threshold =
+                validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
+
+            uint256 validSignatures = 0;
+
+            for (uint256 i = 0; i < _signatures.length; i++) {
+                bytes calldata signature = _signatures[i];
+
+                address validator = _messageHash.recover(signature);
+
+                if (validators.map[validator]) {
+                    if (++validSignatures == threshold) {
+                        return true;
+                    }
                 }
             }
+
+            return false;
         }
 
         return false;
     }
 
     function currentEraValidators(IRouter.Storage storage router) internal view returns (Validators storage) {
-        if (currentEraValidatorsStoredInValidators1(router)) {
-            return router.validationSettings.validators1;
-        } else {
-            return router.validationSettings.validators0;
-        }
+        return validatorsAt(router, block.timestamp);
     }
 
+    /// @dev Returns previous era validators, if there is no previous era,
+    /// then returns free validators slot, which must be zeroed.
     function previousEraValidators(IRouter.Storage storage router) internal view returns (Validators storage) {
-        if (currentEraValidatorsStoredInValidators1(router)) {
+        if (validatorsStoredInSlot1At(router, block.timestamp)) {
             return router.validationSettings.validators0;
         } else {
             return router.validationSettings.validators1;
         }
     }
 
-    /// @dev Returns whether current era validators are stored in `router.validationSettings.validators1`.
+    /// @dev Returns validators at the given timestamp.
+    /// @param ts Timestamp for which to get the validators.
+    function validatorsAt(IRouter.Storage storage router, uint256 ts) internal view returns (Validators storage) {
+        if (validatorsStoredInSlot1At(router, ts)) {
+            return router.validationSettings.validators1;
+        } else {
+            return router.validationSettings.validators0;
+        }
+    }
+
+    /// @dev Returns whether validators at `ts` are stored in `router.validationSettings.validators1`.
     ///      `false` means that current era validators are stored in `router.validationSettings.validators0`.
-    function currentEraValidatorsStoredInValidators1(IRouter.Storage storage router) internal view returns (bool) {
-        uint256 ts = block.timestamp;
+    /// @param ts Timestamp for which to check the validators slot.
+    function validatorsStoredInSlot1At(IRouter.Storage storage router, uint256 ts) internal view returns (bool) {
         uint256 ts0 = router.validationSettings.validators0.useFromTimestamp;
         uint256 ts1 = router.validationSettings.validators1.useFromTimestamp;
 
@@ -244,8 +343,8 @@ library Gear {
         bool tsGE0 = ts0 <= ts;
         bool tsGE1 = ts1 <= ts;
 
-        // Both eras are in the future - impossible case because of implementation.
-        require(tsGE0 || tsGE1, "could not identify validators for current timestamp");
+        // Both eras are in the future - not supported by this function.
+        require(tsGE0 || tsGE1, "could not identify validators for the given timestamp");
 
         // Two impossible cases, because of math rules:
         // 1)  ts1Greater && !tsGE0 &&  tsGE1
@@ -265,5 +364,24 @@ library Gear {
 
     function valueClaimBytes(ValueClaim memory claim) internal pure returns (bytes memory) {
         return abi.encodePacked(claim.messageId, claim.destination, claim.value);
+    }
+
+    function eraIndexAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
+        return (ts - router.genesisBlock.timestamp) / router.timelines.era;
+    }
+
+    function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
+        return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
+    }
+
+    function dummyVerifingShares(uint256 _count) internal pure returns (Gear.VerifyingShare[] memory) {
+        Gear.VerifyingShare[] memory _verifyingShares = new Gear.VerifyingShare[](_count);
+        for (uint256 i = 0; i < _count; i++) {
+            _verifyingShares[i] = Gear.VerifyingShare({
+                x: 0x0000000000000000000000000000000000000000000000000000000000000001,
+                y: 0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+            });
+        }
+        return _verifyingShares;
     }
 }

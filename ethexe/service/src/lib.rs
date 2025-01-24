@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use ethexe_common::{
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{ObserverEvent, ObserverService, RequestBlockData};
+use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService, RequestBlockData};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
@@ -82,15 +82,25 @@ pub enum NetworkMessage {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let blob_reader = Arc::new(
-            ethexe_observer::ConsensusLayerBlobReader::new(
-                &config.ethereum.rpc,
-                &config.ethereum.beacon_rpc,
-                config.ethereum.block_time,
+        let mock_blob_reader: Option<Arc<MockBlobReader>> = if config.node.dev {
+            Some(Arc::new(MockBlobReader::new(config.ethereum.block_time)))
+        } else {
+            None
+        };
+
+        let blob_reader: Arc<dyn ethexe_observer::BlobReader> = if config.node.dev {
+            mock_blob_reader.clone().unwrap()
+        } else {
+            Arc::new(
+                ethexe_observer::ConsensusLayerBlobReader::new(
+                    &config.ethereum.rpc,
+                    &config.ethereum.beacon_rpc,
+                    config.ethereum.block_time,
+                )
+                .await
+                .with_context(|| "failed to create blob reader")?,
             )
-            .await
-            .with_context(|| "failed to create blob reader")?,
-        );
+        };
 
         let rocks_db = ethexe_db::RocksDatabase::open(config.node.database_path.clone())
             .with_context(|| "failed to open database")?;
@@ -214,10 +224,9 @@ impl Service {
             None
         };
 
-        let rpc = config
-            .rpc
-            .as_ref()
-            .map(|config| ethexe_rpc::RpcService::new(config.clone(), db.clone()));
+        let rpc = config.rpc.as_ref().map(|config| {
+            ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
+        });
 
         Ok(Self {
             db,

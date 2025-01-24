@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -40,7 +40,7 @@
 //! Note that messages and a reply are not sent immediately but collected during
 //! the program execution and enqueued after the execution successfully ends.
 
-pub use gcore::msg::{id, reply_code, reply_to, size, source, value, with_read_on_stack};
+pub use gcore::msg::{id, reply_code, reply_to, size, source, value, with_read_on_stack_or_heap};
 
 #[cfg(not(feature = "ethexe"))]
 pub use gcore::msg::{signal_code, signal_from};

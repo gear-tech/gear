@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -29,6 +29,25 @@ pub const SIGNING_THRESHOLD_PERCENTAGE: u16 = 6666;
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct AggregatedPublicKey {
+    pub x: U256,
+    pub y: U256,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct VerifyingShare {
+    pub x: U256,
+    pub y: U256,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[repr(u8)]
+pub enum SignatureType {
+    FROST,
+    ECDSA,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AddressBook {
     pub mirror: ActorId,
     pub mirror_proxy: ActorId,
@@ -53,6 +72,8 @@ pub struct CodeCommitment {
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct ValidatorsCommitment {
+    pub aggregated_public_key: AggregatedPublicKey,
+    pub verifying_shares: Vec<VerifyingShare>,
     pub validators: Vec<ActorId>,
     pub era_index: u64,
 }

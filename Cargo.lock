@@ -2754,8 +2754,7 @@ dependencies = [
 [[package]]
 name = "corosensei"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80128832c58ea9cbd041d2a759ec449224487b2c1e400453d99d244eead87a8e"
+source = "git+https://github.com/gear-tech/corosensei?branch=rmasl-precommit-1mb-stack-on-windows#6a05a1eb84e505edd68e941195221936a6f634a0"
 dependencies = [
  "autocfg",
  "cfg-if",
@@ -4692,6 +4691,7 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-observer",
  "ethexe-processor",
  "ethexe-runtime-common",
  "futures",
@@ -15481,9 +15481,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.129"
+version = "1.0.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dbcf9b78a125ee667ae19388837dd12294b858d101fdd393cb9d5501ef09eb2"
+checksum = "930cfb6e6abf99298aaad7d29abbef7a9999a9a8806a40088f55f0dcec03146b"
 dependencies = [
  "itoa",
  "memchr",
@@ -18796,11 +18796,13 @@ dependencies = [
  "pallet-whitelist",
  "parity-scale-codec",
  "scale-info",
+ "serde_json",
  "sp-api 34.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sp-arithmetic 26.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
+ "sp-consensus-grandpa",
  "sp-core 34.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sp-externalities 0.29.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
  "sp-genesis-builder",
