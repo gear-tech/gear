@@ -1420,6 +1420,10 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
         &self.context.forbidden_funcs
     }
+
+    fn endpoint_dispatch_kind(&self) -> DispatchKind {
+        self.context.message_context.kind()
+    }
 }
 
 #[cfg(test)]
