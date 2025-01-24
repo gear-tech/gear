@@ -18,8 +18,8 @@
 
 //! String with limited length implementation
 
-use alloc::{borrow::Cow, string::String};
-use parity_scale_codec::{Decode, Encode};
+use alloc::{borrow::Cow, string::String, vec::Vec};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 /// Max amount of bytes allowed to be thrown as string explanation of the error.
@@ -48,6 +48,12 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
 )]
 pub struct LimitedStr<'a>(Cow<'a, str>);
 
+impl<'a> MaxEncodedLen for LimitedStr<'a> {
+    fn max_encoded_len() -> usize {
+        TRIMMED_MAX_LEN
+    }
+}
+
 impl<'a> LimitedStr<'a> {
     const INIT_ERROR_MSG: &'static str = concat!(
         "String must be less than ",
@@ -68,6 +74,11 @@ impl<'a> LimitedStr<'a> {
     /// Return string slice.
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
+    }
+
+    /// Convert to bytes.
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0.as_bytes().to_vec()
     }
 }
 

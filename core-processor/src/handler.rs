@@ -77,7 +77,7 @@ pub fn handle_journal(
                 program_id,
                 code_id,
                 candidates,
-            } => handler.store_new_programs(program_id, code_id, candidates),
+            } => handler.store_new_programs(program_id, code_id, candidates.into_vec()),
             JournalNote::StopProcessing {
                 dispatch,
                 gas_burned,

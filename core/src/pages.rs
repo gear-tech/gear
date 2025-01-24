@@ -22,12 +22,15 @@ use alloc::format;
 use core::cmp::Ordering;
 use num_traits::bounds::{LowerBounded, UpperBounded};
 use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated};
+use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
 
 pub use numerated::{self, num_traits};
+
+use crate::{code::MAX_WASM_PAGES_AMOUNT, message::PayloadSizeError, tree::LimitedIntervalsTree};
 
 /// A WebAssembly page has a constant size of 64KiB.
 const WASM_PAGE_SIZE: u32 = 64 * 1024;
@@ -194,6 +197,7 @@ impl<const SIZE: u32> PartialOrd<PagesAmount<SIZE>> for Page<SIZE> {
     TypeInfo,
     Default,
     derive_more::Into,
+    MaxEncodedLen,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Page<const SIZE: u32>(u32);
@@ -339,6 +343,12 @@ impl From<u16> for GearPage {
         Self(value as u32)
     }
 }
+
+/// Intervals tree for wasm pages.
+///
+/// Limited by `MAX_WASM_PAGES_AMOUNT`.
+pub type WasmPagesIntervalsTree =
+    LimitedIntervalsTree<WasmPage, PayloadSizeError, { MAX_WASM_PAGES_AMOUNT as usize }>;
 
 #[cfg(test)]
 mod tests {

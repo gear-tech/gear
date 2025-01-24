@@ -24,6 +24,7 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, format};
 use gear_core_errors::ReservationError;
+use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -38,7 +39,19 @@ use scale_info::{
 /// context is created. Also the latter is required to be instantiated only
 /// once, when incoming dispatch is created.
 #[derive(
-    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+    Clone,
+    Copy,
+    Default,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    MaxEncodedLen,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReservationNonce(u64);
@@ -51,7 +64,7 @@ impl From<&InnerNonce> for ReservationNonce {
 
 /// A changeable wrapper over u64 value, which is required
 /// to be used as an "active" reservations nonce in a gas reserver.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, MaxEncodedLen)]
 struct InnerNonce(u64);
 
 impl InnerNonce {
@@ -96,6 +109,15 @@ pub struct GasReserver {
     /// be set with reservation from previous executions of the
     /// actor.
     max_reservations: u64,
+}
+
+impl MaxEncodedLen for GasReserver {
+    fn max_encoded_len() -> usize {
+        MessageId::max_encoded_len()
+            + InnerNonce::max_encoded_len()
+            + (256 * <(ReservationId, GasReservationState)>::max_encoded_len())
+            + u64::max_encoded_len()
+    }
 }
 
 impl GasReserver {
@@ -353,7 +375,7 @@ pub type GasReservationStates = BTreeMap<ReservationId, GasReservationState>;
 /// Gas reservation state.
 ///
 /// Used to control whether reservation was created, removed or nothing happened.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode, MaxEncodedLen)]
 pub enum GasReservationState {
     /// Reservation exists.
     Exists {
