@@ -22,25 +22,28 @@ use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation}
 use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::String,
     vec::Vec,
 };
+
 use gear_core::{
+    buffer::LimitedVec,
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
     message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
+        PayloadSizeError, StoredDispatch,
     },
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    pages::{GearPage, WasmPagesAmount, WasmPagesIntervalsTree},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
+    str::LimitedStr,
 };
 pub use gear_core_backend::error::TrapExplanation;
 use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -84,7 +87,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: Option<IntervalsTree<WasmPage>>,
+    pub allocations: Option<WasmPagesIntervalsTree>,
     /// Whether this execution sent out a reply.
     pub reply_sent: bool,
 }
@@ -141,7 +144,7 @@ impl DispatchResult {
 }
 
 /// Dispatch outcome of the specific message.
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, MaxEncodedLen)]
 pub enum DispatchOutcome {
     /// Message was a exit.
     Exit {
@@ -160,14 +163,18 @@ pub enum DispatchOutcome {
         /// Source of the init message. Funds inheritor.
         origin: ProgramId,
         /// Reason of the fail.
-        reason: String,
+        // there's no limits for `reason` or `trap`, but let's be reasonable
+        // and set limit to something big for large errors.
+        // todo(playX): figure out proper limit
+        reason: LimitedStr<'static>,
     },
     /// Message was a trap.
     MessageTrap {
         /// Program that was failed.
         program_id: ProgramId,
         /// Reason of the fail.
-        trap: String,
+        // todo(playX): figure out proper limit
+        trap: LimitedStr<'static>,
     },
     /// Message was a success.
     Success,
@@ -175,8 +182,26 @@ pub enum DispatchOutcome {
     NoExecution,
 }
 
+/// Candidate program from `JournalNote::StoreNewPrograms`.
+///
+/// Made into a tuple-struct to allow usage in `LimitedVec`.
+#[derive(Clone, Debug, Encode, Decode, Default)]
+pub struct ProgramCandidate(pub MessageId, pub ProgramId);
+
+impl AsRef<[u8]> for ProgramCandidate {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl From<(MessageId, ProgramId)> for ProgramCandidate {
+    fn from(value: (MessageId, ProgramId)) -> Self {
+        Self(value.0, value.1)
+    }
+}
+
 /// Journal record for the state update.
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, MaxEncodedLen)]
 pub enum JournalNote {
     /// Message was successfully dispatched.
     MessageDispatched {
@@ -252,7 +277,7 @@ pub enum JournalNote {
         /// Program id.
         program_id: ProgramId,
         /// New allocations set for the program.
-        allocations: IntervalsTree<WasmPage>,
+        allocations: WasmPagesIntervalsTree,
     },
     /// Send value
     SendValue {
@@ -270,7 +295,9 @@ pub enum JournalNote {
         /// Code hash used to create new programs with ids in `candidates` field
         code_id: CodeId,
         /// Collection of program candidate ids and their init message ids.
-        candidates: Vec<(MessageId, ProgramId)>,
+        ///
+        /// The limit of 1024 is based on current runtime limits of outgoing messages.
+        candidates: LimitedVec<(MessageId, ProgramId), PayloadSizeError, 1024>,
     },
     /// Stop processing queue.
     StopProcessing {
@@ -383,7 +410,7 @@ pub trait JournalHandler {
     /// Process page update.
     fn update_pages_data(&mut self, program_id: ProgramId, pages_data: BTreeMap<GearPage, PageBuf>);
     /// Process [JournalNote::UpdateAllocations].
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>);
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: WasmPagesIntervalsTree);
     /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
     /// Store new programs in storage.
@@ -514,7 +541,7 @@ pub struct Actor {
 #[derive(Clone, Debug)]
 pub struct ExecutableActorData {
     /// Set of wasm pages, which are allocated by the program.
-    pub allocations: IntervalsTree<WasmPage>,
+    pub allocations: WasmPagesIntervalsTree,
     /// The infix of memory pages in a storage.
     pub memory_infix: MemoryInfix,
     /// Id of the program code.
@@ -537,7 +564,7 @@ pub(crate) struct Program {
     /// Instrumented code.
     pub code: InstrumentedCode,
     /// Allocations.
-    pub allocations: IntervalsTree<WasmPage>,
+    pub allocations: WasmPagesIntervalsTree,
 }
 
 /// Execution context.
@@ -553,4 +580,9 @@ pub(crate) struct WasmExecutionContext {
     pub program: Program,
     /// Size of the memory block.
     pub memory_size: WasmPagesAmount,
+}
+
+#[test]
+fn test_journal_note_size_does_not_exceed_32mib() {
+    assert!(JournalNote::max_encoded_len() <= 32 * 1024 * 1024);
 }

@@ -39,7 +39,7 @@ use gear_core::{
     message::{
         ContextStore, DispatchKind, MessageDetails, Payload, ReplyDetails, StoredDispatch, Value,
     },
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    pages::{GearPage, WasmPagesIntervalsTree},
     program::MemoryInfix,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
@@ -979,7 +979,7 @@ pub struct RegionIdx(u8);
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 pub struct Allocations {
-    inner: IntervalsTree<WasmPage>,
+    inner: WasmPagesIntervalsTree,
     #[into(ignore)]
     #[codec(skip)]
     changed: bool,
@@ -990,7 +990,7 @@ impl Allocations {
         self.inner.intervals_amount() as u32
     }
 
-    pub fn update(&mut self, allocations: IntervalsTree<WasmPage>) -> Vec<GearPage> {
+    pub fn update(&mut self, allocations: WasmPagesIntervalsTree) -> Vec<GearPage> {
         let removed_pages: Vec<_> = self
             .inner
             .difference(&allocations)

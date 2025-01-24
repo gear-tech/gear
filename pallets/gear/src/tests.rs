@@ -57,7 +57,7 @@ use gear_core::{
     },
     pages::{
         numerated::{self, tree::IntervalsTree},
-        WasmPage,
+        WasmPage
     },
     program::ActiveProgram,
     tasks::ScheduledTask,
@@ -15424,6 +15424,7 @@ fn incorrect_store_context() {
 
 #[test]
 fn allocate_in_init_free_in_handle() {
+    use gear_core::pages::WasmPagesIntervalsTree;
     let static_pages = 16u16;
     let wat = format!(
         r#"
@@ -15444,7 +15445,7 @@ fn allocate_in_init_free_in_handle() {
         )
     "#
     );
-
+    
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
@@ -15464,7 +15465,12 @@ fn allocate_in_init_free_in_handle() {
         let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
         assert_eq!(
             allocations,
-            [WasmPage::from(static_pages)].into_iter().collect()
+            WasmPagesIntervalsTree::try_from(
+                [WasmPage::from(static_pages)]
+                    .into_iter()
+                    .collect::<IntervalsTree<WasmPage>>()
+            )
+            .unwrap()
         );
 
         Gear::send_message(
@@ -15772,7 +15778,8 @@ fn use_big_memory() {
             .collect();
 
         assert_eq!(
-            ProgramStorageOf::<Test>::allocations(program_id),
+            ProgramStorageOf::<Test>::allocations(program_id)
+                .map(|allocations| allocations.into_intervals_tree()),
             Some(expected_allocations),
         );
 

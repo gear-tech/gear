@@ -25,6 +25,7 @@ use crate::{
 };
 use core::ops::Deref;
 use gear_core_errors::ReplyCode;
+use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -33,7 +34,20 @@ use scale_info::{
 /// Stored message.
 ///
 /// Gasless Message for storing.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(
+    Clone,
+    Default,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    MaxEncodedLen,
+)]
 pub struct StoredMessage {
     /// Message id.
     pub(super) id: MessageId,
@@ -156,7 +170,9 @@ impl StoredMessage {
 }
 
 /// Stored message with entry point and previous execution context, if exists.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(
+    Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo, MaxEncodedLen,
+)]
 pub struct StoredDispatch {
     /// Entry point.
     kind: DispatchKind,

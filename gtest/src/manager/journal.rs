@@ -35,9 +35,7 @@ use gear_core::{
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
     pages::{
-        num_traits::Zero,
-        numerated::{iterators::IntervalIterator, tree::IntervalsTree},
-        GearPage, WasmPage,
+        num_traits::Zero, numerated::iterators::IntervalIterator, GearPage, WasmPagesIntervalsTree,
     },
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},
@@ -262,7 +260,7 @@ impl JournalHandler for ExtManager {
         self.update_storage_pages(&program_id, pages_data);
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: WasmPagesIntervalsTree) {
         self.update_genuine_program(program_id, |program| {
             program
                 .allocations

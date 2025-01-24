@@ -20,11 +20,12 @@
 use enum_iterator::Sequence;
 
 #[cfg(feature = "codec")]
+use parity_scale_codec::MaxEncodedLen;
+#[cfg(feature = "codec")]
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
 };
-
 #[repr(u8)]
 #[derive(
     Clone,
@@ -39,7 +40,7 @@ use scale_info::{
     derive_more::Display,
     derive_more::From,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(MaxEncodedLen, Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing reply code with reason of its creation.
 pub enum ReplyCode {
@@ -119,7 +120,7 @@ impl ReplyCode {
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(MaxEncodedLen, Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of success reply creation.
 pub enum SuccessReplyReason {
@@ -166,7 +167,7 @@ impl SuccessReplyReason {
     derive_more::Display,
     derive_more::From,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(MaxEncodedLen, Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of error reply creation.
 ///
@@ -250,7 +251,7 @@ impl ErrorReplyReason {
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(MaxEncodedLen, Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during execution.
 pub enum SimpleExecutionError {
@@ -307,7 +308,7 @@ impl SimpleExecutionError {
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(MaxEncodedLen, Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during program creation.
 pub enum SimpleProgramCreationError {
@@ -355,7 +356,7 @@ impl SimpleProgramCreationError {
     derive_more::Display,
     derive_more::From,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(MaxEncodedLen, Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing signal code and reason of its creation.
 ///

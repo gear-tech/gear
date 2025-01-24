@@ -25,26 +25,69 @@ use core::{
 };
 
 use alloc::{vec, vec::Vec};
+use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
 
-/// Limited len vector.
-/// `T` is data type.
-/// `E` is overflow error type.
-/// `N` is max len which a vector can have.
-#[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
+/// A dedicated trait to format data in [`LimitedVec`].
+///
+/// If data can be represented as bytes then it is formatted in limited format,
+/// otherwise only fraction of elemnts in a vec is formatted.
+pub trait LimitedDebug: Sized + Debug {
+    /// Format the data in limited format.
+    ///
+    /// Limited format is a format that shows only a fraction of elements in a vec.
+    /// The fraction is determined by the precision of the formatter.
+    fn fmt<E, const N: usize>(vec: &LimitedVec<Self, E, N>, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = vec.0.len();
+        let median = (len + 1) / 2;
 
-/// Formatter for [`LimitedVec`] will print to precision of 8 by default, to print the whole data, use `{:+}`.
-impl<T: Clone + Default, E: Default, const N: usize> Display for LimitedVec<T, E, N>
-where
-    [T]: AsRef<[u8]>,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let len = self.0.len();
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            } else if !f.sign_plus() && median > 8 {
+                e1 = 8;
+                s2 = len - 8;
+            }
+        }
+
+        write!(f, "LimitedVec(")?;
+
+        for (i, element) in vec.0[..e1].iter().enumerate() {
+            <Self as Debug>::fmt(element, f)?;
+            if i < e1 - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        write!(f, "{sep}")?;
+
+        for (i, element) in vec.0[s2..].iter().enumerate() {
+            <Self as Debug>::fmt(element, f)?;
+            if i < len - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        write!(f, ")")
+    }
+}
+
+/// Same as [`LimitedDebug`] but for [`Display`] trait.
+pub trait LimitedDisplay: Sized + Display {
+    /// Format the data in limited format.
+    ///
+    /// Limited format is a format that shows only a fraction of elements in a vec.
+    /// The fraction is determined by the precision of the formatter.
+    fn fmt<E, const N: usize>(vec: &LimitedVec<Self, E, N>, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = vec.0.len();
         let median = (len + 1) / 2;
 
         let mut e1 = median;
@@ -60,8 +103,50 @@ where
             s2 = len - 8;
         }
 
-        let p1 = hex::encode(&self.0[..e1]);
-        let p2 = hex::encode(&self.0[s2..]);
+        write!(f, "LimitedVec(")?;
+
+        for (i, element) in vec.0[..e1].iter().enumerate() {
+            <Self as Display>::fmt(element, f)?;
+            if i < e1 - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        write!(f, "{sep}")?;
+
+        for (i, element) in vec.0[s2..].iter().enumerate() {
+            <Self as Display>::fmt(element, f)?;
+            if i < len - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        write!(f, ")")
+    }
+}
+
+/* override default formatting for bytes to print `LimitedVec(0x123..4643)` */
+impl LimitedDebug for u8 {
+    fn fmt<E, const N: usize>(vec: &LimitedVec<Self, E, N>, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = vec.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        } else if !f.sign_plus() && median > 8 {
+            e1 = 8;
+            s2 = len - 8;
+        }
+
+        let p1 = hex::encode(&vec.0[..e1]);
+        let p2 = hex::encode(&vec.0[s2..]);
         let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
 
         if f.alternate() {
@@ -72,12 +157,43 @@ where
     }
 }
 
-impl<T: Clone + Default, E: Default, const N: usize> Debug for LimitedVec<T, E, N>
+impl LimitedDisplay for u8 {
+    fn fmt<E, const N: usize>(vec: &LimitedVec<Self, E, N>, f: &mut Formatter<'_>) -> fmt::Result {
+        <u8 as LimitedDebug>::fmt(vec, f)
+    }
+}
+
+impl<A, B> LimitedDebug for (A, B)
 where
-    [T]: AsRef<[u8]>,
+    A: Debug,
+    B: Debug,
+{
+}
+
+/// Limited len vector.
+/// `T` is data type.
+/// `E` is overflow error type.
+/// `N` is max len which a vector can have.
+#[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
+
+/// Formatter for [`LimitedVec`] will print to precision of 8 by default, to print the whole data, use `{:+}`.
+impl<T: Clone + Default, E: Default, const N: usize> Display for LimitedVec<T, E, N>
+where
+    T: LimitedDisplay,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        core::fmt::Display::fmt(self, f)
+        <T as LimitedDisplay>::fmt(self, f)
+    }
+}
+
+impl<T: Clone + Default, E: Default, const N: usize> Debug for LimitedVec<T, E, N>
+where
+    T: LimitedDebug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        <T as LimitedDebug>::fmt(self, f)
     }
 }
 
@@ -171,6 +287,93 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
     }
 }
 
+impl<T: MaxEncodedLen, E, const N: usize> MaxEncodedLen for LimitedVec<T, E, N> {
+    fn max_encoded_len() -> usize {
+        N * T::max_encoded_len()
+    }
+}
+/*
+/// Limited len string.
+/// `E` is overflow error type.
+/// `N` is max len which a string can have.
+#[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct LimitedString<E, const N: usize>(String, PhantomData<E>);
+
+impl<E, const N: usize> LimitedString<E, N> {
+    /// Creates new empty limited string.
+    pub const fn new() -> Self {
+        Self(String::new(), PhantomData)
+    }
+
+    /// Returns length of the string.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the string is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Convert string to bytes.
+    ///
+    /// Asserts that limit for bytes is greater or equal to the string limit.
+    pub fn into_bytes<U: Default + Debug, const LIMIT: usize>(self) -> LimitedVec<u8, U, LIMIT> {
+        assert!(LIMIT >= N);
+        LimitedVec::try_from(self.0.into_bytes()).expect("must succeed")
+    }
+
+    pub fn into_bytes_unchecked(self) -> Vec<u8> {
+        self.0.into_bytes()
+    }
+}
+
+impl<E, const N: usize> AsRef<str> for LimitedString<E, N> {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl<E, const N: usize> AsRef<String> for LimitedString<E, N> {
+    fn as_ref(&self) -> &String {
+        &self.0
+    }
+}
+
+
+impl<E, const N: usize> MaxEncodedLen for LimitedString<E, N> {
+    fn max_encoded_len() -> usize {
+        N * size_of::<char>()
+    }
+}
+
+impl<E: Default, const N: usize> TryFrom<String> for LimitedString<E, N> {
+    type Error = E;
+    fn try_from(x: String) -> Result<Self, Self::Error> {
+        (x.len() <= N).then_some(()).ok_or_else(E::default)?;
+        Ok(Self(x, PhantomData))
+    }
+}
+
+impl<E, const N: usize> From<LimitedString<E, N>> for String {
+    fn from(x: LimitedString<E, N>) -> Self {
+        x.0
+    }
+}
+
+impl<E, const N: usize> Display for LimitedString<E, N> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<E, const N: usize> Debug for LimitedString<E, N> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+*/
 /// Max memory size, which runtime can allocate at once.
 /// Substrate allocator restrict allocations bigger then 512 wasm pages at once.
 /// See more information about:
