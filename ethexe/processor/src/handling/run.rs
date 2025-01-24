@@ -100,8 +100,8 @@ async fn run_in_async(
             .filter(|(_, state)| {
                 !db.read_state(**state)
                     .expect("failed to read state from storage")
-                    .queue
-                    .is_queue_empty()
+                    .queue_hash
+                    .is_empty()
             })
             .map(|(program_id, hash)| (*program_id, *hash))
             .collect();
