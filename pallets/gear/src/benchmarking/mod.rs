@@ -327,11 +327,6 @@ benchmarks! {
     }: {}
 
     #[extra]
-    check_wasm_proposals {
-        tests::wasm_multivalue_proposal::<T>();
-    }: {}
-
-    #[extra]
     check_lazy_pages_all {
         tests::lazy_pages::lazy_pages_charging::<T>();
         tests::lazy_pages::lazy_pages_charging_special::<T>();
@@ -1766,7 +1761,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(body::from_instructions(vec![Instruction::I64Const { value: 0x7ffffffff3ffffff }])),
-            aux_res: vec![ValType::I64],
+            aux_res: Some(ValType::I64),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call { function_index: OFFSET_AUX },
                 Instruction::Drop,
@@ -1825,28 +1820,6 @@ benchmarks! {
                 RandomI64Repeated(p as usize),
                 RandomI32(0, num_elements as i32),
                 Regular(Instruction::CallIndirect { type_index: p.min(1), table_index: 0 }), // aux signature: 1 or 0
-            ])),
-            table: Some(TableSegment {
-                num_elements,
-                function_index: OFFSET_AUX,
-                init_elements: Default::default(),
-            }),
-            .. Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
-    instr_call_indirect_per_result {
-        let r in 0 .. T::Schedule::get().limits.results;
-        let num_elements = T::Schedule::get().limits.table_size;
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::repeated_dyn(r, vec![RandomI64(0, num_elements as i64)])),
-            aux_res: vec![ValType::I64; r as usize],
-            handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomI32(0, num_elements as i32),
-                Regular(Instruction::CallIndirect { type_index: r.min(1), table_index: 0 }), // aux signature: 1 or 0
-                DropRepeated(r as usize),
             ])),
             table: Some(TableSegment {
                 num_elements,

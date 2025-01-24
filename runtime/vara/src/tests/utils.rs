@@ -94,7 +94,6 @@ pub(super) fn expected_instructions_weights_count() -> usize {
         call: _,
         call_indirect: _,
         call_indirect_per_param: _,
-        call_indirect_per_result: _,
         call_per_local: _,
         local_get: _,
         local_set: _,

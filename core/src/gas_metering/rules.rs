@@ -78,7 +78,7 @@ impl Rules for CustomConstantCostRules {
 /// This type provides real gas cost of instructions on pallet-gear.
 pub struct ScheduleRules<'a> {
     schedule: &'a Schedule,
-    funcs: Vec<(u32, u32)>,
+    params: Vec<u32>,
 }
 
 impl Schedule {
@@ -86,12 +86,12 @@ impl Schedule {
     pub fn rules(&self, module: &Module) -> impl Rules + use<'_> {
         ScheduleRules {
             schedule: self,
-            funcs: module
+            params: module
                 .type_section()
-                .map(|s| s.as_slice())
-                .unwrap_or_default()
                 .iter()
-                .map(|func| (func.params().len() as u32, func.results().len() as u32))
+                .copied()
+                .flatten()
+                .map(|func| func.params().len() as u32)
                 .collect(),
         }
     }
@@ -103,7 +103,6 @@ impl Rules for ScheduleRules<'_> {
 
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;
-        let max_results = self.schedule.limits.results;
 
         Some(match instruction {
             // Returning None makes the gas instrumentation fail which we intend for
@@ -143,14 +142,13 @@ impl Rules for ScheduleRules<'_> {
                 type_index: idx,
                 table_index: _,
             } => {
-                let (params, results) = self
-                    .funcs
+                let params = self
+                    .params
                     .get(*idx as usize)
                     .copied()
-                    .unwrap_or((max_params, max_results));
+                    .unwrap_or(max_params);
                 w.call_indirect
                     .saturating_add(w.call_indirect_per_param.saturating_sub(params))
-                    .saturating_add(w.call_indirect_per_result.saturating_sub(results))
             }
             BrTable { targets } => w
                 .br_table

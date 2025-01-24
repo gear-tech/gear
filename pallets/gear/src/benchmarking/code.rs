@@ -86,7 +86,7 @@ pub struct ModuleDefinition {
     pub aux_body: Option<Function>,
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
-    pub aux_res: Vec<ValType>,
+    pub aux_res: Option<ValType>,
     /// Create a table containing function pointers.
     pub table: Option<TableSegment>,
     /// Create a type section with the specified amount of types.
@@ -225,7 +225,10 @@ where
 
         // If specified we add an additional internal function
         if let Some(body) = def.aux_body {
-            let ty = FuncType::new(vec![ValType::I64; def.aux_arg_num as usize], def.aux_res);
+            let ty = FuncType::new(
+                vec![ValType::I64; def.aux_arg_num as usize],
+                def.aux_res.into_iter(),
+            );
             program.add_func(ty, body);
         }
 

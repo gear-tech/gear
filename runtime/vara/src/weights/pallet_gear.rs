@@ -147,7 +147,6 @@ pub trait WeightInfo {
     fn instr_call(r: u32, ) -> Weight;
     fn instr_call_indirect(r: u32, ) -> Weight;
     fn instr_call_indirect_per_param(p: u32, ) -> Weight;
-    fn instr_call_indirect_per_result(r: u32, ) -> Weight;
     fn instr_call_per_local(l: u32, ) -> Weight;
     fn instr_local_get(r: u32, ) -> Weight;
     fn instr_local_set(r: u32, ) -> Weight;
@@ -1372,16 +1371,6 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(11_977_000, 0)
             // Standard Error: 10_999
             .saturating_add(Weight::from_parts(685_687 * 110 / 100 /* Adjust slope weight by 10 percent (Patched by script) */, 0).saturating_mul(p.into()))
-    }
-    /// The range of component `r` is `[0, 128]`.
-    fn instr_call_indirect_per_result(r: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 10_000_000 picoseconds.
-        Weight::from_parts(8_845_563, 0)
-            // Standard Error: 2_496
-            .saturating_add(Weight::from_parts(652_462, 0).saturating_mul(r.into()))
     }
     /// The range of component `l` is `[0, 1024]`.
     fn instr_call_per_local(_l: u32, ) -> Weight {
@@ -3323,16 +3312,6 @@ impl WeightInfo for () {
         Weight::from_parts(11_977_000, 0)
             // Standard Error: 10_999
             .saturating_add(Weight::from_parts(685_687 * 110 / 100 /* Adjust slope weight by 10 percent (Patched by script) */, 0).saturating_mul(p.into()))
-    }
-    /// The range of component `r` is `[0, 128]`.
-    fn instr_call_indirect_per_result(r: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 10_000_000 picoseconds.
-        Weight::from_parts(8_845_563, 0)
-            // Standard Error: 2_496
-            .saturating_add(Weight::from_parts(652_462, 0).saturating_mul(r.into()))
     }
     /// The range of component `l` is `[0, 1024]`.
     fn instr_call_per_local(_l: u32, ) -> Weight {

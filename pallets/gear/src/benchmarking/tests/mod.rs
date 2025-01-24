@@ -35,7 +35,7 @@ use crate::{
     Ext, HandleKind,
 };
 use common::benchmarking;
-use gear_wasm_instrument::{Instruction, ValType};
+use gear_wasm_instrument::Instruction;
 
 pub fn check_stack_overflow<T>()
 where
@@ -80,60 +80,4 @@ where
             SimpleExecutionError::StackLimitExceeded
         ))
     );
-}
-
-pub fn wasm_multivalue_proposal<T>()
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    let aux_instrs = vec![
-        Instruction::LocalGet { local_index: 0 },
-        Instruction::LocalGet { local_index: 1 },
-    ];
-
-    let init_instrs = vec![
-        Instruction::I64Const { value: 0 },
-        Instruction::I64Const { value: 1 },
-        Instruction::Call {
-            function_index: OFFSET_AUX,
-        },
-        Instruction::Drop,
-        Instruction::Drop,
-    ];
-
-    let module: WasmModule<T> = ModuleDefinition {
-        memory: Some(ImportedMemory::new(DEFAULT_MEM_SIZE)),
-        init_body: Some(body::from_instructions(init_instrs)),
-        aux_body: Some(body::from_instructions(aux_instrs)),
-        aux_arg_num: 2,
-        aux_res: vec![ValType::I64, ValType::I64],
-        ..Default::default()
-    }
-    .into();
-
-    let source = benchmarking::account("instantiator", 0, 0);
-    let exec = common_utils::prepare_exec::<T>(
-        source,
-        HandleKind::Init(module.code),
-        Default::default(),
-        Default::default(),
-    )
-    .unwrap();
-
-    let dispatch =
-        core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
-            .unwrap()
-            .into_iter()
-            .find_map(|note| match note {
-                JournalNote::SendDispatch { dispatch, .. } => Some(dispatch),
-                _ => None,
-            })
-            .unwrap();
-
-    let code = dispatch
-        .reply_details()
-        .expect("reply details")
-        .to_reply_code();
-    assert_eq!(code, ReplyCode::Success(SuccessReplyReason::Auto));
 }
