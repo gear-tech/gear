@@ -18,53 +18,26 @@
 
 //! Make the set of bag thresholds to be used with pallet-bags-list.
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use generate_bags::generate_thresholds;
-use std::path::{Path, PathBuf};
-use vara_runtime::Runtime as VaraRuntime;
-
-#[derive(Clone, Debug, ValueEnum)]
-enum Runtime {
-    // TODO: uncomment once gear runtime implements pallet_staking::Config
-    // Gear,
-    Vara,
-}
-
-impl Runtime {
-    #[allow(clippy::type_complexity)]
-    fn generate_thresholds_fn(
-        &self,
-    ) -> Box<dyn FnOnce(usize, &Path, u128, u128) -> Result<(), std::io::Error>> {
-        match self {
-            Runtime::Vara => Box::new(generate_thresholds::<VaraRuntime>),
-        }
-    }
-}
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
+// #[clap(author, version, about)]
 struct Opt {
     /// How many bags to generate.
-    #[arg(long, default_value = "200")]
+    #[arg(long, default_value_t = 200)]
     n_bags: usize,
-
-    /// Which runtime to generate.
-    #[arg(
-        long,
-        ignore_case = true,
-        value_enum,
-        rename_all = "PascalCase",
-        default_value = "Vara"
-    )]
-    runtime: Runtime,
 
     /// Where to write the output.
     output: PathBuf,
 
-    /// The total issuance of the native currency.
+    /// The total issuance of the currency used to create `VoteWeight`.
     #[arg(short, long)]
     total_issuance: u128,
 
-    /// The minimum account balance (i.e. existential deposit) for the native currency.
+    /// The minimum account balance (i.e. existential deposit) for the currency used to create
+    /// `VoteWeight`.
     #[arg(short, long)]
     minimum_balance: u128,
 }
@@ -73,10 +46,8 @@ fn main() -> Result<(), std::io::Error> {
     let Opt {
         n_bags,
         output,
-        runtime,
         total_issuance,
         minimum_balance,
     } = Opt::parse();
-
-    runtime.generate_thresholds_fn()(n_bags, &output, total_issuance, minimum_balance)
+    generate_thresholds::<vara_runtime::Runtime>(n_bags, &output, total_issuance, minimum_balance)
 }
