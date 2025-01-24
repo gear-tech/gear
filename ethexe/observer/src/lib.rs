@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,6 @@
 
 //! Ethereum state observer for ethexe.
 
-use crate::observer::read_code_from_tx_hash;
 use alloy::{
     providers::{Provider as _, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
@@ -26,7 +25,7 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{Context as _, Result};
-use ethexe_common::events::{BlockEvent, RouterEvent};
+use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent};
 use ethexe_db::BlockHeader;
 use ethexe_signer::Address;
 use futures::{
@@ -36,7 +35,7 @@ use futures::{
     Stream, StreamExt,
 };
 use gprimitives::{CodeId, H256};
-use observer::read_block_events;
+use parity_scale_codec::{Decode, Encode};
 use std::{
     pin::{pin, Pin},
     sync::Arc,
@@ -44,17 +43,21 @@ use std::{
     time::Duration,
 };
 
-type Provider = RootProvider<BoxTransport>;
+pub(crate) type Provider = RootProvider<BoxTransport>;
 
 mod blobs;
-mod event;
-pub mod observer;
+mod observer;
 mod query;
 
-pub use blobs::{BlobReader, ConsensusLayerBlobReader, MockBlobReader};
-pub use event::{BlockData, Event, RequestBlockData, RequestEvent, SimpleBlockData};
-pub use observer::Observer;
-pub use query::Query;
+#[cfg(test)]
+mod tests;
+
+pub use blobs::*;
+pub use observer::*;
+pub use query::*;
+
+type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, Vec<u8>)>>;
+type BlocksStream = dyn Stream<Item = (H256, BlockHeader, Vec<BlockEvent>)> + Send;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -62,12 +65,6 @@ pub struct EthereumConfig {
     pub beacon_rpc: String,
     pub router_address: Address,
     pub block_time: Duration,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ObserverStatus {
-    pub eth_best_height: u32,
-    pub pending_codes: usize,
 }
 
 pub struct ObserverService {
@@ -83,30 +80,8 @@ pub struct ObserverService {
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
 
-type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, Vec<u8>)>>;
-type BlocksStream = dyn Stream<Item = (H256, BlockHeader, Vec<BlockEvent>)> + Send;
-
-impl Clone for ObserverService {
-    fn clone(&self) -> Self {
-        let subscription = self.subscription.resubscribe();
-        let stream = subscription.resubscribe().into_stream();
-
-        let stream = Self::events_all(stream, self.provider.clone(), self.router);
-
-        Self {
-            blobs: self.blobs.clone(),
-            provider: self.provider.clone(),
-            subscription,
-            router: self.router,
-            last_block_number: self.last_block_number,
-            stream: Box::pin(stream),
-            codes_futures: FuturesUnordered::new(),
-        }
-    }
-}
-
 impl Stream for ObserverService {
-    type Item = Result<ObserverServiceEvent>;
+    type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let e = ready!(pin!(self.next_event()).poll(cx));
@@ -209,7 +184,7 @@ impl ObserverService {
         }
     }
 
-    async fn next_event(&mut self) -> Result<ObserverServiceEvent> {
+    async fn next_event(&mut self) -> Result<ObserverEvent> {
         tokio::select! {
             Some((hash, header, events)) = self.stream.next() => {
                 // TODO (breathx): set in db?
@@ -224,21 +199,84 @@ impl ObserverService {
                     }
                 }
 
-                Ok(ObserverServiceEvent::Block(BlockData {
+                Ok(ObserverEvent::Block(BlockData {
                     hash,
                     header,
                     events,
                 }))
             },
             Some(res) = self.codes_futures.next() => {
-                res.map(|(code_id, code)| ObserverServiceEvent::Blob { code_id, code })
+                res.map(|(code_id, code)| ObserverEvent::Blob { code_id, code })
             }
         }
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum ObserverServiceEvent {
+impl Clone for ObserverService {
+    fn clone(&self) -> Self {
+        let subscription = self.subscription.resubscribe();
+        let stream = subscription.resubscribe().into_stream();
+
+        let stream = Self::events_all(stream, self.provider.clone(), self.router);
+
+        Self {
+            blobs: self.blobs.clone(),
+            provider: self.provider.clone(),
+            subscription,
+            router: self.router,
+            last_block_number: self.last_block_number,
+            stream: Box::pin(stream),
+            codes_futures: FuturesUnordered::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ObserverEvent {
     Blob { code_id: CodeId, code: Vec<u8> },
     Block(BlockData),
+}
+
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BlockData {
+    pub hash: H256,
+    pub header: BlockHeader,
+    pub events: Vec<BlockEvent>,
+}
+
+impl BlockData {
+    pub fn as_simple(&self) -> SimpleBlockData {
+        SimpleBlockData {
+            hash: self.hash,
+            header: self.header.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct RequestBlockData {
+    pub hash: H256,
+    pub header: BlockHeader,
+    pub events: Vec<BlockRequestEvent>,
+}
+
+impl RequestBlockData {
+    pub fn as_simple(&self) -> SimpleBlockData {
+        SimpleBlockData {
+            hash: self.hash,
+            header: self.header.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SimpleBlockData {
+    pub hash: H256,
+    pub header: BlockHeader,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ObserverStatus {
+    pub eth_best_height: u32,
+    pub pending_codes: usize,
 }

@@ -20,7 +20,7 @@ use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Event {
     BlockCommitted {
         hash: H256,

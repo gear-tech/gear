@@ -986,8 +986,8 @@ async fn multiple_validators() {
 mod utils {
     use super::*;
     use ethexe_network::export::Multiaddr;
-    use ethexe_observer::{ObserverService, ObserverServiceEvent, SimpleBlockData};
-    use ethexe_sequencer::{SequencerService, SequencerServiceConfig};
+    use ethexe_observer::{ObserverEvent, ObserverService, SimpleBlockData};
+    use ethexe_sequencer::{SequencerConfig, SequencerService};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use std::{
@@ -1018,7 +1018,7 @@ mod utils {
         pub continuous_block_generation: bool,
 
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
-        broadcaster: Arc<Mutex<Sender<ObserverServiceEvent>>>,
+        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
     }
@@ -1448,7 +1448,7 @@ mod utils {
     }
 
     pub struct EventsPublisher {
-        broadcaster: Arc<Mutex<Sender<ObserverServiceEvent>>>,
+        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
     }
 
     impl EventsPublisher {
@@ -1460,7 +1460,7 @@ mod utils {
     }
 
     pub struct EventsListener {
-        receiver: broadcast::Receiver<ObserverServiceEvent>,
+        receiver: broadcast::Receiver<ObserverEvent>,
     }
 
     impl Clone for EventsListener {
@@ -1472,13 +1472,13 @@ mod utils {
     }
 
     impl EventsListener {
-        pub async fn next_event(&mut self) -> Result<ObserverServiceEvent> {
+        pub async fn next_event(&mut self) -> Result<ObserverEvent> {
             self.receiver.recv().await.map_err(Into::into)
         }
 
         pub async fn apply_until<R: Sized>(
             &mut self,
-            mut f: impl FnMut(ObserverServiceEvent) -> Result<Option<R>>,
+            mut f: impl FnMut(ObserverEvent) -> Result<Option<R>>,
         ) -> Result<R> {
             loop {
                 let event = self.next_event().await?;
@@ -1502,7 +1502,7 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let ObserverServiceEvent::Block(block) = event else {
+                let ObserverEvent::Block(block) = event else {
                     continue;
                 };
 
@@ -1623,7 +1623,7 @@ mod utils {
             let sequencer = match self.sequencer_public_key.as_ref() {
                 Some(key) => Some(
                     SequencerService::new(
-                        &SequencerServiceConfig {
+                        &SequencerConfig {
                             ethereum_rpc: self.rpc_url.clone(),
                             sign_tx_public: *key,
                             router_address: self.router_address,
@@ -1704,7 +1704,7 @@ mod utils {
 
             self.listener
                 .apply_until(|event| match event {
-                    ObserverServiceEvent::Blob {
+                    ObserverEvent::Blob {
                         code_id: loaded_id,
                         code,
                     } if loaded_id == self.code_id => {

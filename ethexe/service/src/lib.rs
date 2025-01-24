@@ -27,11 +27,11 @@ use ethexe_common::{
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{ObserverService, ObserverServiceEvent, RequestBlockData};
+use ethexe_observer::{ObserverEvent, ObserverService, RequestBlockData};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
-    agro::AggregatedCommitments, SequencerService, SequencerServiceConfig, SequencerServiceEvent,
+    agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
 };
 use ethexe_service_common::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
@@ -169,7 +169,7 @@ impl Service {
         {
             Some(
                 SequencerService::new(
-                    &SequencerServiceConfig {
+                    &SequencerConfig {
                         ethereum_rpc: config.ethereum.rpc.clone(),
                         sign_tx_public: key,
                         router_address: config.ethereum.router_address,
@@ -448,7 +448,7 @@ impl Service {
             tokio::select! {
                 Some(event) = observer.next() => {
                     match event? {
-                        ObserverServiceEvent::Block(block) => {
+                        ObserverEvent::Block(block) => {
                             let hash = block.hash;
 
                             log::info!(
@@ -497,7 +497,7 @@ impl Service {
                                 })
                             })?;
                         }
-                        ObserverServiceEvent::Blob { code_id, code } => {
+                        ObserverEvent::Blob { code_id, code } => {
                             // TODO: spawn blocking here?
                             let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
 
@@ -535,7 +535,7 @@ impl Service {
                     };
 
                     match event {
-                        SequencerServiceEvent::CollectionRoundEnded { block_hash: _} => {
+                        SequencerEvent::CollectionRoundEnded { block_hash: _} => {
                             let code_requests: Vec<_> = s
                                 .get_candidate_code_commitments()
                                 .cloned()
@@ -596,7 +596,7 @@ impl Service {
                                 Ok(())
                             })?;
                         },
-                        SequencerServiceEvent::ValidationRoundEnded { .. } => {},
+                        SequencerEvent::ValidationRoundEnded { .. } => {},
                     }
                 },
                 Some(event) = network.maybe_next() => {

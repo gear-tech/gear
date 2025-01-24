@@ -40,24 +40,13 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct SequencerStatus {
-    pub submitted_code_commitments: usize,
-    pub submitted_block_commitments: usize,
-}
-
-pub struct SequencerServiceConfig {
+pub struct SequencerConfig {
     pub ethereum_rpc: String,
     pub sign_tx_public: PublicKey,
     pub router_address: Address,
     pub validators: Vec<Address>,
     pub threshold: u64,
     pub block_time: Duration,
-}
-
-pub enum SequencerServiceEvent {
-    CollectionRoundEnded { block_hash: H256 },
-    ValidationRoundEnded { block_hash: H256, submitted: bool },
 }
 
 pub struct SequencerService {
@@ -84,7 +73,7 @@ pub struct SequencerService {
 }
 
 impl Stream for SequencerService {
-    type Item = SequencerServiceEvent;
+    type Item = SequencerEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let e = ready!(pin!(self.next_event()).poll(cx));
@@ -108,7 +97,7 @@ pub type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
 
 impl SequencerService {
     pub async fn new(
-        config: &SequencerServiceConfig,
+        config: &SequencerConfig,
         signer: Signer,
         db: Box<dyn BlockMetaStorage>,
     ) -> Result<Self> {
@@ -341,19 +330,19 @@ impl SequencerService {
         Ok(())
     }
 
-    async fn next_event(&mut self) -> SequencerServiceEvent {
+    async fn next_event(&mut self) -> SequencerEvent {
         tokio::select! {
             block_hash = self.collection_round.rings() => {
                 // If chain head is not yet processed by this node, this is normal situation,
                 // so we just skip this round for sequencer.
                 let Some(block_is_empty) = self.db.block_is_empty(block_hash) else {
                     log::warn!("Failed to get block emptiness status for {block_hash}");
-                    return SequencerServiceEvent::CollectionRoundEnded { block_hash };
+                    return SequencerEvent::CollectionRoundEnded { block_hash };
                 };
 
                 let last_non_empty_block = if block_is_empty {
                     let Some(prev_commitment) = self.db.previous_committed_block(block_hash) else {
-                        return SequencerServiceEvent::CollectionRoundEnded { block_hash };
+                        return SequencerEvent::CollectionRoundEnded { block_hash };
                     };
 
                     prev_commitment
@@ -373,7 +362,7 @@ impl SequencerService {
                     self.validation_round.start(block_hash);
                 }
 
-                SequencerServiceEvent::CollectionRoundEnded { block_hash }
+                SequencerEvent::CollectionRoundEnded { block_hash }
             }
             block_hash = self.validation_round.rings() => {
                 log::debug!("Validation round for {block_hash} ended");
@@ -392,7 +381,7 @@ impl SequencerService {
                     log::debug!("No commitments to submit, skipping");
                 }
 
-                SequencerServiceEvent::ValidationRoundEnded { block_hash, submitted }
+                SequencerEvent::ValidationRoundEnded { block_hash, submitted }
             }
         }
     }
@@ -553,6 +542,18 @@ impl SequencerService {
 
         Some(multisigned)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SequencerEvent {
+    CollectionRoundEnded { block_hash: H256 },
+    ValidationRoundEnded { block_hash: H256, submitted: bool },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SequencerStatus {
+    pub submitted_code_commitments: usize,
+    pub submitted_block_commitments: usize,
 }
 
 #[cfg(test)]
