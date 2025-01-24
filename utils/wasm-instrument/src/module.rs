@@ -794,6 +794,16 @@ pub struct Data {
 }
 
 impl Data {
+    pub fn with_offset(data: impl Into<Cow<'static, [u8]>>, offset: u32) -> Self {
+        Self {
+            kind: DataKind::Active {
+                memory_index: 0,
+                offset_expr: ConstExpr::i32_value(offset as i32),
+            },
+            data: data.into(),
+        }
+    }
+
     fn new(data: wasmparser::Data) -> Result<Self> {
         Ok(Self {
             kind: match data.kind {

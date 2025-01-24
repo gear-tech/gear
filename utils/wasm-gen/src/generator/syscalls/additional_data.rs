@@ -38,7 +38,7 @@ use crate::{
 };
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
-    module::{ConstExpr, Data, DataKind, Instruction, ModuleBuilder},
+    module::{Data, Instruction, ModuleBuilder},
     syscalls::SyscallName,
 };
 use std::{collections::BTreeMap, num::NonZero};
@@ -154,13 +154,7 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
             self.last_offset = log_info_offset + log_bytes_len;
 
             let mut builder = ModuleBuilder::from_module(module);
-            builder.push_data(Data {
-                kind: DataKind::Active {
-                    memory_index: 0,
-                    offset_expr: ConstExpr::i32_value(log_info_offset as i32),
-                },
-                data: log_bytes.into(),
-            });
+            builder.push_data(Data::with_offset(log_bytes, log_info_offset));
             builder
                 .as_module_mut()
                 .code_section_mut()

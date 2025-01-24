@@ -18,8 +18,8 @@
 
 use crate::optimize;
 use gear_wasm_instrument::{
-    module::{Data, DataKind, MemArg},
-    ConstExpr, Export, Function, Global, Instruction, Module, ModuleBuilder, STACK_END_EXPORT_NAME,
+    module::{Data, MemArg},
+    Export, Function, Global, Instruction, Module, ModuleBuilder, STACK_END_EXPORT_NAME,
 };
 use wasmparser::{ExternalKind, FuncType, TypeRef, ValType};
 
@@ -232,13 +232,7 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
 
     // Insert new data section for globals initial values
     let mut builder = ModuleBuilder::from_module(own_module);
-    builder.push_data(Data {
-        kind: DataKind::Active {
-            memory_index: 0,
-            offset_expr: ConstExpr::i32_value(data_end_offset as i32),
-        },
-        data: new_data_in_section.into(),
-    });
+    builder.push_data(Data::with_offset(new_data_in_section, data_end_offset));
     own_module = builder.build();
 
     // Update data end global value

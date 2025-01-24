@@ -37,10 +37,10 @@ use gear_sandbox::{
     SandboxEnvironmentBuilder, SandboxMemory,
 };
 use gear_wasm_instrument::{
-    module::{Data, DataKind, Element, Table},
+    module::{Data, Element, Table},
     syscalls::SyscallName,
-    BlockType, ConstExpr, Export, FuncType, Function, Global, Import, Instruction, ModuleBuilder,
-    ValType, STACK_END_EXPORT_NAME,
+    BlockType, Export, FuncType, Function, Global, Import, Instruction, ModuleBuilder, ValType,
+    STACK_END_EXPORT_NAME,
 };
 use sp_std::{convert::TryFrom, marker::PhantomData, prelude::*};
 
@@ -231,13 +231,7 @@ where
 
         // Initialize memory
         for data in def.data_segments {
-            program.push_data(Data {
-                kind: DataKind::Active {
-                    memory_index: 0,
-                    offset_expr: ConstExpr::i32_value(data.offset as i32),
-                },
-                data: data.value.into(),
-            })
+            program.push_data(Data::with_offset(data.value, data.offset));
         }
 
         // Add global variables
