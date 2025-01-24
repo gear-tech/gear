@@ -233,7 +233,6 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
         )
         .expect("Failed to create dummy code");
 
@@ -5037,7 +5036,6 @@ fn test_code_submission_pass() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
         )
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
@@ -6988,7 +6986,6 @@ fn test_create_program_works() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
         )
         .expect("Code failed to load");
 
@@ -10538,7 +10535,6 @@ fn test_mad_big_prog_instrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -13528,7 +13524,6 @@ fn wrong_entry_type() {
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| CustomConstantCostRules::default(),
-                None,
                 None,
                 None,
             ),

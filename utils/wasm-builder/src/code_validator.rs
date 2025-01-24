@@ -300,7 +300,6 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
         |_| CustomConstantCostRules::default(),
         None,
         None,
-        None,
     ) {
         Ok(_) => Ok(()),
         Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,

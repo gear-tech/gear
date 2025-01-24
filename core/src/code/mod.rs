@@ -68,8 +68,6 @@ pub struct TryNewCodeConfig {
     pub stack_height: Option<u32>,
     /// Limit of data section amount
     pub data_segments_amount_limit: Option<u32>,
-    /// Limit on the number of tables.
-    pub table_number_limit: Option<u32>,
     /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
@@ -96,7 +94,6 @@ impl Default for TryNewCodeConfig {
             version: 1,
             stack_height: None,
             data_segments_amount_limit: None,
-            table_number_limit: None,
             export_stack_height: false,
             check_exports: true,
             check_imports: true,
@@ -298,7 +295,6 @@ impl Code {
         get_gas_rules: GetRulesFn,
         stack_height: Option<u32>,
         data_segments_amount_limit: Option<u32>,
-        table_number_limit: Option<u32>,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
@@ -311,7 +307,6 @@ impl Code {
                 version,
                 stack_height,
                 data_segments_amount_limit,
-                table_number_limit,
                 ..Default::default()
             },
         )
@@ -470,7 +465,6 @@ mod tests {
         wat: &str,
         stack_height: Option<u32>,
         data_segments_amount_limit: Option<u32>,
-        table_number_limit: Option<u32>,
         make_validation: bool,
     ) -> Result<Code, CodeError> {
         Code::try_new_mock_const_or_no_rules(
@@ -479,7 +473,6 @@ mod tests {
             TryNewCodeConfig {
                 stack_height,
                 data_segments_amount_limit,
-                table_number_limit,
                 make_validation,
                 ..Default::default()
             },
@@ -487,7 +480,7 @@ mod tests {
     }
 
     fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
-        try_new_code_from_wat_with_params(wat, stack_height, None, None, true)
+        try_new_code_from_wat_with_params(wat, stack_height, None, true)
     }
 
     #[test]
@@ -773,7 +766,6 @@ mod tests {
             |_| CustomConstantCostRules::default(),
             None,
             None,
-            None,
         );
 
         assert_code_err!(res, CodeError::Validation(_));
@@ -842,7 +834,6 @@ mod tests {
                 wat.as_str(),
                 None,
                 DATA_SEGMENTS_AMOUNT_LIMIT.into(),
-                None,
                 true,
             ),
             CodeError::DataSection(DataSectionError::DataSegmentsAmountLimit {
@@ -1133,7 +1124,6 @@ mod tests {
             )
             "#,
             Some(1024),
-            None,
             None,
             // check not only `wasmparser` validator denies forbidden instructions
             false,
