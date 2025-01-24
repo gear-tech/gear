@@ -159,7 +159,7 @@ mod migrations;
 
 // By this we assert if runtime compiled with "dev" feature.
 #[cfg_attr(
-    all(target_arch = "wasm32", target_os = "unknown", feature = "dev"),
+    all(target_arch = "wasm32", feature = "dev"),
     unsafe(link_section = "dev_runtime")
 )]
 static _DEV_RUNTIME: u8 = 0;
@@ -169,8 +169,7 @@ static _DEV_RUNTIME: u8 = 0;
 // into the WASM runtime blob. This is used by the `runtime_wasmBlobVersion` RPC call.
 // The format of the version is `x.y.z-commit_hash`, where the `x.y.z` is the version of this crate,
 // and the `commit_hash` is the hash of the commit from which the WASM blob was built.
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-#[unsafe(link_section = "wasm_blob_version")]
+#[cfg_attr(target_arch = "wasm32", unsafe(link_section = "wasm_blob_version"))]
 static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"))
     .len()] = const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"));
 

@@ -84,16 +84,14 @@ fn test_program_tests() {
             .expect("Failed to list rust toolchains")
             .stdout;
 
-        if !String::from_utf8_lossy(&targets).contains("wasm32-unknown-unknown (installed)") {
+        if !String::from_utf8_lossy(&targets).contains("wasm32v1-none (installed)") {
             assert!(Command::new("rustup")
                 .args([
                     "toolchain",
                     "install",
                     "stable",
-                    "--component",
-                    "llvm-tools",
                     "--target",
-                    "wasm32-unknown-unknown",
+                    "wasm32v1-none",
                 ])
                 .status()
                 .expect("Failed to install stable toolchain")
