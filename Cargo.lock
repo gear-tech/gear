@@ -4656,6 +4656,7 @@ dependencies = [
  "gear-lazy-pages",
  "gear-runtime-interface",
  "gprimitives",
+ "itertools 0.13.0",
  "log",
  "parity-scale-codec",
  "parity-wasm",

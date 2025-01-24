@@ -366,7 +366,11 @@ impl MaybeHashOf<MessageQueue> {
 
         let r = f(&mut queue);
 
-        *self = queue.store(storage);
+        if queue.is_empty() {
+            *self = MaybeHashOf::empty();
+        } else {
+            *self = queue.store(storage);
+        }
 
         r
     }
