@@ -270,11 +270,11 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
             // fn gr_gas_available(gas: *mut u64);
             let import_sig = mbuilder.push_type(FuncType::new([ValType::I32], []));
 
-            mbuilder.push_import(Import {
-                module: "env".into(),
-                name: SyscallName::GasAvailable.to_str().into(),
-                ty: TypeRef::Func(import_sig),
-            });
+            mbuilder.push_import(Import::func(
+                "env",
+                SyscallName::GasAvailable.to_str(),
+                import_sig,
+            ));
 
             // back to plain module
             let module = mbuilder.build();

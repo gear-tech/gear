@@ -33,7 +33,7 @@ use gear_wasm_instrument::{
 };
 use gsys::{Handle, Hash, Length};
 use std::{collections::BTreeMap, num::NonZero};
-use wasmparser::{BlockType, TypeRef};
+use wasmparser::BlockType;
 
 /// Gear syscalls imports generator.
 pub struct SyscallsImportsGenerator<'a, 'b> {
@@ -278,11 +278,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             let mut builder = ModuleBuilder::from_module(module);
             let signature_idx = builder.push_type(syscall_signature);
             // Create import entry with the built signature.
-            builder.push_import(Import {
-                module: "env".into(),
-                name: syscall.to_str().into(),
-                ty: TypeRef::Func(signature_idx),
-            });
+            builder.push_import(Import::func("env", syscall.to_str(), signature_idx));
 
             (builder.build(), ())
         });

@@ -26,7 +26,7 @@ use gear_core::{
 };
 use gear_wasm_instrument::{
     module::{Export, Function, Import, Instruction, ModuleBuilder},
-    ExternalKind, FuncType, MemoryType, Module, TypeRef, ValType,
+    ExternalKind, FuncType, Module, ValType,
 };
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
@@ -45,24 +45,8 @@ pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> 
 //     (export "init" (func 0)))
 pub fn create_module(num_pages: WasmPage) -> Module {
     let mut mbuilder = ModuleBuilder::default();
-    mbuilder.push_import(Import {
-        module: "memory".into(),
-        name: "env".into(),
-        ty: TypeRef::Memory(MemoryType {
-            memory64: false,
-            shared: false,
-            initial: u32::from(num_pages) as u64,
-            maximum: None,
-            page_size_log2: None,
-        }),
-    });
-    mbuilder.add_func(
-        FuncType::new([], []),
-        Function {
-            locals: vec![],
-            instructions: vec![Instruction::End],
-        },
-    );
+    mbuilder.push_import(Import::memory("env", "memory", num_pages.into(), None));
+    mbuilder.add_func(FuncType::new([], []), Function::default());
     mbuilder.push_export(Export {
         name: "init".into(),
         kind: ExternalKind::Func,
@@ -85,17 +69,7 @@ pub fn create_module(num_pages: WasmPage) -> Module {
 // )
 pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     let mut mbuilder = ModuleBuilder::default();
-    mbuilder.push_import(Import {
-        module: "memory".into(),
-        name: "env".into(),
-        ty: TypeRef::Memory(MemoryType {
-            memory64: false,
-            shared: false,
-            initial: u32::from(num_pages) as u64,
-            maximum: None,
-            page_size_log2: None,
-        }),
-    });
+    mbuilder.push_import(Import::memory("env", "memory", num_pages.into(), None));
 
     // alloc
     mbuilder.add_func(

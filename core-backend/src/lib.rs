@@ -61,7 +61,7 @@ mod tests {
     };
     use gear_core::{gas_metering::CustomConstantCostRules, message::DispatchKind};
     use gear_wasm_instrument::{
-        FuncType, Function, Import, InstrumentationBuilder, ModuleBuilder, SyscallName, TypeRef,
+        FuncType, Function, Import, InstrumentationBuilder, ModuleBuilder, SyscallName,
     };
 
     /// Check that all syscalls are supported by backend.
@@ -78,11 +78,7 @@ mod tests {
             let sign = name.signature();
             let type_no = module.push_type(sign.func_type());
 
-            module.push_import(Import {
-                module: "env".into(),
-                name: name.to_str().into(),
-                ty: TypeRef::Func(type_no),
-            });
+            module.push_import(Import::func("env", name.to_str(), type_no));
         }
 
         let module = InstrumentationBuilder::new("env")

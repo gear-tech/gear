@@ -218,11 +218,11 @@ fn inject_system_break_import(
     let import_idx = mbuilder.push_type(FuncType::new([ValType::I32], []));
 
     // back to plain module
-    mbuilder.push_import(Import {
-        module: break_module_name.to_string().into(),
-        name: SyscallName::SystemBreak.to_str().into(),
-        ty: TypeRef::Func(import_idx),
-    });
+    mbuilder.push_import(Import::func(
+        break_module_name.to_string(),
+        SyscallName::SystemBreak.to_str(),
+        import_idx,
+    ));
 
     let import_count = mbuilder
         .as_module()

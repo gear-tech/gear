@@ -40,8 +40,7 @@ use gear_wasm_instrument::{
     module::{Data, DataKind, Element, ElementItems, ElementKind, Table, TableInit},
     syscalls::SyscallName,
     BlockType, ConstExpr, Export, ExternalKind, FuncType, Function, Global, GlobalType, Import,
-    Instruction, MemoryType, ModuleBuilder, RefType, TableType, TypeRef, ValType,
-    STACK_END_EXPORT_NAME,
+    Instruction, ModuleBuilder, RefType, TableType, ValType, STACK_END_EXPORT_NAME,
 };
 use sp_std::{convert::TryFrom, marker::PhantomData, prelude::*};
 
@@ -234,28 +233,19 @@ where
 
         // Grant access to linear memory.
         if let Some(memory) = &def.memory {
-            program.push_import(Import {
-                module: "env".into(),
-                name: "memory".into(),
-                ty: TypeRef::Memory(MemoryType {
-                    memory64: false,
-                    shared: false,
-                    initial: u32::from(memory.min_pages) as u64,
-                    maximum: None,
-                    page_size_log2: None,
-                }),
-            });
+            program.push_import(Import::memory(
+                "env",
+                "memory",
+                memory.min_pages.into(),
+                None,
+            ));
         }
 
         // Import supervisor functions. They start with idx 0.
         for name in def.imported_functions {
             let sign = name.signature();
             let sig = program.push_type(sign.func_type());
-            program.push_import(Import {
-                module: "env".into(),
-                name: name.to_str().into(),
-                ty: TypeRef::Func(sig),
-            });
+            program.push_import(Import::func("env", name.to_str(), sig));
         }
 
         // Initialize memory

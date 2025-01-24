@@ -177,11 +177,7 @@ pub fn inject<R: Rules>(
     let mut mbuilder = ModuleBuilder::from_module(module);
 
     let import_sig = mbuilder.push_type(FuncType::new([ValType::I32], []));
-    mbuilder.push_import(Import {
-        module: gas_module_name.into(),
-        name: "gas".into(),
-        ty: TypeRef::Func(import_sig),
-    });
+    mbuilder.push_import(Import::func(gas_module_name, "gas", import_sig));
 
     let module = mbuilder
         .rewrite_sections_after_insertion(gas_func as u32, 1)

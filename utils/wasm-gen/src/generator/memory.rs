@@ -27,7 +27,7 @@ use gear_wasm_instrument::{
     module::{ConstExpr, Export, Global, Import, ModuleBuilder},
     STACK_END_EXPORT_NAME,
 };
-use wasmparser::{ExternalKind, GlobalType, MemoryType, TypeRef, ValType};
+use wasmparser::{ExternalKind, GlobalType, ValType};
 
 /// Memory import generator.
 ///
@@ -93,17 +93,12 @@ impl MemoryGenerator {
         // Define memory import in the module
         module.with(|module| {
             let mut builder = ModuleBuilder::from_module(module);
-            builder.push_import(Import {
-                module: "env".into(),
-                name: Self::MEMORY_FIELD_NAME.into(),
-                ty: TypeRef::Memory(MemoryType {
-                    memory64: false,
-                    shared: false,
-                    initial: initial_size as u64,
-                    maximum: upper_limit.map(|v| v as u64),
-                    page_size_log2: None,
-                }),
-            });
+            builder.push_import(Import::memory(
+                "env",
+                Self::MEMORY_FIELD_NAME,
+                initial_size,
+                upper_limit,
+            ));
 
             // Define optional stack-end
             if let Some(stack_end_page) = stack_end_page {

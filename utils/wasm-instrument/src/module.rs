@@ -481,6 +481,37 @@ pub struct Import {
 }
 
 impl Import {
+    pub fn func(
+        module: impl Into<Cow<'static, str>>,
+        name: impl Into<Cow<'static, str>>,
+        index: u32,
+    ) -> Self {
+        Self {
+            module: module.into(),
+            name: name.into(),
+            ty: TypeRef::Func(index),
+        }
+    }
+
+    pub fn memory(
+        module: impl Into<Cow<'static, str>>,
+        name: impl Into<Cow<'static, str>>,
+        initial: u32,
+        maximum: Option<u32>,
+    ) -> Self {
+        Self {
+            module: module.into(),
+            name: name.into(),
+            ty: TypeRef::Memory(MemoryType {
+                memory64: false,
+                shared: false,
+                initial: initial as u64,
+                maximum: maximum.map(|v| v as u64),
+                page_size_log2: None,
+            }),
+        }
+    }
+
     fn new(import: wasmparser::Import) -> Self {
         Self {
             module: import.module.to_string().into(),
