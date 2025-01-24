@@ -6,6 +6,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
+  RUST_LIB_BACKTRACE: 1
   TERM: xterm-256color
   BINARYEN_VERSION: version_111
 
@@ -43,7 +44,11 @@ jobs:
         run: |
           npm cache clean --force
           # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
-          npx @openzeppelin/upgrades-core@^1.37.0
+          # npx @openzeppelin/upgrades-core@^1.37.0
+
+          # temp fix for CI
+          npx @openzeppelin/upgrades-core@=1.41.0
+          sed -i 's/\^1\.37\.0/=1.41.0/' ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
 
           cd ethexe/contracts
           forge fmt --check

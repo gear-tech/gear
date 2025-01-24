@@ -555,9 +555,6 @@ wasm-encoder = { version = "0.222", default-features = false, features = ["wasmp
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
 
-[profile.dev.package.corosensei]
-opt-level = 3
-
 [profile.release]
 panic = "unwind"
 
@@ -606,3 +603,6 @@ wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
 wasmparser = { version = "0.222", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.222" }
 wasm-encoder = { version = "0.222", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.222" }
 wasm-smith = { version = "0.222", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.222" }
+
+# Attempt to fix UB on windows by increasing precommited stack size to 1 MiB, see https://github.com/gear-tech/gear/issues/4341
+corosensei = { git = "https://github.com/gear-tech/corosensei", branch = "rmasl-precommit-1mb-stack-on-windows" }

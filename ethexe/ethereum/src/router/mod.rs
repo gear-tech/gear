@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{Gear::CodeState, IRouter},
+    abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
     wvara::WVara,
     AlloyProvider, AlloyTransport, TryGetReceipt,
 };
@@ -29,7 +29,9 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use ethexe_common::gear::{
+    AggregatedPublicKey, BlockCommitment, CodeCommitment, SignatureType, VerifyingShare,
+};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
@@ -162,6 +164,7 @@ impl Router {
     ) -> Result<H256> {
         let builder = self.instance.commitCodes(
             commitments.into_iter().map(Into::into).collect(),
+            SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
@@ -180,6 +183,7 @@ impl Router {
             .instance
             .commitBlocks(
                 commitments.into_iter().map(Into::into).collect(),
+                SignatureType::ECDSA as u8,
                 signatures
                     .into_iter()
                     .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
@@ -256,6 +260,35 @@ impl RouterQuery {
             .call()
             .await
             .map(|res| res._0)
+            .map_err(Into::into)
+    }
+
+    pub async fn validators_aggregated_public_key(&self) -> Result<AggregatedPublicKey> {
+        self.instance
+            .validatorsAggregatedPublicKey()
+            .call()
+            .await
+            .map(|res| AggregatedPublicKey {
+                x: uint256_to_u256(res._0.x),
+                y: uint256_to_u256(res._0.y),
+            })
+            .map_err(Into::into)
+    }
+
+    pub async fn validators_verifying_shares(&self) -> Result<Vec<VerifyingShare>> {
+        self.instance
+            .validatorsVerifyingShares()
+            .call()
+            .await
+            .map(|res| {
+                res._0
+                    .into_iter()
+                    .map(|v| VerifyingShare {
+                        x: uint256_to_u256(v.x),
+                        y: uint256_to_u256(v.y),
+                    })
+                    .collect()
+            })
             .map_err(Into::into)
     }
 
