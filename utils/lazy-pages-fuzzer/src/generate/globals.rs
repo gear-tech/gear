@@ -20,7 +20,7 @@ use anyhow::Result;
 use arbitrary::{Arbitrary, Unstructured};
 use gear_wasm_instrument::{
     module::{Export, Global, Instruction, ModuleBuilder},
-    ConstExpr, ExternalKind, GlobalType, Module, ValType,
+    ExternalKind, Module,
 };
 
 pub const GLOBAL_NAME_PREFIX: &str = "gear_fuzz_";
@@ -106,14 +106,7 @@ impl<'u> InjectGlobals<'u> {
                 kind: ExternalKind::Global,
                 index: next_global_idx,
             });
-            builder.push_global(Global {
-                ty: GlobalType {
-                    content_type: ValType::I64,
-                    mutable: true,
-                    shared: false,
-                },
-                init_expr: ConstExpr::i64_value(INITIAL_GLOBAL_VALUE),
-            });
+            builder.push_global(Global::i64_value_mut(INITIAL_GLOBAL_VALUE));
 
             next_global_idx += 1;
         }

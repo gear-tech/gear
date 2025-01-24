@@ -24,10 +24,10 @@ use crate::{
 };
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::{
-    module::{ConstExpr, Export, Global, Import, ModuleBuilder},
+    module::{Export, Global, Import, ModuleBuilder},
     STACK_END_EXPORT_NAME,
 };
-use wasmparser::{ExternalKind, GlobalType, ValType};
+use wasmparser::ExternalKind;
 
 /// Memory import generator.
 ///
@@ -105,14 +105,7 @@ impl MemoryGenerator {
                 log::trace!("Stack end offset - {:?}", stack_end_page);
 
                 let stack_end = stack_end_page * WasmPage::SIZE;
-                builder.push_global(Global {
-                    ty: GlobalType {
-                        content_type: ValType::I32,
-                        mutable: false,
-                        shared: false,
-                    },
-                    init_expr: ConstExpr::i32_value(stack_end as i32),
-                });
+                builder.push_global(Global::i32_value(stack_end as i32));
 
                 let stack_end_index = builder
                     .as_module()

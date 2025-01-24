@@ -37,10 +37,10 @@ use gear_sandbox::{
     SandboxEnvironmentBuilder, SandboxMemory,
 };
 use gear_wasm_instrument::{
-    module::{Data, DataKind, Element, ElementItems, ElementKind, Table, TableInit},
+    module::{Data, DataKind, Element, Table},
     syscalls::SyscallName,
-    BlockType, ConstExpr, Export, ExternalKind, FuncType, Function, Global, GlobalType, Import,
-    Instruction, ModuleBuilder, RefType, TableType, ValType, STACK_END_EXPORT_NAME,
+    BlockType, ConstExpr, Export, ExternalKind, FuncType, Function, Global, Import, Instruction,
+    ModuleBuilder, ValType, STACK_END_EXPORT_NAME,
 };
 use sp_std::{convert::TryFrom, marker::PhantomData, prelude::*};
 
@@ -269,14 +269,7 @@ where
                     value |= 1 << 63;
                 }
 
-                program.push_global(Global {
-                    ty: GlobalType {
-                        content_type: ValType::I64,
-                        mutable: true,
-                        shared: false,
-                    },
-                    init_expr: ConstExpr::i64_value(value),
-                });
+                program.push_global(Global::i64_value_mut(value));
             }
         }
 
@@ -294,14 +287,7 @@ where
                 .unwrap_or(0.into()),
         );
 
-        program.push_global(Global {
-            ty: GlobalType {
-                content_type: ValType::I32,
-                mutable: false,
-                shared: false,
-            },
-            init_expr: ConstExpr::i32_value(stack_end.offset() as i32),
-        });
+        program.push_global(Global::i32_value(stack_end.offset() as i32));
         program.push_export(Export {
             name: STACK_END_EXPORT_NAME.into(),
             kind: ExternalKind::Global,
@@ -322,23 +308,8 @@ where
                 }
             };
 
-            program.set_table(Table {
-                ty: TableType {
-                    element_type: RefType::FUNCREF,
-                    table64: false,
-                    initial: table.num_elements as u64,
-                    maximum: Some(table.num_elements as u64),
-                    shared: false,
-                },
-                init: TableInit::RefNull,
-            });
-            program.push_element(Element {
-                kind: ElementKind::Active {
-                    table_index: Some(0),
-                    offset_expr: ConstExpr::i32_value(0),
-                },
-                items: ElementItems::Functions(functions),
-            });
+            program.set_table(Table::funcref(table.num_elements, Some(table.num_elements)));
+            program.push_element(Element::functions(functions));
         }
 
         // Add the dummy section

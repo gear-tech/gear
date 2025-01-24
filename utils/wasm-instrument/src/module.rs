@@ -543,6 +543,19 @@ pub struct Table {
 }
 
 impl Table {
+    pub fn funcref(initial: u32, maximum: Option<u32>) -> Self {
+        Table {
+            ty: TableType {
+                element_type: RefType::FUNCREF,
+                table64: false,
+                initial: initial as u64,
+                maximum: maximum.map(|v| v as u64),
+                shared: false,
+            },
+            init: TableInit::RefNull,
+        }
+    }
+
     fn new(table: wasmparser::Table) -> Result<Self> {
         Ok(Self {
             ty: table.ty,
@@ -574,6 +587,44 @@ pub struct Global {
 }
 
 impl Global {
+    pub fn i32_value(value: i32) -> Self {
+        Self {
+            ty: GlobalType {
+                content_type: ValType::I32,
+                mutable: false,
+                shared: false,
+            },
+            init_expr: ConstExpr::i32_value(value),
+        }
+    }
+
+    pub fn i64_value(value: i64) -> Self {
+        Self {
+            ty: GlobalType {
+                content_type: ValType::I64,
+                mutable: false,
+                shared: false,
+            },
+            init_expr: ConstExpr::i64_value(value),
+        }
+    }
+
+    pub fn i64_value_mut(value: i64) -> Self {
+        Self {
+            ty: GlobalType {
+                content_type: ValType::I64,
+                mutable: true,
+                shared: false,
+            },
+            init_expr: ConstExpr::i64_value(value),
+        }
+    }
+
+    pub fn mutable(mut self) -> Self {
+        self.ty.mutable = true;
+        self
+    }
+
     fn new(global: wasmparser::Global) -> Result<Self> {
         Ok(Self {
             ty: global.ty,
@@ -659,6 +710,16 @@ pub struct Element {
 }
 
 impl Element {
+    pub fn functions(funcs: Vec<u32>) -> Self {
+        Self {
+            kind: ElementKind::Active {
+                table_index: Some(0),
+                offset_expr: ConstExpr::i32_value(0),
+            },
+            items: ElementItems::Functions(funcs),
+        }
+    }
+
     fn new(element: wasmparser::Element) -> Result<Self> {
         Ok(Self {
             kind: ElementKind::new(element.kind)?,

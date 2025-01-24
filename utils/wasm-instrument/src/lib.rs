@@ -254,15 +254,7 @@ fn inject_gas_limiter<R: Rules>(
 
     let mut mbuilder = ModuleBuilder::from_module(module);
 
-    mbuilder.push_global(Global {
-        ty: GlobalType {
-            content_type: ValType::I64,
-            mutable: true,
-            shared: false,
-        },
-        init_expr: ConstExpr::i64_value(0),
-    });
-
+    mbuilder.push_global(Global::i64_value_mut(0));
     mbuilder.push_export(Export {
         name: GLOBAL_NAME_GAS.to_string(),
         kind: ExternalKind::Global,
