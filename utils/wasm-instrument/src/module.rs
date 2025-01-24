@@ -20,6 +20,7 @@ use alloc::{
     borrow::Cow,
     format,
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 use core::convert::Infallible;
@@ -364,6 +365,29 @@ impl TryFrom<wasmparser::MemArg> for MemArg {
 }
 
 impl MemArg {
+    pub fn zero() -> Self {
+        Self {
+            align: 0,
+            offset: 0,
+        }
+    }
+
+    pub fn i32() -> Self {
+        Self::i32_offset(0)
+    }
+
+    pub fn i64() -> Self {
+        Self::i64_offset(0)
+    }
+
+    pub fn i32_offset(offset: u32) -> Self {
+        Self { align: 2, offset }
+    }
+
+    pub fn i64_offset(offset: u32) -> Self {
+        Self { align: 3, offset }
+    }
+
     fn reencode(self) -> wasm_encoder::MemArg {
         wasm_encoder::MemArg {
             offset: self.offset as u64,

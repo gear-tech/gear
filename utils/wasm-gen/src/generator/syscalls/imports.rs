@@ -318,96 +318,60 @@ impl SyscallsImportsGenerator<'_, '_> {
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 16,
-                },
+                memarg: MemArg::i64_offset(16),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 16,
-                },
+                memarg: MemArg::i64_offset(16),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 24,
-                },
+                memarg: MemArg::i64_offset(24),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 24,
-                },
+                memarg: MemArg::i64_offset(24),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 32,
-                },
+                memarg: MemArg::i64_offset(32),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 32,
-                },
+                memarg: MemArg::i64_offset(32),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 40,
-                },
+                memarg: MemArg::i64_offset(40),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 40,
-                },
+                memarg: MemArg::i64_offset(40),
             },
             // Amount of gas to reserve
             Instruction::LocalGet { local_index: 4 },
@@ -422,10 +386,7 @@ impl SyscallsImportsGenerator<'_, '_> {
             Instruction::LocalGet { local_index: 6 },
             // Load ErrorWithHash.error
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // Check if ErrorWithHash.error == 0
             Instruction::I32Eqz,
@@ -439,64 +400,40 @@ impl SyscallsImportsGenerator<'_, '_> {
             },
             Instruction::LocalGet { local_index: 6 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 4,
-                },
+                memarg: MemArg::i64_offset(4),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I32Const {
                 value: rid_pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 6 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 12,
-                },
+                memarg: MemArg::i64_offset(12),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I32Const {
                 value: rid_pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 6 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 20,
-                },
+                memarg: MemArg::i64_offset(20),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 16,
-                },
+                memarg: MemArg::i64_offset(16),
             },
             Instruction::I32Const {
                 value: rid_pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 6 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 28,
-                },
+                memarg: MemArg::i64_offset(28),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 24,
-                },
+                memarg: MemArg::i64_offset(24),
             },
             // Pointer to reservation ID, recipient ID and value
             Instruction::I32Const {
@@ -547,10 +484,7 @@ impl SyscallsImportsGenerator<'_, '_> {
             Instruction::LocalGet { local_index: 5 },
             // Load ErrorWithHash.error
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // Check if ErrorWithHash.error == 0
             Instruction::I32Eqz,
@@ -564,93 +498,57 @@ impl SyscallsImportsGenerator<'_, '_> {
             },
             Instruction::LocalGet { local_index: 5 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 4,
-                },
+                memarg: MemArg::i64_offset(4),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I32Const {
                 value: rid_value_ptr,
             },
             Instruction::LocalGet { local_index: 5 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 12,
-                },
+                memarg: MemArg::i64_offset(12),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I32Const {
                 value: rid_value_ptr,
             },
             Instruction::LocalGet { local_index: 5 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 20,
-                },
+                memarg: MemArg::i64_offset(20),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 16,
-                },
+                memarg: MemArg::i64_offset(16),
             },
             Instruction::I32Const {
                 value: rid_value_ptr,
             },
             Instruction::LocalGet { local_index: 5 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 28,
-                },
+                memarg: MemArg::i64_offset(28),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 24,
-                },
+                memarg: MemArg::i64_offset(24),
             },
             // Copy the value (16 bytes).
             Instruction::I32Const { value: value_ptr },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I32Const { value: value_ptr },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             // Pointer to reservation ID and value
             Instruction::I32Const {
@@ -695,10 +593,7 @@ impl SyscallsImportsGenerator<'_, '_> {
             Instruction::LocalGet { local_index: 4 },
             // Load ErrorWithHandle.error
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // Check if ErrorWithHandle.error == 0
             Instruction::I32Eqz,
@@ -710,16 +605,10 @@ impl SyscallsImportsGenerator<'_, '_> {
             Instruction::I32Const { value: handle_ptr },
             Instruction::LocalGet { local_index: 4 },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 4,
-                },
+                memarg: MemArg::i32_offset(4),
             },
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
         ];
 
@@ -734,10 +623,7 @@ impl SyscallsImportsGenerator<'_, '_> {
                 // Handle of message
                 Instruction::I32Const { value: handle_ptr },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 // Pointer to payload
                 Instruction::LocalGet { local_index: 1 },
@@ -759,104 +645,65 @@ impl SyscallsImportsGenerator<'_, '_> {
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 16,
-                },
+                memarg: MemArg::i64_offset(16),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 16,
-                },
+                memarg: MemArg::i64_offset(16),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 24,
-                },
+                memarg: MemArg::i64_offset(24),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 24,
-                },
+                memarg: MemArg::i64_offset(24),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 32,
-                },
+                memarg: MemArg::i64_offset(32),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 32,
-                },
+                memarg: MemArg::i64_offset(32),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 40,
-                },
+                memarg: MemArg::i64_offset(40),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 40,
-                },
+                memarg: MemArg::i64_offset(40),
             },
             // Handle of message
             Instruction::I32Const { value: handle_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // Pointer to recipient ID and value
             Instruction::I32Const {
@@ -901,10 +748,7 @@ impl SyscallsImportsGenerator<'_, '_> {
             Instruction::LocalGet { local_index: 3 },
             // Load ErrorWithHandle.error
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // Check if ErrorWithHandle.error == 0
             Instruction::I32Eqz,
@@ -916,16 +760,10 @@ impl SyscallsImportsGenerator<'_, '_> {
             Instruction::I32Const { value: handle_ptr },
             Instruction::LocalGet { local_index: 3 },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 4,
-                },
+                memarg: MemArg::i32_offset(4),
             },
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // Pointer to message length
             Instruction::I32Const { value: length_ptr },
@@ -945,20 +783,14 @@ impl SyscallsImportsGenerator<'_, '_> {
                 // Handle of message
                 Instruction::I32Const { value: handle_ptr },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 // Offset of input
                 Instruction::I32Const { value: 0 },
                 // Length of input
                 Instruction::I32Const { value: length_ptr },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 // Pointer to the result of the send push input
                 Instruction::LocalGet { local_index: 3 },
@@ -976,104 +808,65 @@ impl SyscallsImportsGenerator<'_, '_> {
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 16,
-                },
+                memarg: MemArg::i64_offset(16),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 16,
-                },
+                memarg: MemArg::i64_offset(16),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 24,
-                },
+                memarg: MemArg::i64_offset(24),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 24,
-                },
+                memarg: MemArg::i64_offset(24),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 32,
-                },
+                memarg: MemArg::i64_offset(32),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 32,
-                },
+                memarg: MemArg::i64_offset(32),
             },
             Instruction::I32Const {
                 value: pid_value_ptr,
             },
             Instruction::LocalGet { local_index: 0 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 40,
-                },
+                memarg: MemArg::i64_offset(40),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 40,
-                },
+                memarg: MemArg::i64_offset(40),
             },
             // Handle of message
             Instruction::I32Const { value: handle_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // Pointer to recipient ID and value
             Instruction::I32Const {
@@ -1127,10 +920,7 @@ impl SyscallsImportsGenerator<'_, '_> {
             // Take first 4 bytes from the data of ErrorWithHash type, which is error code, i.e.
             // ErrorWithHash.error.
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // Check if ErrorWithHash.error == 0.
             Instruction::I32Eqz,
@@ -1146,61 +936,37 @@ impl SyscallsImportsGenerator<'_, '_> {
             // Load 8 bytes from the ErrorWithHash skipping first 4 bytes,
             // which are bytes of i32 error_code value.
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 4,
-                },
+                memarg: MemArg::i64_offset(4),
             },
             // Store these 8 bytes in the `mid_ptr` starting from the byte 0.
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
             // Perform same procedure 3 times more to complete
             // 32 bytes message id value under `mid_ptr`.
             Instruction::I32Const { value: mid_ptr },
             Instruction::LocalGet { local_index: 5 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 12,
-                },
+                memarg: MemArg::i64_offset(12),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 8,
-                },
+                memarg: MemArg::i64_offset(8),
             },
             Instruction::I32Const { value: mid_ptr },
             Instruction::LocalGet { local_index: 5 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 20,
-                },
+                memarg: MemArg::i64_offset(20),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 16,
-                },
+                memarg: MemArg::i64_offset(16),
             },
             Instruction::I32Const { value: mid_ptr },
             Instruction::LocalGet { local_index: 5 },
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 28,
-                },
+                memarg: MemArg::i64_offset(28),
             },
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 24,
-                },
+                memarg: MemArg::i64_offset(24),
             },
             // Pointer to message id.
             Instruction::I32Const { value: mid_ptr },

@@ -318,10 +318,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
             // gas_available = *GAS_PTR
             Instruction::I32Const { value: GAS_PTR },
             Instruction::I64Load {
-                memarg: MemArg {
-                    offset: 0,
-                    align: 3,
-                },
+                memarg: MemArg::i64(),
             },
             Instruction::I64Const {
                 value: critical_gas_limit as i64,
@@ -489,10 +486,7 @@ pub(crate) fn translate_ptr_data(
                 },
                 Instruction::I32Const { value: word },
                 Instruction::I32Store {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: (word_idx * size_of::<i32>()) as u32,
-                    },
+                    memarg: MemArg::i32_offset((word_idx * size_of::<i32>()) as u32),
                 },
             ]
         })
@@ -513,13 +507,13 @@ pub(crate) trait MemcpyUnit: Sized {
 impl MemcpyUnit for u32 {
     fn load(offset: u32) -> Instruction {
         Instruction::I32Load {
-            memarg: MemArg { offset, align: 2 },
+            memarg: MemArg::i32_offset(offset),
         }
     }
 
     fn store(offset: u32) -> Instruction {
         Instruction::I32Store {
-            memarg: MemArg { offset, align: 2 },
+            memarg: MemArg::i32_offset(offset),
         }
     }
 }
@@ -527,13 +521,13 @@ impl MemcpyUnit for u32 {
 impl MemcpyUnit for u64 {
     fn load(offset: u32) -> Instruction {
         Instruction::I64Load {
-            memarg: MemArg { offset, align: 3 },
+            memarg: MemArg::i64_offset(offset),
         }
     }
 
     fn store(offset: u32) -> Instruction {
         Instruction::I64Store {
-            memarg: MemArg { offset, align: 3 },
+            memarg: MemArg::i64_offset(offset),
         }
     }
 }

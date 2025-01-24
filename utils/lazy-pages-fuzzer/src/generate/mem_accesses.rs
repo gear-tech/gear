@@ -80,10 +80,7 @@ impl<'u> InjectMemoryAccesses<'u> {
                     value: target_addr as i32,
                 },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 0,
-                        offset: 0,
-                    },
+                    memarg: MemArg::zero(),
                 },
                 Instruction::Drop,
             ],
@@ -95,10 +92,7 @@ impl<'u> InjectMemoryAccesses<'u> {
                     value: DUMMY_VALUE as i32,
                 },
                 Instruction::I32Store {
-                    memarg: MemArg {
-                        align: 0,
-                        offset: 0,
-                    },
+                    memarg: MemArg::zero(),
                 },
             ],
         })

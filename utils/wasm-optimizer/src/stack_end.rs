@@ -334,19 +334,13 @@ fn append_get_global_function(module: Module, offset: u32, data_len: usize) -> M
         4 => (
             ValType::I32,
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
         ),
         8 => (
             ValType::I64,
             Instruction::I64Load {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
         ),
         _ => unreachable!("Support only i64 and i32 globals"),
@@ -375,19 +369,13 @@ fn append_set_global_function(module: Module, offset: u32, data_len: usize) -> M
         4 => (
             ValType::I32,
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
         ),
         8 => (
             ValType::I64,
             Instruction::I64Store {
-                memarg: MemArg {
-                    align: 3,
-                    offset: 0,
-                },
+                memarg: MemArg::i64(),
             },
         ),
         _ => unreachable!("Support only i64 and i32 globals"),

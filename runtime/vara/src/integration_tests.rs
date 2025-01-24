@@ -814,118 +814,61 @@ fn all_measured_instructions() -> Vec<Instruction> {
         Nop,
         Drop,
         I32Load {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I32Load8S {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I32Load8U {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I32Load16S {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I32Load16U {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Load {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Load8S {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Load8U {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Load16S {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Load16U {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Load32S {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Load32U {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I32Store {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I32Store8 {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I32Store16 {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Store {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Store8 {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Store16 {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         I64Store32 {
-            memarg: MemArg {
-                align: 0,
-                offset: 0,
-            },
+            memarg: MemArg::zero(),
         },
         Select,
         If {

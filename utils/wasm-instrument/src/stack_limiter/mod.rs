@@ -4,7 +4,7 @@ use crate::{
     module::{ConstExpr, Export, Global, Instruction, ModuleBuilder},
     Module,
 };
-use alloc::{string::ToString, vec, vec::Vec};
+use alloc::{string::ToString, vec::Vec};
 use core::mem;
 use max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext};
 use wasmparser::{BlockType, ExternalKind, FuncType, GlobalType, TypeRef, ValType};

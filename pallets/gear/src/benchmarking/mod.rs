@@ -1575,7 +1575,7 @@ benchmarks! {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
-                        Regular(Instruction::I64Load { memarg: MemArg { align: 3, offset: 0 } }),
+                        Regular(Instruction::I64Load { memarg: MemArg::i64() }),
                         Regular(Instruction::Drop)])),
             .. Default::default()
         };
@@ -1593,7 +1593,7 @@ benchmarks! {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
-                        Regular(Instruction::I32Load { memarg: MemArg { align: 2, offset: 0 } }),
+                        Regular(Instruction::I32Load { memarg: MemArg::i32() }),
                         Regular(Instruction::Drop)])),
             .. Default::default()
         };
@@ -1612,7 +1612,7 @@ benchmarks! {
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
                         RandomI64Repeated(1),
-                        Regular(Instruction::I64Store { memarg: MemArg { align: 3, offset: 0 } })])),
+                        Regular(Instruction::I64Store { memarg: MemArg::i64() })])),
             .. Default::default()
         };
         let mut sbox = Sandbox::from_module_def::<T>(module);
@@ -1630,7 +1630,7 @@ benchmarks! {
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
                         RandomI32Repeated(1),
-                        Regular(Instruction::I32Store { memarg: MemArg { align: 2, offset: 0 } })])),
+                        Regular(Instruction::I32Store { memarg: MemArg::i32() })])),
             .. Default::default()
         };
         let mut sbox = Sandbox::from_module_def::<T>(module);

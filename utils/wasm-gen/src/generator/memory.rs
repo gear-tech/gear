@@ -24,7 +24,7 @@ use crate::{
 };
 use gear_core::pages::WasmPage;
 use gear_wasm_instrument::{
-    module::{ConstExpr, Export, Global, Import, Instruction, ModuleBuilder},
+    module::{ConstExpr, Export, Global, Import, ModuleBuilder},
     STACK_END_EXPORT_NAME,
 };
 use wasmparser::{ExternalKind, GlobalType, MemoryType, TypeRef, ValType};

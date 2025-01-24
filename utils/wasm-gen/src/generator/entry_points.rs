@@ -248,10 +248,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             },
             Instruction::I32Const { value: 0 },
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
         ]);
 
@@ -281,10 +278,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
                 },
                 Instruction::I32Const { value: 1 },
                 Instruction::I32Store8 {
-                    memarg: MemArg {
-                        align: 0,
-                        offset: 0,
-                    },
+                    memarg: MemArg::zero(),
                 },
             ]);
         }

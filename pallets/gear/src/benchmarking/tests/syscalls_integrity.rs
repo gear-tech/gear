@@ -1305,34 +1305,22 @@ where
                 Instruction::I32Const { value: 0x10001 },
                 Instruction::I32Const { value: 0x61 },
                 Instruction::I32Store {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Const { value: 0x20001 },
                 Instruction::I32Const { value: 0x62 },
                 Instruction::I32Store {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Const { value: 0x30001 },
                 Instruction::I32Const { value: 0x63 },
                 Instruction::I32Store {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Const { value: 0x40001 },
                 Instruction::I32Const { value: 0x64 },
                 Instruction::I32Store {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::End,
                 // check it has the value
@@ -1341,10 +1329,7 @@ where
                 },
                 Instruction::I32Const { value: 0x10001 },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Const { value: 0x61 },
                 Instruction::I32Eq,
@@ -1380,10 +1365,7 @@ where
                 },
                 Instruction::I32Const { value: 0x10001 },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Const { value: 0x0 },
                 Instruction::I32Eq,
@@ -1396,10 +1378,7 @@ where
                 },
                 Instruction::I32Const { value: 0x20001 },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Const { value: 0x0 },
                 Instruction::I32Eq,
@@ -1412,10 +1391,7 @@ where
                 },
                 Instruction::I32Const { value: 0x40001 },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Const { value: 0x64 },
                 Instruction::I32Eq,

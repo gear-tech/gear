@@ -434,10 +434,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                             },
                             Instruction::I32Const { value: param },
                             Instruction::I32Store {
-                                memarg: MemArg {
-                                    align: 2,
-                                    offset: 0,
-                                },
+                                memarg: MemArg::i32(),
                             },
                         ],
                     );
@@ -447,10 +444,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                             value: destination_ptr,
                         },
                         Instruction::I32Load {
-                            memarg: MemArg {
-                                align: 2,
-                                offset: 0,
-                            },
+                            memarg: MemArg::i32(),
                         },
                     ]);
 
@@ -804,10 +798,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         vec![
             Instruction::I32Const { value: res_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Const {
                 value: no_error_val,
@@ -908,10 +899,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     value: init_called_ptr,
                 },
                 Instruction::I32Load8U {
-                    memarg: MemArg {
-                        offset: 0,
-                        align: 0,
-                    },
+                    memarg: MemArg::zero(),
                 },
                 // if *init_called_ptr { .. }
                 Instruction::If {
@@ -921,10 +909,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     value: wait_called_ptr,
                 },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Const {
                     value: waiting_probability as i32,
@@ -949,18 +934,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 value: wait_called_ptr,
             },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Const { value: 1 },
             Instruction::I32Add,
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::End,
         ]);
@@ -1056,10 +1035,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             // if *res_ptr == no_error_val
             Instruction::I32Const { value: res_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Const {
                 value: no_error_val,
@@ -1072,10 +1048,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Const { value: temp1_ptr },
             Instruction::I32Const { value: flags_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Const {
                 value: u32::MAX as i32,
@@ -1083,18 +1056,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Xor,
             Instruction::I32Ctz,
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // if *temp1_ptr < amount_of_resources
             Instruction::I32Const { value: temp1_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Const {
                 value: amount_of_resources as i32,
@@ -1108,34 +1075,22 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Const { value: 1 },
             Instruction::I32Const { value: temp1_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Shl,
             Instruction::I32Const { value: flags_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Or,
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // *temp1_ptr = array_ptr + *temp1_ptr * size_of::<T>()
             Instruction::I32Const { value: temp1_ptr },
             Instruction::I32Const { value: temp1_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Const {
                 value: size_of::<T>() as i32,
@@ -1144,10 +1099,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Const { value: array_ptr },
             Instruction::I32Add,
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
         ]);
 
@@ -1155,10 +1107,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             &[
                 Instruction::I32Const { value: temp1_ptr },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
             ],
             0,
@@ -1186,10 +1135,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             // if *flags_ptr > 0
             Instruction::I32Const { value: flags_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Const { value: 0 },
             Instruction::I32GtU, // FIXME: should be I32GtU
@@ -1200,10 +1146,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Const { value: temp1_ptr },
             Instruction::I32Const { value: flags_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Const {
                 value: u32::MAX as i32,
@@ -1213,19 +1156,13 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Const { value: 1 },
             Instruction::I32Sub,
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             // *temp2_ptr = array_ptr + *temp1_ptr * size_of::<T>()
             Instruction::I32Const { value: temp2_ptr },
             Instruction::I32Const { value: temp1_ptr },
             Instruction::I32Load {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
             Instruction::I32Const {
                 value: size_of::<T>() as i32,
@@ -1234,10 +1171,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Const { value: array_ptr },
             Instruction::I32Add,
             Instruction::I32Store {
-                memarg: MemArg {
-                    align: 2,
-                    offset: 0,
-                },
+                memarg: MemArg::i32(),
             },
         ];
 
@@ -1247,18 +1181,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 Instruction::I32Const { value: flags_ptr },
                 Instruction::I32Const { value: flags_ptr },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Const { value: 1 },
                 Instruction::I32Const { value: temp1_ptr },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
                 Instruction::I32Shl,
                 Instruction::I32Const {
@@ -1267,10 +1195,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 Instruction::I32Xor,
                 Instruction::I32And,
                 Instruction::I32Store {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
             ]);
         }
@@ -1282,10 +1207,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             &[
                 Instruction::I32Const { value: temp2_ptr },
                 Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 },
             ],
             size_of::<T>() / size_of::<U>(),

@@ -652,10 +652,7 @@ pub mod body {
                 });
                 head.push(Instruction::I32Const { value: 42 });
                 head.push(Instruction::I32Store {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 });
             });
         head
@@ -672,10 +669,7 @@ pub mod body {
                     value: page.offset() as i32,
                 });
                 head.push(Instruction::I32Load {
-                    memarg: MemArg {
-                        align: 2,
-                        offset: 0,
-                    },
+                    memarg: MemArg::i32(),
                 });
                 head.push(Instruction::Drop);
             });
