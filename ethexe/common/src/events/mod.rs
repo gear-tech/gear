@@ -28,7 +28,7 @@ pub use mirror::{Event as MirrorEvent, RequestEvent as MirrorRequestEvent};
 pub use router::{Event as RouterEvent, RequestEvent as RouterRequestEvent};
 pub use wvara::{Event as WVaraEvent, RequestEvent as WVaraRequestEvent};
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BlockEvent {
     Mirror {
         actor_id: ActorId,
@@ -41,6 +41,17 @@ pub enum BlockEvent {
 impl BlockEvent {
     pub fn mirror(actor_id: ActorId, event: MirrorEvent) -> Self {
         Self::Mirror { actor_id, event }
+    }
+
+    pub fn as_request(self) -> Option<BlockRequestEvent> {
+        Some(match self {
+            Self::Mirror { actor_id, event } => BlockRequestEvent::Mirror {
+                actor_id,
+                event: event.as_request()?,
+            },
+            Self::Router(event) => BlockRequestEvent::Router(event.as_request()?),
+            Self::WVara(event) => BlockRequestEvent::WVara(event.as_request()?),
+        })
     }
 }
 

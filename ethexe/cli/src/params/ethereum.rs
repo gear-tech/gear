@@ -19,7 +19,7 @@
 use super::MergeParams;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use ethexe_service::config::EthereumConfig;
+use ethexe_observer::EthereumConfig;
 use serde::Deserialize;
 use std::time::Duration;
 
