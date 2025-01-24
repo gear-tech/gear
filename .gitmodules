@@ -17,3 +17,6 @@
 [submodule "ethexe/contracts/lib/symbiotic-core"]
 	path = ethexe/contracts/lib/symbiotic-core
 	url = https://github.com/grishasobol/symbiotic-core
+[submodule "ethexe/contracts/lib/frost-secp256k1-evm"]
+	path = ethexe/contracts/lib/frost-secp256k1-evm
+	url = https://github.com/StackOverflowExcept1on/frost-secp256k1-evm
