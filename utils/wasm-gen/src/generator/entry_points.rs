@@ -186,10 +186,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             let mut builder = ModuleBuilder::from_module(module);
             builder.add_func(
                 FuncType::new([], []),
-                Function {
-                    locals: vec![],
-                    instructions: export_body_instructions,
-                },
+                Function::from_instructions(export_body_instructions),
             );
             builder.push_export(Export::func(name.to_string(), export_idx as u32));
 

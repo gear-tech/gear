@@ -1284,123 +1284,117 @@ where
             SyscallName::Free,
             SyscallName::FreeRange,
         ],
-        init_body: Some(Function {
-            locals: vec![],
-            instructions: vec![
-                // allocate 5 pages
-                Instruction::Block {
-                    blockty: BlockType::Empty,
-                },
-                Instruction::I32Const { value: 0x5 },
-                Instruction::Call { function_index: 0 },
-                Instruction::I32Const { value: 0x1 },
-                Instruction::I32Eq,
-                Instruction::BrIf { relative_depth: 0 },
-                Instruction::Unreachable,
-                Instruction::End,
-                // put some values in pages 2-5
-                Instruction::Block {
-                    blockty: BlockType::Empty,
-                },
-                Instruction::I32Const { value: 0x10001 },
-                Instruction::I32Const { value: 0x61 },
-                Instruction::I32Store {
-                    memarg: MemArg::i32(),
-                },
-                Instruction::I32Const { value: 0x20001 },
-                Instruction::I32Const { value: 0x62 },
-                Instruction::I32Store {
-                    memarg: MemArg::i32(),
-                },
-                Instruction::I32Const { value: 0x30001 },
-                Instruction::I32Const { value: 0x63 },
-                Instruction::I32Store {
-                    memarg: MemArg::i32(),
-                },
-                Instruction::I32Const { value: 0x40001 },
-                Instruction::I32Const { value: 0x64 },
-                Instruction::I32Store {
-                    memarg: MemArg::i32(),
-                },
-                Instruction::End,
-                // check it has the value
-                Instruction::Block {
-                    blockty: BlockType::Empty,
-                },
-                Instruction::I32Const { value: 0x10001 },
-                Instruction::I32Load {
-                    memarg: MemArg::i32(),
-                },
-                Instruction::I32Const { value: 0x61 },
-                Instruction::I32Eq,
-                Instruction::BrIf { relative_depth: 0 },
-                Instruction::Unreachable,
-                Instruction::End,
-                // free second page
-                Instruction::Block {
-                    blockty: BlockType::Empty,
-                },
-                Instruction::I32Const { value: 0x1 },
-                Instruction::Call { function_index: 1 },
-                Instruction::Drop,
-                Instruction::End,
-                // free_range pages 2-4
-                Instruction::Block {
-                    blockty: BlockType::Empty,
-                },
-                Instruction::I32Const { value: 0x1 },
-                Instruction::I32Const { value: 0x3 },
-                Instruction::Call { function_index: 2 },
-                Instruction::Drop,
-                Instruction::End,
-                Instruction::End,
-            ],
-        }),
-        handle_body: Some(Function {
-            locals: vec![],
-            instructions: vec![
-                // check that the second page is empty
-                Instruction::Block {
-                    blockty: BlockType::Empty,
-                },
-                Instruction::I32Const { value: 0x10001 },
-                Instruction::I32Load {
-                    memarg: MemArg::i32(),
-                },
-                Instruction::I32Const { value: 0x0 },
-                Instruction::I32Eq,
-                Instruction::BrIf { relative_depth: 0 },
-                Instruction::Unreachable,
-                Instruction::End,
-                // check that the 3rd page is empty
-                Instruction::Block {
-                    blockty: BlockType::Empty,
-                },
-                Instruction::I32Const { value: 0x20001 },
-                Instruction::I32Load {
-                    memarg: MemArg::i32(),
-                },
-                Instruction::I32Const { value: 0x0 },
-                Instruction::I32Eq,
-                Instruction::BrIf { relative_depth: 0 },
-                Instruction::Unreachable,
-                Instruction::End,
-                // check that the 5th page still has data
-                Instruction::Block {
-                    blockty: BlockType::Empty,
-                },
-                Instruction::I32Const { value: 0x40001 },
-                Instruction::I32Load {
-                    memarg: MemArg::i32(),
-                },
-                Instruction::I32Const { value: 0x64 },
-                Instruction::I32Eq,
-                Instruction::BrIf { relative_depth: 0 },
-                Instruction::Unreachable,
-                Instruction::End,
-                Instruction::End,
-            ],
-        }),
+        init_body: Some(Function::from_instructions([
+            // allocate 5 pages
+            Instruction::Block {
+                blockty: BlockType::Empty,
+            },
+            Instruction::I32Const { value: 0x5 },
+            Instruction::Call { function_index: 0 },
+            Instruction::I32Const { value: 0x1 },
+            Instruction::I32Eq,
+            Instruction::BrIf { relative_depth: 0 },
+            Instruction::Unreachable,
+            Instruction::End,
+            // put some values in pages 2-5
+            Instruction::Block {
+                blockty: BlockType::Empty,
+            },
+            Instruction::I32Const { value: 0x10001 },
+            Instruction::I32Const { value: 0x61 },
+            Instruction::I32Store {
+                memarg: MemArg::i32(),
+            },
+            Instruction::I32Const { value: 0x20001 },
+            Instruction::I32Const { value: 0x62 },
+            Instruction::I32Store {
+                memarg: MemArg::i32(),
+            },
+            Instruction::I32Const { value: 0x30001 },
+            Instruction::I32Const { value: 0x63 },
+            Instruction::I32Store {
+                memarg: MemArg::i32(),
+            },
+            Instruction::I32Const { value: 0x40001 },
+            Instruction::I32Const { value: 0x64 },
+            Instruction::I32Store {
+                memarg: MemArg::i32(),
+            },
+            Instruction::End,
+            // check it has the value
+            Instruction::Block {
+                blockty: BlockType::Empty,
+            },
+            Instruction::I32Const { value: 0x10001 },
+            Instruction::I32Load {
+                memarg: MemArg::i32(),
+            },
+            Instruction::I32Const { value: 0x61 },
+            Instruction::I32Eq,
+            Instruction::BrIf { relative_depth: 0 },
+            Instruction::Unreachable,
+            Instruction::End,
+            // free second page
+            Instruction::Block {
+                blockty: BlockType::Empty,
+            },
+            Instruction::I32Const { value: 0x1 },
+            Instruction::Call { function_index: 1 },
+            Instruction::Drop,
+            Instruction::End,
+            // free_range pages 2-4
+            Instruction::Block {
+                blockty: BlockType::Empty,
+            },
+            Instruction::I32Const { value: 0x1 },
+            Instruction::I32Const { value: 0x3 },
+            Instruction::Call { function_index: 2 },
+            Instruction::Drop,
+            Instruction::End,
+            Instruction::End,
+        ])),
+        handle_body: Some(Function::from_instructions([
+            // check that the second page is empty
+            Instruction::Block {
+                blockty: BlockType::Empty,
+            },
+            Instruction::I32Const { value: 0x10001 },
+            Instruction::I32Load {
+                memarg: MemArg::i32(),
+            },
+            Instruction::I32Const { value: 0x0 },
+            Instruction::I32Eq,
+            Instruction::BrIf { relative_depth: 0 },
+            Instruction::Unreachable,
+            Instruction::End,
+            // check that the 3rd page is empty
+            Instruction::Block {
+                blockty: BlockType::Empty,
+            },
+            Instruction::I32Const { value: 0x20001 },
+            Instruction::I32Load {
+                memarg: MemArg::i32(),
+            },
+            Instruction::I32Const { value: 0x0 },
+            Instruction::I32Eq,
+            Instruction::BrIf { relative_depth: 0 },
+            Instruction::Unreachable,
+            Instruction::End,
+            // check that the 5th page still has data
+            Instruction::Block {
+                blockty: BlockType::Empty,
+            },
+            Instruction::I32Const { value: 0x40001 },
+            Instruction::I32Load {
+                memarg: MemArg::i32(),
+            },
+            Instruction::I32Const { value: 0x64 },
+            Instruction::I32Eq,
+            Instruction::BrIf { relative_depth: 0 },
+            Instruction::Unreachable,
+            Instruction::End,
+            Instruction::End,
+        ])),
         ..Default::default()
     }
     .into()

@@ -70,20 +70,11 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     // alloc
     mbuilder.add_func(
         FuncType::new([ValType::I32], [ValType::I32]),
-        Function {
-            locals: vec![],
-            instructions: vec![],
-        },
+        Function::default(),
     );
 
     // init
-    mbuilder.add_func(
-        FuncType::new([], []),
-        Function {
-            locals: vec![],
-            instructions: vec![],
-        },
-    );
+    mbuilder.add_func(FuncType::new([], []), Function::default());
     mbuilder.push_export(Export::func("init", 1));
 
     // handle

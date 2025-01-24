@@ -739,17 +739,11 @@ pub mod body {
 
     pub fn from_instructions(mut instructions: Vec<Instruction>) -> Function {
         instructions.push(Instruction::End);
-        Function {
-            locals: vec![],
-            instructions,
-        }
+        Function::from_instructions(instructions)
     }
 
     pub fn empty() -> Function {
-        Function {
-            locals: vec![],
-            instructions: vec![],
-        }
+        Function::default()
     }
 
     pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> Function {

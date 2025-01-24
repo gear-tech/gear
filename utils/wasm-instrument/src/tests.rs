@@ -65,34 +65,25 @@ fn prebuilt_simple_module() -> Module {
         init_expr: ConstExpr::empty(),
     });
 
-    builder.add_func(
-        FuncType::new([ValType::I32], []),
-        Function {
-            locals: Vec::new(),
-            instructions: vec![],
-        },
-    );
+    builder.add_func(FuncType::new([ValType::I32], []), Function::default());
 
     builder.add_func(
         FuncType::new([ValType::I32], []),
-        Function {
-            locals: Vec::new(),
-            instructions: vec![
-                Call { function_index: 0 },
-                If {
-                    blockty: BlockType::Empty,
-                },
-                Call { function_index: 0 },
-                Call { function_index: 0 },
-                Call { function_index: 0 },
-                Else,
-                Call { function_index: 0 },
-                Call { function_index: 0 },
-                End,
-                Call { function_index: 0 },
-                End,
-            ],
-        },
+        Function::from_instructions([
+            Call { function_index: 0 },
+            If {
+                blockty: BlockType::Empty,
+            },
+            Call { function_index: 0 },
+            Call { function_index: 0 },
+            Call { function_index: 0 },
+            Else,
+            Call { function_index: 0 },
+            Call { function_index: 0 },
+            End,
+            Call { function_index: 0 },
+            End,
+        ]),
     );
 
     builder.build()

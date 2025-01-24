@@ -7,7 +7,7 @@ use crate::{
     module::{ElementItems, Function, Instruction, ModuleBuilder},
     Module,
 };
-use alloc::{collections::BTreeMap as Map, vec, vec::Vec};
+use alloc::{collections::BTreeMap as Map, vec::Vec};
 use wasmparser::{ExternalKind, FuncType};
 
 struct Thunk {
@@ -129,10 +129,7 @@ where
         // Signature of the thunk should match the original function signature.
         mbuilder.add_func(
             thunk.signature.clone(),
-            Function {
-                locals: vec![],
-                instructions: thunk_body,
-            },
+            Function::from_instructions(thunk_body),
         );
 
         thunk.idx = Some(next_func_idx);

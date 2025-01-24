@@ -94,13 +94,7 @@ pub fn remove_recursion(module: Module) -> Module {
 
         body.push(Instruction::End);
 
-        let mock_index = mbuilder.add_func(
-            signature,
-            Function {
-                locals: vec![],
-                instructions: body,
-            },
-        );
+        let mock_index = mbuilder.add_func(signature, Function::from_instructions(body));
 
         call_substitutions.insert(call_index, mock_index + import_count as u32);
     }

@@ -828,6 +828,13 @@ pub struct Function {
 }
 
 impl Function {
+    pub fn from_instructions(instructions: impl Into<Vec<Instruction>>) -> Self {
+        Self {
+            locals: Vec::new(),
+            instructions: instructions.into(),
+        }
+    }
+
     fn from_entry(func: FunctionBody) -> Result<Self> {
         let mut locals = Vec::new();
         for pair in func.get_locals_reader()? {

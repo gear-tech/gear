@@ -1044,13 +1044,7 @@ impl SyscallsImportsGenerator<'_, '_> {
 
         let func_idx = self.module.with(|module| {
             let mut builder = ModuleBuilder::from_module(module);
-            let idx = builder.add_func(
-                func_ty,
-                Function {
-                    locals: vec![],
-                    instructions: func_instructions,
-                },
-            );
+            let idx = builder.add_func(func_ty, Function::from_instructions(func_instructions));
 
             (builder.build(), idx)
         });

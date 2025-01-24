@@ -11,7 +11,7 @@ use crate::{
     module::{Function, Import, Instruction, ModuleBuilder},
     Module,
 };
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use core::{cmp::min, mem, num::NonZeroU32};
 use wasmparser::{FuncType, TypeRef, ValType};
 
@@ -544,22 +544,19 @@ fn add_grow_counter<R: Rules>(module: Module, rules: &R, gas_func: u32) -> Modul
     let mut b = ModuleBuilder::from_module(module);
     b.add_func(
         FuncType::new([ValType::I32], [ValType::I32]),
-        Function {
-            locals: vec![],
-            instructions: vec![
-                LocalGet { local_index: 0 },
-                LocalGet { local_index: 0 },
-                I32Const { value: cost as i32 },
-                I32Mul,
-                // todo: there should be strong guarantee that it does not return anything on
-                // stack?
-                Call {
-                    function_index: gas_func,
-                },
-                MemoryGrow { mem: 0 },
-                End,
-            ],
-        },
+        Function::from_instructions([
+            LocalGet { local_index: 0 },
+            LocalGet { local_index: 0 },
+            I32Const { value: cost as i32 },
+            I32Mul,
+            // todo: there should be strong guarantee that it does not return anything on
+            // stack?
+            Call {
+                function_index: gas_func,
+            },
+            MemoryGrow { mem: 0 },
+            End,
+        ]),
     );
 
     b.build()
@@ -774,24 +771,21 @@ mod tests {
 
         mbuilder.add_func(
             FuncType::new([ValType::I32], []),
-            Function {
-                locals: vec![],
-                instructions: vec![
-                    Call { function_index: 0 },
-                    If {
-                        blockty: BlockType::Empty,
-                    },
-                    Call { function_index: 0 },
-                    Call { function_index: 0 },
-                    Call { function_index: 0 },
-                    Else,
-                    Call { function_index: 0 },
-                    Call { function_index: 0 },
-                    End,
-                    Call { function_index: 0 },
-                    End,
-                ],
-            },
+            Function::from_instructions([
+                Call { function_index: 0 },
+                If {
+                    blockty: BlockType::Empty,
+                },
+                Call { function_index: 0 },
+                Call { function_index: 0 },
+                Call { function_index: 0 },
+                Else,
+                Call { function_index: 0 },
+                Call { function_index: 0 },
+                End,
+                Call { function_index: 0 },
+                End,
+            ]),
         );
 
         mbuilder.build()

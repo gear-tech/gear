@@ -341,16 +341,13 @@ fn append_get_global_function(module: Module, offset: u32, data_len: usize) -> M
     };
 
     let ty = FuncType::new([], [result]);
-    let function = Function {
-        locals: vec![],
-        instructions: vec![
-            Instruction::I32Const {
-                value: offset as i32,
-            },
-            load_instr,
-            Instruction::End,
-        ],
-    };
+    let function = Function::from_instructions([
+        Instruction::I32Const {
+            value: offset as i32,
+        },
+        load_instr,
+        Instruction::End,
+    ]);
     builder.add_func(ty, function);
 
     builder.build()
@@ -376,17 +373,14 @@ fn append_set_global_function(module: Module, offset: u32, data_len: usize) -> M
     };
 
     let ty = FuncType::new([param], []);
-    let function = Function {
-        locals: vec![],
-        instructions: vec![
-            Instruction::I32Const {
-                value: offset as i32,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            store_instr,
-            Instruction::End,
-        ],
-    };
+    let function = Function::from_instructions([
+        Instruction::I32Const {
+            value: offset as i32,
+        },
+        Instruction::LocalGet { local_index: 0 },
+        store_instr,
+        Instruction::End,
+    ]);
     builder.add_func(ty, function);
 
     builder.build()
