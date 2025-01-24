@@ -20,7 +20,7 @@ use anyhow::Result;
 use arbitrary::{Arbitrary, Unstructured};
 use gear_wasm_instrument::{
     module::{Export, Global, Instruction, ModuleBuilder},
-    ExternalKind, Module,
+    Module,
 };
 
 pub const GLOBAL_NAME_PREFIX: &str = "gear_fuzz_";
@@ -100,12 +100,8 @@ impl<'u> InjectGlobals<'u> {
 
         // Add global exports
         let mut builder = ModuleBuilder::from_module(module);
-        for global in global_names.iter() {
-            builder.push_export(Export {
-                name: global.into(),
-                kind: ExternalKind::Global,
-                index: next_global_idx,
-            });
+        for global in global_names {
+            builder.push_export(Export::global(global, next_global_idx));
             builder.push_global(Global::i64_value_mut(INITIAL_GLOBAL_VALUE));
 
             next_global_idx += 1;
@@ -118,6 +114,7 @@ impl<'u> InjectGlobals<'u> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gear_wasm_instrument::ExternalKind;
 
     const TEST_PROGRAM_WAT: &str = r#"
         (module

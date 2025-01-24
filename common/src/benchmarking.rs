@@ -26,7 +26,7 @@ use gear_core::{
 };
 use gear_wasm_instrument::{
     module::{Export, Function, Import, Instruction, ModuleBuilder},
-    ExternalKind, FuncType, Module, ValType,
+    FuncType, Module, ValType,
 };
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
@@ -47,11 +47,7 @@ pub fn create_module(num_pages: WasmPage) -> Module {
     let mut mbuilder = ModuleBuilder::default();
     mbuilder.push_import(Import::memory("env", "memory", num_pages.into(), None));
     mbuilder.add_func(FuncType::new([], []), Function::default());
-    mbuilder.push_export(Export {
-        name: "init".into(),
-        kind: ExternalKind::Func,
-        index: 0,
-    });
+    mbuilder.push_export(Export::func("init", 0));
     mbuilder.build()
 }
 
@@ -88,11 +84,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
             instructions: vec![],
         },
     );
-    mbuilder.push_export(Export {
-        name: "init".into(),
-        kind: ExternalKind::Func,
-        index: 1,
-    });
+    mbuilder.push_export(Export::func("init", 1));
 
     // handle
     mbuilder.add_func(
@@ -109,11 +101,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
             ],
         },
     );
-    mbuilder.push_export(Export {
-        name: "handle".into(),
-        kind: ExternalKind::Func,
-        index: 2,
-    });
+    mbuilder.push_export(Export::func("handle", 2));
 
     let code = mbuilder
         .build()

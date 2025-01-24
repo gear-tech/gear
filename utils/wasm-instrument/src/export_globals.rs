@@ -3,7 +3,7 @@ use crate::{
     Module,
 };
 use alloc::{format, vec::Vec};
-use wasmparser::{ExternalKind, TypeRef};
+use wasmparser::TypeRef;
 
 /// Export all declared mutable globals as `prefix_index`.
 ///
@@ -33,11 +33,10 @@ pub fn export_mutable_globals(module: Module, prefix: &str) -> Module {
 
     let mut mbuilder = ModuleBuilder::from_module(module);
     for (symbol_index, export) in exports.into_iter().enumerate() {
-        mbuilder.push_export(Export {
-            name: format!("{}_{}", prefix, symbol_index),
-            kind: ExternalKind::Global,
-            index: (imports_count + export) as u32,
-        });
+        mbuilder.push_export(Export::global(
+            format!("{}_{}", prefix, symbol_index),
+            (imports_count + export) as u32,
+        ));
     }
 
     mbuilder.build()

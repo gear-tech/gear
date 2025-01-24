@@ -42,7 +42,7 @@ pub fn globals_list(module: &Module) -> Vec<String> {
                 .filter_map(|entry| {
                     let export_name = &entry.name;
                     if export_name.starts_with(GLOBAL_NAME_PREFIX) {
-                        Some(export_name.clone())
+                        Some(export_name.to_string())
                     } else {
                         None
                     }

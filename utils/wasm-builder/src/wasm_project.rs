@@ -540,7 +540,7 @@ extern "C" fn metahash() {{
             .iter()
             .flat_map(|entry| {
                 if let ExternalKind::Func = entry.kind {
-                    Some(entry.name.clone())
+                    Some(entry.name.to_string())
                 } else {
                     None
                 }

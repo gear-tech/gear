@@ -255,11 +255,7 @@ fn inject_gas_limiter<R: Rules>(
     let mut mbuilder = ModuleBuilder::from_module(module);
 
     mbuilder.push_global(Global::i64_value_mut(0));
-    mbuilder.push_export(Export {
-        name: GLOBAL_NAME_GAS.to_string(),
-        kind: ExternalKind::Global,
-        index: gas_index,
-    });
+    mbuilder.push_export(Export::global(GLOBAL_NAME_GAS, gas_index));
 
     // This const is introduced to avoid future errors in code if some other
     // `I64Const` instructions appear in gas charge function body.

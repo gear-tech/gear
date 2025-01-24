@@ -28,7 +28,7 @@ use crate::{
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::module::{Export, Function, Instruction, MemArg, ModuleBuilder};
-use wasmparser::{ExternalKind, FuncType, ValType};
+use wasmparser::{FuncType, ValType};
 
 /// Gear wasm entry points generator.
 ///
@@ -191,11 +191,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
                     instructions: export_body_instructions,
                 },
             );
-            builder.push_export(Export {
-                name: name.into(),
-                kind: ExternalKind::Func,
-                index: export_idx as u32,
-            });
+            builder.push_export(Export::func(name.to_string(), export_idx as u32));
 
             (builder.build(), ())
         });

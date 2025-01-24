@@ -39,8 +39,8 @@ use gear_sandbox::{
 use gear_wasm_instrument::{
     module::{Data, DataKind, Element, Table},
     syscalls::SyscallName,
-    BlockType, ConstExpr, Export, ExternalKind, FuncType, Function, Global, Import, Instruction,
-    ModuleBuilder, ValType, STACK_END_EXPORT_NAME,
+    BlockType, ConstExpr, Export, FuncType, Function, Global, Import, Instruction, ModuleBuilder,
+    ValType, STACK_END_EXPORT_NAME,
 };
 use sp_std::{convert::TryFrom, marker::PhantomData, prelude::*};
 
@@ -198,29 +198,10 @@ where
             def.signal_body.unwrap_or_else(body::empty),
         );
 
-        program.push_export(Export {
-            name: "init".into(),
-            kind: ExternalKind::Func,
-            index: func_offset + OFFSET_INIT,
-        });
-
-        program.push_export(Export {
-            name: "handle".into(),
-            kind: ExternalKind::Func,
-            index: func_offset + OFFSET_HANDLE,
-        });
-
-        program.push_export(Export {
-            name: "handle_reply".into(),
-            kind: ExternalKind::Func,
-            index: func_offset + OFFSET_REPLY,
-        });
-
-        program.push_export(Export {
-            name: "handle_signal".into(),
-            kind: ExternalKind::Func,
-            index: func_offset + OFFSET_SIGNAL,
-        });
+        program.push_export(Export::func("init", func_offset + OFFSET_INIT));
+        program.push_export(Export::func("handle", func_offset + OFFSET_HANDLE));
+        program.push_export(Export::func("handle_reply", func_offset + OFFSET_REPLY));
+        program.push_export(Export::func("handle_signal", func_offset + OFFSET_SIGNAL));
 
         // If specified we add an additional internal function
         if let Some(body) = def.aux_body {
@@ -288,11 +269,7 @@ where
         );
 
         program.push_global(Global::i32_value(stack_end.offset() as i32));
-        program.push_export(Export {
-            name: STACK_END_EXPORT_NAME.into(),
-            kind: ExternalKind::Global,
-            index: def.num_globals,
-        });
+        program.push_export(Export::global(STACK_END_EXPORT_NAME, def.num_globals));
 
         // Add function pointer table
         if let Some(table) = def.table {

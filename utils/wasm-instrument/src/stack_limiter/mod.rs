@@ -7,7 +7,7 @@ use crate::{
 use alloc::{string::ToString, vec::Vec};
 use core::mem;
 use max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext};
-use wasmparser::{BlockType, ExternalKind, FuncType, GlobalType, TypeRef, ValType};
+use wasmparser::{BlockType, FuncType, GlobalType, TypeRef, ValType};
 
 mod max_height;
 mod thunk;
@@ -157,11 +157,10 @@ fn generate_stack_height_global(
     let stack_height_global_idx = mbuilder.push_global(global_entry);
 
     if let Some(stack_height_export_name) = stack_height_export_name {
-        mbuilder.push_export(Export {
-            name: stack_height_export_name.to_string(),
-            kind: ExternalKind::Func,
-            index: stack_height_global_idx,
-        });
+        mbuilder.push_export(Export::func(
+            stack_height_export_name.to_string(),
+            stack_height_global_idx,
+        ));
     }
 
     (mbuilder.build(), stack_height_global_idx)

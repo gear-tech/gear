@@ -27,7 +27,6 @@ use gear_wasm_instrument::{
     module::{Export, Global, Import, ModuleBuilder},
     STACK_END_EXPORT_NAME,
 };
-use wasmparser::ExternalKind;
 
 /// Memory import generator.
 ///
@@ -114,11 +113,10 @@ impl MemoryGenerator {
                     .len()
                     - 1;
 
-                builder.push_export(Export {
-                    name: STACK_END_EXPORT_NAME.to_string(),
-                    kind: ExternalKind::Global,
-                    index: stack_end_index as u32,
-                });
+                builder.push_export(Export::global(
+                    STACK_END_EXPORT_NAME,
+                    stack_end_index as u32,
+                ));
             }
 
             (builder.build(), ())

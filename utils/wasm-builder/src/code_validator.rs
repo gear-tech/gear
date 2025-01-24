@@ -149,7 +149,7 @@ impl TryFrom<(Module, ExportError)> for ExportErrorWithContext {
                     bail!("failed to get export function index");
                 };
                 let export_func_index = export_entry.index;
-                let export_name = export_entry.name.clone();
+                let export_name = export_entry.name.to_string();
 
                 let import_count = module.import_count(|ty| matches!(ty, TypeRef::Func(_))) as u32;
                 let real_func_index = export_func_index - import_count;
@@ -179,7 +179,7 @@ impl TryFrom<(Module, ExportError)> for ExportErrorWithContext {
 }
 
 fn get_export_name(module: &Module, export_index: u32) -> anyhow::Result<String> {
-    get_export(module, export_index).map(|entry| entry.name.clone())
+    get_export(module, export_index).map(|entry| entry.name.to_string())
 }
 
 fn get_export(module: &Module, export_index: u32) -> anyhow::Result<&Export> {

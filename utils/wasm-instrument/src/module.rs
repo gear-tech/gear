@@ -635,15 +635,31 @@ impl Global {
 
 #[derive(Debug, Clone)]
 pub struct Export {
-    pub name: String,
+    pub name: Cow<'static, str>,
     pub kind: ExternalKind,
     pub index: u32,
 }
 
 impl Export {
+    pub fn func(name: impl Into<Cow<'static, str>>, index: u32) -> Self {
+        Self {
+            name: name.into(),
+            kind: ExternalKind::Func,
+            index,
+        }
+    }
+
+    pub fn global(name: impl Into<Cow<'static, str>>, index: u32) -> Self {
+        Self {
+            name: name.into(),
+            kind: ExternalKind::Global,
+            index,
+        }
+    }
+
     fn new(export: wasmparser::Export) -> Self {
         Self {
-            name: export.name.to_string(),
+            name: export.name.to_string().into(),
             kind: export.kind,
             index: export.index,
         }
