@@ -90,14 +90,7 @@ where
     .map_err(SystemExecutionError::from)?;
 
     // Creating message context.
-    let Some(message_context) = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings)
-    else {
-        return Err(ActorExecutionError {
-            gas_amount: gas_counter.to_amount(),
-            reason: ActorExecutionErrorReplyReason::UnsupportedMessage,
-        }
-        .into());
-    };
+    let message_context = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings);
 
     // Creating value counter.
     //
@@ -304,8 +297,7 @@ where
         ),
         program.id,
         Default::default(),
-    )
-    .ok_or("Incorrect message store context: out of outgoing bytes limit")?;
+    );
 
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
