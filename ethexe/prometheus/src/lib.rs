@@ -95,6 +95,10 @@ impl PrometheusConfig {
     }
 }
 
+pub enum PrometheusEvent {
+    CollectMetrics,
+}
+
 pub struct PrometheusService {
     metrics: PrometheusMetrics,
     updated: Instant,
@@ -104,8 +108,19 @@ pub struct PrometheusService {
     interval: Interval,
 }
 
-pub enum PrometheusEvent {
-    CollectMetrics,
+impl Stream for PrometheusService {
+    type Item = PrometheusEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let e = ready!(pin!(self.next_event()).poll(cx));
+        Poll::Ready(Some(e))
+    }
+}
+
+impl FusedStream for PrometheusService {
+    fn is_terminated(&self) -> bool {
+        self.server.is_finished()
+    }
 }
 
 impl PrometheusService {
@@ -150,21 +165,6 @@ impl PrometheusService {
         self.updated = instant.into();
 
         PrometheusEvent::CollectMetrics
-    }
-}
-
-impl Stream for PrometheusService {
-    type Item = PrometheusEvent;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let e = ready!(pin!(self.next_event()).poll(cx));
-        Poll::Ready(Some(e))
-    }
-}
-
-impl FusedStream for PrometheusService {
-    fn is_terminated(&self) -> bool {
-        self.server.is_finished()
     }
 }
 

@@ -67,6 +67,12 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ObserverEvent {
+    Blob { code_id: CodeId, code: Vec<u8> },
+    Block(BlockData),
+}
+
 pub struct ObserverService {
     blobs: Arc<dyn BlobReader>,
     provider: Provider,
@@ -229,12 +235,6 @@ impl Clone for ObserverService {
             codes_futures: FuturesUnordered::new(),
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ObserverEvent {
-    Blob { code_id: CodeId, code: Vec<u8> },
-    Block(BlockData),
 }
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
