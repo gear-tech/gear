@@ -64,7 +64,7 @@ contract RouterTest is Base {
 
         Gear.ValidatorsCommitment memory commitment = Gear.ValidatorsCommitment(
             Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifingShares(_validators.length),
+            Gear.dummyVerifyingShares(_validators.length),
             _validators,
             1
         );
@@ -83,7 +83,7 @@ contract RouterTest is Base {
         // Started but wrong era index
         Gear.ValidatorsCommitment memory commitment2 = Gear.ValidatorsCommitment(
             Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifingShares(_validators.length),
+            Gear.dummyVerifyingShares(_validators.length),
             _validators,
             2
         );
@@ -151,7 +151,7 @@ contract RouterTest is Base {
 
         Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
             Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifingShares(_validators.length),
+            Gear.dummyVerifyingShares(_validators.length),
             _validators,
             1
         );
@@ -217,7 +217,7 @@ contract RouterTest is Base {
 
         Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
             Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifingShares(_validators.length),
+            Gear.dummyVerifyingShares(_validators.length),
             _validators,
             1
         );
@@ -264,7 +264,7 @@ contract RouterTest is Base {
 
         Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
             Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifingShares(_validators.length),
+            Gear.dummyVerifyingShares(_validators.length),
             _validators,
             1
         );
