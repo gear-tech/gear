@@ -31,8 +31,7 @@ pub enum Event {
     },
     CodeValidationRequested {
         code_id: CodeId,
-        /// This field is replaced with tx hash in case of zero.
-        blob_tx_hash: H256,
+        tx_hash: H256,
     },
     ComputationSettingsChanged {
         threshold: u64,
@@ -51,13 +50,9 @@ pub enum Event {
 impl Event {
     pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
-            Self::CodeValidationRequested {
-                code_id,
-                blob_tx_hash,
-            } => RequestEvent::CodeValidationRequested {
-                code_id,
-                blob_tx_hash,
-            },
+            Self::CodeValidationRequested { code_id, tx_hash } => {
+                RequestEvent::CodeValidationRequested { code_id, tx_hash }
+            }
             Self::ComputationSettingsChanged {
                 threshold,
                 wvara_per_second,
@@ -82,8 +77,7 @@ pub enum RequestEvent {
     CodeValidationRequested {
         code_id: CodeId,
         // TODO (breathx): replace with `code: Vec<u8>`
-        /// This field is replaced with tx hash in case of zero.
-        blob_tx_hash: H256,
+        tx_hash: H256,
     },
     ComputationSettingsChanged {
         threshold: u64,

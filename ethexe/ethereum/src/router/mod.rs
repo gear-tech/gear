@@ -19,12 +19,12 @@
 use crate::{
     abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
     wvara::WVara,
-    AlloyProvider, AlloyTransport, TryGetReceipt,
+    AlloyEthereum, AlloyProvider, AlloyTransport, TryGetReceipt,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{Address, Bytes, B256, U256},
-    providers::{Provider, ProviderBuilder, RootProvider},
+    primitives::{Address, Bytes, U256},
+    providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::Filter,
     transports::BoxTransport,
 };
@@ -45,6 +45,26 @@ type InstanceProvider = Arc<AlloyProvider>;
 type Instance = IRouter::IRouterInstance<AlloyTransport, InstanceProvider>;
 
 type QueryInstance = IRouter::IRouterInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
+
+pub struct RequestCodeValidationPendingTransactionBuilder {
+    code_id: CodeId,
+    pending_builder: PendingTransactionBuilder<AlloyTransport, AlloyEthereum>,
+}
+
+impl RequestCodeValidationPendingTransactionBuilder {
+    pub fn code_id(&self) -> CodeId {
+        self.code_id
+    }
+
+    pub fn tx_hash(&self) -> H256 {
+        H256(self.pending_builder.tx_hash().0)
+    }
+
+    pub async fn send(self) -> Result<(H256, CodeId)> {
+        let receipt = self.pending_builder.try_get_receipt().await?;
+        Ok(((*receipt.transaction_hash).into(), self.code_id))
+    }
+}
 
 #[derive(Clone)]
 pub struct Router {
@@ -81,33 +101,22 @@ impl Router {
         WVara::new(self.wvara_address, self.instance.provider().clone())
     }
 
-    pub async fn request_code_validation(
-        &self,
-        code_id: CodeId,
-        blob_tx_hash: H256,
-    ) -> Result<H256> {
-        let builder = self.instance.requestCodeValidation(
-            code_id.into_bytes().into(),
-            blob_tx_hash.to_fixed_bytes().into(),
-        );
-        let receipt = builder.send().await?.try_get_receipt().await?;
-
-        Ok((*receipt.transaction_hash).into())
-    }
-
     pub async fn request_code_validation_with_sidecar(
         &self,
         code: &[u8],
-    ) -> Result<(H256, CodeId)> {
+    ) -> Result<RequestCodeValidationPendingTransactionBuilder> {
         let code_id = CodeId::generate(code);
 
         let builder = self
             .instance
-            .requestCodeValidation(code_id.into_bytes().into(), B256::ZERO)
+            .requestCodeValidation(code_id.into_bytes().into())
             .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let pending_builder = builder.send().await?;
 
-        Ok(((*receipt.transaction_hash).into(), code_id))
+        Ok(RequestCodeValidationPendingTransactionBuilder {
+            code_id,
+            pending_builder,
+        })
     }
 
     pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<bool> {

@@ -187,8 +187,13 @@ impl TxCommand {
 
                 println!("Uploading {} to Ethereum", path_to_wasm.display(),);
 
-                let (tx, code_id) = router
+                let pending_builder = router
                     .request_code_validation_with_sidecar(&code)
+                    .await
+                    .with_context(|| "failed to create code validation request")?;
+
+                let (tx, code_id) = pending_builder
+                    .send()
                     .await
                     .with_context(|| "failed to request code validation")?;
 

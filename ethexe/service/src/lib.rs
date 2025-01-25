@@ -293,9 +293,9 @@ impl Service {
             match event {
                 BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
                     code_id,
-                    blob_tx_hash,
+                    tx_hash,
                 }) => {
-                    db.set_code_blob_tx(code_id, blob_tx_hash);
+                    db.set_code_blob_tx(code_id, tx_hash);
                 }
                 BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
                     code_id, ..
@@ -306,11 +306,11 @@ impl Service {
 
                     log::debug!("📥 downloading absent code: {code_id}");
 
-                    let blob_tx_hash = db
+                    let tx_hash = db
                         .code_blob_tx(code_id)
                         .ok_or_else(|| anyhow!("Blob tx hash not found"))?;
 
-                    let code = query.download_code(code_id, blob_tx_hash).await?;
+                    let code = query.download_code(code_id, tx_hash).await?;
 
                     processor.process_upload_code(code_id, code.as_slice())?;
                 }
