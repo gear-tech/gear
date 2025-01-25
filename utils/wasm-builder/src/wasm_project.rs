@@ -380,7 +380,7 @@ extern "C" fn metahash() {{
 
         // Optimize wasm using and `wasm-opt` and our optimizations.
         if smart_fs::check_if_newer(&original_wasm_path, &opt_wasm_path)? {
-            let mut optimizer = Optimizer::new(&opt_wasm_path)?;
+            let mut optimizer = Optimizer::new(&original_copy_wasm_path)?;
             optimizer
                 .insert_stack_end_export()
                 .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
@@ -388,7 +388,7 @@ extern "C" fn metahash() {{
             optimizer.strip_exports(OptType::Opt);
             optimizer.flush_to_file(&opt_wasm_path);
 
-            optimize::optimize_wasm(&original_copy_wasm_path, &opt_wasm_path, "4", true)
+            optimize::optimize_wasm(&opt_wasm_path, &opt_wasm_path, "4", true)
                 .map(|res| {
                     log::info!(
                         "Wasm-opt reduced wasm size: {} -> {}",
