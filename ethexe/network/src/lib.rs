@@ -28,7 +28,7 @@ pub mod export {
 use anyhow::{anyhow, Context};
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
-use futures::future::Either;
+use futures::{future::Either, stream::FusedStream, Stream};
 use libp2p::{
     connection_limits,
     core::{muxing::StreamMuxerBox, upgrade},
@@ -37,20 +37,24 @@ use libp2p::{
     multiaddr::Protocol,
     ping,
     swarm::{
+        behaviour::toggle::Toggle,
         dial_opts::{DialOpts, PeerCondition},
         Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
     },
     yamux, Multiaddr, PeerId, Swarm, Transport,
 };
+#[cfg(test)]
+use libp2p_swarm_test::SwarmExt;
 use std::{
     collections::HashSet,
     fs,
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
+    pin::Pin,
     str::FromStr,
+    task::Poll,
     time::Duration,
 };
-use tokio::{select, sync::mpsc};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
@@ -61,15 +65,65 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum NetworkEvent {
+    Message {
+        source: Option<PeerId>,
+        data: Vec<u8>,
+    },
+    DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
+    PeerBlocked(PeerId),
+    ExternalValidation(db_sync::ValidatingResponse),
+}
+
+#[derive(Default, Debug, Clone)]
+pub enum TransportType {
+    #[default]
+    Default,
+    Test,
+}
+
+#[derive(Debug, Clone)]
+pub struct NetworkConfig {
+    pub config_dir: PathBuf,
+    pub public_key: Option<PublicKey>,
+    pub external_addresses: HashSet<Multiaddr>,
+    pub bootstrap_addresses: HashSet<Multiaddr>,
+    pub listen_addresses: HashSet<Multiaddr>,
+    pub transport_type: TransportType,
+}
+
+impl NetworkConfig {
+    pub fn new_local(config_path: PathBuf) -> Self {
+        Self {
+            config_dir: config_path,
+            public_key: None,
+            external_addresses: Default::default(),
+            bootstrap_addresses: Default::default(),
+            listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
+            transport_type: TransportType::Default,
+        }
+    }
+
+    pub fn new_test(config_path: PathBuf) -> Self {
+        Self {
+            config_dir: config_path,
+            public_key: None,
+            external_addresses: Default::default(),
+            bootstrap_addresses: Default::default(),
+            listen_addresses: Default::default(),
+            transport_type: TransportType::Test,
+        }
+    }
+}
+
 pub struct NetworkService {
-    pub sender: NetworkSender,
-    pub receiver: NetworkReceiver,
-    pub event_loop: NetworkEventLoop,
+    swarm: Swarm<Behaviour>,
 }
 
 impl NetworkService {
     pub fn new(
-        config: NetworkEventLoopConfig,
+        config: NetworkConfig,
         signer: &Signer,
         db: Database,
     ) -> anyhow::Result<NetworkService> {
@@ -77,8 +131,8 @@ impl NetworkService {
             .context("failed to create network configuration directory")?;
 
         let keypair =
-            NetworkEventLoop::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = NetworkEventLoop::create_swarm(keypair, db, config.transport_type)?;
+            NetworkService::generate_keypair(signer, &config.config_dir, config.public_key)?;
+        let mut swarm = NetworkService::create_swarm(keypair, db, config.transport_type)?;
 
         for multiaddr in config.external_addresses {
             swarm.add_external_address(multiaddr);
@@ -103,136 +157,9 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        let (network_sender, sender_rx) = NetworkSender::new();
-        let (receiver_tx, network_receiver) = NetworkReceiver::new();
-
-        Ok(Self {
-            sender: network_sender,
-            receiver: network_receiver,
-            event_loop: NetworkEventLoop {
-                swarm,
-                external_rx: sender_rx,
-                external_tx: receiver_tx,
-            },
-        })
-    }
-}
-
-#[derive(Debug)]
-enum NetworkSenderEvent {
-    PublishMessage { data: Vec<u8> },
-    RequestDbData(db_sync::Request),
-    RequestValidated(Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>),
-}
-
-#[derive(Debug, Clone)]
-pub struct NetworkSender {
-    tx: mpsc::UnboundedSender<NetworkSenderEvent>,
-}
-
-impl NetworkSender {
-    fn new() -> (Self, mpsc::UnboundedReceiver<NetworkSenderEvent>) {
-        let (tx, rx) = mpsc::unbounded_channel();
-        (Self { tx }, rx)
+        Ok(Self { swarm })
     }
 
-    // TODO: consider to append salt here to be sure that message is unique.
-    // This is important for the cases of malfunctions in ethexe, when the same message
-    // needs to be sent again #4255
-    pub fn publish_message(&self, data: impl Into<Vec<u8>>) {
-        let _res = self
-            .tx
-            .send(NetworkSenderEvent::PublishMessage { data: data.into() });
-    }
-
-    pub fn request_db_data(&self, request: db_sync::Request) {
-        let _res = self.tx.send(NetworkSenderEvent::RequestDbData(request));
-    }
-
-    pub fn request_validated(
-        &self,
-        res: Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>,
-    ) {
-        let _res = self.tx.send(NetworkSenderEvent::RequestValidated(res));
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum NetworkReceiverEvent {
-    Message {
-        source: Option<PeerId>,
-        data: Vec<u8>,
-    },
-    DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
-    PeerBlocked(PeerId),
-    ExternalValidation(db_sync::ValidatingResponse),
-}
-
-pub struct NetworkReceiver {
-    rx: mpsc::UnboundedReceiver<NetworkReceiverEvent>,
-}
-
-impl NetworkReceiver {
-    fn new() -> (mpsc::UnboundedSender<NetworkReceiverEvent>, Self) {
-        let (tx, rx) = mpsc::unbounded_channel();
-        (tx, Self { rx })
-    }
-
-    pub async fn recv(&mut self) -> Option<NetworkReceiverEvent> {
-        self.rx.recv().await
-    }
-}
-
-#[derive(Default, Debug, Clone)]
-pub enum TransportType {
-    #[default]
-    QuicOrTcp,
-    Memory,
-}
-
-#[derive(Debug, Clone)]
-pub struct NetworkEventLoopConfig {
-    pub config_dir: PathBuf,
-    pub public_key: Option<PublicKey>,
-    pub external_addresses: HashSet<Multiaddr>,
-    pub bootstrap_addresses: HashSet<Multiaddr>,
-    pub listen_addresses: HashSet<Multiaddr>,
-    pub transport_type: TransportType,
-}
-
-impl NetworkEventLoopConfig {
-    pub fn new_local(config_path: PathBuf) -> Self {
-        Self {
-            config_dir: config_path,
-            public_key: None,
-            external_addresses: Default::default(),
-            bootstrap_addresses: Default::default(),
-            listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
-            transport_type: TransportType::QuicOrTcp,
-        }
-    }
-
-    pub fn new_memory(config_path: PathBuf, addr: &str) -> Self {
-        Self {
-            config_dir: config_path,
-            public_key: None,
-            external_addresses: Default::default(),
-            bootstrap_addresses: Default::default(),
-            listen_addresses: [addr.parse().unwrap()].into(),
-            transport_type: TransportType::Memory,
-        }
-    }
-}
-
-pub struct NetworkEventLoop {
-    swarm: Swarm<Behaviour>,
-    // event receiver from service
-    external_rx: mpsc::UnboundedReceiver<NetworkSenderEvent>,
-    // event sender to service
-    external_tx: mpsc::UnboundedSender<NetworkReceiverEvent>,
-}
-
-impl NetworkEventLoop {
     fn generate_keypair(
         signer: &Signer,
         config_path: &Path,
@@ -264,21 +191,13 @@ impl NetworkEventLoop {
         Ok(identity::Keypair::from(pair))
     }
 
-    pub fn local_peer_id(&self) -> PeerId {
-        *self.swarm.local_peer_id()
-    }
-
-    pub fn score_handle(&self) -> peer_score::Handle {
-        self.swarm.behaviour().peer_score.handle()
-    }
-
     fn create_swarm(
         keypair: identity::Keypair,
         db: Database,
         transport_type: TransportType,
     ) -> anyhow::Result<Swarm<Behaviour>> {
         let transport = match transport_type {
-            TransportType::QuicOrTcp => {
+            TransportType::Default => {
                 let tcp = libp2p::tcp::tokio::Transport::default()
                     .upgrade(upgrade::Version::V1Lazy)
                     .authenticate(libp2p::tls::Config::new(&keypair)?)
@@ -295,48 +214,42 @@ impl NetworkEventLoop {
                     })
                     .boxed()
             }
-            TransportType::Memory => libp2p::core::transport::MemoryTransport::default()
+            TransportType::Test => libp2p::core::transport::MemoryTransport::default()
+                .or_transport(libp2p::tcp::tokio::Transport::default())
                 .upgrade(upgrade::Version::V1Lazy)
                 .authenticate(libp2p::plaintext::Config::new(&keypair))
                 .multiplex(yamux::Config::default())
+                .timeout(Duration::from_secs(20))
                 .boxed(),
         };
 
-        let behaviour = Behaviour::new(&keypair, db)?;
+        let enable_mdns = match transport_type {
+            TransportType::Default => true,
+            TransportType::Test => false,
+        };
+
+        let behaviour = Behaviour::new(&keypair, db, enable_mdns)?;
         let local_peer_id = keypair.public().to_peer_id();
-        let config = SwarmConfig::with_tokio_executor();
+        let mut config = SwarmConfig::with_tokio_executor();
+
+        if let TransportType::Test = transport_type {
+            config = config.with_idle_connection_timeout(Duration::from_secs(5));
+        }
 
         Ok(Swarm::new(transport, behaviour, local_peer_id, config))
     }
 
-    pub async fn run(mut self) {
-        loop {
-            select! {
-                event = self.swarm.select_next_some() => self.handle_swarm_event(event),
-                event = self.external_rx.recv() => match event {
-                    Some(event) => {
-                        self.handle_network_rx_event(event);
-                    }
-                    None => {
-                        log::info!("Network channel has been disconnected, shutting down network service...");
-                        break;
-                    },
-                },
-            }
-        }
-    }
-
-    fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) {
+    fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) -> Option<NetworkEvent> {
         log::trace!("new swarm event: {event:?}");
 
         #[allow(clippy::single_match)]
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
-            _ => {}
+            _ => None,
         }
     }
 
-    fn handle_behaviour_event(&mut self, event: BehaviourEvent) {
+    fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
             BehaviourEvent::CustomConnectionLimits(void) => void::unreachable(void),
             //
@@ -345,11 +258,7 @@ impl NetworkEventLoop {
             BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
                 peer_id,
                 last_reason: _,
-            }) => {
-                let _res = self
-                    .external_tx
-                    .send(NetworkReceiverEvent::PeerBlocked(peer_id));
-            }
+            }) => return Some(NetworkEvent::PeerBlocked(peer_id)),
             BehaviourEvent::PeerScore(_) => {}
             //
             BehaviourEvent::Ping(ping::Event {
@@ -413,11 +322,13 @@ impl NetworkEventLoop {
             //
             BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
                 let behaviour = self.swarm.behaviour_mut();
-                if behaviour.mdns4.discovered_nodes().any(|&p| p == peer) {
-                    // we don't want local peers to appear in KadDHT.
-                    // event can be emitted few times in a row for
-                    // the same peer, so we just ignore `None`
-                    let _res = behaviour.kad.remove_peer(&peer);
+                if let Some(mdns4) = behaviour.mdns4.as_ref() {
+                    if mdns4.discovered_nodes().any(|&p| p == peer) {
+                        // we don't want local peers to appear in KadDHT.
+                        // event can be emitted few times in a row for
+                        // the same peer, so we just ignore `None`
+                        let _res = behaviour.kad.remove_peer(&peer);
+                    }
                 }
             }
             BehaviourEvent::Kad(_) => {}
@@ -432,9 +343,7 @@ impl NetworkEventLoop {
                     },
                 ..
             }) if gpu_commitments_topic().hash() == topic => {
-                let _res = self
-                    .external_tx
-                    .send(NetworkReceiverEvent::Message { source, data });
+                return Some(NetworkEvent::Message { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported");
@@ -447,50 +356,93 @@ impl NetworkEventLoop {
             BehaviourEvent::Gossipsub(_) => {}
             //
             BehaviourEvent::DbSync(db_sync::Event::ExternalValidation(validating_response)) => {
-                let _res = self
-                    .external_tx
-                    .send(NetworkReceiverEvent::ExternalValidation(
-                        validating_response,
-                    ));
+                return Some(NetworkEvent::ExternalValidation(validating_response));
             }
             BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
                 request_id: _,
                 response,
             }) => {
-                let _res = self
-                    .external_tx
-                    .send(NetworkReceiverEvent::DbResponse(Ok(response)));
+                return Some(NetworkEvent::DbResponse(Ok(response)));
             }
             BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
                 request_id: _,
                 error,
             }) => {
-                let _res = self
-                    .external_tx
-                    .send(NetworkReceiverEvent::DbResponse(Err(error)));
+                return Some(NetworkEvent::DbResponse(Err(error)));
             }
             BehaviourEvent::DbSync(_) => {}
         }
+
+        None
     }
 
-    fn handle_network_rx_event(&mut self, event: NetworkSenderEvent) {
-        match event {
-            NetworkSenderEvent::PublishMessage { data } => {
-                if let Err(e) = self
-                    .swarm
-                    .behaviour_mut()
-                    .gossipsub
-                    .publish(gpu_commitments_topic(), data)
-                {
-                    log::debug!("gossipsub publishing failed: {e}")
-                }
+    pub fn local_peer_id(&self) -> PeerId {
+        *self.swarm.local_peer_id()
+    }
+
+    pub fn score_handle(&self) -> peer_score::Handle {
+        self.swarm.behaviour().peer_score.handle()
+    }
+
+    pub fn publish_message(&mut self, data: Vec<u8>) {
+        if let Err(e) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(gpu_commitments_topic(), data)
+        {
+            log::debug!("gossipsub publishing failed: {e}")
+        }
+    }
+
+    pub fn request_db_data(&mut self, request: db_sync::Request) {
+        self.swarm.behaviour_mut().db_sync.request(request);
+    }
+
+    pub fn request_validated(
+        &mut self,
+        res: Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>,
+    ) {
+        self.swarm.behaviour_mut().db_sync.request_validated(res);
+    }
+}
+
+impl Stream for NetworkService {
+    type Item = NetworkEvent;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        if let Poll::Ready(Some(event)) = self.swarm.poll_next_unpin(cx) {
+            if let Some(event) = self.get_mut().handle_swarm_event(event) {
+                return Poll::Ready(Some(event));
+            } else {
+                cx.waker().wake_by_ref();
             }
-            NetworkSenderEvent::RequestDbData(request) => {
-                self.swarm.behaviour_mut().db_sync.request(request);
-            }
-            NetworkSenderEvent::RequestValidated(res) => {
-                self.swarm.behaviour_mut().db_sync.request_validated(res);
-            }
+        }
+
+        Poll::Pending
+    }
+}
+
+impl FusedStream for NetworkService {
+    fn is_terminated(&self) -> bool {
+        self.swarm.is_terminated()
+    }
+}
+
+#[cfg(test)]
+impl NetworkService {
+    async fn connect(&mut self, service: &mut Self) {
+        self.swarm.listen().with_memory_addr_external().await;
+        service.swarm.listen().with_memory_addr_external().await;
+        self.swarm.connect(&mut service.swarm).await;
+    }
+
+    async fn loop_on_next(mut self) {
+        while let Some(event) = self.next().await {
+            log::trace!("loop_on_next: {event:?}");
         }
     }
 }
@@ -508,7 +460,7 @@ pub(crate) struct Behaviour {
     // friend or foe system
     pub identify: identify::Behaviour,
     // local discovery for IPv4 only
-    pub mdns4: mdns::tokio::Behaviour,
+    pub mdns4: Toggle<mdns::tokio::Behaviour>,
     // global traversal discovery
     // TODO: consider to cache records in fs
     pub kad: kad::Behaviour<kad::store::MemoryStore>,
@@ -519,7 +471,7 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    fn new(keypair: &identity::Keypair, db: Database) -> anyhow::Result<Self> {
+    fn new(keypair: &identity::Keypair, db: Database, enable_mdns: bool) -> anyhow::Result<Self> {
         let peer_id = keypair.public().to_peer_id();
 
         // we use custom behaviour because
@@ -550,7 +502,11 @@ impl Behaviour {
             .with_agent_version(AGENT_VERSION.to_string());
         let identify = identify::Behaviour::new(identify_config);
 
-        let mdns4 = mdns::Behaviour::new(mdns::Config::default(), peer_id)?;
+        let mdns4 = Toggle::from(
+            enable_mdns
+                .then(|| mdns::Behaviour::new(mdns::Config::default(), peer_id))
+                .transpose()?,
+        );
 
         let mut kad = kad::Behaviour::new(peer_id, kad::store::MemoryStore::new(peer_id));
         kad.set_mode(Some(kad::Mode::Server));
@@ -604,108 +560,57 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
+    use tempfile::TempDir;
     use tokio::time::{timeout, Duration};
+
+    fn new_service_with_db(db: Database) -> (TempDir, NetworkService) {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let config = NetworkConfig::new_test(tmp_dir.path().to_path_buf());
+        let signer = ethexe_signer::Signer::new(tmp_dir.path().join("key")).unwrap();
+        let service = NetworkService::new(config.clone(), &signer, db).unwrap();
+        (tmp_dir, service)
+    }
+
+    fn new_service() -> (TempDir, NetworkService) {
+        new_service_with_db(Database::from_one(&MemDb::default(), [0; 20]))
+    }
 
     #[tokio::test]
     async fn test_memory_transport() {
         init_logger();
 
-        let tmp_dir1 = tempfile::tempdir().unwrap();
-        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/1");
-        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
-        let service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
+        let (_tmp_dir, mut service1) = new_service();
+        let (_tmp_dir, mut service2) = new_service();
 
-        let peer_id = service1.event_loop.local_peer_id();
-        let multiaddr: Multiaddr = format!("/memory/1/p2p/{peer_id}").parse().unwrap();
-
-        let (sender, mut _service1_handle) =
-            (service1.sender, tokio::spawn(service1.event_loop.run()));
-
-        // second service
-        let tmp_dir2 = tempfile::tempdir().unwrap();
-        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
-        let mut config2 =
-            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/2");
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
-
-        config2.bootstrap_addresses = [multiaddr].into();
-
-        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
-        tokio::spawn(service2.event_loop.run());
-
-        // Wait for the connection to be established
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
-        // Send a commitment from service1
-        let commitment_data = b"test commitment".to_vec();
-
-        sender.publish_message(commitment_data.clone());
-
-        let mut receiver = service2.receiver;
-
-        // Wait for the commitment to be received by service2
-        let received_commitment = timeout(Duration::from_secs(5), async {
-            while let Some(NetworkReceiverEvent::Message { source: _, data }) =
-                receiver.recv().await
-            {
-                if data == commitment_data {
-                    return Some(data);
-                }
-            }
-
-            None
-        })
-        .await
-        .expect("Timeout while waiting for commitment");
-
-        assert!(received_commitment.is_some(), "Commitment was not received");
+        service1.connect(&mut service2).await;
     }
 
     #[tokio::test]
     async fn request_db_data() {
         init_logger();
 
-        let tmp_dir1 = tempfile::tempdir().unwrap();
-        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/3");
-        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
-        let mut service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
-
-        let peer_id = service1.event_loop.local_peer_id();
-        let multiaddr: Multiaddr = format!("/memory/3/p2p/{peer_id}").parse().unwrap();
-
-        tokio::spawn(service1.event_loop.run());
+        let (_tmp_dir, mut service1) = new_service();
 
         // second service
-        let tmp_dir2 = tempfile::tempdir().unwrap();
-        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
-        let mut config2 =
-            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/4");
         let db = Database::from_one(&MemDb::default(), [0; 20]);
-
-        config2.bootstrap_addresses = [multiaddr].into();
 
         let hello = db.write(b"hello");
         let world = db.write(b"world");
 
-        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
-        tokio::spawn(service2.event_loop.run());
+        let (_tmp_dir, mut service2) = new_service_with_db(db);
 
-        // Wait for the connection to be established
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        service1.connect(&mut service2).await;
+        tokio::spawn(service2.loop_on_next());
 
-        service1
-            .sender
-            .request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
+        service1.request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
 
-        let event = timeout(Duration::from_secs(5), service1.receiver.recv())
+        let event = timeout(Duration::from_secs(5), service1.next())
             .await
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(
             event,
-            NetworkReceiverEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
+            NetworkEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
                 [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
             )))
         );
@@ -715,93 +620,54 @@ mod tests {
     async fn peer_blocked_by_score() {
         init_logger();
 
-        let tmp_dir1 = tempfile::tempdir().unwrap();
-        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/5");
-        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
-        let mut service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
-
-        let peer_id = service1.event_loop.local_peer_id();
-        let multiaddr: Multiaddr = format!("/memory/5/p2p/{peer_id}").parse().unwrap();
-
-        let peer_score_handle = service1.event_loop.score_handle();
-
-        tokio::spawn(service1.event_loop.run());
+        let (_tmp_dir, mut service1) = new_service();
+        let peer_score_handle = service1.score_handle();
 
         // second service
-        let tmp_dir2 = tempfile::tempdir().unwrap();
-        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
-        let mut config2 =
-            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/6");
-        config2.bootstrap_addresses = [multiaddr].into();
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
-        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
+        let (_tmp_dir, mut service2) = new_service();
+        let service2_peer_id = service2.local_peer_id();
 
-        let service2_peer_id = service2.event_loop.local_peer_id();
-
-        tokio::spawn(service2.event_loop.run());
-
-        // Wait for the connection to be established
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        service1.connect(&mut service2).await;
+        tokio::spawn(service2.loop_on_next());
 
         peer_score_handle.unsupported_protocol(service2_peer_id);
 
-        let event = service1.receiver.recv().await;
-        assert_eq!(
-            event,
-            Some(NetworkReceiverEvent::PeerBlocked(service2_peer_id))
-        );
+        let event = timeout(Duration::from_secs(5), service1.next())
+            .await
+            .expect("time has elapsed")
+            .unwrap();
+        assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
     }
 
     #[tokio::test]
     async fn external_validation() {
         init_logger();
 
-        let tmp_dir1 = tempfile::tempdir().unwrap();
-        let config = NetworkEventLoopConfig::new_memory(tmp_dir1.path().to_path_buf(), "/memory/7");
-        let signer1 = ethexe_signer::Signer::new(tmp_dir1.path().join("key")).unwrap();
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
-        let mut service1 = NetworkService::new(config.clone(), &signer1, db).unwrap();
+        let (_tmp_dir, mut service1) = new_service();
+        let (_tmp_dir, mut service2) = new_service();
 
-        let peer_id = service1.event_loop.local_peer_id();
-        let multiaddr: Multiaddr = format!("/memory/7/p2p/{peer_id}").parse().unwrap();
+        service1.connect(&mut service2).await;
+        tokio::spawn(service2.loop_on_next());
 
-        tokio::spawn(service1.event_loop.run());
+        service1.request_db_data(db_sync::Request::ProgramIds);
 
-        // second service
-        let tmp_dir2 = tempfile::tempdir().unwrap();
-        let signer2 = ethexe_signer::Signer::new(tmp_dir2.path().join("key")).unwrap();
-        let mut config2 =
-            NetworkEventLoopConfig::new_memory(tmp_dir2.path().to_path_buf(), "/memory/8");
-        config2.bootstrap_addresses = [multiaddr].into();
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
-        let service2 = NetworkService::new(config2.clone(), &signer2, db).unwrap();
-        tokio::spawn(service2.event_loop.run());
-
-        // Wait for the connection to be established
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
-        service1
-            .sender
-            .request_db_data(db_sync::Request::ProgramIds);
-
-        let event = timeout(Duration::from_secs(5), service1.receiver.recv())
+        let event = timeout(Duration::from_secs(5), service1.next())
             .await
             .expect("time has elapsed")
             .unwrap();
-        if let NetworkReceiverEvent::ExternalValidation(validating_response) = event {
-            service1.sender.request_validated(Ok(validating_response));
+        if let NetworkEvent::ExternalValidation(validating_response) = event {
+            service1.request_validated(Ok(validating_response));
         } else {
-            unreachable!();
+            unreachable!("{event:?}");
         }
 
-        let event = timeout(Duration::from_secs(5), service1.receiver.recv())
+        let event = timeout(Duration::from_secs(5), service1.next())
             .await
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(
             event,
-            NetworkReceiverEvent::DbResponse(Ok(db_sync::Response::ProgramIds([].into())))
+            NetworkEvent::DbResponse(Ok(db_sync::Response::ProgramIds([].into())))
         );
     }
 }

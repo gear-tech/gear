@@ -57,7 +57,7 @@ impl ProgramStateHashAndFlag {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
+#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize, PartialEq, Eq)]
 pub struct BlockHeader {
     pub height: u32,
     pub timestamp: u64,

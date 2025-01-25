@@ -22,7 +22,7 @@ use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Event {
     ExecutableBalanceTopUpRequested {
         value: u128,
@@ -65,7 +65,7 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn as_request(self) -> Option<RequestEvent> {
+    pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
             Self::ExecutableBalanceTopUpRequested { value } => {
                 RequestEvent::ExecutableBalanceTopUpRequested { value }

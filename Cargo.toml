@@ -110,6 +110,7 @@ members = [
     "utils/lazy-pages-fuzzer/fuzz",
     "ethexe/*",
     "ethexe/runtime/common",
+    "ethexe/service/utils",
 ]
 
 [workspace.dependencies]
@@ -155,6 +156,7 @@ parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
+prometheus = { version = "0.13.0", default-features = false }
 proptest = "1.5.0"
 quick-xml = "0.28"
 quote = { version = "1.0.36", default-features = false }
@@ -300,11 +302,11 @@ ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
 ethexe-signer = { path = "ethexe/signer", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
+ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-sequencer = { path = "ethexe/sequencer", default-features = false }
 ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
 ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
-ethexe-prometheus = { path = "ethexe/utils/prometheus", default-features = false }
-ethexe-utils = { path = "ethexe/utils", default-features = false }
+ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
 ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common" }
