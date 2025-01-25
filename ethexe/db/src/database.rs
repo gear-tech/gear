@@ -603,7 +603,7 @@ mod tests {
         let block_hash = H256::zero();
         // let parent_hash = H256::zero();
         let map: BTreeMap<ActorId, ProgramStateHashAndFlag> =
-            [(ActorId::zero(), ProgramStateHashAndFlag::default())].into();
+            [(ActorId::zero(), ProgramStateHashAndFlag::zero())].into();
 
         database.set_block_start_program_states(block_hash, map.clone());
         assert_eq!(database.block_start_program_states(block_hash), Some(map));

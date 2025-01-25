@@ -59,7 +59,7 @@ impl InBlockTransitions {
     }
 
     pub fn state_of(&self, actor_id: &ActorId) -> Option<H256> {
-        self.states.get(actor_id).cloned().map(|p| p.state_hash)
+        self.states.get(actor_id).cloned().map(|s| s.state_hash)
     }
 
     pub fn states_amount(&self) -> usize {
@@ -175,15 +175,15 @@ impl InBlockTransitions {
         let mut res = Vec::with_capacity(modifications.len());
 
         for (actor_id, modification) in modifications {
-            let new_state_hash = states
+            let new_state = states
                 .get(&actor_id)
                 .cloned()
                 .expect("failed to find state record for modified state");
 
-            if !modification.is_noop(new_state_hash.state_hash) {
+            if !modification.is_noop(new_state.state_hash) {
                 res.push(StateTransition {
                     actor_id,
-                    new_state_hash: new_state_hash.state_hash,
+                    new_state_hash: new_state.state_hash,
                     inheritor: ActorId::zero(),
                     value_to_receive: modification.value_to_receive,
                     value_claims: modification.claims,

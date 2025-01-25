@@ -42,7 +42,6 @@ pub type Sum = ProgramId;
 /// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
 pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
-//#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(PartialEq, Eq, Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 pub struct ProgramStateHashAndFlag {
     pub state_hash: H256,
