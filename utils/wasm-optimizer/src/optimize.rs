@@ -31,6 +31,7 @@ use std::{
     fs::{self, metadata},
     path::{Path, PathBuf},
 };
+use wasmparser::ExternalKind;
 
 pub const FUNC_EXPORTS: [&str; 4] = ["init", "handle", "handle_reply", "handle_signal"];
 
@@ -64,7 +65,8 @@ pub struct Optimizer {
 
 impl Optimizer {
     pub fn new(file: &PathBuf) -> Result<Self> {
-        let contents = fs::read(file).context("Failed to read file by optimizer")?;
+        let contents = fs::read(file)
+            .with_context(|| format!("Failed to read file by optimizer: {file:?}"))?;
         let module = Module::new(&contents).with_context(|| format!("File path: {file:?}"))?;
         Ok(Self { module })
     }
@@ -92,18 +94,37 @@ impl Optimizer {
         self.module.name_section = None;
     }
 
-    pub fn optimize(&mut self) -> Result<Vec<u8>> {
+    /// Keeps only allowlisted exports.
+    pub fn strip_exports(&mut self, ty: OptType) {
         if let Some(export_section) = self.module.export_section_mut() {
-            export_section.retain(|export| OPTIMIZED_EXPORTS.contains(&&*export.name));
-        }
+            let exports = if ty == OptType::Opt {
+                OPTIMIZED_EXPORTS.map(str::to_string).to_vec()
+            } else {
+                export_section
+                    .iter()
+                    .flat_map(|entry| {
+                        if let ExternalKind::Func = entry.kind {
+                            (!OPTIMIZED_EXPORTS.contains(&&*entry.name))
+                                .then_some(entry.name.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            };
 
+            export_section.retain(|export| exports.contains(&export.name.to_string()));
+        }
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>> {
         self.module
             .serialize()
             .context("Failed to serialize module")
     }
 
-    pub fn flush_to_file(mut self, path: &PathBuf) -> Result<()> {
-        fs::write(path, self.optimize()?).context("Failed to flush optimizer's module")
+    pub fn flush_to_file(self, path: &PathBuf) {
+        fs::write(path, self.module.serialize().unwrap()).unwrap();
     }
 }
 

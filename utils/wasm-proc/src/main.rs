@@ -19,7 +19,7 @@
 use clap::Parser;
 use gear_wasm_builder::{
     code_validator::validate_program,
-    optimize::{self, Optimizer},
+    optimize::{self, OptType, Optimizer},
 };
 use gear_wasm_instrument::{Module, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
@@ -235,24 +235,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let original_wasm_path = PathBuf::from(file);
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
+        let mut optimizer = Optimizer::new(&original_wasm_path)?;
 
         // Make pre-handle if input wasm has been built from as-script
-        let wasm_path = if assembly_script {
-            let mut optimizer = Optimizer::new(&original_wasm_path)?;
+        if assembly_script {
             optimizer
                 .insert_start_call_in_export_funcs()
                 .expect("Failed to insert call _start in func exports");
             optimizer
                 .move_mut_globals_to_static()
                 .expect("Failed to move mutable globals to static");
-            optimizer.flush_to_file(&optimized_wasm_path)?;
-            optimized_wasm_path.clone()
-        } else {
-            original_wasm_path.clone()
-        };
+        }
+
+        optimizer.strip_exports(OptType::Opt);
+        optimizer.flush_to_file(&optimized_wasm_path);
 
         // Make generic size optimizations by wasm-opt
-        let res = optimize::optimize_wasm(wasm_path, optimized_wasm_path.clone(), "s", true)?;
+        let res = optimize::optimize_wasm(&optimized_wasm_path, &optimized_wasm_path, "s", true)?;
         log::debug!(
             "wasm-opt has changed wasm size: {} Kb -> {} Kb",
             res.original_size,
@@ -272,13 +271,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimizer.strip_custom_sections();
         }
 
-        log::debug!(
-            "*** Processing chain optimization: {}",
-            optimized_wasm_path.display()
-        );
-        let code = optimizer.optimize()?;
         log::info!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
+        let code = optimizer.serialize()?;
         fs::write(&optimized_wasm_path, &code)?;
 
         log::debug!(

@@ -157,8 +157,9 @@ impl Artifact {
                 .insert_stack_end_export()
                 .map_err(|e| anyhow!("{e}"));
             optimizer.strip_custom_sections();
+            optimizer.strip_exports(OptType::Opt);
         }
-        optimizer.flush_to_file(&output)?;
+        optimizer.flush_to_file(&output);
 
         optimize::optimize_wasm(&output, &output, "4", true)?;
 

@@ -24,7 +24,7 @@ use crate::{
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_instrument::{ExternalKind, Module};
-use gear_wasm_optimizer::{self as optimize, Optimizer};
+use gear_wasm_optimizer::{self as optimize, OptType, Optimizer};
 use gmeta::MetadataRepr;
 use std::{
     env, fs,
@@ -322,7 +322,9 @@ extern "C" fn metahash() {{
             .join([file_base_name, ".meta.wasm"].concat());
 
         if smart_fs::check_if_newer(original_wasm_path, &meta_wasm_path)? {
-            Optimizer::new(original_wasm_path)?.flush_to_file(&meta_wasm_path)?;
+            let mut optimizer = Optimizer::new(original_wasm_path)?;
+            optimizer.strip_exports(OptType::Meta);
+            optimizer.flush_to_file(&meta_wasm_path);
             optimize::optimize_wasm(&meta_wasm_path, &meta_wasm_path, "4", true)?;
         }
 
@@ -383,9 +385,8 @@ extern "C" fn metahash() {{
                 .insert_stack_end_export()
                 .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
             optimizer.strip_custom_sections();
-            optimizer
-                .flush_to_file(&opt_wasm_path)
-                .context("Failed to write optimized WASM binary")?;
+            optimizer.strip_exports(OptType::Opt);
+            optimizer.flush_to_file(&opt_wasm_path);
 
             optimize::optimize_wasm(&original_copy_wasm_path, &opt_wasm_path, "4", true)
                 .map(|res| {
