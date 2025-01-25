@@ -9,6 +9,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+ethexe-service-common.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 # TODO: update hyper.

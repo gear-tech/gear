@@ -18,7 +18,6 @@
 
 #![allow(async_fn_in_trait)]
 
-use anyhow::Result;
 use futures::{future, StreamExt};
 use std::future::Future;
 
@@ -68,16 +67,6 @@ pub trait OptionStreamNext<T>: private::Sealed {
 impl<S: AsyncFnStream> OptionStreamNext<S::Item> for &mut Option<S> {
     async fn maybe_next(self) -> Option<S::Item> {
         self.as_mut().map(AsyncFnStream::like_next).maybe().await
-    }
-}
-
-pub trait OptionCall<T>: private::Sealed {
-    fn maybe_call(self, f: impl FnOnce(&mut T) -> Result<()>) -> Result<()>;
-}
-
-impl<T> OptionCall<T> for &mut Option<T> {
-    fn maybe_call(self, f: impl FnOnce(&mut T) -> Result<()>) -> Result<()> {
-        self.as_mut().map(f).unwrap_or(Ok(()))
     }
 }
 

@@ -58,7 +58,7 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ObserverEvent {
     Blob { code_id: CodeId, code: Vec<u8> },
     Block(BlockData),

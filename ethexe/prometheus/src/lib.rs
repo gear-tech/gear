@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context as _, Result};
-use futures::{ready, stream::FusedStream, Future, FutureExt, Stream};
+use ethexe_service_common::AsyncFnStream;
+use futures::FutureExt;
 use hyper::{
     http::StatusCode,
     server::conn::AddrIncoming,
@@ -34,9 +35,7 @@ use prometheus::{
 };
 use std::{
     net::SocketAddr,
-    pin::{pin, Pin},
     sync::LazyLock,
-    task::{Context, Poll},
     time::{Duration, Instant, SystemTime},
 };
 use tokio::{
@@ -103,6 +102,8 @@ pub struct PrometheusService {
     metrics: PrometheusMetrics,
     updated: Instant,
 
+    #[allow(unused)]
+    // to be used in stream impl.
     server: JoinHandle<()>,
 
     interval: Interval,

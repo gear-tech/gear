@@ -4675,6 +4675,7 @@ name = "ethexe-prometheus"
 version = "1.7.0"
 dependencies = [
  "anyhow",
+ "ethexe-service-common",
  "futures",
  "hyper 0.14.31",
  "log",
