@@ -310,6 +310,7 @@ ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
 ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common" }
+ethexe-connect = { path = "ethexe/connect" }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { package = "wasmi", version = "0.38"}

@@ -4557,6 +4557,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-connect"
+version = "1.7.0"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "ethexe-observer",
+ "ethexe-processor",
+ "ethexe-service-utils",
+ "futures",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "tokio",
+]
+
+[[package]]
 name = "ethexe-db"
 version = "1.7.0"
 dependencies = [
@@ -4777,6 +4795,7 @@ dependencies = [
  "directories",
  "env_logger",
  "ethexe-common",
+ "ethexe-connect",
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-network",
