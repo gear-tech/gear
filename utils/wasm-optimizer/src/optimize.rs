@@ -216,6 +216,7 @@ pub fn do_optimization<P: AsRef<Path>>(
         .arg(dest_optimized.as_ref())
         .arg("-mvp")
         .arg("--enable-sign-ext")
+        .arg("--enable-mutable-globals")
         // the memory in our module is imported, `wasm-opt` needs to be told that
         // the memory is initialized to zeroes, otherwise it won't run the
         // memory-packing pre-pass.
@@ -270,6 +271,7 @@ pub fn do_optimization<P: AsRef<Path>>(
     }
     .mvp_features_only()
     .enable_feature(wasm_opt::Feature::SignExt)
+    .enable_feature(wasm_opt::Feature::MutableGlobals)
     .shrink_level(wasm_opt::ShrinkLevel::Level2)
     .add_pass(Pass::Dae)
     .add_pass(Pass::Vacuum)
