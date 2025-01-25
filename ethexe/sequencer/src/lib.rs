@@ -135,7 +135,7 @@ impl SequencerService {
 
             status: Default::default(),
 
-            collection_round: Timer::new("collection", config.block_time / 2),
+            collection_round: Timer::new("collection", config.block_time / 4),
             validation_round: Timer::new("validation", config.block_time / 4),
         })
     }

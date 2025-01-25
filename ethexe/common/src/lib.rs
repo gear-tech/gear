@@ -34,10 +34,3 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
 
     [b1, b2, b3, b4, b5, b6]
 }
-
-pub fn option_call<S>(
-    svc: &mut Option<S>,
-    f: impl FnOnce(&mut S) -> anyhow::Result<()>,
-) -> anyhow::Result<()> {
-    svc.as_mut().map_or(Ok(()), f)
-}
