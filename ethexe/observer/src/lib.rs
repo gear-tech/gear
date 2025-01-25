@@ -27,7 +27,7 @@ use alloy::{
 use anyhow::{Context as _, Result};
 use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent};
 use ethexe_db::BlockHeader;
-use ethexe_service_common::AsyncFnStream;
+use ethexe_service_utils::AsyncFnStream;
 use ethexe_signer::Address;
 use futures::{future::BoxFuture, stream::FuturesUnordered, Stream, StreamExt};
 use gprimitives::{CodeId, H256};

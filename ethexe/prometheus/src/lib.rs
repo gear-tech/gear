@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context as _, Result};
-use ethexe_service_common::AsyncFnStream;
+use ethexe_service_utils::AsyncFnStream;
 use futures::FutureExt;
 use hyper::{
     http::StatusCode,

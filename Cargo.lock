@@ -4629,7 +4629,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
- "ethexe-service-common",
+ "ethexe-service-utils",
  "ethexe-signer",
  "futures",
  "gear-core",
@@ -4675,7 +4675,7 @@ name = "ethexe-prometheus"
 version = "1.7.0"
 dependencies = [
  "anyhow",
- "ethexe-service-common",
+ "ethexe-service-utils",
  "futures",
  "hyper 0.14.31",
  "log",
@@ -4751,7 +4751,7 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-observer",
  "ethexe-processor",
- "ethexe-service-common",
+ "ethexe-service-utils",
  "ethexe-signer",
  "futures",
  "gear-core",
@@ -4786,7 +4786,7 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-runtime-common",
  "ethexe-sequencer",
- "ethexe-service-common",
+ "ethexe-service-utils",
  "ethexe-signer",
  "ethexe-validator",
  "futures",
@@ -4808,7 +4808,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-service-common"
+name = "ethexe-service-utils"
 version = "1.7.0"
 dependencies = [
  "anyhow",

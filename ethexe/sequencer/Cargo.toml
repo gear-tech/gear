@@ -10,7 +10,7 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethexe-service-common.workspace = true
+ethexe-service-utils.workspace = true
 ethexe-signer.workspace = true
 ethexe-observer.workspace = true
 ethexe-processor.workspace = true

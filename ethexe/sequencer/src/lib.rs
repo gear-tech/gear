@@ -25,7 +25,7 @@ use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment},
 };
 use ethexe_ethereum::{router::Router, Ethereum};
-use ethexe_service_common::{AsyncFnStream, Timer};
+use ethexe_service_utils::{AsyncFnStream, Timer};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
 use indexmap::IndexSet;

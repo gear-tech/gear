@@ -32,7 +32,7 @@ use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
 };
-use ethexe_service_common::{OptionFuture as _, OptionStreamNext as _};
+use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use gprimitives::H256;
