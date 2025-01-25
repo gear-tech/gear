@@ -322,7 +322,8 @@ extern "C" fn metahash() {{
             .join([file_base_name, ".meta.wasm"].concat());
 
         if smart_fs::check_if_newer(original_wasm_path, &meta_wasm_path)? {
-            Optimizer::new(original_wasm_path.clone())?.flush_to_file(&meta_wasm_path)?;
+            Optimizer::new(original_wasm_path)?.flush_to_file(&meta_wasm_path)?;
+            optimize::optimize_wasm(&meta_wasm_path, &meta_wasm_path, "4", true)?;
         }
 
         smart_fs::write(
@@ -377,21 +378,7 @@ extern "C" fn metahash() {{
 
         // Optimize wasm using and `wasm-opt` and our optimizations.
         if smart_fs::check_if_newer(&original_wasm_path, &opt_wasm_path)? {
-            let path = optimize::optimize_wasm(&original_copy_wasm_path, &opt_wasm_path, "4", true)
-                .map(|res| {
-                    log::info!(
-                        "Wasm-opt reduced wasm size: {} -> {}",
-                        res.original_size,
-                        res.optimized_size
-                    );
-                    opt_wasm_path.clone()
-                })
-                .unwrap_or_else(|err| {
-                    println!("cargo:warning=wasm-opt optimizations error: {}", err);
-                    original_copy_wasm_path.clone()
-                });
-
-            let mut optimizer = Optimizer::new(path)?;
+            let mut optimizer = Optimizer::new(&opt_wasm_path)?;
             optimizer
                 .insert_stack_end_export()
                 .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
@@ -399,6 +386,18 @@ extern "C" fn metahash() {{
             optimizer
                 .flush_to_file(&opt_wasm_path)
                 .context("Failed to write optimized WASM binary")?;
+
+            optimize::optimize_wasm(&original_copy_wasm_path, &opt_wasm_path, "4", true)
+                .map(|res| {
+                    log::info!(
+                        "Wasm-opt reduced wasm size: {} -> {}",
+                        res.original_size,
+                        res.optimized_size
+                    );
+                })
+                .unwrap_or_else(|err| {
+                    println!("cargo:warning=wasm-opt optimizations error: {}", err);
+                });
         }
 
         // Create `wasm_binary.rs`

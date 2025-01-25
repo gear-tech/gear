@@ -238,7 +238,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Make pre-handle if input wasm has been built from as-script
         let wasm_path = if assembly_script {
-            let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
+            let mut optimizer = Optimizer::new(&original_wasm_path)?;
             optimizer
                 .insert_start_call_in_export_funcs()
                 .expect("Failed to insert call _start in func exports");
@@ -260,7 +260,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         // Insert stack hint for optimized performance on-chain
-        let mut optimizer = Optimizer::new(optimized_wasm_path.clone())?;
+        let mut optimizer = Optimizer::new(&optimized_wasm_path)?;
         if insert_stack_end {
             optimizer.insert_stack_end_export().unwrap_or_else(|err| {
                 log::debug!("Failed to insert stack end: {}", err);
@@ -276,7 +276,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "*** Processing chain optimization: {}",
             optimized_wasm_path.display()
         );
-        let code = optimizer.serialize()?;
+        let code = optimizer.optimize()?;
         log::info!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
         fs::write(&optimized_wasm_path, &code)?;

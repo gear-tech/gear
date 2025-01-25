@@ -60,14 +60,13 @@ impl OptType {
 
 pub struct Optimizer {
     module: Module,
-    file: PathBuf,
 }
 
 impl Optimizer {
-    pub fn new(file: PathBuf) -> Result<Self> {
-        let contents = fs::read(&file).context("Failed to read file by optimizer")?;
+    pub fn new(file: &PathBuf) -> Result<Self> {
+        let contents = fs::read(file).context("Failed to read file by optimizer")?;
         let module = Module::new(&contents).with_context(|| format!("File path: {file:?}"))?;
-        Ok(Self { module, file })
+        Ok(Self { module })
     }
 
     pub fn insert_start_call_in_export_funcs(&mut self) -> Result<(), &'static str> {
@@ -93,14 +92,18 @@ impl Optimizer {
         self.module.name_section = None;
     }
 
-    pub fn serialize(&self) -> Result<Vec<u8>> {
+    pub fn optimize(&mut self) -> Result<Vec<u8>> {
+        if let Some(export_section) = self.module.export_section_mut() {
+            export_section.retain(|export| OPTIMIZED_EXPORTS.contains(&&*export.name));
+        }
+
         self.module
             .serialize()
             .context("Failed to serialize module")
     }
 
-    pub fn flush_to_file(self, path: &PathBuf) -> Result<()> {
-        fs::write(path, self.serialize()?).context("Failed to flush optimizer's module")
+    pub fn flush_to_file(mut self, path: &PathBuf) -> Result<()> {
+        fs::write(path, self.optimize()?).context("Failed to flush optimizer's module")
     }
 }
 
