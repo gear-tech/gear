@@ -125,13 +125,11 @@ async fn ping() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
-    let mut node = env
-        .new_node(
-            NodeConfig::default()
-                .sequencer(sequencer_public_key)
-                .validator(env.validators[0]),
-        )
-        .await;
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
     node.start_service().await;
 
     let res = env
@@ -215,13 +213,11 @@ async fn uninitialized_program() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
-    let mut node = env
-        .new_node(
-            NodeConfig::default()
-                .sequencer(sequencer_public_key)
-                .validator(env.validators[0]),
-        )
-        .await;
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
     node.start_service().await;
 
     let res = env
@@ -360,13 +356,11 @@ async fn mailbox() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
-    let mut node = env
-        .new_node(
-            NodeConfig::default()
-                .sequencer(sequencer_public_key)
-                .validator(env.validators[0]),
-        )
-        .await;
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
     node.start_service().await;
 
     let res = env
@@ -544,13 +538,11 @@ async fn incoming_transfers() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_public_key = env.wallets.next();
-    let mut node = env
-        .new_node(
-            NodeConfig::default()
-                .sequencer(sequencer_public_key)
-                .validator(env.validators[0]),
-        )
-        .await;
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0]),
+    );
     node.start_service().await;
 
     let res = env
@@ -651,13 +643,11 @@ async fn ping_reorg() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_pub_key = env.wallets.next();
-    let mut node = env
-        .new_node(
-            NodeConfig::default()
-                .sequencer(sequencer_pub_key)
-                .validator(env.validators[0]),
-        )
-        .await;
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_pub_key)
+            .validator(env.validators[0]),
+    );
     node.start_service().await;
 
     let res = env
@@ -757,13 +747,11 @@ async fn ping_deep_sync() {
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let sequencer_pub_key = env.wallets.next();
-    let mut node = env
-        .new_node(
-            NodeConfig::default()
-                .sequencer(sequencer_pub_key)
-                .validator(env.validators[0]),
-        )
-        .await;
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_pub_key)
+            .validator(env.validators[0]),
+    );
     node.start_service().await;
 
     let res = env
@@ -830,43 +818,35 @@ async fn multiple_validators() {
 
     log::info!("📗 Starting sequencer");
     let sequencer_pub_key = env.wallets.next();
-    let mut sequencer = env
-        .new_node(
-            NodeConfig::default()
-                .sequencer(sequencer_pub_key)
-                .network(None, None),
-        )
-        .await;
+    let mut sequencer = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_pub_key)
+            .network(None, None),
+    );
     sequencer.start_service().await;
 
     log::info!("📗 Starting validator 0");
-    let mut validator0 = env
-        .new_node(
-            NodeConfig::default()
-                .validator(env.validators[0])
-                .network(None, sequencer.multiaddr.clone()),
-        )
-        .await;
+    let mut validator0 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[0])
+            .network(None, sequencer.multiaddr.clone()),
+    );
     validator0.start_service().await;
 
     log::info!("📗 Starting validator 1");
-    let mut validator1 = env
-        .new_node(
-            NodeConfig::default()
-                .validator(env.validators[1])
-                .network(None, sequencer.multiaddr.clone()),
-        )
-        .await;
+    let mut validator1 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[1])
+            .network(None, sequencer.multiaddr.clone()),
+    );
     validator1.start_service().await;
 
     log::info!("📗 Starting validator 2");
-    let mut validator2 = env
-        .new_node(
-            NodeConfig::default()
-                .validator(env.validators[2])
-                .network(None, sequencer.multiaddr.clone()),
-        )
-        .await;
+    let mut validator2 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[2])
+            .network(None, sequencer.multiaddr.clone()),
+    );
     validator2.start_service().await;
 
     let res = env
@@ -968,14 +948,12 @@ async fn multiple_validators() {
 
     log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
     // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
-    let mut validator2 = env
-        .new_node(
-            NodeConfig::default()
-                .validator(env.validators[2])
-                .network(None, sequencer.multiaddr.clone())
-                .db(validator2.db),
-        )
-        .await;
+    let mut validator2 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[2])
+            .network(None, sequencer.multiaddr.clone())
+            .db(validator2.db),
+    );
     validator2.start_service().await;
 
     // IMPORTANT: mine one block to sent a new block event.
@@ -1175,7 +1153,7 @@ mod utils {
             })
         }
 
-        pub async fn new_node(&mut self, config: NodeConfig) -> Node {
+        pub fn new_node(&mut self, config: NodeConfig) -> Node {
             let NodeConfig {
                 db,
                 sequencer_public_key,
