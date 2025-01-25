@@ -65,7 +65,7 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn as_request(self) -> Option<RequestEvent> {
+    pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
             Self::ExecutableBalanceTopUpRequested { value } => {
                 RequestEvent::ExecutableBalanceTopUpRequested { value }

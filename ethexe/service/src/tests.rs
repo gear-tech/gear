@@ -99,7 +99,7 @@ async fn basics() {
     Service::new(&config).await.unwrap();
 
     // Enable all optional services
-    config.network = Some(ethexe_network::NetworkServiceConfig::new_local(
+    config.network = Some(ethexe_network::NetworkConfig::new_local(
         tmp_dir.join("net"),
     ));
 
@@ -1485,7 +1485,7 @@ mod utils {
                     continue;
                 };
 
-                let block_data = block.as_simple();
+                let block_data = block.to_simple();
 
                 for event in block.events {
                     if let Some(res) = f(event, &block_data)? {
@@ -1585,7 +1585,7 @@ mod utils {
                 let config_path = tempfile::tempdir().unwrap().into_path();
                 let multiaddr: Multiaddr = addr.parse().unwrap();
 
-                let mut config = ethexe_network::NetworkServiceConfig::new_test(config_path);
+                let mut config = ethexe_network::NetworkConfig::new_test(config_path);
                 config.listen_addresses = [multiaddr.clone()].into();
                 config.external_addresses = [multiaddr.clone()].into();
                 if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {

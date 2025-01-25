@@ -497,7 +497,7 @@ impl Service {
                             let block = RequestBlockData {
                                 hash,
                                 header: block.header,
-                                events: block.events.into_iter().flat_map(BlockEvent::as_request).collect(),
+                                events: block.events.into_iter().flat_map(BlockEvent::to_request).collect(),
                             };
 
                             // TODO: spawn blocking here?
@@ -632,7 +632,7 @@ impl Service {
 
                                         res
                                     }) {
-                                        log::warn!("[SEQUENCER] Failed to process network message \"PublishCommitments\": {e}");
+                                        log::warn!("Failed to process network message \"PublishCommitments\": {e}");
                                     }
                                 },
                                 NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
@@ -673,7 +673,7 @@ impl Service {
 
                                         res
                                     }) {
-                                        log::warn!("[SEQUENCER] Failed to process network message \"ApproveCommitments\": {e}");
+                                        log::warn!("Failed to process network message \"ApproveCommitments\": {e}");
                                     }
                                 },
                             };

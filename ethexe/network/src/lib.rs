@@ -84,7 +84,7 @@ pub enum TransportType {
 }
 
 #[derive(Debug, Clone)]
-pub struct NetworkServiceConfig {
+pub struct NetworkConfig {
     pub config_dir: PathBuf,
     pub public_key: Option<PublicKey>,
     pub external_addresses: HashSet<Multiaddr>,
@@ -93,7 +93,7 @@ pub struct NetworkServiceConfig {
     pub transport_type: TransportType,
 }
 
-impl NetworkServiceConfig {
+impl NetworkConfig {
     pub fn new_local(config_path: PathBuf) -> Self {
         Self {
             config_dir: config_path,
@@ -123,7 +123,7 @@ pub struct NetworkService {
 
 impl NetworkService {
     pub fn new(
-        config: NetworkServiceConfig,
+        config: NetworkConfig,
         signer: &Signer,
         db: Database,
     ) -> anyhow::Result<NetworkService> {
@@ -565,7 +565,7 @@ mod tests {
 
     fn new_service_with_db(db: Database) -> (TempDir, NetworkService) {
         let tmp_dir = tempfile::tempdir().unwrap();
-        let config = NetworkServiceConfig::new_test(tmp_dir.path().to_path_buf());
+        let config = NetworkConfig::new_test(tmp_dir.path().to_path_buf());
         let signer = ethexe_signer::Signer::new(tmp_dir.path().join("key")).unwrap();
         let service = NetworkService::new(config.clone(), &signer, db).unwrap();
         (tmp_dir, service)

@@ -27,7 +27,7 @@ use alloy::{
 use anyhow::{Context as _, Result};
 use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent};
 use ethexe_db::BlockHeader;
-use ethexe_service_common::StreamAlike;
+use ethexe_service_common::AsyncFnStream;
 use ethexe_signer::Address;
 use futures::{future::BoxFuture, stream::FuturesUnordered, Stream, StreamExt};
 use gprimitives::{CodeId, H256};
@@ -77,7 +77,7 @@ pub struct ObserverService {
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
 
-impl StreamAlike for ObserverService {
+impl AsyncFnStream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     async fn like_next(&mut self) -> Option<Self::Item> {
@@ -237,7 +237,7 @@ impl Clone for ObserverService {
     }
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct BlockData {
     pub hash: H256,
     pub header: BlockHeader,
@@ -245,7 +245,7 @@ pub struct BlockData {
 }
 
 impl BlockData {
-    pub fn as_simple(&self) -> SimpleBlockData {
+    pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
             header: self.header.clone(),
@@ -261,7 +261,7 @@ pub struct RequestBlockData {
 }
 
 impl RequestBlockData {
-    pub fn as_simple(&self) -> SimpleBlockData {
+    pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
             header: self.header.clone(),

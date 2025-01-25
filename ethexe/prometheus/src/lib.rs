@@ -108,20 +108,29 @@ pub struct PrometheusService {
     interval: Interval,
 }
 
-impl Stream for PrometheusService {
+impl AsyncFnStream for PrometheusService {
     type Item = PrometheusEvent;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let e = ready!(pin!(self.next_event()).poll(cx));
-        Poll::Ready(Some(e))
+    async fn like_next(&mut self) -> Option<Self::Item> {
+        Some(self.next().await)
     }
 }
 
-impl FusedStream for PrometheusService {
-    fn is_terminated(&self) -> bool {
-        self.server.is_finished()
-    }
-}
+// TODO: fix it by some wrapper. It's not possible to implement Stream for SequencerService like this.
+// impl Stream for PrometheusService {
+//     type Item = PrometheusEvent;
+
+//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+//         let e = ready!(pin!(self.next_event()).poll(cx));
+//         Poll::Ready(Some(e))
+//     }
+// }
+
+// impl FusedStream for PrometheusService {
+//     fn is_terminated(&self) -> bool {
+//         self.server.is_finished()
+//     }
+// }
 
 impl PrometheusService {
     pub fn new(config: PrometheusConfig) -> Result<Self> {
@@ -159,7 +168,7 @@ impl PrometheusService {
             .set(submitted_block_commitments as u64);
     }
 
-    pub async fn next_event(&mut self) -> PrometheusEvent {
+    pub async fn next(&mut self) -> PrometheusEvent {
         let instant = self.interval.tick().await;
 
         self.updated = instant.into();

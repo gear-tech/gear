@@ -25,7 +25,7 @@ use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment},
 };
 use ethexe_ethereum::{router::Router, Ethereum};
-use ethexe_service_common::{StreamAlike, Timer};
+use ethexe_service_common::{AsyncFnStream, Timer};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use gprimitives::H256;
 use indexmap::IndexSet;
@@ -80,7 +80,7 @@ pub struct SequencerService {
     validation_round: Timer<H256>,
 }
 
-impl StreamAlike for SequencerService {
+impl AsyncFnStream for SequencerService {
     type Item = SequencerEvent;
 
     async fn like_next(&mut self) -> Option<Self::Item> {
@@ -172,11 +172,11 @@ impl SequencerService {
         self.blocks_candidate.take();
         self.codes_candidate.take();
 
-        log::debug!("[SEQUENCER] Collection round for {hash} started");
+        log::debug!("Collection round for {hash} started");
         self.collection_round.start(hash);
 
         if let Some(block) = self.validation_round.stop() {
-            log::debug!("[SEQUENCER] Validation round for {block} stopped");
+            log::debug!("Validation round for {block} stopped");
         }
 
         Ok(())
@@ -194,7 +194,7 @@ impl SequencerService {
         &mut self,
         aggregated: AggregatedCommitments<CodeCommitment>,
     ) -> Result<()> {
-        log::debug!("[SEQUENCER] Received code commitments: {aggregated:?}");
+        log::debug!("Received code commitments: {aggregated:?}");
 
         Self::receive_commitments(
             aggregated,
@@ -209,7 +209,7 @@ impl SequencerService {
         &mut self,
         aggregated: AggregatedCommitments<BlockCommitment>,
     ) -> Result<()> {
-        log::debug!("[SEQUENCER] Received block commitments: {aggregated:?}");
+        log::debug!("Received block commitments: {aggregated:?}");
 
         Self::receive_commitments(
             aggregated,
@@ -221,7 +221,7 @@ impl SequencerService {
     }
 
     pub fn receive_codes_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
-        log::debug!("[SEQUENCER] Received codes signature: {digest:?} {signature:?}");
+        log::debug!("Received codes signature: {digest:?} {signature:?}");
 
         Self::receive_signature(
             digest,
@@ -233,7 +233,7 @@ impl SequencerService {
     }
 
     pub fn receive_blocks_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
-        log::debug!("[SEQUENCER] Received block signature: {digest:?} {signature:?}");
+        log::debug!("Received block signature: {digest:?} {signature:?}");
 
         Self::receive_signature(
             digest,
@@ -367,7 +367,7 @@ impl SequencerService {
                 let to_start_validation = self.blocks_candidate.is_some() || self.codes_candidate.is_some();
 
                 if to_start_validation {
-                    log::debug!("[SEQUENCER] Validation round for {block_hash} started");
+                    log::debug!("Validation round for {block_hash} started");
                     self.validation_round.start(block_hash);
                 }
 

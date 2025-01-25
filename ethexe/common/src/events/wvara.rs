@@ -35,7 +35,7 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn as_request(self) -> Option<RequestEvent> {
+    pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
             Self::Transfer { from, to, value } => RequestEvent::Transfer { from, to, value },
             Self::Approval { .. } => return None,

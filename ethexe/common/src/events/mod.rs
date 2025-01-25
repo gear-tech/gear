@@ -43,14 +43,14 @@ impl BlockEvent {
         Self::Mirror { actor_id, event }
     }
 
-    pub fn as_request(self) -> Option<BlockRequestEvent> {
+    pub fn to_request(self) -> Option<BlockRequestEvent> {
         Some(match self {
             Self::Mirror { actor_id, event } => BlockRequestEvent::Mirror {
                 actor_id,
-                event: event.as_request()?,
+                event: event.to_request()?,
             },
-            Self::Router(event) => BlockRequestEvent::Router(event.as_request()?),
-            Self::WVara(event) => BlockRequestEvent::WVara(event.as_request()?),
+            Self::Router(event) => BlockRequestEvent::Router(event.to_request()?),
+            Self::WVara(event) => BlockRequestEvent::WVara(event.to_request()?),
         })
     }
 }

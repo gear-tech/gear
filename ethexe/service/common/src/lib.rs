@@ -47,13 +47,13 @@ impl<F: Future> OptionFuture<F::Output> for Option<F> {
     }
 }
 
-pub trait StreamAlike {
+pub trait AsyncFnStream {
     type Item;
 
     async fn like_next(&mut self) -> Option<Self::Item>;
 }
 
-impl<T: StreamExt + Unpin> StreamAlike for T {
+impl<T: StreamExt + Unpin> AsyncFnStream for T {
     type Item = T::Item;
 
     async fn like_next(&mut self) -> Option<Self::Item> {
@@ -65,9 +65,9 @@ pub trait OptionStreamNext<T>: private::Sealed {
     async fn maybe_next(self) -> Option<T>;
 }
 
-impl<S: StreamAlike> OptionStreamNext<S::Item> for &mut Option<S> {
+impl<S: AsyncFnStream> OptionStreamNext<S::Item> for &mut Option<S> {
     async fn maybe_next(self) -> Option<S::Item> {
-        self.as_mut().map(StreamAlike::like_next).maybe().await
+        self.as_mut().map(AsyncFnStream::like_next).maybe().await
     }
 }
 
