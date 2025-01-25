@@ -23,7 +23,7 @@ use crate::{
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage, Schedule},
+    db::{BlockHeader, BlockMetaStorage, CodesStorage, ProgramStateHashAndFlag, Schedule},
     events::BlockRequestEvent,
     gear::StateTransition,
 };
@@ -194,7 +194,10 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+    fn block_start_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, ProgramStateHashAndFlag>> {
         self.kv
             .get(&KeyPrefix::BlockStartProgramStates.two(self.router_address, block_hash))
             .map(|data| {
@@ -203,7 +206,11 @@ impl BlockMetaStorage for Database {
             })
     }
 
-    fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+    fn set_block_start_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, ProgramStateHashAndFlag>,
+    ) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set start program states: {map:?}");
         self.kv.put(
             &KeyPrefix::BlockStartProgramStates.two(self.router_address, block_hash),
@@ -211,7 +218,10 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+    fn block_end_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, ProgramStateHashAndFlag>> {
         self.kv
             .get(&KeyPrefix::BlockEndProgramStates.two(self.router_address, block_hash))
             .map(|data| {
@@ -220,7 +230,11 @@ impl BlockMetaStorage for Database {
             })
     }
 
-    fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+    fn set_block_end_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, ProgramStateHashAndFlag>,
+    ) {
         self.kv.put(
             &KeyPrefix::BlockEndProgramStates.two(self.router_address, block_hash),
             map.encode(),
@@ -588,7 +602,8 @@ mod tests {
 
         let block_hash = H256::zero();
         // let parent_hash = H256::zero();
-        let map: BTreeMap<ActorId, H256> = [(ActorId::zero(), H256::zero())].into();
+        let map: BTreeMap<ActorId, ProgramStateHashAndFlag> =
+            [(ActorId::zero(), ProgramStateHashAndFlag::default())].into();
 
         database.set_block_start_program_states(block_hash, map.clone());
         assert_eq!(database.block_start_program_states(block_hash), Some(map));

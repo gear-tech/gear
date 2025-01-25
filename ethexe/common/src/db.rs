@@ -42,6 +42,22 @@ pub type Sum = ProgramId;
 /// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
 pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
+//#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(PartialEq, Eq, Debug, Clone, Default, Encode, Decode, serde::Serialize)]
+pub struct ProgramStateHashAndFlag {
+    pub state_hash: H256,
+    pub is_queue_empty: bool,
+}
+
+impl ProgramStateHashAndFlag {
+    pub fn zero() -> Self {
+        Self {
+            state_hash: H256::zero(),
+            is_queue_empty: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
 pub struct BlockHeader {
     pub height: u32,
@@ -86,11 +102,25 @@ pub trait BlockMetaStorage: Send + Sync {
     fn previous_committed_block(&self, block_hash: H256) -> Option<H256>;
     fn set_previous_committed_block(&self, block_hash: H256, prev_commitment: H256);
 
-    fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
+    fn block_start_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, ProgramStateHashAndFlag>>;
+    fn set_block_start_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, ProgramStateHashAndFlag>,
+    );
 
-    fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
+    fn block_end_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, ProgramStateHashAndFlag>>;
+    fn set_block_end_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, ProgramStateHashAndFlag>,
+    );
 
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockRequestEvent>>;
     fn set_block_events(&self, block_hash: H256, events: Vec<BlockRequestEvent>);

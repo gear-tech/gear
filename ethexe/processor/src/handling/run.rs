@@ -22,9 +22,7 @@ use crate::{
 };
 use core_processor::common::JournalNote;
 use ethexe_db::{CodesStorage, Database};
-use ethexe_runtime_common::{
-    state::Storage, InBlockTransitions, JournalHandler, TransitionController,
-};
+use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use itertools::Itertools;
@@ -97,13 +95,8 @@ async fn run_in_async(
         // Filter out programs with empty queue
         let filtered_states: Vec<_> = in_block_transitions
             .states_iter()
-            .filter(|(_, state)| {
-                !db.read_state(**state)
-                    .expect("failed to read state from storage")
-                    .queue_hash
-                    .is_empty()
-            })
-            .map(|(program_id, hash)| (*program_id, *hash))
+            .filter(|(_, state)| !state.is_queue_empty)
+            .map(|(program_id, state)| (*program_id, state.state_hash))
             .collect();
 
         let mut no_more_to_do = true;

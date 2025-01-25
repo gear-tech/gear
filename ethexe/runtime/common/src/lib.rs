@@ -85,9 +85,11 @@ impl<S: Storage> TransitionController<'_, S> {
 
         let res = f(&mut state, self.storage, self.transitions);
 
+        let is_queue_empty = state.queue_hash.is_empty();
         let new_state_hash = self.storage.write_state(state);
 
-        self.transitions.modify_state(program_id, new_state_hash);
+        self.transitions
+            .modify_state(program_id, new_state_hash, is_queue_empty);
 
         res
     }
@@ -109,15 +111,15 @@ where
 
     log::trace!("Processing next message for program {program_id}");
 
-    if program_state.queue_hash.is_empty() {
-        return Vec::new();
-    }
-
     let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
         ri.storage()
             .read_queue(hash)
             .expect("Cannot get message queue")
     });
+
+    if queue.is_empty() {
+        return Vec::new();
+    }
 
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {
