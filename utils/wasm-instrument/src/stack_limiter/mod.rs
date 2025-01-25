@@ -35,25 +35,44 @@ impl Context {
     }
 }
 
-/// Inject the instumentation that makes stack overflows deterministic, by introducing
+/// Represents the injection configuration. See [`inject_with_config`] for more details.
+pub struct InjectionConfig<'a, I, F>
+where
+    I: IntoIterator<Item = Instruction>,
+    I::IntoIter: ExactSizeIterator + Clone,
+    F: Fn(&FuncType) -> I,
+{
+    pub stack_limit: u32,
+    pub injection_fn: F,
+    pub stack_height_export_name: Option<&'a str>,
+}
+
+/// Inject the instrumentation that makes stack overflows deterministic, by introducing
 /// an upper bound of the stack size.
+/// Allows configuring exit instructions when the stack limit
+/// is reached and the export name of the stack height global.
 ///
 /// This pass introduces a global mutable variable to track stack height,
 /// and instruments all calls with preamble and postamble.
 ///
-/// Stack height is increased prior the call. Otherwise, the check would
+/// Stack height is increased prior the call.
+/// Otherwise, the check would
 /// be made after the stack frame is allocated.
 ///
-/// The preamble is inserted before the call. It increments
+/// The preamble is inserted before the call.
+/// It increments
 /// the global stack height variable with statically determined "stack cost"
-/// of the callee. If after the increment the stack height exceeds
+/// of the callee.
+/// If after the increment the stack height exceeds
 /// the limit (specified by the `rules`) then execution traps.
 /// Otherwise, the call is executed.
 ///
-/// The postamble is inserted after the call. The purpose of the postamble is to decrease
+/// The postamble is inserted after the call.
+/// The purpose of the postamble is to decrease
 /// the stack height by the "stack cost" of the callee function.
 ///
-/// Note, that we can't instrument all possible ways to return from the function. The simplest
+/// Note, that we can't instrument all possible ways to return from the function.
+/// The simplest
 /// example would be a trap issued by the host function.
 /// That means stack height global won't be equal to zero upon the next execution after such trap.
 ///
@@ -67,7 +86,8 @@ impl Context {
 ///
 /// The solution for this problems is to generate a intermediate functions, called 'thunks', which
 /// will increase before and decrease the stack height after the call to original function, and
-/// then make exported function and table entries, start section to point to a corresponding thunks.
+/// then make exported function and table entries,
+/// start section to point to a corresponding thunks.
 ///
 /// # Stack cost
 ///
@@ -78,38 +98,13 @@ impl Context {
 ///
 /// The rationale is that this makes it possible to use the following very naive wasm executor:
 ///
-/// - values are implemented by a union, so each value takes a size equal to the size of the largest
+/// - Values are implemented by a union, so each value takes a size equal to the size of the largest
 ///   possible value type this union can hold. (In MVP it is 8 bytes)
 /// - each value from the value stack is placed on the native stack.
 /// - each local variable and function argument is placed on the native stack.
 /// - arguments pushed by the caller are copied into callee stack rather than shared between the
 ///   frames.
 /// - upon entry into the function entire stack frame is allocated.
-pub fn inject(module: Module, stack_limit: u32) -> Result<Module, &'static str> {
-    inject_with_config(
-        module,
-        InjectionConfig {
-            stack_limit,
-            injection_fn: |_| [Instruction::Unreachable],
-            stack_height_export_name: None,
-        },
-    )
-}
-
-/// Represents the injection configuration. See [`inject_with_config`] for more details.
-pub struct InjectionConfig<'a, I, F>
-where
-    I: IntoIterator<Item = Instruction>,
-    I::IntoIter: ExactSizeIterator + Clone,
-    F: Fn(&FuncType) -> I,
-{
-    pub stack_limit: u32,
-    pub injection_fn: F,
-    pub stack_height_export_name: Option<&'a str>,
-}
-
-/// Same as the [`inject`] function, but allows to configure exit instructions when the stack limit
-/// is reached and the export name of the stack height global.
 pub fn inject_with_config<I>(
     module: Module,
     injection_config: InjectionConfig<I, impl Fn(&FuncType) -> I>,
@@ -544,7 +539,15 @@ mod tests {
 "#
         );
 
-        let module = inject(module, 1024).expect("Failed to inject stack counter");
+        let module = inject_with_config(
+            module,
+            InjectionConfig {
+                stack_limit: 1024,
+                injection_fn: |_| [Instruction::Unreachable],
+                stack_height_export_name: None,
+            },
+        )
+        .expect("Failed to inject stack counter");
         validate_module(module);
     }
 }
