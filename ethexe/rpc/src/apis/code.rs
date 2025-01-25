@@ -16,12 +16,38 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod block;
-mod code;
-mod dev;
-mod program;
+use crate::errors;
+use ethexe_db::{CodesStorage, Database};
+use gprimitives::H256;
+use jsonrpsee::{
+    core::{async_trait, RpcResult},
+    proc_macros::rpc,
+};
+use parity_scale_codec::Encode;
+use sp_core::Bytes;
 
-pub use block::{BlockApi, BlockServer};
-pub use code::{CodeApi, CodeServer};
-pub use dev::{DevApi, DevServer};
-pub use program::{ProgramApi, ProgramServer};
+#[rpc(server)]
+pub trait Code {
+    #[method(name = "code_get")]
+    async fn get_code(&self, id: H256) -> RpcResult<Bytes>;
+}
+
+pub struct CodeApi {
+    db: Database,
+}
+
+impl CodeApi {
+    pub fn new(db: Database) -> Self {
+        Self { db }
+    }
+}
+
+#[async_trait]
+impl CodeServer for CodeApi {
+    async fn get_code(&self, id: H256) -> RpcResult<Bytes> {
+        self.db
+            .original_code(id.into())
+            .map(|bytes| bytes.encode().into())
+            .ok_or_else(|| errors::db("Failed to get code by supplied id"))
+    }
+}

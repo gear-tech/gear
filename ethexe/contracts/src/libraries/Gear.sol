@@ -374,7 +374,7 @@ library Gear {
         return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
     }
 
-    function dummyVerifingShares(uint256 _count) internal pure returns (Gear.VerifyingShare[] memory) {
+    function dummyVerifyingShares(uint256 _count) internal pure returns (Gear.VerifyingShare[] memory) {
         Gear.VerifyingShare[] memory _verifyingShares = new Gear.VerifyingShare[](_count);
         for (uint256 i = 0; i < _count; i++) {
             _verifyingShares[i] = Gear.VerifyingShare({

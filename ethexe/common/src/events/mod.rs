@@ -18,7 +18,6 @@
 
 use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
 
 mod mirror;
 mod router;
@@ -62,7 +61,8 @@ impl From<WVaraEvent> for BlockEvent {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
+#[derive(Clone, Debug, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BlockRequestEvent {
     Router(RouterRequestEvent),
     Mirror {
