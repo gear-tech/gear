@@ -34,8 +34,6 @@ pub use wasmparser::{
 use crate::stack_limiter::InjectionConfig;
 use alloc::{string::ToString, vec};
 
-mod export_globals;
-
 mod stack_limiter;
 #[cfg(test)]
 mod tests;
