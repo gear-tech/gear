@@ -21,7 +21,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use ethexe_network::{
     export::{Multiaddr, Protocol},
-    NetworkEventLoopConfig as NetworkConfig,
+    NetworkConfig,
 };
 use serde::Deserialize;
 use std::path::PathBuf;
