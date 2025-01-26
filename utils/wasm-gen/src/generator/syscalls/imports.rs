@@ -309,143 +309,73 @@ impl SyscallsImportsGenerator<'_, '_> {
         let func_instructions = vec![
             // Copy the HashWithValue struct (48 bytes) containing
             // the recipient and value
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(16),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(16),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(24),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(24),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(32),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(32),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(40),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(40),
-            },
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64()),
+            Instruction::I64Store(MemArg::i64()),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(8)),
+            Instruction::I64Store(MemArg::i64_offset(8)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(16)),
+            Instruction::I64Store(MemArg::i64_offset(16)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(24)),
+            Instruction::I64Store(MemArg::i64_offset(24)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(32)),
+            Instruction::I64Store(MemArg::i64_offset(32)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(40)),
+            Instruction::I64Store(MemArg::i64_offset(40)),
             // Amount of gas to reserve
-            Instruction::LocalGet { local_index: 4 },
+            Instruction::LocalGet(4),
             // Duration of the reservation
-            Instruction::LocalGet { local_index: 5 },
+            Instruction::LocalGet(5),
             // Pointer to the ErrorWithHash struct
-            Instruction::LocalGet { local_index: 6 },
-            Instruction::Call {
-                function_index: reserve_gas_idx as u32,
-            },
+            Instruction::LocalGet(6),
+            Instruction::Call(reserve_gas_idx as u32),
             // Pointer to the ErrorWithHash struct
-            Instruction::LocalGet { local_index: 6 },
+            Instruction::LocalGet(6),
             // Load ErrorWithHash.error
-            Instruction::I32Load {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Load(MemArg::i32()),
             // Check if ErrorWithHash.error == 0
             Instruction::I32Eqz,
             // If ErrorWithHash.error == 0
-            Instruction::If {
-                blockty: BlockType::Empty,
-            },
+            Instruction::If(BlockType::Empty),
             // Copy the Hash struct (32 bytes) containing the reservation id.
-            Instruction::I32Const {
-                value: rid_pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 6 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(4),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I32Const {
-                value: rid_pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 6 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(12),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I32Const {
-                value: rid_pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 6 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(20),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(16),
-            },
-            Instruction::I32Const {
-                value: rid_pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 6 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(28),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(24),
-            },
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::LocalGet(6),
+            Instruction::I64Load(MemArg::i64_offset(4)),
+            Instruction::I64Store(MemArg::i64()),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::LocalGet(6),
+            Instruction::I64Load(MemArg::i64_offset(12)),
+            Instruction::I64Store(MemArg::i64_offset(8)),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::LocalGet(6),
+            Instruction::I64Load(MemArg::i64_offset(20)),
+            Instruction::I64Store(MemArg::i64_offset(16)),
+            Instruction::I32Const(rid_pid_value_ptr),
+            Instruction::LocalGet(6),
+            Instruction::I64Load(MemArg::i64_offset(28)),
+            Instruction::I64Store(MemArg::i64_offset(24)),
             // Pointer to reservation ID, recipient ID and value
-            Instruction::I32Const {
-                value: rid_pid_value_ptr,
-            },
+            Instruction::I32Const(rid_pid_value_ptr),
             // Pointer to payload
-            Instruction::LocalGet { local_index: 1 },
+            Instruction::LocalGet(1),
             // Size of the payload
-            Instruction::LocalGet { local_index: 2 },
+            Instruction::LocalGet(2),
             // Number of blocks to delay the sending for
-            Instruction::LocalGet { local_index: 3 },
+            Instruction::LocalGet(3),
             // Pointer to the result of the reservation send
-            Instruction::LocalGet { local_index: 6 },
-            Instruction::Call {
-                function_index: reservation_send_idx as u32,
-            },
+            Instruction::LocalGet(6),
+            Instruction::Call(reservation_send_idx as u32),
             Instruction::End,
             Instruction::End,
         ];
@@ -468,97 +398,55 @@ impl SyscallsImportsGenerator<'_, '_> {
 
         let func_instructions = vec![
             // Amount of gas to reserve
-            Instruction::LocalGet { local_index: 3 },
+            Instruction::LocalGet(3),
             // Duration of the reservation
-            Instruction::LocalGet { local_index: 4 },
+            Instruction::LocalGet(4),
             // Pointer to the ErrorWithHash struct
-            Instruction::LocalGet { local_index: 5 },
-            Instruction::Call {
-                function_index: reserve_gas_idx as u32,
-            },
+            Instruction::LocalGet(5),
+            Instruction::Call(reserve_gas_idx as u32),
             // Pointer to the ErrorWithHash struct
-            Instruction::LocalGet { local_index: 5 },
+            Instruction::LocalGet(5),
             // Load ErrorWithHash.error
-            Instruction::I32Load {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Load(MemArg::i32()),
             // Check if ErrorWithHash.error == 0
             Instruction::I32Eqz,
             // If ErrorWithHash.error == 0
-            Instruction::If {
-                blockty: BlockType::Empty,
-            },
+            Instruction::If(BlockType::Empty),
             // Copy the Hash struct (32 bytes) containing the reservation id.
-            Instruction::I32Const {
-                value: rid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 5 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(4),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I32Const {
-                value: rid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 5 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(12),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I32Const {
-                value: rid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 5 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(20),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(16),
-            },
-            Instruction::I32Const {
-                value: rid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 5 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(28),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(24),
-            },
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::LocalGet(5),
+            Instruction::I64Load(MemArg::i64_offset(4)),
+            Instruction::I64Store(MemArg::i64()),
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::LocalGet(5),
+            Instruction::I64Load(MemArg::i64_offset(12)),
+            Instruction::I64Store(MemArg::i64_offset(8)),
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::LocalGet(5),
+            Instruction::I64Load(MemArg::i64_offset(20)),
+            Instruction::I64Store(MemArg::i64_offset(16)),
+            Instruction::I32Const(rid_value_ptr),
+            Instruction::LocalGet(5),
+            Instruction::I64Load(MemArg::i64_offset(28)),
+            Instruction::I64Store(MemArg::i64_offset(24)),
             // Copy the value (16 bytes).
-            Instruction::I32Const { value: value_ptr },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I32Const { value: value_ptr },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(8),
-            },
+            Instruction::I32Const(value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64()),
+            Instruction::I64Store(MemArg::i64()),
+            Instruction::I32Const(value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(8)),
+            Instruction::I64Store(MemArg::i64_offset(8)),
             // Pointer to reservation ID and value
-            Instruction::I32Const {
-                value: rid_value_ptr,
-            },
+            Instruction::I32Const(rid_value_ptr),
             // Pointer to payload
-            Instruction::LocalGet { local_index: 1 },
+            Instruction::LocalGet(1),
             // Size of the payload
-            Instruction::LocalGet { local_index: 2 },
+            Instruction::LocalGet(2),
             // Pointer to the result of the reservation reply
-            Instruction::LocalGet { local_index: 5 },
-            Instruction::Call {
-                function_index: reservation_reply_idx as u32,
-            },
+            Instruction::LocalGet(5),
+            Instruction::Call(reservation_reply_idx as u32),
             Instruction::End,
             Instruction::End,
         ];
@@ -581,31 +469,21 @@ impl SyscallsImportsGenerator<'_, '_> {
 
         let mut elements = vec![
             // Pointer to the ErrorWithHandle struct
-            Instruction::LocalGet { local_index: 4 },
-            Instruction::Call {
-                function_index: send_init_idx as u32,
-            },
+            Instruction::LocalGet(4),
+            Instruction::Call(send_init_idx as u32),
             // Pointer to the ErrorWithHandle struct
-            Instruction::LocalGet { local_index: 4 },
+            Instruction::LocalGet(4),
             // Load ErrorWithHandle.error
-            Instruction::I32Load {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Load(MemArg::i32()),
             // Check if ErrorWithHandle.error == 0
             Instruction::I32Eqz,
             // If ErrorWithHandle.error == 0
-            Instruction::If {
-                blockty: BlockType::Empty,
-            },
+            Instruction::If(BlockType::Empty),
             // Copy the Handle
-            Instruction::I32Const { value: handle_ptr },
-            Instruction::LocalGet { local_index: 4 },
-            Instruction::I32Load {
-                memarg: MemArg::i32_offset(4),
-            },
-            Instruction::I32Store {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Const(handle_ptr),
+            Instruction::LocalGet(4),
+            Instruction::I32Load(MemArg::i32_offset(4)),
+            Instruction::I32Store(MemArg::i32()),
         ];
 
         let number_of_pushes = self.unstructured.int_in_range(
@@ -617,101 +495,55 @@ impl SyscallsImportsGenerator<'_, '_> {
         for _ in 0..number_of_pushes {
             elements.extend_from_slice(&[
                 // Handle of message
-                Instruction::I32Const { value: handle_ptr },
-                Instruction::I32Load {
-                    memarg: MemArg::i32(),
-                },
+                Instruction::I32Const(handle_ptr),
+                Instruction::I32Load(MemArg::i32()),
                 // Pointer to payload
-                Instruction::LocalGet { local_index: 1 },
+                Instruction::LocalGet(1),
                 // Size of the payload
-                Instruction::LocalGet { local_index: 2 },
+                Instruction::LocalGet(2),
                 // Pointer to the result of the send push
-                Instruction::LocalGet { local_index: 4 },
-                Instruction::Call {
-                    function_index: send_push_idx as u32,
-                },
+                Instruction::LocalGet(4),
+                Instruction::Call(send_push_idx as u32),
             ]);
         }
 
         elements.extend_from_slice(&[
             // Copy the HashWithValue struct (48 bytes) containing the recipient and value
             // TODO: extract into another method
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(16),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(16),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(24),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(24),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(32),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(32),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(40),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(40),
-            },
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64()),
+            Instruction::I64Store(MemArg::i64()),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(8)),
+            Instruction::I64Store(MemArg::i64_offset(8)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(16)),
+            Instruction::I64Store(MemArg::i64_offset(16)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(24)),
+            Instruction::I64Store(MemArg::i64_offset(24)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(32)),
+            Instruction::I64Store(MemArg::i64_offset(32)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(40)),
+            Instruction::I64Store(MemArg::i64_offset(40)),
             // Handle of message
-            Instruction::I32Const { value: handle_ptr },
-            Instruction::I32Load {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Const(handle_ptr),
+            Instruction::I32Load(MemArg::i32()),
             // Pointer to recipient ID and value
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
+            Instruction::I32Const(pid_value_ptr),
             // Number of blocks to delay the sending for
-            Instruction::LocalGet { local_index: 3 },
+            Instruction::LocalGet(3),
             // Pointer to the result of the send commit
-            Instruction::LocalGet { local_index: 4 },
-            Instruction::Call {
-                function_index: send_commit_idx as u32,
-            },
+            Instruction::LocalGet(4),
+            Instruction::Call(send_commit_idx as u32),
             Instruction::End,
             Instruction::End,
         ]);
@@ -736,36 +568,24 @@ impl SyscallsImportsGenerator<'_, '_> {
 
         let mut elements = vec![
             // Pointer to the ErrorWithHandle struct
-            Instruction::LocalGet { local_index: 3 },
-            Instruction::Call {
-                function_index: send_init_idx as u32,
-            },
+            Instruction::LocalGet(3),
+            Instruction::Call(send_init_idx as u32),
             // Pointer to the ErrorWithHandle struct
-            Instruction::LocalGet { local_index: 3 },
+            Instruction::LocalGet(3),
             // Load ErrorWithHandle.error
-            Instruction::I32Load {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Load(MemArg::i32()),
             // Check if ErrorWithHandle.error == 0
             Instruction::I32Eqz,
             // If ErrorWithHandle.error == 0
-            Instruction::If {
-                blockty: BlockType::Empty,
-            },
+            Instruction::If(BlockType::Empty),
             // Copy the Handle
-            Instruction::I32Const { value: handle_ptr },
-            Instruction::LocalGet { local_index: 3 },
-            Instruction::I32Load {
-                memarg: MemArg::i32_offset(4),
-            },
-            Instruction::I32Store {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Const(handle_ptr),
+            Instruction::LocalGet(3),
+            Instruction::I32Load(MemArg::i32_offset(4)),
+            Instruction::I32Store(MemArg::i32()),
             // Pointer to message length
-            Instruction::I32Const { value: length_ptr },
-            Instruction::Call {
-                function_index: size_idx as u32,
-            },
+            Instruction::I32Const(length_ptr),
+            Instruction::Call(size_idx as u32),
         ];
 
         let number_of_pushes = self.unstructured.int_in_range(
@@ -777,106 +597,58 @@ impl SyscallsImportsGenerator<'_, '_> {
         for _ in 0..number_of_pushes {
             elements.extend_from_slice(&[
                 // Handle of message
-                Instruction::I32Const { value: handle_ptr },
-                Instruction::I32Load {
-                    memarg: MemArg::i32(),
-                },
+                Instruction::I32Const(handle_ptr),
+                Instruction::I32Load(MemArg::i32()),
                 // Offset of input
-                Instruction::I32Const { value: 0 },
+                Instruction::I32Const(0),
                 // Length of input
-                Instruction::I32Const { value: length_ptr },
-                Instruction::I32Load {
-                    memarg: MemArg::i32(),
-                },
+                Instruction::I32Const(length_ptr),
+                Instruction::I32Load(MemArg::i32()),
                 // Pointer to the result of the send push input
-                Instruction::LocalGet { local_index: 3 },
-                Instruction::Call {
-                    function_index: send_push_input_idx as u32,
-                },
+                Instruction::LocalGet(3),
+                Instruction::Call(send_push_input_idx as u32),
             ]);
         }
 
         elements.extend_from_slice(&[
             // Copy the HashWithValue struct (48 bytes) containing the recipient and value
             // TODO: extract into another method
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(16),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(16),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(24),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(24),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(32),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(32),
-            },
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
-            Instruction::LocalGet { local_index: 0 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(40),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(40),
-            },
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64()),
+            Instruction::I64Store(MemArg::i64()),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(8)),
+            Instruction::I64Store(MemArg::i64_offset(8)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(16)),
+            Instruction::I64Store(MemArg::i64_offset(16)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(24)),
+            Instruction::I64Store(MemArg::i64_offset(24)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(32)),
+            Instruction::I64Store(MemArg::i64_offset(32)),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::LocalGet(0),
+            Instruction::I64Load(MemArg::i64_offset(40)),
+            Instruction::I64Store(MemArg::i64_offset(40)),
             // Handle of message
-            Instruction::I32Const { value: handle_ptr },
-            Instruction::I32Load {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Const(handle_ptr),
+            Instruction::I32Load(MemArg::i32()),
             // Pointer to recipient ID and value
-            Instruction::I32Const {
-                value: pid_value_ptr,
-            },
+            Instruction::I32Const(pid_value_ptr),
             // Gas limit for message
-            Instruction::LocalGet { local_index: 2 },
+            Instruction::LocalGet(2),
             // Number of blocks to delay the sending for
-            Instruction::LocalGet { local_index: 1 },
+            Instruction::LocalGet(1),
             // Pointer to the result of the send commit
-            Instruction::LocalGet { local_index: 3 },
-            Instruction::Call {
-                function_index: send_commit_wgas_idx as u32,
-            },
+            Instruction::LocalGet(3),
+            Instruction::Call(send_commit_wgas_idx as u32),
             Instruction::End,
             Instruction::End,
         ]);
@@ -898,82 +670,58 @@ impl SyscallsImportsGenerator<'_, '_> {
 
         let precise_reply_deposit_invocation = [
             // Pointer to pid_value argument of HashWithValue type.
-            Instruction::LocalGet { local_index: 0 },
+            Instruction::LocalGet(0),
             // Offset value defining starting index in the received message payload.
-            Instruction::LocalGet { local_index: 1 },
+            Instruction::LocalGet(1),
             // Length of the slice of the received message payload.
-            Instruction::LocalGet { local_index: 2 },
+            Instruction::LocalGet(2),
             // Delay.
-            Instruction::LocalGet { local_index: 3 },
+            Instruction::LocalGet(3),
             // Pointer to the result of the `gr_send_input`, which is of type ErrorWithHash.
-            Instruction::LocalGet { local_index: 5 },
+            Instruction::LocalGet(5),
             // Invocation of the `gr_send_input`.
-            Instruction::Call {
-                function_index: send_input_idx as u32,
-            },
+            Instruction::Call(send_input_idx as u32),
             // Load ErrorWithHash.
-            Instruction::LocalGet { local_index: 5 },
+            Instruction::LocalGet(5),
             // Take first 4 bytes from the data of ErrorWithHash type, which is error code, i.e.
             // ErrorWithHash.error.
-            Instruction::I32Load {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Load(MemArg::i32()),
             // Check if ErrorWithHash.error == 0.
             Instruction::I32Eqz,
             // If ErrorWithHash.error == 0.
-            Instruction::If {
-                blockty: BlockType::Empty,
-            },
+            Instruction::If(BlockType::Empty),
             // Copy Hash struct (32 bytes) containing message id.
             // Push on stack ptr to address where message id will be defined.
-            Instruction::I32Const { value: mid_ptr },
+            Instruction::I32Const(mid_ptr),
             // Get the ErrorWithHash result of the `gr_send_input` call
-            Instruction::LocalGet { local_index: 5 },
+            Instruction::LocalGet(5),
             // Load 8 bytes from the ErrorWithHash skipping first 4 bytes,
             // which are bytes of i32 error_code value.
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(4),
-            },
+            Instruction::I64Load(MemArg::i64_offset(4)),
             // Store these 8 bytes in the `mid_ptr` starting from the byte 0.
-            Instruction::I64Store {
-                memarg: MemArg::i64(),
-            },
+            Instruction::I64Store(MemArg::i64()),
             // Perform same procedure 3 times more to complete
             // 32 bytes message id value under `mid_ptr`.
-            Instruction::I32Const { value: mid_ptr },
-            Instruction::LocalGet { local_index: 5 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(12),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(8),
-            },
-            Instruction::I32Const { value: mid_ptr },
-            Instruction::LocalGet { local_index: 5 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(20),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(16),
-            },
-            Instruction::I32Const { value: mid_ptr },
-            Instruction::LocalGet { local_index: 5 },
-            Instruction::I64Load {
-                memarg: MemArg::i64_offset(28),
-            },
-            Instruction::I64Store {
-                memarg: MemArg::i64_offset(24),
-            },
+            Instruction::I32Const(mid_ptr),
+            Instruction::LocalGet(5),
+            Instruction::I64Load(MemArg::i64_offset(12)),
+            Instruction::I64Store(MemArg::i64_offset(8)),
+            Instruction::I32Const(mid_ptr),
+            Instruction::LocalGet(5),
+            Instruction::I64Load(MemArg::i64_offset(20)),
+            Instruction::I64Store(MemArg::i64_offset(16)),
+            Instruction::I32Const(mid_ptr),
+            Instruction::LocalGet(5),
+            Instruction::I64Load(MemArg::i64_offset(28)),
+            Instruction::I64Store(MemArg::i64_offset(24)),
             // Pointer to message id.
-            Instruction::I32Const { value: mid_ptr },
+            Instruction::I32Const(mid_ptr),
             // Pointer to gas value for `gr_reply_deposit`.
-            Instruction::LocalGet { local_index: 4 },
+            Instruction::LocalGet(4),
             // Pointer to the result of the `gr_reply_deposit`.
-            Instruction::LocalGet { local_index: 5 },
+            Instruction::LocalGet(5),
             // Invocation of `gr_reply_deposit`.
-            Instruction::Call {
-                function_index: reply_deposit_idx as u32,
-            },
+            Instruction::Call(reply_deposit_idx as u32),
             Instruction::End,
         ];
 

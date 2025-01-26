@@ -236,43 +236,29 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
         // reset handle flags because they cannot be used in different messages
         res.extend_from_slice(&[
             // *handle_flags_ptr = 0
-            Instruction::I32Const {
-                value: handle_flags_ptr,
-            },
-            Instruction::I32Const { value: 0 },
-            Instruction::I32Store {
-                memarg: MemArg::i32(),
-            },
+            Instruction::I32Const(handle_flags_ptr),
+            Instruction::I32Const(0),
+            Instruction::I32Store(MemArg::i32()),
         ]);
 
         for param in params {
             let instr = match param {
-                ValType::I32 => Instruction::I32Const {
-                    value: self.unstructured.arbitrary()?,
-                },
-                ValType::I64 => Instruction::I64Const {
-                    value: self.unstructured.arbitrary()?,
-                },
+                ValType::I32 => Instruction::I32Const(self.unstructured.arbitrary()?),
+                ValType::I64 => Instruction::I64Const(self.unstructured.arbitrary()?),
                 _ => panic!("EntryPointsGenerator::get_call_instruction: can't handle f32/f64"),
             };
             res.push(instr);
         }
-        res.push(Instruction::Call {
-            function_index: export_body_call_idx as u32,
-        });
+        res.push(Instruction::Call(export_body_call_idx as u32));
         res.extend(results.iter().map(|_| Instruction::Drop));
 
         // after initializing the program, we will write about this in a special pointer
         if name == "init" {
             res.extend_from_slice(&[
                 // *init_called_ptr = true
-                Instruction::I32Const {
-                    value: init_called_ptr,
-                },
-                Instruction::I32Const { value: 1 },
-                Instruction::I32Store8 {
-                    memarg: MemArg::zero(),
-                },
+                Instruction::I32Const(init_called_ptr),
+                Instruction::I32Const(1),
+                Instruction::I32Store8(MemArg::zero()),
             ]);
         }
 

@@ -78,12 +78,8 @@ pub fn remove_recursion(module: Module) -> Module {
         let mut body = Vec::with_capacity(results.len() + 1);
         for result in results {
             let instruction = match result {
-                ValType::I32 => Instruction::I32Const {
-                    value: u32::MAX as i32,
-                },
-                ValType::I64 => Instruction::I64Const {
-                    value: u64::MAX as i64,
-                },
+                ValType::I32 => Instruction::I32Const(u32::MAX as i32),
+                ValType::I64 => Instruction::I64Const(u64::MAX as i64),
                 ValType::F32 | ValType::F64 | ValType::V128 | ValType::Ref(_) => {
                     unreachable!("f32/64, SIMD and reference types are not supported")
                 }
@@ -107,7 +103,7 @@ pub fn remove_recursion(module: Module) -> Module {
         let function_body = &mut code_section[index];
         for instruction in function_body.instructions.iter_mut() {
             let call_index = match instruction {
-                Instruction::Call { function_index } if calls.contains(function_index) => {
+                Instruction::Call(function_index) if calls.contains(function_index) => {
                     function_index
                 }
                 _ => continue,
@@ -182,7 +178,7 @@ fn find_recursion_impl<Callback>(
     let instructions = &body.instructions;
     for instruction in instructions {
         let called_index = match instruction {
-            Instruction::Call { function_index } => *function_index as usize,
+            Instruction::Call(function_index) => *function_index as usize,
             _ => continue,
         };
 
@@ -305,34 +301,22 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
         let mut body = Vec::with_capacity(results.len() + 9);
         body.extend_from_slice(&[
             // gr_gas_available(GAS_PTR)
-            Instruction::I32Const { value: GAS_PTR },
-            Instruction::Call {
-                function_index: gr_gas_available_index,
-            },
+            Instruction::I32Const(GAS_PTR),
+            Instruction::Call(gr_gas_available_index),
             // gas_available = *GAS_PTR
-            Instruction::I32Const { value: GAS_PTR },
-            Instruction::I64Load {
-                memarg: MemArg::i64(),
-            },
-            Instruction::I64Const {
-                value: critical_gas_limit as i64,
-            },
+            Instruction::I32Const(GAS_PTR),
+            Instruction::I64Load(MemArg::i64()),
+            Instruction::I64Const(critical_gas_limit as i64),
             // if gas_available <= critical_gas_limit { return result; }
             Instruction::I64LeU,
-            Instruction::If {
-                blockty: BlockType::Empty,
-            },
+            Instruction::If(BlockType::Empty),
         ]);
 
         // exit the current function with dummy results
         for result in results {
             let instruction = match result {
-                ValType::I32 => Instruction::I32Const {
-                    value: u32::MAX as i32,
-                },
-                ValType::I64 => Instruction::I64Const {
-                    value: u64::MAX as i64,
-                },
+                ValType::I32 => Instruction::I32Const(u32::MAX as i32),
+                ValType::I64 => Instruction::I64Const(u64::MAX as i64),
                 ValType::F32 | ValType::F64 | ValType::V128 | ValType::Ref(_) => {
                     unreachable!("f32/64, SIMD and reference types are not supported")
                 }
@@ -360,13 +344,11 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
                     new_instructions.push(instruction);
                     new_instructions.extend_from_slice(&body);
                 }
-                Instruction::Call { function_index }
+                Instruction::Call(function_index)
                     if rewrite_sections && function_index >= gr_gas_available_index =>
                 {
                     // fix function indexes if import gr_gas_available was inserted
-                    new_instructions.push(Instruction::Call {
-                        function_index: function_index + 1,
-                    });
+                    new_instructions.push(Instruction::Call(function_index + 1));
                 }
                 _ => {
                     new_instructions.push(instruction);
@@ -401,7 +383,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
                     ElementItems::Expressions(_ty, exprs) => {
                         for expr in exprs {
                             for instruction in &mut expr.instructions {
-                                if let Instruction::Call { function_index } = instruction {
+                                if let Instruction::Call(function_index) = instruction {
                                     if *function_index >= gr_gas_available_index {
                                         *function_index += 1;
                                     }
@@ -475,20 +457,12 @@ pub(crate) fn translate_ptr_data(
         .enumerate()
         .flat_map(|(word_idx, word)| {
             vec![
-                Instruction::I32Const {
-                    value: start_offset,
-                },
-                Instruction::I32Const { value: word },
-                Instruction::I32Store {
-                    memarg: MemArg::i32_offset((word_idx * size_of::<i32>()) as u32),
-                },
+                Instruction::I32Const(start_offset),
+                Instruction::I32Const(word),
+                Instruction::I32Store(MemArg::i32_offset((word_idx * size_of::<i32>()) as u32)),
             ]
         })
-        .chain(
-            end_offset.into_iter().flat_map(|end_offset| {
-                core::iter::once(Instruction::I32Const { value: end_offset })
-            }),
-        ) // TODO: simplify
+        .chain(end_offset.into_iter().map(Instruction::I32Const))
         .collect()
 }
 
@@ -500,29 +474,21 @@ pub(crate) trait MemcpyUnit: Sized {
 
 impl MemcpyUnit for u32 {
     fn load(offset: u32) -> Instruction {
-        Instruction::I32Load {
-            memarg: MemArg::i32_offset(offset),
-        }
+        Instruction::I32Load(MemArg::i32_offset(offset))
     }
 
     fn store(offset: u32) -> Instruction {
-        Instruction::I32Store {
-            memarg: MemArg::i32_offset(offset),
-        }
+        Instruction::I32Store(MemArg::i32_offset(offset))
     }
 }
 
 impl MemcpyUnit for u64 {
     fn load(offset: u32) -> Instruction {
-        Instruction::I64Load {
-            memarg: MemArg::i64_offset(offset),
-        }
+        Instruction::I64Load(MemArg::i64_offset(offset))
     }
 
     fn store(offset: u32) -> Instruction {
-        Instruction::I64Store {
-            memarg: MemArg::i64_offset(offset),
-        }
+        Instruction::I64Store(MemArg::i64_offset(offset))
     }
 }
 

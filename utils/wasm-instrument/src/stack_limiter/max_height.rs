@@ -269,7 +269,7 @@ where
                     break 'block None;
                 }
 
-                let &Instruction::Call { function_index } = instruction else {
+                let &Instruction::Call(function_index) = instruction else {
                     break 'block None;
                 };
 
@@ -331,9 +331,9 @@ where
 
         match opcode {
             Nop => {}
-            Block { blockty } | Loop { blockty } | If { blockty } => {
+            Block(blockty) | Loop(blockty) | If(blockty) => {
                 let end_arity = if *blockty == BlockType::Empty { 0 } else { 1 };
-                let branch_arity = if let Loop { blockty: _ } = *opcode {
+                let branch_arity = if let Loop(_blockty) = *opcode {
                     0
                 } else {
                     end_arity
@@ -361,7 +361,7 @@ where
             Unreachable => {
                 stack.mark_unreachable()?;
             }
-            Br { relative_depth } => {
+            Br(relative_depth) => {
                 // Pop values for the destination block result.
                 let target_arity = stack.frame(*relative_depth)?.branch_arity;
                 stack.pop_values(target_arity)?;
@@ -370,7 +370,7 @@ where
                 // thus all instruction until the end of the current block is deemed unreachable
                 stack.mark_unreachable()?;
             }
-            BrIf { relative_depth } => {
+            BrIf(relative_depth) => {
                 // Pop values for the destination block result.
                 let target_arity = stack.frame(*relative_depth)?.branch_arity;
                 stack.pop_values(target_arity)?;
@@ -381,7 +381,7 @@ where
                 // Push values back.
                 stack.push_values(target_arity)?;
             }
-            BrTable { targets } => {
+            BrTable(targets) => {
                 let arity_of_default = stack.frame(targets.default)?.branch_arity;
 
                 // Check that all jump targets have an equal arities.
@@ -406,7 +406,7 @@ where
                 stack.pop_values(func_arity)?;
                 stack.mark_unreachable()?;
             }
-            Call { function_index } => {
+            Call(function_index) => {
                 let ty = resolve_func_type(*function_index, module)?;
 
                 // Pop values for arguments of the function.

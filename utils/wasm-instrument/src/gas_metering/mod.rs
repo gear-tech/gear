@@ -523,10 +523,8 @@ fn inject_grow_counter(instructions: &mut Vec<Instruction>, grow_counter_func: u
     use Instruction::*;
     let mut counter = 0;
     for instruction in instructions {
-        if let MemoryGrow { mem: _ } = *instruction {
-            *instruction = Call {
-                function_index: grow_counter_func,
-            };
+        if let MemoryGrow(_) = *instruction {
+            *instruction = Call(grow_counter_func);
             counter += 1;
         }
     }
@@ -545,16 +543,14 @@ fn add_grow_counter<R: Rules>(module: Module, rules: &R, gas_func: u32) -> Modul
     b.add_func(
         FuncType::new([ValType::I32], [ValType::I32]),
         Function::from_instructions([
-            LocalGet { local_index: 0 },
-            LocalGet { local_index: 0 },
-            I32Const { value: cost as i32 },
+            LocalGet(0),
+            LocalGet(0),
+            I32Const(cost as i32),
             I32Mul,
             // todo: there should be strong guarantee that it does not return anything on
             // stack?
-            Call {
-                function_index: gas_func,
-            },
-            MemoryGrow { mem: 0 },
+            Call(gas_func),
+            MemoryGrow(0),
             End,
         ]),
     );
@@ -610,7 +606,7 @@ fn determine_metered_blocks<R: Rules>(
             Else => {
                 counter.finalize_metered_block(cursor)?;
             }
-            Br { relative_depth } | BrIf { relative_depth } => {
+            Br(relative_depth) | BrIf(relative_depth) => {
                 counter.increment(instruction_cost)?;
 
                 // Label is a relative index into the control stack.
@@ -622,7 +618,7 @@ fn determine_metered_blocks<R: Rules>(
                     .ok_or(GasMeteringError::ActiveIndexRelativeDepthUnderflow)?;
                 counter.branch(cursor, &[target_index])?;
             }
-            BrTable { targets } => {
+            BrTable(targets) => {
                 counter.increment(instruction_cost)?;
 
                 let active_index = counter
@@ -716,22 +712,14 @@ fn insert_gas_call(new_instrs: &mut Vec<Instruction>, current_block: &MeteredBlo
     let (mut overflows_num, current_cost) = current_block.cost.block_costs();
     // First insert gas charging call with maximum argument due to overflows.
     while overflows_num != 0 {
-        new_instrs.push(I32Const {
-            value: BlockCostCounter::MAX_GAS_ARG as i32,
-        });
-        new_instrs.push(Call {
-            function_index: gas_func,
-        });
+        new_instrs.push(I32Const(BlockCostCounter::MAX_GAS_ARG as i32));
+        new_instrs.push(Call(gas_func));
         overflows_num -= 1;
     }
     // Second insert remaining block's cost, if necessary.
     if current_cost != 0 {
-        new_instrs.push(I32Const {
-            value: current_cost as i32,
-        });
-        new_instrs.push(Call {
-            function_index: gas_func,
-        });
+        new_instrs.push(I32Const(current_cost as i32));
+        new_instrs.push(Call(gas_func));
     }
 }
 
@@ -772,18 +760,16 @@ mod tests {
         mbuilder.add_func(
             FuncType::new([ValType::I32], []),
             Function::from_instructions([
-                Call { function_index: 0 },
-                If {
-                    blockty: BlockType::Empty,
-                },
-                Call { function_index: 0 },
-                Call { function_index: 0 },
-                Call { function_index: 0 },
+                Call(0),
+                If(BlockType::Empty),
+                Call(0),
+                Call(0),
+                Call(0),
                 Else,
-                Call { function_index: 0 },
-                Call { function_index: 0 },
+                Call(0),
+                Call(0),
                 End,
-                Call { function_index: 0 },
+                Call(0),
                 End,
             ]),
         );
@@ -807,23 +793,17 @@ mod tests {
 
         assert_eq!(
             get_function_body(&injected_module, 0).unwrap(),
-            [
-                I32Const { value: 2 },
-                Call { function_index: 0 },
-                GlobalGet { global_index: 0 },
-                Call { function_index: 2 },
-                End
-            ]
+            [I32Const(2), Call(0), GlobalGet(0), Call(2), End]
         );
         assert_eq!(
             get_function_body(&injected_module, 1).unwrap(),
             [
-                LocalGet { local_index: 0 },
-                LocalGet { local_index: 0 },
-                I32Const { value: 10000 },
+                LocalGet(0),
+                LocalGet(0),
+                I32Const(10000),
                 I32Mul,
-                Call { function_index: 0 },
-                MemoryGrow { mem: 0 },
+                Call(0),
+                MemoryGrow(0),
                 End,
             ]
         );
@@ -848,13 +828,7 @@ mod tests {
 
         assert_eq!(
             get_function_body(&injected_module, 0).unwrap(),
-            [
-                I32Const { value: 2 },
-                Call { function_index: 0 },
-                GlobalGet { global_index: 0 },
-                MemoryGrow { mem: 0 },
-                End
-            ]
+            [I32Const(2), Call(0), GlobalGet(0), MemoryGrow(0), End]
         );
 
         assert_eq!(injected_module.functions_space(), 2);
@@ -875,24 +849,22 @@ mod tests {
         assert_eq!(
             get_function_body(&injected_module, 1).unwrap(),
             &vec![
-                I32Const { value: 3 },
-                Call { function_index: 0 },
-                Call { function_index: 1 },
-                If {
-                    blockty: BlockType::Empty
-                },
-                I32Const { value: 3 },
-                Call { function_index: 0 },
-                Call { function_index: 1 },
-                Call { function_index: 1 },
-                Call { function_index: 1 },
+                I32Const(3),
+                Call(0),
+                Call(1),
+                If(BlockType::Empty),
+                I32Const(3),
+                Call(0),
+                Call(1),
+                Call(1),
+                Call(1),
                 Else,
-                I32Const { value: 2 },
-                Call { function_index: 0 },
-                Call { function_index: 1 },
-                Call { function_index: 1 },
+                I32Const(2),
+                Call(0),
+                Call(1),
+                Call(1),
                 End,
-                Call { function_index: 1 },
+                Call(1),
                 End
             ][..]
         );
@@ -914,34 +886,28 @@ mod tests {
                 // (instruction_cost * 3) as i32 => ((2147483647 * 2) + 2147483647) as i32 =>
                 // ((2147483647 + 2147483647 + 1) + 2147483646) as i32 =>
                 // (u32::MAX as i32) + 2147483646 as i32
-                I32Const { value: -1 },
-                Call { function_index: 0 },
-                I32Const {
-                    value: (instruction_cost - 1) as i32
-                },
-                Call { function_index: 0 },
-                Call { function_index: 1 },
-                If {
-                    blockty: BlockType::Empty
-                },
+                I32Const(-1),
+                Call(0),
+                I32Const((instruction_cost - 1) as i32),
+                Call(0),
+                Call(1),
+                If(BlockType::Empty),
                 // Same as upper
-                I32Const { value: -1 },
-                Call { function_index: 0 },
-                I32Const {
-                    value: (instruction_cost - 1) as i32
-                },
-                Call { function_index: 0 },
-                Call { function_index: 1 },
-                Call { function_index: 1 },
-                Call { function_index: 1 },
+                I32Const(-1),
+                Call(0),
+                I32Const((instruction_cost - 1) as i32),
+                Call(0),
+                Call(1),
+                Call(1),
+                Call(1),
                 Else,
                 // (instruction_cost * 2) as i32
-                I32Const { value: -2 },
-                Call { function_index: 0 },
-                Call { function_index: 1 },
-                Call { function_index: 1 },
+                I32Const(-2),
+                Call(0),
+                Call(1),
+                Call(1),
                 End,
-                Call { function_index: 1 },
+                Call(1),
                 End
             ][..]
         );

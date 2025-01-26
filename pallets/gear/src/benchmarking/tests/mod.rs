@@ -42,7 +42,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let instrs = vec![Instruction::Call { function_index: 0 }];
+    let instrs = vec![Instruction::Call(0)];
 
     let module: WasmModule<T> = ModuleDefinition {
         memory: Some(ImportedMemory::new(0)),

@@ -332,20 +332,16 @@ where
         // because of the maximum code size that is enforced by `instantiate_with_code`.
         let expansions = (target_bytes.saturating_sub(63) / 20).saturating_sub(1);
         const EXPANSION: &[Instruction] = &[
-            I64Const { value: 0 },
-            I64Const { value: 1 },
+            I64Const(0),
+            I64Const(1),
             I64Eq,
-            If {
-                blockty: BlockType::Empty,
-            },
+            If(BlockType::Empty),
             Return,
             End,
-            I32Const { value: 0xffffff },
+            I32Const(0xffffff),
             Drop,
-            I32Const { value: 0 },
-            If {
-                blockty: BlockType::Empty,
-            },
+            I32Const(0),
+            If(BlockType::Empty),
             Return,
             End,
         ];
@@ -579,13 +575,9 @@ pub mod body {
         IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
-                head.push(Instruction::I32Const {
-                    value: page.offset() as i32,
-                });
-                head.push(Instruction::I32Const { value: 42 });
-                head.push(Instruction::I32Store {
-                    memarg: MemArg::i32(),
-                });
+                head.push(Instruction::I32Const(page.offset() as i32));
+                head.push(Instruction::I32Const(42));
+                head.push(Instruction::I32Store(MemArg::i32()));
             });
         head
     }
@@ -597,12 +589,8 @@ pub mod body {
         IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
-                head.push(Instruction::I32Const {
-                    value: page.offset() as i32,
-                });
-                head.push(Instruction::I32Load {
-                    memarg: MemArg::i32(),
-                });
+                head.push(Instruction::I32Const(page.offset() as i32));
+                head.push(Instruction::I32Load(MemArg::i32()));
                 head.push(Instruction::Drop);
             });
         head
@@ -623,75 +611,55 @@ pub mod body {
             .cycle()
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
-                DynInstr::InstrI32Const(c) => vec![Instruction::I32Const { value: *c as i32 }],
-                DynInstr::InstrI64Const(c) => vec![Instruction::I64Const { value: *c as i64 }],
-                DynInstr::InstrCall(c) => vec![Instruction::Call { function_index: *c }],
+                DynInstr::InstrI32Const(c) => vec![Instruction::I32Const(*c as i32)],
+                DynInstr::InstrI64Const(c) => vec![Instruction::I64Const(*c as i64)],
+                DynInstr::InstrCall(c) => vec![Instruction::Call(*c)],
                 DynInstr::InstrI32Load(align, offset) => {
-                    vec![Instruction::I32Load {
-                        memarg: MemArg {
-                            align: *align,
-                            offset: *offset,
-                        },
-                    }]
+                    vec![Instruction::I32Load(MemArg {
+                        align: *align,
+                        offset: *offset,
+                    })]
                 }
                 DynInstr::Regular(instruction) => vec![instruction.clone()],
                 DynInstr::Counter(offset, increment_by) => {
                     let current = *offset;
                     *offset += *increment_by;
-                    vec![Instruction::I32Const {
-                        value: current as i32,
-                    }]
+                    vec![Instruction::I32Const(current as i32)]
                 }
                 DynInstr::RandomUnaligned(low, high) => {
                     let unaligned = rng.gen_range(*low..*high) | 1;
-                    vec![Instruction::I32Const {
-                        value: unaligned as i32,
-                    }]
+                    vec![Instruction::I32Const(unaligned as i32)]
                 }
                 DynInstr::RandomI32(low, high) => {
-                    vec![Instruction::I32Const {
-                        value: rng.gen_range(*low..*high),
-                    }]
+                    vec![Instruction::I32Const(rng.gen_range(*low..*high))]
                 }
                 DynInstr::RandomI64(low, high) => {
-                    vec![Instruction::I64Const {
-                        value: rng.gen_range(*low..*high),
-                    }]
+                    vec![Instruction::I64Const(rng.gen_range(*low..*high))]
                 }
                 DynInstr::RandomI32Repeated(num) => (&mut rng)
                     .sample_iter(Standard)
                     .take(*num)
-                    .map(|value| Instruction::I32Const { value })
+                    .map(Instruction::I32Const)
                     .collect(),
                 DynInstr::RandomI64Repeated(num) => (&mut rng)
                     .sample_iter(Standard)
                     .take(*num)
-                    .map(|value| Instruction::I64Const { value })
+                    .map(Instruction::I64Const)
                     .collect(),
                 DynInstr::RandomGetLocal(low, high) => {
-                    vec![Instruction::LocalGet {
-                        local_index: rng.gen_range(*low..*high),
-                    }]
+                    vec![Instruction::LocalGet(rng.gen_range(*low..*high))]
                 }
                 DynInstr::RandomSetLocal(low, high) => {
-                    vec![Instruction::LocalSet {
-                        local_index: rng.gen_range(*low..*high),
-                    }]
+                    vec![Instruction::LocalSet(rng.gen_range(*low..*high))]
                 }
                 DynInstr::RandomTeeLocal(low, high) => {
-                    vec![Instruction::LocalTee {
-                        local_index: rng.gen_range(*low..*high),
-                    }]
+                    vec![Instruction::LocalTee(rng.gen_range(*low..*high))]
                 }
                 DynInstr::RandomGetGlobal(low, high) => {
-                    vec![Instruction::GlobalGet {
-                        global_index: rng.gen_range(*low..*high),
-                    }]
+                    vec![Instruction::GlobalGet(rng.gen_range(*low..*high))]
                 }
                 DynInstr::RandomSetGlobal(low, high) => {
-                    vec![Instruction::GlobalSet {
-                        global_index: rng.gen_range(*low..*high),
-                    }]
+                    vec![Instruction::GlobalSet(rng.gen_range(*low..*high))]
                 }
                 DynInstr::DropRepeated(num) => vec![Instruction::Drop; *num],
             });
@@ -709,13 +677,11 @@ pub mod body {
 
     pub fn with_result_check_dyn(res_offset: DynInstr, instructions: &[DynInstr]) -> Vec<DynInstr> {
         let mut res = vec![
-            DynInstr::Regular(Instruction::Block {
-                blockty: BlockType::Empty,
-            }),
+            DynInstr::Regular(Instruction::Block(BlockType::Empty)),
             res_offset,
             DynInstr::InstrI32Load(2, 0),
             DynInstr::Regular(Instruction::I32Eqz),
-            DynInstr::Regular(Instruction::BrIf { relative_depth: 0 }),
+            DynInstr::Regular(Instruction::BrIf(0)),
             DynInstr::Regular(Instruction::Unreachable),
             DynInstr::Regular(Instruction::End),
         ];
@@ -792,13 +758,9 @@ pub mod body {
         compare_with: i32,
     ) {
         let additional = vec![
-            Instruction::I32Const {
-                value: compare_with,
-            },
+            Instruction::I32Const(compare_with),
             flag,
-            Instruction::If {
-                blockty: BlockType::Empty,
-            },
+            Instruction::If(BlockType::Empty),
             Instruction::Unreachable,
             Instruction::End,
         ];

@@ -171,12 +171,8 @@ where
                 stack_limit,
                 injection_fn: |_| {
                     [
-                        Instruction::I32Const {
-                            value: SystemBreakCode::StackLimitExceeded as i32,
-                        },
-                        Instruction::Call {
-                            function_index: gr_system_break_index,
-                        },
+                        Instruction::I32Const(SystemBreakCode::StackLimitExceeded as i32),
+                        Instruction::Call(gr_system_break_index),
                     ]
                 },
                 stack_height_export_name: export_stack_height.then_some(STACK_HEIGHT_EXPORT_NAME),
@@ -261,47 +257,33 @@ fn inject_gas_limiter<R: Rules>(
 
     let mut elements = vec![
         // I. Put global with value of current gas counter of any type.
-        Instruction::GlobalGet {
-            global_index: gas_index,
-        },
+        Instruction::GlobalGet(gas_index),
         // II. Calculating total gas to charge as sum of:
         //  - `gas_charge(..)` argument;
         //  - `gas_charge(..)` call cost.
         //
         // Setting the sum into local with index 1 with keeping it on stack.
-        Instruction::LocalGet { local_index: 0 },
+        Instruction::LocalGet(0),
         Instruction::I64ExtendI32U,
-        Instruction::I64Const {
-            value: GAS_CHARGE_COST_PLACEHOLDER,
-        },
+        Instruction::I64Const(GAS_CHARGE_COST_PLACEHOLDER),
         Instruction::I64Add,
-        Instruction::LocalTee { local_index: 1 },
+        Instruction::LocalTee(1),
         // III. Validating left amount of gas.
         //
         // In case of requested value is bigger than actual gas counter value,
         // than we call `out_of_gas()` that will terminate execution.
         Instruction::I64LtU,
-        Instruction::If {
-            blockty: BlockType::Empty,
-        },
-        Instruction::I32Const {
-            value: SystemBreakCode::OutOfGas as i32,
-        },
-        Instruction::Call {
-            function_index: gr_system_break_index,
-        },
+        Instruction::If(BlockType::Empty),
+        Instruction::I32Const(SystemBreakCode::OutOfGas as i32),
+        Instruction::Call(gr_system_break_index),
         Instruction::End,
         // IV. Calculating new global value by subtraction.
         //
         // Result is stored back into global.
-        Instruction::GlobalGet {
-            global_index: gas_index,
-        },
-        Instruction::LocalGet { local_index: 1 },
+        Instruction::GlobalGet(gas_index),
+        Instruction::LocalGet(1),
         Instruction::I64Sub,
-        Instruction::GlobalSet {
-            global_index: gas_index,
-        },
+        Instruction::GlobalSet(gas_index),
         // V. Ending `gas_charge()` function.
         Instruction::End,
     ];
@@ -330,12 +312,12 @@ fn inject_gas_limiter<R: Rules>(
         .ok_or(InstrumentationError::CostCalculationOverflow)?;
 
     let cost_push_arg = rules
-        .instruction_cost(&Instruction::I32Const { value: 0 })
+        .instruction_cost(&Instruction::I32Const(0))
         .map(|c| c as u64)
         .ok_or(InstrumentationError::InstructionCostNotFound)?;
 
     let cost_call = rules
-        .instruction_cost(&Instruction::Call { function_index: 0 })
+        .instruction_cost(&Instruction::Call(0))
         .map(|c| c as u64)
         .ok_or(InstrumentationError::InstructionCostNotFound)?;
 
@@ -353,13 +335,9 @@ fn inject_gas_limiter<R: Rules>(
     // update cost for 'gas_charge' function itself
     let cost_instr = elements
         .iter_mut()
-        .find(|i| {
-            **i == Instruction::I64Const {
-                value: GAS_CHARGE_COST_PLACEHOLDER,
-            }
-        })
+        .find(|i| **i == Instruction::I64Const(GAS_CHARGE_COST_PLACEHOLDER))
         .expect("Const for cost of the fn not found");
-    *cost_instr = Instruction::I64Const { value: cost as i64 };
+    *cost_instr = Instruction::I64Const(cost as i64);
 
     // gas_charge function
     mbuilder.add_func(

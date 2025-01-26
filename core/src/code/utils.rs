@@ -228,7 +228,7 @@ fn get_export_global_with_index(module: &Module, name: &str) -> Option<(u32, u32
 
 fn get_init_expr_const_i32(init_expr: &ConstExpr) -> Option<i32> {
     match init_expr.instructions.as_slice() {
-        [Instruction::I32Const { value }] => Some(*value),
+        [Instruction::I32Const(value)] => Some(*value),
         _ => None,
     }
 }

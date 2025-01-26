@@ -314,7 +314,7 @@ where
         .iter()
         .enumerate()
         .filter_map(|(offset, instruction)| {
-            if let &Call { function_index } = instruction {
+            if let &Call(function_index) = instruction {
                 ctx.stack_cost(function_index).and_then(|cost| {
                     if cost > 0 {
                         Some(InstrumentCall {
@@ -401,9 +401,7 @@ fn instrument_call(
     instructions.extend(arguments);
 
     // Original call, 1 instruction
-    instructions.push(Call {
-        function_index: callee_idx,
-    });
+    instructions.push(Call(callee_idx));
 
     // 4 instructions
     generate_postamble(instructions, callee_stack_cost, stack_height_global_idx);
@@ -422,27 +420,15 @@ fn generate_preamble(
     // 8 instructions
     instructions.extend_from_slice(&[
         // stack_height += stack_cost(F)
-        GlobalGet {
-            global_index: stack_height_global_idx,
-        },
-        I32Const {
-            value: callee_stack_cost,
-        },
+        GlobalGet(stack_height_global_idx),
+        I32Const(callee_stack_cost),
         I32Add,
-        GlobalSet {
-            global_index: stack_height_global_idx,
-        },
+        GlobalSet(stack_height_global_idx),
         // if stack_counter > LIMIT: unreachable or custom instructions
-        GlobalGet {
-            global_index: stack_height_global_idx,
-        },
-        I32Const {
-            value: stack_limit as i32,
-        },
+        GlobalGet(stack_height_global_idx),
+        I32Const(stack_limit as i32),
         I32GtU,
-        If {
-            blockty: BlockType::Empty,
-        },
+        If(BlockType::Empty),
     ]);
 
     // body_of_condition.len() instructions
@@ -464,16 +450,10 @@ fn generate_postamble(
     // 4 instructions
     instructions.extend_from_slice(&[
         // stack_height -= stack_cost(F)
-        GlobalGet {
-            global_index: stack_height_global_idx,
-        },
-        I32Const {
-            value: callee_stack_cost,
-        },
+        GlobalGet(stack_height_global_idx),
+        I32Const(callee_stack_cost),
         I32Sub,
-        GlobalSet {
-            global_index: stack_height_global_idx,
-        },
+        GlobalSet(stack_height_global_idx),
     ]);
 }
 

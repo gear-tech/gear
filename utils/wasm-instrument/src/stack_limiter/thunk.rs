@@ -56,11 +56,11 @@ where
                     signature.params().len() + (14 + body_of_condition.len()) + 1,
                 );
 
-                let arguments = signature.params().iter().enumerate().map(|(arg_idx, _)| {
-                    Instruction::LocalGet {
-                        local_index: arg_idx as u32,
-                    }
-                });
+                let arguments = signature
+                    .params()
+                    .iter()
+                    .enumerate()
+                    .map(|(arg_idx, _)| Instruction::LocalGet(arg_idx as u32));
 
                 const CALLEE_STACK_COST_PLACEHOLDER: i32 = 1248163264;
                 instrument_call(
@@ -91,14 +91,11 @@ where
                     .ok_or("overflow during callee_stack_cost calculation")?;
 
                 // Update thunk body with new cost
-                for instruction in thunk_body.iter_mut().filter(|i| {
-                    **i == Instruction::I32Const {
-                        value: CALLEE_STACK_COST_PLACEHOLDER,
-                    }
-                }) {
-                    *instruction = Instruction::I32Const {
-                        value: callee_stack_cost as i32,
-                    };
+                for instruction in thunk_body
+                    .iter_mut()
+                    .filter(|i| **i == Instruction::I32Const(CALLEE_STACK_COST_PLACEHOLDER))
+                {
+                    *instruction = Instruction::I32Const(callee_stack_cost as i32);
                 }
 
                 replacement_map.insert(

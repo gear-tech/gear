@@ -232,10 +232,7 @@ where
             .map(|p| WasmPage::from(p * 2 + 1))
             .chain([WasmPage::UPPER]);
 
-        let mut instructions = vec![
-            Instruction::I32Const { value: 1 },
-            Instruction::Call { function_index: 0 },
-        ];
+        let mut instructions = vec![Instruction::I32Const(1), Instruction::Call(0)];
         unreachable_condition_i32(&mut instructions, Instruction::I32Eq, -1);
 
         let module = ModuleDefinition {
@@ -262,7 +259,7 @@ where
 
         let mut instructions = vec![];
         for &page in pages.iter().take(repetitions as usize) {
-            instructions.extend([I32Const { value: page as i32 }, Call { function_index: 0 }]);
+            instructions.extend([I32Const(page as i32), Call(0)]);
             unreachable_condition_i32(&mut instructions, I32Ne, 0);
         }
 
@@ -298,13 +295,9 @@ where
             .map(|i| i * pages)
         {
             instructions.extend([
-                I32Const {
-                    value: start as i32,
-                },
-                I32Const {
-                    value: (start + pages) as i32,
-                },
-                Call { function_index: 0 },
+                I32Const(start as i32),
+                I32Const((start + pages) as i32),
+                Call(0),
             ]);
             unreachable_condition_i32(&mut instructions, I32Ne, 0);
         }
@@ -1579,13 +1572,11 @@ where
             imported_functions: vec![SyscallName::Debug],
             handle_body: Some(body::from_instructions(vec![
                 // payload offset
-                Instruction::I32Const { value: 0 },
+                Instruction::I32Const(0),
                 // payload len
-                Instruction::I32Const {
-                    value: end_page.offset() as i32,
-                },
+                Instruction::I32Const(end_page.offset() as i32),
                 // CALL
-                Instruction::Call { function_index: 0 },
+                Instruction::Call(0),
             ])),
             stack_end: Some(0.into()),
             ..Default::default()
@@ -1599,17 +1590,15 @@ where
             imported_functions: vec![SyscallName::Read],
             handle_body: Some(body::from_instructions(vec![
                 // at
-                Instruction::I32Const { value: 0 },
+                Instruction::I32Const(0),
                 // len
-                Instruction::I32Const {
-                    value: end_page.offset() as i32,
-                },
+                Instruction::I32Const(end_page.offset() as i32),
                 // buffer ptr
-                Instruction::I32Const { value: 0 },
+                Instruction::I32Const(0),
                 // err len ptr
-                Instruction::I32Const { value: 0 },
+                Instruction::I32Const(0),
                 // CALL
-                Instruction::Call { function_index: 0 },
+                Instruction::Call(0),
             ])),
             stack_end: Some(0.into()),
             ..Default::default()
@@ -1630,17 +1619,15 @@ where
         // Add `gr_read` call.
         instrs.extend_from_slice(&[
             // at
-            Instruction::I32Const { value: 0 },
+            Instruction::I32Const(0),
             // len
-            Instruction::I32Const {
-                value: end_page.offset() as i32,
-            },
+            Instruction::I32Const(end_page.offset() as i32),
             // buffer ptr
-            Instruction::I32Const { value: 0 },
+            Instruction::I32Const(0),
             // err len ptr
-            Instruction::I32Const { value: 0 },
+            Instruction::I32Const(0),
             // CALL
-            Instruction::Call { function_index: 0 },
+            Instruction::Call(0),
         ]);
 
         let module = ModuleDefinition {

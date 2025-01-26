@@ -803,93 +803,47 @@ fn all_measured_instructions() -> Vec<Instruction> {
         Unreachable,
         Return,
         Else,
-        I32Const { value: 0 },
-        I64Const { value: 0 },
-        Block {
-            blockty: BlockType::Empty,
-        },
-        Loop {
-            blockty: BlockType::Empty,
-        },
+        I32Const(0),
+        I64Const(0),
+        Block(BlockType::Empty),
+        Loop(BlockType::Empty),
         Nop,
         Drop,
-        I32Load {
-            memarg: MemArg::zero(),
-        },
-        I32Load8S {
-            memarg: MemArg::zero(),
-        },
-        I32Load8U {
-            memarg: MemArg::zero(),
-        },
-        I32Load16S {
-            memarg: MemArg::zero(),
-        },
-        I32Load16U {
-            memarg: MemArg::zero(),
-        },
-        I64Load {
-            memarg: MemArg::zero(),
-        },
-        I64Load8S {
-            memarg: MemArg::zero(),
-        },
-        I64Load8U {
-            memarg: MemArg::zero(),
-        },
-        I64Load16S {
-            memarg: MemArg::zero(),
-        },
-        I64Load16U {
-            memarg: MemArg::zero(),
-        },
-        I64Load32S {
-            memarg: MemArg::zero(),
-        },
-        I64Load32U {
-            memarg: MemArg::zero(),
-        },
-        I32Store {
-            memarg: MemArg::zero(),
-        },
-        I32Store8 {
-            memarg: MemArg::zero(),
-        },
-        I32Store16 {
-            memarg: MemArg::zero(),
-        },
-        I64Store {
-            memarg: MemArg::zero(),
-        },
-        I64Store8 {
-            memarg: MemArg::zero(),
-        },
-        I64Store16 {
-            memarg: MemArg::zero(),
-        },
-        I64Store32 {
-            memarg: MemArg::zero(),
-        },
+        I32Load(MemArg::zero()),
+        I32Load8S(MemArg::zero()),
+        I32Load8U(MemArg::zero()),
+        I32Load16S(MemArg::zero()),
+        I32Load16U(MemArg::zero()),
+        I64Load(MemArg::zero()),
+        I64Load8S(MemArg::zero()),
+        I64Load8U(MemArg::zero()),
+        I64Load16S(MemArg::zero()),
+        I64Load16U(MemArg::zero()),
+        I64Load32S(MemArg::zero()),
+        I64Load32U(MemArg::zero()),
+        I32Store(MemArg::zero()),
+        I32Store8(MemArg::zero()),
+        I32Store16(MemArg::zero()),
+        I64Store(MemArg::zero()),
+        I64Store8(MemArg::zero()),
+        I64Store16(MemArg::zero()),
+        I64Store32(MemArg::zero()),
         Select,
-        If {
-            blockty: BlockType::Empty,
-        },
-        Br { relative_depth: 0 },
-        BrIf { relative_depth: 0 },
-        Call { function_index: 0 },
-        LocalGet { local_index: 0 },
-        LocalSet { local_index: 0 },
-        LocalTee { local_index: 0 },
-        GlobalGet { global_index: 0 },
-        GlobalSet { global_index: 0 },
-        MemorySize { mem: 0 },
+        If(BlockType::Empty),
+        Br(0),
+        BrIf(0),
+        Call(0),
+        LocalGet(0),
+        LocalSet(0),
+        LocalTee(0),
+        GlobalGet(0),
+        GlobalSet(0),
+        MemorySize(0),
         CallIndirect {
             type_index: 0,
             table_index: 0,
         },
-        BrTable {
-            targets: default_table_data,
-        },
+        BrTable(default_table_data),
         I32Clz,
         I64Clz,
         I32Ctz,

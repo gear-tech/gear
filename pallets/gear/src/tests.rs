@@ -8073,7 +8073,7 @@ fn gas_spent_precalculated() {
             .instructions
             .iter()
             .find_map(|instruction| match instruction {
-                Instruction::I64Const { value } => Some(*value as u64),
+                Instruction::I64Const(value) => Some(*value as u64),
                 _ => None,
             })
             .expect("failed to get cost of `gas_charge()` function");
@@ -8097,7 +8097,7 @@ fn gas_spent_precalculated() {
         let stack_check_limit_cost = handle_export_instructions
             .iter()
             .find_map(|instruction| match instruction {
-                Instruction::I32Const { value } => Some(*value as u64),
+                Instruction::I32Const(value) => Some(*value as u64),
                 _ => None,
             })
             .expect("failed to get stack check limit cost")

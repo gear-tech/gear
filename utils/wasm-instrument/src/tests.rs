@@ -70,18 +70,16 @@ fn prebuilt_simple_module() -> Module {
     builder.add_func(
         FuncType::new([ValType::I32], []),
         Function::from_instructions([
-            Call { function_index: 0 },
-            If {
-                blockty: BlockType::Empty,
-            },
-            Call { function_index: 0 },
-            Call { function_index: 0 },
-            Call { function_index: 0 },
+            Call(0),
+            If(BlockType::Empty),
+            Call(0),
+            Call(0),
+            Call(0),
             Else,
-            Call { function_index: 0 },
-            Call { function_index: 0 },
+            Call(0),
+            Call(0),
             End,
-            Call { function_index: 0 },
+            Call(0),
             End,
         ]),
     );
@@ -147,44 +145,22 @@ fn call_index() {
     assert_eq!(
         get_function_body(&injected_module, 1).unwrap(),
         [
-            I32Const { value: 3 },
-            Call {
-                function_index: gas_charge_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
-            If {
-                blockty: BlockType::Empty
-            },
-            I32Const { value: 3 },
-            Call {
-                function_index: gas_charge_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
+            I32Const(3),
+            Call(gas_charge_index),
+            Call(empty_func_index),
+            If(BlockType::Empty),
+            I32Const(3),
+            Call(gas_charge_index),
+            Call(empty_func_index),
+            Call(empty_func_index),
+            Call(empty_func_index),
             Else,
-            I32Const { value: 2 },
-            Call {
-                function_index: gas_charge_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
+            I32Const(2),
+            Call(gas_charge_index),
+            Call(empty_func_index),
+            Call(empty_func_index),
             End,
-            Call {
-                function_index: empty_func_index
-            },
+            Call(empty_func_index),
             End
         ]
     );
@@ -210,58 +186,28 @@ fn cost_overflow() {
             // (instruction_cost * 3) as i32 => ((2147483647 * 2) + 2147483647) as i32 =>
             // ((2147483647 + 2147483647 + 1) + 2147483646) as i32 =>
             // (u32::MAX as i32) + 2147483646 as i32
-            I32Const { value: -1 },
-            Call {
-                function_index: gas_charge_index
-            },
-            I32Const {
-                value: (instruction_cost - 1) as i32
-            },
-            Call {
-                function_index: gas_charge_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
-            If {
-                blockty: BlockType::Empty
-            },
+            I32Const(-1),
+            Call(gas_charge_index),
+            I32Const((instruction_cost - 1) as i32),
+            Call(gas_charge_index),
+            Call(empty_func_index),
+            If(BlockType::Empty),
             // Same as upper
-            I32Const { value: -1 },
-            Call {
-                function_index: gas_charge_index
-            },
-            I32Const {
-                value: (instruction_cost - 1) as i32
-            },
-            Call {
-                function_index: gas_charge_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
+            I32Const(-1),
+            Call(gas_charge_index),
+            I32Const((instruction_cost - 1) as i32),
+            Call(gas_charge_index),
+            Call(empty_func_index),
+            Call(empty_func_index),
+            Call(empty_func_index),
             Else,
             // (instruction_cost * 2) as i32
-            I32Const { value: -2 },
-            Call {
-                function_index: gas_charge_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
-            Call {
-                function_index: empty_func_index
-            },
+            I32Const(-2),
+            Call(gas_charge_index),
+            Call(empty_func_index),
+            Call(empty_func_index),
             End,
-            Call {
-                function_index: empty_func_index
-            },
+            Call(empty_func_index),
             End
         ]
     );

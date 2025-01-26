@@ -165,15 +165,9 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
                 .splice(
                     0..0,
                     [
-                        Instruction::I32Const {
-                            value: log_info_offset as i32,
-                        },
-                        Instruction::I32Const {
-                            value: log_bytes_len as i32,
-                        },
-                        Instruction::Call {
-                            function_index: debug_call_indexes_handle,
-                        },
+                        Instruction::I32Const(log_info_offset as i32),
+                        Instruction::I32Const(log_bytes_len as i32),
+                        Instruction::Call(debug_call_indexes_handle),
                     ],
                 );
 

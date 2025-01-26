@@ -34,30 +34,30 @@ use wasmparser::{
 };
 
 macro_rules! define_for_each_instruction_helper {
-    ($dollar:tt;
+    ($_:tt;
         proposals { $($proposals:ident,)+ }
         rewrite_fields { $( $ops:ident { $($args:ident: $argsty:ty),* }, )+ }
         forbidden_instructions { $($forbidden_instructions:ident,)+ }
     ) => {
         macro_rules! define_for_each_instruction {
-            ($dollar ( @$dollar proposal:ident $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })? => $dollar visit:ident ($dollar ($dollar ann:tt)*) )*) => {
-                define_for_each_instruction!(inner $dollar ( @$dollar proposal $dollar op $dollar ({ $dollar ($dollar arg: $dollar argty),* })? )* accum @accum2);
+            ($_ ( @$_ proposal:ident $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })? => $_ visit:ident ($_ ($_ ann:tt)*) )*) => {
+                define_for_each_instruction!(inner $_ ( @$_ proposal $_ op $_ ({ $_ ($_ arg: $_ argty),* })? )* accum @accum2);
             };
             // ACCUM: skip forbidden instructions
             $(
                 (
                     inner
-                    @$dollar proposal:ident $forbidden_instructions $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })?
-                    $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                    @$_ proposal:ident $forbidden_instructions $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })?
+                    $_ ( @$_ proposals:ident $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
                     accum
-                    $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                    $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
                     @accum2
                 ) => {
                     define_for_each_instruction!(
                         inner
-                        $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                        $_ ( @$_ proposals $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
                         accum
-                        $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                        $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
                         @accum2
                     );
                 };
@@ -66,18 +66,18 @@ macro_rules! define_for_each_instruction_helper {
             $(
                 (
                     inner
-                    @$proposals $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })?
-                    $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                    @$proposals $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })?
+                    $_ ( @$_ proposals:ident $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
                     accum
-                    $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                    $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
                     @accum2
                 ) => {
                     define_for_each_instruction!(
                         inner
-                        $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                        $_ ( @$_ proposals $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
                         accum
-                        $dollar op $dollar ({ $dollar ( $dollar arg: $dollar argty ),* })?
-                        $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                        $_ op $_ ({ $_ ( $_ arg: $_ argty ),* })?
+                        $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
                         @accum2
                     );
                 };
@@ -85,17 +85,17 @@ macro_rules! define_for_each_instruction_helper {
             // ACCUM: skip rest instructions
             (
                 inner
-                @$dollar proposal:ident $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })?
-                $dollar ( @$dollar proposals:ident $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                @$_ proposal:ident $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })?
+                $_ ( @$_ proposals:ident $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
                 accum
-                $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
                 @accum2
             ) => {
                 define_for_each_instruction!(
                     inner
-                    $dollar ( @$dollar proposals $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                    $_ ( @$_ proposals $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
                     accum
-                    $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                    $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
                     @accum2
                 );
             };
@@ -104,18 +104,18 @@ macro_rules! define_for_each_instruction_helper {
                 (
                     inner
                     accum
-                    $dollar op:ident { $($args: $dollar argty:ty),* }
-                    $dollar ( $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                    $_ op:ident { $($args: $_ argty:ty),* }
+                    $_ ( $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
                     @accum2
-                    $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                    $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
                 ) => {
                     define_for_each_instruction!(
                         inner
                         accum
-                        $dollar ( $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                        $_ ( $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
                         @accum2
-                        $dollar op { $($args: $argsty),* }
-                        $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                        $_ op { $($args: $argsty),* }
+                        $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
                     );
                 };
             )+
@@ -123,31 +123,31 @@ macro_rules! define_for_each_instruction_helper {
             (
                 inner
                 accum
-                $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })?
-                $dollar ( $dollar ops:ident $dollar ({ $dollar ($dollar args:ident: $dollar argsty:ty),* })? )*
+                $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })?
+                $_ ( $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
                 @accum2
-                $dollar ( $dollar ops_accum:ident $dollar ({ $dollar ($dollar args_accum:ident: $dollar argsty_accum:ty),* })? )*
+                $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
             ) => {
                 define_for_each_instruction!(
                     inner
                     accum
-                    $dollar ( $dollar ops $dollar ({ $dollar ($dollar args: $dollar argsty),* })? )*
+                    $_ ( $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
                     @accum2
-                    $dollar op $dollar ({ $dollar ( $dollar arg: $dollar argty ),* })?
-                    $dollar ( $dollar ops_accum $dollar ({ $dollar ($dollar args_accum: $dollar argsty_accum),* })? )*
+                    $_ op $_ ({ $_ ( $_ arg: $_ argty ),* })?
+                    $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
                 );
             };
             (
                 inner
                 accum
                 @accum2
-                $dollar ( $dollar op:ident $dollar ({ $dollar ($dollar arg:ident: $dollar argty:ty),* })? )*
+                $_ ( $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })? )*
             ) => {
                 #[macro_export]
                 macro_rules! for_each_instruction {
-                    ($dollar mac:ident) => {
-                        $dollar mac! {
-                            $dollar ( $dollar op $dollar ({ $dollar ($dollar arg: $dollar argty),* })? )*
+                    ($_ mac:ident) => {
+                        $_ mac! {
+                            $_ ( $_ op $_ ({ $_ ($_ arg: $_ argty),* })? )*
                         }
                     };
                 }
@@ -241,9 +241,50 @@ wasmparser::for_each_operator!(define_for_each_instruction);
 
 macro_rules! define_instruction {
     ($( $op:ident $({ $($arg:ident: $argty:ty),* })? )*) => {
+        define_instruction!(@convert $( $op $({ $($arg: $argty),* })? )* @accum);
+    };
+    // convert 2 or more arguments
+    (
+        @convert
+        $op:ident $({ $first_arg:ident: $first_argty:ty, $($arg:ident: $argty:ty),+ })?
+        $( $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
+        @accum
+        $( $accum_ops:ident $({ $( $accum_args_helper:tt => $accum_args:ident: $accum_argsty:ty ),+ })? [ $( $($accum_tt:tt)+ )? ] )*
+    ) => {
+        define_instruction!(
+            @convert
+            $( $ops $({ $($args: $argsty),* })? )*
+            @accum
+            $op $({ $first_arg => $first_arg: $first_argty, $( $arg => $arg: $argty),+ })? [ $( { $first_arg: $first_argty, $($arg: $argty),+ } )? ]
+            $( $accum_ops $({ $( $accum_args_helper => $accum_args: $accum_argsty ),+ })? [ $( $($accum_tt)+ )? ] )*
+        );
+    };
+    // convert iff only 1 argument
+    (
+        @convert
+        $op:ident $({ $arg:ident: $argty:ty })?
+        $( $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
+        @accum
+        $( $accum_ops:ident $({ $( $accum_args_helper:tt => $accum_args:ident: $accum_argsty:ty ),+ })? [ $( $($accum_tt:tt)+ )? ] )*
+    ) => {
+        define_instruction!(
+            @convert
+            $( $ops $({ $($args: $argsty),* })? )*
+            @accum
+            $op $({ 0 => $arg: $argty })? [ $( ($argty) )? ]
+            $( $accum_ops $({ $( $accum_args_helper => $accum_args: $accum_argsty ),+ })? [ $( $($accum_tt)+ )? ] )*
+        );
+    };
+    (
+        @convert
+        @accum
+        $( $op:ident $({ $( $helper_arg:tt => $arg:ident: $argty:ty ),+ })? [ $( $($accum_tt:tt)+ )? ] )*
+    ) => {
         #[derive(Debug, Clone, Eq, PartialEq)]
         pub enum Instruction {
-            $( $op $({ $($arg: $argty),* })? ),*
+            $(
+                $op $( $($accum_tt)+ )?,
+            )*
         }
 
         impl Instruction {
@@ -251,7 +292,7 @@ macro_rules! define_instruction {
                 match op {
                     $(
                         wasmparser::Operator::$op $({ $($arg),* })? => {
-                            Ok(Self::$op $({ $($arg: <_>::try_from($arg)?),* })?)
+                            Ok(Self::$op $({ $($helper_arg: <_>::try_from($arg)?),* })?)
                         }
                     )*
                     op => Err(ModuleError::UnsupportedInstruction(format!("{op:?}"))),
@@ -261,7 +302,7 @@ macro_rules! define_instruction {
             fn reencode(&self) -> Result<wasm_encoder::Instruction> {
                 Ok(match self {
                     $(
-                        Self::$op $({ $($arg),* })? => {
+                        Self::$op $( { $($helper_arg: $arg),+ } )? => {
                             $(
                                 $(let $arg = define_instruction!(@arg $arg $arg);)*
                             )?
@@ -443,13 +484,13 @@ impl ConstExpr {
 
     pub fn i32_value(value: i32) -> Self {
         Self {
-            instructions: vec![Instruction::I32Const { value }],
+            instructions: vec![Instruction::I32Const(value)],
         }
     }
 
     pub fn i64_value(value: i64) -> Self {
         Self {
-            instructions: vec![Instruction::I64Const { value }],
+            instructions: vec![Instruction::I64Const(value)],
         }
     }
 
@@ -1039,7 +1080,7 @@ impl ModuleBuilder {
         if let Some(section) = self.module.code_section_mut() {
             for func in section {
                 for instruction in &mut func.instructions {
-                    if let Instruction::Call { function_index } = instruction {
+                    if let Instruction::Call(function_index) = instruction {
                         if *function_index >= inserted_index {
                             *function_index += inserted_count
                         }
@@ -1072,7 +1113,7 @@ impl ModuleBuilder {
                     ElementItems::Expressions(_ty, exprs) => {
                         for expr in exprs {
                             for instruction in &mut expr.instructions {
-                                if let Instruction::Call { function_index } = instruction {
+                                if let Instruction::Call(function_index) = instruction {
                                     if *function_index >= inserted_index {
                                         *function_index += inserted_count
                                     }

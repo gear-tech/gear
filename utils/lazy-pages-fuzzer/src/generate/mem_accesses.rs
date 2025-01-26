@@ -76,24 +76,14 @@ impl<'u> InjectMemoryAccesses<'u> {
 
         Ok(match u.choose(&[ReadI32, WriteI32])? {
             ReadI32 => vec![
-                Instruction::I32Const {
-                    value: target_addr as i32,
-                },
-                Instruction::I32Load {
-                    memarg: MemArg::zero(),
-                },
+                Instruction::I32Const(target_addr as i32),
+                Instruction::I32Load(MemArg::zero()),
                 Instruction::Drop,
             ],
             WriteI32 => vec![
-                Instruction::I32Const {
-                    value: target_addr as i32,
-                },
-                Instruction::I32Const {
-                    value: DUMMY_VALUE as i32,
-                },
-                Instruction::I32Store {
-                    memarg: MemArg::zero(),
-                },
+                Instruction::I32Const(target_addr as i32),
+                Instruction::I32Const(DUMMY_VALUE as i32),
+                Instruction::I32Store(MemArg::zero()),
             ],
         })
     }

@@ -218,7 +218,7 @@ fn build_control_flow_graph(
                     active_frame.active_node = closing_frame.exit_node;
                 }
             }
-            Instruction::Br { relative_depth } => {
+            Instruction::Br(relative_depth) => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 let active_frame_idx = stack.len() - 1;
@@ -230,7 +230,7 @@ fn build_control_flow_graph(
                 stack[active_frame_idx].active_node = new_node_id;
                 graph.set_first_instr_pos(new_node_id, cursor + 1);
             }
-            Instruction::BrIf { relative_depth } => {
+            Instruction::BrIf(relative_depth) => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 let active_frame_idx = stack.len() - 1;
@@ -242,7 +242,7 @@ fn build_control_flow_graph(
                 graph.new_forward_edge(active_node_id, new_node_id);
                 graph.set_first_instr_pos(new_node_id, cursor + 1);
             }
-            Instruction::BrTable { targets } => {
+            Instruction::BrTable(targets) => {
                 graph.increment_actual_cost(active_node_id, instruction_cost);
 
                 let active_frame_idx = stack.len() - 1;

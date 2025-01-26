@@ -55,7 +55,7 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> 
         return Err("num of init instructions != 1 for glob 0");
     }
 
-    if let Instruction::I32Const { value: literal } = init_code[0] {
+    if let Instruction::I32Const(literal) = init_code[0] {
         log::debug!("stack pointer init == {:#x}", literal);
         let export_section = module
             .export_section_mut()
@@ -113,12 +113,7 @@ pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'st
 
         module.code_section_mut().unwrap()[index_in_functions]
             .instructions
-            .insert(
-                0,
-                Instruction::Call {
-                    function_index: start_func_index,
-                },
-            );
+            .insert(0, Instruction::Call(start_func_index));
     }
 
     Ok(())
@@ -215,14 +210,10 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
             .flat_map(|body| body.instructions.iter_mut())
         {
             let global_index = u32::try_from(index).expect("Global index bigger than u32");
-            if *instr == (Instruction::GlobalGet { global_index }) {
-                *instr = Instruction::Call {
-                    function_index: get_global_function_index,
-                };
-            } else if *instr == (Instruction::GlobalSet { global_index }) {
-                *instr = Instruction::Call {
-                    function_index: set_global_function_index,
-                };
+            if *instr == Instruction::GlobalGet(global_index) {
+                *instr = Instruction::Call(get_global_function_index);
+            } else if *instr == Instruction::GlobalSet(global_index) {
+                *instr = Instruction::Call(set_global_function_index);
             }
         }
 
@@ -296,8 +287,8 @@ fn handle_global_init_data<T>(
         return Err("Global has more than 1 init instruction");
     }
     match init_code[0] {
-        Instruction::I32Const { value } => Ok(process_i32(value)),
-        Instruction::I64Const { value } => Ok(process_i64(value)),
+        Instruction::I32Const(value) => Ok(process_i32(value)),
+        Instruction::I64Const(value) => Ok(process_i64(value)),
         _ => Err("Global init instruction is not i32 or i64 const"),
     }
 }
@@ -315,8 +306,8 @@ fn handle_mut_global_init_data<T>(
         .get_mut(0)
         .expect("Unreachable: init code has no instructions")
     {
-        Instruction::I32Const { value } => Ok(process_i32(value)),
-        Instruction::I64Const { value } => Ok(process_i64(value)),
+        Instruction::I32Const(value) => Ok(process_i32(value)),
+        Instruction::I64Const(value) => Ok(process_i64(value)),
         _ => Err("Global init instruction is not i32 or i64 const"),
     }
 }
@@ -325,26 +316,14 @@ fn append_get_global_function(module: Module, offset: u32, data_len: usize) -> M
     let mut builder = ModuleBuilder::from_module(module);
 
     let (result, load_instr) = match data_len {
-        4 => (
-            ValType::I32,
-            Instruction::I32Load {
-                memarg: MemArg::i32(),
-            },
-        ),
-        8 => (
-            ValType::I64,
-            Instruction::I64Load {
-                memarg: MemArg::i64(),
-            },
-        ),
+        4 => (ValType::I32, Instruction::I32Load(MemArg::i32())),
+        8 => (ValType::I64, Instruction::I64Load(MemArg::i64())),
         _ => unreachable!("Support only i64 and i32 globals"),
     };
 
     let ty = FuncType::new([], [result]);
     let function = Function::from_instructions([
-        Instruction::I32Const {
-            value: offset as i32,
-        },
+        Instruction::I32Const(offset as i32),
         load_instr,
         Instruction::End,
     ]);
@@ -357,27 +336,15 @@ fn append_set_global_function(module: Module, offset: u32, data_len: usize) -> M
     let mut builder = ModuleBuilder::from_module(module);
 
     let (param, store_instr) = match data_len {
-        4 => (
-            ValType::I32,
-            Instruction::I32Store {
-                memarg: MemArg::i32(),
-            },
-        ),
-        8 => (
-            ValType::I64,
-            Instruction::I64Store {
-                memarg: MemArg::i64(),
-            },
-        ),
+        4 => (ValType::I32, Instruction::I32Store(MemArg::i32())),
+        8 => (ValType::I64, Instruction::I64Store(MemArg::i64())),
         _ => unreachable!("Support only i64 and i32 globals"),
     };
 
     let ty = FuncType::new([param], []);
     let function = Function::from_instructions([
-        Instruction::I32Const {
-            value: offset as i32,
-        },
-        Instruction::LocalGet { local_index: 0 },
+        Instruction::I32Const(offset as i32),
+        Instruction::LocalGet(0),
         store_instr,
         Instruction::End,
     ]);

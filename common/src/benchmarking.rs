@@ -83,11 +83,9 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
         Function {
             locals: vec![(1, ValType::I32)],
             instructions: vec![
-                Instruction::I32Const {
-                    value: u32::from(num_pages) as i32,
-                },
-                Instruction::Call { function_index: 0 },
-                Instruction::LocalSet { local_index: 0 },
+                Instruction::I32Const(u32::from(num_pages) as i32),
+                Instruction::Call(0),
+                Instruction::LocalSet(0),
                 Instruction::End,
             ],
         },

@@ -115,7 +115,7 @@ impl WasmModule {
             .as_slice();
 
         match stack_end_init_expr {
-            [Instruction::I32Const { value }] => Some(*value),
+            [Instruction::I32Const(value)] => Some(*value),
             _ => None,
         }
     }

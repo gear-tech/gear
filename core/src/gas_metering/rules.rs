@@ -150,7 +150,7 @@ impl Rules for ScheduleRules<'_> {
                 w.call_indirect
                     .saturating_add(w.call_indirect_per_param.saturating_sub(params))
             }
-            BrTable { targets } => w
+            BrTable(targets) => w
                 .br_table
                 .saturating_add(w.br_table_per_entry.saturating_mul(targets.len())),
             I32Clz => w.i32clz,

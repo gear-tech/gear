@@ -83,13 +83,11 @@ impl<'u> InjectGlobals<'u> {
 
                 let instructions = if is_set {
                     [
-                        Instruction::I64Const {
-                            value: self.unstructured.int_in_range(0..=i64::MAX)?,
-                        },
-                        Instruction::GlobalSet { global_index },
+                        Instruction::I64Const(self.unstructured.int_in_range(0..=i64::MAX)?),
+                        Instruction::GlobalSet(global_index),
                     ]
                 } else {
-                    [Instruction::GlobalGet { global_index }, Instruction::Drop]
+                    [Instruction::GlobalGet(global_index), Instruction::Drop]
                 };
 
                 for instr in instructions.into_iter().rev() {
