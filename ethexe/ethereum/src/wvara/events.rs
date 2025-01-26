@@ -54,7 +54,7 @@ pub fn try_extract_request_event(log: &Log) -> Result<Option<WVaraRequestEvent>>
     }
 
     let request_event = try_extract_event(log)?
-        .and_then(|v| v.as_request())
+        .and_then(|v| v.to_request())
         .expect("filtered above");
 
     Ok(Some(request_event))

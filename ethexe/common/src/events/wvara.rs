@@ -19,7 +19,7 @@
 use gprimitives::{ActorId, U256};
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Event {
     Transfer {
         from: ActorId,
@@ -34,7 +34,7 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn as_request(self) -> Option<RequestEvent> {
+    pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
             Self::Transfer { from, to, value } => RequestEvent::Transfer { from, to, value },
             Self::Approval { .. } => return None,
