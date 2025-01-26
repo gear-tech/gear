@@ -602,7 +602,12 @@ impl Service {
                                 };
                             };
                         },
-                        SequencerEvent::ValidationRoundEnded { .. } => {},
+                        SequencerEvent::ValidationRoundEnded { block_hash, submitted } => {
+                            log::debug!("Validation round ended: block {block_hash}, submitted: {submitted}");
+                        },
+                        SequencerEvent::CommitmentSubmitted { tx_hash, submit_type } => {
+                            log::debug!("Commitment submitted: {tx_hash:?}, type: {submit_type:?}");
+                        },
                     }
                 },
                 Some(event) = network.maybe_next() => {
