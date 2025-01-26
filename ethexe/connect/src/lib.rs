@@ -28,14 +28,19 @@ use ethexe_db::Database;
 use ethexe_observer::{BlockData, ObserverEvent, Query};
 use ethexe_processor::{LocalOutcome, Processor};
 use ethexe_service_utils::AsyncFnStream;
-use futures::future;
+use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use gprimitives::H256;
 use std::collections::VecDeque;
-use tokio::task::JoinSet;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
+pub struct BlockProcessed {
+    pub chain_head: H256,
+    pub commitments: Vec<BlockCommitment>,
+}
+
+#[derive(Debug)]
 pub enum ConnectEvent {
-    BlockProcessed(Vec<BlockCommitment>),
+    BlockProcessed(BlockProcessed),
     CodeProcessed(CodeCommitment),
 }
 
@@ -44,8 +49,8 @@ pub struct ConnectService {
     processor: Processor,
     query: Query,
     blocks_queue: VecDeque<BlockData>,
-    process_block_handles: JoinSet<Result<Vec<BlockCommitment>>>,
-    process_code_handles: JoinSet<Result<CodeCommitment>>,
+    process_block_future: FuturesUnordered<BoxFuture<'static, Result<BlockProcessed>>>,
+    process_code_futures: FuturesUnordered<BoxFuture<'static, Result<CodeCommitment>>>,
 }
 
 impl AsyncFnStream for ConnectService {
@@ -63,8 +68,8 @@ impl ConnectService {
             processor,
             query,
             blocks_queue: VecDeque::new(),
-            process_block_handles: Default::default(),
-            process_code_handles: Default::default(),
+            process_block_future: FuturesUnordered::new(),
+            process_code_futures: FuturesUnordered::new(),
         }
     }
 
@@ -79,76 +84,51 @@ impl ConnectService {
                     block.header.parent_hash
                 );
 
-                if self.process_block_handles.is_empty() {
+                if self.process_block_future.is_empty() {
                     let context = ChainHeadProcessContext {
                         db: self.db.clone(),
                         processor: self.processor.clone(),
                         query: self.query.clone(),
                     };
 
-                    self.process_block_handles
-                        .spawn(async move { context.process(block).await });
+                    self.process_block_future
+                        .push(Box::pin(context.process(block)));
                 } else {
                     self.blocks_queue.push_back(block);
                 }
             }
             ObserverEvent::Blob { code_id, code } => {
+                log::info!("receive a code blob, code_id {code_id}");
                 let mut processor = self.processor.clone();
-                self.process_code_handles.spawn(async move {
+                self.process_code_futures.push(Box::pin(async move {
                     let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
                     Ok(CodeCommitment { id: code_id, valid })
-                });
+                }));
             }
         }
     }
 
     pub async fn next(&mut self) -> Result<ConnectEvent> {
         tokio::select! {
-            commitments = Self::next_in_join_set(&mut self.process_block_handles) => {
+            Some(commitments) = self.process_block_future.next() => {
+                if let Some(block) = self.blocks_queue.pop_front() {
+                    let context = ChainHeadProcessContext {
+                        db: self.db.clone(),
+                        processor: self.processor.clone(),
+                        query: self.query.clone(),
+                    };
+
+                    self.process_block_future.push(Box::pin(context.process(block)));
+                }
+
                 commitments.map(ConnectEvent::BlockProcessed)
             }
-            commitment = Self::next_in_join_set(&mut self.process_code_handles) => {
+            Some(commitment) = self.process_code_futures.next() => {
                 commitment.map(ConnectEvent::CodeProcessed)
             }
-        }
-    }
-
-    pub async fn next_in_join_set<T: 'static>(set: &mut JoinSet<Result<T>>) -> Result<T> {
-        let res = set.join_next().await;
-        if let Some(res) = res {
-            match res {
-                Ok(Ok(commitments)) => Ok(commitments),
-                Ok(Err(err)) => Err(err),
-                Err(err) => Err(err.into()),
+            else => {
+                futures::future::pending().await
             }
-        } else {
-            future::pending().await
-        }
-    }
-
-    pub async fn next_processed_block(&mut self) -> Result<Vec<BlockCommitment>> {
-        let res = self.process_block_handles.join_next().await;
-        if let Some(res) = res {
-            match res {
-                Ok(Ok(commitments)) => Ok(commitments),
-                Ok(Err(err)) => Err(err),
-                Err(err) => Err(err.into()),
-            }
-        } else {
-            future::pending().await
-        }
-    }
-
-    pub async fn next_processed_code(&mut self) -> Result<CodeCommitment> {
-        let res = self.process_code_handles.join_next().await;
-        if let Some(res) = res {
-            match res {
-                Ok(Ok(commitments)) => Ok(commitments),
-                Ok(Err(err)) => Err(err),
-                Err(err) => Err(err.into()),
-            }
-        } else {
-            future::pending().await
         }
     }
 }
@@ -250,7 +230,7 @@ impl ChainHeadProcessContext {
         Ok(transition_outcomes)
     }
 
-    async fn process(mut self, head: BlockData) -> Result<Vec<BlockCommitment>> {
+    async fn process(mut self, head: BlockData) -> Result<BlockProcessed> {
         self.db.set_block_events(
             head.hash,
             head.events
@@ -288,25 +268,9 @@ impl ChainHeadProcessContext {
             });
         }
 
-        Ok(commitments)
+        Ok(BlockProcessed {
+            chain_head: head.hash,
+            commitments,
+        })
     }
 }
-
-// pub fn receive_block_from_producer(&self, block: ProducerBlockData) {
-//     let db_clone = self.db.clone();
-//     tokio::spawn(async move {
-//         let block_hash = block.block_hash;
-
-//         if let Err(e) = db_clone.store_block(block).await {
-//             log::error!("Failed to store block {block_hash}: {e}");
-//         }
-//     });
-// }
-
-// struct OffchainTransaction;
-
-// struct ProducerBlockData {
-//     block_hash: H256,
-//     offchain_transactions: Vec<OffchainTransaction>,
-//     process_queue_gas_allowance: Option<u64>,
-// }
