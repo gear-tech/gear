@@ -490,10 +490,15 @@ pub fn process_success(
 
     // Must be handled before handling generated dispatches.
     for (code_id, candidates) in program_candidates {
+        let size = candidates.len();
         journal.push(JournalNote::StoreNewPrograms {
             program_id,
             code_id,
-            candidates: LimitedVec::try_from(candidates).expect("must succeed"),
+            candidates: LimitedVec::try_from(candidates).unwrap_or_else(|_| {
+                let msg = format!("program_candidates is too big: limit 1024, got {}", size);
+                log::error!("{msg}");
+                unreachable!("{msg}")
+            }),
         });
     }
 

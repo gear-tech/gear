@@ -296,8 +296,10 @@ pub enum JournalNote {
         code_id: CodeId,
         /// Collection of program candidate ids and their init message ids.
         ///
-        /// The limit of 1024 is based on current runtime limits of outgoing messages.
-        candidates: LimitedVec<(MessageId, ProgramId), PayloadSizeError, 1024>,
+        /// The limit in benchmarks is 2048, but in normal operation it should be 1024.
+        ///
+        /// todo(playX18): set the limit based on benchmark vs normal build
+        candidates: LimitedVec<(MessageId, ProgramId), PayloadSizeError, 2048>,
     },
     /// Stop processing queue.
     StopProcessing {
