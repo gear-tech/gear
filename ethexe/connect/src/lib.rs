@@ -157,9 +157,9 @@ impl ChainHeadProcessContext {
             match event {
                 BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
                     code_id,
-                    blob_tx_hash,
+                    tx_hash,
                 }) => {
-                    self.db.set_code_blob_tx(code_id, blob_tx_hash);
+                    self.db.set_code_blob_tx(code_id, tx_hash);
                 }
                 BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
                     code_id, ..
