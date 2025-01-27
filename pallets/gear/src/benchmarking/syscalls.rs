@@ -39,8 +39,7 @@ use gear_core::{
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
     pages::{
-        numerated::tree::IntervalsTree,
-        numerated::iterators::IntervalIterator,
+        numerated::{iterators::IntervalIterator, tree::IntervalsTree},
         GearPage, WasmPage, WasmPagesAmount, WasmPagesIntervalsTree,
     },
     reservation::GasReservationSlot,

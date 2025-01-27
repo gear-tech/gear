@@ -35,7 +35,7 @@ use gear_core::{
     ids::{prelude::*, MessageId, ProgramId},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
-    str::LimitedStr
+    str::LimitedStr,
 };
 use gear_core_backend::{
     error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
