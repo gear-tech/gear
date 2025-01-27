@@ -46,12 +46,12 @@ type Instance = IRouter::IRouterInstance<AlloyTransport, InstanceProvider>;
 
 type QueryInstance = IRouter::IRouterInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
 
-pub struct RequestCodeValidationPendingTransactionBuilder {
+pub struct PendingCodeRequestBuilder {
     code_id: CodeId,
     pending_builder: PendingTransactionBuilder<AlloyTransport, AlloyEthereum>,
 }
 
-impl RequestCodeValidationPendingTransactionBuilder {
+impl PendingCodeRequestBuilder {
     pub fn code_id(&self) -> CodeId {
         self.code_id
     }
@@ -104,7 +104,7 @@ impl Router {
     pub async fn request_code_validation_with_sidecar(
         &self,
         code: &[u8],
-    ) -> Result<RequestCodeValidationPendingTransactionBuilder> {
+    ) -> Result<PendingCodeRequestBuilder> {
         let code_id = CodeId::generate(code);
 
         let builder = self
@@ -113,7 +113,7 @@ impl Router {
             .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
         let pending_builder = builder.send().await?;
 
-        Ok(RequestCodeValidationPendingTransactionBuilder {
+        Ok(PendingCodeRequestBuilder {
             code_id,
             pending_builder,
         })
