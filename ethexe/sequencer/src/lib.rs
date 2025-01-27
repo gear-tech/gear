@@ -67,7 +67,7 @@ pub enum SequencerEvent {
     },
     CommitmentSubmitted {
         tx_hash: Option<H256>,
-        submit_type: CommitType,
+        commit_type: CommitType,
     },
     ValidationRoundEnded {
         block_hash: H256,
@@ -371,10 +371,17 @@ impl SequencerService {
                     log::debug!("No commitments to submit, skipping");
                 }
 
+                log::debug!("Validation round ended: block {block_hash}, submitted: {submitted}");
+
                 SequencerEvent::ValidationRoundEnded { block_hash, submitted }
             }
-            Some((res, ty)) = self.submissions.next() => {
-                SequencerEvent::CommitmentSubmitted { tx_hash: res.ok(), submit_type: ty }
+            Some((res, commit_type)) = self.submissions.next() => {
+                let tx_hash = res
+                    .inspect(|tx_hash| log::debug!("Successfully submitted commitment {commit_type:?} in tx {tx_hash}"))
+                    .inspect_err(|err| log::warn!("Failed to submit commitment {commit_type:?}: {err}"))
+                    .ok();
+
+                SequencerEvent::CommitmentSubmitted { tx_hash, commit_type }
             }
         }
     }
