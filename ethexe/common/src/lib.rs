@@ -34,3 +34,26 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
 
     [b1, b2, b3, b4, b5, b6]
 }
+
+// TODO: move to submodule.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockData {
+    pub hash: gprimitives::H256,
+    pub header: db::BlockHeader,
+    pub events: alloc::vec::Vec<events::BlockEvent>,
+}
+
+impl BlockData {
+    pub fn to_simple(&self) -> SimpleBlockData {
+        SimpleBlockData {
+            hash: self.hash,
+            header: self.header.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SimpleBlockData {
+    pub hash: gprimitives::H256,
+    pub header: db::BlockHeader,
+}

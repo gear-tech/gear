@@ -20,11 +20,11 @@ use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
 use ethexe_common::gear::{BlockCommitment, CodeCommitment};
-use ethexe_connect::{BlockProcessed, ConnectService};
+use ethexe_connect::{BlockProcessed, ConnectService, ConnectEvent};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{MockBlobReader, ObserverService};
+use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
 use ethexe_processor::ProcessorConfig;
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
@@ -319,11 +319,14 @@ impl Service {
         loop {
             tokio::select! {
                 event = observer.next() => {
-                    connect.receive_observer_event(event?);
+                    match event? {
+                        ObserverEvent::Blob { code_id, code } => connect.receive_code(code_id, code),
+                        ObserverEvent::Block(block_data) => connect.receive_chain_head(block_data),
+                    }
                 },
                 event = connect.next() => {
                     match event? {
-                        ethexe_connect::ConnectEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
+                        ConnectEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
                             // TODO (gsobol): must be done in observer event handling
                             if let Some(s) = sequencer.as_mut() {
                                 s.on_new_head(chain_head)?
@@ -359,7 +362,7 @@ impl Service {
                             };
 
                         },
-                        ethexe_connect::ConnectEvent::CodeProcessed(commitment) => {
+                        ConnectEvent::CodeProcessed(commitment) => {
                             if let Some(v) = validator.as_mut() {
                                 let aggregated_code_commitments = v.aggregate(vec![commitment])?;
 

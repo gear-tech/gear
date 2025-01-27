@@ -23,13 +23,14 @@ use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
     events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
+    BlockData,
 };
 use ethexe_db::Database;
-use ethexe_observer::{BlockData, ObserverEvent, Query};
+use ethexe_observer::Query;
 use ethexe_processor::{LocalOutcome, Processor};
 use ethexe_service_utils::{AsyncFnStream, OptionFuture};
 use futures::future::BoxFuture;
-use gprimitives::H256;
+use gprimitives::{CodeId, H256};
 use std::collections::VecDeque;
 use tokio::task::JoinSet;
 
@@ -77,37 +78,37 @@ impl ConnectService {
         }
     }
 
-    pub fn receive_observer_event(&mut self, event: ObserverEvent) {
-        match event {
-            ObserverEvent::Block(block) => {
-                let hash = block.hash;
+    pub fn receive_code(&mut self, code_id: CodeId, code: Vec<u8>) {
+        log::info!(
+            "🔢 receive a code blob, code_id {code_id}, code size {}",
+            code.len()
+        );
 
-                log::info!(
-                    "📦 receive a chain head from observer, height {}, hash {hash}, parent hash {}",
-                    block.header.height,
-                    block.header.parent_hash
-                );
+        let mut processor = self.processor.clone();
+        self.process_codes.spawn_blocking(move || {
+            let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
+            Ok(CodeCommitment { id: code_id, valid })
+        });
+    }
 
-                if self.process_block.is_none() {
-                    let context = ChainHeadProcessContext {
-                        db: self.db.clone(),
-                        processor: self.processor.clone(),
-                        query: self.query.clone(),
-                    };
+    pub fn receive_chain_head(&mut self, block: BlockData) {
+        log::info!(
+            "📦 receive a chain head, height {}, hash {}, parent hash {}",
+            block.header.height,
+            block.hash,
+            block.header.parent_hash
+        );
 
-                    self.process_block = Some(Box::pin(context.process(block)));
-                } else {
-                    self.blocks_queue.push_back(block);
-                }
-            }
-            ObserverEvent::Blob { code_id, code } => {
-                log::info!("receive a code blob, code_id {code_id}");
-                let mut processor = self.processor.clone();
-                self.process_codes.spawn_blocking(move || {
-                    let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
-                    Ok(CodeCommitment { id: code_id, valid })
-                });
-            }
+        if self.process_block.is_none() {
+            let context = ChainHeadProcessContext {
+                db: self.db.clone(),
+                processor: self.processor.clone(),
+                query: self.query.clone(),
+            };
+
+            self.process_block = Some(Box::pin(context.process(block)));
+        } else {
+            self.blocks_queue.push_back(block);
         }
     }
 
