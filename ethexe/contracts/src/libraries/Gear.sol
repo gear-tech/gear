@@ -169,12 +169,16 @@ library Gear {
     }
 
     function blockIsPredecessor(bytes32 hash) internal view returns (bool) {
-        for (uint256 i = block.number - 1; i > 0; i--) {
+        for (uint256 i = block.number - 1; i > 0;) {
             bytes32 ret = blockhash(i);
             if (ret == hash) {
                 return true;
             } else if (ret == 0) {
                 break;
+            }
+
+            unchecked {
+                i--;
             }
         }
 

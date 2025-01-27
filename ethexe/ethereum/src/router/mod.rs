@@ -30,7 +30,8 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::gear::{
-    AggregatedPublicKey, BlockCommitment, CodeCommitment, SignatureType, VerifyingShare,
+    AggregatedPublicKey, BatchCommitment, BlockCommitment, CodeCommitment, SignatureType,
+    VerifyingShare,
 };
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
@@ -73,6 +74,11 @@ pub struct Router {
 }
 
 impl Router {
+    /// `Gear.blockIsPredecessor(hash)` can consume up to 30_000 gas
+    const GEAR_BLOCK_IS_PREDECESSOR_GAS: u64 = 30_000;
+    /// Huge gas limit is necessary so that the transaction is more likely to be picked up
+    const HUGE_GAS_LIMIT: u64 = 10_000_000;
+
     pub(crate) fn new(
         address: Address,
         wvara_address: Address,
@@ -180,7 +186,9 @@ impl Router {
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                 .collect(),
         );
+
         let receipt = builder.send().await?.try_get_receipt().await?;
+
         Ok(H256(receipt.transaction_hash.0))
     }
 
@@ -189,18 +197,46 @@ impl Router {
         commitments: Vec<BlockCommitment>,
         signatures: Vec<LocalSignature>,
     ) -> Result<H256> {
-        let builder = self
-            .instance
-            .commitBlocks(
-                commitments.into_iter().map(Into::into).collect(),
-                SignatureType::ECDSA as u8,
-                signatures
-                    .into_iter()
-                    .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
-                    .collect(),
-            )
-            .gas(10_000_000);
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let builder = self.instance.commitBlocks(
+            commitments.into_iter().map(Into::into).collect(),
+            SignatureType::ECDSA as u8,
+            signatures
+                .into_iter()
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .collect(),
+        );
+        let gas_limit = Self::HUGE_GAS_LIMIT
+            .max(builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
+        let receipt = builder
+            .gas(gas_limit)
+            .send()
+            .await?
+            .try_get_receipt()
+            .await?;
+        Ok(H256(receipt.transaction_hash.0))
+    }
+
+    pub async fn commit_batch(
+        &self,
+        commitment: BatchCommitment,
+        signatures: Vec<LocalSignature>,
+    ) -> Result<H256> {
+        let builder = self.instance.commitBatch(
+            commitment.into(),
+            SignatureType::ECDSA as u8,
+            signatures
+                .into_iter()
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .collect(),
+        );
+        let gas_limit = Self::HUGE_GAS_LIMIT
+            .max(builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
+        let receipt = builder
+            .gas(gas_limit)
+            .send()
+            .await?
+            .try_get_receipt()
+            .await?;
         Ok(H256(receipt.transaction_hash.0))
     }
 }
