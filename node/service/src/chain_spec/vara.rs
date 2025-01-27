@@ -21,9 +21,9 @@ use gear_runtime_common::{
     self,
     constants::{VARA_DECIMAL, VARA_SS58PREFIX, VARA_TESTNET_TOKEN_SYMBOL},
 };
-use sc_chain_spec::Properties;
+use sc_chain_spec::{Properties, DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET};
 use sc_service::ChainType;
-use vara_runtime::{genesis_config_presets, WASM_BINARY};
+use vara_runtime::WASM_BINARY;
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec<Extensions>;
@@ -46,7 +46,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
         .with_name("Development")
         .with_id("vara_dev")
         .with_chain_type(ChainType::Development)
-        .with_genesis_config_patch(genesis_config_presets::development_genesis())
+        .with_genesis_config_preset_name(DEV_RUNTIME_PRESET)
         .with_properties(vara_dev_properties())
         .build())
 }
@@ -58,7 +58,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
         .with_name("Vara Local Testnet")
         .with_id("vara_local_testnet")
         .with_chain_type(ChainType::Local)
-        .with_genesis_config_patch(genesis_config_presets::local_testnet_genesis())
+        .with_genesis_config_preset_name(LOCAL_TESTNET_RUNTIME_PRESET)
         .with_properties(vara_dev_properties())
         .build())
 }
