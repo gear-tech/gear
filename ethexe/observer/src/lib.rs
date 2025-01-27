@@ -47,7 +47,7 @@ pub use blobs::*;
 pub use observer::*;
 pub use query::*;
 
-type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, Vec<u8>)>>;
+type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, u64, Vec<u8>)>>;
 type BlocksStream = dyn Stream<Item = (H256, BlockHeader, Vec<BlockEvent>)> + Send;
 
 #[derive(Clone, Debug)]
@@ -60,7 +60,11 @@ pub struct EthereumConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ObserverEvent {
-    Blob { code_id: CodeId, code: Vec<u8> },
+    Blob {
+        code_id: CodeId,
+        timestamp: u64,
+        code: Vec<u8>,
+    },
     Block(BlockData),
 }
 
@@ -156,10 +160,11 @@ impl ObserverService {
         }
     }
 
-    pub fn lookup_code(&mut self, code_id: CodeId, tx_hash: H256) {
+    pub fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
         self.codes_futures.push(Box::pin(read_code_from_tx_hash(
             self.blobs.clone(),
             code_id,
+            timestamp,
             tx_hash,
             Some(3),
         )));
@@ -200,8 +205,8 @@ impl ObserverService {
 
                 // TODO: replace me with proper processing of all events, including commitments.
                 for event in &events {
-                    if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, tx_hash }) = event {
-                        self.lookup_code(*code_id, *tx_hash);
+                    if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, timestamp, tx_hash }) = event {
+                        self.lookup_code(*code_id, *timestamp, *tx_hash);
                     }
                 }
 
@@ -212,7 +217,7 @@ impl ObserverService {
                 }))
             },
             Some(res) = self.codes_futures.next() => {
-                res.map(|(code_id, code)| ObserverEvent::Blob { code_id, code })
+                res.map(|(code_id, timestamp, code)| ObserverEvent::Blob { code_id, timestamp, code })
             }
         }
     }

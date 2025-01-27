@@ -31,6 +31,7 @@ pub enum Event {
     },
     CodeValidationRequested {
         code_id: CodeId,
+        timestamp: u64,
         tx_hash: H256,
     },
     ComputationSettingsChanged {
@@ -50,9 +51,15 @@ pub enum Event {
 impl Event {
     pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
-            Self::CodeValidationRequested { code_id, tx_hash } => {
-                RequestEvent::CodeValidationRequested { code_id, tx_hash }
-            }
+            Self::CodeValidationRequested {
+                code_id,
+                timestamp,
+                tx_hash,
+            } => RequestEvent::CodeValidationRequested {
+                code_id,
+                timestamp,
+                tx_hash,
+            },
             Self::ComputationSettingsChanged {
                 threshold,
                 wvara_per_second,
@@ -76,6 +83,7 @@ impl Event {
 pub enum RequestEvent {
     CodeValidationRequested {
         code_id: CodeId,
+        timestamp: u64,
         // TODO (breathx): replace with `code: Vec<u8>`
         tx_hash: H256,
     },

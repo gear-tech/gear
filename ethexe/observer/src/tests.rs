@@ -52,7 +52,7 @@ async fn test_deployment() -> Result<()> {
     let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
     let ethereum = Ethereum::deploy(&ethereum_rpc, validators, signer, sender_address).await?;
-    let blob_reader = Arc::new(MockBlobReader::new(Duration::from_secs(1)));
+    let blob_reader = Arc::new(MockBlobReader::new(&ethereum_rpc, Duration::from_secs(1)).await?);
 
     let router_address = ethereum.router().address();
     let cloned_blob_reader = blob_reader.clone();
@@ -101,13 +101,15 @@ async fn test_deployment() -> Result<()> {
         .await
         .expect("observer did not receive event");
 
-    assert_eq!(
-        event,
-        ObserverEvent::Blob {
-            code_id,
-            code: wasm
-        }
-    );
+    if let ObserverEvent::Blob {
+        code_id: id, code, ..
+    } = event
+    {
+        assert_eq!(id, code_id);
+        assert_eq!(code, wasm);
+    } else {
+        panic!("unexpected event: {:?}", event);
+    }
 
     Ok(())
 }
