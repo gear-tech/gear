@@ -308,7 +308,7 @@ impl Service {
 
                     let tx_hash = db
                         .code_blob_tx(code_id)
-                        .ok_or_else(|| anyhow!("Blob tx hash not found"))?;
+                        .ok_or_else(|| anyhow!("Tx hash not found for code {code_id}"))?;
 
                     let code = query.download_code(code_id, tx_hash).await?;
 
