@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IRouter} from "../IRouter.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
@@ -18,9 +19,21 @@ library Gear {
     // 10 WVara tokens per compute second.
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
 
+    struct AggregatedPublicKey {
+        uint256 x;
+        uint256 y;
+    }
+
+    struct VerifyingShare {
+        uint256 x;
+        uint256 y;
+    }
+
     struct Validators {
         // TODO: After FROST multi signature applied - consider to remove validators map and list.
         // Replace it with list hash. Any node can access the list of validators using this hash from other nodes.
+        AggregatedPublicKey aggregatedPublicKey;
+        VerifyingShare[] verifyingShares;
         mapping(address => bool) map;
         address[] list;
         uint256 useFromTimestamp;
@@ -33,6 +46,8 @@ library Gear {
     }
 
     struct ValidatorsCommitment {
+        AggregatedPublicKey aggregatedPublicKey;
+        VerifyingShare[] verifyingShares;
         address[] validators;
         uint256 eraIndex;
     }
@@ -119,8 +134,20 @@ library Gear {
         uint128 value;
     }
 
+    enum SignatureType {
+        FROST,
+        ECDSA
+    }
+
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(commitment.validators, commitment.eraIndex));
+        return keccak256(
+            abi.encodePacked(
+                commitment.aggregatedPublicKey.x,
+                commitment.aggregatedPublicKey.y,
+                commitment.validators,
+                commitment.eraIndex
+            )
+        );
     }
 
     function blockCommitmentHash(
@@ -187,18 +214,20 @@ library Gear {
     }
 
     /// @dev Validates signatures of the given data hash.
-    function validateSignatures(IRouter.Storage storage router, bytes32 _dataHash, bytes[] calldata _signatures)
-        internal
-        view
-        returns (bool)
-    {
-        return validateSignaturesAt(router, _dataHash, _signatures, block.timestamp);
+    function validateSignatures(
+        IRouter.Storage storage router,
+        bytes32 _dataHash,
+        Gear.SignatureType _signatureType,
+        bytes[] calldata _signatures
+    ) internal view returns (bool) {
+        return validateSignaturesAt(router, _dataHash, _signatureType, _signatures, block.timestamp);
     }
 
     /// @dev Validates signatures of the given data hash at the given timestamp.
     function validateSignaturesAt(
         IRouter.Storage storage router,
         bytes32 _dataHash,
+        SignatureType _signatureType,
         bytes[] calldata _signatures,
         uint256 ts
     ) internal view returns (bool) {
@@ -220,23 +249,57 @@ library Gear {
         }
 
         Validators storage validators = validatorsAt(router, ts);
+        bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(_dataHash));
 
-        uint256 threshold =
-            validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
+        if (_signatureType == SignatureType.FROST) {
+            require(_signatures.length == 1, "FROST signature must be single");
 
-        bytes32 msgHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(_dataHash));
-        uint256 validSignatures = 0;
+            bytes memory _signature = _signatures[0];
+            require(_signature.length == 96, "FROST signature length must be 96 bytes");
 
-        for (uint256 i = 0; i < _signatures.length; i++) {
-            bytes calldata signature = _signatures[i];
+            uint256 _signatureRX;
+            uint256 _signatureRY;
+            uint256 _signatureZ;
 
-            address validator = msgHash.recover(signature);
+            assembly ("memory-safe") {
+                _signatureRX := mload(add(_signature, 0x20))
+                _signatureRY := mload(add(_signature, 0x40))
+                _signatureZ := mload(add(_signature, 0x60))
+            }
 
-            if (validators.map[validator]) {
-                if (++validSignatures == threshold) {
-                    return true;
+            // extra security check (`FROST.verifySignature()` does not check public key validity)
+            require(
+                FROST.isValidPublicKey(validators.aggregatedPublicKey.x, validators.aggregatedPublicKey.y),
+                "FROST aggregated public key is invalid"
+            );
+
+            return FROST.verifySignature(
+                validators.aggregatedPublicKey.x,
+                validators.aggregatedPublicKey.y,
+                _signatureRX,
+                _signatureRY,
+                _signatureZ,
+                _messageHash
+            );
+        } else if (_signatureType == SignatureType.ECDSA) {
+            uint256 threshold =
+                validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
+
+            uint256 validSignatures = 0;
+
+            for (uint256 i = 0; i < _signatures.length; i++) {
+                bytes calldata signature = _signatures[i];
+
+                address validator = _messageHash.recover(signature);
+
+                if (validators.map[validator]) {
+                    if (++validSignatures == threshold) {
+                        return true;
+                    }
                 }
             }
+
+            return false;
         }
 
         return false;
@@ -309,5 +372,16 @@ library Gear {
 
     function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
         return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
+    }
+
+    function dummyVerifyingShares(uint256 _count) internal pure returns (Gear.VerifyingShare[] memory) {
+        Gear.VerifyingShare[] memory _verifyingShares = new Gear.VerifyingShare[](_count);
+        for (uint256 i = 0; i < _count; i++) {
+            _verifyingShares[i] = Gear.VerifyingShare({
+                x: 0x0000000000000000000000000000000000000000000000000000000000000001,
+                y: 0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
+            });
+        }
+        return _verifyingShares;
     }
 }

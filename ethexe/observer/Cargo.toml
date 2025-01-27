@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
