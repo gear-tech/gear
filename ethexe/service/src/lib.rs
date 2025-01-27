@@ -450,6 +450,7 @@ impl Service {
                             };
                         },
                         SequencerEvent::ValidationRoundEnded { .. } => {},
+                        SequencerEvent::CommitmentSubmitted { .. } => {},
                     }
                 },
                 Some(event) = network.maybe_next() => {

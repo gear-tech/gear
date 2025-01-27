@@ -156,11 +156,11 @@ impl ObserverService {
         }
     }
 
-    pub fn lookup_code(&mut self, code_id: CodeId, blob_tx_hash: H256) {
+    pub fn lookup_code(&mut self, code_id: CodeId, tx_hash: H256) {
         self.codes_futures.push(Box::pin(read_code_from_tx_hash(
             self.blobs.clone(),
             code_id,
-            blob_tx_hash,
+            tx_hash,
             Some(3),
         )));
     }
@@ -200,8 +200,8 @@ impl ObserverService {
 
                 // TODO: replace me with proper processing of all events, including commitments.
                 for event in &events {
-                    if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
-                        self.lookup_code(*code_id, *blob_tx_hash);
+                    if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, tx_hash }) = event {
+                        self.lookup_code(*code_id, *tx_hash);
                     }
                 }
 

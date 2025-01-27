@@ -386,9 +386,9 @@ impl CodesStorage for Database {
             })
     }
 
-    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256) {
+    fn set_code_blob_tx(&self, code_id: CodeId, tx_hash: H256) {
         self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), blob_tx_hash.encode());
+            .put(&KeyPrefix::CodeUpload.one(code_id), tx_hash.encode());
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
