@@ -27,10 +27,11 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_observer::{BlockData, ObserverEvent, Query};
 use ethexe_processor::{LocalOutcome, Processor};
-use ethexe_service_utils::AsyncFnStream;
+use ethexe_service_utils::{AsyncFnStream, OptionFuture};
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use gprimitives::H256;
 use std::collections::VecDeque;
+use tokio::task::{JoinHandle, JoinSet};
 
 #[derive(Debug)]
 pub struct BlockProcessed {
@@ -49,8 +50,8 @@ pub struct ConnectService {
     processor: Processor,
     query: Query,
     blocks_queue: VecDeque<BlockData>,
-    process_block_future: FuturesUnordered<BoxFuture<'static, Result<BlockProcessed>>>,
-    process_code_futures: FuturesUnordered<BoxFuture<'static, Result<CodeCommitment>>>,
+    process_block_future: Option<JoinHandle<Result<BlockProcessed>>>,
+    process_code_futures: JoinSet<Result<CodeCommitment>>,
 }
 
 impl AsyncFnStream for ConnectService {
@@ -68,8 +69,8 @@ impl ConnectService {
             processor,
             query,
             blocks_queue: VecDeque::new(),
-            process_block_future: FuturesUnordered::new(),
-            process_code_futures: FuturesUnordered::new(),
+            process_block_future: Default::default(),
+            process_code_futures: Default::default(),
         }
     }
 
@@ -84,15 +85,14 @@ impl ConnectService {
                     block.header.parent_hash
                 );
 
-                if self.process_block_future.is_empty() {
+                if self.process_block_future.is_none() {
                     let context = ChainHeadProcessContext {
                         db: self.db.clone(),
                         processor: self.processor.clone(),
                         query: self.query.clone(),
                     };
 
-                    self.process_block_future
-                        .push(Box::pin(context.process(block)));
+                    self.process_block_future = Some(tokio::task::spawn(context.process(block)));
                 } else {
                     self.blocks_queue.push_back(block);
                 }
@@ -100,17 +100,17 @@ impl ConnectService {
             ObserverEvent::Blob { code_id, code } => {
                 log::info!("receive a code blob, code_id {code_id}");
                 let mut processor = self.processor.clone();
-                self.process_code_futures.push(Box::pin(async move {
+                self.process_code_futures.spawn_blocking(move || {
                     let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
                     Ok(CodeCommitment { id: code_id, valid })
-                }));
+                });
             }
         }
     }
 
     pub async fn next(&mut self) -> Result<ConnectEvent> {
         tokio::select! {
-            Some(commitments) = self.process_block_future.next() => {
+            res = self.process_block_future.as_mut().maybe() => {
                 if let Some(block) = self.blocks_queue.pop_front() {
                     let context = ChainHeadProcessContext {
                         db: self.db.clone(),
@@ -118,13 +118,21 @@ impl ConnectService {
                         query: self.query.clone(),
                     };
 
-                    self.process_block_future.push(Box::pin(context.process(block)));
+                    self.process_block_future = Some(tokio::task::spawn(context.process(block)));
+                } else {
+                    self.process_block_future = None;
                 }
 
-                commitments.map(ConnectEvent::BlockProcessed)
+                match res {
+                    Ok(res) => res.map(ConnectEvent::BlockProcessed),
+                    Err(err) => Err(err.into()),
+                }
             }
-            Some(commitment) = self.process_code_futures.next() => {
-                commitment.map(ConnectEvent::CodeProcessed)
+            Some(res) = self.process_code_futures.join_next() => {
+                match res {
+                    Ok(res) => res.map(ConnectEvent::CodeProcessed),
+                    Err(err) => Err(err.into()),
+                }
             }
             else => {
                 futures::future::pending().await
