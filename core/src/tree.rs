@@ -193,7 +193,7 @@ impl<T: Copy, E: Default, const N: usize> TryFrom<IntervalsTree<T>>
     type Error = E;
     fn try_from(inner: IntervalsTree<T>) -> Result<Self, Self::Error> {
         (inner.intervals_amount() <= N)
-            .then(|| Self {
+            .then_some(Self {
                 inner,
                 marker: PhantomData,
             })

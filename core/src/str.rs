@@ -48,7 +48,7 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
 )]
 pub struct LimitedStr<'a>(Cow<'a, str>);
 
-impl<'a> MaxEncodedLen for LimitedStr<'a> {
+impl MaxEncodedLen for LimitedStr<'_> {
     fn max_encoded_len() -> usize {
         TRIMMED_MAX_LEN
     }
