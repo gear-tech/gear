@@ -324,7 +324,7 @@ impl Service {
                 event = connect.next() => {
                     match event? {
                         ethexe_connect::ConnectEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
-                            // TODO: must be done in observer event handling
+                            // TODO (gsobol): must be done in observer event handling
                             if let Some(s) = sequencer.as_mut() {
                                 s.on_new_head(chain_head)?
                             }

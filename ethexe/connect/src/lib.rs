@@ -28,14 +28,15 @@ use ethexe_db::Database;
 use ethexe_observer::{BlockData, ObserverEvent, Query};
 use ethexe_processor::{LocalOutcome, Processor};
 use ethexe_service_utils::{AsyncFnStream, OptionFuture};
-use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use futures::future::BoxFuture;
 use gprimitives::H256;
 use std::collections::VecDeque;
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::JoinSet;
 
 #[derive(Debug)]
 pub struct BlockProcessed {
     pub chain_head: H256,
+    // TODO (gsobol): remove commitments
     pub commitments: Vec<BlockCommitment>,
 }
 
@@ -50,8 +51,8 @@ pub struct ConnectService {
     processor: Processor,
     query: Query,
     blocks_queue: VecDeque<BlockData>,
-    process_block_future: Option<JoinHandle<Result<BlockProcessed>>>,
-    process_code_futures: JoinSet<Result<CodeCommitment>>,
+    process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
+    process_codes: JoinSet<Result<CodeCommitment>>,
 }
 
 impl AsyncFnStream for ConnectService {
@@ -69,8 +70,8 @@ impl ConnectService {
             processor,
             query,
             blocks_queue: VecDeque::new(),
-            process_block_future: Default::default(),
-            process_code_futures: Default::default(),
+            process_block: Default::default(),
+            process_codes: Default::default(),
         }
     }
 
@@ -85,14 +86,14 @@ impl ConnectService {
                     block.header.parent_hash
                 );
 
-                if self.process_block_future.is_none() {
+                if self.process_block.is_none() {
                     let context = ChainHeadProcessContext {
                         db: self.db.clone(),
                         processor: self.processor.clone(),
                         query: self.query.clone(),
                     };
 
-                    self.process_block_future = Some(tokio::task::spawn(context.process(block)));
+                    self.process_block = Some(Box::pin(context.process(block)));
                 } else {
                     self.blocks_queue.push_back(block);
                 }
@@ -100,7 +101,7 @@ impl ConnectService {
             ObserverEvent::Blob { code_id, code } => {
                 log::info!("receive a code blob, code_id {code_id}");
                 let mut processor = self.processor.clone();
-                self.process_code_futures.spawn_blocking(move || {
+                self.process_codes.spawn_blocking(move || {
                     let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
                     Ok(CodeCommitment { id: code_id, valid })
                 });
@@ -110,7 +111,7 @@ impl ConnectService {
 
     pub async fn next(&mut self) -> Result<ConnectEvent> {
         tokio::select! {
-            res = self.process_block_future.as_mut().maybe() => {
+            res = self.process_block.as_mut().maybe() => {
                 if let Some(block) = self.blocks_queue.pop_front() {
                     let context = ChainHeadProcessContext {
                         db: self.db.clone(),
@@ -118,17 +119,14 @@ impl ConnectService {
                         query: self.query.clone(),
                     };
 
-                    self.process_block_future = Some(tokio::task::spawn(context.process(block)));
+                    self.process_block = Some(Box::pin(context.process(block)));
                 } else {
-                    self.process_block_future = None;
+                    self.process_block = None;
                 }
 
-                match res {
-                    Ok(res) => res.map(ConnectEvent::BlockProcessed),
-                    Err(err) => Err(err.into()),
-                }
+                res.map(ConnectEvent::BlockProcessed)
             }
-            Some(res) = self.process_code_futures.join_next() => {
+            Some(res) = self.process_codes.join_next() => {
                 match res {
                     Ok(res) => res.map(ConnectEvent::CodeProcessed),
                     Err(err) => Err(err.into()),
