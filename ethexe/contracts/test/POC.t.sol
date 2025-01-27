@@ -65,9 +65,12 @@ contract POCTest is Base {
 
     function test_POC() public {
         bytes32 _codeId = bytes32(uint256(1));
-        bytes32 _blobTxHash = bytes32(uint256(2));
 
-        router.requestCodeValidation(_codeId, _blobTxHash);
+        bytes32[] memory hashes = new bytes32[](1);
+        hashes[0] = bytes32(uint256(1));
+        vm.blobhashes(hashes);
+
+        router.requestCodeValidation(_codeId);
 
         address[] memory _validators = router.validators();
         assertEq(_validators.length, maxValidators);
