@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, ensure};
+use anyhow::{ensure, Context};
 use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
 use std::{env, fs};
@@ -30,8 +30,11 @@ fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let schedule = vara_runtime::Schedule::get();
-    let inf_recursion = fs::read("examples/wat/spec/inf_recursion.wat")?;
-    let inf_recursion = wabt::Wat2Wasm::new().convert(inf_recursion)?;
+    let inf_recursion = fs::read("examples/wat/spec/inf_recursion.wat")
+        .context("Failed to read `inf_recursion.wat`")?;
+    let inf_recursion = wabt::Wat2Wasm::new()
+        .convert(inf_recursion)
+        .context("Failed to convert WAT to WASM")?;
 
     let code = Code::try_new_mock_with_rules(
         inf_recursion.as_ref().to_vec(),
@@ -43,16 +46,17 @@ fn main() -> anyhow::Result<()> {
             ..Default::default()
         },
     )
-    .map_err(|e| anyhow!("{e}"))?;
+    .context("Code error")?;
 
     let compiler = Singlepass::default();
     let mut store = Store::new(compiler);
-    let module = Module::new(&store, code.code())?;
+    let module = Module::new(&store, code.code()).context("Failed to create initial module")?;
 
     let mut imports = Imports::new();
     let mut exports = Exports::new();
 
-    let memory = Memory::new(&mut store, MemoryType::new(0, None, false))?;
+    let memory = Memory::new(&mut store, MemoryType::new(0, None, false))
+        .context("Failed to create memory")?;
     exports.insert("memory", Extern::Memory(memory));
 
     // Here we need to repeat the code from
@@ -79,14 +83,21 @@ fn main() -> anyhow::Result<()> {
 
     imports.register_namespace("env", exports);
 
-    let instance = Instance::new(&mut store, &module, &imports)?;
-    let init = instance.exports.get_function("init")?;
+    let instance = Instance::new(&mut store, &module, &imports)
+        .context("Failed to instantiate initial module")?;
+    let init = instance
+        .exports
+        .get_function("init")
+        .context("Failed to get initial `init` function export")?;
     let err = init.call(&mut store, &[]).unwrap_err();
     assert_eq!(err.to_trap(), Some(TrapCode::StackOverflow));
 
+    log::info!("Exports: {:?}", instance.exports);
+
     let stack_height = instance
         .exports
-        .get_global(STACK_HEIGHT_EXPORT_NAME)?
+        .get_global(STACK_HEIGHT_EXPORT_NAME)
+        .context("Failed to get global")?
         .get(&mut store)
         .i32()
         .expect("Unexpected global type") as u32;
@@ -109,11 +120,15 @@ fn main() -> anyhow::Result<()> {
             Some(mid),
             schedule.limits.data_segments_amount.into(),
         )
-        .map_err(|e| anyhow!("{e}"))?;
+        .context("Code error")?;
 
-        let module = Module::new(&store, code.code())?;
-        let instance = Instance::new(&mut store, &module, &imports)?;
-        let init = instance.exports.get_function("init")?;
+        let module = Module::new(&store, code.code()).context("Failed to create module")?;
+        let instance =
+            Instance::new(&mut store, &module, &imports).context("Failed to instantiate module")?;
+        let init = instance
+            .exports
+            .get_function("init")
+            .context("Failed to get `init` function export")?;
         let err = init.call(&mut store, &[]).unwrap_err();
 
         match err.to_trap() {

@@ -152,7 +152,7 @@ fn generate_stack_height_global(
     let stack_height_global_idx = mbuilder.push_global(global_entry);
 
     if let Some(stack_height_export_name) = stack_height_export_name {
-        mbuilder.push_export(Export::func(
+        mbuilder.push_export(Export::global(
             stack_height_export_name.to_string(),
             stack_height_global_idx,
         ));
