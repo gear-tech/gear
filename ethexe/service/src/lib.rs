@@ -20,7 +20,7 @@ use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
 use ethexe_common::gear::{BlockCommitment, CodeCommitment};
-use ethexe_compute::{BlockProcessed, ComputeService, ComputeEvent};
+use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};

@@ -25,7 +25,10 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{Context as _, Result};
-use ethexe_common::{events::{BlockEvent,RouterEvent}, BlockData};
+use ethexe_common::{
+    events::{BlockEvent, RouterEvent},
+    BlockData,
+};
 use ethexe_db::BlockHeader;
 use ethexe_service_utils::AsyncFnStream;
 use ethexe_signer::Address;
