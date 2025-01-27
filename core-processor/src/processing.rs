@@ -163,7 +163,6 @@ where
                         .map(|reserver| initial_reservations_amount <= reserver.states().len())
                         .unwrap_or(true));
 
-                    
                     if let Some(allocations) = res.allocations.as_ref() {
                         debug_assert!(allocations.intervals_amount() < MAX_WASM_PAGES_AMOUNT as usize,
                             "maximum supported WASM pages amount is {MAX_WASM_PAGES_AMOUNT}, but program used {} pages",

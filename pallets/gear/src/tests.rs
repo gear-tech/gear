@@ -57,7 +57,7 @@ use gear_core::{
     },
     pages::{
         numerated::{self, tree::IntervalsTree},
-        WasmPage
+        WasmPage,
     },
     program::ActiveProgram,
     tasks::ScheduledTask,
@@ -15445,7 +15445,7 @@ fn allocate_in_init_free_in_handle() {
         )
     "#
     );
-    
+
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
