@@ -36,7 +36,7 @@ use tokio::task::JoinSet;
 #[derive(Debug)]
 pub struct BlockProcessed {
     pub chain_head: H256,
-    // TODO (gsobol): remove commitments
+    // TODO (gsobol): remove commitments, this must be handled by validator if needed
     pub commitments: Vec<BlockCommitment>,
 }
 
@@ -46,6 +46,8 @@ pub enum ConnectEvent {
     CodeProcessed(CodeCommitment),
 }
 
+// TODO (gsobol): add state monitoring in prometheus
+// TODO (gsobol): append off-chain transactions handling
 pub struct ConnectService {
     db: Database,
     processor: Processor,
