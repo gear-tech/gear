@@ -34,7 +34,7 @@ use scale_info::{
 /// A dedicated trait to format data in [`LimitedVec`].
 ///
 /// If data can be represented as bytes then it is formatted in limited format,
-/// otherwise only fraction of elemnts in a vec is formatted.
+/// otherwise only fraction of elements in a vec is formatted.
 pub trait LimitedDebug: Sized + Debug {
     /// Format the data in limited format.
     ///

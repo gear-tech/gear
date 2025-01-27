@@ -27,20 +27,13 @@ use crate::{
     ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
-use alloc::{
-    format,
-    string::ToString,
-    vec::Vec,
-};
+use alloc::{format, string::ToString, vec::Vec};
 use gear_core::{
     buffer::LimitedVec,
     code::MAX_WASM_PAGES_AMOUNT,
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
-    message::{
-        ContextSettings, DispatchKind, IncomingDispatch, PayloadSizeError, ReplyMessage,
-        StoredDispatch,
-    },
+    message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
     str::LimitedStr,
     tree::LimitedIntervalsTree,
@@ -170,11 +163,13 @@ where
                         .map(|reserver| initial_reservations_amount <= reserver.states().len())
                         .unwrap_or(true));
 
-                    debug_assert!(res
-                        .allocations
-                        .as_ref()
-                        .filter(|x| x.intervals_amount() < MAX_WASM_PAGES_AMOUNT as usize)
-                        .is_none());
+                    
+                    if let Some(allocations) = res.allocations.as_ref() {
+                        debug_assert!(allocations.intervals_amount() < MAX_WASM_PAGES_AMOUNT as usize,
+                            "maximum supported WASM pages amount is {MAX_WASM_PAGES_AMOUNT}, but program used {} pages",
+                            allocations.intervals_amount()
+                    );
+                    }
                     debug_assert!(res.program_candidates.len() < 1024);
                 }
                 // reservation does not change in case of failure
