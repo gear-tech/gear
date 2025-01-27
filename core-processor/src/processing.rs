@@ -35,8 +35,7 @@ use gear_core::{
     ids::{prelude::*, MessageId, ProgramId},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
-    str::LimitedStr,
-    tree::LimitedIntervalsTree,
+    str::LimitedStr
 };
 use gear_core_backend::{
     error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
@@ -217,20 +216,18 @@ enum ProcessErrorCase {
 
 impl ProcessErrorCase {
     pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, LimitedStr<'static>) {
-        // LimitedString::try_from never fails, all errors are smalelr than 2KB when converted
-        // to string.
         match self {
             ProcessErrorCase::NonExecutable => {
                 let reason = ErrorReplyReason::InactiveActor;
-                (reason, LimitedStr::try_from(reason.to_string()).unwrap())
+                (reason, LimitedStr::from(reason.to_string()))
             }
             ProcessErrorCase::ExecutionFailed(reason) => (
                 reason.as_simple().into(),
-                LimitedStr::try_from(reason.to_string()).unwrap(),
+                LimitedStr::from(reason.to_string()),
             ),
             ProcessErrorCase::ReinstrumentationFailed => {
                 let err = ErrorReplyReason::ReinstrumentationFailure;
-                (err, LimitedStr::try_from(err.to_string()).unwrap())
+                (err, LimitedStr::from(err.to_string()))
             }
         }
     }
@@ -557,7 +554,7 @@ pub fn process_success(
     if let Some(allocations) = allocations {
         journal.push(JournalNote::UpdateAllocations {
             program_id,
-            allocations: LimitedIntervalsTree::try_from(allocations).expect("must succeed"),
+            allocations,
         });
     }
 

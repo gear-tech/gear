@@ -38,7 +38,11 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
-    pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage, WasmPagesAmount},
+    pages::{
+        numerated::tree::IntervalsTree,
+        numerated::iterators::IntervalIterator,
+        GearPage, WasmPage, WasmPagesAmount, WasmPagesIntervalsTree,
+    },
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
@@ -202,7 +206,10 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
 
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
+        let limited_allocations =
+            WasmPagesIntervalsTree::try_from(allocations.collect::<IntervalsTree<_>>())
+                .map_err(|_| "too many allocations")?;
+        ProgramStorageOf::<T>::set_allocations(program_id, limited_allocations);
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
