@@ -116,12 +116,11 @@ impl<T: Numerated, E: Default, const N: usize> LimitedIntervalsTree<T, E, N> {
     /// Complexity: `O(m * log(n))`, where
     /// - `n` is amount of intervals in `self`
     /// - `m` is amount of intervals in `self` ⋂ `interval`
-    pub fn insert<I: Into<IntervalIterator<T>>>(&mut self, interval: I) -> Result<(), E> {
+    pub fn insert<I: Into<IntervalIterator<T>>>(&mut self, interval: I) -> Result<bool, E> {
         if self.inner.intervals_amount() >= N {
             return Err(E::default());
         }
-        self.inner.insert(interval);
-        Ok(())
+        Ok(self.inner.insert(interval))
     }
 
     /// Remove `interval` from tree.
@@ -131,8 +130,8 @@ impl<T: Numerated, E: Default, const N: usize> LimitedIntervalsTree<T, E, N> {
     /// Complexity: `O(m * log(n))`, where
     /// - `n` is amount of intervals in `self`
     /// - `m` is amount of intervals in `self` ⋂ `interval`
-    pub fn remove<I: Into<IntervalIterator<T>>>(&mut self, interval: I) {
-        self.inner.remove(interval);
+    pub fn remove<I: Into<IntervalIterator<T>>>(&mut self, interval: I) -> bool {
+        self.inner.remove(interval)
     }
 
     /// Returns iterator over non empty intervals, that consist of points `p: T`
