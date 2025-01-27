@@ -560,6 +560,9 @@ loom = "0.7.2"                                               # utils/gear-wasmer
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
 
+[profile.dev.package.corosensei]
+opt-level = 3
+
 [profile.release]
 panic = "unwind"
 
@@ -602,6 +605,3 @@ blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross
 
 # TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
-
-# Attempt to fix UB on windows by increasing precommited stack size to 1 MiB, see https://github.com/gear-tech/gear/issues/4341
-corosensei = { git = "https://github.com/gear-tech/corosensei", branch = "rmasl-precommit-1mb-stack-on-windows" }
