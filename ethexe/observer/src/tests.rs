@@ -21,7 +21,6 @@ use crate::MockBlobReader;
 use alloy::node_bindings::Anvil;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
-use gear_core::ids::prelude::CodeIdExt;
 use std::time::Duration;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
@@ -78,16 +77,17 @@ async fn test_deployment() -> Result<()> {
         "#;
     let wasm = wat2wasm(wat);
 
-    let code_id = CodeId::generate(&wasm);
-    let blob_tx = H256::random();
+    let pending_builder = ethereum
+        .router()
+        .request_code_validation_with_sidecar(&wasm)
+        .await?;
+
+    let code_id = pending_builder.code_id();
+    let tx_hash = pending_builder.tx_hash();
 
     blob_reader
-        .add_blob_transaction(blob_tx, wasm.clone())
+        .add_blob_transaction(tx_hash, wasm.clone())
         .await;
-    ethereum
-        .router()
-        .request_code_validation(code_id, blob_tx)
-        .await?;
 
     let event = observer
         .next()

@@ -27,6 +27,7 @@ use ethexe_common::{
 use ethexe_ethereum::{router::Router, Ethereum};
 use ethexe_service_utils::{AsyncFnStream, Timer};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
+use futures::{future::BoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
 use gprimitives::H256;
 use indexmap::IndexSet;
 use std::{
@@ -42,6 +43,14 @@ mod tests;
 
 pub type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
 
+type CommitmentSubmitFuture = BoxFuture<'static, (Result<H256>, CommitType)>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CommitType {
+    Block,
+    Code,
+}
+
 pub struct SequencerConfig {
     pub ethereum_rpc: String,
     pub sign_tx_public: PublicKey,
@@ -53,8 +62,17 @@ pub struct SequencerConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SequencerEvent {
-    CollectionRoundEnded { block_hash: H256 },
-    ValidationRoundEnded { block_hash: H256, submitted: bool },
+    CollectionRoundEnded {
+        block_hash: H256,
+    },
+    CommitmentSubmitted {
+        tx_hash: Option<H256>,
+        commit_type: CommitType,
+    },
+    ValidationRoundEnded {
+        block_hash: H256,
+        submitted: bool,
+    },
 }
 
 pub struct SequencerService {
@@ -78,6 +96,8 @@ pub struct SequencerService {
     // TODO: consider merging into single timer.
     collection_round: Timer<H256>,
     validation_round: Timer<H256>,
+
+    submissions: FuturesUnordered<CommitmentSubmitFuture>,
 }
 
 impl AsyncFnStream for SequencerService {
@@ -137,6 +157,8 @@ impl SequencerService {
 
             collection_round: Timer::new("collection", config.block_time / 4),
             validation_round: Timer::new("validation", config.block_time / 4),
+
+            submissions: FuturesUnordered::new(),
         })
     }
 
@@ -244,99 +266,62 @@ impl SequencerService {
         )
     }
 
-    pub async fn submit_multisigned_commitments(&mut self) -> Result<()> {
-        let mut codes_future = None;
-        let mut blocks_future = None;
-
-        let codes_candidate = Self::process_multisigned_candidate(
-            &mut self.codes_candidate,
-            &mut self.code_commitments,
-            self.threshold,
-        );
-
-        let blocks_candidate = Self::process_multisigned_candidate(
+    pub fn submit_multisigned_commitments(&mut self) {
+        if let Some(candidate) = Self::process_multisigned_candidate(
             &mut self.blocks_candidate,
             &mut self.block_commitments,
             self.threshold,
-        );
-
-        if let Some(candidate) = codes_candidate {
-            let n = candidate.commitments().len();
-
-            log::debug!("Collected {n} code commitments. Submitting...");
-            self.status.submitted_code_commitments += n;
-
-            codes_future = Some(Self::submit_codes_commitments(
-                self.ethereum.router(),
-                candidate,
-            ));
-        };
-
-        if let Some(candidate) = blocks_candidate {
+        ) {
             let n = candidate.commitments().len();
 
             log::debug!("Collected {n} block commitments. Submitting...",);
             self.status.submitted_block_commitments += n;
 
-            blocks_future = Some(Self::submit_block_commitments(
-                self.ethereum.router(),
-                candidate,
+            self.submissions.push(Box::pin(
+                Self::submit_block_commitments(self.ethereum.router(), candidate)
+                    .map(|tx_hash| (tx_hash, CommitType::Block)),
             ));
         };
 
-        match (codes_future, blocks_future) {
-            (Some(codes_future), Some(transitions_future)) => {
-                let (codes_tx, transitions_tx) = futures::join!(codes_future, transitions_future);
-                codes_tx?;
-                transitions_tx?;
-            }
-            (Some(codes_future), None) => codes_future.await?,
-            (None, Some(transitions_future)) => transitions_future.await?,
-            (None, None) => {}
-        }
+        if let Some(candidate) = Self::process_multisigned_candidate(
+            &mut self.codes_candidate,
+            &mut self.code_commitments,
+            self.threshold,
+        ) {
+            let n = candidate.commitments().len();
 
-        Ok(())
+            log::debug!("Collected {n} code commitments. Submitting...");
+            self.status.submitted_code_commitments += n;
+
+            self.submissions.push(Box::pin(
+                Self::submit_codes_commitments(self.ethereum.router(), candidate)
+                    .map(|tx_hash| (tx_hash, CommitType::Code)),
+            ));
+        };
     }
 
     async fn submit_codes_commitments(
         router: Router,
         multisigned: MultisignedCommitments<CodeCommitment>,
-    ) -> Result<()> {
+    ) -> Result<H256> {
         let (codes, signatures) = multisigned.into_parts();
         let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
 
         log::debug!("Code commitments to submit: {codes:?}, signed by: {origins:?}",);
 
-        if let Err(e) = router.commit_codes(codes, signatures).await {
-            // TODO: return error?
-            log::error!("Failed to commit code ids: {e}");
-        }
-
-        Ok(())
+        router.commit_codes(codes, signatures).await
     }
 
     async fn submit_block_commitments(
         router: Router,
         multisigned: MultisignedCommitments<BlockCommitment>,
-    ) -> Result<()> {
+    ) -> Result<H256> {
         let (blocks, signatures) = multisigned.into_parts();
         let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
 
         log::debug!("Block commitments to submit: {blocks:?}, signed by: {origins:?}",);
 
-        match router.commit_blocks(blocks, signatures).await {
-            Err(e) => {
-                // TODO: return error?
-                log::error!("Failed to commit transitions: {e}");
-            }
-            Ok(tx_hash) => {
-                log::info!(
-                    "Blocks commitment transaction {tx_hash} was added to the pool successfully"
-                );
-            }
-        }
-
-        Ok(())
+        router.commit_blocks(blocks, signatures).await
     }
 
     pub async fn next(&mut self) -> SequencerEvent {
@@ -380,17 +365,23 @@ impl SequencerService {
 
                 if self.blocks_candidate.is_some() || self.codes_candidate.is_some() {
                     log::debug!("Submitting commitments");
-
-                    if let Err(e) = self.submit_multisigned_commitments().await {
-                        log::error!("Failed to submit multisigned commitments: {e}");
-                    } else {
-                        submitted = true;
-                    }
+                    self.submit_multisigned_commitments();
+                    submitted = true;
                 } else {
                     log::debug!("No commitments to submit, skipping");
                 }
 
+                log::debug!("Validation round ended: block {block_hash}, submitted: {submitted}");
+
                 SequencerEvent::ValidationRoundEnded { block_hash, submitted }
+            }
+            Some((res, commit_type)) = self.submissions.next() => {
+                let tx_hash = res
+                    .inspect(|tx_hash| log::debug!("Successfully submitted commitment {commit_type:?} in tx {tx_hash}"))
+                    .inspect_err(|err| log::warn!("Failed to submit commitment {commit_type:?}: {err}"))
+                    .ok();
+
+                SequencerEvent::CommitmentSubmitted { tx_hash, commit_type }
             }
         }
     }
