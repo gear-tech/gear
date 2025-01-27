@@ -42,14 +42,14 @@ pub struct BlockProcessed {
 }
 
 #[derive(Debug)]
-pub enum ConnectEvent {
+pub enum ComputeEvent {
     BlockProcessed(BlockProcessed),
     CodeProcessed(CodeCommitment),
 }
 
 // TODO (gsobol): add state monitoring in prometheus
 // TODO (gsobol): append off-chain transactions handling
-pub struct ConnectService {
+pub struct ComputeService {
     db: Database,
     processor: Processor,
     query: Query,
@@ -58,15 +58,15 @@ pub struct ConnectService {
     process_codes: JoinSet<Result<CodeCommitment>>,
 }
 
-impl AsyncFnStream for ConnectService {
-    type Item = Result<ConnectEvent>;
+impl AsyncFnStream for ComputeService {
+    type Item = Result<ComputeEvent>;
 
     async fn like_next(&mut self) -> Option<Self::Item> {
         Some(self.next().await)
     }
 }
 
-impl ConnectService {
+impl ComputeService {
     pub fn new(db: Database, processor: Processor, query: Query) -> Self {
         Self {
             db,
@@ -112,7 +112,7 @@ impl ConnectService {
         }
     }
 
-    pub async fn next(&mut self) -> Result<ConnectEvent> {
+    pub async fn next(&mut self) -> Result<ComputeEvent> {
         tokio::select! {
             res = self.process_block.as_mut().maybe() => {
                 if let Some(block) = self.blocks_queue.pop_front() {
@@ -127,11 +127,11 @@ impl ConnectService {
                     self.process_block = None;
                 }
 
-                res.map(ConnectEvent::BlockProcessed)
+                res.map(ComputeEvent::BlockProcessed)
             }
             Some(res) = self.process_codes.join_next() => {
                 match res {
-                    Ok(res) => res.map(ConnectEvent::CodeProcessed),
+                    Ok(res) => res.map(ComputeEvent::CodeProcessed),
                     Err(err) => Err(err.into()),
                 }
             }

@@ -20,7 +20,7 @@ use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
 use ethexe_common::gear::{BlockCommitment, CodeCommitment};
-use ethexe_connect::{BlockProcessed, ConnectService, ConnectEvent};
+use ethexe_compute::{BlockProcessed, ComputeService, ComputeEvent};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
@@ -46,7 +46,7 @@ pub struct Service {
     db: Database,
     observer: ObserverService,
     router_query: RouterQuery,
-    connect: ConnectService,
+    compute: ComputeService,
     signer: ethexe_signer::Signer,
 
     // Optional services
@@ -222,14 +222,14 @@ impl Service {
             ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
         });
 
-        let connect = ConnectService::new(db.clone(), processor, query);
+        let compute = ComputeService::new(db.clone(), processor, query);
 
         Ok(Self {
             db,
             network,
             observer,
             router_query,
-            connect,
+            compute,
             sequencer,
             signer,
             validator,
@@ -261,13 +261,13 @@ impl Service {
         prometheus: Option<PrometheusService>,
         rpc: Option<ethexe_rpc::RpcService>,
     ) -> Self {
-        let connect = ConnectService::new(db.clone(), processor.clone(), query.clone());
+        let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
 
         Self {
             db,
             observer,
             router_query,
-            connect,
+            compute,
             signer,
             network,
             sequencer,
@@ -290,7 +290,7 @@ impl Service {
             mut network,
             mut observer,
             mut router_query,
-            mut connect,
+            mut compute,
             mut sequencer,
             signer: _signer,
             mut validator,
@@ -320,13 +320,13 @@ impl Service {
             tokio::select! {
                 event = observer.next() => {
                     match event? {
-                        ObserverEvent::Blob { code_id, code } => connect.receive_code(code_id, code),
-                        ObserverEvent::Block(block_data) => connect.receive_chain_head(block_data),
+                        ObserverEvent::Blob { code_id, code } => compute.receive_code(code_id, code),
+                        ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
                     }
                 },
-                event = connect.next() => {
+                event = compute.next() => {
                     match event? {
-                        ConnectEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
+                        ComputeEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
                             // TODO (gsobol): must be done in observer event handling
                             if let Some(s) = sequencer.as_mut() {
                                 s.on_new_head(chain_head)?
@@ -362,7 +362,7 @@ impl Service {
                             };
 
                         },
-                        ConnectEvent::CodeProcessed(commitment) => {
+                        ComputeEvent::CodeProcessed(commitment) => {
                             if let Some(v) = validator.as_mut() {
                                 let aggregated_code_commitments = v.aggregate(vec![commitment])?;
 

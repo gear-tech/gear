@@ -4557,7 +4557,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-connect"
+name = "ethexe-compute"
 version = "1.7.0"
 dependencies = [
  "anyhow",
@@ -4794,7 +4794,7 @@ dependencies = [
  "directories",
  "env_logger",
  "ethexe-common",
- "ethexe-connect",
+ "ethexe-compute",
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-network",
