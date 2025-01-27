@@ -18,7 +18,7 @@
 
 use crate::optimize;
 use gear_wasm_instrument::{
-    module::{Data, MemArg},
+    module::{Data, MemArg, Name},
     Export, Function, Global, Instruction, Module, ModuleBuilder, STACK_END_EXPORT_NAME,
 };
 use wasmparser::{ExternalKind, FuncType, TypeRef, ValType};
@@ -32,13 +32,8 @@ use wasmparser::{ExternalKind, FuncType, TypeRef, ValType};
 ///
 /// Returns error if cannot insert stack end export by some reasons.
 pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> {
-    let module_bytes = module
-        .serialize()
-        .map_err(|_| "cannot get code from module")?;
-
-    let stack_pointer_index =
-        get_global_index(&module_bytes, |name| name.ends_with("__stack_pointer"))
-            .ok_or("has no stack pointer global")?;
+    let stack_pointer_index = get_global_index(module, |name| name.ends_with("__stack_pointer"))
+        .ok_or("has no stack pointer global")?;
 
     let glob_section = module
         .global_section()
@@ -126,15 +121,10 @@ pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'st
 ///
 /// Returns error if cannot move globals to static memory by some reasons.
 pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static str> {
-    let module_bytes = module
-        .serialize()
-        .map_err(|_| "cannot get code from module")?;
-
     // Identify stack pointer and data end globals
-    let stack_pointer_index =
-        get_global_index(&module_bytes, |name| name.ends_with("__stack_pointer"))
-            .ok_or("Cannot find stack pointer global")?;
-    let data_end_index = get_global_index(&module_bytes, |name| name.ends_with("__data_end"))
+    let stack_pointer_index = get_global_index(module, |name| name.ends_with("__stack_pointer"))
+        .ok_or("Cannot find stack pointer global")?;
+    let data_end_index = get_global_index(module, |name| name.ends_with("__data_end"))
         .ok_or("Cannot find data end global")?;
 
     // Identify mutable globals and their initial data
@@ -249,31 +239,18 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
     Ok(())
 }
 
-fn get_global_index(module_bytes: &[u8], name_predicate: impl Fn(&str) -> bool) -> Option<u32> {
-    use wasmparser::{KnownCustom, Name, Parser, Payload};
-
-    Parser::new(0)
-        .parse_all(module_bytes)
-        .filter_map(|p| p.ok())
-        .filter_map(|section| match section {
-            Payload::CustomSection(r) => Some(r),
-            _ => None,
-        })
-        .filter_map(|r| {
-            if let KnownCustom::Name(r) = r.as_known() {
-                Some(r)
-            } else {
-                None
-            }
-        })
+fn get_global_index(module: &Module, name_predicate: impl Fn(&str) -> bool) -> Option<u32> {
+    module
+        .name_section()
+        .iter()
+        .copied()
         .flatten()
         .filter_map(|name| match name {
-            Ok(Name::Global(m)) => Some(m),
+            Name::Global(m) => Some(m),
             _ => None,
         })
-        .flat_map(|naming| naming.into_iter())
-        .filter_map(|res| res.ok())
-        .find(|global| name_predicate(global.name))
+        .flatten()
+        .find(|global| name_predicate(&global.name))
         .map(|global| global.index)
 }
 
