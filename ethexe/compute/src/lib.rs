@@ -49,6 +49,7 @@ pub enum ComputeEvent {
 
 // TODO (gsobol): add state monitoring in prometheus
 // TODO (gsobol): append off-chain transactions handling
+// TODO (gsobol) asap: add tests for compute service
 pub struct ComputeService {
     db: Database,
     processor: Processor,
