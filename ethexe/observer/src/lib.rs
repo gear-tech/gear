@@ -27,12 +27,20 @@ use alloy::{
 use anyhow::{Context as _, Result};
 use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent};
 use ethexe_db::BlockHeader;
-use ethexe_service_utils::AsyncFnStream;
 use ethexe_signer::Address;
-use futures::{future::BoxFuture, stream::FuturesUnordered, Stream, StreamExt};
+use futures::{
+    future::BoxFuture,
+    stream::{FusedStream, FuturesUnordered},
+    Stream, StreamExt,
+};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 pub(crate) type Provider = RootProvider<BoxTransport>;
 
@@ -81,29 +89,35 @@ pub struct ObserverService {
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
 
-impl AsyncFnStream for ObserverService {
+impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
-    async fn like_next(&mut self) -> Option<Self::Item> {
-        Some(self.next().await)
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Poll::Ready(Some((hash, header, events))) = self.stream.poll_next_unpin(cx) {
+            let event = Ok(self.handle_stream_next(hash, header, events));
+
+            return Poll::Ready(Some(event));
+        };
+
+        if let Poll::Ready(Some(res)) = self.codes_futures.poll_next_unpin(cx) {
+            let event = res.map(|(code_id, timestamp, code)| ObserverEvent::Blob {
+                code_id,
+                timestamp,
+                code,
+            });
+
+            return Poll::Ready(Some(event));
+        }
+
+        Poll::Pending
     }
 }
 
-// TODO: fix it by some wrapper. It's not possible to implement Stream for SequencerService like this.
-// impl Stream for ObserverService {
-//     type Item = Result<ObserverEvent>;
-
-//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-//         let e = ready!(pin!(self.next_event()).poll(cx));
-//         Poll::Ready(Some(e))
-//     }
-// }
-
-// impl FusedStream for ObserverService {
-//     fn is_terminated(&self) -> bool {
-//         false
-//     }
-// }
+impl FusedStream for ObserverService {
+    fn is_terminated(&self) -> bool {
+        false
+    }
+}
 
 impl ObserverService {
     pub async fn new(config: &EthereumConfig) -> Result<Self> {
@@ -176,7 +190,7 @@ impl ObserverService {
         router: Address,
     ) -> impl Stream<Item = (H256, BlockHeader, Vec<BlockEvent>)> {
         async_stream::stream! {
-            while let Some(header) = stream.like_next().await {
+            while let Some(header) = stream.next().await {
                 let hash = (*header.hash).into();
                 let parent_hash = (*header.parent_hash).into();
                 let block_number = header.number as u32;
@@ -195,31 +209,34 @@ impl ObserverService {
         }
     }
 
-    pub async fn next(&mut self) -> Result<ObserverEvent> {
-        tokio::select! {
-            Some((hash, header, events)) = self.stream.next() => {
-                // TODO (breathx): set in db?
-                log::trace!("Received block: {hash:?}");
+    fn handle_stream_next(
+        &mut self,
+        hash: H256,
+        header: BlockHeader,
+        events: Vec<BlockEvent>,
+    ) -> ObserverEvent {
+        // TODO (breathx): set in db?
+        log::trace!("Received block: {hash:?}");
 
-                self.last_block_number = header.height;
+        self.last_block_number = header.height;
 
-                // TODO: replace me with proper processing of all events, including commitments.
-                for event in &events {
-                    if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, timestamp, tx_hash }) = event {
-                        self.lookup_code(*code_id, *timestamp, *tx_hash);
-                    }
-                }
-
-                Ok(ObserverEvent::Block(BlockData {
-                    hash,
-                    header,
-                    events,
-                }))
-            },
-            Some(res) = self.codes_futures.next() => {
-                res.map(|(code_id, timestamp, code)| ObserverEvent::Blob { code_id, timestamp, code })
+        // TODO: replace me with proper processing of all events, including commitments.
+        for event in &events {
+            if let BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                code_id,
+                timestamp,
+                tx_hash,
+            }) = event
+            {
+                self.lookup_code(*code_id, *timestamp, *tx_hash);
             }
         }
+
+        ObserverEvent::Block(BlockData {
+            hash,
+            header,
+            events,
+        })
     }
 }
 

@@ -35,6 +35,7 @@ use ethexe_sequencer::{
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
+use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::Not, sync::Arc};
@@ -458,7 +459,7 @@ impl Service {
 
         loop {
             tokio::select! {
-                event = observer.next() => {
+                event = observer.select_next_some() => {
                     match event? {
                         ObserverEvent::Blob { code_id, timestamp, code } => {
                             // TODO: spawn blocking here?
@@ -543,7 +544,7 @@ impl Service {
                         }
                     }
                 },
-                Some(event) = sequencer.maybe_next() => {
+                event = sequencer.maybe_next_some() => {
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
                     };
@@ -611,7 +612,7 @@ impl Service {
                         SequencerEvent::CommitmentSubmitted { .. } => {},
                     }
                 },
-                Some(event) = network.maybe_next() => {
+                event = network.maybe_next_some() => {
                     match event {
                         NetworkEvent::Message { source, data } => {
                             log::trace!("Received a network message from peer {source:?}");
@@ -692,7 +693,7 @@ impl Service {
                         }
                         _ => {}
                     }},
-                Some(event) = prometheus.maybe_next() => {
+                event = prometheus.maybe_next_some() => {
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
                     };

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{common::block_header_at_or_latest, errors};
-use ethexe_common::events::BlockRequestEvent;
+use ethexe_common::{events::BlockRequestEvent, gear::StateTransition};
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
 use gprimitives::H256;
 use jsonrpsee::{
@@ -36,6 +36,9 @@ pub trait Block {
 
     #[method(name = "block_events")]
     async fn block_events(&self, block_hash: Option<H256>) -> RpcResult<Vec<BlockRequestEvent>>;
+
+    #[method(name = "block_outcome")]
+    async fn block_outcome(&self, block_hash: Option<H256>) -> RpcResult<Vec<StateTransition>>;
 }
 
 #[derive(Clone)]
@@ -69,5 +72,13 @@ impl BlockServer for BlockApi {
         self.db
             .block_events(block_hash)
             .ok_or_else(|| errors::db("Block events weren't found"))
+    }
+
+    async fn block_outcome(&self, hash: Option<H256>) -> RpcResult<Vec<StateTransition>> {
+        let block_hash = block_header_at_or_latest(&self.db, hash)?.0;
+
+        self.db
+            .block_outcome(block_hash)
+            .ok_or_else(|| errors::db("Block outcome wasn't found"))
     }
 }

@@ -18,7 +18,6 @@
 
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Event {
@@ -79,7 +78,8 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
     CodeValidationRequested {
         code_id: CodeId,
