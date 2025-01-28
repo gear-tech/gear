@@ -414,15 +414,17 @@ impl Stream for NetworkService {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(Some(event)) = self.swarm.poll_next_unpin(cx) {
-            if let Some(event) = self.get_mut().handle_swarm_event(event) {
-                return Poll::Ready(Some(event));
-            } else {
-                cx.waker().wake_by_ref();
+        loop {
+            match self.as_mut().swarm.poll_next_unpin(cx) {
+                Poll::Ready(Some(event)) => {
+                    if let Some(event) = self.as_mut().get_mut().handle_swarm_event(event) {
+                        return Poll::Ready(Some(event));
+                    }
+                }
+                Poll::Ready(None) => return Poll::Ready(None),
+                Poll::Pending => return Poll::Pending,
             }
         }
-
-        Poll::Pending
     }
 }
 
