@@ -39,11 +39,7 @@ use tokio::{
 
 #[async_trait]
 pub trait BlobReader: Send + Sync {
-    async fn read_blob_from_tx_hash(
-        &self,
-        tx_hash: H256,
-        attempts: Option<u8>,
-    ) -> Result<(u64, Vec<u8>)>;
+    async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>>;
 }
 
 #[derive(Clone)]
@@ -83,11 +79,7 @@ impl ConsensusLayerBlobReader {
 
 #[async_trait]
 impl BlobReader for ConsensusLayerBlobReader {
-    async fn read_blob_from_tx_hash(
-        &self,
-        tx_hash: H256,
-        attempts: Option<u8>,
-    ) -> Result<(u64, Vec<u8>)> {
+    async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
         const BEACON_GENESIS_BLOCK_TIME: u64 = 1695902400;
 
@@ -142,24 +134,22 @@ impl BlobReader for ConsensusLayerBlobReader {
             .ok_or_else(|| anyhow!("failed to decode blobs"))?
             .concat();
 
-        Ok((block.header.timestamp, data))
+        Ok(data)
     }
 }
 
 #[derive(Clone)]
 pub struct MockBlobReader {
-    provider: Provider,
-    block_time: Duration,
     transactions: Arc<RwLock<HashMap<H256, Vec<u8>>>>,
+    block_time: Duration,
 }
 
 impl MockBlobReader {
-    pub async fn new(ethereum_rpc: &str, block_time: Duration) -> Result<Self> {
-        Ok(Self {
-            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
-            block_time,
+    pub fn new(block_time: Duration) -> Self {
+        Self {
             transactions: Arc::new(RwLock::new(HashMap::new())),
-        })
+            block_time,
+        }
     }
 
     pub async fn add_blob_transaction(&self, tx_hash: H256, data: Vec<u8>) {
@@ -169,25 +159,7 @@ impl MockBlobReader {
 
 #[async_trait]
 impl BlobReader for MockBlobReader {
-    async fn read_blob_from_tx_hash(
-        &self,
-        tx_hash: H256,
-        attempts: Option<u8>,
-    ) -> Result<(u64, Vec<u8>)> {
-        let tx = self
-            .provider
-            .get_transaction_by_hash(tx_hash.0.into())
-            .await?
-            .ok_or_else(|| anyhow!("failed to get transaction"))?;
-        let block_hash = tx
-            .block_hash
-            .ok_or_else(|| anyhow!("failed to get block hash"))?;
-        let block = self
-            .provider
-            .get_block_by_hash(block_hash, BlockTransactionsKind::Hashes)
-            .await?
-            .ok_or_else(|| anyhow!("failed to get block"))?;
-
+    async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         let maybe_blob_data = match attempts {
             Some(attempts) => {
                 let mut count = 0;
@@ -205,7 +177,6 @@ impl BlobReader for MockBlobReader {
             None => self.transactions.read().await.get(&tx_hash).cloned(),
         };
         let blob_data = maybe_blob_data.ok_or_else(|| anyhow!("failed to get blob"))?;
-
-        Ok((block.header.timestamp, blob_data))
+        Ok(blob_data)
     }
 }

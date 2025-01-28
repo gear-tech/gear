@@ -82,11 +82,7 @@ pub enum NetworkMessage {
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
         let mock_blob_reader: Option<Arc<MockBlobReader>> = if config.node.dev {
-            Some(Arc::new(
-                MockBlobReader::new(&config.ethereum.rpc, config.ethereum.block_time)
-                    .await
-                    .with_context(|| "failed to create blob reader")?,
-            ))
+            Some(Arc::new(MockBlobReader::new(config.ethereum.block_time)))
         } else {
             None
         };

@@ -1082,7 +1082,7 @@ mod utils {
             let router_query = router.query();
             let router_address = router.address();
 
-            let blob_reader = Arc::new(MockBlobReader::new(&rpc_url, block_time).await?);
+            let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
             let eth_cfg = EthereumConfig {
                 rpc: rpc_url.clone(),

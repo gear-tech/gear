@@ -186,9 +186,7 @@ impl Router {
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                 .collect(),
         );
-
         let receipt = builder.send().await?.try_get_receipt().await?;
-
         Ok(H256(receipt.transaction_hash.0))
     }
 
