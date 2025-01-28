@@ -28,7 +28,7 @@ pub mod export {
 use anyhow::{anyhow, Context};
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
-use futures::{future::Either, stream::FusedStream, Stream};
+use futures::{future::Either, ready, stream::FusedStream, Stream};
 use libp2p::{
     connection_limits,
     core::{muxing::StreamMuxerBox, upgrade},
@@ -119,6 +119,31 @@ impl NetworkConfig {
 
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
+}
+
+impl Stream for NetworkService {
+    type Item = NetworkEvent;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        loop {
+            let Some(event) = ready!(self.swarm.poll_next_unpin(cx)) else {
+                return Poll::Ready(None);
+            };
+
+            if let Some(event) = self.handle_swarm_event(event) {
+                return Poll::Ready(Some(event));
+            }
+        }
+    }
+}
+
+impl FusedStream for NetworkService {
+    fn is_terminated(&self) -> bool {
+        self.swarm.is_terminated()
+    }
 }
 
 impl NetworkService {
@@ -404,31 +429,6 @@ impl NetworkService {
         res: Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>,
     ) {
         self.swarm.behaviour_mut().db_sync.request_validated(res);
-    }
-}
-
-impl Stream for NetworkService {
-    type Item = NetworkEvent;
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(Some(event)) = self.swarm.poll_next_unpin(cx) {
-            if let Some(event) = self.get_mut().handle_swarm_event(event) {
-                return Poll::Ready(Some(event));
-            } else {
-                cx.waker().wake_by_ref();
-            }
-        }
-
-        Poll::Pending
-    }
-}
-
-impl FusedStream for NetworkService {
-    fn is_terminated(&self) -> bool {
-        self.swarm.is_terminated()
     }
 }
 
