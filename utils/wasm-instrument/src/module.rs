@@ -357,6 +357,10 @@ pub enum ModuleError {
     UnsupportedInstruction(String),
     #[display(fmt = "Multiple tables")]
     MultipleTables,
+    #[display(fmt = "Multiple memories")]
+    MultipleMemories,
+    #[display(fmt = "Memory index must be non-zero (actual: {})", _0)]
+    NonZeroMemoryIdx(u32),
 }
 
 impl core::error::Error for ModuleError {
@@ -367,6 +371,8 @@ impl core::error::Error for ModuleError {
             ModuleError::TryFromInt(e) => Some(e),
             ModuleError::UnsupportedInstruction(_) => None,
             ModuleError::MultipleTables => None,
+            ModuleError::MultipleMemories => None,
+            ModuleError::NonZeroMemoryIdx(_) => None,
         }
     }
 }
@@ -397,6 +403,7 @@ impl TryFrom<wasmparser::MemArg> for MemArg {
             memory,
         }: wasmparser::MemArg,
     ) -> Result<Self, Self::Error> {
+        // always zero if multi-memory is not enabled
         debug_assert_eq!(memory, 0);
         Ok(Self {
             align,
@@ -852,10 +859,16 @@ impl Data {
                 wasmparser::DataKind::Active {
                     memory_index,
                     offset_expr,
-                } => DataKind::Active {
-                    memory_index,
-                    offset_expr: ConstExpr::new(offset_expr)?,
-                },
+                } => {
+                    if memory_index != 0 {
+                        return Err(ModuleError::NonZeroMemoryIdx(memory_index));
+                    }
+
+                    DataKind::Active {
+                        memory_index,
+                        offset_expr: ConstExpr::new(offset_expr)?,
+                    }
+                }
             },
             data: data.data.to_vec().into(),
         })
@@ -1263,7 +1276,7 @@ pub struct Module {
     pub import_section: Option<Vec<Import>>,
     pub function_section: Option<FuncSection>,
     pub table_section: Option<Table>,
-    pub memory_section: Option<Vec<MemoryType>>,
+    pub memory_section: Option<MemoryType>,
     pub global_section: Option<Vec<Global>>,
     pub export_section: Option<Vec<Export>>,
     pub start_section: Option<u32>,
@@ -1338,7 +1351,13 @@ impl Module {
                 }
                 Payload::MemorySection(section) => {
                     debug_assert!(memory_section.is_none());
-                    memory_section = Some(section.into_iter().collect::<Result<_, _>>()?);
+                    let mut section = section.into_iter();
+
+                    memory_section = section.next().transpose()?;
+
+                    if section.next().is_some() {
+                        return Err(ModuleError::MultipleMemories);
+                    }
                 }
                 Payload::TagSection(_) => {}
                 Payload::GlobalSection(section) => {
@@ -1460,17 +1479,15 @@ impl Module {
             module.section(&encoder_section);
         }
 
-        if let Some(crate_section) = self.table_section() {
+        if let Some(table) = self.table_section() {
             let mut encoder_section = wasm_encoder::TableSection::new();
-            crate_section.reencode(&mut encoder_section)?;
+            table.reencode(&mut encoder_section)?;
             module.section(&encoder_section);
         }
 
-        if let Some(crate_section) = self.memory_section() {
+        if let Some(memory) = self.memory_section() {
             let mut encoder_section = wasm_encoder::MemorySection::new();
-            for &memory_type in crate_section {
-                encoder_section.memory(RoundtripReencoder.memory_type(memory_type));
-            }
+            encoder_section.memory(RoundtripReencoder.memory_type(*memory));
             module.section(&encoder_section);
         }
 
@@ -1606,11 +1623,11 @@ impl Module {
         self.table_section.as_mut()
     }
 
-    pub fn memory_section(&self) -> Option<&Vec<MemoryType>> {
+    pub fn memory_section(&self) -> Option<&MemoryType> {
         self.memory_section.as_ref()
     }
 
-    pub fn memory_section_mut(&mut self) -> Option<&mut Vec<MemoryType>> {
+    pub fn memory_section_mut(&mut self) -> Option<&mut MemoryType> {
         self.memory_section.as_mut()
     }
 
@@ -1691,6 +1708,36 @@ mod tests {
             (table 10 10 funcref)
             (table 20 20 funcref)
         )"#,
+        )
+        .unwrap();
+
+        let _module = Module::new(&wasm).unwrap();
+    }
+
+    #[test]
+    #[should_panic = "MultipleMemories"]
+    fn multiple_memories_denied() {
+        let wasm = wat::parse_str(
+            r#"
+        (module
+            (memory (export "memory") 1)
+            (memory (export "memory2") 2)
+        )"#,
+        )
+        .unwrap();
+
+        let _module = Module::new(&wasm).unwrap();
+    }
+
+    #[test]
+    #[should_panic = "NonZeroMemoryIdx(123)"]
+    fn data_non_zero_memory_idx() {
+        let wasm = wat::parse_str(
+            r#"
+        (module
+            (data $a (memory 123) (offset i32.const 0) "")
+        )
+        "#,
         )
         .unwrap();
 

@@ -128,11 +128,7 @@ impl MemoryGenerator {
     // Remove current memory section.
     fn remove_mem_section(&mut self) {
         self.module.with(|mut module| {
-            // Find memory section index.
-            if let Some(sections) = module.memory_section_mut() {
-                sections.clear();
-            }
-
+            module.memory_section = None;
             (module, ())
         });
     }
