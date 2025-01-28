@@ -19051,15 +19051,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-info"
-version = "0.1.0"
-dependencies = [
- "clap 4.5.23",
- "hex",
- "parity-wasm",
-]
-
-[[package]]
 name = "wasm-instrument"
 version = "0.4.0"
 source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.4.0-sign-ext#e57b713873d4364e41ed495893a2f06a80cca5ab"
