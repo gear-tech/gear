@@ -130,10 +130,12 @@ impl Stream for SequencerService {
                 .inspect_err(|err| log::warn!("Failed to submit commitment {commit_type:?}: {err}"))
                 .ok();
 
-            return Poll::Ready(Some(SequencerEvent::CommitmentSubmitted {
+            let event = SequencerEvent::CommitmentSubmitted {
                 tx_hash,
                 commit_type,
-            }));
+            };
+
+            return Poll::Ready(Some(event));
         }
 
         Poll::Pending
