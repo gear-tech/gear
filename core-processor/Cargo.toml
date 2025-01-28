@@ -32,7 +32,7 @@ enum-iterator.workspace = true
 
 [features]
 default = ["std"]
-std = ["gear-core-backend/std"]
+std = ["gear-core-backend/std", "gear-wasm-instrument/std"]
 strict = []
 mock = []
 gtest = []

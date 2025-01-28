@@ -17,14 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::optimize;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use pwasm_utils::parity_wasm::{
-    builder,
-    elements::{
-        ExportEntry, GlobalEntry, ImportCountType, Instruction, Instructions, Internal, Module,
-        ValueType,
-    },
+use gear_wasm_instrument::{
+    Data, Export, Function, Global, Instruction, MemArg, Module, ModuleBuilder, Name,
+    STACK_END_EXPORT_NAME,
 };
+use wasmparser::{ExternalKind, FuncType, TypeRef, ValType};
 
 /// Insert the export with the stack end address in `module` if there is
 /// the global '__stack_pointer'.
@@ -35,33 +32,22 @@ use pwasm_utils::parity_wasm::{
 ///
 /// Returns error if cannot insert stack end export by some reasons.
 pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> {
-    let module_bytes = module
-        .clone()
-        .into_bytes()
-        .map_err(|_| "cannot get code from module")?;
-
-    let stack_pointer_index =
-        get_global_index(&module_bytes, |name| name.ends_with("__stack_pointer"))
-            .ok_or("has no stack pointer global")?;
+    let stack_pointer_index = get_global_index(module, |name| name.ends_with("__stack_pointer"))
+        .ok_or("has no stack pointer global")?;
 
     let glob_section = module
         .global_section()
         .ok_or("Cannot find globals section")?;
     let global = glob_section
-        .entries()
         .get(stack_pointer_index as usize)
         .ok_or("there is no globals")?;
-    if global.global_type().content_type() != ValueType::I32 {
+    if global.ty.content_type != ValType::I32 {
         return Err("has no i32 global 0");
     }
 
-    let init_code = global.init_expr().code();
-    if init_code.len() != 2 {
-        return Err("num of init instructions != 2 for glob 0");
-    }
-
-    if init_code[1] != Instruction::End {
-        return Err("second init instruction is not end");
+    let init_code = &global.init_expr.instructions;
+    if init_code.len() != 1 {
+        return Err("num of init instructions != 1 for glob 0");
     }
 
     if let Instruction::I32Const(literal) = init_code[0] {
@@ -69,11 +55,11 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> 
         let export_section = module
             .export_section_mut()
             .ok_or("Cannot find export section")?;
-        let x = export_section.entries_mut();
-        x.push(ExportEntry::new(
-            STACK_END_EXPORT_NAME.to_string(),
-            Internal::Global(stack_pointer_index),
-        ));
+        export_section.push(Export {
+            name: STACK_END_EXPORT_NAME.into(),
+            kind: ExternalKind::Global,
+            index: stack_pointer_index,
+        });
         Ok(())
     } else {
         Err("has unexpected instr for init")
@@ -90,12 +76,11 @@ pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'st
     let start_func_index = if let Some(start) = module
         .export_section()
         .ok_or("Cannot find export section")?
-        .entries()
         .iter()
-        .find(|export| export.field() == "_start")
+        .find(|export| export.name == "_start")
     {
-        match start.internal() {
-            Internal::Function(index) => *index,
+        match start.kind {
+            ExternalKind::Func => start.index,
             _ => return Err("_start export is not a function"),
         }
     } else {
@@ -106,25 +91,23 @@ pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'st
         let Some(export) = module
             .export_section()
             .ok_or("Cannot find export section")?
-            .entries()
             .iter()
-            .find(|export| export.field() == export_name)
+            .find(|export| export.name == export_name)
         else {
             continue;
         };
 
-        let index = match export.internal() {
-            Internal::Function(index) => *index,
+        let index = match export.kind {
+            ExternalKind::Func => export.index,
             _ => return Err("Func export is not a function"),
         };
 
         let index_in_functions = (index as usize)
-            .checked_sub(module.import_count(ImportCountType::Function))
+            .checked_sub(module.import_count(|ty| matches!(ty, TypeRef::Func(_))))
             .ok_or("Cannot process case when export function is import")?;
 
-        module.code_section_mut().unwrap().bodies_mut()[index_in_functions]
-            .code_mut()
-            .elements_mut()
+        module.code_section_mut().unwrap()[index_in_functions]
+            .instructions
             .insert(0, Instruction::Call(start_func_index));
     }
 
@@ -138,16 +121,10 @@ pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'st
 ///
 /// Returns error if cannot move globals to static memory by some reasons.
 pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static str> {
-    let module_bytes = module
-        .clone()
-        .into_bytes()
-        .map_err(|_| "cannot get code from module")?;
-
     // Identify stack pointer and data end globals
-    let stack_pointer_index =
-        get_global_index(&module_bytes, |name| name.ends_with("__stack_pointer"))
-            .ok_or("Cannot find stack pointer global")?;
-    let data_end_index = get_global_index(&module_bytes, |name| name.ends_with("__data_end"))
+    let stack_pointer_index = get_global_index(module, |name| name.ends_with("__stack_pointer"))
+        .ok_or("Cannot find stack pointer global")?;
+    let data_end_index = get_global_index(module, |name| name.ends_with("__data_end"))
         .ok_or("Cannot find data end global")?;
 
     // Identify mutable globals and their initial data
@@ -155,11 +132,10 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
     for (index, global) in module
         .global_section()
         .ok_or("Cannot find globals section")?
-        .entries()
         .iter()
         .enumerate()
     {
-        if !global.global_type().is_mutable()
+        if !global.ty.mutable
             || index == data_end_index as usize
             || index == stack_pointer_index as usize
         {
@@ -180,7 +156,6 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
         module
             .global_section()
             .expect("Cannot find globals section")
-            .entries()
             .get(data_end_index as usize)
             .expect("We have already find data end global earlier"),
         |c| Ok(c as u32),
@@ -221,14 +196,13 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
         for instr in own_module
             .code_section_mut()
             .ok_or("Cannot find code section")?
-            .bodies_mut()
             .iter_mut()
-            .flat_map(|body| body.code_mut().elements_mut().iter_mut())
+            .flat_map(|body| body.instructions.iter_mut())
         {
             let global_index = u32::try_from(index).expect("Global index bigger than u32");
-            if *instr == Instruction::GetGlobal(global_index) {
+            if *instr == Instruction::GlobalGet(global_index) {
                 *instr = Instruction::Call(get_global_function_index);
-            } else if *instr == Instruction::SetGlobal(global_index) {
+            } else if *instr == Instruction::GlobalSet(global_index) {
                 *instr = Instruction::Call(set_global_function_index);
             }
         }
@@ -238,19 +212,15 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
     }
 
     // Insert new data section for globals initial values
-    own_module = builder::from_module(own_module)
-        .data()
-        .offset(Instruction::I32Const(data_end_offset as i32))
-        .value(new_data_in_section)
-        .build()
-        .build();
+    let mut builder = ModuleBuilder::from_module(own_module);
+    builder.push_data(Data::with_offset(new_data_in_section, data_end_offset));
+    own_module = builder.build();
 
     // Update data end global value
     handle_mut_global_init_data(
         module
             .global_section_mut()
             .expect("Cannot find globals section")
-            .entries_mut()
             .get_mut(data_end_index as usize)
             .expect("We have already find data end global earlier"),
         |c| {
@@ -269,113 +239,95 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
     Ok(())
 }
 
-fn get_global_index(module_bytes: &[u8], name_predicate: impl Fn(&str) -> bool) -> Option<u32> {
-    use wasmparser::{Name, NameSectionReader, Parser, Payload};
-
-    Parser::new(0)
-        .parse_all(module_bytes)
-        .filter_map(|p| p.ok())
-        .filter_map(|section| match section {
-            Payload::CustomSection(r) if r.name() == "name" => {
-                Some(NameSectionReader::new(r.data(), r.data_offset()))
-            }
+fn get_global_index(module: &Module, name_predicate: impl Fn(&str) -> bool) -> Option<u32> {
+    module
+        .name_section()
+        .iter()
+        .copied()
+        .flatten()
+        .filter_map(|name| match name {
+            Name::Global(m) => Some(m),
             _ => None,
         })
         .flatten()
-        .filter_map(|name| match name {
-            Ok(Name::Global(m)) => Some(m),
-            _ => None,
-        })
-        .flat_map(|naming| naming.into_iter())
-        .filter_map(|res| res.ok())
-        .find(|global| name_predicate(global.name))
+        .find(|global| name_predicate(&global.name))
         .map(|global| global.index)
 }
 
 fn handle_global_init_data<T>(
-    global: &GlobalEntry,
+    global: &Global,
     process_i32: impl FnOnce(i32) -> T,
     process_i64: impl FnOnce(i64) -> T,
 ) -> Result<T, &'static str> {
-    let init_code = global.init_expr().code();
-    if init_code.len() != 2 {
-        return Err("Global has more than 2 init instructions");
-    }
-    if init_code[1] != Instruction::End {
-        return Err("Last init instruction is not End");
+    let init_code = &global.init_expr.instructions;
+    if init_code.len() != 1 {
+        return Err("Global has more than 1 init instruction");
     }
     match init_code[0] {
-        Instruction::I32Const(c) => Ok(process_i32(c)),
-        Instruction::I64Const(c) => Ok(process_i64(c)),
+        Instruction::I32Const(value) => Ok(process_i32(value)),
+        Instruction::I64Const(value) => Ok(process_i64(value)),
         _ => Err("Global init instruction is not i32 or i64 const"),
     }
 }
 
 fn handle_mut_global_init_data<T>(
-    global: &mut GlobalEntry,
+    global: &mut Global,
     mut process_i32: impl FnMut(&mut i32) -> T,
     mut process_i64: impl FnMut(&mut i64) -> T,
 ) -> Result<T, &'static str> {
-    let init_code = global.init_expr_mut().code_mut();
-    if init_code.len() != 2 {
-        return Err("Global has more than 2 init instructions");
-    }
-    if init_code[1] != Instruction::End {
-        return Err("Last init instruction is not End");
+    let init_code = &mut global.init_expr.instructions;
+    if init_code.len() != 1 {
+        return Err("Global has more than 1 init instruction");
     }
     match init_code
         .get_mut(0)
         .expect("Unreachable: init code has no instructions")
     {
-        Instruction::I32Const(c) => Ok(process_i32(c)),
-        Instruction::I64Const(c) => Ok(process_i64(c)),
+        Instruction::I32Const(value) => Ok(process_i32(value)),
+        Instruction::I64Const(value) => Ok(process_i64(value)),
         _ => Err("Global init instruction is not i32 or i64 const"),
     }
 }
 
 fn append_get_global_function(module: Module, offset: u32, data_len: usize) -> Module {
-    let builder = builder::from_module(module)
-        .function()
-        .signature()
-        .results();
-    let (builder, load_instr) = match data_len {
-        4 => (builder.i32(), Instruction::I32Load(2, 0)),
-        8 => (builder.i64(), Instruction::I64Load(3, 0)),
+    let mut builder = ModuleBuilder::from_module(module);
+
+    let (result, load_instr) = match data_len {
+        4 => (ValType::I32, Instruction::I32Load(MemArg::i32())),
+        8 => (ValType::I64, Instruction::I64Load(MemArg::i64())),
         _ => unreachable!("Support only i64 and i32 globals"),
     };
-    builder
-        .build()
-        .body()
-        .with_instructions(Instructions::new(vec![
-            Instruction::I32Const(offset as i32),
-            load_instr,
-            Instruction::End,
-        ]))
-        .build()
-        .build()
-        .build()
+
+    let ty = FuncType::new([], [result]);
+    let function = Function::from_instructions([
+        Instruction::I32Const(offset as i32),
+        load_instr,
+        Instruction::End,
+    ]);
+    builder.add_func(ty, function);
+
+    builder.build()
 }
 
 fn append_set_global_function(module: Module, offset: u32, data_len: usize) -> Module {
-    let builder = builder::from_module(module).function().signature().params();
-    let (builder, store_instr) = match data_len {
-        4 => (builder.i32(), Instruction::I32Store(2, 0)),
-        8 => (builder.i64(), Instruction::I64Store(3, 0)),
+    let mut builder = ModuleBuilder::from_module(module);
+
+    let (param, store_instr) = match data_len {
+        4 => (ValType::I32, Instruction::I32Store(MemArg::i32())),
+        8 => (ValType::I64, Instruction::I64Store(MemArg::i64())),
         _ => unreachable!("Support only i64 and i32 globals"),
     };
-    builder
-        .build()
-        .build()
-        .body()
-        .with_instructions(Instructions::new(vec![
-            Instruction::I32Const(offset as i32),
-            Instruction::GetLocal(0),
-            store_instr,
-            Instruction::End,
-        ]))
-        .build()
-        .build()
-        .build()
+
+    let ty = FuncType::new([param], []);
+    let function = Function::from_instructions([
+        Instruction::I32Const(offset as i32),
+        Instruction::LocalGet(0),
+        store_instr,
+        Instruction::End,
+    ]);
+    builder.add_func(ty, function);
+
+    builder.build()
 }
 
 #[cfg(test)]
@@ -384,14 +336,12 @@ mod test {
         insert_stack_end_export, insert_start_call_in_export_funcs, move_mut_globals_to_static,
         STACK_END_EXPORT_NAME,
     };
-    use pwasm_utils::parity_wasm;
     use wabt::Wat2Wasm;
     use wasmer::{Imports, Instance, Memory, MemoryType, Module, Store, Value};
+    use wasmparser::ExternalKind;
 
     #[test]
     fn assembly_script_stack_pointer() {
-        use pwasm_utils::parity_wasm::elements;
-
         let wat = r#"
         (module
             (import "env" "memory" (memory 1))
@@ -409,22 +359,19 @@ mod test {
             .convert(wat)
             .expect("failed to parse module");
 
-        let mut module =
-            elements::deserialize_buffer(binary.as_ref()).expect("failed to deserialize binary");
+        let mut module = gear_wasm_instrument::Module::new(binary.as_ref())
+            .expect("failed to deserialize binary");
         insert_stack_end_export(&mut module).expect("insert_stack_end_export failed");
 
         let gear_stack_end = module
             .export_section()
             .expect("export section should exist")
-            .entries()
             .iter()
-            .find(|e| e.field() == STACK_END_EXPORT_NAME)
+            .find(|e| e.name == STACK_END_EXPORT_NAME)
             .expect("export entry should exist");
 
-        assert!(matches!(
-            gear_stack_end.internal(),
-            elements::Internal::Global(1)
-        ));
+        assert_eq!(gear_stack_end.kind, ExternalKind::Global);
+        assert_eq!(gear_stack_end.index, 1);
     }
 
     #[test]
@@ -469,9 +416,9 @@ mod test {
         check(binary.as_ref(), 11);
 
         // Insert `_start` call in `handle` code and check that it works as expected.
-        let mut module = parity_wasm::deserialize_buffer(binary.as_ref()).unwrap();
+        let mut module = gear_wasm_instrument::Module::new(binary.as_ref()).unwrap();
         insert_start_call_in_export_funcs(&mut module).unwrap();
-        check(&module.into_bytes().unwrap(), 12);
+        check(&module.serialize().unwrap(), 12);
     }
 
     #[test]
@@ -540,8 +487,8 @@ mod test {
 
         // Then check that after moving globals to static memory, globals will changed
         // their values after first execution, and second execution will return another result.
-        let mut module = parity_wasm::deserialize_buffer(binary.as_ref()).unwrap();
+        let mut module = gear_wasm_instrument::Module::new(binary.as_ref()).unwrap();
         move_mut_globals_to_static(&mut module).unwrap();
-        check(&module.into_bytes().unwrap(), 111, 113);
+        check(&module.serialize().unwrap(), 111, 113);
     }
 }

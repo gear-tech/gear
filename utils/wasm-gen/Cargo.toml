@@ -16,7 +16,7 @@ gear-utils.workspace = true
 gear-core.workspace = true
 wasmparser.workspace = true
 thiserror.workspace = true
-indexmap.workspace = true
+indexmap = { workspace = true, features = ["std"] }
 nonempty.workspace = true
 
 [dev-dependencies]

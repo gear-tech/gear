@@ -53,6 +53,7 @@ std = [
 	"pallet-gear-bank/std",
 	"pallet-gear-messenger/std",
 	"runtime-primitives/std",
+	"gear-core/std",
 	"gear-core-processor/std",
 	"sp-runtime/std",
 	"sp-std/std",

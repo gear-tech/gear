@@ -40,7 +40,6 @@ pub fn instrument_code(original_code: Vec<u8>) -> Option<InstrumentedCode> {
         |module| schedule.rules(module),
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
-        schedule.limits.table_number.into(),
     )
     .map(InstrumentedCode::from)
     .map_err(|e: CodeError| {

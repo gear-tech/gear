@@ -42,7 +42,7 @@ use gear_core::{
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
+use gear_wasm_instrument::{Instruction, SyscallName};
 use rand::{seq::SliceRandom, SeedableRng};
 use rand_pcg::Pcg64;
 use sp_core::Get;

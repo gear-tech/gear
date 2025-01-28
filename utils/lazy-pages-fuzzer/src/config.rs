@@ -20,9 +20,7 @@ use gear_wasm_gen::{
     ConfigsBundle, GearWasmGeneratorConfig, InstructionKind, MemoryPagesConfig, SelectableParams,
     SyscallsConfigBuilder, SyscallsInjectionTypes,
 };
-use gear_wasm_instrument::{
-    gas_metering::MemoryGrowCost, parity_wasm::elements::Instruction, Rules,
-};
+use gear_wasm_instrument::{gas_metering::MemoryGrowCost, Instruction, Rules};
 use std::num::NonZero;
 
 use crate::{

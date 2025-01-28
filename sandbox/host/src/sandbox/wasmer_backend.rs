@@ -85,7 +85,8 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let compiler = wasmer::Singlepass::default();
+        // TODO: revert to Singlepass
+        let compiler = wasmer::Cranelift::default();
         Backend {
             store: Rc::new(StoreRefCell::new(wasmer::Store::new(compiler))),
         }
@@ -176,6 +177,7 @@ pub fn instantiate(
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
     #[cfg(feature = "gear-wasmer-cache")]
     let module = gear_wasmer_cache::get(context.store().borrow().engine(), wasm, cache_base_path())
+        .inspect_err(|e| log::trace!("Failed to create module: {e}"))
         .map_err(|_| InstantiationError::ModuleDecoding)?;
 
     #[cfg(not(feature = "gear-wasmer-cache"))]

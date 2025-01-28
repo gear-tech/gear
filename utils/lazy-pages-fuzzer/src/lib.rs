@@ -16,10 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::BTreeMap;
-
 use anyhow::{Context, Result};
-use gear_wasm_instrument::parity_wasm::elements::Module;
+use gear_wasm_instrument::Module;
+use std::collections::BTreeMap;
 
 mod config;
 

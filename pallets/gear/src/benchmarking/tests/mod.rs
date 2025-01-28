@@ -35,7 +35,7 @@ use crate::{
     Ext, HandleKind,
 };
 use common::benchmarking;
-use gear_wasm_instrument::parity_wasm::elements::Instruction;
+use gear_wasm_instrument::Instruction;
 
 pub fn check_stack_overflow<T>()
 where
