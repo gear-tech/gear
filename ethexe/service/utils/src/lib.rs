@@ -18,7 +18,7 @@
 
 #![allow(async_fn_in_trait)]
 
-use futures::{future, StreamExt};
+use futures::{future, stream::FusedStream, StreamExt};
 use std::future::Future;
 
 pub use timer::Timer;
@@ -46,27 +46,19 @@ impl<F: Future> OptionFuture<F::Output> for Option<F> {
     }
 }
 
-pub trait AsyncFnStream {
-    type Item;
-
-    async fn like_next(&mut self) -> Option<Self::Item>;
-}
-
-impl<T: StreamExt + Unpin> AsyncFnStream for T {
-    type Item = T::Item;
-
-    async fn like_next(&mut self) -> Option<Self::Item> {
-        StreamExt::next(self).await
-    }
-}
-
 pub trait OptionStreamNext<T>: private::Sealed {
     async fn maybe_next(self) -> Option<T>;
+
+    async fn maybe_next_some(self) -> T;
 }
 
-impl<S: AsyncFnStream> OptionStreamNext<S::Item> for &mut Option<S> {
+impl<S: StreamExt + FusedStream + Unpin> OptionStreamNext<S::Item> for &mut Option<S> {
     async fn maybe_next(self) -> Option<S::Item> {
-        self.as_mut().map(AsyncFnStream::like_next).maybe().await
+        self.as_mut().map(StreamExt::next).maybe().await
+    }
+
+    async fn maybe_next_some(self) -> S::Item {
+        self.as_mut().map(StreamExt::select_next_some).maybe().await
     }
 }
 

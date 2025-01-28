@@ -309,10 +309,10 @@ ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = fal
 ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
 ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
-ethexe-common = { path = "ethexe/common" }
+ethexe-common = { path = "ethexe/common", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
-wasmi = { package = "wasmi", version = "0.38"}
+wasmi = { package = "wasmi", version = "0.38" }
 
 # Substrate deps
 binary-merkle-tree = { version = "15.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409", default-features = false }

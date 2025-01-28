@@ -25,14 +25,20 @@ use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment},
 };
 use ethexe_ethereum::{router::Router, Ethereum};
-use ethexe_service_utils::{AsyncFnStream, Timer};
+use ethexe_service_utils::Timer;
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
-use futures::{future::BoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
+use futures::{
+    future::BoxFuture,
+    stream::{FusedStream, FuturesUnordered},
+    FutureExt, Stream, StreamExt,
+};
 use gprimitives::H256;
 use indexmap::IndexSet;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     ops::Not,
+    pin::Pin,
+    task::{Context, Poll},
     time::Duration,
 };
 
@@ -100,29 +106,47 @@ pub struct SequencerService {
     submissions: FuturesUnordered<CommitmentSubmitFuture>,
 }
 
-impl AsyncFnStream for SequencerService {
+impl Stream for SequencerService {
     type Item = SequencerEvent;
 
-    async fn like_next(&mut self) -> Option<Self::Item> {
-        Some(self.next().await)
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Poll::Ready(block_hash) = self.collection_round.poll_unpin(cx) {
+            let event = self.handle_collection_round_end(block_hash);
+
+            return Poll::Ready(Some(event));
+        }
+
+        if let Poll::Ready(block_hash) = self.validation_round.poll_unpin(cx) {
+            let event = self.handle_validation_round_end(block_hash);
+
+            return Poll::Ready(Some(event));
+        }
+
+        if let Poll::Ready(Some((res, commit_type))) = self.submissions.poll_next_unpin(cx) {
+            let tx_hash = res
+                .inspect(|tx_hash| {
+                    log::debug!("Successfully submitted commitment {commit_type:?} in tx {tx_hash}")
+                })
+                .inspect_err(|err| log::warn!("Failed to submit commitment {commit_type:?}: {err}"))
+                .ok();
+
+            let event = SequencerEvent::CommitmentSubmitted {
+                tx_hash,
+                commit_type,
+            };
+
+            return Poll::Ready(Some(event));
+        }
+
+        Poll::Pending
     }
 }
 
-// TODO: fix it by some wrapper. It's not possible to implement Stream for SequencerService like this.
-// impl Stream for SequencerService {
-//     type Item = SequencerEvent;
-
-//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-//         let e = ready!(pin!(self.next_event()).poll(cx));
-//         Poll::Ready(Some(e))
-//     }
-// }
-
-// impl FusedStream for SequencerService {
-//     fn is_terminated(&self) -> bool {
-//         false
-//     }
-// }
+impl FusedStream for SequencerService {
+    fn is_terminated(&self) -> bool {
+        false
+    }
+}
 
 impl SequencerService {
     pub async fn new(
@@ -324,65 +348,60 @@ impl SequencerService {
         router.commit_blocks(blocks, signatures).await
     }
 
-    pub async fn next(&mut self) -> SequencerEvent {
-        tokio::select! {
-            block_hash = self.collection_round.rings() => {
-                // If chain head is not yet processed by this node, this is normal situation,
-                // so we just skip this round for sequencer.
-                let Some(block_is_empty) = self.db.block_is_empty(block_hash) else {
-                    log::warn!("Failed to get block emptiness status for {block_hash}");
-                    return SequencerEvent::CollectionRoundEnded { block_hash };
-                };
+    fn handle_collection_round_end(&mut self, block_hash: H256) -> SequencerEvent {
+        // If chain head is not yet processed by this node, this is normal situation,
+        // so we just skip this round for sequencer.
+        let Some(block_is_empty) = self.db.block_is_empty(block_hash) else {
+            log::warn!("Failed to get block emptiness status for {block_hash}");
+            return SequencerEvent::CollectionRoundEnded { block_hash };
+        };
 
-                let last_non_empty_block = if block_is_empty {
-                    let Some(prev_commitment) = self.db.previous_committed_block(block_hash) else {
-                        return SequencerEvent::CollectionRoundEnded { block_hash };
-                    };
+        let last_non_empty_block = if block_is_empty {
+            let Some(prev_commitment) = self.db.previous_committed_block(block_hash) else {
+                return SequencerEvent::CollectionRoundEnded { block_hash };
+            };
 
-                    prev_commitment
-                } else {
-                    block_hash
-                };
+            prev_commitment
+        } else {
+            block_hash
+        };
 
-                self.blocks_candidate =
-                    Self::blocks_commitment_candidate(&self.block_commitments, last_non_empty_block, self.threshold);
-                self.codes_candidate =
-                    Self::codes_commitment_candidate(&self.code_commitments, self.threshold);
+        self.blocks_candidate = Self::blocks_commitment_candidate(
+            &self.block_commitments,
+            last_non_empty_block,
+            self.threshold,
+        );
+        self.codes_candidate =
+            Self::codes_commitment_candidate(&self.code_commitments, self.threshold);
 
-                let to_start_validation = self.blocks_candidate.is_some() || self.codes_candidate.is_some();
+        let to_start_validation = self.blocks_candidate.is_some() || self.codes_candidate.is_some();
 
-                if to_start_validation {
-                    log::debug!("Validation round for {block_hash} started");
-                    self.validation_round.start(block_hash);
-                }
+        if to_start_validation {
+            log::debug!("Validation round for {block_hash} started");
+            self.validation_round.start(block_hash);
+        }
 
-                SequencerEvent::CollectionRoundEnded { block_hash }
-            }
-            block_hash = self.validation_round.rings() => {
-                log::debug!("Validation round for {block_hash} ended");
+        SequencerEvent::CollectionRoundEnded { block_hash }
+    }
 
-                let mut submitted = false;
+    fn handle_validation_round_end(&mut self, block_hash: H256) -> SequencerEvent {
+        log::debug!("Validation round for {block_hash} ended");
 
-                if self.blocks_candidate.is_some() || self.codes_candidate.is_some() {
-                    log::debug!("Submitting commitments");
-                    self.submit_multisigned_commitments();
-                    submitted = true;
-                } else {
-                    log::debug!("No commitments to submit, skipping");
-                }
+        let mut submitted = false;
 
-                log::debug!("Validation round ended: block {block_hash}, submitted: {submitted}");
+        if self.blocks_candidate.is_some() || self.codes_candidate.is_some() {
+            log::debug!("Submitting commitments");
+            self.submit_multisigned_commitments();
+            submitted = true;
+        } else {
+            log::debug!("No commitments to submit, skipping");
+        }
 
-                SequencerEvent::ValidationRoundEnded { block_hash, submitted }
-            }
-            Some((res, commit_type)) = self.submissions.next() => {
-                let tx_hash = res
-                    .inspect(|tx_hash| log::debug!("Successfully submitted commitment {commit_type:?} in tx {tx_hash}"))
-                    .inspect_err(|err| log::warn!("Failed to submit commitment {commit_type:?}: {err}"))
-                    .ok();
+        log::debug!("Validation round ended: block {block_hash}, submitted: {submitted}");
 
-                SequencerEvent::CommitmentSubmitted { tx_hash, commit_type }
-            }
+        SequencerEvent::ValidationRoundEnded {
+            block_hash,
+            submitted,
         }
     }
 

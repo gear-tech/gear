@@ -92,14 +92,16 @@ async fn test_deployment() -> Result<()> {
     let event = observer
         .next()
         .await
-        .expect("observer did not receive event");
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
 
     assert!(matches!(event, ObserverEvent::Block(..)));
 
     let event = observer
         .next()
         .await
-        .expect("observer did not receive event");
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
 
     assert_eq!(
         event,
