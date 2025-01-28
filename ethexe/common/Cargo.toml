@@ -19,4 +19,4 @@ anyhow.workspace = true
 serde.workspace = true
 
 [features]
-std = ["gear-core/std"]
+std = ["gear-core/std", "gprimitives/serde"]

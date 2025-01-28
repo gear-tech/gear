@@ -167,9 +167,7 @@ region = "3.0.2"
 reqwest = { version = "0.12.8", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
 serde = { version = "^1", default-features = false }
-serde_json = { version = "1.0.135", default-features = false, features = [
-    "alloc",
-] }
+serde_json = { version = "1.0.135", default-features = false, features = ["alloc"] }
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
 static_init = "1.0.3"
@@ -184,9 +182,7 @@ url = "2.5.2"
 # wasmer 4.3.4 for some reason have wat's version "=1.0.71" nailed down, so we have to do the same
 wat = "1.0.71"
 wabt = "0.10.0"
-wasmer = { version = "4.3.4", default-features = false, features = [
-    "singlepass",
-] }
+wasmer = { version = "4.3.4", default-features = false, features = ["singlepass"] }
 wasmer-cache = "4.3.4"
 wasmer-types = "4.3.4"
 wasmer-vm = "4.3.4"
@@ -562,11 +558,7 @@ bytes = "1.8.0"                                              # utils/gear-wasmer
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(loom)',
-    'cfg(fuzz)',
-    'cfg(substrate_runtime)',
-] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
 
 [profile.release]
 panic = "unwind"
