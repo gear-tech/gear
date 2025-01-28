@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::utils::bytes32_to_h256, decode_log, IRouter};
+use crate::{
+    abi::utils::{bytes32_to_code_id, bytes32_to_h256},
+    decode_log, IRouter,
+};
 use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
 use anyhow::{anyhow, Result};
 use ethexe_common::events::{RouterEvent, RouterRequestEvent};
@@ -58,14 +61,12 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
             let tx_hash = log
                 .transaction_hash
                 .ok_or_else(|| anyhow!("Tx hash not found"))?;
+            let event = decode_log::<IRouter::CodeValidationRequested>(log)?;
 
-            let mut event = decode_log::<IRouter::CodeValidationRequested>(log)?;
-
-            if event.blobTxHash.is_zero() {
-                event.blobTxHash = tx_hash;
+            RouterEvent::CodeValidationRequested {
+                code_id: bytes32_to_code_id(event.codeId),
+                tx_hash: bytes32_to_h256(tx_hash),
             }
-
-            event.into()
         }
         COMPUTATION_SETTINGS_CHANGED => {
             decode_log::<IRouter::ComputationSettingsChanged>(log)?.into()

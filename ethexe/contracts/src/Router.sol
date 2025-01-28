@@ -229,8 +229,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.genesisBlock.hash = blockhash(router.genesisBlock.number);
     }
 
-    function requestCodeValidation(bytes32 _codeId, bytes32 _blobTxHash) external {
-        require(_blobTxHash != 0 || blobhash(0) != 0, "blob can't be found");
+    function requestCodeValidation(bytes32 _codeId) external {
+        require(blobhash(0) != 0, "blob can't be found, router expected EIP-4844 transaction with WASM blob");
 
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
@@ -242,7 +242,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         router.protocolData.codes[_codeId] = Gear.CodeState.ValidationRequested;
 
-        emit CodeValidationRequested(_codeId, _blobTxHash);
+        emit CodeValidationRequested(_codeId);
     }
 
     function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {

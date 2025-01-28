@@ -226,7 +226,6 @@ impl ErrorReplyReason {
         bytes
     }
 
-    // TODO: add test this method works correctly for all possible variants #3715
     fn from_bytes(bytes: [u8; 3]) -> Self {
         match bytes[0] {
             b if Self::Execution(Default::default()).discriminant() == b => {
@@ -410,10 +409,35 @@ impl SignalCode {
             v if Self::Execution(SimpleExecutionError::StackLimitExceeded).to_u32() == v => {
                 Self::Execution(SimpleExecutionError::StackLimitExceeded)
             }
+            v if Self::Execution(SimpleExecutionError::Unsupported).to_u32() == v => {
+                Self::Execution(SimpleExecutionError::Unsupported)
+            }
             v if Self::RemovedFromWaitlist.to_u32() == v => Self::RemovedFromWaitlist,
             _ => return None,
         };
 
         Some(res)
+    }
+}
+
+#[cfg(feature = "codec")]
+#[cfg(test)]
+mod tests {
+    use super::{ReplyCode, SignalCode};
+
+    #[test]
+    fn test_reply_code_encode_decode() {
+        for code in enum_iterator::all::<ReplyCode>() {
+            let bytes = code.to_bytes();
+            assert_eq!(code, ReplyCode::from_bytes(bytes));
+        }
+    }
+
+    #[test]
+    fn test_signal_code_encode_decode() {
+        for signal in enum_iterator::all::<SignalCode>() {
+            let code = signal.to_u32();
+            assert_eq!(signal, SignalCode::from_u32(code).unwrap());
+        }
     }
 }
