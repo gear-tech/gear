@@ -25,8 +25,8 @@ extern crate alloc;
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use module::{
-    BrTable, ConstExpr, Data, DataKind, Element, ElementItems, Export, Function, Global, Import,
-    Instruction, MemArg, Module, ModuleBuilder, ModuleError, Name, Table,
+    BrTable, ConstExpr, Data, Element, ElementItems, Export, Function, Global, Import, Instruction,
+    MemArg, Module, ModuleBuilder, ModuleError, Name, Table,
 };
 pub use wasmparser::{
     BlockType, ExternalKind, FuncType, GlobalType, MemoryType, RefType, TableType, TypeRef, ValType,

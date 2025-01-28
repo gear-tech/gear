@@ -25,7 +25,7 @@ use crate::{
 };
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
-    ConstExpr, DataKind, ElementItems, Export, Global, Instruction, Module, SyscallName,
+    ConstExpr, ElementItems, Export, Global, Instruction, Module, SyscallName,
     STACK_END_EXPORT_NAME,
 };
 use wasmparser::{ExternalKind, Payload, TypeRef, ValType};
@@ -275,18 +275,7 @@ pub fn check_data_section(
     }
 
     for data_segment in data_section {
-        let data_offset_expr = if let DataKind::Active {
-            memory_index,
-            offset_expr,
-        } = &data_segment.kind
-        {
-            debug_assert_eq!(*memory_index, 0);
-            Some(offset_expr)
-        } else {
-            None
-        };
-        let data_segment_offset = data_offset_expr
-            .and_then(get_init_expr_const_i32)
+        let data_segment_offset = get_init_expr_const_i32(&data_segment.offset_expr)
             .ok_or(DataSectionError::Initialization)? as u32;
 
         if let Some(stack_end_offset) = stack_end.map(|p| p.offset()) {
@@ -412,18 +401,7 @@ pub fn get_data_section_size(module: &Module) -> Result<u32, CodeError> {
 
     let mut used_pages = BTreeSet::new();
     for data_segment in data_section {
-        let data_offset_expr = if let DataKind::Active {
-            memory_index,
-            offset_expr,
-        } = &data_segment.kind
-        {
-            debug_assert_eq!(*memory_index, 0);
-            Some(offset_expr)
-        } else {
-            None
-        };
-        let data_segment_offset = data_offset_expr
-            .and_then(get_init_expr_const_i32)
+        let data_segment_offset = get_init_expr_const_i32(&data_segment.offset_expr)
             .ok_or(DataSectionError::Initialization)? as u32;
         let data_segment_start = data_segment_offset / GENERIC_OS_PAGE_SIZE;
 

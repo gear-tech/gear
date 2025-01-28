@@ -361,6 +361,8 @@ pub enum ModuleError {
     MultipleMemories,
     #[display(fmt = "Memory index must be non-zero (actual: {})", _0)]
     NonZeroMemoryIdx(u32),
+    #[display(fmt = "Passive data is not supported")]
+    PassiveDataKind,
 }
 
 impl core::error::Error for ModuleError {
@@ -373,6 +375,7 @@ impl core::error::Error for ModuleError {
             ModuleError::MultipleTables => None,
             ModuleError::MultipleMemories => None,
             ModuleError::NonZeroMemoryIdx(_) => None,
+            ModuleError::PassiveDataKind => None,
         }
     }
 }
@@ -826,36 +829,23 @@ impl Element {
 }
 
 #[derive(Debug, Clone)]
-pub enum DataKind {
-    Passive,
-    Active {
-        // TODO: remove field
-        memory_index: u32,
-        offset_expr: ConstExpr,
-    },
-}
-
-#[derive(Debug, Clone)]
 pub struct Data {
-    pub kind: DataKind,
+    pub offset_expr: ConstExpr,
     pub data: Cow<'static, [u8]>,
 }
 
 impl Data {
     pub fn with_offset(data: impl Into<Cow<'static, [u8]>>, offset: u32) -> Self {
         Self {
-            kind: DataKind::Active {
-                memory_index: 0,
-                offset_expr: ConstExpr::i32_value(offset as i32),
-            },
+            offset_expr: ConstExpr::i32_value(offset as i32),
             data: data.into(),
         }
     }
 
     fn new(data: wasmparser::Data) -> Result<Self> {
         Ok(Self {
-            kind: match data.kind {
-                wasmparser::DataKind::Passive => DataKind::Passive,
+            offset_expr: match data.kind {
+                wasmparser::DataKind::Passive => return Err(ModuleError::PassiveDataKind),
                 wasmparser::DataKind::Active {
                     memory_index,
                     offset_expr,
@@ -864,10 +854,7 @@ impl Data {
                         return Err(ModuleError::NonZeroMemoryIdx(memory_index));
                     }
 
-                    DataKind::Active {
-                        memory_index,
-                        offset_expr: ConstExpr::new(offset_expr)?,
-                    }
+                    ConstExpr::new(offset_expr)?
                 }
             },
             data: data.data.to_vec().into(),
@@ -1537,21 +1524,7 @@ impl Module {
         if let Some(crate_section) = self.data_section() {
             let mut encoder_section = wasm_encoder::DataSection::new();
             for data in crate_section {
-                match &data.kind {
-                    DataKind::Passive => {
-                        encoder_section.passive(data.data.iter().copied());
-                    }
-                    DataKind::Active {
-                        memory_index,
-                        offset_expr,
-                    } => {
-                        encoder_section.active(
-                            *memory_index,
-                            &offset_expr.reencode()?,
-                            data.data.iter().copied(),
-                        );
-                    }
-                }
+                encoder_section.active(0, &data.offset_expr.reencode()?, data.data.iter().copied());
             }
             module.section(&encoder_section);
         }
@@ -1735,7 +1708,22 @@ mod tests {
         let wasm = wat::parse_str(
             r#"
         (module
-            (data $a (memory 123) (offset i32.const 0) "")
+            (data (memory 123) (offset i32.const 0) "")
+        )
+        "#,
+        )
+        .unwrap();
+
+        let _module = Module::new(&wasm).unwrap();
+    }
+
+    #[test]
+    #[should_panic = "PassiveDataKind"]
+    fn passive_data_kind_denied() {
+        let wasm = wat::parse_str(
+            r#"
+        (module
+            (data "")
         )
         "#,
         )
