@@ -37,6 +37,7 @@ fn wat2wasm(s: &str) -> Vec<u8> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(unused_variables)]
 async fn test_deployment() -> Result<()> {
     gear_utils::init_default_logger();
 
@@ -104,8 +105,8 @@ async fn test_deployment() -> Result<()> {
     assert!(matches!(
         event,
         ObserverEvent::Blob {
-            code_id: id,
-            code,
+            code_id,
+            code: wasm,
             ..
         }
     ));
