@@ -17,8 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context as _, Result};
-use ethexe_service_utils::AsyncFnStream;
-use futures::FutureExt;
+use futures::{ready, stream::FusedStream, FutureExt, Stream};
 use hyper::{
     http::StatusCode,
     server::conn::AddrIncoming,
@@ -35,7 +34,9 @@ use prometheus::{
 };
 use std::{
     net::SocketAddr,
+    pin::Pin,
     sync::LazyLock,
+    task::{Context, Poll},
     time::{Duration, Instant, SystemTime},
 };
 use tokio::{
@@ -102,36 +103,28 @@ pub struct PrometheusService {
     metrics: PrometheusMetrics,
     updated: Instant,
 
-    #[allow(unused)]
     // to be used in stream impl.
     server: JoinHandle<()>,
-
-    interval: Interval,
+    interval: Pin<Box<Interval>>,
 }
 
-impl AsyncFnStream for PrometheusService {
+impl Stream for PrometheusService {
     type Item = PrometheusEvent;
 
-    async fn like_next(&mut self) -> Option<Self::Item> {
-        Some(self.next().await)
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let instant = ready!(self.interval.poll_tick(cx));
+
+        self.updated = instant.into();
+
+        Poll::Ready(Some(PrometheusEvent::CollectMetrics))
     }
 }
 
-// TODO: fix it by some wrapper. It's not possible to implement Stream for SequencerService like this.
-// impl Stream for PrometheusService {
-//     type Item = PrometheusEvent;
-
-//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-//         let e = ready!(pin!(self.next_event()).poll(cx));
-//         Poll::Ready(Some(e))
-//     }
-// }
-
-// impl FusedStream for PrometheusService {
-//     fn is_terminated(&self) -> bool {
-//         self.server.is_finished()
-//     }
-// }
+impl FusedStream for PrometheusService {
+    fn is_terminated(&self) -> bool {
+        self.server.is_finished()
+    }
+}
 
 impl PrometheusService {
     pub fn new(config: PrometheusConfig) -> Result<Self> {
@@ -140,7 +133,7 @@ impl PrometheusService {
 
         let server = tokio::spawn(init_prometheus(config.addr, config.registry).map(drop));
 
-        let interval = time::interval(Duration::from_secs(6));
+        let interval = Box::pin(time::interval(Duration::from_secs(6)));
 
         Ok(Self {
             metrics,
@@ -167,14 +160,6 @@ impl PrometheusService {
         self.metrics
             .submitted_block_commitments
             .set(submitted_block_commitments as u64);
-    }
-
-    pub async fn next(&mut self) -> PrometheusEvent {
-        let instant = self.interval.tick().await;
-
-        self.updated = instant.into();
-
-        PrometheusEvent::CollectMetrics
     }
 }
 
