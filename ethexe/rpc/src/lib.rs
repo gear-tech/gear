@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, Result};
-use apis::{BlockApi, BlockServer, DevApi, DevServer, ProgramApi, ProgramServer};
+use apis::{
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
+};
 use ethexe_db::Database;
 use ethexe_observer::MockBlobReader;
 use futures::FutureExt;
@@ -89,6 +91,7 @@ impl RpcService {
         let mut module = JsonrpcModule::new(());
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
+        module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
 
         if self.config.dev {
             module.merge(DevServer::into_rpc(DevApi::new(

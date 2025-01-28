@@ -340,7 +340,7 @@ impl CodesStorage for Database {
 
         self.kv
             .iter_prefix(&key_prefix)
-            .map(|#[allow(unused_variables)] (key, code_id)| {
+            .map(|(key, code_id)| {
                 let (split_key_prefix, program_id) = key.split_at(key_prefix.len());
                 debug_assert_eq!(split_key_prefix, key_prefix);
                 let program_id =
@@ -386,9 +386,9 @@ impl CodesStorage for Database {
             })
     }
 
-    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256) {
+    fn set_code_blob_tx(&self, code_id: CodeId, tx_hash: H256) {
         self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), blob_tx_hash.encode());
+            .put(&KeyPrefix::CodeUpload.one(code_id), tx_hash.encode());
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {

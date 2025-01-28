@@ -36,15 +36,6 @@ impl From<IRouter::CodeGotValidated> for RouterEvent {
     }
 }
 
-impl From<IRouter::CodeValidationRequested> for RouterEvent {
-    fn from(value: IRouter::CodeValidationRequested) -> Self {
-        Self::CodeValidationRequested {
-            code_id: bytes32_to_code_id(value.codeId),
-            blob_tx_hash: bytes32_to_h256(value.blobTxHash),
-        }
-    }
-}
-
 impl From<IRouter::ComputationSettingsChanged> for RouterEvent {
     fn from(value: IRouter::ComputationSettingsChanged) -> Self {
         Self::ComputationSettingsChanged {

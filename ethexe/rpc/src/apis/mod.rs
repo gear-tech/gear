@@ -17,9 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod block;
+mod code;
 mod dev;
 mod program;
 
 pub use block::{BlockApi, BlockServer};
+pub use code::{CodeApi, CodeServer};
 pub use dev::{DevApi, DevServer};
 pub use program::{ProgramApi, ProgramServer};
