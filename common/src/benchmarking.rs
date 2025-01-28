@@ -25,8 +25,7 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use gear_wasm_instrument::{
-    module::{Export, Function, Import, Instruction, ModuleBuilder},
-    FuncType, Module, ValType,
+    Export, FuncType, Function, Import, Instruction, Module, ModuleBuilder, ValType,
 };
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;

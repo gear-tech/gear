@@ -37,10 +37,8 @@ use gear_sandbox::{
     SandboxEnvironmentBuilder, SandboxMemory,
 };
 use gear_wasm_instrument::{
-    module::{Data, Element, Table},
-    syscalls::SyscallName,
-    BlockType, Export, FuncType, Function, Global, Import, Instruction, ModuleBuilder, ValType,
-    STACK_END_EXPORT_NAME,
+    syscalls::SyscallName, BlockType, Data, Element, Export, FuncType, Function, Global, Import,
+    Instruction, ModuleBuilder, Table, ValType, STACK_END_EXPORT_NAME,
 };
 use sp_std::{convert::TryFrom, marker::PhantomData, prelude::*};
 
@@ -516,7 +514,7 @@ where
 pub mod body {
     use super::*;
     use gear_core::pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage};
-    use gear_wasm_instrument::{module::MemArg, BlockType};
+    use gear_wasm_instrument::{BlockType, MemArg};
 
     /// When generating program code by repeating a wasm sequence, it's sometimes necessary
     /// to change those instructions on each repetition. The variants of this enum describe

@@ -93,9 +93,7 @@ use gear_core_backend::{
 use gear_core_errors::*;
 use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
 use gear_wasm_instrument::{
-    module::{BrTable, MemArg},
-    syscalls::SyscallName,
-    BlockType, Instruction, ValType,
+    syscalls::SyscallName, BlockType, BrTable, Instruction, MemArg, ValType,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use parity_scale_codec::Encode;

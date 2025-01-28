@@ -27,7 +27,7 @@ use crate::{
     EntryPointsSet, MemoryLayout,
 };
 use arbitrary::{Result, Unstructured};
-use gear_wasm_instrument::module::{Export, Function, Instruction, MemArg, ModuleBuilder};
+use gear_wasm_instrument::{Export, Function, Instruction, MemArg, ModuleBuilder};
 use wasmparser::{FuncType, ValType};
 
 /// Gear wasm entry points generator.
@@ -243,8 +243,8 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
 
         for param in params {
             let instr = match param {
-                ValType::I32 => Instruction::I32Const(self.unstructured.arbitrary()?),
-                ValType::I64 => Instruction::I64Const(self.unstructured.arbitrary()?),
+                ValType::I32 => Instruction::I32Const(self.unstructured.arbitrary::<i32>()?),
+                ValType::I64 => Instruction::I64Const(self.unstructured.arbitrary::<i64>()?),
                 _ => panic!("EntryPointsGenerator::get_call_instruction: can't handle f32/f64"),
             };
             res.push(instr);

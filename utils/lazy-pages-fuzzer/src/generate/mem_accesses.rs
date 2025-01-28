@@ -19,7 +19,7 @@
 use crate::OS_PAGE_SIZE;
 use arbitrary::Unstructured;
 use derive_more::{Display, Error, From};
-use gear_wasm_instrument::{module::MemArg, Instruction, Module, TypeRef};
+use gear_wasm_instrument::{Instruction, MemArg, Module, TypeRef};
 
 #[derive(Debug, Clone)]
 pub struct InjectMemoryAccessesConfig {

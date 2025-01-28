@@ -28,8 +28,7 @@ use crate::{
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
-    module::{Function, Import, Instruction, MemArg, ModuleBuilder},
-    syscalls::SyscallName,
+    syscalls::SyscallName, Function, Import, Instruction, MemArg, ModuleBuilder,
 };
 use gsys::{Handle, Hash, Length};
 use std::{collections::BTreeMap, num::NonZero};

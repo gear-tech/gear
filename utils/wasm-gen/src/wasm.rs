@@ -22,7 +22,7 @@ use crate::{config::WasmModuleConfig, EntryPointName};
 use arbitrary::{Result, Unstructured};
 use core::mem;
 use gear_core::pages::WasmPage;
-use gear_wasm_instrument::{module::Instruction, Module, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::{Instruction, Module, STACK_END_EXPORT_NAME};
 use gsys::{Handle, Hash};
 use wasm_smith::Module as WasmSmithModule;
 use wasmparser::{ExternalKind, TypeRef};

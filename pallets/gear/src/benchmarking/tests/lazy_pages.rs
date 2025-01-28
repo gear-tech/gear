@@ -37,7 +37,7 @@ use gear_core::{
     pages::{numerated::iterators::IntervalIterator, GearPage, GearPagesAmount},
 };
 use gear_lazy_pages_common::Status;
-use gear_wasm_instrument::{module::MemArg, Instruction, SyscallName};
+use gear_wasm_instrument::{Instruction, MemArg, SyscallName};
 use rand::{Rng, SeedableRng};
 use sp_runtime::codec::MaxEncodedLen;
 

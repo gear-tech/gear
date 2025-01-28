@@ -23,10 +23,7 @@ use crate::{
     MemoryPagesConfig, WasmModule,
 };
 use gear_core::pages::WasmPage;
-use gear_wasm_instrument::{
-    module::{Export, Global, Import, ModuleBuilder},
-    STACK_END_EXPORT_NAME,
-};
+use gear_wasm_instrument::{Export, Global, Import, ModuleBuilder, STACK_END_EXPORT_NAME};
 
 /// Memory import generator.
 ///

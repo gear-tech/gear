@@ -25,7 +25,8 @@ extern crate alloc;
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use module::{
-    ConstExpr, Export, Function, Global, Import, Instruction, Module, ModuleBuilder, ModuleError,
+    BrTable, ConstExpr, Data, DataKind, Element, ElementItems, Export, Function, Global, Import,
+    Instruction, MemArg, Module, ModuleBuilder, ModuleError, Name, Table,
 };
 pub use wasmparser::{
     BlockType, ExternalKind, FuncType, GlobalType, MemoryType, RefType, TableType, TypeRef, ValType,
@@ -34,12 +35,12 @@ pub use wasmparser::{
 use crate::stack_limiter::InjectionConfig;
 use alloc::{string::ToString, vec};
 
+mod module;
 mod stack_limiter;
 #[cfg(test)]
 mod tests;
 
 pub mod gas_metering;
-pub mod module;
 pub mod syscalls;
 
 // TODO #3057

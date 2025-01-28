@@ -18,10 +18,7 @@
 
 use anyhow::Result;
 use arbitrary::{Arbitrary, Unstructured};
-use gear_wasm_instrument::{
-    module::{Export, Global, Instruction, ModuleBuilder},
-    Module,
-};
+use gear_wasm_instrument::{Export, Global, Instruction, Module, ModuleBuilder};
 
 pub const GLOBAL_NAME_PREFIX: &str = "gear_fuzz_";
 pub const INITIAL_GLOBAL_VALUE: i64 = 0;

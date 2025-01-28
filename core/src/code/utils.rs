@@ -25,8 +25,8 @@ use crate::{
 };
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
-    module::{ConstExpr, DataKind, ElementItems, Export, Global, Instruction},
-    Module, SyscallName, STACK_END_EXPORT_NAME,
+    ConstExpr, DataKind, ElementItems, Export, Global, Instruction, Module, SyscallName,
+    STACK_END_EXPORT_NAME,
 };
 use wasmparser::{ExternalKind, Payload, TypeRef, ValType};
 

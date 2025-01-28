@@ -18,8 +18,8 @@
 
 use crate::optimize;
 use gear_wasm_instrument::{
-    module::{Data, MemArg, Name},
-    Export, Function, Global, Instruction, Module, ModuleBuilder, STACK_END_EXPORT_NAME,
+    Data, Export, Function, Global, Instruction, MemArg, Module, ModuleBuilder, Name,
+    STACK_END_EXPORT_NAME,
 };
 use wasmparser::{ExternalKind, FuncType, TypeRef, ValType};
 

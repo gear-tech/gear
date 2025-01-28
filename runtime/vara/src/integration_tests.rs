@@ -27,7 +27,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::gas_metering::CustomConstantCostRules;
-use gear_wasm_instrument::{module::MemArg, BlockType, Instruction, Module, Rules};
+use gear_wasm_instrument::{BlockType, Instruction, MemArg, Module, Rules};
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     Slot, BABE_ENGINE_ID,
@@ -791,7 +791,7 @@ fn process_costs_are_same() {
 fn all_measured_instructions() -> Vec<Instruction> {
     use Instruction::*;
 
-    let default_table_data = gear_wasm_instrument::module::BrTable {
+    let default_table_data = gear_wasm_instrument::BrTable {
         default: 0,
         targets: vec![],
     };

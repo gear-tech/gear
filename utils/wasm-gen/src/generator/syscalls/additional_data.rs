@@ -37,10 +37,7 @@ use crate::{
     EntryPointName, InvocableSyscall, SyscallsConfig, WasmModule,
 };
 use arbitrary::Unstructured;
-use gear_wasm_instrument::{
-    module::{Data, Instruction, ModuleBuilder},
-    syscalls::SyscallName,
-};
+use gear_wasm_instrument::{syscalls::SyscallName, Data, Instruction, ModuleBuilder};
 use std::{collections::BTreeMap, num::NonZero};
 
 /// Additional data injector.

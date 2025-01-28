@@ -32,11 +32,11 @@ use arbitrary::{Result, Unstructured};
 use gear_core::ids::CodeId;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
-    module::{Instruction, MemArg},
     syscalls::{
         FallibleSyscallSignature, ParamType, Ptr, RegularParamType, SyscallName, SyscallSignature,
         SystemSyscallSignature,
     },
+    Instruction, MemArg,
 };
 use gsys::{ErrorCode, Handle, Hash};
 use std::{

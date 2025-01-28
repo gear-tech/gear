@@ -34,9 +34,7 @@ use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
 use gear_core::ids::{prelude::*, CodeId, ReservationId};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gear_wasm_instrument::{
-    module::MemArg, syscalls::SyscallName, BlockType, Function, Instruction,
-};
+use gear_wasm_instrument::{syscalls::SyscallName, BlockType, Function, Instruction, MemArg};
 use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::{Decode, Encode, FullCodec};
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};

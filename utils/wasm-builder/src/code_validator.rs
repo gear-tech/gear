@@ -21,9 +21,7 @@ use gear_core::{
     code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig},
     gas_metering::CustomConstantCostRules,
 };
-use gear_wasm_instrument::{
-    module::Export, ExternalKind, FuncType, Module, SyscallName, TypeRef, ValType,
-};
+use gear_wasm_instrument::{Export, ExternalKind, FuncType, Module, SyscallName, TypeRef, ValType};
 use std::fmt;
 use thiserror::Error;
 
