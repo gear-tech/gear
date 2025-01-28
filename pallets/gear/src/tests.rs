@@ -15465,12 +15465,7 @@ fn allocate_in_init_free_in_handle() {
         let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
         assert_eq!(
             allocations,
-            WasmPagesIntervalsTree::try_from(
-                [WasmPage::from(static_pages)]
-                    .into_iter()
-                    .collect::<IntervalsTree<WasmPage>>()
-            )
-            .unwrap()
+            WasmPagesIntervalsTree::from([WasmPage::from(static_pages)])
         );
 
         Gear::send_message(

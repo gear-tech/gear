@@ -182,24 +182,6 @@ pub enum DispatchOutcome {
     NoExecution,
 }
 
-/// Candidate program from `JournalNote::StoreNewPrograms`.
-///
-/// Made into a tuple-struct to allow usage in `LimitedVec`.
-#[derive(Clone, Debug, Encode, Decode, Default)]
-pub struct ProgramCandidate(pub MessageId, pub ProgramId);
-
-impl AsRef<[u8]> for ProgramCandidate {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-impl From<(MessageId, ProgramId)> for ProgramCandidate {
-    fn from(value: (MessageId, ProgramId)) -> Self {
-        Self(value.0, value.1)
-    }
-}
-
 /// Journal record for the state update.
 #[derive(Clone, Debug, Encode, Decode, MaxEncodedLen)]
 pub enum JournalNote {

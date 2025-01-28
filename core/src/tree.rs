@@ -202,3 +202,17 @@ impl<T: Copy, E: Default, const N: usize> TryFrom<IntervalsTree<T>>
 }
 
 impl<T: Encode, E, const N: usize> EncodeLike<IntervalsTree<T>> for LimitedIntervalsTree<T, E, N> {}
+
+impl<T: Numerated, E, const N: usize, const U: usize> From<[T; U]>
+    for LimitedIntervalsTree<T, E, N>
+{
+    fn from(x: [T; U]) -> Self {
+        const {
+            assert!(U <= N, "array size is greater than vec limit");
+        }
+        Self {
+            inner: x.into_iter().collect(),
+            marker: PhantomData,
+        }
+    }
+}

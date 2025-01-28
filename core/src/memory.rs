@@ -511,7 +511,7 @@ impl AllocationsContext {
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use core::{cell::Cell, iter};
+    use core::cell::Cell;
     use numerated::tree::IntervalsTree;
 
     struct TestMemory(Cell<WasmPagesAmount>);
@@ -567,12 +567,7 @@ mod tests {
 
         let mut ctx = AllocationsContext::try_new(
             1.into(),
-            WasmPagesIntervalsTree::try_from(
-                [WasmPage::from(0)]
-                    .into_iter()
-                    .collect::<IntervalsTree<WasmPage>>(),
-            )
-            .unwrap(),
+            WasmPagesIntervalsTree::from([WasmPage::from(0)]),
             0.into(),
             None,
             1.into(),
@@ -582,12 +577,7 @@ mod tests {
 
         let mut ctx = AllocationsContext::try_new(
             4.into(),
-            WasmPagesIntervalsTree::try_from(
-                [WasmPage::from(1), WasmPage::from(3)]
-                    .into_iter()
-                    .collect::<IntervalsTree<WasmPage>>(),
-            )
-            .unwrap(),
+            WasmPagesIntervalsTree::from([WasmPage::from(1), WasmPage::from(3)]),
             1.into(),
             None,
             4.into(),
@@ -656,10 +646,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &WasmPagesIntervalsTree::try_from(
-                    iter::once(WasmPage::from(2)).collect::<IntervalsTree<WasmPage>>()
-                )
-                .unwrap(),
+                &WasmPagesIntervalsTree::from([WasmPage::from(2)]),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -712,12 +699,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &WasmPagesIntervalsTree::try_from(
-                    [WasmPage::from(1), WasmPage::from(3)]
-                        .into_iter()
-                        .collect::<IntervalsTree<WasmPage>>()
-                )
-                .unwrap(),
+                &WasmPagesIntervalsTree::from([WasmPage::from(1), WasmPage::from(3)]),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -732,12 +714,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &WasmPagesIntervalsTree::try_from(
-                    [WasmPage::from(2), WasmPage::from(4)]
-                        .into_iter()
-                        .collect::<IntervalsTree<WasmPage>>()
-                )
-                .unwrap(),
+                &WasmPagesIntervalsTree::from([WasmPage::from(2), WasmPage::from(4)]),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -752,10 +729,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 13.into(),
-                &WasmPagesIntervalsTree::try_from(
-                    iter::once(WasmPage::from(1)).collect::<IntervalsTree<WasmPage>>()
-                )
-                .unwrap(),
+                &WasmPagesIntervalsTree::from([WasmPage::from(1)]),
                 10.into(),
                 None,
                 13.into()
@@ -770,10 +744,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 13.into(),
-                &WasmPagesIntervalsTree::try_from(
-                    iter::once(WasmPage::from(1)).collect::<IntervalsTree<WasmPage>>()
-                )
-                .unwrap(),
+                &WasmPagesIntervalsTree::from([WasmPage::from(1)]),
                 WasmPagesAmount::UPPER,
                 None,
                 13.into()
@@ -787,10 +758,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 WasmPagesAmount::UPPER,
-                &WasmPagesIntervalsTree::try_from(
-                    iter::once(WasmPage::from(1)).collect::<IntervalsTree<WasmPage>>()
-                )
-                .unwrap(),
+                &WasmPagesIntervalsTree::from([WasmPage::from(1)]),
                 10.into(),
                 None,
                 WasmPagesAmount::UPPER,

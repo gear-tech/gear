@@ -46,8 +46,6 @@ use gear_core::{
     reservation::GasReserver,
 };
 
-#[cfg(test)]
-use gear_core::pages::numerated::tree::IntervalsTree;
 use gear_core_backend::{
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
@@ -1540,12 +1538,7 @@ mod tests {
 
         let allocations_context = AllocationsContext::try_new(
             512.into(),
-            WasmPagesIntervalsTree::try_from(
-                [existing_page]
-                    .into_iter()
-                    .collect::<IntervalsTree<WasmPage>>(),
-            )
-            .unwrap(),
+            WasmPagesIntervalsTree::from([existing_page]),
             1.into(),
             None,
             512.into(),
