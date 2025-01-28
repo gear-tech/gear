@@ -47,6 +47,8 @@ pub fn testnet_genesis(
     const MIN_NOMINATOR_BOND: u128 = 50 * TOKEN;
 
     let _num_endowed_accounts = endowed_accounts.len();
+    #[cfg(not(feature = "dev"))]
+    let _root_key = root_key;
 
     let mut balances = endowed_accounts
         .iter()
@@ -112,6 +114,7 @@ pub fn testnet_genesis(
             epoch_config: BABE_GENESIS_EPOCH_CONFIG,
             ..Default::default()
         },
+        #[cfg(feature = "dev")]
         sudo: SudoConfig {
             // Assign network admin rights.
             key: Some(root_key),
