@@ -1,15 +1,26 @@
-use crate::{
-    observer::{
-        read_block_events, read_block_request_events, read_block_request_events_batch,
-        read_code_from_tx_hash, read_committed_blocks_batch, ObserverProvider,
-        MAX_QUERY_BLOCK_RANGE,
-    },
-    BlobReader,
-};
+// This file is part of Gear.
+//
+// Copyright (C) 2024-2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::{BlobReader, Provider, MAX_QUERY_BLOCK_RANGE};
 use alloy::{
     network::{Ethereum, Network},
     primitives::Address as AlloyAddress,
-    providers::{Provider, ProviderBuilder},
+    providers::{Provider as _, ProviderBuilder},
     rpc::{client::BatchRequest, types::eth::BlockTransactionsKind},
 };
 use anyhow::{anyhow, Result};
@@ -31,7 +42,7 @@ const DEEP_SYNC: u32 = 10;
 #[derive(Clone)]
 pub struct Query {
     database: Arc<dyn BlockMetaStorage>,
-    provider: ObserverProvider,
+    provider: Provider,
     router_address: AlloyAddress,
     genesis_block_hash: H256,
     blob_reader: Arc<dyn BlobReader>,
@@ -97,7 +108,7 @@ impl Query {
     }
 
     async fn batch_get_block_headers(
-        provider: ObserverProvider,
+        provider: Provider,
         database: Arc<dyn BlockMetaStorage>,
         from_block: u64,
         to_block: u64,
@@ -172,7 +183,7 @@ impl Query {
 
         let headers_fut = future::join_all(headers_handles);
 
-        let events_fut = read_block_request_events_batch(
+        let events_fut = crate::read_block_request_events_batch(
             from_block,
             to_block,
             &self.provider,
@@ -231,7 +242,7 @@ impl Query {
         let mut chain = Vec::new();
         let mut headers_map = HashMap::new();
 
-        let committed_blocks = read_committed_blocks_batch(
+        let committed_blocks = crate::read_committed_blocks_batch(
             latest_valid_block_height + 1,
             current_block.height,
             &self.provider,
@@ -391,9 +402,12 @@ impl Query {
                 self.database.set_block_header(block_hash, meta.clone());
 
                 // Populate block events in db.
-                let events =
-                    read_block_request_events(block_hash, &self.provider, self.router_address)
-                        .await?;
+                let events = crate::read_block_request_events(
+                    block_hash,
+                    &self.provider,
+                    self.router_address,
+                )
+                .await?;
                 self.database.set_block_events(block_hash, events);
 
                 Ok(meta)
@@ -406,7 +420,7 @@ impl Query {
     }
 
     pub async fn get_block_events(&mut self, block_hash: H256) -> Result<Vec<BlockEvent>> {
-        read_block_events(block_hash, &self.provider, self.router_address).await
+        crate::read_block_events(block_hash, &self.provider, self.router_address).await
     }
 
     pub async fn get_block_request_events(
@@ -418,21 +432,18 @@ impl Query {
         }
 
         let events =
-            read_block_request_events(block_hash, &self.provider, self.router_address).await?;
+            crate::read_block_request_events(block_hash, &self.provider, self.router_address)
+                .await?;
         self.database.set_block_events(block_hash, events.clone());
 
         Ok(events)
     }
 
-    pub async fn download_code(
-        &self,
-        expected_code_id: CodeId,
-        blob_tx_hash: H256,
-    ) -> Result<Vec<u8>> {
+    pub async fn download_code(&self, expected_code_id: CodeId, tx_hash: H256) -> Result<Vec<u8>> {
         let blob_reader = self.blob_reader.clone();
         let attempts = Some(3);
 
-        read_code_from_tx_hash(blob_reader, expected_code_id, blob_tx_hash, attempts)
+        crate::read_code_from_tx_hash(blob_reader, expected_code_id, tx_hash, attempts)
             .await
             .map(|res| res.1)
     }

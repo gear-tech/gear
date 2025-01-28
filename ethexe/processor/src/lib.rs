@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,10 @@
 //! Program's execution service for eGPU.
 
 use anyhow::{anyhow, ensure, Result};
-use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent};
+use ethexe_common::{
+    events::{BlockRequestEvent, MirrorRequestEvent},
+    gear::StateTransition,
+};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
@@ -91,12 +94,19 @@ impl Processor {
         code_id: CodeId,
         code: &[u8],
     ) -> Result<Vec<LocalOutcome>> {
+        let valid = self.process_upload_code_raw(code_id, code)?;
+
+        Ok(vec![LocalOutcome::CodeValidated { id: code_id, valid }])
+    }
+
+    pub fn process_upload_code_raw(&mut self, code_id: CodeId, code: &[u8]) -> Result<bool> {
         log::debug!("Processing upload code {code_id:?}");
 
         let valid = code_id == CodeId::generate(code) && self.handle_new_code(code)?.is_some();
 
         self.db.set_code_valid(code_id, valid);
-        Ok(vec![LocalOutcome::CodeValidated { id: code_id, valid }])
+
+        Ok(valid)
     }
 
     pub fn process_block_events(
@@ -104,6 +114,20 @@ impl Processor {
         block_hash: H256,
         events: Vec<BlockRequestEvent>,
     ) -> Result<Vec<LocalOutcome>> {
+        let outcomes = self
+            .process_block_events_raw(block_hash, events)?
+            .into_iter()
+            .map(LocalOutcome::Transition)
+            .collect();
+
+        Ok(outcomes)
+    }
+
+    pub fn process_block_events_raw(
+        &mut self,
+        block_hash: H256,
+        events: Vec<BlockRequestEvent>,
+    ) -> Result<Vec<StateTransition>> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
         let mut handler = self.handler(block_hash)?;
@@ -130,12 +154,7 @@ impl Processor {
         self.db.set_block_end_program_states(block_hash, states);
         self.db.set_block_end_schedule(block_hash, schedule);
 
-        let outcomes = transitions
-            .into_iter()
-            .map(LocalOutcome::Transition)
-            .collect();
-
-        Ok(outcomes)
+        Ok(transitions)
     }
 
     pub fn process_queue(&mut self, handler: &mut ProcessingHandler) {

@@ -4,8 +4,6 @@ pragma solidity ^0.8.26;
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import "forge-std/Test.sol";
-
 import {NetworkRegistry} from "symbiotic-core/src/contracts/NetworkRegistry.sol";
 import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
 import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
@@ -14,6 +12,7 @@ import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDeleg
 import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegator/IOperatorSpecificDelegator.sol";
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
+import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
 
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {IMirror, Mirror} from "../src/Mirror.sol";
@@ -25,6 +24,7 @@ import {Gear} from "../src/libraries/Gear.sol";
 contract Base is POCBaseTest {
     using MessageHashUtils for address;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
+    using FROSTOffchain for SigningKey;
 
     address public admin;
     uint48 public eraDuration;
@@ -93,7 +93,7 @@ contract Base is POCBaseTest {
         middleware = new Middleware(cfg);
     }
 
-    function setUpRouter(address[] memory _validators) internal {
+    function setUpRouter(Gear.AggregatedPublicKey memory _aggregatedPublicKey, address[] memory _validators) internal {
         require(admin != address(0), "Base: admin must be initialized");
         require(address(wrappedVara) != address(0), "Base: wrappedVara should be initialized");
         require(eraDuration > 0, "Base: eraDuration should be greater than 0");
@@ -121,6 +121,8 @@ contract Base is POCBaseTest {
                             uint256(eraDuration),
                             uint256(electionDuration),
                             uint256(validationDelay),
+                            _aggregatedPublicKey,
+                            Gear.dummyVerifyingShares(_validators.length),
                             _validators
                         )
                     )
@@ -183,7 +185,7 @@ contract Base is POCBaseTest {
 
     function commitValidators(uint256[] memory _privateKeys, Gear.ValidatorsCommitment memory commitment) internal {
         bytes memory message = bytes.concat(Gear.validatorsCommitmentHash(commitment));
-        router.commitValidators(commitment, signBytes(_privateKeys, message));
+        router.commitValidators(commitment, Gear.SignatureType.FROST, signBytes(_privateKeys, message));
     }
 
     function commitCode(uint256[] memory _privateKeys, Gear.CodeCommitment memory _commitment) internal {
@@ -200,7 +202,7 @@ contract Base is POCBaseTest {
             _codesBytes = bytes.concat(_codesBytes, keccak256(abi.encodePacked(_commitment.id, _commitment.valid)));
         }
 
-        router.commitCodes(_commitments, signBytes(_privateKeys, _codesBytes));
+        router.commitCodes(_commitments, Gear.SignatureType.FROST, signBytes(_privateKeys, _codesBytes));
     }
 
     function commitBlock(uint256[] memory _privateKeys, Gear.BlockCommitment memory _commitment) internal {
@@ -217,7 +219,7 @@ contract Base is POCBaseTest {
             _message = bytes.concat(_message, blockCommitmentHash(_commitment));
         }
 
-        router.commitBlocks(_commitments, signBytes(_privateKeys, _message));
+        router.commitBlocks(_commitments, Gear.SignatureType.FROST, signBytes(_privateKeys, _message));
     }
 
     function blockCommitmentHash(Gear.BlockCommitment memory _commitment) internal pure returns (bytes32) {
@@ -258,19 +260,16 @@ contract Base is POCBaseTest {
         );
     }
 
+    // TODO: add SignatureType as param here
     function signBytes(uint256[] memory _privateKeys, bytes memory _message)
         internal
-        view
         returns (bytes[] memory signatures)
     {
-        signatures = new bytes[](_privateKeys.length);
+        signatures = new bytes[](1);
         bytes32 _messageHash = address(router).toDataWithIntendedValidatorHash(abi.encodePacked(keccak256(_message)));
-
-        for (uint256 i = 0; i < _privateKeys.length; i++) {
-            uint256 _key = _privateKeys[i];
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, _messageHash);
-            signatures[i] = abi.encodePacked(r, s, v);
-        }
+        SigningKey signingKey = FROSTOffchain.signingKeyFromScalar(_privateKeys[0]);
+        (uint256 signatureRX, uint256 signatureRY, uint256 signatureZ) = signingKey.createSignature(_messageHash);
+        signatures[0] = abi.encodePacked(signatureRX, signatureRY, signatureZ);
     }
 
     function createOperator(address _operator) internal {

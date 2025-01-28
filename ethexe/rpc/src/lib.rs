@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,10 +18,10 @@
 
 use anyhow::{anyhow, Result};
 use apis::{
-    BlockApi, BlockServer, ProgramApi, ProgramServer, TransactionPoolApi, TransactionPoolServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
 };
 use ethexe_db::Database;
-use ethexe_tx_pool::TxPoolSender;
+use ethexe_observer::MockBlobReader;
 use futures::FutureExt;
 use jsonrpsee::{
     server::{
@@ -30,7 +30,7 @@ use jsonrpsee::{
     },
     Methods, RpcModule as JsonrpcModule,
 };
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 use tower::Service;
 
@@ -54,20 +54,22 @@ pub struct RpcConfig {
     pub listen_addr: SocketAddr,
     /// CORS.
     pub cors: Option<Vec<String>>,
+    /// Dev mode.
+    pub dev: bool,
 }
 
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    tx_pool_sender: TxPoolSender,
+    blob_reader: Option<Arc<MockBlobReader>>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database, tx_pool_sender: TxPoolSender) -> Self {
+    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<Arc<MockBlobReader>>) -> Self {
         Self {
             config,
             db,
-            tx_pool_sender,
+            blob_reader,
         }
     }
 
@@ -89,9 +91,16 @@ impl RpcService {
         let mut module = JsonrpcModule::new(());
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
-        module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
-            self.tx_pool_sender,
-        )))?;
+        module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
+        // module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
+        //     self.tx_pool_sender,
+        // )))?;
+
+        if self.config.dev {
+            module.merge(DevServer::into_rpc(DevApi::new(
+                self.blob_reader.unwrap().clone(),
+            )))?;
+        }
 
         let (stop_handle, server_handle) = stop_channel();
 

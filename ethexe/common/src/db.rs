@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -42,7 +42,8 @@ pub type Sum = ProgramId;
 /// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
 pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
-#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
     pub height: u32,
     pub timestamp: u64,
@@ -120,7 +121,7 @@ pub trait CodesStorage: Send + Sync {
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
 
     fn code_blob_tx(&self, code_id: CodeId) -> Option<H256>;
-    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256);
+    fn set_code_blob_tx(&self, code_id: CodeId, tx_hash: H256);
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);

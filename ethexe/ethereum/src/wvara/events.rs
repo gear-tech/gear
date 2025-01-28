@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -54,7 +54,7 @@ pub fn try_extract_request_event(log: &Log) -> Result<Option<WVaraRequestEvent>>
     }
 
     let request_event = try_extract_event(log)?
-        .and_then(|v| v.as_request())
+        .and_then(|v| v.to_request())
         .expect("filtered above");
 
     Ok(Some(request_event))

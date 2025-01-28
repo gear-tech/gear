@@ -10,6 +10,7 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ethexe-service-utils.workspace = true
 ethexe-db.workspace = true
 ethexe-network.workspace = true
 ethexe-observer.workspace = true
@@ -22,7 +23,6 @@ ethexe-common.workspace = true
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
-ethexe-utils.workspace = true
 ethexe-tx-pool.workspace = true
 gprimitives.workspace = true
 
@@ -31,6 +31,7 @@ log.workspace = true
 env_logger.workspace = true
 directories.workspace = true
 anyhow.workspace = true
+alloy.workspace = true
 tokio = { workspace = true, features = [
     "signal",
     "macros",

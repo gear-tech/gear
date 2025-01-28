@@ -110,6 +110,7 @@ members = [
     "utils/lazy-pages-fuzzer/fuzz",
     "ethexe/*",
     "ethexe/runtime/common",
+    "ethexe/service/utils",
 ]
 
 [workspace.dependencies]
@@ -155,6 +156,7 @@ parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
+prometheus = { version = "0.13.0", default-features = false }
 proptest = "1.5.0"
 quick-xml = "0.28"
 quote = { version = "1.0.36", default-features = false }
@@ -300,18 +302,18 @@ ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
 ethexe-signer = { path = "ethexe/signer", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
+ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-sequencer = { path = "ethexe/sequencer", default-features = false }
 ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
 ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
-ethexe-prometheus = { path = "ethexe/utils/prometheus", default-features = false }
-ethexe-utils = { path = "ethexe/utils", default-features = false }
+ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
 ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
-ethexe-common = { path = "ethexe/common" }
+ethexe-common = { path = "ethexe/common", default-features = false }
 ethexe-tx-pool = { path = "ethexe/tx-pool", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
-wasmi = { package = "wasmi", version = "0.38"}
+wasmi = { package = "wasmi", version = "0.38" }
 
 # Substrate deps
 binary-merkle-tree = { version = "15.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409", default-features = false }
@@ -559,9 +561,6 @@ loom = "0.7.2"                                               # utils/gear-wasmer
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
 
-[profile.dev.package.corosensei]
-opt-level = 3
-
 [profile.release]
 panic = "unwind"
 
@@ -604,3 +603,6 @@ blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross
 
 # TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
+
+# Attempt to fix UB on windows by increasing precommited stack size to 1 MiB, see https://github.com/gear-tech/gear/issues/4341
+corosensei = { git = "https://github.com/gear-tech/corosensei", branch = "rmasl-precommit-1mb-stack-on-windows" }

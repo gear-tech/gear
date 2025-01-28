@@ -2756,8 +2756,7 @@ dependencies = [
 [[package]]
 name = "corosensei"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80128832c58ea9cbd041d2a759ec449224487b2c1e400453d99d244eead87a8e"
+source = "git+https://github.com/gear-tech/corosensei?branch=rmasl-precommit-1mb-stack-on-windows#6a05a1eb84e505edd68e941195221936a6f634a0"
 dependencies = [
  "autocfg",
  "cfg-if",
@@ -4531,6 +4530,7 @@ dependencies = [
  "env_logger",
  "ethexe-ethereum",
  "ethexe-network",
+ "ethexe-observer",
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",
@@ -4604,6 +4604,7 @@ dependencies = [
  "async-trait",
  "derive_more 0.99.18",
  "env_logger",
+ "ethexe-common",
  "ethexe-db",
  "ethexe-signer",
  "futures",
@@ -4630,6 +4631,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
+ "ethexe-service-utils",
  "ethexe-signer",
  "futures",
  "gear-core",
@@ -4675,9 +4677,8 @@ name = "ethexe-prometheus"
 version = "1.7.0"
 dependencies = [
  "anyhow",
- "ethexe-observer",
- "ethexe-sequencer",
- "ethexe-utils",
+ "ethexe-service-utils",
+ "futures",
  "hyper 0.14.31",
  "log",
  "prometheus",
@@ -4692,6 +4693,7 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-observer",
  "ethexe-processor",
  "ethexe-runtime-common",
  "ethexe-tx-pool",
@@ -4752,6 +4754,7 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-observer",
  "ethexe-processor",
+ "ethexe-service-utils",
  "ethexe-signer",
  "futures",
  "gear-core",
@@ -4786,9 +4789,9 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-runtime-common",
  "ethexe-sequencer",
+ "ethexe-service-utils",
  "ethexe-signer",
  "ethexe-tx-pool",
- "ethexe-utils",
  "ethexe-validator",
  "futures",
  "futures-timer",
@@ -4811,6 +4814,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-service-utils"
+version = "1.7.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "log",
+ "tokio",
+]
+
+[[package]]
 name = "ethexe-signer"
 version = "1.7.0"
 dependencies = [
@@ -4828,6 +4841,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "ethexe-tx-pool"
 version = "1.7.0"
 dependencies = [
@@ -4858,6 +4872,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> a1c7e83f45b8b106b2010fbbf81065a6cd0d678e
 name = "ethexe-validator"
 version = "1.7.0"
 dependencies = [
@@ -15504,9 +15520,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.135"
+version = "1.0.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b0d7ba2887406110130a978386c4e1befb98c674b4fba677954e4db976630d9"
+checksum = "930cfb6e6abf99298aaad7d29abbef7a9999a9a8806a40088f55f0dcec03146b"
 dependencies = [
  "itoa",
  "memchr",
@@ -18096,19 +18112,6 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tokio-util",
-]
-
-[[package]]
-name = "tokio-test"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2468baabc3311435b55dd935f702f42cd1b8abb7e754fb7dfb16bd36aa88f9f7"
-dependencies = [
- "async-stream",
- "bytes",
- "futures-core",
- "tokio",
- "tokio-stream",
 ]
 
 [[package]]

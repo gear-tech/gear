@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::utils::bytes32_to_h256, decode_log, IRouter};
+use crate::{
+    abi::utils::{bytes32_to_code_id, bytes32_to_h256},
+    decode_log, IRouter,
+};
 use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
 use anyhow::{anyhow, Result};
 use ethexe_common::events::{RouterEvent, RouterRequestEvent};
@@ -58,14 +61,12 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
             let tx_hash = log
                 .transaction_hash
                 .ok_or_else(|| anyhow!("Tx hash not found"))?;
+            let event = decode_log::<IRouter::CodeValidationRequested>(log)?;
 
-            let mut event = decode_log::<IRouter::CodeValidationRequested>(log)?;
-
-            if event.blobTxHash.is_zero() {
-                event.blobTxHash = tx_hash;
+            RouterEvent::CodeValidationRequested {
+                code_id: bytes32_to_code_id(event.codeId),
+                tx_hash: bytes32_to_h256(tx_hash),
             }
-
-            event.into()
         }
         COMPUTATION_SETTINGS_CHANGED => {
             decode_log::<IRouter::ComputationSettingsChanged>(log)?.into()
@@ -87,7 +88,7 @@ pub fn try_extract_request_event(log: &Log) -> Result<Option<RouterRequestEvent>
     }
 
     let request_event = try_extract_event(log)?
-        .and_then(|v| v.as_request())
+        .and_then(|v| v.to_request())
         .expect("filtered above");
 
     Ok(Some(request_event))
