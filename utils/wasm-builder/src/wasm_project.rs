@@ -234,6 +234,7 @@ impl WasmProject {
         cargo_toml.insert("profile".into(), profile.into());
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
+        cargo_toml.insert("patch".into(), crate_info.patch.into());
 
         smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
             .context("Failed to write generated manifest path")?;
