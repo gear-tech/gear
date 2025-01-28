@@ -30,7 +30,7 @@ use wasm_encoder::{
 };
 use wasmparser::{
     BinaryReader, BinaryReaderError, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType,
-    MemoryType, NameSectionReader, Payload, RefType, TableType, TypeRef, ValType,
+    MemoryType, NameSectionReader, Payload, RefType, TableType, TypeRef, ValType, WasmFeatures,
 };
 
 macro_rules! define_for_each_instruction_helper {
@@ -1289,8 +1289,11 @@ impl Module {
         let mut data_section = None;
         let mut name_section = None;
 
-        let payloads = wasmparser::Parser::new(0).parse_all(code);
-        for payload in payloads {
+        let mut parser = wasmparser::Parser::new(0);
+        parser.set_features(
+            (WasmFeatures::WASM1 | WasmFeatures::SIGN_EXTENSION) & !WasmFeatures::FLOATS,
+        );
+        for payload in parser.parse_all(code) {
             match payload? {
                 Payload::Version {
                     num: _,
@@ -1672,5 +1675,25 @@ impl Module {
 
     pub fn custom_section_mut(&mut self) -> Option<&mut Vec<CustomSection>> {
         self.custom_section.as_mut()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic = "MultipleTables"]
+    fn multiple_tables_denied() {
+        let wasm = wat::parse_str(
+            r#"
+        (module
+            (table 10 10 funcref)
+            (table 20 20 funcref)
+        )"#,
+        )
+        .unwrap();
+
+        let _module = Module::new(&wasm).unwrap();
     }
 }
