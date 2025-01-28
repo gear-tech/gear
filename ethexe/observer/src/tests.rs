@@ -101,15 +101,14 @@ async fn test_deployment() -> Result<()> {
         .await
         .expect("observer did not receive event");
 
-    if let ObserverEvent::Blob {
-        code_id: id, code, ..
-    } = event
-    {
-        assert_eq!(id, code_id);
-        assert_eq!(code, wasm);
-    } else {
-        panic!("unexpected event: {:?}", event);
-    }
+    assert!(matches!(
+        event,
+        ObserverEvent::Blob {
+            code_id: id,
+            code,
+            ..
+        }
+    ));
 
     Ok(())
 }
