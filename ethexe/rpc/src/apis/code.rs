@@ -28,8 +28,11 @@ use sp_core::Bytes;
 
 #[rpc(server)]
 pub trait Code {
-    #[method(name = "code_get")]
-    async fn get_code(&self, id: H256) -> RpcResult<Bytes>;
+    #[method(name = "code_getOriginal")]
+    async fn get_original_code(&self, id: H256) -> RpcResult<Bytes>;
+
+    #[method(name = "code_getInstrumented")]
+    async fn get_instrumented_code(&self, runtime_id: u32, code_id: H256) -> RpcResult<Bytes>;
 }
 
 pub struct CodeApi {
@@ -44,9 +47,16 @@ impl CodeApi {
 
 #[async_trait]
 impl CodeServer for CodeApi {
-    async fn get_code(&self, id: H256) -> RpcResult<Bytes> {
+    async fn get_original_code(&self, id: H256) -> RpcResult<Bytes> {
         self.db
             .original_code(id.into())
+            .map(|bytes| bytes.encode().into())
+            .ok_or_else(|| errors::db("Failed to get code by supplied id"))
+    }
+
+    async fn get_instrumented_code(&self, runtime_id: u32, code_id: H256) -> RpcResult<Bytes> {
+        self.db
+            .instrumented_code(runtime_id, code_id.into())
             .map(|bytes| bytes.encode().into())
             .ok_or_else(|| errors::db("Failed to get code by supplied id"))
     }
