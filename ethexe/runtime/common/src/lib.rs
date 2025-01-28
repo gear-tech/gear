@@ -85,9 +85,11 @@ impl<S: Storage> TransitionController<'_, S> {
 
         let res = f(&mut state, self.storage, self.transitions);
 
+        let is_queue_empty = state.queue_hash.is_empty();
         let new_state_hash = self.storage.write_state(state);
 
-        self.transitions.modify_state(program_id, new_state_hash);
+        self.transitions
+            .modify_state(program_id, new_state_hash, is_queue_empty);
 
         res
     }

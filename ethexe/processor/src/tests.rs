@@ -557,7 +557,7 @@ fn many_waits() {
         let mut expected_schedule = BTreeMap::<_, BTreeSet<_>>::new();
 
         for (pid, state_hash) in &states {
-            let state = processor.db.read_state(*state_hash).unwrap();
+            let state = processor.db.read_state(state_hash.state_hash).unwrap();
             let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
 
