@@ -100,6 +100,7 @@ impl Stream for ObserverService {
                         self.router,
                     )));
                 } else {
+                    // TODO: test resubscribe works.
                     log::warn!("Alloy headers stream ended, resubscribing");
                     self.headers_stream = self.subscription.resubscribe().into_stream();
                     cx.waker().wake_by_ref();
