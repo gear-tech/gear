@@ -20,7 +20,8 @@ use crate::{common::block_header_at_or_latest, errors};
 use ethexe_db::{CodesStorage, Database};
 use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{
-    HashOf, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
+    DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Storage,
+    Waitlist,
 };
 use gear_core::message::ReplyInfo;
 use gprimitives::{H160, H256};
@@ -29,7 +30,19 @@ use jsonrpsee::{
     proc_macros::rpc,
 };
 use parity_scale_codec::Encode;
+use serde::{Deserialize, Serialize};
 use sp_core::Bytes;
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct FullProgramState {
+    pub program: Program,
+    pub queue: Option<MessageQueue>,
+    pub waitlist: Option<Waitlist>,
+    pub stash: Option<DispatchStash>,
+    pub mailbox: Option<Mailbox>,
+    pub balance: u128,
+    pub executable_balance: u128,
+}
 
 #[rpc(server)]
 pub trait Program {
@@ -55,14 +68,20 @@ pub trait Program {
     #[method(name = "program_readQueue")]
     async fn read_queue(&self, hash: H256) -> RpcResult<MessageQueue>;
 
+    #[method(name = "program_readWaitlist")]
+    async fn read_waitlist(&self, hash: H256) -> RpcResult<Waitlist>;
+
+    #[method(name = "program_readStash")]
+    async fn read_stash(&self, hash: H256) -> RpcResult<DispatchStash>;
+
     #[method(name = "program_readMailbox")]
     async fn read_mailbox(&self, hash: H256) -> RpcResult<Mailbox>;
 
+    #[method(name = "program_readFullState")]
+    async fn read_full_state(&self, hash: H256) -> RpcResult<FullProgramState>;
+
     #[method(name = "program_readPages")]
     async fn read_pages(&self, hash: H256) -> RpcResult<MemoryPages>;
-
-    #[method(name = "program_readWaitlist")]
-    async fn read_waitlist(&self, hash: H256) -> RpcResult<Waitlist>;
 
     #[method(name = "program_readPageData")]
     async fn read_page_data(&self, hash: H256) -> RpcResult<Bytes>;
@@ -75,6 +94,22 @@ pub struct ProgramApi {
 impl ProgramApi {
     pub fn new(db: Database) -> Self {
         Self { db }
+    }
+
+    fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
+        self.db.read_queue(unsafe { HashOf::new(hash) })
+    }
+
+    fn read_waitlist(&self, hash: H256) -> Option<Waitlist> {
+        self.db.read_waitlist(unsafe { HashOf::new(hash) })
+    }
+
+    fn read_stash(&self, hash: H256) -> Option<DispatchStash> {
+        self.db.read_stash(unsafe { HashOf::new(hash) })
+    }
+
+    fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
+        self.db.read_mailbox(unsafe { HashOf::new(hash) })
     }
 }
 
@@ -130,28 +165,59 @@ impl ProgramServer for ProgramApi {
     }
 
     async fn read_queue(&self, hash: H256) -> RpcResult<MessageQueue> {
-        self.db
-            .read_queue(unsafe { HashOf::new(hash) })
+        self.read_queue(hash)
             .ok_or_else(|| errors::db("Failed to read queue by hash"))
     }
 
+    async fn read_waitlist(&self, hash: H256) -> RpcResult<Waitlist> {
+        self.read_waitlist(hash)
+            .ok_or_else(|| errors::db("Failed to read waitlist by hash"))
+    }
+
+    async fn read_stash(&self, hash: H256) -> RpcResult<DispatchStash> {
+        self.read_stash(hash)
+            .ok_or_else(|| errors::db("Failed to read stash by hash"))
+    }
+
     async fn read_mailbox(&self, hash: H256) -> RpcResult<Mailbox> {
-        self.db
-            .read_mailbox(unsafe { HashOf::new(hash) })
+        self.read_mailbox(hash)
             .ok_or_else(|| errors::db("Failed to read mailbox by hash"))
+    }
+
+    async fn read_full_state(&self, hash: H256) -> RpcResult<FullProgramState> {
+        let Some(ProgramState {
+            program,
+            queue_hash,
+            waitlist_hash,
+            stash_hash,
+            mailbox_hash,
+            balance,
+            executable_balance,
+        }) = self.db.read_state(hash)
+        else {
+            return Err(errors::db("Failed to read state by hash"));
+        };
+
+        let queue = queue_hash.query(&self.db).ok();
+        let waitlist = waitlist_hash.query(&self.db).ok();
+        let stash = stash_hash.query(&self.db).ok();
+        let mailbox = mailbox_hash.query(&self.db).ok();
+
+        Ok(FullProgramState {
+            program,
+            queue,
+            waitlist,
+            stash,
+            mailbox,
+            balance,
+            executable_balance,
+        })
     }
 
     async fn read_pages(&self, hash: H256) -> RpcResult<MemoryPages> {
         self.db
             .read_pages(unsafe { HashOf::new(hash) })
             .ok_or_else(|| errors::db("Failed to read pages by hash"))
-    }
-
-    // TODO: read the whole program state in a single query
-    async fn read_waitlist(&self, hash: H256) -> RpcResult<Waitlist> {
-        self.db
-            .read_waitlist(unsafe { HashOf::new(hash) })
-            .ok_or_else(|| errors::db("Failed to read waitlist by hash"))
     }
 
     async fn read_page_data(&self, hash: H256) -> RpcResult<Bytes> {
