@@ -92,6 +92,9 @@ impl RpcService {
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
+        // module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
+        //     self.tx_pool_sender,
+        // )))?;
 
         if self.config.dev {
             module.merge(DevServer::into_rpc(DevApi::new(

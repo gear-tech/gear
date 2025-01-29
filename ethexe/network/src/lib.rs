@@ -33,7 +33,8 @@ use libp2p::{
     connection_limits,
     core::{muxing::StreamMuxerBox, upgrade},
     futures::StreamExt,
-    gossipsub, identify, identity, kad, mdns,
+    gossipsub::{self, IdentTopic},
+    identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
@@ -367,7 +368,7 @@ impl NetworkService {
                         topic,
                     },
                 ..
-            }) if gpu_commitments_topic().hash() == topic => {
+            }) if gpu_commitments_topic().hash() == topic || tx_topic().hash() == topic => {
                 return Some(NetworkEvent::Message { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
@@ -416,7 +417,18 @@ impl NetworkService {
             .gossipsub
             .publish(gpu_commitments_topic(), data)
         {
-            log::debug!("gossipsub publishing failed: {e}")
+            log::error!("gossipsub publishing failed: {e}")
+        }
+    }
+
+    pub fn publish_transaction(&mut self, data: Vec<u8>) {
+        if let Err(e) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(tx_topic(), data)
+        {
+            log::error!("gossipsub publishing failed: {e}")
         }
     }
 
@@ -533,6 +545,7 @@ impl Behaviour {
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
 
         gossipsub.subscribe(&gpu_commitments_topic())?;
+        gossipsub.subscribe(&tx_topic())?;
 
         let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), peer_score_handle, db);
 
@@ -553,6 +566,10 @@ impl Behaviour {
 fn gpu_commitments_topic() -> gossipsub::IdentTopic {
     // TODO: use router address in topic name to avoid obsolete router
     gossipsub::IdentTopic::new("gpu-commitments")
+}
+
+fn tx_topic() -> gossipsub::IdentTopic {
+    gossipsub::IdentTopic::new("tx")
 }
 
 #[cfg(test)]
