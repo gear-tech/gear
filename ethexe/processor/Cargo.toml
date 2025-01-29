@@ -17,7 +17,7 @@ gear-core.workspace = true
 gprimitives.workspace = true
 gear-runtime-interface = { workspace = true, features = ["std"] }
 gear-lazy-pages.workspace = true
-core-processor.workspace = true
+core-processor = { workspace = true, features = ["ethexe"] }
 
 anyhow = { workspace = true, features = ["std"] }
 wasmtime.workspace = true

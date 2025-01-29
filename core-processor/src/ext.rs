@@ -59,6 +59,8 @@ use gear_core_errors::{
     ReplyCode, ReservationError, SignalCode,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInterface, ProcessAccessError, Status};
+#[cfg(not(feature = "ethexe"))]
+use gear_runtime_interface::gear_poseidon_hash::poseidon;
 use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Processor context.
@@ -1411,6 +1413,17 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
                 .reply_deposit(message_id, amount)
                 .map_err(Into::into)
         })
+    }
+
+    #[cfg(not(feature = "ethexe"))]
+    fn poseidon_permute(&self, input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError> {
+        Ok(poseidon(input.to_vec())
+            .try_into()
+            .expect("poseidon always returns 12 elements"))
+    }
+    #[cfg(feature = "ethexe")]
+    fn poseidon_permute(&self, _input: &[u64]) -> Result<[u64; 12], Self::UnrecoverableError> {
+        unimplemented!("poseidon_permute is not implemented for ethexe")
     }
 
     fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {

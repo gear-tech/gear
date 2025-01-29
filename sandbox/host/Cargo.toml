@@ -18,7 +18,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 atomic_enum.workspace = true
 codec = { workspace = true, features = ["std"] }
 defer.workspace = true
-environmental.workspace = true
+environmental = { workspace = true, features = ["std"] }
 thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
 wasmer.workspace = true
