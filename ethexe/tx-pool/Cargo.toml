@@ -13,6 +13,7 @@ anyhow.workspace = true
 ethexe-signer.workspace = true
 ethexe-db.workspace = true
 ethexe-processor.workspace = true
+futures.workspace = true
 gprimitives = { workspace = true, features = ["codec"] }
 hex.workspace = true
 log.workspace = true

@@ -34,7 +34,9 @@ use ethexe_sequencer::{
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
-use ethexe_tx_pool::{InputTask, OutputTask, SignedTransaction, TxPoolKit, TxPoolSender};
+use ethexe_tx_pool::{
+    InputTask, OutputTask, SignedTransaction, TxPoolEvent, TxPoolKit, TxPoolSender, TxPoolService,
+};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
 use gprimitives::H256;
@@ -54,6 +56,7 @@ pub struct Service {
     router_query: RouterQuery,
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
+    tx_pool: TxPoolService,
 
     // Optional services
     network: Option<NetworkService>,
@@ -231,6 +234,8 @@ impl Service {
             ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
         });
 
+        let tx_pool = TxPoolService::new(db.clone());
+
         Ok(Self {
             db,
             network,
@@ -243,6 +248,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
+            tx_pool,
         })
     }
 
@@ -263,6 +269,7 @@ impl Service {
         router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
+        tx_pool: TxPoolService,
         network: Option<NetworkService>,
         sequencer: Option<SequencerService>,
         validator: Option<ethexe_validator::Validator>,
@@ -281,6 +288,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
+            tx_pool,
         }
     }
 
@@ -433,6 +441,7 @@ impl Service {
             mut processor,
             mut sequencer,
             signer: _signer,
+            mut tx_pool,
             mut validator,
             mut prometheus,
             rpc,
@@ -446,13 +455,6 @@ impl Service {
         } else {
             None
         };
-
-        let TxPoolKit {
-            service: tx_pool_service,
-            tx_pool_sender,
-            mut tx_pool_receiver,
-        } = tx_pool_kit;
-        let mut tx_pool_handle = tokio::spawn(tx_pool_service.run());
 
         let mut roles = "Observer".to_string();
         if let Some(seq) = sequencer.as_ref() {
@@ -682,6 +684,9 @@ impl Service {
                                         }
                                     }
                                 },
+                                NetworkMessage::Transaction { transaction } => {
+                                    todo!()
+                                },
                             };
                         }
                         NetworkEvent::ExternalValidation(validating_response) => {
@@ -724,12 +729,20 @@ impl Service {
                         }
                     }
                 }
+                event = tx_pool.select_next_some() => {
+                    log::debug!("Received tx-pool event {event:?}");
+                    match event {
+                        TxPoolEvent::PropogateTransaction(transaction) => {
+                            if let Some(n) = network.as_mut() {
+                                n.publish_transaction(NetworkMessage::Transaction { transaction }.encode());
+                            }
+
+                            log::debug!("Network service isn't defined, so transaction won't be propogated");
+                        }
+                    }
+                },
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
-                }
-                _ = &mut tx_pool_handle => {
-                    log::info!("`TxPoolService` has terminated, shutting down...");
-                    break;
                 }
             }
         }

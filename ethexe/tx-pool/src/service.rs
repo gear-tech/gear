@@ -26,9 +26,20 @@ pub(crate) use output::TxPoolOutputTaskSender;
 use crate::{SignedTransaction, TxValidator};
 use anyhow::Result;
 use ethexe_db::Database;
+use futures::{
+    ready,
+    stream::{FusedStream, Stream},
+};
+use gprimitives::H256;
 use input::TxPoolInputTaskReceiver;
 use parity_scale_codec::Encode;
-use tokio::sync::mpsc;
+use std::{
+    collections::VecDeque,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+use tokio::sync::{mpsc, Mutex};
 
 /// Creates a new transaction pool service.
 pub fn new(db: Database) -> TxPoolKit {
@@ -37,8 +48,7 @@ pub fn new(db: Database) -> TxPoolKit {
 
     let service = TxPoolService {
         db,
-        receiver: TxPoolInputTaskReceiver { receiver: rx_in },
-        sender: TxPoolOutputTaskSender { sender: tx_out },
+        ready_txs: Mutex::new(VecDeque::new()),
     };
 
     TxPoolKit {
@@ -60,82 +70,100 @@ pub struct TxPoolKit {
 /// Serves as an interface for the transaction pool core.
 pub struct TxPoolService {
     db: Database,
-    receiver: TxPoolInputTaskReceiver<SignedTransaction>,
-    sender: TxPoolOutputTaskSender<SignedTransaction>,
+    ready_txs: Mutex<VecDeque<SignedTransaction>>,
 }
 
 impl TxPoolService {
-    /// Runs transaction pool service expecting to receive tasks from the
-    /// tx pool input task sender.
-    pub async fn run(mut self) {
-        // Finishes working of all the input task senders are dropped.
-        while let Some(task) = self.receiver.recv().await {
-            match task {
-                InputTask::ValidatePreDispatch {
-                    transaction,
-                    response_sender,
-                } => {
-                    // No need for a uniqueness check as the input task is sent on existing transactions
-                    debug_assert!(self
-                        .db
-                        .validated_transaction(transaction.tx_hash())
-                        .is_some());
-
-                    let res = TxValidator::new(transaction, self.db.clone())
-                        .with_signature_check()
-                        .with_mortality_check()
-                        .validate();
-                    let _ = response_sender.send(res).inspect_err(|_| {
-                        // No panic case as the request itself is going to be executed.
-                        // The dropped receiver signalizes that the external task sender
-                        // has crashed or is malformed, so problems should be handled there.
-                        log::error!("`ValidateTransaction` task receiver is stopped or dropped.");
-                    });
-                }
-                InputTask::AddTransaction {
-                    transaction,
-                    response_sender,
-                } => {
-                    let res = self.validate_tx_full(transaction).map(|tx| {
-                        let tx_hash = tx.tx_hash();
-                        let tx_encoded = tx.encode();
-
-                        // Request the external service for the tx propagation.
-                        self.sender.send(OutputTask::PropogateTransaction {
-                            transaction: tx.clone(),
-                        }).unwrap_or_else(|e| {
-                            // If receiving end of the external service is dropped, it's a panic case,
-                            // because otherwise transaction processing can't be performed correctly.
-                            let err_msg = format!(
-                                "Failed to send `PropogateTransaction` task. External service receiving end \
-                                might have been dropped. Got an error: {e:?}."
-                            );
-
-                            log::error!("{err_msg}");
-                            panic!("{err_msg}");
-                        });
-
-                        // Store the validated transaction to the database.
-                        self.db.set_validated_transaction(tx_hash, tx_encoded);
-
-                        // Start transaction execution
-                        tokio::spawn(Self::execute_transaction(self.db.clone(), tx));
-
-                        tx_hash
-                    });
-
-                    if let Some(response_sender) = response_sender {
-                        let _ = response_sender.send(res).inspect_err(|_| {
-                            // No panic case as a responsibility of transaction piil is fulfilled.
-                            // The dropped receiver signalizes that the external task sender
-                            // has crashed or is malformed, so problems should be handled there.
-                            log::error!("`AddTransaction` task receiver is stopped or dropped.")
-                        });
-                    }
-                }
-            }
+    pub fn new(db: Database) -> Self {
+        Self {
+            db,
+            ready_txs: Mutex::new(VecDeque::new()),
         }
     }
+
+    pub async fn add_transaction(&self, transaction: SignedTransaction) -> Result<H256> {
+        /*
+        Possibly:
+        1. validate transaction
+        2. add to DB
+        3. start execution of the transaction on a separate thread.
+        4. if valid return the tx hash
+        */
+
+        todo!()
+    }
+
+    /// Runs transaction pool service expecting to receive tasks from the
+    /// tx pool input task sender.
+    // pub async fn run(mut self) {
+    //     // Finishes working of all the input task senders are dropped.
+    //     while let Some(task) = self.receiver.recv().await {
+    //         match task {
+    //             InputTask::ValidatePreDispatch {
+    //                 transaction,
+    //                 response_sender,
+    //             } => {
+    //                 // No need for a uniqueness check as the input task is sent on existing transactions
+    //                 debug_assert!(self
+    //                     .db
+    //                     .validated_transaction(transaction.tx_hash())
+    //                     .is_some());
+
+    //                 let res = TxValidator::new(transaction, self.db.clone())
+    //                     .with_signature_check()
+    //                     .with_mortality_check()
+    //                     .validate();
+    //                 let _ = response_sender.send(res).inspect_err(|_| {
+    //                     // No panic case as the request itself is going to be executed.
+    //                     // The dropped receiver signalizes that the external task sender
+    //                     // has crashed or is malformed, so problems should be handled there.
+    //                     log::error!("`ValidateTransaction` task receiver is stopped or dropped.");
+    //                 });
+    //             }
+    //             InputTask::AddTransaction {
+    //                 transaction,
+    //                 response_sender,
+    //             } => {
+    //                 let res = self.validate_tx_full(transaction).map(|tx| {
+    //                     let tx_hash = tx.tx_hash();
+    //                     let tx_encoded = tx.encode();
+
+    //                     // Request the external service for the tx propagation.
+    //                     self.sender.send(OutputTask::PropogateTransaction {
+    //                         transaction: tx.clone(),
+    //                     }).unwrap_or_else(|e| {
+    //                         // If receiving end of the external service is dropped, it's a panic case,
+    //                         // because otherwise transaction processing can't be performed correctly.
+    //                         let err_msg = format!(
+    //                             "Failed to send `PropogateTransaction` task. External service receiving end \
+    //                             might have been dropped. Got an error: {e:?}."
+    //                         );
+
+    //                         log::error!("{err_msg}");
+    //                         panic!("{err_msg}");
+    //                     });
+
+    //                     // Store the validated transaction to the database.
+    //                     self.db.set_validated_transaction(tx_hash, tx_encoded);
+
+    //                     // Start transaction execution
+    //                     tokio::spawn(Self::execute_transaction(self.db.clone(), tx));
+
+    //                     tx_hash
+    //                 });
+
+    //                 if let Some(response_sender) = response_sender {
+    //                     let _ = response_sender.send(res).inspect_err(|_| {
+    //                         // No panic case as a responsibility of transaction piil is fulfilled.
+    //                         // The dropped receiver signalizes that the external task sender
+    //                         // has crashed or is malformed, so problems should be handled there.
+    //                         log::error!("`AddTransaction` task receiver is stopped or dropped.")
+    //                     });
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     fn validate_tx_full(&self, transaction: SignedTransaction) -> Result<SignedTransaction> {
         TxValidator::new(transaction, self.db.clone())
@@ -148,6 +176,31 @@ impl TxPoolService {
         // TODO (breathx) Execute transaction
         // TODO (braethx) Remove transaction from the database.
         log::warn!("Unimplemented transaction execution");
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TxPoolEvent {
+    PropogateTransaction(SignedTransaction),
+}
+
+impl Stream for TxPoolService {
+    type Item = TxPoolEvent;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mutex_lock_fut = self.ready_txs.lock();
+        tokio::pin!(mutex_lock_fut);
+
+        let mut ready_txs = ready!(mutex_lock_fut.poll(cx));
+
+        Poll::Ready(ready_txs.pop_front().map(TxPoolEvent::PropogateTransaction))
+    }
+}
+
+impl FusedStream for TxPoolService {
+    // TODO [sab] yet
+    fn is_terminated(&self) -> bool {
+        false
     }
 }
 

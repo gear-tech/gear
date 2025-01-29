@@ -4841,7 +4841,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
 name = "ethexe-tx-pool"
 version = "1.7.0"
 dependencies = [
@@ -4849,6 +4848,7 @@ dependencies = [
  "ethexe-db",
  "ethexe-processor",
  "ethexe-signer",
+ "futures",
  "gear-utils",
  "gprimitives",
  "hex",
@@ -4858,22 +4858,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-utils"
-version = "1.7.0"
-dependencies = [
- "async-channel 1.9.0",
- "futures",
- "futures-timer",
- "log",
- "parking_lot 0.12.3",
- "prometheus",
- "sp-arithmetic 26.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409)",
- "tokio-test",
-]
-
-[[package]]
-=======
->>>>>>> a1c7e83f45b8b106b2010fbbf81065a6cd0d678e
 name = "ethexe-validator"
 version = "1.7.0"
 dependencies = [
