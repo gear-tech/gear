@@ -40,12 +40,12 @@ use gear_core::{
         InitPacket, MessageContext, Packet, ReplyPacket,
     },
     pages::{
-        numerated::{interval::Interval, tree::IntervalsTree},
-        GearPage, WasmPage, WasmPagesAmount,
+        numerated::interval::Interval, GearPage, WasmPage, WasmPagesAmount, WasmPagesIntervalsTree,
     },
     program::MemoryInfix,
     reservation::GasReserver,
 };
+
 use gear_core_backend::{
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
@@ -151,7 +151,7 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: Option<IntervalsTree<WasmPage>>,
+    pub allocations: Option<WasmPagesIntervalsTree>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
@@ -1538,7 +1538,7 @@ mod tests {
 
         let allocations_context = AllocationsContext::try_new(
             512.into(),
-            [existing_page].into_iter().collect(),
+            WasmPagesIntervalsTree::from([existing_page]),
             1.into(),
             None,
             512.into(),
