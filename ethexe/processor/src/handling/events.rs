@@ -100,9 +100,9 @@ impl ProcessingHandler {
                     let Some(ValueWithExpiry {
                         value: claimed_value,
                         expiry,
-                    }) = state
-                        .mailbox_hash
-                        .modify_mailbox(storage, |mailbox| mailbox.remove(source, replied_to))
+                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                        mailbox.remove_and_store_user_mailbox(storage, source, replied_to)
+                    })
                     else {
                         return Ok(());
                     };
@@ -131,9 +131,10 @@ impl ProcessingHandler {
             }
             MirrorRequestEvent::ValueClaimingRequested { claimed_id, source } => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
-                    let Some(ValueWithExpiry { value, expiry }) = state
-                        .mailbox_hash
-                        .modify_mailbox(storage, |mailbox| mailbox.remove(source, claimed_id))
+                    let Some(ValueWithExpiry { value, expiry }) =
+                        state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                            mailbox.remove_and_store_user_mailbox(storage, source, claimed_id)
+                        })
                     else {
                         return Ok(());
                     };
