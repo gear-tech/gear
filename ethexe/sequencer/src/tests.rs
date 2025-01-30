@@ -330,14 +330,17 @@ fn test_codes_commitment_candidate() {
 
     let commitment1 = CodeCommitment {
         id: H256::random().0.into(),
+        timestamp: 41,
         valid: true,
     };
     let commitment2 = CodeCommitment {
         id: H256::random().0.into(),
+        timestamp: 42,
         valid: true,
     };
     let commitment3 = CodeCommitment {
         id: H256::random().0.into(),
+        timestamp: 43,
         valid: false,
     };
 

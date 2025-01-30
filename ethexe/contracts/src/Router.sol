@@ -265,8 +265,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return mirror;
     }
 
-    // # Validators calls.
-
     /// @dev Set validators for the next era.
     function commitValidators(
         Gear.ValidatorsCommitment calldata _validatorsCommitment,
@@ -274,6 +272,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         bytes[] calldata _signatures
     ) external {
         Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
         uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
 
@@ -311,6 +310,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
+        uint256 maxTimestamp = 0;
         bytes memory codeCommitmentsHashes;
 
         for (uint256 i = 0; i < _codeCommitments.length; i++) {
@@ -331,10 +331,15 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             emit CodeGotValidated(codeCommitment.id, codeCommitment.valid);
 
             codeCommitmentsHashes = bytes.concat(codeCommitmentsHashes, Gear.codeCommitmentHash(codeCommitment));
+            if (codeCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = codeCommitment.timestamp;
+            }
         }
 
         require(
-            Gear.validateSignatures(router, keccak256(codeCommitmentsHashes), _signatureType, _signatures),
+            Gear.validateSignaturesAt(
+                router, keccak256(codeCommitmentsHashes), _signatureType, _signatures, maxTimestamp
+            ),
             "signatures verification failed"
         );
     }
@@ -347,10 +352,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
-        require(_blockCommitments.length > 0, "no block commitments to commit");
-
-        bytes memory blockCommitmentsHashes;
         uint256 maxTimestamp = 0;
+        bytes memory blockCommitmentsHashes;
 
         for (uint256 i = 0; i < _blockCommitments.length; i++) {
             Gear.BlockCommitment calldata blockCommitment = _blockCommitments[i];
@@ -366,6 +369,76 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         require(
             Gear.validateSignaturesAt(
                 router, keccak256(blockCommitmentsHashes), _signatureType, _signatures, maxTimestamp
+            ),
+            "signatures verification failed"
+        );
+    }
+
+    function commitBatch(
+        Gear.BatchCommitment calldata _batchCommitment,
+        Gear.SignatureType _signatureType,
+        bytes[] calldata _signatures
+    ) external nonReentrant {
+        Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+
+        require(
+            _batchCommitment.codeCommitments.length > 0 && _batchCommitment.blockCommitments.length > 0,
+            "no commitments to commit"
+        );
+
+        uint256 maxTimestamp = 0;
+
+        /* Commit Codes */
+
+        bytes memory codeCommitmentsHashes;
+
+        for (uint256 i = 0; i < _batchCommitment.codeCommitments.length; i++) {
+            Gear.CodeCommitment calldata codeCommitment = _batchCommitment.codeCommitments[i];
+
+            require(
+                router.protocolData.codes[codeCommitment.id] == Gear.CodeState.ValidationRequested,
+                "code must be requested for validation to be committed"
+            );
+
+            if (codeCommitment.valid) {
+                router.protocolData.codes[codeCommitment.id] = Gear.CodeState.Validated;
+                router.protocolData.validatedCodesCount++;
+            } else {
+                delete router.protocolData.codes[codeCommitment.id];
+            }
+
+            emit CodeGotValidated(codeCommitment.id, codeCommitment.valid);
+
+            codeCommitmentsHashes = bytes.concat(codeCommitmentsHashes, Gear.codeCommitmentHash(codeCommitment));
+            if (codeCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = codeCommitment.timestamp;
+            }
+        }
+
+        /* Commit Blocks */
+
+        bytes memory blockCommitmentsHashes;
+
+        for (uint256 i = 0; i < _batchCommitment.blockCommitments.length; i++) {
+            Gear.BlockCommitment calldata blockCommitment = _batchCommitment.blockCommitments[i];
+            blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
+            if (blockCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = blockCommitment.timestamp;
+            }
+        }
+
+        // NOTE: Use maxTimestamp to validate signatures for all commitments.
+        // This means that if at least one commitment is for block from current era,
+        // then all commitments should be checked with current era validators.
+
+        require(
+            Gear.validateSignaturesAt(
+                router,
+                keccak256(abi.encodePacked(blockCommitmentsHashes, codeCommitmentsHashes)),
+                _signatureType,
+                _signatures,
+                maxTimestamp
             ),
             "signatures verification failed"
         );

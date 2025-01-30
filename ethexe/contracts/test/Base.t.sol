@@ -199,7 +199,7 @@ contract Base is POCBaseTest {
 
         for (uint256 i = 0; i < _commitments.length; i++) {
             Gear.CodeCommitment memory _commitment = _commitments[i];
-            _codesBytes = bytes.concat(_codesBytes, keccak256(abi.encodePacked(_commitment.id, _commitment.valid)));
+            _codesBytes = bytes.concat(_codesBytes, Gear.codeCommitmentHash(_commitment));
         }
 
         router.commitCodes(_commitments, Gear.SignatureType.FROST, signBytes(_privateKeys, _codesBytes));

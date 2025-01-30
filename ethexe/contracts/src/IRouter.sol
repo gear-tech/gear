@@ -109,7 +109,6 @@ interface IRouter {
     /// @dev ProgramCreated Emitted on success.
     function createProgramWithDecoder(address decoderImpl, bytes32 codeId, bytes32 salt) external returns (address);
 
-    // # Validators calls.
     /// @dev CodeGotValidated Emitted for each code in commitment.
     function commitCodes(
         Gear.CodeCommitment[] calldata codeCommitments,
@@ -125,6 +124,14 @@ interface IRouter {
     /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(
         Gear.ValidatorsCommitment calldata validatorsCommitment,
+        Gear.SignatureType signatureType,
+        bytes[] calldata signatures
+    ) external;
+
+    /// @dev CodeGotValidated Emitted for each code in commitment.
+    /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
+    function commitBatch(
+        Gear.BatchCommitment calldata batchCommitment,
         Gear.SignatureType signatureType,
         bytes[] calldata signatures
     ) external;
