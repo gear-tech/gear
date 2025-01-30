@@ -74,11 +74,6 @@ pub struct Router {
 }
 
 impl Router {
-    /// `Gear.blockIsPredecessor(hash)` can consume up to 30_000 gas
-    const GEAR_BLOCK_IS_PREDECESSOR_GAS: u64 = 30_000;
-    /// Huge gas limit is necessary so that the transaction is more likely to be picked up
-    const HUGE_GAS_LIMIT: u64 = 10_000_000;
-
     pub(crate) fn new(
         address: Address,
         wvara_address: Address,
@@ -203,10 +198,8 @@ impl Router {
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                 .collect(),
         );
-        let gas_limit = Self::HUGE_GAS_LIMIT
-            .max(builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
         let receipt = builder
-            .gas(gas_limit)
+            .gas(10_000_000)
             .send()
             .await?
             .try_get_receipt()
@@ -227,14 +220,7 @@ impl Router {
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                 .collect(),
         );
-        let gas_limit = Self::HUGE_GAS_LIMIT
-            .max(builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
-        let receipt = builder
-            .gas(gas_limit)
-            .send()
-            .await?
-            .try_get_receipt()
-            .await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
     }
 }
