@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::stack_end;
+use crate::{data_section, stack_end};
 use anyhow::{anyhow, Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
@@ -46,6 +46,8 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
     "metahash",
     STACK_END_EXPORT_NAME,
 ];
+
+const MAX_DATA_SEGMENTS_AMOUNT: usize = 1024;
 
 /// Type of the output wasm.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -94,6 +96,88 @@ impl Optimizer {
         self.module
             .sections_mut()
             .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
+    }
+
+    /// Join data segments
+    ///
+    /// This function joins data segments that are separated by a small number of zero bytes.
+    /// Is is necessary to fit in the network limits - 1024 data segment limit.
+    pub fn join_data_sections(&mut self) {
+        let statistics = match self.module.data_section() {
+            Some(data_section) if data_section.entries().len() >= MAX_DATA_SEGMENTS_AMOUNT => {
+                data_section::zero_bytes_gap_statistics(data_section)
+            }
+            _ => return,
+        };
+
+        let mut data_sections_to_join =
+            self.module.data_section().unwrap().entries().len() - MAX_DATA_SEGMENTS_AMOUNT;
+
+        let mut accumulated_sum = 0;
+        let threshold_zero_bytes = statistics
+            .iter()
+            .find_map(|(&key, &count)| {
+                accumulated_sum += count;
+                if accumulated_sum >= data_sections_to_join {
+                    Some(key)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| *statistics.keys().last().unwrap());
+
+        let mut current_segment_index = 1;
+        while data_sections_to_join > 0 {
+            let previous_segment = self
+                .module
+                .data_section()
+                .unwrap()
+                .entries()
+                .get(current_segment_index - 1)
+                .unwrap();
+            let current_segment = self
+                .module
+                .data_section()
+                .unwrap()
+                .entries()
+                .get(current_segment_index)
+                .unwrap();
+
+            let zero_bytes =
+                match data_section::segments_zero_bytes_gap(previous_segment, current_segment) {
+                    Some(zero_bytes) => zero_bytes,
+                    None => {
+                        current_segment_index += 1;
+                        // skip `passive` data segments
+                        continue;
+                    }
+                };
+
+            if zero_bytes <= threshold_zero_bytes {
+                let current_segment = self
+                    .module
+                    .data_section_mut()
+                    .unwrap()
+                    .entries_mut()
+                    .remove(current_segment_index);
+
+                let mut addition_part: Vec<u8> = vec![0u8; zero_bytes];
+                addition_part.extend(current_segment.value());
+
+                self.module
+                    .data_section_mut()
+                    .unwrap()
+                    .entries_mut()
+                    .get_mut(current_segment_index - 1)
+                    .unwrap()
+                    .value_mut()
+                    .extend(addition_part);
+
+                data_sections_to_join -= 1;
+            } else {
+                current_segment_index += 1;
+            }
+        }
     }
 
     pub fn flush_to_file(self, path: &PathBuf) {
