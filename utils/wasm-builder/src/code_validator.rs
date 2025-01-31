@@ -331,11 +331,11 @@ impl CodeValidator {
         let schedule = Schedule::default();
         match Code::try_new(
             self.code,
-            1,
-            |_| CustomConstantCostRules::default(),
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
             schedule.limits.stack_height,
-            Some(schedule.limits.data_segments_amount),
-            Some(schedule.limits.table_number),
+            schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         ) {
             Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
             _ => Ok(()),
