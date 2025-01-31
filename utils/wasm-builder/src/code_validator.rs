@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{DATA_SEGMENTS_AMOUNT_LIMIT, STACK_HEIGHT_LIMIT, TABLE_NUMBER_LIMIT};
 use anyhow::{anyhow, bail};
 use gear_core::{
     code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig},
@@ -332,9 +333,9 @@ impl CodeValidator {
             self.code,
             1,
             |_| CustomConstantCostRules::default(),
-            None,
-            None,
-            None,
+            Some(STACK_HEIGHT_LIMIT),
+            Some(DATA_SEGMENTS_AMOUNT_LIMIT),
+            Some(TABLE_NUMBER_LIMIT),
         ) {
             Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
             _ => Ok(()),
