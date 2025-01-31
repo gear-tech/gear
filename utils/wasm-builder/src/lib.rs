@@ -35,19 +35,8 @@ mod crate_info;
 mod multiple_crate_versions;
 mod smart_fs;
 mod wasm_project;
-pub use constants::*;
 
-/// Module containing constants of wasm-builder
-pub mod constants {
-    pub const TARGET: &str = env!("TARGET");
-
-    /* CodeValidator related constants. */
-    pub(crate) const STACK_HEIGHT_LIMIT: u32 = 36_743;
-
-    pub(crate) const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
-
-    pub(crate) const TABLE_NUMBER_LIMIT: u32 = 100;
-}
+pub const TARGET: &str = env!("TARGET");
 
 /// WASM building tool.
 pub struct WasmBuilder {

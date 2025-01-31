@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{DATA_SEGMENTS_AMOUNT_LIMIT, STACK_HEIGHT_LIMIT, TABLE_NUMBER_LIMIT};
 use anyhow::{anyhow, bail};
 use gear_core::{
     code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig},
-    gas_metering::CustomConstantCostRules,
+    gas_metering::{CustomConstantCostRules, Schedule},
 };
 use gear_wasm_instrument::SyscallName;
 use pwasm_utils::parity_wasm::{
@@ -329,13 +328,14 @@ impl CodeValidator {
     /// Validates wasm code in the same way as
     /// `pallet_gear::pallet::Pallet::upload_program(...)`.
     pub fn validate_program(self) -> anyhow::Result<()> {
+        let schedule = Schedule::default();
         match Code::try_new(
             self.code,
             1,
             |_| CustomConstantCostRules::default(),
-            Some(STACK_HEIGHT_LIMIT),
-            Some(DATA_SEGMENTS_AMOUNT_LIMIT),
-            Some(TABLE_NUMBER_LIMIT),
+            schedule.limits.stack_height,
+            Some(schedule.limits.data_segments_amount),
+            Some(schedule.limits.table_number),
         ) {
             Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
             _ => Ok(()),
