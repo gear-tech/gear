@@ -1373,7 +1373,7 @@ where
             GasHandlerOf::<T>::create(origin.clone(), multiplier, key.clone(), amount)
                 .unwrap_or_else(|e| {
                     let err_msg = format!(
-                        "create: failed to creat gas node. Origin - {origin:?}, message id - {key}, \
+                        "create: failed to create gas node. Origin - {origin:?}, message id - {key}, \
                         amount - {amount}, is_reply - {is_reply}. Got error - {e:?}",
                         key = key.into(),
                     );
