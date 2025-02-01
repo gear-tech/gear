@@ -208,6 +208,7 @@ impl Router {
         state_diff.insert(
             // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
             fixed_bytes!("e3d827fd4fed52666d49a0df00f9cc2ac79f0f2378fc627e62463164801b6500"),
+            // router.reserved = 1
             fixed_bytes!("0000000000000000000000000000000000000000000000000000000000000001"),
         );
 
@@ -251,6 +252,7 @@ impl Router {
         state_diff.insert(
             // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
             fixed_bytes!("e3d827fd4fed52666d49a0df00f9cc2ac79f0f2378fc627e62463164801b6500"),
+            // router.reserved = 1
             fixed_bytes!("0000000000000000000000000000000000000000000000000000000000000001"),
         );
 
