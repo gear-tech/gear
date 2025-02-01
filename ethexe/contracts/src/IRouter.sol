@@ -9,6 +9,9 @@ import {Gear} from "./libraries/Gear.sol";
 interface IRouter {
     /// @custom:storage-location erc7201:router.storage.Router.
     struct Storage {
+        /// @notice Reserved storage slot.
+        /// @dev This slot is reserved for gas estimation purposes. Must be zero.
+        uint256 reserved;
         /// @notice Genesis block information for this router.
         /// @dev This identifies the co-processor instance. To allow interactions with the router, after initialization, someone must call `lookupGenesisHash()`.
         Gear.GenesisBlockInfo genesisBlock;

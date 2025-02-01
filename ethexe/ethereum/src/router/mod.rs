@@ -23,9 +23,9 @@ use crate::{
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{Address, Bytes, U256},
+    primitives::{fixed_bytes, Address, Bytes, U256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::Filter,
+    rpc::types::{eth::state::AccountOverride, Filter},
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
@@ -38,7 +38,7 @@ use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
 use gprimitives::{ActorId, CodeId, H256};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 pub mod events;
 
@@ -74,6 +74,11 @@ pub struct Router {
 }
 
 impl Router {
+    /// `Gear.blockIsPredecessor(hash)` can consume up to 30_000 gas
+    const GEAR_BLOCK_IS_PREDECESSOR_GAS: u64 = 30_000;
+    /// Huge gas limit is necessary so that the transaction is more likely to be picked up
+    const HUGE_GAS_LIMIT: u64 = 10_000_000;
+
     pub(crate) fn new(
         address: Address,
         wvara_address: Address,
@@ -198,8 +203,30 @@ impl Router {
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                 .collect(),
         );
+
+        let mut state_diff = HashMap::default();
+        state_diff.insert(
+            // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
+            fixed_bytes!("e3d827fd4fed52666d49a0df00f9cc2ac79f0f2378fc627e62463164801b6500"),
+            // router.reserved = 1
+            fixed_bytes!("0000000000000000000000000000000000000000000000000000000000000001"),
+        );
+
+        let mut state = HashMap::default();
+        state.insert(
+            *self.instance.address(),
+            AccountOverride {
+                state_diff: Some(state_diff),
+                ..Default::default()
+            },
+        );
+
+        let estimate_gas_builder = builder.clone().state(state);
+        let gas_limit = Self::HUGE_GAS_LIMIT
+            .max(estimate_gas_builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
+
         let receipt = builder
-            .gas(10_000_000)
+            .gas(gas_limit)
             .send()
             .await?
             .try_get_receipt()
@@ -220,7 +247,34 @@ impl Router {
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
                 .collect(),
         );
-        let receipt = builder.send().await?.try_get_receipt().await?;
+
+        let mut state_diff = HashMap::default();
+        state_diff.insert(
+            // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
+            fixed_bytes!("e3d827fd4fed52666d49a0df00f9cc2ac79f0f2378fc627e62463164801b6500"),
+            // router.reserved = 1
+            fixed_bytes!("0000000000000000000000000000000000000000000000000000000000000001"),
+        );
+
+        let mut state = HashMap::default();
+        state.insert(
+            *self.instance.address(),
+            AccountOverride {
+                state_diff: Some(state_diff),
+                ..Default::default()
+            },
+        );
+
+        let estimate_gas_builder = builder.clone().state(state);
+        let gas_limit = Self::HUGE_GAS_LIMIT
+            .max(estimate_gas_builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
+
+        let receipt = builder
+            .gas(gas_limit)
+            .send()
+            .await?
+            .try_get_receipt()
+            .await?;
         Ok(H256(receipt.transaction_hash.0))
     }
 }
