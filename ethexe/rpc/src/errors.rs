@@ -18,6 +18,8 @@
 
 use jsonrpsee::types::ErrorObject;
 
+// TODO #4364: https://github.com/gear-tech/gear/issues/4364
+
 pub fn db(err: &'static str) -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Database error", Some(err))
 }
@@ -28,4 +30,8 @@ pub fn runtime(err: anyhow::Error) -> ErrorObject<'static> {
 
 pub fn internal() -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Internal error", None::<&str>)
+}
+
+pub fn tx_pool(err: anyhow::Error) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Transaction pool error", Some(format!("{err}")))
 }

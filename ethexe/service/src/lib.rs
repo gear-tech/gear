@@ -34,6 +34,9 @@ use ethexe_sequencer::{
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
+use ethexe_tx_pool::{
+    InputTask, OutputTask, SignedTransaction, TxPoolEvent, TxPoolKit, TxPoolSender, TxPoolService,
+};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
 use gprimitives::H256;
@@ -53,6 +56,7 @@ pub struct Service {
     router_query: RouterQuery,
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
+    tx_pool: TxPoolService,
 
     // Optional services
     network: Option<NetworkService>,
@@ -76,6 +80,9 @@ pub enum NetworkMessage {
     ApproveCommitments {
         codes: Option<(Digest, Signature)>,
         blocks: Option<(Digest, Signature)>,
+    },
+    Transaction {
+        transaction: SignedTransaction,
     },
 }
 
@@ -227,6 +234,8 @@ impl Service {
             ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
         });
 
+        let tx_pool = TxPoolService::new(db.clone());
+
         Ok(Self {
             db,
             network,
@@ -239,6 +248,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
+            tx_pool,
         })
     }
 
@@ -259,6 +269,7 @@ impl Service {
         router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
+        tx_pool: TxPoolService,
         network: Option<NetworkService>,
         sequencer: Option<SequencerService>,
         validator: Option<ethexe_validator::Validator>,
@@ -277,6 +288,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
+            tx_pool,
         }
     }
 
@@ -386,6 +398,7 @@ impl Service {
         let mut commitments = vec![];
 
         let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
+        log::debug!("Last commited chain {:#?}", last_committed_chain);
 
         for block_hash in last_committed_chain.into_iter().rev() {
             let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
@@ -414,9 +427,8 @@ impl Service {
     }
 
     pub async fn run(self) -> Result<()> {
-        self.run_inner().await.map_err(|err| {
+        self.run_inner().await.inspect_err(|err| {
             log::error!("Service finished work with error: {err:?}");
-            err
         })
     }
 
@@ -430,6 +442,7 @@ impl Service {
             mut processor,
             mut sequencer,
             signer: _signer,
+            mut tx_pool,
             mut validator,
             mut prometheus,
             rpc,
@@ -672,6 +685,9 @@ impl Service {
                                         }
                                     }
                                 },
+                                NetworkMessage::Transaction { transaction } => {
+                                    todo!()
+                                },
                             };
                         }
                         NetworkEvent::ExternalValidation(validating_response) => {
@@ -714,6 +730,18 @@ impl Service {
                         }
                     }
                 }
+                event = tx_pool.select_next_some() => {
+                    log::debug!("Received tx-pool event {event:?}");
+                    match event {
+                        TxPoolEvent::PropogateTransaction(transaction) => {
+                            if let Some(n) = network.as_mut() {
+                                n.publish_transaction(NetworkMessage::Transaction { transaction }.encode());
+                            }
+
+                            log::debug!("Network service isn't defined, so transaction won't be propogated");
+                        }
+                    }
+                },
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                 }

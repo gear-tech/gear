@@ -40,6 +40,7 @@ use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_signer::Signer;
+use ethexe_tx_pool::{RawTransacton, SignedTransaction, Transaction};
 use ethexe_validator::Validator;
 use gear_core::{
     ids::prelude::*,
@@ -47,7 +48,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
@@ -963,6 +964,126 @@ async fn multiple_validators() {
     assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(120_000)]
+async fn tx_pool_gossip() {
+    gear_utils::init_default_logger();
+
+    let test_env_config = TestEnvConfig {
+        validators: ValidatorsConfig::Generated(2),
+        ..Default::default()
+    };
+
+    // Setup env of 2 nodes, one of them knows about the other one.
+    let mut env = TestEnv::new(test_env_config).await.unwrap();
+
+    log::info!("📗 Starting node 0");
+    let mut node0 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[0])
+            .service_rpc(9505)
+            .network(None, None),
+    );
+    node0.start_service().await;
+
+    log::info!("📗 Starting node 1");
+    let mut node1 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[1])
+            .network(None, node0.multiaddr.clone()),
+    );
+    node1.start_service().await;
+
+    log::info!("Populate node-0 and node-1 with 2 valid blocks");
+
+    env.observer
+        .provider()
+        .evm_mine(None)
+        .await
+        .expect("failed mining a new block");
+    env.observer
+        .provider()
+        .evm_mine(None)
+        .await
+        .expect("failed mining a new block");
+
+    // Give some time for nodes to process the blocks
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let reference_block = node0
+        .db
+        .latest_valid_block()
+        .expect("at least genesis block is latest valid")
+        .0;
+
+    // Prepare tx data
+    let signed_ethexe_tx = {
+        let sender_pub_key = env.signer.generate_key().expect("failed generating key");
+
+        let ethexe_tx = Transaction {
+            raw: RawTransacton::SendMessage {
+                program_id: H160::random(),
+                payload: vec![],
+                value: 0,
+            },
+            // referring to the latest valid block hash
+            reference_block,
+        };
+        let signature = env
+            .signer
+            .sign(sender_pub_key, ethexe_tx.encode().as_ref())
+            .expect("failed signing tx");
+        SignedTransaction {
+            signature: signature.encode(),
+            transaction: ethexe_tx,
+        }
+    };
+
+    // Send request
+    log::info!("Sending tx pool request to node-1");
+    let resp = send_json_request(node0.service_rpc_url().expect("rpc server is set"), || {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "transactionPool_sendMessage",
+            "params": {
+                "program_id": signed_ethexe_tx.transaction.raw.program_id(),
+                "payload": signed_ethexe_tx.transaction.raw.payload().to_vec(),
+                "value": signed_ethexe_tx.transaction.raw.value(),
+                "reference_block": signed_ethexe_tx.transaction.reference_block,
+                "signature": signed_ethexe_tx.signature,
+            },
+            "id": 1,
+        })
+    })
+    .await
+    .expect("failed sending request");
+
+    assert!(resp.status().is_success());
+
+    // Tx executable validation takes time.
+    // Sleep for a while so tx is processed by both nodes.
+    tokio::time::sleep(Duration::from_secs(12)).await;
+
+    // Check that node-1 received the message
+    let tx_hash = signed_ethexe_tx.tx_hash();
+    let tx_data = node1
+        .db
+        .validated_transaction(tx_hash)
+        .expect("tx not found");
+    let node1_db_tx: SignedTransaction =
+        Decode::decode(&mut &tx_data[..]).expect("failed to decode tx");
+    assert_eq!(node1_db_tx, signed_ethexe_tx);
+}
+
+async fn send_json_request(
+    rpc_server_url: String,
+    create_request: impl Fn() -> serde_json::Value,
+) -> Result<reqwest::Response, reqwest::Error> {
+    let client = reqwest::Client::new();
+    let req_body = create_request();
+
+    client.post(rpc_server_url).json(&req_body).send().await
+}
+
 mod utils {
     use super::*;
     use ethexe_network::export::Multiaddr;
@@ -1160,6 +1281,7 @@ mod utils {
                 sequencer_public_key,
                 validator_public_key,
                 network,
+                service_rpc_config,
             } = config;
 
             let db =
@@ -1192,6 +1314,7 @@ mod utils {
                 validator_public_key,
                 network_address,
                 network_bootstrap_address,
+                service_rpc_config,
             }
         }
 
@@ -1385,6 +1508,8 @@ mod utils {
         pub validator_public_key: Option<ethexe_signer::PublicKey>,
         /// Network configuration, if provided then new node starts with network.
         pub network: Option<NodeNetworkConfig>,
+        /// RPC configuration, if provided then new node starts with RPC service.
+        pub service_rpc_config: Option<RpcConfig>,
     }
 
     impl NodeConfig {
@@ -1412,6 +1537,16 @@ mod utils {
                 address,
                 bootstrap_address,
             });
+            self
+        }
+
+        pub fn service_rpc(mut self, rpc_port: u16) -> Self {
+            let service_rpc_config = RpcConfig {
+                listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
+                cors: None,
+            };
+            self.service_rpc_config = Some(service_rpc_config);
+
             self
         }
     }
@@ -1553,6 +1688,7 @@ mod utils {
         validator_public_key: Option<ethexe_signer::PublicKey>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
+        service_rpc_config: Option<RpcConfig>,
     }
 
     impl Node {
@@ -1628,6 +1764,16 @@ mod utils {
                 None => None,
             };
 
+            let tx_pool_kit = ethexe_tx_pool::new(self.db.clone());
+
+            let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
+                RpcService::new(
+                    service_rpc_config.clone(),
+                    self.db.clone(),
+                    tx_pool_kit.tx_pool_sender.clone(),
+                )
+            });
+
             let service = Service::new_from_parts(
                 self.db.clone(),
                 self.observer.clone(),
@@ -1639,7 +1785,8 @@ mod utils {
                 sequencer,
                 validator,
                 None,
-                None,
+                rpc,
+                tx_pool_kit,
             );
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);
@@ -1656,6 +1803,12 @@ mod utils {
             handle.abort();
             let _ = handle.await;
             self.multiaddr = None;
+        }
+
+        pub fn service_rpc_url(&self) -> Option<String> {
+            self.service_rpc_config
+                .as_ref()
+                .map(|rpc| format!("http://{}", rpc.listen_addr))
         }
     }
 

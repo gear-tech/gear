@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,14 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod block;
-mod code;
-mod dev;
-mod program;
-mod tx_pool;
+//! Ethexe transaction pool.
 
-pub use block::{BlockApi, BlockServer};
-pub use code::{CodeApi, CodeServer};
-pub use dev::{DevApi, DevServer};
-pub use program::{ProgramApi, ProgramServer};
-pub use tx_pool::{TransactionPoolApi, TransactionPoolServer};
+mod service;
+mod transaction;
+mod validation;
+
+#[cfg(test)]
+mod tests;
+
+pub use service::{
+    new, InputTask, OutputTask, TxPoolEvent, TxPoolInputTaskSender, TxPoolKit,
+    TxPoolOutputTaskReceiver, TxPoolService,
+};
+pub use transaction::{RawTransacton, SignedTransaction, Transaction};
+
+use validation::TxValidator;
+
+/// Transaction pool input task sender with a [`SignedEthexeTransaction`] transaction type.
+pub type TxPoolSender = TxPoolInputTaskSender<SignedTransaction>;
+/// Transaction pool output task receiver with a [`SignedEthexeTransaction`] transaction type.
+pub type TxPoolReceiver = TxPoolOutputTaskReceiver<SignedTransaction>;
