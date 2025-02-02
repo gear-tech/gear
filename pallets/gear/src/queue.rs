@@ -18,7 +18,7 @@
 
 use super::*;
 use core_processor::ContextChargedForInstrumentation;
-use gear_core::program::ProgramState;
+use gear_core::{pages::WasmPagesIntervalsTree, program::ProgramState};
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
@@ -114,7 +114,7 @@ where
         }).unwrap_or_default();
 
         let actor_data = ExecutableActorData {
-            allocations,
+            allocations: WasmPagesIntervalsTree::try_from(allocations).unwrap(),
             code_id: program.code_hash.cast(),
             code_exports: program.code_exports,
             static_pages: program.static_pages,

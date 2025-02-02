@@ -27,16 +27,15 @@ use crate::{
     ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
-use alloc::{
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{format, string::ToString, vec::Vec};
 use gear_core::{
+    buffer::LimitedVec,
+    code::MAX_WASM_PAGES_AMOUNT,
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
+    str::LimitedStr,
 };
 use gear_core_backend::{
     error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
@@ -162,6 +161,14 @@ where
                         .as_ref()
                         .map(|reserver| initial_reservations_amount <= reserver.states().len())
                         .unwrap_or(true));
+
+                    if let Some(allocations) = res.allocations.as_ref() {
+                        debug_assert!(allocations.intervals_amount() < MAX_WASM_PAGES_AMOUNT as usize,
+                            "maximum supported WASM pages amount is {MAX_WASM_PAGES_AMOUNT}, but program used {} pages",
+                            allocations.intervals_amount()
+                    );
+                    }
+                    debug_assert!(res.program_candidates.len() < 1024);
                 }
                 // reservation does not change in case of failure
                 _ => (),
@@ -208,18 +215,19 @@ enum ProcessErrorCase {
 }
 
 impl ProcessErrorCase {
-    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
+    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, LimitedStr<'static>) {
         match self {
             ProcessErrorCase::NonExecutable => {
                 let reason = ErrorReplyReason::InactiveActor;
-                (reason, reason.to_string())
+                (reason, LimitedStr::from(reason.to_string()))
             }
-            ProcessErrorCase::ExecutionFailed(reason) => {
-                (reason.as_simple().into(), reason.to_string())
-            }
+            ProcessErrorCase::ExecutionFailed(reason) => (
+                reason.as_simple().into(),
+                LimitedStr::from(reason.to_string()),
+            ),
             ProcessErrorCase::ReinstrumentationFailed => {
                 let err = ErrorReplyReason::ReinstrumentationFailure;
-                (err, err.to_string())
+                (err, LimitedStr::from(err.to_string()))
             }
         }
     }
@@ -482,10 +490,15 @@ pub fn process_success(
 
     // Must be handled before handling generated dispatches.
     for (code_id, candidates) in program_candidates {
+        let size = candidates.len();
         journal.push(JournalNote::StoreNewPrograms {
             program_id,
             code_id,
-            candidates,
+            candidates: LimitedVec::try_from(candidates).unwrap_or_else(|_| {
+                let msg = format!("program_candidates is too big: limit 1024, got {}", size);
+                log::error!("{msg}");
+                unreachable!("{msg}")
+            }),
         });
     }
 
