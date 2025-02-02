@@ -105,6 +105,7 @@ pub enum SyscallName {
     ReserveGas,
     UnreserveGas,
     SystemReserveGas,
+    PoseidonPermute,
 }
 
 impl SyscallName {
@@ -167,6 +168,7 @@ impl SyscallName {
             Self::WaitFor => "gr_wait_for",
             Self::WaitUpTo => "gr_wait_up_to",
             Self::Wake => "gr_wake",
+            Self::PoseidonPermute => "gr_poseidon_permute",
         }
     }
 
@@ -473,6 +475,10 @@ impl SyscallName {
                 Ptr::MutBlockNumberWithHash(HashType::SubjectId).into(),
             ]),
             Self::SystemBreak => unimplemented!("Unsupported syscall signature for system_break"),
+            Self::PoseidonPermute => SyscallSignature::gr_infallible([
+                Ptr::Hash(HashType::PoseidonPermuteInOut).into(),
+                Ptr::MutHash(HashType::PoseidonPermuteInOut).into(),
+            ]),
         }
     }
 
@@ -537,6 +543,8 @@ pub enum HashType {
     ReservationId,
     /// This enum variant is used for the `gr_random` syscall.
     SubjectId,
+    /// Poseidon permute input and output used in the `gr_poseidon_permute` syscall.
+    PoseidonPermuteInOut,
 }
 
 impl From<ParamType> for ValueType {

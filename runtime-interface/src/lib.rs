@@ -412,3 +412,12 @@ pub trait GearBls12_381 {
         Ok(ArkScale::<G2Affine>::from(point).encode())
     }
 }
+
+#[runtime_interface]
+pub trait GearPoseidonHash {
+    fn poseidon(input: Vec<u64>) -> Vec<u64> {
+        // Mocked default implementation: does nothing.
+        // The actual implementation is going to be provided in a separate PR.
+        input
+    }
+}

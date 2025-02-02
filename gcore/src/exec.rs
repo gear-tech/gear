@@ -27,7 +27,7 @@ use crate::{
     ActorId, EnvVars, MessageId,
 };
 use core::mem::MaybeUninit;
-use gsys::BlockNumberWithHash;
+use gsys::{BlockNumberWithHash, PoseidonPermuteInOut};
 #[cfg(not(feature = "ethexe"))]
 use {
     crate::ReservationId,
@@ -445,4 +445,30 @@ pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {
     unsafe { gsys::gr_random(&subject, res.as_mut_ptr()) };
 
     Ok((res.hash, res.bn))
+}
+
+/// Performs permutation on a fixed-size array in Poseidon hash calculation.
+/// For our GoldilocksField implementation, the array size (as a derivative of
+/// the Poseidon sponge width and sponge rate) is set to 12.
+///
+/// `data` is the permutation input.
+///
+/// # Examples
+///
+/// ```
+/// use core::array;
+/// use gcore::exec;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     let data: [u64; 12] = array::from_fn(|i| i as u64 + 1);
+///     let hash_out = exec::poseidon_permute(data).expect("Error in random");
+/// }
+/// ```
+pub fn poseidon_permute(data: PoseidonPermuteInOut) -> Result<PoseidonPermuteInOut> {
+    let mut res = PoseidonPermuteInOut::default();
+
+    unsafe { gsys::gr_poseidon_permute(data.as_ptr() as *const _, res.as_mut_ptr() as *mut _) };
+
+    Ok(res)
 }

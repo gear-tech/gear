@@ -214,7 +214,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    SyscallName::all().for_each(|syscall| {
+    vec![SyscallName::PoseidonPermute].into_iter().for_each(|syscall| {
         log::info!("run test for {syscall:?}");
         match syscall {
             SyscallName::Send => check_send::<T>(None),
@@ -272,6 +272,7 @@ where
             SyscallName::ReservationReply => check_gr_reservation_reply::<T>(),
             SyscallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SyscallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
+            SyscallName::PoseidonPermute => check_gr_poseidon_permute::<T>(),
         }
     });
 }
@@ -1036,6 +1037,39 @@ where
         let lower = 50_000_000_000 - 750_000_000;
         let upper = 50_000_000_000 - 100_000_000;
         let mp = vec![Kind::GasAvailable(lower, upper)].encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
+    })
+}
+
+fn check_gr_poseidon_permute<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let input = [1_u64; 12];
+        // TODO: uncomment when the actual host implementation of Poseidon permute is ready
+        // let expected_hash: [u64; 12] = [
+        //     16428316519797902711,
+        //     13351830238340666928,
+        //     682362844289978626,
+        //     12150588177266359240,
+        //     17253754121560429078,
+        //     451271978634734260,
+        //     18275013734444918923,
+        //     2683513634502220619,
+        //     11021424422480713329,
+        //     9919697188140387146,
+        //     12631792409692871611,
+        //     12948832098596279325,
+        // ];
+        // TODO: remove this line when the actual host implementation of Poseidon permute is ready
+        let expected_hash: [u64; 12] = input;
+
+        let mp = vec![Kind::PoseidonPermute(input, expected_hash)]
+            .encode()
+            .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
