@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,11 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod cargo_command;
-mod cargo_toolchain;
-mod data_section;
-mod optimize;
-mod stack_end;
+use crate::data_access::DataAccess;
+use gstd::{msg, prelude::*};
 
-pub use cargo_command::CargoCommand;
-pub use optimize::*;
+#[unsafe(no_mangle)]
+extern "C" fn init() {
+    let payload = msg::load_bytes().expect("Failed to load payload");
+
+    let value = DataAccess::from_payload(&payload)
+        .expect("Failed to decode incoming payload")
+        .constant();
+
+    msg::reply_bytes(value.to_be_bytes(), 0).expect("Failed to send reply");
+}

@@ -3336,6 +3336,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-big-data-section"
+version = "1.7.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+ "proptest",
+]
+
+[[package]]
 name = "demo-bls381"
 version = "0.1.0"
 dependencies = [
