@@ -677,11 +677,6 @@ impl Global {
         }
     }
 
-    pub fn mutable(mut self) -> Self {
-        self.ty.mutable = true;
-        self
-    }
-
     fn parse(global: wasmparser::Global) -> Result<Self> {
         Ok(Self {
             ty: global.ty,
