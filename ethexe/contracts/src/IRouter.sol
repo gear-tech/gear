@@ -45,8 +45,7 @@ interface IRouter {
     /// @notice Emitted when a new code validation request is submitted.
     /// @dev This is a *requesting* event, signaling that validators need to download and validate the code from the transaction blob.
     /// @param codeId The expected code ID of the applied WASM blob, represented as a Blake2 hash.
-    /// @param blobTxHash The transaction hash that contains the WASM blob. Set to zero if applied to the current transaction.
-    event CodeValidationRequested(bytes32 codeId, bytes32 blobTxHash);
+    event CodeValidationRequested(bytes32 codeId);
 
     /// @notice Emitted when validators for the next era has been set.
     /// @dev This is an *informational* and *request* event, signaling that validators has been set for the next era.
@@ -104,13 +103,12 @@ interface IRouter {
     function lookupGenesisHash() external;
 
     /// @dev CodeValidationRequested Emitted on success.
-    function requestCodeValidation(bytes32 codeId, bytes32 blobTxHash) external;
+    function requestCodeValidation(bytes32 codeId) external;
     /// @dev ProgramCreated Emitted on success.
     function createProgram(bytes32 codeId, bytes32 salt) external returns (address);
     /// @dev ProgramCreated Emitted on success.
     function createProgramWithDecoder(address decoderImpl, bytes32 codeId, bytes32 salt) external returns (address);
 
-    // # Validators calls.
     /// @dev CodeGotValidated Emitted for each code in commitment.
     function commitCodes(
         Gear.CodeCommitment[] calldata codeCommitments,
@@ -126,6 +124,14 @@ interface IRouter {
     /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(
         Gear.ValidatorsCommitment calldata validatorsCommitment,
+        Gear.SignatureType signatureType,
+        bytes[] calldata signatures
+    ) external;
+
+    /// @dev CodeGotValidated Emitted for each code in commitment.
+    /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
+    function commitBatch(
+        Gear.BatchCommitment calldata batchCommitment,
         Gear.SignatureType signatureType,
         bytes[] calldata signatures
     ) external;

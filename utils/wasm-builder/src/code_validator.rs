@@ -19,7 +19,7 @@
 use anyhow::{anyhow, bail};
 use gear_core::{
     code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig},
-    gas_metering::CustomConstantCostRules,
+    gas_metering::{CustomConstantCostRules, Schedule},
 };
 use gear_wasm_instrument::{Export, ExternalKind, FuncType, Module, SyscallName, TypeRef, ValType};
 use std::fmt;
@@ -292,12 +292,14 @@ impl CodeErrorWithContext {
 /// `pallet_gear::pallet::Pallet::upload_program(...)`.
 pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
     let module = Module::new(&code)?;
+    let schedule = Schedule::default();
     match Code::try_new(
-        code.clone(),
-        1,
-        |_| CustomConstantCostRules::default(),
-        None,
-        None,
+        self.code,
+        schedule.instruction_weights.version,
+        |module| schedule.rules(module),
+        schedule.limits.stack_height,
+        schedule.limits.data_segments_amount.into(),
+        schedule.limits.table_number.into(),
     ) {
         Ok(_) => Ok(()),
         Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,

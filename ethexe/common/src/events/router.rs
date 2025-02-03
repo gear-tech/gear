@@ -18,7 +18,6 @@
 
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Event {
@@ -31,8 +30,8 @@ pub enum Event {
     },
     CodeValidationRequested {
         code_id: CodeId,
-        /// This field is replaced with tx hash in case of zero.
-        blob_tx_hash: H256,
+        timestamp: u64,
+        tx_hash: H256,
     },
     ComputationSettingsChanged {
         threshold: u64,
@@ -53,10 +52,12 @@ impl Event {
         Some(match self {
             Self::CodeValidationRequested {
                 code_id,
-                blob_tx_hash,
+                timestamp,
+                tx_hash,
             } => RequestEvent::CodeValidationRequested {
                 code_id,
-                blob_tx_hash,
+                timestamp,
+                tx_hash,
             },
             Self::ComputationSettingsChanged {
                 threshold,
@@ -77,13 +78,14 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
     CodeValidationRequested {
         code_id: CodeId,
+        timestamp: u64,
         // TODO (breathx): replace with `code: Vec<u8>`
-        /// This field is replaced with tx hash in case of zero.
-        blob_tx_hash: H256,
+        tx_hash: H256,
     },
     ComputationSettingsChanged {
         threshold: u64,
