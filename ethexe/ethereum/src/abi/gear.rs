@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -24,6 +24,24 @@ use gear_core::message::ReplyDetails;
 // From Rust types to alloy //
 //                          //
 
+impl From<AggregatedPublicKey> for Gear::AggregatedPublicKey {
+    fn from(value: AggregatedPublicKey) -> Self {
+        Self {
+            x: u256_to_uint256(value.x),
+            y: u256_to_uint256(value.y),
+        }
+    }
+}
+
+impl From<VerifyingShare> for Gear::VerifyingShare {
+    fn from(value: VerifyingShare) -> Self {
+        Self {
+            x: u256_to_uint256(value.x),
+            y: u256_to_uint256(value.y),
+        }
+    }
+}
+
 impl From<BlockCommitment> for Gear::BlockCommitment {
     fn from(value: BlockCommitment) -> Self {
         Self {
@@ -40,6 +58,7 @@ impl From<CodeCommitment> for Gear::CodeCommitment {
     fn from(value: CodeCommitment) -> Self {
         Self {
             id: code_id_to_bytes32(value.id),
+            timestamp: u64_to_uint48_lossy(value.timestamp),
             valid: value.valid,
         }
     }
@@ -48,12 +67,27 @@ impl From<CodeCommitment> for Gear::CodeCommitment {
 impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
     fn from(value: ValidatorsCommitment) -> Self {
         Self {
+            aggregatedPublicKey: value.aggregated_public_key.into(),
+            verifyingShares: value.verifying_shares.into_iter().map(Into::into).collect(),
             validators: value
                 .validators
                 .into_iter()
                 .map(actor_id_to_address_lossy)
                 .collect(),
             eraIndex: Uint256::from(value.era_index),
+        }
+    }
+}
+
+impl From<BatchCommitment> for Gear::BatchCommitment {
+    fn from(value: BatchCommitment) -> Self {
+        Self {
+            blockCommitments: value
+                .block_commitments
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
         }
     }
 }

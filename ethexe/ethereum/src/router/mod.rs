@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,19 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{Gear::CodeState, IRouter},
+    abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
     wvara::WVara,
-    AlloyProvider, AlloyTransport, TryGetReceipt,
+    AlloyEthereum, AlloyProvider, AlloyTransport, TryGetReceipt,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{Address, Bytes, B256, U256},
-    providers::{Provider, ProviderBuilder, RootProvider},
+    primitives::{Address, Bytes, U256},
+    providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::Filter,
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use ethexe_common::gear::{
+    AggregatedPublicKey, BatchCommitment, BlockCommitment, CodeCommitment, SignatureType,
+    VerifyingShare,
+};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
@@ -44,6 +47,27 @@ type Instance = IRouter::IRouterInstance<AlloyTransport, InstanceProvider>;
 
 type QueryInstance = IRouter::IRouterInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
 
+pub struct PendingCodeRequestBuilder {
+    code_id: CodeId,
+    pending_builder: PendingTransactionBuilder<AlloyTransport, AlloyEthereum>,
+}
+
+impl PendingCodeRequestBuilder {
+    pub fn code_id(&self) -> CodeId {
+        self.code_id
+    }
+
+    pub fn tx_hash(&self) -> H256 {
+        H256(self.pending_builder.tx_hash().0)
+    }
+
+    pub async fn send(self) -> Result<(H256, CodeId)> {
+        let receipt = self.pending_builder.try_get_receipt().await?;
+        Ok(((*receipt.transaction_hash).into(), self.code_id))
+    }
+}
+
+#[derive(Clone)]
 pub struct Router {
     instance: Instance,
     wvara_address: Address,
@@ -78,33 +102,22 @@ impl Router {
         WVara::new(self.wvara_address, self.instance.provider().clone())
     }
 
-    pub async fn request_code_validation(
-        &self,
-        code_id: CodeId,
-        blob_tx_hash: H256,
-    ) -> Result<H256> {
-        let builder = self.instance.requestCodeValidation(
-            code_id.into_bytes().into(),
-            blob_tx_hash.to_fixed_bytes().into(),
-        );
-        let receipt = builder.send().await?.try_get_receipt().await?;
-
-        Ok((*receipt.transaction_hash).into())
-    }
-
     pub async fn request_code_validation_with_sidecar(
         &self,
         code: &[u8],
-    ) -> Result<(H256, CodeId)> {
+    ) -> Result<PendingCodeRequestBuilder> {
         let code_id = CodeId::generate(code);
 
         let builder = self
             .instance
-            .requestCodeValidation(code_id.into_bytes().into(), B256::ZERO)
+            .requestCodeValidation(code_id.into_bytes().into())
             .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let pending_builder = builder.send().await?;
 
-        Ok(((*receipt.transaction_hash).into(), code_id))
+        Ok(PendingCodeRequestBuilder {
+            code_id,
+            pending_builder,
+        })
     }
 
     pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<bool> {
@@ -162,6 +175,7 @@ impl Router {
     ) -> Result<H256> {
         let builder = self.instance.commitCodes(
             commitments.into_iter().map(Into::into).collect(),
+            SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
                 .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
@@ -176,16 +190,36 @@ impl Router {
         commitments: Vec<BlockCommitment>,
         signatures: Vec<LocalSignature>,
     ) -> Result<H256> {
-        let builder = self
-            .instance
-            .commitBlocks(
-                commitments.into_iter().map(Into::into).collect(),
-                signatures
-                    .into_iter()
-                    .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
-                    .collect(),
-            )
-            .gas(10_000_000);
+        let builder = self.instance.commitBlocks(
+            commitments.into_iter().map(Into::into).collect(),
+            SignatureType::ECDSA as u8,
+            signatures
+                .into_iter()
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .collect(),
+        );
+        let receipt = builder
+            .gas(10_000_000)
+            .send()
+            .await?
+            .try_get_receipt()
+            .await?;
+        Ok(H256(receipt.transaction_hash.0))
+    }
+
+    pub async fn commit_batch(
+        &self,
+        commitment: BatchCommitment,
+        signatures: Vec<LocalSignature>,
+    ) -> Result<H256> {
+        let builder = self.instance.commitBatch(
+            commitment.into(),
+            SignatureType::ECDSA as u8,
+            signatures
+                .into_iter()
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .collect(),
+        );
         let receipt = builder.send().await?.try_get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
     }
@@ -256,6 +290,35 @@ impl RouterQuery {
             .call()
             .await
             .map(|res| res._0)
+            .map_err(Into::into)
+    }
+
+    pub async fn validators_aggregated_public_key(&self) -> Result<AggregatedPublicKey> {
+        self.instance
+            .validatorsAggregatedPublicKey()
+            .call()
+            .await
+            .map(|res| AggregatedPublicKey {
+                x: uint256_to_u256(res._0.x),
+                y: uint256_to_u256(res._0.y),
+            })
+            .map_err(Into::into)
+    }
+
+    pub async fn validators_verifying_shares(&self) -> Result<Vec<VerifyingShare>> {
+        self.instance
+            .validatorsVerifyingShares()
+            .call()
+            .await
+            .map(|res| {
+                res._0
+                    .into_iter()
+                    .map(|v| VerifyingShare {
+                        x: uint256_to_u256(v.x),
+                        y: uint256_to_u256(v.y),
+                    })
+                    .collect()
+            })
             .map_err(Into::into)
     }
 

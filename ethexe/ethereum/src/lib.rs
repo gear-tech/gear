@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -46,10 +46,11 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use ethexe_common::gear::{AggregatedPublicKey, VerifyingShare};
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
 use mirror::Mirror;
 use router::{Router, RouterQuery};
-use std::{sync::Arc, time::Duration};
+use std::{iter, sync::Arc, time::Duration};
 
 mod abi;
 mod eip1167;
@@ -109,7 +110,7 @@ impl Ethereum {
         const VALUE_PER_GAS: u128 = 6;
 
         let provider = create_provider(rpc_url, signer, sender_address).await?;
-        let validators = validators
+        let validators: Vec<_> = validators
             .into_iter()
             .map(|validator_address| Address::new(validator_address.0))
             .collect();
@@ -157,6 +158,22 @@ impl Ethereum {
                     _eraDuration: U256::from(24 * 60 * 60),
                     _electionDuration: U256::from(2 * 60 * 60),
                     _validationDelay: U256::from(60),
+                    _aggregatedPublicKey: (AggregatedPublicKey {
+                        x: "0x0000000000000000000000000000000000000000000000000000000000000001"
+                            .parse()?,
+                        y: "0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE"
+                            .parse()?,
+                    })
+                    .into(),
+                    _verifyingShares: iter::repeat(VerifyingShare {
+                        x: "0x0000000000000000000000000000000000000000000000000000000000000001"
+                            .parse()?,
+                        y: "0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE"
+                            .parse()?,
+                    })
+                    .take(validators.len())
+                    .map(Into::into)
+                    .collect(),
                     _validators: validators,
                 }
                 .abi_encode(),

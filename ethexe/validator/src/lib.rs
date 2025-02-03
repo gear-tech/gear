@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -160,11 +160,20 @@ impl Validator {
     }
 
     fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {
-        let CodeCommitment { id: code_id, valid } = request;
-        if db
-            .code_valid(code_id)
-            .ok_or_else(|| anyhow!("Code {code_id} is not validated by this node"))?
-            .ne(&valid)
+        let CodeCommitment {
+            id: code_id,
+            timestamp: expected_timestamp,
+            valid,
+        } = request;
+        if !(db
+            .code_info(code_id)
+            .ok_or_else(|| anyhow!("Code {code_id} is not in storage"))?
+            .timestamp
+            .eq(&expected_timestamp)
+            && db
+                .code_valid(code_id)
+                .ok_or_else(|| anyhow!("Code {code_id} is not validated by this node"))?
+                .eq(&valid))
         {
             return Err(anyhow!(
                 "Requested and local code validation results mismatch"
@@ -273,7 +282,7 @@ impl Validator {
 mod tests {
     use super::*;
     use ethexe_common::gear::StateTransition;
-    use ethexe_db::BlockHeader;
+    use ethexe_db::{BlockHeader, CodeInfo};
     use gprimitives::CodeId;
 
     #[test]
@@ -311,16 +320,26 @@ mod tests {
             &db,
             CodeCommitment {
                 id: code_id,
+                timestamp: 42,
                 valid: true,
             },
         )
         .expect_err("Code is not in db");
 
         db.set_code_valid(code_id, true);
+        db.set_code_info(
+            code_id,
+            CodeInfo {
+                timestamp: 42,
+                tx_hash: H256::random(),
+            },
+        );
+
         Validator::validate_code_commitment(
             &db,
             CodeCommitment {
                 id: code_id,
+                timestamp: 42,
                 valid: false,
             },
         )
@@ -330,6 +349,7 @@ mod tests {
             &db,
             CodeCommitment {
                 id: code_id,
+                timestamp: 42,
                 valid: true,
             },
         )

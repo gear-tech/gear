@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.7.0"
+version = "1.7.1"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -110,6 +110,7 @@ members = [
     "utils/lazy-pages-fuzzer/fuzz",
     "ethexe/*",
     "ethexe/runtime/common",
+    "ethexe/service/utils",
 ]
 
 [workspace.dependencies]
@@ -155,6 +156,7 @@ parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
+prometheus = { version = "0.13.0", default-features = false }
 proptest = "1.5.0"
 quick-xml = "0.28"
 quote = { version = "1.0.36", default-features = false }
@@ -166,6 +168,7 @@ reqwest = { version = "0.12.8", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
 serde = { version = "^1", default-features = false }
 serde_json = { version = "1.0.135", default-features = false, features = ["alloc"] }
+serde-json-wasm = { version = "1.0.1", default-features = false }
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
 static_init = "1.0.3"
@@ -300,17 +303,17 @@ ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
 ethexe-signer = { path = "ethexe/signer", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
+ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-sequencer = { path = "ethexe/sequencer", default-features = false }
 ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
 ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
-ethexe-prometheus = { path = "ethexe/utils/prometheus", default-features = false }
-ethexe-utils = { path = "ethexe/utils", default-features = false }
+ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
 ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
-ethexe-common = { path = "ethexe/common" }
+ethexe-common = { path = "ethexe/common", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
-wasmi = { package = "wasmi", version = "0.38"}
+wasmi = { package = "wasmi", version = "0.38" }
 
 # Substrate deps
 binary-merkle-tree = { version = "15.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }

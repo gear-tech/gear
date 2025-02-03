@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -234,6 +234,7 @@ impl WasmProject {
         cargo_toml.insert("profile".into(), profile.into());
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
+        cargo_toml.insert("patch".into(), crate_info.patch.into());
 
         smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
             .context("Failed to write generated manifest path")?;
