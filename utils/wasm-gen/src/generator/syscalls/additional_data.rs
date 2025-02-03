@@ -152,8 +152,9 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
 
             let mut builder = ModuleBuilder::from_module(module);
             builder.push_data(Data::with_offset(log_bytes, log_info_offset));
-            builder
-                .as_module_mut()
+
+            let mut module = builder.build();
+            module
                 .code_section_mut()
                 .expect("has at least one export")
                 .get_mut(export_idx as usize)
@@ -168,7 +169,7 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
                     ],
                 );
 
-            (builder.build(), ())
+            (module, ())
         });
     }
 }

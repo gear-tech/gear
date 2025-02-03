@@ -101,19 +101,9 @@ impl MemoryGenerator {
                 log::trace!("Stack end offset - {:?}", stack_end_page);
 
                 let stack_end = stack_end_page * WasmPage::SIZE;
-                builder.push_global(Global::i32_value(stack_end as i32));
+                let stack_end_index = builder.push_global(Global::i32_value(stack_end as i32));
 
-                let stack_end_index = builder
-                    .as_module()
-                    .global_section()
-                    .expect("has at least stack end global")
-                    .len()
-                    - 1;
-
-                builder.push_export(Export::global(
-                    STACK_END_EXPORT_NAME,
-                    stack_end_index as u32,
-                ));
+                builder.push_export(Export::global(STACK_END_EXPORT_NAME, stack_end_index));
             }
 
             (builder.build(), ())

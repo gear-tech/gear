@@ -1116,14 +1116,6 @@ impl ModuleBuilder {
         self.module
     }
 
-    pub fn as_module(&self) -> &Module {
-        &self.module
-    }
-
-    pub fn as_module_mut(&mut self) -> &mut Module {
-        &mut self.module
-    }
-
     fn type_section(&mut self) -> &mut TypeSection {
         self.module
             .type_section
@@ -1189,8 +1181,9 @@ impl ModuleBuilder {
         })
     }
 
-    pub fn push_import(&mut self, import: Import) {
+    pub fn push_import(&mut self, import: Import) -> u32 {
         self.import_section().push(import);
+        self.import_section().len() as u32 - 1
     }
 
     pub fn set_table(&mut self, table: Table) {

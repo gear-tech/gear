@@ -208,6 +208,8 @@ fn inject_system_break_import(
         return Err(InstrumentationError::SystemBreakImportAlreadyExists);
     }
 
+    let inserted_index = module.import_count(|ty| matches!(ty, TypeRef::Func(_))) as u32;
+
     let mut mbuilder = ModuleBuilder::from_module(module);
     // fn gr_system_break(code: u32) -> !;
     let import_idx = mbuilder.push_type(FuncType::new([ValType::I32], []));
@@ -218,11 +220,6 @@ fn inject_system_break_import(
         SyscallName::SystemBreak.to_str(),
         import_idx,
     ));
-
-    let import_count = mbuilder
-        .as_module()
-        .import_count(|ty| matches!(ty, TypeRef::Func(_)));
-    let inserted_index = import_count as u32 - 1;
 
     let module = mbuilder
         .rewrite_sections_after_insertion(inserted_index, 1)
