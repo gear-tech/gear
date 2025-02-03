@@ -139,15 +139,34 @@ where
     // Creating externalities.
     let ext = Ext::new(context);
 
+    let match_error = |e| match e {
+        EnvironmentError::System(e) => {
+            Err(ExecutionError::System(SystemExecutionError::Environment(e)))
+        }
+        EnvironmentError::Actor(gas_amount, err) => {
+            log::trace!("ActorExecutionErrorReplyReason::Environment({err}) occurred");
+            Err(ExecutionError::Actor(ActorExecutionError {
+                gas_amount,
+                reason: ActorExecutionErrorReplyReason::Environment,
+            }))
+        }
+    };
+
+    let env = Environment::new(
+        ext,
+        program.code.code(),
+        kind,
+        program.code.exports().clone(),
+        memory_size,
+    );
+
+    let mut env = match env {
+        Ok(env) => env,
+        Err(e) => return match_error(e),
+    };
+
     // Execute program in backend env.
     let execute = || {
-        let env = Environment::new(
-            ext,
-            program.code.code(),
-            kind,
-            program.code.exports().clone(),
-            memory_size,
-        )?;
         env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
@@ -161,12 +180,12 @@ where
         })
     };
 
-    let (termination, mut store, memory, ext) = match execute() {
+    let (termination, store, memory, ext) = match execute() {
         Ok(report) => {
             let BackendReport {
                 termination_reason,
-                mut store,
-                mut memory,
+                store,
+                memory,
                 ext,
             } = report;
 
@@ -178,7 +197,7 @@ where
             };
 
             // released pages initial data will be added to `pages_initial_data` after execution.
-            Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
+            Ext::lazy_pages_post_execution_actions(store, memory);
 
             if !Ext::lazy_pages_status().is_normal() {
                 termination = ext.current_counter_type().into()
@@ -186,22 +205,13 @@ where
 
             (termination, store, memory, ext)
         }
-        Err(EnvironmentError::System(e)) => {
-            return Err(ExecutionError::System(SystemExecutionError::Environment(e)));
-        }
-        Err(EnvironmentError::Actor(gas_amount, err)) => {
-            log::trace!("ActorExecutionErrorReplyReason::Environment({err}) occurred");
-            return Err(ExecutionError::Actor(ActorExecutionError {
-                gas_amount,
-                reason: ActorExecutionErrorReplyReason::Environment,
-            }));
-        }
+        Err(e) => return match_error(e),
     };
 
     log::debug!("Termination reason: {:?}", termination);
 
     let info = ext
-        .into_ext_info(&mut store, &memory)
+        .into_ext_info(store, memory)
         .map_err(SystemExecutionError::IntoExtInfo)?;
 
     // Parsing outcome.
@@ -338,20 +348,26 @@ where
     // Creating externalities.
     let ext = Ext::new(context);
 
+    let env = Environment::new(
+        ext,
+        program.code.code(),
+        function,
+        program.code.exports().clone(),
+        memory_size,
+    );
+
+    let mut env = match env {
+        Ok(env) => env,
+        Err(e) => return Err(format!("Backend error: {e}")),
+    };
+
     // Execute program in backend env.
     let execute = || {
-        let env = Environment::new(
-            ext,
-            program.code.code(),
-            function,
-            program.code.exports().clone(),
-            memory_size,
-        )?;
-        env.execute(|ctx, memory, globals_config| {
+        env.execute(move |ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 memory,
-                program_id,
+                program.id,
                 program.memory_infix,
                 program.code.stack_end(),
                 globals_config,
@@ -360,7 +376,7 @@ where
         })
     };
 
-    let (termination, mut store, memory, ext) = match execute() {
+    let (termination, store, memory, ext) = match execute() {
         Ok(report) => {
             let BackendReport {
                 termination_reason,
@@ -397,7 +413,7 @@ where
     };
 
     let info = ext
-        .into_ext_info(&mut store, &memory)
+        .into_ext_info(store, memory)
         .map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
 
     log::debug!(

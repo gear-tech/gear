@@ -19,7 +19,6 @@
 //! `GlobalsAccessor` realizations for native and wasm runtimes.
 
 use crate::common::{Error, GlobalNames};
-use core::any::Any;
 use gear_core::{memory::HostPointer, str::LimitedStr};
 use gear_lazy_pages_common::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor};
 use gear_sandbox_host::sandbox::SandboxInstance;
@@ -70,10 +69,6 @@ impl GlobalsAccessor for GlobalsAccessWasmRuntime<'_> {
 
         Ok(())
     }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        unimplemented!("Has no use cases for this struct")
-    }
 }
 
 struct GlobalsAccessNativeRuntime<'a, 'b> {
@@ -87,10 +82,6 @@ impl GlobalsAccessor for GlobalsAccessNativeRuntime<'_, '_> {
 
     fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
         self.inner_access_provider.set_i64(name, value)
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        unimplemented!("Has no use cases for this struct")
     }
 }
 

@@ -24,7 +24,7 @@ extern crate alloc;
 
 use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
-use core::{any::Any, fmt::Debug};
+use core::fmt::Debug;
 use gear_core::{
     costs::LazyPagesCosts,
     ids::ProgramId,
@@ -88,9 +88,6 @@ pub trait GlobalsAccessor {
     fn set_i32(&mut self, _name: &LimitedStr, _value: i32) -> Result<(), GlobalsAccessError> {
         unimplemented!("Currently has no i32 system globals")
     }
-
-    /// Returns as `&mut dyn Any`.
-    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 /// Lazy-pages status.

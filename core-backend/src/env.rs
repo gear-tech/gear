@@ -29,7 +29,7 @@ use crate::{
     BackendExternalities,
 };
 use alloc::{collections::BTreeSet, format, string::String};
-use core::{any::Any, fmt::Debug, marker::Send};
+use core::{fmt::Debug, marker::Send};
 use gear_core::{
     env::Externalities,
     gas::GasAmount,
@@ -73,7 +73,7 @@ fn store_host_state_mut<Ext: Send + 'static>(
     })
 }
 
-pub type EnvironmentExecutionResult<Ext> = Result<BackendReport<Ext>, EnvironmentError>;
+pub type EnvironmentExecutionResult<'a, Ext> = Result<BackendReport<'a, Ext>, EnvironmentError>;
 
 #[derive(Debug, derive_more::Display)]
 pub enum EnvironmentError {
@@ -104,13 +104,13 @@ where
     memory: BackendMemory<ExecutorMemory>,
 }
 
-pub struct BackendReport<Ext>
+pub struct BackendReport<'a, Ext>
 where
     Ext: Externalities + 'static,
 {
     pub termination_reason: TerminationReason,
-    pub store: Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
-    pub memory: BackendMemory<ExecutorMemory>,
+    pub store: &'a mut Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
+    pub memory: &'a mut BackendMemory<ExecutorMemory>,
     pub ext: Ext,
 }
 
@@ -228,29 +228,23 @@ where
     }
 }
 
-struct GlobalsAccessProvider<Ext: Externalities> {
+struct GlobalsAccessProvider<'a, Ext: Externalities> {
     instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
-    store: Option<Store<HostState<Ext, BackendMemory<ExecutorMemory>>>>,
+    store: &'a mut Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
 }
 
-impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
+impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvider<'_, Ext> {
     fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
-        let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
         self.instance
-            .get_global_val(store, name.as_str())
+            .get_global_val(self.store, name.as_str())
             .and_then(i64::try_from_value)
             .ok_or(GlobalsAccessError)
     }
 
     fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
-        let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
         self.instance
-            .set_global_val(store, name.as_str(), Value::I64(value))
+            .set_global_val(self.store, name.as_str(), Value::I64(value))
             .map_err(|_| GlobalsAccessError)
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }
 
@@ -323,7 +317,7 @@ where
     }
 
     pub fn execute(
-        self,
+        &mut self,
         prepare_memory: impl FnOnce(
             &mut Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>>,
             &mut BackendMemory<ExecutorMemory>,
@@ -334,25 +328,23 @@ where
         use SystemEnvironmentError::*;
 
         let Self {
-            mut instance,
+            instance,
             entries,
             entry_point,
-            mut store,
-            mut memory,
+            store,
+            memory,
         } = self;
 
-        let gas = store_host_state_mut(&mut store)
-            .ext
-            .define_current_counter();
+        let gas = store_host_state_mut(store).ext.define_current_counter();
 
         instance
-            .set_global_val(&mut store, GLOBAL_NAME_GAS, Value::I64(gas as i64))
+            .set_global_val(store, GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| System(WrongInjectedGas))?;
 
         #[cfg(feature = "std")]
         let mut globals_provider = GlobalsAccessProvider {
             instance: instance.clone(),
-            store: None,
+            store,
         };
         #[cfg(feature = "std")]
         let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessor;
@@ -377,7 +369,7 @@ where
             access_mod: GlobalsAccessMod::WasmRuntime,
         };
 
-        prepare_memory(&mut store, &mut memory, globals_config);
+        prepare_memory(store, memory, globals_config);
 
         let needs_execution = entry_point
             .try_into_kind()
@@ -387,40 +379,13 @@ where
         let res = if needs_execution {
             #[cfg(feature = "std")]
             let res = {
-                let store_option = &mut globals_provider_dyn_ref
-                    .as_any_mut()
-                    .downcast_mut::<GlobalsAccessProvider<EnvExt>>()
-                    // Provider is `GlobalsAccessProvider`, so panic is impossible.
-                    .unwrap_or_else(|| {
-                        let err_msg =
-                            "Environment::execute: Provider must be `GlobalsAccessProvider`";
-
-                        log::error!("{err_msg}");
-                        unreachable!("{err_msg}")
-                    })
-                    .store;
-
-                store_option.replace(store);
-
-                let store_ref = store_option
-                    .as_mut()
-                    // We set store above, so panic is impossible.
-                    .unwrap_or_else(|| {
-                        let err_msg = "Environment::execute: Store must be set before";
-
-                        log::error!("{err_msg}");
-                        unreachable!("{err_msg}")
-                    });
-
-                let res = instance.invoke(store_ref, entry_point.as_entry(), &[]);
-
-                store = globals_provider.store.take().unwrap();
+                let res = instance.invoke(store, entry_point.as_entry(), &[]);
 
                 res
             };
 
             #[cfg(not(feature = "std"))]
-            let res = instance.invoke(&mut store, entry_point.as_entry(), &[]);
+            let res = instance.invoke(store, entry_point.as_entry(), &[]);
 
             res
         } else {
@@ -429,7 +394,7 @@ where
 
         // Fetching global value.
         let gas = instance
-            .get_global_val(&mut store, GLOBAL_NAME_GAS)
+            .get_global_val(store, GLOBAL_NAME_GAS)
             .and_then(i64::try_from_value)
             .ok_or(System(WrongInjectedGas))? as u64;
 
