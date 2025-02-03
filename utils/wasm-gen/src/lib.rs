@@ -38,10 +38,11 @@ mod wasm;
 
 pub use config::*;
 pub use gear_wasm_instrument::syscalls::SyscallName;
-use gear_wasm_instrument::Module;
 pub use generator::*;
 pub use wasm::{MemoryLayout, WasmModule};
 pub use wasm_gen_arbitrary::*;
+
+use gear_wasm_instrument::Module;
 
 /// Generate gear program as raw bytes.
 pub fn generate_gear_program_code(
