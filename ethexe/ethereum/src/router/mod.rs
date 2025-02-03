@@ -30,7 +30,8 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::gear::{
-    AggregatedPublicKey, BlockCommitment, CodeCommitment, SignatureType, VerifyingShare,
+    AggregatedPublicKey, BatchCommitment, BlockCommitment, CodeCommitment, SignatureType,
+    VerifyingShare,
 };
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
@@ -189,17 +190,36 @@ impl Router {
         commitments: Vec<BlockCommitment>,
         signatures: Vec<LocalSignature>,
     ) -> Result<H256> {
-        let builder = self
-            .instance
-            .commitBlocks(
-                commitments.into_iter().map(Into::into).collect(),
-                SignatureType::ECDSA as u8,
-                signatures
-                    .into_iter()
-                    .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
-                    .collect(),
-            )
-            .gas(10_000_000);
+        let builder = self.instance.commitBlocks(
+            commitments.into_iter().map(Into::into).collect(),
+            SignatureType::ECDSA as u8,
+            signatures
+                .into_iter()
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .collect(),
+        );
+        let receipt = builder
+            .gas(10_000_000)
+            .send()
+            .await?
+            .try_get_receipt()
+            .await?;
+        Ok(H256(receipt.transaction_hash.0))
+    }
+
+    pub async fn commit_batch(
+        &self,
+        commitment: BatchCommitment,
+        signatures: Vec<LocalSignature>,
+    ) -> Result<H256> {
+        let builder = self.instance.commitBatch(
+            commitment.into(),
+            SignatureType::ECDSA as u8,
+            signatures
+                .into_iter()
+                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .collect(),
+        );
         let receipt = builder.send().await?.try_get_receipt().await?;
         Ok(H256(receipt.transaction_hash.0))
     }

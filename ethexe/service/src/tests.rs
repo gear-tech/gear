@@ -1685,6 +1685,7 @@ mod utils {
                     ObserverEvent::Blob {
                         code_id: loaded_id,
                         code,
+                        ..
                     } if loaded_id == self.code_id => {
                         code_info = Some(code);
                         Ok(Some(()))

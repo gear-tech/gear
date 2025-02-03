@@ -67,7 +67,15 @@ pub struct BlockCommitment {
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct CodeCommitment {
     pub id: CodeId,
+    /// represented as u48 in router contract.
+    pub timestamp: u64,
     pub valid: bool,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct BatchCommitment {
+    pub code_commitments: Vec<CodeCommitment>,
+    pub block_commitments: Vec<BlockCommitment>,
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]

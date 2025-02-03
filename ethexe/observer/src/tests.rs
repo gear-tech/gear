@@ -82,11 +82,11 @@ async fn test_deployment() -> Result<()> {
         .request_code_validation_with_sidecar(&wasm)
         .await?;
 
-    let code_id = pending_builder.code_id();
-    let tx_hash = pending_builder.tx_hash();
+    let request_code_id = pending_builder.code_id();
+    let request_tx_hash = pending_builder.tx_hash();
 
     blob_reader
-        .add_blob_transaction(tx_hash, wasm.clone())
+        .add_blob_transaction(request_tx_hash, wasm.clone())
         .await;
 
     let event = observer
@@ -103,13 +103,15 @@ async fn test_deployment() -> Result<()> {
         .expect("observer did not receive event")
         .expect("received error instead of event");
 
-    assert_eq!(
+    assert!(matches!(
         event,
         ObserverEvent::Blob {
             code_id,
-            code: wasm
+            code,
+            ..
         }
-    );
+        if code_id == request_code_id && code == wasm
+    ));
 
     Ok(())
 }
