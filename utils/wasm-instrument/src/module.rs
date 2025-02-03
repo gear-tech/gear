@@ -288,7 +288,7 @@ macro_rules! define_instruction {
         }
 
         impl Instruction {
-            fn new(op: wasmparser::Operator) -> Result<Self> {
+            fn parse(op: wasmparser::Operator) -> Result<Self> {
                 match op {
                     $(
                         wasmparser::Operator::$op $({ $($arg),* })? => {
@@ -504,11 +504,11 @@ impl ConstExpr {
         }
     }
 
-    fn new(expr: wasmparser::ConstExpr) -> Result<Self> {
+    fn parse(expr: wasmparser::ConstExpr) -> Result<Self> {
         let mut instructions = Vec::new();
         let mut ops = expr.get_operators_reader();
         while !ops.is_end_then_eof() {
-            instructions.push(Instruction::new(ops.read()?)?);
+            instructions.push(Instruction::parse(ops.read()?)?);
         }
 
         Ok(Self { instructions })
@@ -563,7 +563,7 @@ impl Import {
         }
     }
 
-    fn new(import: wasmparser::Import) -> Self {
+    fn parse(import: wasmparser::Import) -> Self {
         Self {
             module: import.module.to_string().into(),
             name: import.name.to_string().into(),
@@ -607,12 +607,12 @@ impl Table {
         }
     }
 
-    fn new(table: wasmparser::Table) -> Result<Self> {
+    fn parse(table: wasmparser::Table) -> Result<Self> {
         Ok(Self {
             ty: table.ty,
             init: match table.init {
                 wasmparser::TableInit::RefNull => TableInit::RefNull,
-                wasmparser::TableInit::Expr(expr) => TableInit::Expr(ConstExpr::new(expr)?),
+                wasmparser::TableInit::Expr(expr) => TableInit::Expr(ConstExpr::parse(expr)?),
             },
         })
     }
@@ -676,10 +676,10 @@ impl Global {
         self
     }
 
-    fn new(global: wasmparser::Global) -> Result<Self> {
+    fn parse(global: wasmparser::Global) -> Result<Self> {
         Ok(Self {
             ty: global.ty,
-            init_expr: ConstExpr::new(global.init_expr)?,
+            init_expr: ConstExpr::parse(global.init_expr)?,
         })
     }
 }
@@ -708,7 +708,7 @@ impl Export {
         }
     }
 
-    fn new(export: wasmparser::Export) -> Self {
+    fn parse(export: wasmparser::Export) -> Self {
         Self {
             name: export.name.to_string().into(),
             kind: export.kind,
@@ -728,7 +728,7 @@ pub enum ElementKind {
 }
 
 impl ElementKind {
-    fn new(kind: wasmparser::ElementKind) -> Result<Self> {
+    fn parse(kind: wasmparser::ElementKind) -> Result<Self> {
         Ok(match kind {
             wasmparser::ElementKind::Passive => Self::Passive,
             wasmparser::ElementKind::Active {
@@ -736,7 +736,7 @@ impl ElementKind {
                 offset_expr,
             } => Self::Active {
                 table_index,
-                offset_expr: ConstExpr::new(offset_expr)?,
+                offset_expr: ConstExpr::parse(offset_expr)?,
             },
             wasmparser::ElementKind::Declared => Self::Declared,
         })
@@ -750,7 +750,7 @@ pub enum ElementItems {
 }
 
 impl ElementItems {
-    fn new(elements: wasmparser::ElementItems) -> Result<Self> {
+    fn parse(elements: wasmparser::ElementItems) -> Result<Self> {
         Ok(match elements {
             wasmparser::ElementItems::Functions(f) => {
                 let mut funcs = Vec::new();
@@ -762,7 +762,7 @@ impl ElementItems {
             wasmparser::ElementItems::Expressions(ty, e) => {
                 let mut exprs = Vec::new();
                 for expr in e {
-                    exprs.push(ConstExpr::new(expr?)?);
+                    exprs.push(ConstExpr::parse(expr?)?);
                 }
                 Self::Expressions(ty, exprs)
             }
@@ -787,10 +787,10 @@ impl Element {
         }
     }
 
-    fn new(element: wasmparser::Element) -> Result<Self> {
+    fn parse(element: wasmparser::Element) -> Result<Self> {
         Ok(Self {
-            kind: ElementKind::new(element.kind)?,
-            items: ElementItems::new(element.items)?,
+            kind: ElementKind::parse(element.kind)?,
+            items: ElementItems::parse(element.items)?,
         })
     }
 
@@ -842,7 +842,7 @@ impl Data {
         }
     }
 
-    fn new(data: wasmparser::Data) -> Result<Self> {
+    fn parse(data: wasmparser::Data) -> Result<Self> {
         Ok(Self {
             offset_expr: match data.kind {
                 wasmparser::DataKind::Passive => return Err(ModuleError::PassiveDataKind),
@@ -854,7 +854,7 @@ impl Data {
                         return Err(ModuleError::NonZeroMemoryIdx(memory_index));
                     }
 
-                    ConstExpr::new(offset_expr)?
+                    ConstExpr::parse(offset_expr)?
                 }
             },
             data: data.data.to_vec().into(),
@@ -886,7 +886,7 @@ impl Function {
         let mut instructions = Vec::new();
         let mut reader = func.get_operators_reader()?;
         while !reader.eof() {
-            instructions.push(Instruction::new(reader.read()?)?);
+            instructions.push(Instruction::parse(reader.read()?)?);
         }
 
         Ok(Self {
@@ -973,7 +973,7 @@ pub enum Name {
 }
 
 impl Name {
-    fn new(name: wasmparser::Name) -> Result<Self> {
+    fn parse(name: wasmparser::Name) -> Result<Self> {
         let name_map = |map: wasmparser::NameMap| {
             map.into_iter()
                 .map(|n| {
@@ -1315,7 +1315,7 @@ impl Module {
                     import_section = Some(
                         section
                             .into_iter()
-                            .map(|import| import.map(Import::new))
+                            .map(|import| import.map(Import::parse))
                             .collect::<Result<_, _>>()?,
                     );
                 }
@@ -1329,7 +1329,7 @@ impl Module {
 
                     table_section = section
                         .next()
-                        .map(|table| table.map_err(Into::into).and_then(Table::new))
+                        .map(|table| table.map_err(Into::into).and_then(Table::parse))
                         .transpose()?;
 
                     if section.next().is_some() {
@@ -1352,7 +1352,7 @@ impl Module {
                     global_section = Some(
                         section
                             .into_iter()
-                            .map(|element| element.map_err(Into::into).and_then(Global::new))
+                            .map(|element| element.map_err(Into::into).and_then(Global::parse))
                             .collect::<Result<_, _>>()?,
                     );
                 }
@@ -1361,7 +1361,7 @@ impl Module {
                     export_section = Some(
                         section
                             .into_iter()
-                            .map(|e| e.map(Export::new))
+                            .map(|e| e.map(Export::parse))
                             .collect::<Result<_, _>>()?,
                     );
                 }
@@ -1373,7 +1373,7 @@ impl Module {
                     element_section = Some(
                         section
                             .into_iter()
-                            .map(|element| element.map_err(Into::into).and_then(Element::new))
+                            .map(|element| element.map_err(Into::into).and_then(Element::parse))
                             .collect::<Result<Vec<_>>>()?,
                     );
                 }
@@ -1385,7 +1385,7 @@ impl Module {
                     let data_section = data_section.get_or_insert_with(Vec::new);
                     for data in section {
                         let data = data?;
-                        data_section.push(Data::new(data)?);
+                        data_section.push(Data::parse(data)?);
                     }
                 }
                 Payload::CodeSectionStart {
@@ -1410,7 +1410,7 @@ impl Module {
                         name_section = Some(
                             section
                                 .into_iter()
-                                .map(|name| name.map_err(Into::into).and_then(Name::new))
+                                .map(|name| name.map_err(Into::into).and_then(Name::parse))
                                 .collect::<Result<Vec<_>>>()?,
                         );
                     }
