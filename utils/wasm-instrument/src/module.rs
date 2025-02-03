@@ -1377,7 +1377,7 @@ impl Module {
                             .collect::<Result<Vec<_>>>()?,
                     );
                 }
-                // note: the section is not present in WASM MVP
+                // note: the section is not present in WASM 1.0
                 Payload::DataCountSection { count, range: _ } => {
                     data_section = Some(Vec::with_capacity(count as usize));
                 }
