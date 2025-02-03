@@ -334,7 +334,6 @@ pub struct ConstantParams {
     gc_enabled: bool,
     custom_page_sizes_enabled: bool,
     generate_custom_sections: bool,
-    // pass empty module to not export anything to pass our checks
     exports: Option<Vec<u8>>,
     shared_everything_threads_enabled: bool,
     allow_invalid_funcs: bool,
@@ -379,6 +378,7 @@ impl Default for ConstantParams {
             gc_enabled: false,
             custom_page_sizes_enabled: false,
             generate_custom_sections: false,
+            // pass empty module to not export anything to pass our checks
             exports: Some(b"\0asm\x01\0\0\0".to_vec()),
             shared_everything_threads_enabled: false,
             allow_invalid_funcs: false,
