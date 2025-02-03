@@ -85,8 +85,7 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        // TODO: revert to Singlepass
-        let compiler = wasmer::Cranelift::default();
+        let compiler = wasmer::Singlepass::default();
         Backend {
             store: Rc::new(StoreRefCell::new(wasmer::Store::new(compiler))),
         }

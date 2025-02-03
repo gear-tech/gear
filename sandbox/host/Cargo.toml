@@ -21,7 +21,7 @@ defer.workspace = true
 environmental.workspace = true
 thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
-wasmer = { workspace = true, features = ["cranelift"] }
+wasmer.workspace = true
 wasmer-types.workspace = true
 wasmi.workspace = true
 sp-allocator = { workspace = true, features = ["std"] }
