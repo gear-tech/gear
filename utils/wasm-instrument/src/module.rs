@@ -367,6 +367,8 @@ pub enum ModuleError {
     ElementExpressions,
     #[display(fmt = "Only active element is supported")]
     NonActiveElementKind,
+    #[display(fmt = "Table init expression is not supported")]
+    TableInitExpr,
 }
 
 impl core::error::Error for ModuleError {
@@ -382,6 +384,7 @@ impl core::error::Error for ModuleError {
             ModuleError::PassiveDataKind => None,
             ModuleError::ElementExpressions => None,
             ModuleError::NonActiveElementKind => None,
+            ModuleError::TableInitExpr => None,
         }
     }
 }
@@ -590,7 +593,6 @@ impl Import {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TableInit {
     RefNull,
-    Expr(ConstExpr),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -618,7 +620,7 @@ impl Table {
             ty: table.ty,
             init: match table.init {
                 wasmparser::TableInit::RefNull => TableInit::RefNull,
-                wasmparser::TableInit::Expr(expr) => TableInit::Expr(ConstExpr::parse(expr)?),
+                wasmparser::TableInit::Expr(_expr) => return Err(ModuleError::TableInitExpr),
             },
         })
     }
@@ -628,9 +630,6 @@ impl Table {
         match &self.init {
             TableInit::RefNull => {
                 tables.table(ty);
-            }
-            TableInit::Expr(e) => {
-                tables.table_with_init(ty, &e.reencode()?);
             }
         }
         Ok(())
@@ -1697,5 +1696,10 @@ mod tests {
             (elem (i32.const 1) funcref)
         )
         "# => "ElementExpressions";
+
+        table_init_expr_denied: r#"
+        (module
+            (table 0 0 funcref (i32.const 0))
+        )"# => "TableInitExpr";
     }
 }
