@@ -325,7 +325,7 @@ impl Service {
                         ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
                     }
                 },
-                event = compute.next() => {
+                event = compute.select_next_some() => {
                     match event? {
                         ComputeEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
                             // TODO (gsobol): must be done in observer event handling

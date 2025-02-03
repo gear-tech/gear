@@ -30,7 +30,11 @@ use ethexe_observer::Query;
 use ethexe_processor::{LocalOutcome, Processor};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
-use std::{collections::VecDeque, pin::Pin, task::{Context, Poll}};
+use std::{
+    collections::VecDeque,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use tokio::task::JoinSet;
 
 #[derive(Debug)]
