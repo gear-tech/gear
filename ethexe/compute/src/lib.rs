@@ -149,35 +149,6 @@ impl ComputeService {
             self.blocks_queue.push_back(block);
         }
     }
-
-    // pub async fn next(&mut self) -> Result<ComputeEvent> {
-    //     tokio::select! {
-    //         res = self.process_block.as_mut().maybe() => {
-    //             if let Some(block) = self.blocks_queue.pop_front() {
-    //                 let context = ChainHeadProcessContext {
-    //                     db: self.db.clone(),
-    //                     processor: self.processor.clone(),
-    //                     query: self.query.clone(),
-    //                 };
-
-    //                 self.process_block = Some(Box::pin(context.process(block)));
-    //             } else {
-    //                 self.process_block = None;
-    //             }
-
-    //             res.map(ComputeEvent::BlockProcessed)
-    //         }
-    //         Some(res) = self.process_codes.join_next() => {
-    //             match res {
-    //                 Ok(res) => res.map(ComputeEvent::CodeProcessed),
-    //                 Err(err) => Err(err.into()),
-    //             }
-    //         }
-    //         else => {
-    //             futures::future::pending().await
-    //         }
-    //     }
-    // }
 }
 
 struct ChainHeadProcessContext {
