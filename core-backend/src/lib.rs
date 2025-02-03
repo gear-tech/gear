@@ -101,7 +101,7 @@ mod tests {
 
         // Execute wasm and check success.
         let ext = MockExt::default();
-        let env =
+        let mut env =
             Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
         let report = env.execute(|_, _, _| {}).unwrap();
 

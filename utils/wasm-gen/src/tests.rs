@@ -232,17 +232,16 @@ fn test_avoid_waits_works() {
         .with_waiting_probability(NonZero::<u32>::new(4).unwrap())
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
-            // This test supposed to check if waiting probability works correctly,
-            // so we have to set `init_called flag` to make wait probability code reachable.
-            // And the second, we have to set waiting probability counter to non-zero value,
-            // because the wasm check looks like this `if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }`
+    let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+    let mut env = create_env(program_id, code, Default::default());
+
+    let backend_report = execute_env(
+        &mut env,
+        program_id,
+        EnvExecuteParams {
             initial_memory_write: nonempty![set_init_called_flag(), set_wait_called_counter(1)]
                 .into(),
-            ..Default::default()
         },
     );
 
@@ -285,19 +284,28 @@ fn test_wait_stores_message_id() {
         syscalls_config_with_waiting_probability,
         syscalls_config_wo_waiting_probability,
     ] {
+        let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+        let mut env = create_env(
+            program_id,
+            code,
+            EnvCreateParams {
+                message_id: EXPECTED_MSG_ID,
+                ..Default::default()
+            },
+        );
+
         let BackendReport {
             termination_reason,
             store,
             memory,
             ..
-        } = execute_wasm_with_custom_configs(
-            &mut unstructured,
-            syscalls_config,
-            ExecuteParams {
+        } = execute_env(
+            &mut env,
+            program_id,
+            EnvExecuteParams {
                 initial_memory_write: nonempty![set_init_called_flag(), set_wait_called_counter(0)]
                     .into(),
-                message_id: EXPECTED_MSG_ID,
-                ..Default::default()
             },
         );
 
@@ -306,7 +314,7 @@ fn test_wait_stores_message_id() {
         let waited_message_id_ptr =
             MemoryLayout::from(WASM_PAGE_SIZE * INITIAL_PAGES).waited_message_id_ptr;
         memory
-            .read(&store, waited_message_id_ptr as u32, &mut message_id)
+            .read(store, waited_message_id_ptr as u32, &mut message_id)
             .unwrap();
         assert_eq!(u64::from_le_bytes(message_id), EXPECTED_MSG_ID);
 
@@ -338,21 +346,24 @@ fn test_wake_uses_stored_message_id() {
         .with_params_config(params_config)
         .build();
 
+    let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+    let mut env = create_env(program_id, code, Default::default());
+
     let BackendReport {
         termination_reason,
-        mut store,
+        store,
         memory,
         ext,
-    } = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    } = execute_env(
+        &mut env,
+        program_id,
+        EnvExecuteParams {
             initial_memory_write: nonempty![set_waited_message_id(EXPECTED_MSG_ID)].into(),
-            ..Default::default()
         },
     );
 
-    let info = ext.into_ext_info(&mut store, &memory).unwrap();
+    let info = ext.into_ext_info(store, memory).unwrap();
     let msg_id = info.awakening.first().unwrap().0;
     let msg_id_bytes = msg_id.into_bytes();
     assert_eq!(
@@ -386,8 +397,11 @@ fn test_source_as_address_param() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report =
-        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, Default::default());
+    let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+    let mut env = create_env(program_id, code, Default::default());
+
+    let backend_report = execute_env(&mut env, program_id, Default::default());
 
     assert_eq!(
         backend_report.termination_reason,
@@ -419,8 +433,11 @@ fn test_existing_address_as_address_param() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report =
-        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, Default::default());
+    let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+    let mut env = create_env(program_id, code, Default::default());
+
+    let backend_report = execute_env(&mut env, program_id, Default::default());
 
     assert_eq!(
         backend_report.termination_reason,
@@ -468,14 +485,18 @@ fn test_msg_value_ptr() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+    let mut env = create_env(
+        program_id,
+        code,
+        EnvCreateParams {
             value: INITIAL_BALANCE,
             ..Default::default()
         },
     );
+
+    let backend_report = execute_env(&mut env, program_id, Default::default());
 
     assert_eq!(
         backend_report.ext.context.value_counter.left(),
@@ -537,14 +558,18 @@ fn test_msg_value_ptr_dest() {
                 .with_error_processing_config(ErrorProcessingConfig::All)
                 .build();
 
-            let backend_report = execute_wasm_with_custom_configs(
-                &mut unstructured,
-                syscalls_config,
-                ExecuteParams {
+            let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+            let mut env = create_env(
+                program_id,
+                code,
+                EnvCreateParams {
                     value: INITIAL_BALANCE,
                     ..Default::default()
                 },
             );
+
+            let backend_report = execute_env(&mut env, program_id, Default::default());
 
             assert_eq!(
                 backend_report.ext.context.value_counter.left(),
@@ -610,8 +635,11 @@ fn test_send_init_with_send() {
         .with_keeping_insertion_order(true)
         .build();
 
-    let backend_report =
-        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, Default::default());
+    let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+    let mut env = create_env(program_id, code, Default::default());
+
+    let backend_report = execute_env(&mut env, program_id, Default::default());
 
     assert_eq!(
         backend_report.termination_reason,
@@ -641,14 +669,18 @@ fn test_reservation_id_with_value_ptr() {
         .with_keeping_insertion_order(true)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+    let mut env = create_env(
+        program_id,
+        code,
+        EnvCreateParams {
             gas: 250_000_000_000,
             ..Default::default()
         },
     );
+
+    let backend_report = execute_env(&mut env, program_id, Default::default());
 
     assert_eq!(
         backend_report.termination_reason,
@@ -688,14 +720,18 @@ fn test_reservation_id_with_actor_id_and_value_ptr() {
         .with_keeping_insertion_order(true)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+    let mut env = create_env(
+        program_id,
+        code,
+        EnvCreateParams {
             gas: 250_000_000_000,
             ..Default::default()
         },
     );
+
+    let backend_report = execute_env(&mut env, program_id, Default::default());
 
     assert_eq!(
         backend_report.termination_reason,
@@ -725,14 +761,18 @@ fn test_reservation_id_ptr() {
         .with_keeping_insertion_order(true)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+    let mut env = create_env(
+        program_id,
+        code,
+        EnvCreateParams {
             gas: 250_000_000_000,
             ..Default::default()
         },
     );
+
+    let backend_report = execute_env(&mut env, program_id, Default::default());
 
     assert_eq!(
         backend_report.termination_reason,
@@ -775,14 +815,18 @@ fn test_code_id_with_value_ptr() {
             .with_error_processing_config(ErrorProcessingConfig::All)
             .build();
 
-        let backend_report = execute_wasm_with_custom_configs(
-            &mut unstructured,
-            syscalls_config,
-            ExecuteParams {
+        let (program_id, code) = create_program(&mut unstructured, syscalls_config);
+
+        let mut env = create_env(
+            program_id,
+            code,
+            EnvCreateParams {
                 value: INITIAL_BALANCE,
                 ..Default::default()
             },
         );
+
+        let backend_report = execute_env(&mut env, program_id, Default::default());
 
         assert_eq!(
             backend_report.ext.context.value_counter.left(),
@@ -827,17 +871,29 @@ fn error_processing_works_for_fallible_syscalls() {
             SyscallsConfigBuilder::new(injection_types).with_params_config(params_config);
 
         // Assert that syscalls results will be processed.
-        let termination_reason = execute_wasm_with_custom_configs(
+        let (program_id, code) = create_program(
             &mut unstructured,
             syscalls_config_builder
                 .clone()
                 .with_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
-            ExecuteParams {
-                initial_memory_write: initial_memory_write.clone(),
+        );
+
+        let mut env = create_env(
+            program_id,
+            code,
+            EnvCreateParams {
                 outgoing_limit: 0,
                 imitate_reply: true,
                 ..Default::default()
+            },
+        );
+
+        let termination_reason = execute_env(
+            &mut env,
+            program_id,
+            EnvExecuteParams {
+                initial_memory_write: initial_memory_write.clone(),
             },
         )
         .termination_reason;
@@ -850,14 +906,24 @@ fn error_processing_works_for_fallible_syscalls() {
         );
 
         // Assert that syscall results will be ignored.
-        let termination_reason = execute_wasm_with_custom_configs(
-            &mut unstructured2,
-            syscalls_config_builder.build(),
-            ExecuteParams {
-                initial_memory_write: initial_memory_write.clone(),
+        let (program_id, code) =
+            create_program(&mut unstructured2, syscalls_config_builder.build());
+
+        let mut env = create_env(
+            program_id,
+            code,
+            EnvCreateParams {
                 outgoing_limit: 0,
                 imitate_reply: true,
                 ..Default::default()
+            },
+        );
+
+        let termination_reason = execute_env(
+            &mut env,
+            program_id,
+            EnvExecuteParams {
+                initial_memory_write: initial_memory_write.clone(),
             },
         )
         .termination_reason;
@@ -901,16 +967,19 @@ fn precise_syscalls_works() {
             .with_rule(RegularParamType::Length, (0..=1).into());
 
         // Assert that syscalls results will be processed.
-        let termination_reason = execute_wasm_with_custom_configs(
+        let (program_id, code) = create_program(
             &mut unstructured,
             SyscallsConfigBuilder::new(injection_types)
-                .with_params_config(param_config)
+                .with_params_config(param_config.clone())
                 .with_precise_syscalls_config(PreciseSyscallsConfig::new(3..=3, 3..=3))
                 .with_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
-            Default::default(),
-        )
-        .termination_reason;
+        );
+
+        let mut env = create_env(program_id, code, Default::default());
+
+        let termination_reason =
+            execute_env(&mut env, program_id, Default::default()).termination_reason;
 
         assert_eq!(
             termination_reason,
@@ -960,8 +1029,7 @@ fn set_waited_message_id(message_id: u64) -> MemoryWrite {
     MemoryWrite { offset, content }
 }
 
-struct ExecuteParams {
-    initial_memory_write: Option<NonEmpty<MemoryWrite>>,
+struct EnvCreateParams {
     outgoing_limit: u32,
     imitate_reply: bool,
     value: u128,
@@ -969,10 +1037,9 @@ struct ExecuteParams {
     message_id: u64,
 }
 
-impl Default for ExecuteParams {
+impl Default for EnvCreateParams {
     fn default() -> Self {
         Self {
-            initial_memory_write: None,
             outgoing_limit: 1024,
             imitate_reply: false,
             value: 0,
@@ -982,18 +1049,15 @@ impl Default for ExecuteParams {
     }
 }
 
-fn execute_wasm_with_custom_configs(
+#[derive(Default)]
+struct EnvExecuteParams {
+    initial_memory_write: Option<NonEmpty<MemoryWrite>>,
+}
+
+fn create_program(
     unstructured: &mut Unstructured,
     syscalls_config: SyscallsConfig,
-    ExecuteParams {
-        initial_memory_write,
-        outgoing_limit,
-        imitate_reply,
-        value,
-        gas,
-        message_id,
-    }: ExecuteParams,
-) -> BackendReport<Ext> {
+) -> (ProgramId, Code) {
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
 
     gear_lazy_pages::init(
@@ -1035,6 +1099,20 @@ fn execute_wasm_with_custom_configs(
     let code_id = CodeId::generate(code.original_code());
     let program_id = ProgramId::generate_from_user(code_id, b"");
 
+    (program_id, code)
+}
+
+fn create_env(
+    program_id: ProgramId,
+    code: Code,
+    EnvCreateParams {
+        outgoing_limit,
+        imitate_reply,
+        value,
+        gas,
+        message_id,
+    }: EnvCreateParams,
+) -> Environment<Ext> {
     let incoming_message = IncomingMessage::new(
         message_id.into(),
         message_sender(),
@@ -1064,15 +1142,24 @@ fn execute_wasm_with_custom_configs(
     };
 
     let ext = Ext::new(processor_context);
-    let env = Environment::new(
+
+    Environment::new(
         ext,
         code.code(),
         DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),
     )
-    .expect("Failed to create environment");
+    .expect("Failed to create environment")
+}
 
+fn execute_env(
+    env: &mut Environment<Ext>,
+    program_id: ProgramId,
+    EnvExecuteParams {
+        initial_memory_write,
+    }: EnvExecuteParams,
+) -> BackendReport<Ext> {
     env.execute(|ctx, mem, globals_config| {
         Ext::lazy_pages_init_for_program(
             ctx,
