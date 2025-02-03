@@ -492,13 +492,7 @@ fn resolve_func_type(func_idx: u32, module: &Module) -> Result<&FuncType, &'stat
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    macro_rules! parse_wat {
-        ($module:ident = $source:expr) => {
-            let module_bytes = wat::parse_str($source).unwrap();
-            let $module = Module::new(&module_bytes).unwrap();
-        };
-    }
+    use crate::tests::parse_wat;
 
     fn validate_module(module: Module) {
         let binary = module.serialize().expect("Failed to serialize");
@@ -507,8 +501,8 @@ mod tests {
 
     #[test]
     fn test_with_params_and_result() {
-        parse_wat!(
-            module = r#"
+        let module = parse_wat(
+            r#"
 (module
 	(func (export "i32.add") (param i32 i32) (result i32)
 		local.get 0
@@ -516,7 +510,7 @@ mod tests {
 	i32.add
 	)
 )
-"#
+"#,
         );
 
         let module = inject_with_config(

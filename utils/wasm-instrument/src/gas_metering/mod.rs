@@ -726,15 +726,12 @@ fn insert_gas_call(new_instrs: &mut Vec<Instruction>, current_block: &MeteredBlo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module::{ConstExpr, Global, Instruction::*};
+    use crate::{
+        module::{ConstExpr, Global, Instruction::*},
+        test_gas_counter_injection,
+        tests::parse_wat,
+    };
     use wasmparser::{BlockType, GlobalType};
-
-    macro_rules! parse_wat {
-        ($module:ident = $source:expr) => {
-            let module_bytes = wat::parse_str($source).unwrap();
-            let $module = Module::new(&module_bytes).unwrap();
-        };
-    }
 
     fn get_function_body(module: &Module, index: usize) -> Option<&[Instruction]> {
         module
@@ -779,14 +776,14 @@ mod tests {
 
     #[test]
     fn simple_grow() {
-        parse_wat!(
-            module = r#"(module
+        let module = parse_wat(
+            r#"(module
 			(func (result i32)
 			  global.get 0
 			  memory.grow)
 			(global i32 (i32.const 42))
 			(memory 0 1)
-			)"#
+			)"#,
         );
 
         let injected_module = inject(module, &ConstantCostRules::new(1, 10_000, 1), "env").unwrap();
@@ -814,14 +811,14 @@ mod tests {
 
     #[test]
     fn grow_no_gas_no_track() {
-        parse_wat!(
-            module = r"(module
+        let module = parse_wat(
+            r"(module
 			(func (result i32)
 			  global.get 0
 			  memory.grow)
 			(global i32 (i32.const 42))
 			(memory 0 1)
-			)"
+			)",
         );
 
         let injected_module = inject(module, &ConstantCostRules::default(), "env").unwrap();
@@ -913,19 +910,12 @@ mod tests {
         );
     }
 
-    macro_rules! parse_wat {
-        ($module:ident = $source:expr) => {
-            let module_bytes = wat::parse_str($source).unwrap();
-            let $module = Module::new(&module_bytes).unwrap();
-        };
-    }
-
     macro_rules! test_gas_counter_injection {
         (name = $name:ident; input = $input:expr; expected = $expected:expr) => {
             #[test]
             fn $name() {
-                parse_wat!(input_module = $input);
-                parse_wat!(expected_module = $expected);
+                let input_module = parse_wat($input);
+                let expected_module = parse_wat($expected);
 
                 let injected_module = inject(input_module, &ConstantCostRules::default(), "env")
                     .expect("inject_gas_counter call failed");

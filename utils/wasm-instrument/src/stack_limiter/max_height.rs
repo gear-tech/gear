@@ -556,6 +556,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::parse_wat;
 
     fn compute(func_idx: u32, module: &Module) -> Result<u32, &'static str> {
         MaxStackHeightCounter::new_with_context(MaxStackHeightCounterContext::new(module)?, |_| {
@@ -565,17 +566,10 @@ mod tests {
         .compute_for_defined_func(func_idx)
     }
 
-    macro_rules! parse_wat {
-        ($module:ident = $source:expr) => {
-            let module_bytes = wat::parse_str($source).unwrap();
-            let $module = Module::new(&module_bytes).unwrap();
-        };
-    }
-
     #[test]
     fn simple_test() {
-        parse_wat!(
-            module = r#"
+        let module = parse_wat(
+            r#"
 (module
 	(func
 		i32.const 1
@@ -586,7 +580,7 @@ mod tests {
 		drop
 	)
 )
-"#
+"#,
         );
 
         let height = compute(0, &module).unwrap();
@@ -595,15 +589,15 @@ mod tests {
 
     #[test]
     fn implicit_and_explicit_return() {
-        parse_wat!(
-            module = r#"
+        let module = parse_wat(
+            r#"
 (module
 	(func (result i32)
 		i32.const 0
 		return
 	)
 )
-"#
+"#,
         );
 
         let height = compute(0, &module).unwrap();
@@ -612,8 +606,8 @@ mod tests {
 
     #[test]
     fn dont_count_in_unreachable() {
-        parse_wat!(
-            module = r#"
+        let module = parse_wat(
+            r#"
 (module
   (memory 0)
   (func (result i32)
@@ -621,7 +615,7 @@ mod tests {
 	memory.grow
   )
 )
-"#
+"#,
         );
 
         let height = compute(0, &module).unwrap();
@@ -630,8 +624,8 @@ mod tests {
 
     #[test]
     fn yet_another_test() {
-        parse_wat!(
-            module = r#"
+        let module = parse_wat(
+            r#"
 (module
   (memory 0)
   (func
@@ -650,7 +644,7 @@ mod tests {
 	i32.const 2
   )
 )
-"#
+"#,
         );
 
         let height = compute(0, &module).unwrap();
@@ -659,8 +653,8 @@ mod tests {
 
     #[test]
     fn call_indirect() {
-        parse_wat!(
-            module = r#"
+        let module = parse_wat(
+            r#"
 (module
 	(table $ptr 1 1 funcref)
 	(elem $ptr (i32.const 0) func 1)
@@ -674,7 +668,7 @@ mod tests {
 		drop
 	)
 )
-"#
+"#,
         );
 
         let height = compute(0, &module).unwrap();
@@ -683,8 +677,8 @@ mod tests {
 
     #[test]
     fn breaks() {
-        parse_wat!(
-            module = r#"
+        let module = parse_wat(
+            r#"
 (module
 	(func $main
 		block (result i32)
@@ -696,7 +690,7 @@ mod tests {
 		drop
 	)
 )
-"#
+"#,
         );
 
         let height = compute(0, &module).unwrap();
@@ -705,8 +699,8 @@ mod tests {
 
     #[test]
     fn if_else_works() {
-        parse_wat!(
-            module = r#"
+        let module = parse_wat(
+            r#"
 (module
 	(func $main
 		i32.const 7
@@ -722,7 +716,7 @@ mod tests {
 		drop
 	)
 )
-"#
+"#,
         );
 
         let height = compute(0, &module).unwrap();
