@@ -55,10 +55,7 @@ pub fn get_static_pages(module: &Module) -> Result<WasmPagesAmount, CodeError> {
         .ok_or(SectionError::NotFound(SectionName::Import))?
         .iter()
         .find_map(|entry| match entry.ty {
-            TypeRef::Memory(mem_ty) => Some({
-                u32::try_from(mem_ty.initial)
-                    .unwrap_or_else(|_| unreachable!("only WASM32 is supported"))
-            }),
+            TypeRef::Memory(mem_ty) => Some(mem_ty.initial as u32),
             _ => None,
         })
         .map(WasmPagesAmount::try_from)
@@ -446,10 +443,8 @@ pub fn get_instantiated_table_section_size(module: &Module) -> u32 {
         return 0;
     };
 
-    let count = u32::try_from(table.ty.initial)
-        .unwrap_or_else(|_| unreachable!("only WASM32 is supported"));
     // Tables may hold only reference types, which are 4 bytes long.
-    count.saturating_mul(REF_TYPE_SIZE)
+    (table.ty.initial as u32).saturating_mul(REF_TYPE_SIZE)
 }
 
 /// Calculates the amount of bytes in the table/element section that will be initialized during module instantiation.
