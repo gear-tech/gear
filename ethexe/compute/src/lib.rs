@@ -28,10 +28,9 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_observer::Query;
 use ethexe_processor::{LocalOutcome, Processor};
-use ethexe_service_utils::{AsyncFnStream, OptionFuture};
-use futures::future::BoxFuture;
+use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, pin::Pin, task::{Context, Poll}};
 use tokio::task::JoinSet;
 
 #[derive(Debug)]
@@ -59,11 +58,41 @@ pub struct ComputeService {
     process_codes: JoinSet<Result<CodeCommitment>>,
 }
 
-impl AsyncFnStream for ComputeService {
+impl Stream for ComputeService {
     type Item = Result<ComputeEvent>;
 
-    async fn like_next(&mut self) -> Option<Self::Item> {
-        Some(self.next().await)
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(Poll::Ready(res)) = self.process_block.as_mut().map(|f| f.poll_unpin(cx)) {
+            if let Some(block) = self.blocks_queue.pop_front() {
+                let context = ChainHeadProcessContext {
+                    db: self.db.clone(),
+                    processor: self.processor.clone(),
+                    query: self.query.clone(),
+                };
+
+                self.process_block = Some(Box::pin(context.process(block)));
+            } else {
+                self.process_block = None;
+            }
+
+            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
+        }
+
+        if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
+            let res = match res {
+                Ok(res) => res.map(ComputeEvent::CodeProcessed),
+                Err(err) => Err(err.into()),
+            };
+            return Poll::Ready(Some(res));
+        }
+
+        Poll::Pending
+    }
+}
+
+impl FusedStream for ComputeService {
+    fn is_terminated(&self) -> bool {
+        false
     }
 }
 
@@ -113,34 +142,34 @@ impl ComputeService {
         }
     }
 
-    pub async fn next(&mut self) -> Result<ComputeEvent> {
-        tokio::select! {
-            res = self.process_block.as_mut().maybe() => {
-                if let Some(block) = self.blocks_queue.pop_front() {
-                    let context = ChainHeadProcessContext {
-                        db: self.db.clone(),
-                        processor: self.processor.clone(),
-                        query: self.query.clone(),
-                    };
+    // pub async fn next(&mut self) -> Result<ComputeEvent> {
+    //     tokio::select! {
+    //         res = self.process_block.as_mut().maybe() => {
+    //             if let Some(block) = self.blocks_queue.pop_front() {
+    //                 let context = ChainHeadProcessContext {
+    //                     db: self.db.clone(),
+    //                     processor: self.processor.clone(),
+    //                     query: self.query.clone(),
+    //                 };
 
-                    self.process_block = Some(Box::pin(context.process(block)));
-                } else {
-                    self.process_block = None;
-                }
+    //                 self.process_block = Some(Box::pin(context.process(block)));
+    //             } else {
+    //                 self.process_block = None;
+    //             }
 
-                res.map(ComputeEvent::BlockProcessed)
-            }
-            Some(res) = self.process_codes.join_next() => {
-                match res {
-                    Ok(res) => res.map(ComputeEvent::CodeProcessed),
-                    Err(err) => Err(err.into()),
-                }
-            }
-            else => {
-                futures::future::pending().await
-            }
-        }
-    }
+    //             res.map(ComputeEvent::BlockProcessed)
+    //         }
+    //         Some(res) = self.process_codes.join_next() => {
+    //             match res {
+    //                 Ok(res) => res.map(ComputeEvent::CodeProcessed),
+    //                 Err(err) => Err(err.into()),
+    //             }
+    //         }
+    //         else => {
+    //             futures::future::pending().await
+    //         }
+    //     }
+    // }
 }
 
 struct ChainHeadProcessContext {
