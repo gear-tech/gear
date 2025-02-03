@@ -83,6 +83,7 @@ members = [
     "examples/waiter",
     "examples/waiting-proxy",
     "examples/wat",
+    "examples/plonky2-verifier",
     "galloc",
     "gbuiltins/*",
     "gcli",
@@ -137,7 +138,7 @@ dirs = "4.0.0"
 dyn-clonable = "0.9.0"
 enum-iterator = "1.5.0"
 env_logger = "0.10"
-environmental = "1.1.3"
+environmental = { version = "1.1.4", default-features = false }
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.3"
 futures-util = "0.3.30"
@@ -149,11 +150,14 @@ impl-serde = "0.4.0"
 jsonrpsee = { version = "^0.24" }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }
+num = { version = "0.4", default-features = false }
 num_enum = { version = "0.6.1", default-features = false }
 parity-scale-codec = { version = "3.6.4", default-features = false }
 parity-wasm = "0.45.0"
 parking_lot = "0.12.3"
 path-clean = "1.0.1"
+plonky2 = { git = "https://github.com/gear-tech/plonky2.git", branch = "fix-getrandom", default-features = false }
+plonky2_field = { git = "https://github.com/gear-tech/plonky2.git", branch = "fix-getrandom", default-features = false }
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
 prometheus = { version = "0.13.0", default-features = false }
@@ -179,6 +183,7 @@ syn = "2.0.71"
 thiserror = "1.0.62"
 tokio = { version = "1.38.0" }
 uluru = "3.1.0"
+unroll = { version = "0.1.5", default-features = false }
 url = "2.5.2"
 # wasmer 4.3.4 for some reason have wat's version "=1.0.71" nailed down, so we have to do the same
 wat = "1.0.71"
@@ -506,6 +511,7 @@ demo-wait-wake = { path = "examples/wait_wake" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
 demo-stack-allocations = { path = "examples/stack-allocations" }
 demo-wat = { path = "examples/wat" }
+demo-plonky2-verifier = { path = "examples/plonky2-verifier" }
 
 # Dependencies that only used in one package
 #
