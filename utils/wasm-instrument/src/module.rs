@@ -1644,109 +1644,63 @@ impl Module {
 mod tests {
     use super::*;
 
-    #[test]
-    #[should_panic = "MultipleTables"]
-    fn multiple_tables_denied() {
-        let wasm = wat::parse_str(
-            r#"
+    macro_rules! test_parsing_failed {
+        (
+            $( $test_name:ident: $wat:literal => $err_msg:literal; )*
+        ) => {
+            $(
+                #[test]
+                #[should_panic = $err_msg]
+                fn $test_name() {
+                    let wasm = wat::parse_str($wat).unwrap();
+                    let _module = Module::new(&wasm).unwrap();
+                }
+            )*
+        };
+    }
+
+    test_parsing_failed! {
+        multiple_tables_denied: r#"
         (module
             (table 10 10 funcref)
             (table 20 20 funcref)
-        )"#,
-        )
-        .unwrap();
+        )"# => "MultipleTables";
 
-        let _module = Module::new(&wasm).unwrap();
-    }
-
-    #[test]
-    #[should_panic = "MultipleMemories"]
-    fn multiple_memories_denied() {
-        let wasm = wat::parse_str(
-            r#"
+        multiple_memories_denied: r#"
         (module
             (memory (export "memory") 1)
             (memory (export "memory2") 2)
-        )"#,
-        )
-        .unwrap();
+        )"# => "MultipleMemories";
 
-        let _module = Module::new(&wasm).unwrap();
-    }
-
-    #[test]
-    #[should_panic = "NonZeroMemoryIdx(123)"]
-    fn data_non_zero_memory_idx() {
-        let wasm = wat::parse_str(
-            r#"
+        data_non_zero_memory_idx: r#"
         (module
             (data (memory 123) (offset i32.const 0) "")
         )
-        "#,
-        )
-        .unwrap();
+        "# => "NonZeroMemoryIdx(123)";
 
-        let _module = Module::new(&wasm).unwrap();
-    }
-
-    #[test]
-    #[should_panic = "PassiveDataKind"]
-    fn passive_data_kind_denied() {
-        let wasm = wat::parse_str(
-            r#"
+        passive_data_kind_denied: r#"
         (module
             (data "")
         )
-        "#,
-        )
-        .unwrap();
+        "# => "PassiveDataKind";
 
-        let _module = Module::new(&wasm).unwrap();
-    }
-
-    #[test]
-    #[should_panic = "NonActiveElementKind"]
-    fn passive_element_denied() {
-        let wasm = wat::parse_str(
-            r#"
+        passive_element_denied: r#"
         (module
             (elem funcref (item i32.const 0))
         )
-        "#,
-        )
-        .unwrap();
+        "# => "NonActiveElementKind";
 
-        let _module = Module::new(&wasm).unwrap();
-    }
-
-    #[test]
-    #[should_panic = "NonActiveElementKind"]
-    fn declared_element_denied() {
-        let wasm = wat::parse_str(
-            r#"
+        declared_element_denied: r#"
         (module
             (func $a)
             (elem declare func $a)
         )
-        "#,
-        )
-        .unwrap();
+        "# => "NonActiveElementKind";
 
-        let _module = Module::new(&wasm).unwrap();
-    }
-
-    #[test]
-    #[should_panic = "ElementExpressions"]
-    fn element_expressions_denied() {
-        let wasm = wat::parse_str(
-            r#"
+        element_expressions_denied: r#"
         (module
             (elem (i32.const 1) funcref)
         )
-        "#,
-        )
-        .unwrap();
-
-        let _module = Module::new(&wasm).unwrap();
+        "# => "ElementExpressions";
     }
 }
