@@ -294,12 +294,11 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
     let module = Module::new(&code)?;
     let schedule = Schedule::default();
     match Code::try_new(
-        self.code,
+        code,
         schedule.instruction_weights.version,
         |module| schedule.rules(module),
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
-        schedule.limits.table_number.into(),
     ) {
         Ok(_) => Ok(()),
         Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
