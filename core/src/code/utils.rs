@@ -466,7 +466,6 @@ pub fn get_instantiated_element_section_size(module: &Module) -> Result<u32, Cod
     Ok(element_section.iter().fold(0, |total_bytes, segment| {
         let count = match &segment.items {
             ElementItems::Functions(section) => section.len(),
-            ElementItems::Expressions(_ty, section) => section.len(),
         } as u32;
         // Tables may hold only reference types, which are 4 bytes long.
         total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))

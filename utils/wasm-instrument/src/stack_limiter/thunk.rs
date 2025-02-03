@@ -157,12 +157,7 @@ where
 
     if let Some(elem_section) = module.element_section_mut() {
         for segment in elem_section {
-            let funcs = match &mut segment.items {
-                ElementItems::Functions(funcs) => funcs,
-                ElementItems::Expressions(_, _) => {
-                    unimplemented!()
-                }
-            };
+            let ElementItems::Functions(funcs) = &mut segment.items;
 
             for function_idx in funcs {
                 fixup(function_idx)
@@ -193,9 +188,6 @@ fn thunk_function_indexes(module: &Module) -> impl Iterator<Item = u32> + '_ {
         .iter()
         .flat_map(|segment| match &segment.items {
             ElementItems::Functions(funcs) => funcs.iter(),
-            ElementItems::Expressions(_, _) => {
-                unimplemented!()
-            }
         })
         .cloned();
 

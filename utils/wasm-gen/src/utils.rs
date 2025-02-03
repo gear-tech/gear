@@ -379,17 +379,6 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
                             }
                         }
                     }
-                    ElementItems::Expressions(_ty, exprs) => {
-                        for expr in exprs {
-                            for instruction in &mut expr.instructions {
-                                if let Instruction::Call(function_index) = instruction {
-                                    if *function_index >= gr_gas_available_index {
-                                        *function_index += 1;
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }

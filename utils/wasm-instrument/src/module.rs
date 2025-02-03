@@ -363,6 +363,10 @@ pub enum ModuleError {
     NonZeroMemoryIdx(u32),
     #[display(fmt = "Passive data is not supported")]
     PassiveDataKind,
+    #[display(fmt = "Element expressions are not supported")]
+    ElementExpressions,
+    #[display(fmt = "Only active element is supported")]
+    NonActiveElementKind,
 }
 
 impl core::error::Error for ModuleError {
@@ -376,6 +380,8 @@ impl core::error::Error for ModuleError {
             ModuleError::MultipleMemories => None,
             ModuleError::NonZeroMemoryIdx(_) => None,
             ModuleError::PassiveDataKind => None,
+            ModuleError::ElementExpressions => None,
+            ModuleError::NonActiveElementKind => None,
         }
     }
 }
@@ -719,54 +725,45 @@ impl Export {
 
 #[derive(Clone)]
 pub enum ElementKind {
-    Passive,
     Active {
         table_index: Option<u32>,
         offset_expr: ConstExpr,
     },
-    Declared,
 }
 
 impl ElementKind {
     fn parse(kind: wasmparser::ElementKind) -> Result<Self> {
-        Ok(match kind {
-            wasmparser::ElementKind::Passive => Self::Passive,
+        match kind {
+            wasmparser::ElementKind::Passive => Err(ModuleError::NonActiveElementKind),
             wasmparser::ElementKind::Active {
                 table_index,
                 offset_expr,
-            } => Self::Active {
+            } => Ok(Self::Active {
                 table_index,
                 offset_expr: ConstExpr::parse(offset_expr)?,
-            },
-            wasmparser::ElementKind::Declared => Self::Declared,
-        })
+            }),
+            wasmparser::ElementKind::Declared => Err(ModuleError::NonActiveElementKind),
+        }
     }
 }
 
 #[derive(Clone)]
 pub enum ElementItems {
     Functions(Vec<u32>),
-    Expressions(RefType, Vec<ConstExpr>),
 }
 
 impl ElementItems {
     fn parse(elements: wasmparser::ElementItems) -> Result<Self> {
-        Ok(match elements {
+        match elements {
             wasmparser::ElementItems::Functions(f) => {
                 let mut funcs = Vec::new();
                 for func in f {
                     funcs.push(func?);
                 }
-                Self::Functions(funcs)
+                Ok(Self::Functions(funcs))
             }
-            wasmparser::ElementItems::Expressions(ty, e) => {
-                let mut exprs = Vec::new();
-                for expr in e {
-                    exprs.push(ConstExpr::parse(expr?)?);
-                }
-                Self::Expressions(ty, exprs)
-            }
-        })
+            wasmparser::ElementItems::Expressions(_ty, _e) => Err(ModuleError::ElementExpressions),
+        }
     }
 }
 
@@ -799,28 +796,14 @@ impl Element {
             ElementItems::Functions(funcs) => {
                 wasm_encoder::Elements::Functions(funcs.clone().into())
             }
-            ElementItems::Expressions(ty, exprs) => wasm_encoder::Elements::Expressions(
-                RoundtripReencoder.ref_type(*ty)?,
-                exprs
-                    .iter()
-                    .map(ConstExpr::reencode)
-                    .collect::<Result<Vec<_>>>()?
-                    .into(),
-            ),
         };
 
         match &self.kind {
-            ElementKind::Passive => {
-                encoder_section.passive(items);
-            }
             ElementKind::Active {
                 table_index,
                 offset_expr,
             } => {
                 encoder_section.active(*table_index, &offset_expr.reencode()?, items);
-            }
-            ElementKind::Declared => {
-                encoder_section.declared(items);
             }
         }
 
@@ -1107,17 +1090,6 @@ impl ModuleBuilder {
                         for func_index in funcs.iter_mut() {
                             if *func_index >= inserted_index {
                                 *func_index += inserted_count
-                            }
-                        }
-                    }
-                    ElementItems::Expressions(_ty, exprs) => {
-                        for expr in exprs {
-                            for instruction in &mut expr.instructions {
-                                if let Instruction::Call(function_index) = instruction {
-                                    if *function_index >= inserted_index {
-                                        *function_index += inserted_count
-                                    }
-                                }
                             }
                         }
                     }
@@ -1724,6 +1696,52 @@ mod tests {
             r#"
         (module
             (data "")
+        )
+        "#,
+        )
+        .unwrap();
+
+        let _module = Module::new(&wasm).unwrap();
+    }
+
+    #[test]
+    #[should_panic = "NonActiveElementKind"]
+    fn passive_element_denied() {
+        let wasm = wat::parse_str(
+            r#"
+        (module
+            (elem funcref (item i32.const 0))
+        )
+        "#,
+        )
+        .unwrap();
+
+        let _module = Module::new(&wasm).unwrap();
+    }
+
+    #[test]
+    #[should_panic = "NonActiveElementKind"]
+    fn declared_element_denied() {
+        let wasm = wat::parse_str(
+            r#"
+        (module
+            (func $a)
+            (elem declare func $a)
+        )
+        "#,
+        )
+        .unwrap();
+
+        let _module = Module::new(&wasm).unwrap();
+    }
+
+    #[test]
+    #[should_panic = "ElementExpressions"]
+    fn element_expressions_denied() {
+        let wasm = wat::parse_str(
+            r#"
+        (module
+            (elem (i32.const 1) funcref)
         )
         "#,
         )
