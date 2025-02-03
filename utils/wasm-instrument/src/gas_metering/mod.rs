@@ -180,7 +180,8 @@ pub fn inject<R: Rules>(
     mbuilder.push_import(Import::func(gas_module_name, "gas", import_sig));
 
     let module = mbuilder
-        .rewrite_sections_after_insertion(gas_func as u32, 1)
+        .shift_func_index(gas_func as u32)
+        .shift_all()
         .build();
 
     post_injection_handler(module, rules, gas_func)

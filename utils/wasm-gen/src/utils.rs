@@ -18,14 +18,13 @@
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
-    syscalls::SyscallName, ElementItems, Function, Import, Instruction, MemArg, Module,
-    ModuleBuilder,
+    syscalls::SyscallName, Function, Import, Instruction, MemArg, Module, ModuleBuilder,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
     mem,
 };
-use wasmparser::{BlockType, ExternalKind, FuncType, TypeRef, ValType};
+use wasmparser::{BlockType, FuncType, TypeRef, ValType};
 
 const PREALLOCATE: usize = 1_000;
 
@@ -358,36 +357,13 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
 
     // fix other sections if import gr_gas_available was inserted
     if rewrite_sections {
-        if let Some(section) = module.export_section_mut() {
-            for export in section {
-                if let ExternalKind::Func = export.kind {
-                    if export.index >= gr_gas_available_index {
-                        export.index += 1;
-                    }
-                }
-            }
-        }
-
-        if let Some(section) = module.element_section_mut() {
-            for segment in section {
-                // update all indirect call addresses initial values
-                match &mut segment.items {
-                    ElementItems::Functions(funcs) => {
-                        for func_index in funcs.iter_mut() {
-                            if *func_index >= gr_gas_available_index {
-                                *func_index += 1;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if let Some(start_idx) = &mut module.start_section {
-            if *start_idx >= gr_gas_available_index {
-                *start_idx += 1;
-            }
-        }
+        module = ModuleBuilder::from_module(module)
+            .shift_func_index(gr_gas_available_index)
+            .with_export_section()
+            .with_element_section()
+            .with_start_section()
+            .shift()
+            .build();
     }
 
     module

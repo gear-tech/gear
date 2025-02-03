@@ -1035,6 +1035,139 @@ impl Name {
     }
 }
 
+pub struct ModuleFuncIndexShifter {
+    builder: ModuleBuilder,
+    inserted_at: u32,
+    code_section: bool,
+    export_section: bool,
+    element_section: bool,
+    start_section: bool,
+    name_section: bool,
+}
+
+impl ModuleFuncIndexShifter {
+    pub fn with_code_section(mut self) -> Self {
+        self.code_section = true;
+        self
+    }
+
+    pub fn with_export_section(mut self) -> Self {
+        self.export_section = true;
+        self
+    }
+
+    pub fn with_element_section(mut self) -> Self {
+        self.element_section = true;
+        self
+    }
+
+    pub fn with_start_section(mut self) -> Self {
+        self.start_section = true;
+        self
+    }
+
+    /// Shift function indices in every section
+    pub fn with_all(self) -> Self {
+        self.with_code_section()
+            .with_export_section()
+            .with_element_section()
+            .with_start_section()
+    }
+
+    pub fn shift_all(self) -> ModuleBuilder {
+        self.with_all().shift()
+    }
+
+    /// Do actual shifting
+    pub fn shift(mut self) -> ModuleBuilder {
+        if 1 == 0 {
+            panic!("inserted count is zero");
+        }
+
+        if let Some(section) = self
+            .builder
+            .module
+            .code_section_mut()
+            .filter(|_| self.code_section)
+        {
+            for func in section {
+                for instruction in &mut func.instructions {
+                    if let Instruction::Call(function_index) = instruction {
+                        if *function_index >= self.inserted_at {
+                            *function_index += 1
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(section) = self
+            .builder
+            .module
+            .export_section_mut()
+            .filter(|_| self.export_section)
+        {
+            for export in section {
+                if let ExternalKind::Func = export.kind {
+                    if export.index >= self.inserted_at {
+                        export.index += 1
+                    }
+                }
+            }
+        }
+
+        if let Some(section) = self
+            .builder
+            .module
+            .element_section_mut()
+            .filter(|_| self.element_section)
+        {
+            for segment in section {
+                // update all indirect call addresses initial values
+                match &mut segment.items {
+                    ElementItems::Functions(funcs) => {
+                        for func_index in funcs.iter_mut() {
+                            if *func_index >= self.inserted_at {
+                                *func_index += 1
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(start_idx) = &mut self
+            .builder
+            .module
+            .start_section
+            .filter(|_| self.start_section)
+        {
+            if *start_idx >= self.inserted_at {
+                *start_idx += 1
+            }
+        }
+
+        if let Some(section) = self
+            .builder
+            .module
+            .name_section_mut()
+            .filter(|_| self.name_section)
+        {
+            for name in section {
+                if let Name::Function(map) = name {
+                    for naming in map {
+                        if naming.index >= self.inserted_at {
+                            naming.index += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        self.builder
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ModuleBuilder {
     module: Module,
@@ -1045,71 +1178,16 @@ impl ModuleBuilder {
         Self { module }
     }
 
-    pub fn rewrite_sections_after_insertion(
-        mut self,
-        inserted_index: u32,
-        inserted_count: u32,
-    ) -> Self {
-        if inserted_count == 0 {
-            panic!("inserted count is zero");
+    pub fn shift_func_index(self, inserted_at: u32) -> ModuleFuncIndexShifter {
+        ModuleFuncIndexShifter {
+            builder: self,
+            inserted_at,
+            code_section: false,
+            export_section: false,
+            element_section: false,
+            start_section: false,
+            name_section: false,
         }
-
-        if let Some(section) = self.module.code_section_mut() {
-            for func in section {
-                for instruction in &mut func.instructions {
-                    if let Instruction::Call(function_index) = instruction {
-                        if *function_index >= inserted_index {
-                            *function_index += inserted_count
-                        }
-                    }
-                }
-            }
-        }
-
-        if let Some(section) = self.module.export_section_mut() {
-            for export in section {
-                if let ExternalKind::Func = export.kind {
-                    if export.index >= inserted_index {
-                        export.index += inserted_count
-                    }
-                }
-            }
-        }
-
-        if let Some(section) = self.module.element_section_mut() {
-            for segment in section {
-                // update all indirect call addresses initial values
-                match &mut segment.items {
-                    ElementItems::Functions(funcs) => {
-                        for func_index in funcs.iter_mut() {
-                            if *func_index >= inserted_index {
-                                *func_index += inserted_count
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if let Some(start_idx) = &mut self.module.start_section {
-            if *start_idx >= inserted_index {
-                *start_idx += inserted_count
-            }
-        }
-
-        if let Some(section) = self.module.name_section_mut() {
-            for name in section {
-                if let Name::Function(map) = name {
-                    for naming in map {
-                        if naming.index >= inserted_index {
-                            naming.index += inserted_count;
-                        }
-                    }
-                }
-            }
-        }
-
-        self
     }
 
     pub fn build(self) -> Module {

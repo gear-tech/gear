@@ -222,7 +222,8 @@ fn inject_system_break_import(
     ));
 
     let module = mbuilder
-        .rewrite_sections_after_insertion(inserted_index, 1)
+        .shift_func_index(inserted_index)
+        .shift_all()
         .build();
 
     Ok((inserted_index, module))
