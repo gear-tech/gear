@@ -25,7 +25,7 @@ use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment, StateTransition},
     BlockData,
 };
-use ethexe_db::Database;
+use ethexe_db::{CodeInfo, Database};
 use ethexe_observer::Query;
 use ethexe_processor::{LocalOutcome, Processor};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
@@ -112,7 +112,7 @@ impl ComputeService {
         }
     }
 
-    pub fn receive_code(&mut self, code_id: CodeId, code: Vec<u8>) {
+    pub fn receive_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
         log::info!(
             "🔢 receive a code blob, code_id {code_id}, code size {}",
             code.len()
@@ -121,7 +121,11 @@ impl ComputeService {
         let mut processor = self.processor.clone();
         self.process_codes.spawn_blocking(move || {
             let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
-            Ok(CodeCommitment { id: code_id, valid })
+            Ok(CodeCommitment {
+                id: code_id,
+                timestamp,
+                valid,
+            })
         });
     }
 
@@ -192,9 +196,11 @@ impl ChainHeadProcessContext {
             match event {
                 BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
                     code_id,
+                    timestamp,
                     tx_hash,
                 }) => {
-                    self.db.set_code_blob_tx(code_id, tx_hash);
+                    self.db
+                        .set_code_info(code_id, CodeInfo { timestamp, tx_hash });
                 }
                 BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
                     code_id, ..
@@ -205,12 +211,15 @@ impl ChainHeadProcessContext {
 
                     log::debug!("📥 downloading absent code: {code_id}");
 
-                    let blob_tx_hash = self
+                    let CodeInfo { timestamp, tx_hash } = self
                         .db
-                        .code_blob_tx(code_id)
-                        .ok_or_else(|| anyhow!("Blob tx hash not found"))?;
+                        .code_info(code_id)
+                        .ok_or_else(|| anyhow!("Code info not found for code {code_id}"))?;
 
-                    let code = self.query.download_code(code_id, blob_tx_hash).await?;
+                    let code = self
+                        .query
+                        .download_code(code_id, timestamp, tx_hash)
+                        .await?;
 
                     self.processor
                         .process_upload_code(code_id, code.as_slice())?;
