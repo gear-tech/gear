@@ -33,7 +33,17 @@ use wasmparser::{
     MemoryType, NameSectionReader, Payload, RefType, TableType, TypeRef, ValType, WasmFeatures,
 };
 
-macro_rules! define_for_each_instruction_helper {
+/// Macro to generate `define_for_each_instruction` macro
+///
+/// The generator is required to write inner macro branches that filter out unused proposals,
+/// forbidden instructions and rewrite fields,
+/// or we would have around 70 branches 10 lines each without the generator.
+///
+/// The inner macro itself is used inside `wasmparser::for_each_operator`
+/// macro to finally define our own `for_each_instruction` macro.
+macro_rules! define_for_each_instruction_generator {
+    // we need to use `$$` to define macro inside macro
+    // but `$$` is unstable, so we use workaround with `$_:tt`
     ($_:tt;
         proposals { $($proposals:ident,)+ }
         rewrite_fields { $( $ops:ident { $($args:ident: $argsty:ty),* }, )+ }
@@ -43,7 +53,9 @@ macro_rules! define_for_each_instruction_helper {
             ($_ ( @$_ proposal:ident $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })? => $_ visit:ident ($_ ($_ ann:tt)*) )*) => {
                 define_for_each_instruction!(inner $_ ( @$_ proposal $_ op $_ ({ $_ ($_ arg: $_ argty),* })? )* accum @accum2);
             };
-            // ACCUM: skip forbidden instructions
+            // we use `accum` as the first pass to colllect instructions
+
+            // skip forbidden instructions
             $(
                 (
                     inner
@@ -62,7 +74,7 @@ macro_rules! define_for_each_instruction_helper {
                     );
                 };
             )+
-            // ACCUM: use only specific proposals
+            // use only specific proposals
             $(
                 (
                     inner
@@ -99,7 +111,8 @@ macro_rules! define_for_each_instruction_helper {
                     @accum2
                 );
             };
-            // @accum2: rewrite instructions fields
+
+            // then we use `@accum2` to rewrite instructions fields here
             $(
                 (
                     inner
@@ -119,7 +132,7 @@ macro_rules! define_for_each_instruction_helper {
                     );
                 };
             )+
-            // @accum2: accumulate rest instructions from `accum` to `@accum2`
+            // accumulate rest instructions from `accum` to `@accum2`
             (
                 inner
                 accum
@@ -156,7 +169,8 @@ macro_rules! define_for_each_instruction_helper {
     };
 }
 
-define_for_each_instruction_helper!($;
+// the generator finally declares `define_for_each_instruction` macro here
+define_for_each_instruction_generator!($;
     proposals {
         mvp,
         sign_extension,
@@ -237,6 +251,9 @@ define_for_each_instruction_helper!($;
     }
 );
 
+// `define_for_each_instruction` macro defines `for_each_instruction` macro
+// which works exactly like `wasmparser::for_each_operator!()`
+// but some instructions are filtered out
 wasmparser::for_each_operator!(define_for_each_instruction);
 
 macro_rules! define_instruction {
@@ -259,7 +276,7 @@ macro_rules! define_instruction {
             $( $accum_ops $( { $( $accum_original_arg: $accum_original_argty ),* } => ( $( $accum_arg: $accum_argty ),* ) )? )*
         );
     };
-    // collect rest of instructions
+    // collect the rest of instructions
     (
         @convert
         $op:ident $({ $($arg:ident: $argty:ty),* })?
@@ -315,7 +332,7 @@ macro_rules! define_instruction {
         }
     };
 
-    // further macro branches are based on original `wasmparser::for_each_operator!()` macro
+    // further macro branches are based on `wasm_encoder::reencode` module
 
     (@parse CallIndirect($type_index:ident type_index, $table_index:ident table_index)) => {{
         // already verified by wasmparser
