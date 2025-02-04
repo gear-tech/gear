@@ -19,7 +19,7 @@
 use anyhow::{anyhow, bail};
 use gear_core::{
     code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig},
-    gas_metering::CustomConstantCostRules,
+    gas_metering::{CustomConstantCostRules, Schedule},
 };
 use gear_wasm_instrument::SyscallName;
 use pwasm_utils::parity_wasm::{
@@ -328,13 +328,14 @@ impl CodeValidator {
     /// Validates wasm code in the same way as
     /// `pallet_gear::pallet::Pallet::upload_program(...)`.
     pub fn validate_program(self) -> anyhow::Result<()> {
+        let schedule = Schedule::default();
         match Code::try_new(
             self.code,
-            1,
-            |_| CustomConstantCostRules::default(),
-            None,
-            None,
-            None,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
+            schedule.limits.table_number.into(),
         ) {
             Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
             _ => Ok(()),

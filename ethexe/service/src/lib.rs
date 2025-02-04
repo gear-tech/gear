@@ -23,7 +23,7 @@ use ethexe_common::{
     events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
 };
-use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use ethexe_db::{BlockMetaStorage, CodeInfo, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService, RequestBlockData};
@@ -35,6 +35,7 @@ use ethexe_sequencer::{
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
+use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::Not, sync::Arc};
@@ -293,9 +294,10 @@ impl Service {
             match event {
                 BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
                     code_id,
+                    timestamp,
                     tx_hash,
                 }) => {
-                    db.set_code_blob_tx(code_id, tx_hash);
+                    db.set_code_info(code_id, CodeInfo { timestamp, tx_hash });
                 }
                 BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
                     code_id, ..
@@ -306,11 +308,11 @@ impl Service {
 
                     log::debug!("📥 downloading absent code: {code_id}");
 
-                    let tx_hash = db
-                        .code_blob_tx(code_id)
-                        .ok_or_else(|| anyhow!("Tx hash not found for code {code_id}"))?;
+                    let CodeInfo { timestamp, tx_hash } = db
+                        .code_info(code_id)
+                        .ok_or_else(|| anyhow!("Code info not found for code {code_id}"))?;
 
-                    let code = query.download_code(code_id, tx_hash).await?;
+                    let code = query.download_code(code_id, timestamp, tx_hash).await?;
 
                     processor.process_upload_code(code_id, code.as_slice())?;
                 }
@@ -453,13 +455,13 @@ impl Service {
 
         loop {
             tokio::select! {
-                event = observer.next() => {
+                event = observer.select_next_some() => {
                     match event? {
-                        ObserverEvent::Blob { code_id, code } => {
+                        ObserverEvent::Blob { code_id, timestamp, code } => {
                             // TODO: spawn blocking here?
                             let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
 
-                            let code_commitments = vec![CodeCommitment { id: code_id, valid }];
+                            let code_commitments = vec![CodeCommitment { id: code_id, timestamp, valid }];
 
                             if let Some(v) = validator.as_mut() {
                                 let aggregated_code_commitments = v.aggregate(code_commitments)?;
@@ -538,7 +540,7 @@ impl Service {
                         }
                     }
                 },
-                Some(event) = sequencer.maybe_next() => {
+                event = sequencer.maybe_next_some() => {
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
                     };
@@ -606,7 +608,7 @@ impl Service {
                         SequencerEvent::CommitmentSubmitted { .. } => {},
                     }
                 },
-                Some(event) = network.maybe_next() => {
+                event = network.maybe_next_some() => {
                     match event {
                         NetworkEvent::Message { source, data } => {
                             log::trace!("Received a network message from peer {source:?}");
@@ -687,7 +689,7 @@ impl Service {
                         }
                         _ => {}
                     }},
-                Some(event) = prometheus.maybe_next() => {
+                event = prometheus.maybe_next_some() => {
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
                     };

@@ -45,11 +45,10 @@ library Gear {
         address wrappedVara;
     }
 
-    struct ValidatorsCommitment {
-        AggregatedPublicKey aggregatedPublicKey;
-        VerifyingShare[] verifyingShares;
-        address[] validators;
-        uint256 eraIndex;
+    struct CodeCommitment {
+        bytes32 id;
+        uint48 timestamp;
+        bool valid;
     }
 
     struct BlockCommitment {
@@ -60,9 +59,16 @@ library Gear {
         StateTransition[] transitions;
     }
 
-    struct CodeCommitment {
-        bytes32 id;
-        bool valid;
+    struct ValidatorsCommitment {
+        AggregatedPublicKey aggregatedPublicKey;
+        VerifyingShare[] verifyingShares;
+        address[] validators;
+        uint256 eraIndex;
+    }
+
+    struct BatchCommitment {
+        CodeCommitment[] codeCommitments;
+        BlockCommitment[] blockCommitments;
     }
 
     enum CodeState {
@@ -163,20 +169,24 @@ library Gear {
     }
 
     function blockIsPredecessor(bytes32 hash) internal view returns (bool) {
-        for (uint256 i = block.number - 1; i > 0; i--) {
+        for (uint256 i = block.number - 1; i > 0;) {
             bytes32 ret = blockhash(i);
             if (ret == hash) {
                 return true;
             } else if (ret == 0) {
                 break;
             }
+
+            unchecked {
+                i--;
+            }
         }
 
         return false;
     }
 
-    function codeCommitmentHash(CodeCommitment calldata codeCommitment) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
+    function codeCommitmentHash(CodeCommitment memory codeCommitment) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.timestamp, codeCommitment.valid));
     }
 
     function defaultComputationSettings() internal pure returns (ComputationSettings memory) {

@@ -61,10 +61,14 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
             let tx_hash = log
                 .transaction_hash
                 .ok_or_else(|| anyhow!("Tx hash not found"))?;
+            let block_timestamp = log
+                .block_timestamp
+                .ok_or_else(|| anyhow!("Block timestamp not found"))?;
             let event = decode_log::<IRouter::CodeValidationRequested>(log)?;
 
             RouterEvent::CodeValidationRequested {
                 code_id: bytes32_to_code_id(event.codeId),
+                timestamp: block_timestamp,
                 tx_hash: bytes32_to_h256(tx_hash),
             }
         }

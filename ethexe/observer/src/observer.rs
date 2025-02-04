@@ -40,9 +40,10 @@ pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
 pub(crate) async fn read_code_from_tx_hash(
     blob_reader: Arc<dyn BlobReader>,
     expected_code_id: CodeId,
+    timestamp: u64,
     tx_hash: H256,
     attempts: Option<u8>,
-) -> Result<(CodeId, Vec<u8>)> {
+) -> Result<(CodeId, u64, Vec<u8>)> {
     let code = blob_reader
         .read_blob_from_tx_hash(tx_hash, attempts)
         .await
@@ -52,7 +53,7 @@ pub(crate) async fn read_code_from_tx_hash(
         .then_some(())
         .ok_or_else(|| anyhow!("unexpected code id"))?;
 
-    Ok((expected_code_id, code))
+    Ok((expected_code_id, timestamp, code))
 }
 
 pub async fn read_block_events(

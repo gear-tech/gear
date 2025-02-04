@@ -21,7 +21,7 @@ use std::sync::LazyLock;
 
 /// target path from the root workspace
 const TARGET: &str = "target";
-const WASM_TARGET: &str = "target/wasm32-unknown-unknown";
+const WASM_TARGET: &str = "target/wasm32-gear";
 
 static ROOT: LazyLock<String> = LazyLock::new(|| env!("CARGO_MANIFEST_DIR").to_owned() + "/../");
 pub static PROFILE: &str = if cfg!(debug_assertions) {

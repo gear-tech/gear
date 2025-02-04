@@ -704,6 +704,7 @@ impl Waitlist {
 }
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct DispatchStash(BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>);
 
 impl DispatchStash {

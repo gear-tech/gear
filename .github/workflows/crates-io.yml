@@ -30,8 +30,7 @@ jobs:
       - name: "Install: Rust stable toolchain"
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
-          components: llvm-tools, rust-src
+          targets: wasm32v1-none
 
       - name: "Publish packages (simulate)"
         if: ${{ !inputs.publish }}
