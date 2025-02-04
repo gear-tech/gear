@@ -33,276 +33,204 @@ use wasmparser::{
     MemoryType, NameSectionReader, Payload, RefType, TableType, TypeRef, ValType, WasmFeatures,
 };
 
-/// Macro to generate `define_for_each_instruction` macro
-///
-/// The generator is required to write inner macro branches that filter out unused proposals,
-/// forbidden instructions and rewrite fields,
-/// or we would have around 70 branches 10 lines each without the generator.
-///
-/// The inner macro itself is used inside `wasmparser::for_each_operator`
-/// macro to finally define our own `for_each_instruction` macro.
-macro_rules! define_for_each_instruction_generator {
-    // we need to use `$$` to define macro inside macro
-    // but `$$` is unstable, so we use workaround with `$_:tt`
-    ($_:tt;
-        proposals { $($proposals:ident,)+ }
-        rewrite_fields { $( $ops:ident { $($args:ident: $argsty:ty),* }, )+ }
-        forbidden_instructions { $($forbidden_instructions:ident,)+ }
-    ) => {
-        macro_rules! define_for_each_instruction {
-            ($_ ( @$_ proposal:ident $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })? => $_ visit:ident ($_ ($_ ann:tt)*) )*) => {
-                define_for_each_instruction!(inner $_ ( @$_ proposal $_ op $_ ({ $_ ($_ arg: $_ argty),* })? )* accum @accum2);
-            };
-            // we use `accum` as the first pass to colllect instructions
+// based on `wasmparser::_for_each_operator_group` and
+// it's recommended to read its documentation to understand the logic
+//
+// float instructions are removed
+macro_rules! for_each_instruction_group {
+    ($mac:ident) => {
+        $mac! {
+            @mvp {
+                Unreachable
+                Nop
+                Block { blockty: $crate::BlockType }
+                Loop { blockty: $crate::BlockType }
+                If { blockty: $crate::BlockType }
+                Else
+                End
+                Br { relative_depth: u32 }
+                BrIf { relative_depth: u32 }
+                BrTable { targets: $crate::BrTable }
+                Return
+                Call { function_index: u32 }
+                CallIndirect { type_index: u32, table_index: u32 }
+                Drop
+                Select
+                LocalGet { local_index: u32 }
+                LocalSet { local_index: u32 }
+                LocalTee { local_index: u32 }
+                GlobalGet { global_index: u32 }
+                GlobalSet { global_index: u32 }
+                I32Load { memarg: $crate::MemArg }
+                I64Load { memarg: $crate::MemArg }
+                I32Load8S { memarg: $crate::MemArg }
+                I32Load8U { memarg: $crate::MemArg }
+                I32Load16S { memarg: $crate::MemArg }
+                I32Load16U { memarg: $crate::MemArg }
+                I64Load8S { memarg: $crate::MemArg }
+                I64Load8U { memarg: $crate::MemArg }
+                I64Load16S { memarg: $crate::MemArg }
+                I64Load16U { memarg: $crate::MemArg }
+                I64Load32S { memarg: $crate::MemArg }
+                I64Load32U { memarg: $crate::MemArg }
+                I32Store { memarg: $crate::MemArg }
+                I64Store { memarg: $crate::MemArg }
+                I32Store8 { memarg: $crate::MemArg }
+                I32Store16 { memarg: $crate::MemArg }
+                I64Store8 { memarg: $crate::MemArg }
+                I64Store16 { memarg: $crate::MemArg }
+                I64Store32 { memarg: $crate::MemArg }
+                MemorySize { mem: u32 }
+                MemoryGrow { mem: u32 }
+                I32Const { value: i32 }
+                I64Const { value: i64 }
+                I32Eqz
+                I32Eq
+                I32Ne
+                I32LtS
+                I32LtU
+                I32GtS
+                I32GtU
+                I32LeS
+                I32LeU
+                I32GeS
+                I32GeU
+                I64Eqz
+                I64Eq
+                I64Ne
+                I64LtS
+                I64LtU
+                I64GtS
+                I64GtU
+                I64LeS
+                I64LeU
+                I64GeS
+                I64GeU
+                I32Clz
+                I32Ctz
+                I32Popcnt
+                I32Add
+                I32Sub
+                I32Mul
+                I32DivS
+                I32DivU
+                I32RemS
+                I32RemU
+                I32And
+                I32Or
+                I32Xor
+                I32Shl
+                I32ShrS
+                I32ShrU
+                I32Rotl
+                I32Rotr
+                I64Clz
+                I64Ctz
+                I64Popcnt
+                I64Add
+                I64Sub
+                I64Mul
+                I64DivS
+                I64DivU
+                I64RemS
+                I64RemU
+                I64And
+                I64Or
+                I64Xor
+                I64Shl
+                I64ShrS
+                I64ShrU
+                I64Rotl
+                I64Rotr
+                I32WrapI64
+                I64ExtendI32S
+                I64ExtendI32U
+            }
 
-            // skip forbidden instructions
-            $(
-                (
-                    inner
-                    @$_ proposal:ident $forbidden_instructions $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })?
-                    $_ ( @$_ proposals:ident $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
-                    accum
-                    $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
-                    @accum2
-                ) => {
-                    define_for_each_instruction!(
-                        inner
-                        $_ ( @$_ proposals $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
-                        accum
-                        $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
-                        @accum2
-                    );
-                };
-            )+
-            // use only specific proposals
-            $(
-                (
-                    inner
-                    @$proposals $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })?
-                    $_ ( @$_ proposals:ident $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
-                    accum
-                    $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
-                    @accum2
-                ) => {
-                    define_for_each_instruction!(
-                        inner
-                        $_ ( @$_ proposals $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
-                        accum
-                        $_ op $_ ({ $_ ( $_ arg: $_ argty ),* })?
-                        $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
-                        @accum2
-                    );
-                };
-            )+
-            // ACCUM: skip rest instructions
-            (
-                inner
-                @$_ proposal:ident $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })?
-                $_ ( @$_ proposals:ident $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
-                accum
-                $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
-                @accum2
-            ) => {
-                define_for_each_instruction!(
-                    inner
-                    $_ ( @$_ proposals $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
-                    accum
-                    $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
-                    @accum2
-                );
-            };
+            @sign_extension {
+                I32Extend8S
+                I32Extend16S
+                I64Extend8S
+                I64Extend16S
+                I64Extend32S
+            }
+        }
+    };
+}
 
-            // then we use `@accum2` to rewrite instructions fields here
-            $(
-                (
-                    inner
-                    accum
-                    $_ op:ident { $($args: $_ argty:ty),* }
-                    $_ ( $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
-                    @accum2
-                    $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
-                ) => {
-                    define_for_each_instruction!(
-                        inner
-                        accum
-                        $_ ( $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
-                        @accum2
-                        $_ op { $($args: $argsty),* }
-                        $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
-                    );
-                };
-            )+
-            // accumulate rest instructions from `accum` to `@accum2`
-            (
-                inner
-                accum
-                $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })?
-                $_ ( $_ ops:ident $_ ({ $_ ($_ args:ident: $_ argsty:ty),* })? )*
-                @accum2
-                $_ ( $_ ops_accum:ident $_ ({ $_ ($_ args_accum:ident: $_ argsty_accum:ty),* })? )*
-            ) => {
-                define_for_each_instruction!(
-                    inner
-                    accum
-                    $_ ( $_ ops $_ ({ $_ ($_ args: $_ argsty),* })? )*
-                    @accum2
-                    $_ op $_ ({ $_ ( $_ arg: $_ argty ),* })?
-                    $_ ( $_ ops_accum $_ ({ $_ ($_ args_accum: $_ argsty_accum),* })? )*
-                );
-            };
-            (
-                inner
-                accum
-                @accum2
-                $_ ( $_ op:ident $_ ({ $_ ($_ arg:ident: $_ argty:ty),* })? )*
-            ) => {
-                #[macro_export]
-                macro_rules! for_each_instruction {
-                    ($_ mac:ident) => {
-                        $_ mac! {
-                            $_ ( $_ op $_ ({ $_ ($_ arg: $_ argty),* })? )*
-                        }
-                    };
+// exactly the same as `for_each_instruction_group` but without proposals info
+macro_rules! define_for_each_instruction {
+    ($(
+        @$proposal:ident {
+            $($op:ident $( { $( $arg:ident: $argty:ty ),+ } )?)+
+        }
+    )+) => {
+        macro_rules! for_each_instruction {
+            ($mac:ident) => {
+                $mac! {
+                    $(
+                        $(
+                            $op $( { $( $arg: $argty ),+ } )?
+                        )+
+                    )+
                 }
             };
         }
     };
 }
 
-// the generator finally declares `define_for_each_instruction` macro here
-define_for_each_instruction_generator!($;
-    proposals {
-        mvp,
-        sign_extension,
-    }
-    rewrite_fields {
-        BrTable { targets: BrTable },
-        AnyMemArgInstruction { memarg: MemArg },
-    }
-    forbidden_instructions {
-        F64ReinterpretI64,
-        F32ReinterpretI32,
-        I64ReinterpretF64,
-        I32ReinterpretF32,
-        F64PromoteF32,
-        F64ConvertI64U,
-        F64ConvertI64S,
-        F64ConvertI32U,
-        F64ConvertI32S,
-        F32DemoteF64,
-        F32ConvertI64U,
-        F32ConvertI64S,
-        F32ConvertI32U,
-        F32ConvertI32S,
-        I64TruncF64U,
-        I64TruncF64S,
-        I64TruncF32U,
-        I64TruncF32S,
-        I32TruncF64U,
-        I32TruncF64S,
-        I32TruncF32U,
-        I32TruncF32S,
-        F64Copysign,
-        F64Max,
-        F64Min,
-        F64Div,
-        F64Mul,
-        F64Sub,
-        F64Add,
-        F64Sqrt,
-        F64Nearest,
-        F64Trunc,
-        F64Floor,
-        F64Ceil,
-        F64Neg,
-        F64Abs,
-        F32Copysign,
-        F32Max,
-        F32Min,
-        F32Div,
-        F32Mul,
-        F32Sub,
-        F32Add,
-        F32Sqrt,
-        F32Nearest,
-        F32Trunc,
-        F32Floor,
-        F32Ceil,
-        F32Neg,
-        F32Abs,
-        F64Ge,
-        F64Le,
-        F64Gt,
-        F64Lt,
-        F64Ne,
-        F64Eq,
-        F32Ge,
-        F32Le,
-        F32Gt,
-        F32Lt,
-        F32Ne,
-        F32Eq,
-        F64Const,
-        F32Const,
-        F64Store,
-        F32Store,
-        F64Load,
-        F32Load,
-    }
-);
-
-// `define_for_each_instruction` macro defines `for_each_instruction` macro
-// which works exactly like `wasmparser::for_each_operator!()`
-// but some instructions are filtered out
-wasmparser::for_each_operator!(define_for_each_instruction);
+// `for_each_instruction` is now defined
+for_each_instruction_group!(define_for_each_instruction);
 
 macro_rules! define_instruction {
-    ($( $op:ident $({ $($arg:ident: $argty:ty),* })? )*) => {
-        define_instruction!(@convert $( $op $({ $($arg: $argty),* })? )* @accum);
+    ($( $op:ident $( { $( $arg:ident: $argty:ty ),+ } )? )+) => {
+        define_instruction!(@convert $( $op $( { $( $arg: $argty ),+ } )? )+ @accum);
     };
-    // reduce `CallIndirect` fields because `table_index` is always zero
+    // omit `table_index` field of `call_indirect` instruction because it's always zero
+    // but we still save original fields to use them for `wasmparser` and `wasm-encoder` types
+    // during parsing and reencoding
     (
         @convert
         CallIndirect { $type_index_arg:ident: $type_index_argty:ty, $table_index_arg:ident: $table_index_argty:ty }
-        $( $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
+        $( $ops:ident $( { $($args:ident: $argtys:ty),+ } )? )*
         @accum
-        $( $accum_ops:ident $( { $($accum_original_arg:ident: $accum_original_argty:ty),* } => ( $($accum_arg:ident: $accum_argty:ty),* ) )? )*
+        $( $accum_op:ident $( { $($original_arg:ident: $original_argty:ty),+ } => { $($accum_arg:ident: $accum_argty:ty),+ } )? )*
     ) => {
         define_instruction!(
             @convert
-            $( $ops $({ $($args: $argsty),* })? )*
+            $( $ops $( { $($args: $argtys),+ } )? )*
             @accum
-            CallIndirect { $type_index_arg: $type_index_argty, $table_index_arg: $table_index_argty } => ( $type_index_arg: $type_index_argty )
-            $( $accum_ops $( { $( $accum_original_arg: $accum_original_argty ),* } => ( $( $accum_arg: $accum_argty ),* ) )? )*
+            CallIndirect { $type_index_arg: $type_index_argty, $table_index_arg: $table_index_argty } => { $type_index_arg: $type_index_argty }
+            $( $accum_op $( { $($original_arg: $original_argty),+ } => { $($accum_arg: $accum_argty),+ } )? )*
         );
     };
-    // collect the rest of instructions
+    // do nothing to the rest instructions and collect them
     (
         @convert
-        $op:ident $({ $($arg:ident: $argty:ty),* })?
-        $( $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
+        $op:ident $( { $($arg:ident: $argty:ty),+ } )?
+        $( $ops:ident $( { $($args:ident: $argtys:ty),+ } )? )*
         @accum
-        $( $accum_ops:ident $( { $($accum_original_arg:ident: $accum_original_argty:ty),* } => ( $($accum_arg:ident: $accum_argty:ty),* ) )? )*
+        $( $accum_op:ident $( { $($original_arg:ident: $original_argty:ty),+ } => { $($accum_arg:ident: $accum_argty:ty),+ } )? )*
     ) => {
         define_instruction!(
             @convert
-            $( $ops $({ $($args: $argsty),* })? )*
+            $( $ops $( { $($args: $argtys),+ } )? )*
             @accum
-            $op $( $({ $arg: $argty }),* => $(( $arg: $argty )),* )?
-            $( $accum_ops $( { $( $accum_original_arg: $accum_original_argty ),* } => ( $( $accum_arg: $accum_argty ),* ) )? )*
+            $op $( { $($arg: $argty),+ } => { $($arg: $argty),+ } )?
+            $( $accum_op $( { $($original_arg: $original_argty),+ } => { $($accum_arg: $accum_argty),+ } )? )*
         );
     };
-    // define `Instruction` itself
+    // collection is done so we define `Instruction` itself now
     (
         @convert
         @accum
-        $( $op:ident $( { $( $original_arg:ident: $original_argty:ty ),* } => ( $( $arg:ident: $argty:ty ),* ) )? )*
+        $( $op:ident $( { $( $original_arg:ident: $original_argty:ty ),+ } => { $( $arg:ident: $argty:ty ),+ } )? )+
     ) => {
         #[derive(Debug, Clone, Eq, PartialEq)]
         pub enum Instruction {
             $(
-                $op $(( $( $argty ),* ))?,
-            )*
+                $op $(( $( $argty ),+ ))?,
+            )+
         }
 
         impl Instruction {
@@ -366,7 +294,8 @@ macro_rules! define_instruction {
 for_each_instruction!(define_instruction);
 
 impl Instruction {
-    /// Is instruction forbidden to be used by user but allowed to be used by instrumentation stage.
+    /// Returns `true` if instruction is forbidden to be used by user
+    /// but allowed to be used by instrumentation stage.
     pub fn is_user_forbidden(&self) -> bool {
         matches!(self, Self::MemoryGrow { .. })
     }
