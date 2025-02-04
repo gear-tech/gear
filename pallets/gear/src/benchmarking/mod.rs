@@ -1792,7 +1792,7 @@ benchmarks! {
             aux_body: Some(body::empty()),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI32(0, num_elements as i32),
-                Regular(Instruction::CallIndirect { type_index: 0, table_index: 0 }),
+                Regular(Instruction::CallIndirect(0)),
             ])),
             table: Some(TableSegment {
                 num_elements,
@@ -1817,7 +1817,7 @@ benchmarks! {
             handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI64Repeated(p as usize),
                 RandomI32(0, num_elements as i32),
-                Regular(Instruction::CallIndirect { type_index: p.min(1), table_index: 0 }), // aux signature: 1 or 0
+                Regular(Instruction::CallIndirect(p.min(1))), // aux signature: 1 or 0
             ])),
             table: Some(TableSegment {
                 num_elements,

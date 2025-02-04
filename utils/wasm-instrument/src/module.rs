@@ -243,47 +243,48 @@ macro_rules! define_instruction {
     ($( $op:ident $({ $($arg:ident: $argty:ty),* })? )*) => {
         define_instruction!(@convert $( $op $({ $($arg: $argty),* })? )* @accum);
     };
-    // convert 2 or more arguments
+    // reduce `CallIndirect` fields because `table_index` is always zero
     (
         @convert
-        $op:ident $({ $first_arg:ident: $first_argty:ty, $($arg:ident: $argty:ty),+ })?
+        CallIndirect { $type_index_arg:ident: $type_index_argty:ty, $table_index_arg:ident: $table_index_argty:ty }
         $( $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
         @accum
-        $( $accum_ops:ident $({ $( $accum_args_helper:tt => $accum_args:ident: $accum_argsty:ty ),+ })? [ $( $($accum_tt:tt)+ )? ] )*
+        $( $accum_ops:ident $( { $($accum_original_arg:ident: $accum_original_argty:ty),* } => ( $($accum_arg:ident: $accum_argty:ty),* ) )? )*
     ) => {
         define_instruction!(
             @convert
             $( $ops $({ $($args: $argsty),* })? )*
             @accum
-            $op $({ $first_arg => $first_arg: $first_argty, $( $arg => $arg: $argty),+ })? [ $( { $first_arg: $first_argty, $($arg: $argty),+ } )? ]
-            $( $accum_ops $({ $( $accum_args_helper => $accum_args: $accum_argsty ),+ })? [ $( $($accum_tt)+ )? ] )*
+            CallIndirect { $type_index_arg: $type_index_argty, $table_index_arg: $table_index_argty } => ( $type_index_arg: $type_index_argty )
+            $( $accum_ops $( { $( $accum_original_arg: $accum_original_argty ),* } => ( $( $accum_arg: $accum_argty ),* ) )? )*
         );
     };
-    // convert iff only 1 argument
+    // collect rest of instructions
     (
         @convert
-        $op:ident $({ $arg:ident: $argty:ty })?
+        $op:ident $({ $($arg:ident: $argty:ty),* })?
         $( $ops:ident $({ $($args:ident: $argsty:ty),* })? )*
         @accum
-        $( $accum_ops:ident $({ $( $accum_args_helper:tt => $accum_args:ident: $accum_argsty:ty ),+ })? [ $( $($accum_tt:tt)+ )? ] )*
+        $( $accum_ops:ident $( { $($accum_original_arg:ident: $accum_original_argty:ty),* } => ( $($accum_arg:ident: $accum_argty:ty),* ) )? )*
     ) => {
         define_instruction!(
             @convert
             $( $ops $({ $($args: $argsty),* })? )*
             @accum
-            $op $({ 0 => $arg: $argty })? [ $( ($argty) )? ]
-            $( $accum_ops $({ $( $accum_args_helper => $accum_args: $accum_argsty ),+ })? [ $( $($accum_tt)+ )? ] )*
+            $op $( $({ $arg: $argty }),* => $(( $arg: $argty )),* )?
+            $( $accum_ops $( { $( $accum_original_arg: $accum_original_argty ),* } => ( $( $accum_arg: $accum_argty ),* ) )? )*
         );
     };
+    // define `Instruction` itself
     (
         @convert
         @accum
-        $( $op:ident $({ $( $helper_arg:tt => $arg:ident: $argty:ty ),+ })? [ $( $($accum_tt:tt)+ )? ] )*
+        $( $op:ident $( { $( $original_arg:ident: $original_argty:ty ),* } => ( $( $arg:ident: $argty:ty ),* ) )? )*
     ) => {
         #[derive(Debug, Clone, Eq, PartialEq)]
         pub enum Instruction {
             $(
-                $op $( $($accum_tt)+ )?,
+                $op $(( $( $argty ),* ))?,
             )*
         }
 
@@ -291,8 +292,8 @@ macro_rules! define_instruction {
             fn parse(op: wasmparser::Operator) -> Result<Self> {
                 match op {
                     $(
-                        wasmparser::Operator::$op $({ $($arg),* })? => {
-                            Ok(Self::$op $({ $($helper_arg: <_>::try_from($arg)?),* })?)
+                        wasmparser::Operator::$op $({ $($original_arg),* })? => {
+                            define_instruction!(@parse $op $(( $($original_arg $original_arg),* ))?)
                         }
                     )*
                     op => Err(ModuleError::UnsupportedInstruction(format!("{op:?}"))),
@@ -302,7 +303,7 @@ macro_rules! define_instruction {
             fn reencode(&self) -> Result<wasm_encoder::Instruction> {
                 Ok(match self {
                     $(
-                        Self::$op $( { $($helper_arg: $arg),+ } )? => {
+                        Self::$op $(( $($arg),+ ))? => {
                             $(
                                 $(let $arg = define_instruction!(@arg $arg $arg);)*
                             )?
@@ -313,6 +314,19 @@ macro_rules! define_instruction {
             }
         }
     };
+
+    // further macro branches are based on original `wasmparser::for_each_operator!()` macro
+
+    (@parse CallIndirect($type_index:ident type_index, $table_index:ident table_index)) => {{
+        // already verified by wasmparser
+        debug_assert_eq!($table_index, 0);
+
+        Ok(Self::CallIndirect(<_>::try_from($type_index)?))
+    }};
+    (@parse $op:ident $(( $($arg:ident $_arg:ident),* ))?) => {
+        Ok(Self::$op $(( $(<_>::try_from($arg)?),* ))?)
+    };
+
     (@arg $arg:ident blockty) => (RoundtripReencoder.block_type(*$arg)?);
     (@arg $arg:ident targets) => ((
         ($arg).targets.clone().into(),
@@ -327,6 +341,7 @@ macro_rules! define_instruction {
     (@build I64Const $arg:ident) => (wasm_encoder::Instruction::I64Const($arg));
     (@build F32Const $arg:ident) => (wasm_encoder::Instruction::F32Const(f32::from_bits($arg.bits())));
     (@build F64Const $arg:ident) => (wasm_encoder::Instruction::F64Const(f64::from_bits($arg.bits())));
+    (@build CallIndirect $arg:ident) => (wasm_encoder::Instruction::CallIndirect { type_index: $arg, table_index: 0 });
     (@build $op:ident $arg:ident) => (wasm_encoder::Instruction::$op($arg));
     (@build $op:ident $($arg:ident)*) => (wasm_encoder::Instruction::$op { $($arg),* });
 }
@@ -359,7 +374,7 @@ pub enum ModuleError {
     MultipleTables,
     #[display(fmt = "Multiple memories")]
     MultipleMemories,
-    #[display(fmt = "Memory index must be non-zero (actual: {})", _0)]
+    #[display(fmt = "Memory index must be zero (actual: {})", _0)]
     NonZeroMemoryIdx(u32),
     #[display(fmt = "Passive data is not supported")]
     PassiveDataKind,
@@ -1711,14 +1726,16 @@ mod tests {
 
     macro_rules! test_parsing_failed {
         (
-            $( $test_name:ident: $wat:literal => $err_msg:literal; )*
+            $( $test_name:ident: $wat:literal => $err:expr; )*
         ) => {
             $(
                 #[test]
-                #[should_panic = $err_msg]
                 fn $test_name() {
                     let wasm = wat::parse_str($wat).unwrap();
-                    let _module = Module::new(&wasm).unwrap();
+                    let lhs = Module::new(&wasm).unwrap_err();
+                    let rhs: ModuleError = $err;
+                    // we cannot compare errors directly because `BinaryReaderError` does not implement `PartialEq`
+                    assert_eq!(format!("{lhs:?}"), format!("{rhs:?}"));
                 }
             )*
         };
@@ -1729,48 +1746,69 @@ mod tests {
         (module
             (table 10 10 funcref)
             (table 20 20 funcref)
-        )"# => "MultipleTables";
+        )"# => ModuleError::MultipleTables;
 
         multiple_memories_denied: r#"
         (module
             (memory (export "memory") 1)
             (memory (export "memory2") 2)
-        )"# => "MultipleMemories";
+        )"# => ModuleError::MultipleMemories;
 
-        data_non_zero_memory_idx: r#"
+        data_non_zero_memory_idx_denied: r#"
         (module
             (data (memory 123) (offset i32.const 0) "")
         )
-        "# => "NonZeroMemoryIdx(123)";
+        "# => ModuleError::NonZeroMemoryIdx(123);
 
         passive_data_kind_denied: r#"
         (module
             (data "")
         )
-        "# => "PassiveDataKind";
+        "# => ModuleError::PassiveDataKind;
 
         passive_element_denied: r#"
         (module
             (elem funcref (item i32.const 0))
         )
-        "# => "NonActiveElementKind";
+        "# => ModuleError::NonActiveElementKind;
 
         declared_element_denied: r#"
         (module
             (func $a)
             (elem declare func $a)
         )
-        "# => "NonActiveElementKind";
+        "# => ModuleError::NonActiveElementKind;
 
         element_expressions_denied: r#"
         (module
             (elem (i32.const 1) funcref)
         )
-        "# => "ElementExpressions";
+        "# => ModuleError::ElementExpressions;
 
         table_init_expr_denied: r#"
         (module
             (table 0 0 funcref (i32.const 0))
-        )"# => "TableInitExpr";
+        )"# => ModuleError::TableInitExpr;
+    }
+
+    #[test]
+    fn call_indirect_non_zero_table_idx_denied() {
+        let wasm = wat::parse_str(
+            r#"
+            (module
+                (func
+                    call_indirect 123 (type 333)
+                )
+            )
+            "#,
+        )
+        .unwrap();
+        let err = Module::new(&wasm).unwrap_err();
+        if let ModuleError::BinaryReader(err) = err {
+            assert_eq!(err.offset(), 26);
+            assert_eq!(err.message(), "zero byte expected");
+        } else {
+            panic!("{err}");
+        }
     }
 }

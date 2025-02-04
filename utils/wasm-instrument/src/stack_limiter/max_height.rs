@@ -416,10 +416,7 @@ where
                 let callee_arity = ty.results().len() as u32;
                 stack.push_values(callee_arity)?;
             }
-            CallIndirect {
-                type_index,
-                table_index: _,
-            } => {
+            CallIndirect(type_index) => {
                 let ty = type_section
                     .get(*type_index as usize)
                     .ok_or("Type not found")?;

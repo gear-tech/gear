@@ -1458,10 +1458,7 @@ impl<T: Config> Rules for ScheduleRules<'_, T> {
             GlobalGet { .. } => w.global_get,
             GlobalSet { .. } => w.global_set,
             MemorySize { .. } => w.memory_current,
-            CallIndirect {
-                type_index: idx,
-                table_index: _,
-            } => {
+            CallIndirect(idx) => {
                 let params = self
                     .params
                     .get(*idx as usize)

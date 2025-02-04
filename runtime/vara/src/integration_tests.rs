@@ -839,10 +839,7 @@ fn all_measured_instructions() -> Vec<Instruction> {
         GlobalGet(0),
         GlobalSet(0),
         MemorySize(0),
-        CallIndirect {
-            type_index: 0,
-            table_index: 0,
-        },
+        CallIndirect(0),
         BrTable(default_table_data),
         I32Clz,
         I64Clz,
