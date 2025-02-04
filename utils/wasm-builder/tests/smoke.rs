@@ -57,12 +57,8 @@ fn install_stable_toolchain() {
             .arg("toolchain")
             .arg("install")
             .arg("stable")
-            .arg("--component")
-            .arg("llvm-tools")
-            .arg("--component")
-            .arg("rust-src")
             .arg("--target")
-            .arg("wasm32-unknown-unknown")
+            .arg("wasm32v1-none")
             .status()
             .expect("rustup run error");
         assert!(status.success());
@@ -130,7 +126,7 @@ fn features_tracking() {
     #[track_caller]
     fn read_export_entry(name: &str) -> Option<parity_wasm::elements::ExportEntry> {
         parity_wasm::deserialize_file(format!(
-            "test-program/target/wasm32-unknown-unknown/{}/test_program.wasm",
+            "test-program/target/wasm32-gear/{}/test_program.wasm",
             if cfg!(debug_assertions) {
                 "debug"
             } else {
