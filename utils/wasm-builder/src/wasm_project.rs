@@ -131,7 +131,7 @@ impl WasmProject {
             .expect("Could not find target directory");
 
         let mut wasm_target_dir = target_dir.clone();
-        wasm_target_dir.push("wasm32-unknown-unknown");
+        wasm_target_dir.push("wasm32-gear");
         wasm_target_dir.push(&profile);
 
         target_dir.push("wasm-projects");
@@ -432,7 +432,7 @@ extern "C" fn metahash() {{
     /// Post-processing after the WASM binary has been built.
     ///
     /// - Copy WASM binary from `OUT_DIR` to
-    ///   `target/wasm32-unknown-unknown/<profile>`
+    ///   `target/wasm32-gear/<profile>`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     pub fn postprocess(&self) -> Result<Option<(PathBuf, PathBuf)>> {
@@ -442,7 +442,7 @@ extern "C" fn metahash() {{
             .expect("Run `WasmProject::generate()` first");
 
         let original_wasm_path = self.target_dir.join(format!(
-            "wasm32-unknown-unknown/{}/{file_base_name}.wasm",
+            "wasm32v1-none/{}/{file_base_name}.wasm",
             self.profile
         ));
 

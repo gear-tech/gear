@@ -49,7 +49,7 @@ If Rust is not yet installed, read the [Installation](https://doc.rust-lang.org/
 
 Make sure the `wasm` target is enabled:
 ```bash
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32v1-none
 ```
 
 Set the environment variables:
