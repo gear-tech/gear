@@ -485,7 +485,15 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             "invalid previous committed block hash"
         );
 
-        require(Gear.blockIsPredecessor(_blockCommitment.predecessorBlock), "allowed predecessor block wasn't found");
+        /*
+         * @dev `router.reserved` is always `0` but can be overridden in an RPC request
+         *       to estimate gas excluding `Gear.blockIsPredecessor()`.
+         */
+        if (router.reserved == 0) {
+            require(
+                Gear.blockIsPredecessor(_blockCommitment.predecessorBlock), "allowed predecessor block wasn't found"
+            );
+        }
 
         /*
          * @dev SECURITY: this settlement should be performed before any other calls to avoid reentrancy.
