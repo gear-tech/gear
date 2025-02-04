@@ -376,6 +376,11 @@ pub enum ModuleError {
     MultipleMemories,
     #[display(fmt = "Memory index must be zero (actual: {})", _0)]
     NonZeroMemoryIdx(u32),
+    #[display(
+        fmt = "Optional table index of element segment is not supported (index: {})",
+        _0
+    )]
+    ElementTableIdx(u32),
     #[display(fmt = "Passive data is not supported")]
     PassiveDataKind,
     #[display(fmt = "Element expressions are not supported")]
@@ -396,6 +401,7 @@ impl core::error::Error for ModuleError {
             ModuleError::MultipleTables => None,
             ModuleError::MultipleMemories => None,
             ModuleError::NonZeroMemoryIdx(_) => None,
+            ModuleError::ElementTableIdx(_) => None,
             ModuleError::PassiveDataKind => None,
             ModuleError::ElementExpressions => None,
             ModuleError::NonActiveElementKind => None,
@@ -734,10 +740,7 @@ impl Export {
 
 #[derive(Clone)]
 pub enum ElementKind {
-    Active {
-        table_index: Option<u32>,
-        offset_expr: ConstExpr,
-    },
+    Active { offset_expr: ConstExpr },
 }
 
 impl ElementKind {
@@ -747,10 +750,15 @@ impl ElementKind {
             wasmparser::ElementKind::Active {
                 table_index,
                 offset_expr,
-            } => Ok(Self::Active {
-                table_index,
-                offset_expr: ConstExpr::parse(offset_expr)?,
-            }),
+            } => {
+                if let Some(table_index) = table_index {
+                    return Err(ModuleError::ElementTableIdx(table_index));
+                }
+
+                Ok(Self::Active {
+                    offset_expr: ConstExpr::parse(offset_expr)?,
+                })
+            }
             wasmparser::ElementKind::Declared => Err(ModuleError::NonActiveElementKind),
         }
     }
@@ -786,7 +794,6 @@ impl Element {
     pub fn functions(funcs: Vec<u32>) -> Self {
         Self {
             kind: ElementKind::Active {
-                table_index: Some(0),
                 offset_expr: ConstExpr::i32_value(0),
             },
             items: ElementItems::Functions(funcs),
@@ -808,11 +815,8 @@ impl Element {
         };
 
         match &self.kind {
-            ElementKind::Active {
-                table_index,
-                offset_expr,
-            } => {
-                encoder_section.active(*table_index, &offset_expr.reencode()?, items);
+            ElementKind::Active { offset_expr } => {
+                encoder_section.active(None, &offset_expr.reencode()?, items);
             }
         }
 
@@ -1759,6 +1763,11 @@ mod tests {
             (data (memory 123) (offset i32.const 0) "")
         )
         "# => ModuleError::NonZeroMemoryIdx(123);
+
+        element_table_idx_denied: r#"
+        (module
+            (elem 123 (offset i32.const 0) 0 0 0 0)
+        )"# => ModuleError::ElementTableIdx(123);
 
         passive_data_kind_denied: r#"
         (module
