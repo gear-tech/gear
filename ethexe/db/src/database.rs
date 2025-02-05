@@ -23,7 +23,7 @@ use crate::{
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage, Schedule},
+    db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Schedule},
     events::BlockRequestEvent,
     gear::StateTransition,
 };
@@ -381,17 +381,17 @@ impl CodesStorage for Database {
         );
     }
 
-    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256> {
+    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo> {
         self.kv
             .get(&KeyPrefix::CodeUpload.one(code_id))
             .map(|data| {
-                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
+                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `CodeInfo`")
             })
     }
 
-    fn set_code_blob_tx(&self, code_id: CodeId, tx_hash: H256) {
+    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo) {
         self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), tx_hash.encode());
+            .put(&KeyPrefix::CodeUpload.one(code_id), code_info.encode());
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {

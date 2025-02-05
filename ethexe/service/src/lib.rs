@@ -23,7 +23,7 @@ use ethexe_common::{
     events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
 };
-use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use ethexe_db::{BlockMetaStorage, CodeInfo, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService, RequestBlockData};
@@ -306,9 +306,10 @@ impl Service {
             match event {
                 BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
                     code_id,
+                    timestamp,
                     tx_hash,
                 }) => {
-                    db.set_code_blob_tx(code_id, tx_hash);
+                    db.set_code_info(code_id, CodeInfo { timestamp, tx_hash });
                 }
                 BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
                     code_id, ..
@@ -319,11 +320,11 @@ impl Service {
 
                     log::debug!("📥 downloading absent code: {code_id}");
 
-                    let tx_hash = db
-                        .code_blob_tx(code_id)
-                        .ok_or_else(|| anyhow!("Tx hash not found for code {code_id}"))?;
+                    let CodeInfo { timestamp, tx_hash } = db
+                        .code_info(code_id)
+                        .ok_or_else(|| anyhow!("Code info not found for code {code_id}"))?;
 
-                    let code = query.download_code(code_id, tx_hash).await?;
+                    let code = query.download_code(code_id, timestamp, tx_hash).await?;
 
                     processor.process_upload_code(code_id, code.as_slice())?;
                 }
@@ -446,14 +447,14 @@ impl Service {
             mut prometheus,
             rpc,
         } = self;
-        let mut rpc_handle = if let Some(rpc) = rpc {
+        let (mut rpc_handle, mut rpc_receiver) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
 
-            let rpc_run = rpc.run_server().await?;
+            let (rpc_run, rpc_receiver) = rpc.run_server().await?;
 
-            Some(tokio::spawn(rpc_run.stopped()))
+            (Some(tokio::spawn(rpc_run.stopped())), Some(rpc_receiver))
         } else {
-            None
+            (None, None)
         };
 
         let mut roles = "Observer".to_string();
@@ -469,11 +470,11 @@ impl Service {
             tokio::select! {
                 event = observer.select_next_some() => {
                     match event? {
-                        ObserverEvent::Blob { code_id, code } => {
+                        ObserverEvent::Blob { code_id, timestamp, code } => {
                             // TODO: spawn blocking here?
                             let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
 
-                            let code_commitments = vec![CodeCommitment { id: code_id, valid }];
+                            let code_commitments = vec![CodeCommitment { id: code_id, timestamp, valid }];
 
                             if let Some(v) = validator.as_mut() {
                                 let aggregated_code_commitments = v.aggregate(code_commitments)?;
@@ -741,6 +742,9 @@ impl Service {
                         }
                     }
                 },
+                event = rpc_receiver.maybe_next_some() => {
+                    log::info!("Received RPC event {event:#?}");
+                }
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                 }

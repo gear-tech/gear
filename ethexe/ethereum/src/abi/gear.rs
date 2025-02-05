@@ -58,6 +58,7 @@ impl From<CodeCommitment> for Gear::CodeCommitment {
     fn from(value: CodeCommitment) -> Self {
         Self {
             id: code_id_to_bytes32(value.id),
+            timestamp: u64_to_uint48_lossy(value.timestamp),
             valid: value.valid,
         }
     }
@@ -74,6 +75,19 @@ impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
                 .map(actor_id_to_address_lossy)
                 .collect(),
             eraIndex: Uint256::from(value.era_index),
+        }
+    }
+}
+
+impl From<BatchCommitment> for Gear::BatchCommitment {
+    fn from(value: BatchCommitment) -> Self {
+        Self {
+            blockCommitments: value
+                .block_commitments
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
         }
     }
 }

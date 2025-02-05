@@ -22,7 +22,7 @@ use apis::{
 };
 use ethexe_db::Database;
 use ethexe_observer::MockBlobReader;
-use futures::FutureExt;
+use futures::{stream::FusedStream, FutureExt, Stream};
 use jsonrpsee::{
     server::{
         serve_with_graceful_shutdown, stop_channel, Server, ServerHandle, StopHandle,
@@ -30,8 +30,17 @@ use jsonrpsee::{
     },
     Methods, RpcModule as JsonrpcModule,
 };
-use std::{net::SocketAddr, sync::Arc};
-use tokio::net::TcpListener;
+use std::{
+    mem,
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
+use tokio::{
+    net::TcpListener,
+    sync::mpsc::{self, UnboundedReceiver},
+};
 use tower::Service;
 
 mod apis;
@@ -77,7 +86,12 @@ impl RpcService {
         self.config.listen_addr.port()
     }
 
-    pub async fn run_server(self) -> Result<ServerHandle> {
+    pub async fn run_server(self) -> Result<(ServerHandle, RpcReceiver)> {
+        let (rpc_sender, rpc_receiver) = mpsc::unbounded_channel();
+
+        // TODO: Temporary solution, will be changed with introducing tx pool.
+        mem::forget(rpc_sender);
+
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
         let cors = util::try_into_cors(self.config.cors)?;
@@ -169,6 +183,25 @@ impl RpcService {
             }
         });
 
-        Ok(server_handle)
+        Ok((server_handle, RpcReceiver(rpc_receiver)))
     }
 }
+
+pub struct RpcReceiver(UnboundedReceiver<RpcEvent>);
+
+impl Stream for RpcReceiver {
+    type Item = RpcEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.0.poll_recv(cx)
+    }
+}
+
+impl FusedStream for RpcReceiver {
+    fn is_terminated(&self) -> bool {
+        self.0.is_closed()
+    }
+}
+
+#[derive(Debug)]
+pub enum RpcEvent {}

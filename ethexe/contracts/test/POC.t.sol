@@ -78,7 +78,7 @@ contract POCTest is Base {
         uint256[] memory _privateKeys = new uint256[](1);
         _privateKeys[0] = signingKey.asScalar();
 
-        commitCode(_privateKeys, Gear.CodeCommitment(_codeId, true));
+        commitCode(_privateKeys, Gear.CodeCommitment(_codeId, 42, true));
 
         address _ping = deployPing(_privateKeys, _codeId);
         IMirror actor = IMirror(_ping);
