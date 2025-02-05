@@ -29,19 +29,21 @@ use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService, RequestBlockData};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
+use ethexe_rpc::RpcEvent;
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_tx_pool::{
-    InputTask, OutputTask, SignedTransaction, TxPoolEvent, TxPoolKit, TxPoolSender, TxPoolService,
+    InputTask, OutputTask, SignedTransaction, TxPoolEvent, TxPoolSender, TxPoolService,
 };
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::Not, sync::Arc};
+use tokio::sync::oneshot;
 
 pub mod config;
 
@@ -686,7 +688,15 @@ impl Service {
                                     }
                                 },
                                 NetworkMessage::Transaction { transaction } => {
-                                    todo!()
+                                    if let Ok(validated_tx) = tx_pool.process(transaction) {
+                                        let tx_hash = validated_tx.tx_hash();
+                                        let tx_encoded = validated_tx.encode();
+
+                                        db.set_validated_transaction(tx_hash, tx_encoded);
+
+                                        // TODO (breathx) Execute transaction
+                                        log::info!("Unimplemented tx execution");
+                                    }
                                 },
                             };
                         }
@@ -730,6 +740,32 @@ impl Service {
                         }
                     }
                 }
+                event = rpc_receiver.maybe_next_some() => {
+                    log::info!("Received RPC event {event:#?}");
+
+                    match event {
+                        RpcEvent::Transaction { transaction, response_sender } => {
+                            let res = tx_pool.process(transaction).map(|validated_tx| {
+                                let tx_hash = validated_tx.tx_hash();
+                                let tx_encoded = validated_tx.encode();
+
+                                db.set_validated_transaction(tx_hash, tx_encoded);
+
+                                // TODO (breathx) Execute transaction
+                                log::info!("Unimplemented tx execution");
+
+                                tx_hash
+                            });
+
+                            if let Err(e) = response_sender.send(res) {
+                                // No panic case as a responsibility of the service is fulfilled.
+                                // The dropped receiver signalizes that the rpc service has crashed
+                                // or is malformed, so problems should be handled there.
+                                log::error!("Response receiver for the `RpcEvent::Transaction` was dropped: {e:#?}");
+                            }
+                        }
+                    }
+                }
                 event = tx_pool.select_next_some() => {
                     log::debug!("Received tx-pool event {event:?}");
                     match event {
@@ -742,9 +778,6 @@ impl Service {
                         }
                     }
                 },
-                event = rpc_receiver.maybe_next_some() => {
-                    log::info!("Received RPC event {event:#?}");
-                }
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                 }

@@ -18,14 +18,14 @@
 
 //! Transaction pool rpc interface.
 
-use crate::errors;
+use crate::{errors, RpcEvent};
 use ethexe_tx_pool::{InputTask, RawTransacton, SignedTransaction, Transaction, TxPoolSender};
 use gprimitives::{H160, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
 };
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 #[rpc(server)]
 pub trait TransactionPool {
@@ -42,12 +42,12 @@ pub trait TransactionPool {
 
 #[derive(Clone)]
 pub struct TransactionPoolApi {
-    tx_pool_sender: TxPoolSender,
+    rpc_sender: mpsc::UnboundedSender<RpcEvent>,
 }
 
 impl TransactionPoolApi {
-    pub fn new(tx_pool_sender: TxPoolSender) -> Self {
-        Self { tx_pool_sender }
+    pub fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+        Self { rpc_sender }
     }
 }
 
@@ -75,27 +75,26 @@ impl TransactionPoolServer for TransactionPoolApi {
         log::debug!("Called send_message with vars: {signed_ethexe_tx:#?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
-        let input_task = InputTask::AddTransaction {
-            transaction: signed_ethexe_tx,
-            response_sender: Some(response_sender),
-        };
-
-        self.tx_pool_sender.send(input_task).map_err(|e| {
-            // No panic case as a responsibility of the RPC API is fulfilled.
-            // The dropped tx pool input task receiver might signalize that
-            // the transaction pool has been stooped.
-            log::error!(
-                "Failed to send tx pool add transaction input task: {e}. \
-                The receiving end in the tx pool might have been dropped."
-            );
-            errors::internal()
-        })?;
+        self.rpc_sender
+            .send(RpcEvent::Transaction {
+                transaction: signed_ethexe_tx,
+                response_sender,
+            })
+            .map_err(|e| {
+                // That could be a panic case, as rpc_receiver must not be dropped,
+                // but the main service works independently from rpc and can be malformed.
+                log::error!(
+                    "Failed to send `RpcEvent::Transaction` event task: {e}. \
+                    The receiving end in the main service might have been dropped."
+                );
+                errors::internal()
+            })?;
 
         let res = response_receiver.await.map_err(|e| {
-            // No panic case as a responsibility of the RPC API is fulfilled.
-            // The dropped sender signalizes that the transaction pool
-            // has crashed or is malformed, so problems should be handled there.
-            log::error!("Tx pool has dropped response sender: {e}");
+            // No panic case, as a responsibility of the RPC API is fulfilled.
+            // The dropped sender signalizes that the main service has crashed
+            // or is malformed, so problems should be handled there.
+            log::error!("Response sender for the `RpcEvent::Transaction` was dropped: {e}");
             errors::internal()
         })?;
 

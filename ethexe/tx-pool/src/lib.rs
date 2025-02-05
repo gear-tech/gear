@@ -26,8 +26,8 @@ mod validation;
 mod tests;
 
 pub use service::{
-    new, InputTask, OutputTask, TxPoolEvent, TxPoolInputTaskSender, TxPoolKit,
-    TxPoolOutputTaskReceiver, TxPoolService,
+    InputTask, OutputTask, TxPoolEvent, TxPoolInputTaskSender, TxPoolOutputTaskReceiver,
+    TxPoolService,
 };
 pub use transaction::{RawTransacton, SignedTransaction, Transaction};
 

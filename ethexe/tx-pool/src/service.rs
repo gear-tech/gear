@@ -24,11 +24,12 @@ pub use output::{OutputTask, TxPoolOutputTaskReceiver};
 pub(crate) use output::TxPoolOutputTaskSender;
 
 use crate::{SignedTransaction, TxValidator};
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use ethexe_db::Database;
 use futures::{
     ready,
     stream::{FusedStream, Stream},
+    FutureExt,
 };
 use gprimitives::H256;
 use input::TxPoolInputTaskReceiver;
@@ -36,149 +37,55 @@ use parity_scale_codec::Encode;
 use std::{
     collections::VecDeque,
     future::Future,
-    pin::Pin,
+    pin::{pin, Pin},
     task::{Context, Poll},
 };
-use tokio::sync::{mpsc, Mutex};
-
-/// Creates a new transaction pool service.
-pub fn new(db: Database) -> TxPoolKit {
-    let (tx_in, rx_in) = mpsc::unbounded_channel();
-    let (tx_out, rx_out) = mpsc::unbounded_channel();
-
-    let service = TxPoolService {
-        db,
-        ready_txs: Mutex::new(VecDeque::new()),
-    };
-
-    TxPoolKit {
-        service,
-        tx_pool_sender: TxPoolInputTaskSender { sender: tx_in },
-        tx_pool_receiver: TxPoolOutputTaskReceiver { receiver: rx_out },
-    }
-}
-
-/// Transaction pool kit, which consists of the pool service and channels to communicate with it.
-pub struct TxPoolKit {
-    pub service: TxPoolService,
-    pub tx_pool_sender: TxPoolInputTaskSender<SignedTransaction>,
-    pub tx_pool_receiver: TxPoolOutputTaskReceiver<SignedTransaction>,
-}
+use tokio::sync::{mpsc, oneshot, watch, Mutex};
 
 /// Transaction pool service.
 ///
 /// Serves as an interface for the transaction pool core.
 pub struct TxPoolService {
     db: Database,
-    ready_txs: Mutex<VecDeque<SignedTransaction>>,
+    // No concurrent access for ready_tx is here,
+    // so no need for the mutex.
+    ready_tx: VecDeque<SignedTransaction>,
+    readiness_sender: mpsc::UnboundedSender<()>,
+    readiness_receiver: mpsc::UnboundedReceiver<()>,
 }
 
 impl TxPoolService {
     pub fn new(db: Database) -> Self {
+        let (readiness_sender, readiness_receiver) = mpsc::unbounded_channel();
         Self {
             db,
-            ready_txs: Mutex::new(VecDeque::new()),
+            ready_tx: VecDeque::new(),
+            readiness_sender,
+            readiness_receiver,
         }
     }
 
-    pub async fn add_transaction(&self, transaction: SignedTransaction) -> Result<H256> {
-        /*
-        Possibly:
-        1. validate transaction
-        2. add to DB
-        3. start execution of the transaction on a separate thread.
-        4. if valid return the tx hash
-        */
-
-        todo!()
-    }
-
-    /// Runs transaction pool service expecting to receive tasks from the
-    /// tx pool input task sender.
-    // pub async fn run(mut self) {
-    //     // Finishes working of all the input task senders are dropped.
-    //     while let Some(task) = self.receiver.recv().await {
-    //         match task {
-    //             InputTask::ValidatePreDispatch {
-    //                 transaction,
-    //                 response_sender,
-    //             } => {
-    //                 // No need for a uniqueness check as the input task is sent on existing transactions
-    //                 debug_assert!(self
-    //                     .db
-    //                     .validated_transaction(transaction.tx_hash())
-    //                     .is_some());
-
-    //                 let res = TxValidator::new(transaction, self.db.clone())
-    //                     .with_signature_check()
-    //                     .with_mortality_check()
-    //                     .validate();
-    //                 let _ = response_sender.send(res).inspect_err(|_| {
-    //                     // No panic case as the request itself is going to be executed.
-    //                     // The dropped receiver signalizes that the external task sender
-    //                     // has crashed or is malformed, so problems should be handled there.
-    //                     log::error!("`ValidateTransaction` task receiver is stopped or dropped.");
-    //                 });
-    //             }
-    //             InputTask::AddTransaction {
-    //                 transaction,
-    //                 response_sender,
-    //             } => {
-    //                 let res = self.validate_tx_full(transaction).map(|tx| {
-    //                     let tx_hash = tx.tx_hash();
-    //                     let tx_encoded = tx.encode();
-
-    //                     // Request the external service for the tx propagation.
-    //                     self.sender.send(OutputTask::PropogateTransaction {
-    //                         transaction: tx.clone(),
-    //                     }).unwrap_or_else(|e| {
-    //                         // If receiving end of the external service is dropped, it's a panic case,
-    //                         // because otherwise transaction processing can't be performed correctly.
-    //                         let err_msg = format!(
-    //                             "Failed to send `PropogateTransaction` task. External service receiving end \
-    //                             might have been dropped. Got an error: {e:?}."
-    //                         );
-
-    //                         log::error!("{err_msg}");
-    //                         panic!("{err_msg}");
-    //                     });
-
-    //                     // Store the validated transaction to the database.
-    //                     self.db.set_validated_transaction(tx_hash, tx_encoded);
-
-    //                     // Start transaction execution
-    //                     tokio::spawn(Self::execute_transaction(self.db.clone(), tx));
-
-    //                     tx_hash
-    //                 });
-
-    //                 if let Some(response_sender) = response_sender {
-    //                     let _ = response_sender.send(res).inspect_err(|_| {
-    //                         // No panic case as a responsibility of transaction piil is fulfilled.
-    //                         // The dropped receiver signalizes that the external task sender
-    //                         // has crashed or is malformed, so problems should be handled there.
-    //                         log::error!("`AddTransaction` task receiver is stopped or dropped.")
-    //                     });
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
-    fn validate_tx_full(&self, transaction: SignedTransaction) -> Result<SignedTransaction> {
+    /// Basically validates the transaction and includes the transaction
+    /// to the ready queue, so it's returned by the service stream.
+    pub fn process(&mut self, transaction: SignedTransaction) -> Result<SignedTransaction> {
         TxValidator::new(transaction, self.db.clone())
             .with_all_checks()
             .validate()
-    }
+            .map(|validated_tx| {
+                self.ready_tx.push_back(validated_tx.clone());
+                self.readiness_sender
+                    .send(())
+                    .expect("receiver is always alive");
 
-    async fn execute_transaction(db: Database, _transaction: SignedTransaction) {
-        let _processor = ethexe_processor::Processor::new(db.clone());
-        // TODO (breathx) Execute transaction
-        // TODO (braethx) Remove transaction from the database.
-        log::warn!("Unimplemented transaction execution");
+                validated_tx
+            })
     }
 }
 
+// TODO [sab] test case
+// process, process, poll_next, poll_next, poll_next, process, poll_next
+// TODO [sab] do we really need the service? we can just propagate the transaction
+// after the TxPoolService::process
 #[derive(Debug, Clone)]
 pub enum TxPoolEvent {
     PropogateTransaction(SignedTransaction),
@@ -187,18 +94,18 @@ pub enum TxPoolEvent {
 impl Stream for TxPoolService {
     type Item = TxPoolEvent;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mutex_lock_fut = self.ready_txs.lock();
-        tokio::pin!(mutex_lock_fut);
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        ready!(self.readiness_receiver.poll_recv(cx)).expect("sender is always alive");
 
-        let mut ready_txs = ready!(mutex_lock_fut.poll(cx));
+        let ret = self.ready_tx.pop_front();
 
-        Poll::Ready(ready_txs.pop_front().map(TxPoolEvent::PropogateTransaction))
+        // Readiness receiver is changed only when a new transaction is pushed to the ready_tx queue
+        debug_assert!(ret.is_some());
+        Poll::Ready(ret.map(TxPoolEvent::PropogateTransaction))
     }
 }
 
 impl FusedStream for TxPoolService {
-    // TODO [sab] yet
     fn is_terminated(&self) -> bool {
         false
     }

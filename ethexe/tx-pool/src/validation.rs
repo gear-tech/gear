@@ -43,7 +43,6 @@ pub(crate) struct TxValidator {
     signature_check: bool,
     mortality_check: bool,
     uniqueness_check: bool,
-    executable_tx_check: bool,
 }
 
 impl TxValidator {
@@ -54,7 +53,6 @@ impl TxValidator {
             signature_check: false,
             mortality_check: false,
             uniqueness_check: false,
-            executable_tx_check: false,
         }
     }
 
@@ -62,7 +60,6 @@ impl TxValidator {
         self.with_signature_check()
             .with_mortality_check()
             .with_uniqueness_check()
-            .with_executable_tx_check()
     }
 
     pub(crate) fn with_signature_check(mut self) -> Self {
@@ -77,11 +74,6 @@ impl TxValidator {
 
     pub(crate) fn with_uniqueness_check(mut self) -> Self {
         self.uniqueness_check = true;
-        self
-    }
-
-    pub(crate) fn with_executable_tx_check(mut self) -> Self {
-        self.executable_tx_check = true;
         self
     }
 }
@@ -99,10 +91,6 @@ impl TxValidator {
 
         if self.uniqueness_check {
             self.check_uniqueness()?;
-        }
-
-        if self.executable_tx_check {
-            self.check_is_executable_tx()?;
         }
 
         Ok(self.transaction)
@@ -140,19 +128,6 @@ impl TxValidator {
         } else {
             Err(anyhow!("Transaction already exists"))
         }
-    }
-
-    /// Validates if transaction is executable.
-    fn check_is_executable_tx(&self) -> Result<()> {
-        // TODO breathx
-        let processor = Processor::new(self.db.clone())?;
-        let _overlaid_processor = processor.overlaid();
-
-        let _source = self.transaction.send_message_source();
-
-        log::warn!("Unimplemented transaction is executable check");
-
-        Ok(())
     }
 }
 
