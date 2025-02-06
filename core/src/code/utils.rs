@@ -163,7 +163,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
         match import.ty {
             TypeRef::Func(i) => {
                 // Panic is impossible, unless the Module structure is invalid.
-                let func_type = &types
+                let &func_type = &types
                     .get(i as usize)
                     .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
@@ -176,17 +176,9 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
                 }
 
                 let signature = syscall.signature();
+                let signature_func_type = signature.func_type();
 
-                let params = signature
-                    .params()
-                    .iter()
-                    .copied()
-                    .map(Into::<ValType>::into);
-                let results = signature.results().unwrap_or(&[]);
-
-                if !(params.eq(func_type.params().iter().copied())
-                    && results == func_type.results())
-                {
+                if signature_func_type != *func_type {
                     Err(ImportError::InvalidImportFnSignature(import_index))?;
                 }
             }
