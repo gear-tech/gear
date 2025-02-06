@@ -348,6 +348,7 @@ impl Default for ConstantParams {
     fn default() -> Self {
         ConstantParams {
             bulk_memory_enabled: false,
+            // TODO: enable
             sign_extension_ops_enabled: false,
             saturating_float_to_int_enabled: false,
             reference_types_enabled: false,
