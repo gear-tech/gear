@@ -26,6 +26,7 @@ use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Schedule},
     events::BlockRequestEvent,
     gear::StateTransition,
+    tx_pool::SignedTransaction,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -447,12 +448,19 @@ impl Database {
         self.cas.write(data)
     }
 
-    pub fn validated_transaction(&self, tx_hash: H256) -> Option<Vec<u8>> {
-        self.kv.get(&KeyPrefix::Transaction.one(tx_hash))
+    pub fn validated_transaction(&self, tx_hash: H256) -> Option<SignedTransaction> {
+        self.kv
+            .get(&KeyPrefix::Transaction.one(tx_hash))
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("failed to data into `SignedTransaction`")
+            })
     }
 
-    pub fn set_validated_transaction(&self, tx_hash: H256, tx: Vec<u8>) {
-        self.kv.put(&KeyPrefix::Transaction.one(tx_hash), tx);
+    pub fn set_validated_transaction(&self, tx: SignedTransaction) {
+        let tx_hash = tx.tx_hash();
+        self.kv
+            .put(&KeyPrefix::Transaction.one(tx_hash), tx.encode());
     }
 
     pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> bool {

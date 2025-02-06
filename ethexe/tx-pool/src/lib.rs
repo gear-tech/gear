@@ -18,20 +18,22 @@
 
 //! Ethexe transaction pool.
 
-mod transaction;
 mod validation;
 
 #[cfg(test)]
 mod tests;
 
-pub use transaction::{RawTransacton, SignedTransaction, Transaction};
+pub use ethexe_common::tx_pool::{RawTransacton, SignedTransaction, Transaction};
 
 use anyhow::{Context as _, Result};
 use ethexe_db::Database;
+use ethexe_signer::{Address, Signature, ToDigest};
 use futures::{
     ready,
     stream::{FusedStream, Stream},
 };
+use gprimitives::H160;
+use parity_scale_codec::Encode;
 use std::{
     collections::VecDeque,
     pin::Pin,
@@ -104,4 +106,16 @@ impl FusedStream for TxPoolService {
     fn is_terminated(&self) -> bool {
         false
     }
+}
+
+/// Gets source of the `SendMessage` transaction recovering it from the signature.
+pub fn tx_send_message_source(tx: &SignedTransaction) -> Result<H160> {
+    Signature::try_from(tx.signature.as_ref())
+        .and_then(|signature| signature.recover_from_digest(tx.transaction.encode().to_digest()))
+        .map(|public_key| H160::from(Address::from(public_key).0))
+}
+
+/// Ethexe transaction signature.
+fn tx_signature(tx: &SignedTransaction) -> Result<Signature> {
+    Signature::try_from(tx.signature.as_ref())
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Tx pool transaction related types.
+//! ethexe tx pool types
 
-use anyhow::Result;
-use ethexe_signer::{Address, Signature, ToDigest};
+use alloc::vec::Vec;
+use core::fmt;
 use gprimitives::{H160, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::fmt;
 
 /// Ethexe transaction with a signature.
 #[derive(Clone, Encode, Decode, PartialEq, Eq)]
@@ -34,12 +33,7 @@ pub struct SignedTransaction {
 impl SignedTransaction {
     /// Ethexe transaction blake2b256 hash.
     pub fn tx_hash(&self) -> H256 {
-        ethexe_db::hash(&self.encode())
-    }
-
-    /// Ethexe transaction signature.
-    pub fn signature(&self) -> Result<Signature> {
-        Signature::try_from(self.signature.as_ref())
+        gear_core::ids::hash(&self.encode()).into()
     }
 
     /// Ethexe transaction reference block hash
@@ -47,15 +41,6 @@ impl SignedTransaction {
     /// Reference block hash is used for a transcation mortality check.
     pub fn reference_block_hash(&self) -> H256 {
         self.transaction.reference_block
-    }
-
-    /// Gets source of the `SendMessage` transaction recovering it from the signature.
-    pub fn send_message_source(&self) -> Result<H160> {
-        Signature::try_from(self.signature.as_ref())
-            .and_then(|signature| {
-                signature.recover_from_digest(self.transaction.encode().to_digest())
-            })
-            .map(|public_key| H160::from(Address::from(public_key).0))
     }
 }
 

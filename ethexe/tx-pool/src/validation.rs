@@ -92,7 +92,7 @@ impl TxValidator {
     /// Validates transaction signature.
     fn check_signature(&self) -> Result<()> {
         let tx_digest = self.transaction.encode().to_digest();
-        let signature = self.transaction.signature()?;
+        let signature = crate::tx_signature(&self.transaction)?;
 
         signature.verify_with_public_key_recover(tx_digest)
     }
@@ -237,7 +237,7 @@ mod tests {
             .validate()
             .expect("internal error: uniqueness validation failed");
 
-        db.set_validated_transaction(transaction.tx_hash(), transaction.encode());
+        db.set_validated_transaction(transaction.clone());
 
         assert!(TxValidator::new(transaction, db.clone())
             .with_uniqueness_check()

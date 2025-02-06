@@ -4697,7 +4697,6 @@ dependencies = [
  "ethexe-observer",
  "ethexe-processor",
  "ethexe-runtime-common",
- "ethexe-tx-pool",
  "futures",
  "gear-core",
  "gprimitives",
@@ -4846,6 +4845,7 @@ name = "ethexe-tx-pool"
 version = "1.7.1"
 dependencies = [
  "anyhow",
+ "ethexe-common",
  "ethexe-db",
  "ethexe-signer",
  "futures",

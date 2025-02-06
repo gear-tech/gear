@@ -16,7 +16,6 @@ futures.workspace = true
 gprimitives = { workspace = true, features = ["serde", "ethexe"] }
 ethexe-db.workspace = true
 ethexe-processor.workspace = true
-ethexe-tx-pool.workspace = true
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors"] }
 jsonrpsee = { workspace = true, features = ["server", "macros"] }

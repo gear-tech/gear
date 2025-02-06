@@ -686,10 +686,7 @@ impl Service {
                                 },
                                 NetworkMessage::Transaction { transaction } => {
                                     if let Ok(validated_tx) = tx_pool.process(transaction) {
-                                        let tx_hash = validated_tx.tx_hash();
-                                        let tx_encoded = validated_tx.encode();
-
-                                        db.set_validated_transaction(tx_hash, tx_encoded);
+                                        db.set_validated_transaction(validated_tx);
 
                                         // TODO (breathx) Execute transaction
                                         log::info!("Unimplemented tx execution");
@@ -744,9 +741,7 @@ impl Service {
                         RpcEvent::Transaction { transaction, response_sender } => {
                             let res = tx_pool.process(transaction).map(|validated_tx| {
                                 let tx_hash = validated_tx.tx_hash();
-                                let tx_encoded = validated_tx.encode();
-
-                                db.set_validated_transaction(tx_hash, tx_encoded);
+                                db.set_validated_transaction(validated_tx);
 
                                 // TODO (breathx) Execute transaction
                                 log::info!("Unimplemented tx execution");

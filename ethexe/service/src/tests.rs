@@ -48,7 +48,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
@@ -1065,12 +1065,10 @@ async fn tx_pool_gossip() {
 
     // Check that node-1 received the message
     let tx_hash = signed_ethexe_tx.tx_hash();
-    let tx_data = node1
+    let node1_db_tx = node1
         .db
         .validated_transaction(tx_hash)
         .expect("tx not found");
-    let node1_db_tx: SignedTransaction =
-        Decode::decode(&mut &tx_data[..]).expect("failed to decode tx");
     assert_eq!(node1_db_tx, signed_ethexe_tx);
 }
 

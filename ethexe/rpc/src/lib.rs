@@ -21,9 +21,9 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
     TransactionPoolApi, TransactionPoolServer,
 };
+use ethexe_common::tx_pool::SignedTransaction;
 use ethexe_db::Database;
 use ethexe_observer::MockBlobReader;
-use ethexe_tx_pool::SignedTransaction;
 use futures::{stream::FusedStream, FutureExt, Stream};
 use gprimitives::H256;
 use jsonrpsee::{
