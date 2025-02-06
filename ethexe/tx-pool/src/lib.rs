@@ -18,22 +18,90 @@
 
 //! Ethexe transaction pool.
 
-mod service;
 mod transaction;
 mod validation;
 
 #[cfg(test)]
 mod tests;
 
-pub use service::{
-    InputTask, OutputTask, TxPoolEvent, TxPoolInputTaskSender, TxPoolOutputTaskReceiver,
-    TxPoolService,
-};
 pub use transaction::{RawTransacton, SignedTransaction, Transaction};
 
+use anyhow::{Context as _, Result};
+use ethexe_db::Database;
+use futures::{
+    ready,
+    stream::{FusedStream, Stream},
+};
+use std::{
+    collections::VecDeque,
+    pin::Pin,
+    task::{Context, Poll},
+};
+use tokio::sync::mpsc;
 use validation::TxValidator;
 
-/// Transaction pool input task sender with a [`SignedEthexeTransaction`] transaction type.
-pub type TxPoolSender = TxPoolInputTaskSender<SignedTransaction>;
-/// Transaction pool output task receiver with a [`SignedEthexeTransaction`] transaction type.
-pub type TxPoolReceiver = TxPoolOutputTaskReceiver<SignedTransaction>;
+/// Transaction pool service.
+///
+/// Serves as an interface for the transaction pool core.
+pub struct TxPoolService {
+    db: Database,
+    // No concurrent access for ready_tx is here,
+    // so no need for the mutex.
+    ready_tx: VecDeque<SignedTransaction>,
+    readiness_sender: mpsc::UnboundedSender<()>,
+    readiness_receiver: mpsc::UnboundedReceiver<()>,
+}
+
+impl TxPoolService {
+    pub fn new(db: Database) -> Self {
+        let (readiness_sender, readiness_receiver) = mpsc::unbounded_channel();
+        Self {
+            db,
+            ready_tx: VecDeque::new(),
+            readiness_sender,
+            readiness_receiver,
+        }
+    }
+
+    /// Basically validates the transaction and includes the transaction
+    /// to the ready queue, so it's returned by the service stream.
+    pub fn process(&mut self, transaction: SignedTransaction) -> Result<SignedTransaction> {
+        TxValidator::new(transaction, self.db.clone())
+            .with_all_checks()
+            .validate()
+            .context("tx validation failed")
+            .inspect(|validated_tx| {
+                self.ready_tx.push_back(validated_tx.clone());
+                self.readiness_sender
+                    .send(())
+                    .expect("receiver is always alive");
+            })
+    }
+}
+
+// TODO [sab] do we really need the service? we can just propagate the transaction
+// after the TxPoolService::process
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TxPoolEvent {
+    PropogateTransaction(SignedTransaction),
+}
+
+impl Stream for TxPoolService {
+    type Item = TxPoolEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        ready!(self.readiness_receiver.poll_recv(cx)).expect("sender is always alive");
+
+        let ret = self.ready_tx.pop_front();
+
+        // Readiness receiver is changed only when a new transaction is pushed to the ready_tx queue
+        debug_assert!(ret.is_some());
+        Poll::Ready(ret.map(TxPoolEvent::PropogateTransaction))
+    }
+}
+
+impl FusedStream for TxPoolService {
+    fn is_terminated(&self) -> bool {
+        false
+    }
+}

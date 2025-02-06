@@ -1088,7 +1088,9 @@ mod utils {
     use super::*;
     use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverEvent, ObserverService, SimpleBlockData};
+    use ethexe_rpc::RpcService;
     use ethexe_sequencer::{SequencerConfig, SequencerService};
+    use ethexe_tx_pool::TxPoolService;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use std::{
@@ -1544,6 +1546,7 @@ mod utils {
             let service_rpc_config = RpcConfig {
                 listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
                 cors: None,
+                dev: false,
             };
             self.service_rpc_config = Some(service_rpc_config);
 
@@ -1764,14 +1767,10 @@ mod utils {
                 None => None,
             };
 
-            let tx_pool_kit = ethexe_tx_pool::new(self.db.clone());
+            let tx_pool_service = TxPoolService::new(self.db.clone());
 
             let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
-                RpcService::new(
-                    service_rpc_config.clone(),
-                    self.db.clone(),
-                    tx_pool_kit.tx_pool_sender.clone(),
-                )
+                RpcService::new(service_rpc_config.clone(), self.db.clone(), None)
             });
 
             let service = Service::new_from_parts(
@@ -1781,12 +1780,12 @@ mod utils {
                 router_query,
                 processor,
                 self.signer.clone(),
+                tx_pool_service,
                 network,
                 sequencer,
                 validator,
                 None,
                 rpc,
-                tx_pool_kit,
             );
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);

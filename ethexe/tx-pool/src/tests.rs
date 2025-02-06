@@ -22,15 +22,13 @@
 //! - the overall logic of the tx pool to work as expected
 //! - the channels inside the tx pool service to work as expected
 
-use crate::{
-    service, InputTask, OutputTask, RawTransacton, SignedTransaction, Transaction, TxPoolKit,
-};
+use crate::{RawTransacton, SignedTransaction, Transaction, TxPoolEvent, TxPoolService};
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb};
 use ethexe_signer::{PrivateKey, Signer, ToDigest};
+use futures::{future::poll_fn, StreamExt};
 use gprimitives::{H160, H256};
 use parity_scale_codec::Encode;
-use std::str::FromStr;
-use tokio::sync::oneshot;
+use std::{str::FromStr, task::Poll};
 
 pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedTransaction {
     let signer = Signer::tmp();
@@ -73,21 +71,70 @@ pub(crate) fn new_block(parent_hash: Option<H256>) -> (H256, BlockHeader) {
 }
 
 #[tokio::test]
+async fn test_pool_stream() {
+    let db = Database::from_one(&MemDb::default(), Default::default());
+    let mut tx_pool_service = TxPoolService::new(db.clone());
+
+    // Prepare the database by populating it with blocks
+    let (tx_reference_block_hash1, block_header1) = new_block(None);
+    db.set_block_header(tx_reference_block_hash1, block_header1.clone());
+    db.set_latest_valid_block(tx_reference_block_hash1, block_header1);
+    let (tx_reference_block_hash2, block_header2) = new_block(Some(tx_reference_block_hash1));
+    db.set_block_header(tx_reference_block_hash2, block_header2.clone());
+    db.set_latest_valid_block(tx_reference_block_hash2, block_header2);
+
+    // Create some dummy transactions
+    let tx1 = generate_signed_ethexe_tx(tx_reference_block_hash1);
+    let tx2 = generate_signed_ethexe_tx(tx_reference_block_hash2);
+
+    // Process transactions
+    assert!(tx_pool_service.process(tx1.clone()).is_ok());
+    assert!(tx_pool_service.process(tx2.clone()).is_ok());
+
+    // Poll next
+    let Some(event) = tx_pool_service.next().await else {
+        panic!("Expected tx1");
+    };
+    assert_eq!(event, TxPoolEvent::PropogateTransaction(tx1));
+
+    // Poll next
+    let Some(event) = tx_pool_service.next().await else {
+        panic!("Expected tx2");
+    };
+    assert_eq!(event, TxPoolEvent::PropogateTransaction(tx2));
+
+    // Polls when there are no ready transactions
+    assert!(tx_pool_service.ready_tx.is_empty());
+
+    poll_fn(|cx| {
+        // Never returns `None`.
+        let poll = tx_pool_service.poll_next_unpin(cx);
+        assert_eq!(poll, Poll::Pending);
+
+        Poll::Ready(())
+    })
+    .await;
+
+    // Process another transaction
+    let tx3 = generate_signed_ethexe_tx(tx_reference_block_hash1);
+    assert!(tx_pool_service.process(tx3.clone()).is_ok());
+
+    // Poll next
+    let Some(event) = tx_pool_service.next().await else {
+        panic!("Expected tx3");
+    };
+    assert_eq!(event, TxPoolEvent::PropogateTransaction(tx3));
+}
+
+#[tokio::test]
 async fn test_add_transaction() {
     gear_utils::init_default_logger();
 
     let db = Database::from_one(&MemDb::default(), Default::default());
 
-    let TxPoolKit {
-        service,
-        tx_pool_sender: input_sender,
-        tx_pool_receiver: mut output_receiver,
-    } = service::new(db.clone());
+    let mut tx_pool = TxPoolService::new(db.clone());
 
-    // Spawn the service in a separate thread
-    tokio::spawn(service.run());
-
-    // -------------- Test adding valid transaction --------------
+    // -------------- Test adding a valid transaction --------------
 
     // Prepare the database by populating it with blocks
     let block_data = new_block(None);
@@ -97,33 +144,16 @@ async fn test_add_transaction() {
     db.set_block_header(tx_reference_block_hash, block_header.clone());
     db.set_latest_valid_block(tx_reference_block_hash, block_header);
 
-    // Send the transaction to the service
+    // Add the transaction to the service
     let signed_ethexe_tx = generate_signed_ethexe_tx(tx_reference_block_hash);
-    let (response_sender, response_receiver) = oneshot::channel();
-    input_sender
-        .send(InputTask::AddTransaction {
-            transaction: signed_ethexe_tx.clone(),
-            response_sender: Some(response_sender),
-        })
-        .expect("failed to send input task");
+    assert!(tx_pool.process(signed_ethexe_tx.clone()).is_ok());
 
-    // Propogation task
-    let task = output_receiver
-        .recv()
-        .await
-        .expect("failed to receive output task");
-    assert!(
-        matches!(task, OutputTask::PropogateTransaction { transaction } if transaction == signed_ethexe_tx)
+    // Check propogation event
+    let event = tx_pool.select_next_some().await;
+    assert_eq!(
+        event,
+        TxPoolEvent::PropogateTransaction(signed_ethexe_tx.clone())
     );
-
-    // Assert response is ok
-    let response = response_receiver.await.expect("failed to receive response");
-    assert!(response.is_ok());
-
-    // Check tx is in the db
-    assert!(db
-        .validated_transaction(signed_ethexe_tx.tx_hash())
-        .is_some());
 
     // -------------- Test adding invalid transaction --------------
 
@@ -138,95 +168,8 @@ async fn test_add_transaction() {
 
     // Rotten block hash
     let invalid_tx = generate_signed_ethexe_tx(tx_reference_block_hash);
-    let tx_hash = invalid_tx.tx_hash();
-    let (response_sender, response_receiver) = oneshot::channel();
-    input_sender
-        .send(InputTask::AddTransaction {
-            transaction: invalid_tx,
-            response_sender: Some(response_sender),
-        })
-        .expect("failed to send input task");
-
-    // Check response
-    let response = response_receiver.await.expect("failed to receive response");
-    assert!(response.is_err());
-
-    // Check tx isn't in the db
-    assert!(db.validated_transaction(tx_hash).is_none());
-}
-
-#[tokio::test]
-async fn test_pre_execution_validity() {
-    gear_utils::init_default_logger();
-
-    let db = Database::from_one(&MemDb::default(), Default::default());
-
-    let TxPoolKit {
-        service,
-        tx_pool_sender: input_sender,
-        tx_pool_receiver,
-    } = service::new(db.clone());
-
-    // So not dropped.
-    std::mem::forget(tx_pool_receiver);
-
-    // Spawn the service in a separate thread
-    tokio::spawn(service.run());
-
-    // Prepare the database by populating it with blocks
-    let block_data = new_block(None);
-    db.set_block_header(block_data.0, block_data.1.clone());
-    db.set_latest_valid_block(block_data.0, block_data.1);
-    let (block_hash, block_header) = new_block(Some(block_data.0));
-    db.set_block_header(block_hash, block_header.clone());
-    db.set_latest_valid_block(block_hash, block_header);
-
-    // Send add transaction task, so transaction is validated and added
-    let signed_ethexe_tx = generate_signed_ethexe_tx(block_hash);
-    input_sender
-        .send(InputTask::AddTransaction {
-            transaction: signed_ethexe_tx.clone(),
-            response_sender: None,
-        })
-        .expect("failed to send input task");
-
-    // Now check existent validated transaction pre-execution validity
-    let (response_sender, response_receiver) = oneshot::channel();
-    input_sender
-        .send(InputTask::ValidatePreDispatch {
-            transaction: signed_ethexe_tx.clone(),
-            response_sender,
-        })
-        .expect("failed to send input task");
-
-    // Check response
-    let response = response_receiver.await.expect("failed to receive response");
-    assert!(response.is_ok());
-
-    // Check tx isn't in the db
-    assert!(db
-        .validated_transaction(signed_ethexe_tx.tx_hash())
-        .is_some());
-
-    // Now make the validated transaction rotten
-    let mut block_hash = block_hash;
-    for _ in 0..30 {
-        let block_data = new_block(Some(block_hash));
-        db.set_block_header(block_data.0, block_data.1.clone());
-        db.set_latest_valid_block(block_data.0, block_data.1);
-        block_hash = block_data.0;
-    }
-
-    // Check for the pre-execution validity of the same transaction
-    let (response_sender, response_receiver) = oneshot::channel();
-    input_sender
-        .send(InputTask::ValidatePreDispatch {
-            transaction: signed_ethexe_tx,
-            response_sender,
-        })
-        .expect("failed to send input task");
-
-    // Check response
-    let response = response_receiver.await.expect("failed to receive response");
-    assert!(response.is_err());
+    let res = tx_pool.process(invalid_tx.clone());
+    assert!(res.is_err());
+    let err_string = format!("{:?}", res.expect_err("checked"));
+    assert!(err_string.contains("Transaction out of recent blocks window"));
 }

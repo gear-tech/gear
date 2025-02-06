@@ -19,7 +19,7 @@
 //! Transaction pool rpc interface.
 
 use crate::{errors, RpcEvent};
-use ethexe_tx_pool::{InputTask, RawTransacton, SignedTransaction, Transaction, TxPoolSender};
+use ethexe_tx_pool::{RawTransacton, SignedTransaction, Transaction};
 use gprimitives::{H160, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},

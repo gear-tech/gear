@@ -35,15 +35,12 @@ use ethexe_sequencer::{
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
-use ethexe_tx_pool::{
-    InputTask, OutputTask, SignedTransaction, TxPoolEvent, TxPoolSender, TxPoolService,
-};
+use ethexe_tx_pool::{SignedTransaction, TxPoolEvent, TxPoolService};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::Not, sync::Arc};
-use tokio::sync::oneshot;
 
 pub mod config;
 

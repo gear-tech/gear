@@ -33,8 +33,7 @@ use libp2p::{
     connection_limits,
     core::{muxing::StreamMuxerBox, upgrade},
     futures::StreamExt,
-    gossipsub::{self, IdentTopic},
-    identify, identity, kad, mdns,
+    gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{

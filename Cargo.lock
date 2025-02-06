@@ -4847,7 +4847,6 @@ version = "1.7.1"
 dependencies = [
  "anyhow",
  "ethexe-db",
- "ethexe-processor",
  "ethexe-signer",
  "futures",
  "gear-utils",

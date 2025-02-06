@@ -21,7 +21,6 @@
 use crate::SignedTransaction;
 use anyhow::{anyhow, Result};
 use ethexe_db::Database;
-use ethexe_processor::Processor;
 use ethexe_signer::ToDigest;
 use parity_scale_codec::Encode;
 
@@ -31,12 +30,6 @@ use parity_scale_codec::Encode;
 ///
 /// Basically consumes a transaction and runs all the defined checks on it.
 /// The checks are defined through the `with_*_check` methods.
-///
-/// The transaction is given back by the validator only in case of
-/// all checks passing. A corresponding `finish` method must be called.
-///
-/// The validator is considered to be called by the transaciton pool service,
-/// so sub-validators can send specific validation tasks outside to the service.
 pub(crate) struct TxValidator {
     transaction: SignedTransaction,
     db: Database,
@@ -250,14 +243,5 @@ mod tests {
             .with_uniqueness_check()
             .validate()
             .is_err());
-    }
-
-    #[test]
-    fn test_executable_tx_validation() {
-        let transaction = tests::generate_signed_ethexe_tx(H256::random());
-        let db = Database::from_one(&MemDb::default(), Default::default());
-        let tx_validator = TxValidator::new(transaction, db).with_executable_tx_check();
-
-        assert!(tx_validator.validate().is_ok());
     }
 }
