@@ -466,7 +466,6 @@ pub struct CodeTypeSectionSizes {
 
 // Calculate the size of the code and type sections in bytes.
 pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSectionSizes, CodeError> {
-    let mut code_start_exists = false;
     let mut code_section_size = 0;
     let mut type_section_size = 0;
 
@@ -476,11 +475,7 @@ pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSection
         let item = item.map_err(CodeError::Validation)?;
         match item {
             Payload::CodeSectionStart { size, .. } => {
-                code_start_exists = true;
                 code_section_size = size;
-            }
-            Payload::CodeSectionEntry(f) if !code_start_exists => {
-                code_section_size += f.range().len() as u32;
             }
             Payload::TypeSection(t) => {
                 type_section_size += t.range().len() as u32;
