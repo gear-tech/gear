@@ -383,7 +383,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
         require(
-            _batchCommitment.codeCommitments.length > 0 && _batchCommitment.blockCommitments.length > 0,
+            !(_batchCommitment.codeCommitments.length == 0 && _batchCommitment.blockCommitments.length == 0),
             "no commitments to commit"
         );
 
@@ -435,7 +435,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         require(
             Gear.validateSignaturesAt(
                 router,
-                keccak256(abi.encodePacked(blockCommitmentsHashes, codeCommitmentsHashes)),
+                keccak256(abi.encodePacked(keccak256(codeCommitmentsHashes), keccak256(blockCommitmentsHashes))),
                 _signatureType,
                 _signatures,
                 maxTimestamp

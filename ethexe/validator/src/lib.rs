@@ -115,48 +115,43 @@ impl Validator {
         )
     }
 
-    pub fn validate_code_commitments(
+    pub fn validate_batch_commitment(
         &mut self,
-        db: &impl CodesStorage,
-        requests: impl IntoIterator<Item = CodeCommitment>,
+        db: &(impl CodesStorage + BlockMetaStorage),
+        codes_requests: impl IntoIterator<Item = CodeCommitment>,
+        blocks_requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
     ) -> Result<(Digest, Signature)> {
-        let mut commitment_digests = Vec::new();
-        for request in requests {
-            log::debug!("Receive code commitment for validation: {:?}", request);
-            commitment_digests.push(request.to_digest());
-            Self::validate_code_commitment(db, request)?;
+        let mut code_commitment_digests = Vec::new();
+
+        for code_request in codes_requests {
+            log::debug!("Receive code commitment for validation: {code_request:?}");
+            code_commitment_digests.push(code_request.to_digest());
+            Self::validate_code_commitment(db, code_request)?;
         }
 
-        let commitments_digest = commitment_digests.iter().collect();
+        let code_commitments_digest: Digest = code_commitment_digests.iter().collect();
+
+        let mut block_commitment_digests = Vec::new();
+
+        for block_request in blocks_requests.into_iter() {
+            log::debug!("Receive block commitment for validation: {block_request:?}");
+            block_commitment_digests.push(block_request.to_digest());
+            Self::validate_block_commitment(db, block_request)?;
+        }
+
+        let block_commitments_digest: Digest = block_commitment_digests.iter().collect();
+
+        let batch_commitment_digest = [code_commitments_digest, block_commitments_digest]
+            .iter()
+            .collect();
+
         agro::sign_commitments_digest(
-            commitments_digest,
+            batch_commitment_digest,
             &self.signer,
             self.pub_key,
             self.router_address,
         )
-        .map(|signature| (commitments_digest, signature))
-    }
-
-    pub fn validate_block_commitments(
-        &mut self,
-        db: &impl BlockMetaStorage,
-        requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
-    ) -> Result<(Digest, Signature)> {
-        let mut commitment_digests = Vec::new();
-        for request in requests.into_iter() {
-            log::debug!("Receive block commitment for validation: {:?}", request);
-            commitment_digests.push(request.to_digest());
-            Self::validate_block_commitment(db, request)?;
-        }
-
-        let commitments_digest = commitment_digests.iter().collect();
-        agro::sign_commitments_digest(
-            commitments_digest,
-            &self.signer,
-            self.pub_key,
-            self.router_address,
-        )
-        .map(|signature| (commitments_digest, signature))
+        .map(|signature| (batch_commitment_digest, signature))
     }
 
     fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {

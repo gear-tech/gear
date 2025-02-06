@@ -18,11 +18,11 @@
 
 //! Sequencer for ethexe.
 
-use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
+use agro::{AggregatedCommitments, MultisignedCommitmentDigests, Signatures};
 use anyhow::{anyhow, bail, Result};
 use ethexe_common::{
     db::BlockMetaStorage,
-    gear::{BlockCommitment, CodeCommitment},
+    gear::{BatchCommitment, BlockCommitment, CodeCommitment},
 };
 use ethexe_ethereum::{router::Router, Ethereum};
 use ethexe_service_utils::Timer;
@@ -36,6 +36,7 @@ use gprimitives::H256;
 use indexmap::IndexSet;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
+    iter,
     ops::Not,
     pin::Pin,
     task::{Context, Poll},
@@ -49,13 +50,7 @@ mod tests;
 
 pub type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
 
-type CommitmentSubmitFuture = BoxFuture<'static, (Result<H256>, CommitType)>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CommitType {
-    Block,
-    Code,
-}
+type CommitmentSubmitFuture = BoxFuture<'static, Result<H256>>;
 
 pub struct SequencerConfig {
     pub ethereum_rpc: String,
@@ -68,17 +63,9 @@ pub struct SequencerConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SequencerEvent {
-    CollectionRoundEnded {
-        block_hash: H256,
-    },
-    CommitmentSubmitted {
-        tx_hash: Option<H256>,
-        commit_type: CommitType,
-    },
-    ValidationRoundEnded {
-        block_hash: H256,
-        submitted: bool,
-    },
+    CollectionRoundEnded { block_hash: H256 },
+    CommitmentSubmitted { tx_hash: Option<H256> },
+    ValidationRoundEnded { block_hash: H256, submitted: bool },
 }
 
 pub struct SequencerService {
@@ -94,8 +81,10 @@ pub struct SequencerService {
     block_commitments: CommitmentsMap<BlockCommitment>,
     code_commitments: CommitmentsMap<CodeCommitment>,
 
-    blocks_candidate: Option<MultisignedCommitmentDigests>,
     codes_candidate: Option<MultisignedCommitmentDigests>,
+    blocks_candidate: Option<MultisignedCommitmentDigests>,
+
+    signatures: Signatures,
 
     status: SequencerStatus,
 
@@ -122,18 +111,15 @@ impl Stream for SequencerService {
             return Poll::Ready(Some(event));
         }
 
-        if let Poll::Ready(Some((res, commit_type))) = self.submissions.poll_next_unpin(cx) {
+        if let Poll::Ready(Some(res)) = self.submissions.poll_next_unpin(cx) {
             let tx_hash = res
                 .inspect(|tx_hash| {
-                    log::debug!("Successfully submitted commitment {commit_type:?} in tx {tx_hash}")
+                    log::debug!("Successfully submitted batch commitment in tx {tx_hash}")
                 })
-                .inspect_err(|err| log::warn!("Failed to submit commitment {commit_type:?}: {err}"))
+                .inspect_err(|err| log::warn!("Failed to submit batch commitment: {err}"))
                 .ok();
 
-            let event = SequencerEvent::CommitmentSubmitted {
-                tx_hash,
-                commit_type,
-            };
+            let event = SequencerEvent::CommitmentSubmitted { tx_hash };
 
             return Poll::Ready(Some(event));
         }
@@ -174,8 +160,10 @@ impl SequencerService {
             block_commitments: Default::default(),
             code_commitments: Default::default(),
 
-            blocks_candidate: None,
             codes_candidate: None,
+            blocks_candidate: None,
+
+            signatures: Default::default(),
 
             status: Default::default(),
 
@@ -215,8 +203,10 @@ impl SequencerService {
         self.block_commitments
             .retain(|_, c| self.waiting_for_commitments.contains(&c.commitment.hash));
 
-        self.blocks_candidate.take();
         self.codes_candidate.take();
+        self.blocks_candidate.take();
+
+        self.signatures = Default::default();
 
         log::debug!("Collection round for {hash} started");
         self.collection_round.start(hash);
@@ -266,86 +256,74 @@ impl SequencerService {
         )
     }
 
-    pub fn receive_codes_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
-        log::debug!("Received codes signature: {digest:?} {signature:?}");
+    pub fn receive_batch_commitment_signature(
+        &mut self,
+        digest: Digest,
+        signature: Signature,
+    ) -> Result<()> {
+        log::debug!("Received batch commitment signature: {digest:?} {signature:?}");
 
         Self::receive_signature(
             digest,
             signature,
             &self.validators,
             self.ethereum.router().address(),
-            self.codes_candidate.as_mut(),
-        )
-    }
-
-    pub fn receive_blocks_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
-        log::debug!("Received block signature: {digest:?} {signature:?}");
-
-        Self::receive_signature(
-            digest,
-            signature,
-            &self.validators,
-            self.ethereum.router().address(),
-            self.blocks_candidate.as_mut(),
+            &[
+                self.codes_candidate.as_ref(),
+                self.blocks_candidate.as_ref(),
+            ],
+            &mut self.signatures,
         )
     }
 
     pub fn submit_multisigned_commitments(&mut self) {
-        if let Some(candidate) = Self::process_multisigned_candidate(
-            &mut self.blocks_candidate,
-            &mut self.block_commitments,
-            self.threshold,
-        ) {
-            let n = candidate.commitments().len();
-
-            log::debug!("Collected {n} block commitments. Submitting...",);
-            self.status.submitted_block_commitments += n;
-
-            self.submissions.push(Box::pin(
-                Self::submit_block_commitments(self.ethereum.router(), candidate)
-                    .map(|tx_hash| (tx_hash, CommitType::Block)),
-            ));
-        };
-
-        if let Some(candidate) = Self::process_multisigned_candidate(
+        let code_commitments = Self::process_multisigned_candidate(
             &mut self.codes_candidate,
             &mut self.code_commitments,
-            self.threshold,
-        ) {
-            let n = candidate.commitments().len();
+        );
 
+        let n = code_commitments.len();
+
+        if n > 0 {
             log::debug!("Collected {n} code commitments. Submitting...");
             self.status.submitted_code_commitments += n;
+        }
 
-            self.submissions.push(Box::pin(
-                Self::submit_codes_commitments(self.ethereum.router(), candidate)
-                    .map(|tx_hash| (tx_hash, CommitType::Code)),
-            ));
-        };
+        let block_commitments = Self::process_multisigned_candidate(
+            &mut self.blocks_candidate,
+            &mut self.block_commitments,
+        );
+
+        let n = block_commitments.len();
+
+        if n > 0 {
+            log::debug!("Collected {n} block commitments. Submitting...");
+            self.status.submitted_block_commitments += n;
+        }
+
+        self.submissions.push(Box::pin(
+            Self::submit_batch_commitment(
+                self.ethereum.router(),
+                BatchCommitment {
+                    code_commitments,
+                    block_commitments,
+                },
+                self.signatures.clone(),
+            )
+            .map(|tx_hash| tx_hash),
+        ));
     }
 
-    async fn submit_codes_commitments(
+    async fn submit_batch_commitment(
         router: Router,
-        multisigned: MultisignedCommitments<CodeCommitment>,
+        commitment: BatchCommitment,
+        signatures: Signatures,
     ) -> Result<H256> {
-        let (codes, signatures) = multisigned.into_parts();
-        let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
+        let (origins, signatures): (Vec<_>, Vec<_>) = signatures.into_inner().into_iter().unzip();
 
-        log::debug!("Code commitments to submit: {codes:?}, signed by: {origins:?}",);
+        log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
 
-        router.commit_codes(codes, signatures).await
-    }
-
-    async fn submit_block_commitments(
-        router: Router,
-        multisigned: MultisignedCommitments<BlockCommitment>,
-    ) -> Result<H256> {
-        let (blocks, signatures) = multisigned.into_parts();
-        let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
-
-        log::debug!("Block commitments to submit: {blocks:?}, signed by: {origins:?}",);
-
-        router.commit_blocks(blocks, signatures).await
+        router.commit_batch(commitment, signatures).await
     }
 
     fn handle_collection_round_end(&mut self, block_hash: H256) -> SequencerEvent {
@@ -366,15 +344,17 @@ impl SequencerService {
             block_hash
         };
 
+        self.codes_candidate =
+            Self::codes_commitment_candidate(&self.code_commitments, self.threshold);
         self.blocks_candidate = Self::blocks_commitment_candidate(
             &self.block_commitments,
             last_non_empty_block,
             self.threshold,
         );
-        self.codes_candidate =
-            Self::codes_commitment_candidate(&self.code_commitments, self.threshold);
 
-        let to_start_validation = self.blocks_candidate.is_some() || self.codes_candidate.is_some();
+        self.signatures = Default::default();
+
+        let to_start_validation = self.codes_candidate.is_some() || self.blocks_candidate.is_some();
 
         if to_start_validation {
             log::debug!("Validation round for {block_hash} started");
@@ -387,9 +367,12 @@ impl SequencerService {
     fn handle_validation_round_end(&mut self, block_hash: H256) -> SequencerEvent {
         log::debug!("Validation round for {block_hash} ended");
 
+        // NOTE: previusly if not enough signatures: `submitted = true`
         let mut submitted = false;
 
-        if self.blocks_candidate.is_some() || self.codes_candidate.is_some() {
+        if (self.codes_candidate.is_some() || self.blocks_candidate.is_some())
+            && self.signatures.len() as u64 >= self.threshold
+        {
             log::debug!("Submitting commitments");
             self.submit_multisigned_commitments();
             submitted = true;
@@ -517,13 +500,21 @@ impl SequencerService {
         signature: Signature,
         validators: &HashSet<Address>,
         router_address: Address,
-        candidate: Option<&mut MultisignedCommitmentDigests>,
+        candidates: &[Option<&MultisignedCommitmentDigests>],
+        signatures: &mut Signatures,
     ) -> Result<()> {
-        let Some(candidate) = candidate else {
-            return Err(anyhow!("No candidate found"));
-        };
+        let candidate_digests = candidates.iter().map(|candidate| match candidate {
+            Some(candidate) => candidate.digest(),
+            None => iter::empty::<Digest>().collect(),
+        });
+        let candidate_digest = candidate_digests.collect();
 
-        candidate.append_signature_with_check(
+        // TODO: maybe move this check to append_signature_with_check
+        if commitments_digest != candidate_digest {
+            return Err(anyhow!("Aggregated commitments digest mismatch"));
+        }
+
+        signatures.append_signature_with_check(
             commitments_digest,
             signature,
             router_address,
@@ -539,27 +530,22 @@ impl SequencerService {
     fn process_multisigned_candidate<C: ToDigest>(
         candidate: &mut Option<MultisignedCommitmentDigests>,
         commitments: &mut CommitmentsMap<C>,
-        threshold: u64,
-    ) -> Option<MultisignedCommitments<C>> {
-        if candidate
-            .as_ref()
-            .map(|c| threshold > c.signatures().len() as u64)
-            .unwrap_or(true)
-        {
-            return None;
-        }
-
-        let candidate = candidate.take()?;
-        let multisigned = MultisignedCommitments::from_multisigned_digests(candidate, |digest| {
-            commitments
-                .remove(&digest)
-                .map(|c| c.commitment)
-                .unwrap_or_else(|| {
-                    unreachable!("Guarantied by `Sequencer` implementation to be in the map");
-                })
-        });
-
-        Some(multisigned)
+    ) -> Vec<C> {
+        let Some(candidate) = candidate.take() else {
+            return Vec::new();
+        };
+        candidate
+            .into_digests()
+            .into_iter()
+            .map(|digest| {
+                commitments
+                    .remove(&digest)
+                    .map(|c| c.commitment)
+                    .unwrap_or_else(|| {
+                        unreachable!("Guarantied by `Sequencer` implementation to be in the map");
+                    })
+            })
+            .collect()
     }
 }
 
