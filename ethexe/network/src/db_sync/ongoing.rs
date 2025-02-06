@@ -74,7 +74,7 @@ pub(crate) enum ExternalValidation {
     },
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatingResponse {
     ongoing_request: OngoingRequest,
     peer_id: PeerId,
@@ -105,6 +105,20 @@ pub(crate) struct OngoingRequest {
     tried_peers: HashSet<PeerId>,
     timeout: Pin<Box<Sleep>>,
     peer_score_handle: Handle,
+}
+
+impl Clone for OngoingRequest {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id,
+            original_request: self.original_request.clone(),
+            request: self.request.clone(),
+            response: self.response.clone(),
+            tried_peers: self.tried_peers.clone(),
+            timeout: Box::pin(time::sleep_until(self.timeout.deadline())),
+            peer_score_handle: self.peer_score_handle.clone(),
+        }
+    }
 }
 
 impl PartialEq for OngoingRequest {
