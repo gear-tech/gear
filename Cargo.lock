@@ -2775,7 +2775,8 @@ dependencies = [
 [[package]]
 name = "corosensei"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/corosensei?branch=rmasl-precommit-1mb-stack-on-windows#6a05a1eb84e505edd68e941195221936a6f634a0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80128832c58ea9cbd041d2a759ec449224487b2c1e400453d99d244eead87a8e"
 dependencies = [
  "autocfg",
  "cfg-if",
@@ -6070,7 +6071,7 @@ dependencies = [
  "scale-info",
  "serde",
  "wabt",
- "wasmparser 0.222.0",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6600,7 +6601,7 @@ dependencies = [
  "rand",
  "thiserror 1.0.62",
  "wasm-smith",
- "wasmparser 0.222.0",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmprinter",
  "wat",
 ]
@@ -6617,8 +6618,8 @@ dependencies = [
  "indexmap 2.7.1",
  "log",
  "rand",
- "wasm-encoder 0.222.0",
- "wasmparser 0.222.0",
+ "wasm-encoder 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmprinter",
  "wat",
 ]
@@ -6635,7 +6636,7 @@ dependencies = [
  "wabt",
  "wasm-opt",
  "wasmer",
- "wasmparser 0.222.0",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "which",
 ]
 
@@ -18548,11 +18549,21 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.222.0"
-source = "git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.222#5abfca56c3bcb237318b3567c28b4280effc4583"
+version = "0.225.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f7eac0445cac73bcf09e6a97f83248d64356dccf9f2b100199769b6b42464e5"
 dependencies = [
  "leb128fmt",
- "wasmparser 0.222.0",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "wasm-encoder"
+version = "0.225.0"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225#83d307c9292b003f9c6e443103df1900d9b023f5"
+dependencies = [
+ "leb128fmt",
+ "wasmparser 0.225.0 (git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225)",
 ]
 
 [[package]]
@@ -18616,14 +18627,14 @@ dependencies = [
 
 [[package]]
 name = "wasm-smith"
-version = "0.222.0"
-source = "git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.222#5abfca56c3bcb237318b3567c28b4280effc4583"
+version = "0.225.0"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225#83d307c9292b003f9c6e443103df1900d9b023f5"
 dependencies = [
  "anyhow",
  "arbitrary",
  "flagset",
- "wasm-encoder 0.222.0",
- "wasmparser 0.222.0",
+ "wasm-encoder 0.225.0 (git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225)",
+ "wasmparser 0.225.0 (git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225)",
 ]
 
 [[package]]
@@ -18955,8 +18966,18 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.222.0"
-source = "git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.222#5abfca56c3bcb237318b3567c28b4280effc4583"
+version = "0.225.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36e5456165f81e64cb9908a0fe9b9d852c2c74582aa3fe2be3c2da57f937d3ae"
+dependencies = [
+ "bitflags 2.5.0",
+ "indexmap 2.7.1",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.225.0"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225#83d307c9292b003f9c6e443103df1900d9b023f5"
 dependencies = [
  "bitflags 2.5.0",
  "indexmap 2.7.1",

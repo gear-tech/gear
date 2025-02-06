@@ -188,7 +188,7 @@ wasmer-vm = "4.3.4"
 wasmer-compiler = "4.3.4"
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
-wasmparser = { version = "0.222", default-features = false, features = ["validate", "features"] }
+wasmparser = { version = "0.225", default-features = false, features = ["validate", "features"] }
 which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
@@ -550,8 +550,8 @@ smallvec = "1.13.2"                                          # utils/node-wrappe
 fs4 = "0.11.1"                                               # utils/gear-wasmer-cache
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
-wasm-smith = { version = "0.222.0", features = ["wasmparser"] } # utils/wasm-gen
-wasm-encoder = { version = "0.222", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
+wasm-smith = { version = "0.225", features = ["wasmparser"] } # utils/wasm-gen
+wasm-encoder = { version = "0.225", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
@@ -600,10 +600,5 @@ blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross
 # TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
 
-# TODO: remove after https://github.com/bytecodealliance/wasm-tools/pull/1961
-wasmparser = { version = "0.222", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.222" }
-wasm-encoder = { version = "0.222", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.222" }
-wasm-smith = { version = "0.222", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.222" }
-
-# Attempt to fix UB on windows by increasing precommited stack size to 1 MiB, see https://github.com/gear-tech/gear/issues/4341
-corosensei = { git = "https://github.com/gear-tech/corosensei", branch = "rmasl-precommit-1mb-stack-on-windows" }
+# there are patches to disable `memory.grow` and to add offset of reserved memory
+wasm-smith = { version = "0.225", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.225" }
