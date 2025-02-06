@@ -265,115 +265,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return mirror;
     }
 
-    /// @dev Set validators for the next era.
-    function commitValidators(
-        Gear.ValidatorsCommitment calldata _validatorsCommitment,
-        Gear.SignatureType _signatureType,
-        bytes[] calldata _signatures
-    ) external {
-        Storage storage router = _router();
-        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
-
-        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
-
-        require(_validatorsCommitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
-
-        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * _validatorsCommitment.eraIndex;
-        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
-
-        // Maybe free slot for new validators:
-        Gear.Validators storage _validators = Gear.previousEraValidators(router);
-        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
-
-        bytes32 commitmentHash = Gear.validatorsCommitmentHash(_validatorsCommitment);
-        require(
-            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures),
-            "next era validators signatures verification failed"
-        );
-
-        _resetValidators(
-            _validators,
-            _validatorsCommitment.aggregatedPublicKey,
-            _validatorsCommitment.verifyingShares,
-            _validatorsCommitment.validators,
-            nextEraStart
-        );
-
-        emit NextEraValidatorsCommitted(nextEraStart);
-    }
-
-    function commitCodes(
-        Gear.CodeCommitment[] calldata _codeCommitments,
-        Gear.SignatureType _signatureType,
-        bytes[] calldata _signatures
-    ) external {
-        Storage storage router = _router();
-        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
-
-        uint256 maxTimestamp = 0;
-        bytes memory codeCommitmentsHashes;
-
-        for (uint256 i = 0; i < _codeCommitments.length; i++) {
-            Gear.CodeCommitment calldata codeCommitment = _codeCommitments[i];
-
-            require(
-                router.protocolData.codes[codeCommitment.id] == Gear.CodeState.ValidationRequested,
-                "code must be requested for validation to be committed"
-            );
-
-            if (codeCommitment.valid) {
-                router.protocolData.codes[codeCommitment.id] = Gear.CodeState.Validated;
-                router.protocolData.validatedCodesCount++;
-            } else {
-                delete router.protocolData.codes[codeCommitment.id];
-            }
-
-            emit CodeGotValidated(codeCommitment.id, codeCommitment.valid);
-
-            codeCommitmentsHashes = bytes.concat(codeCommitmentsHashes, Gear.codeCommitmentHash(codeCommitment));
-            if (codeCommitment.timestamp > maxTimestamp) {
-                maxTimestamp = codeCommitment.timestamp;
-            }
-        }
-
-        require(
-            Gear.validateSignaturesAt(
-                router, keccak256(codeCommitmentsHashes), _signatureType, _signatures, maxTimestamp
-            ),
-            "signatures verification failed"
-        );
-    }
-
-    function commitBlocks(
-        Gear.BlockCommitment[] calldata _blockCommitments,
-        Gear.SignatureType _signatureType,
-        bytes[] calldata _signatures
-    ) external nonReentrant {
-        Storage storage router = _router();
-        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
-
-        uint256 maxTimestamp = 0;
-        bytes memory blockCommitmentsHashes;
-
-        for (uint256 i = 0; i < _blockCommitments.length; i++) {
-            Gear.BlockCommitment calldata blockCommitment = _blockCommitments[i];
-            blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
-            if (blockCommitment.timestamp > maxTimestamp) {
-                maxTimestamp = blockCommitment.timestamp;
-            }
-        }
-
-        // NOTE: Use maxTimestamp to validate signatures for all block commitments.
-        // This means that if at least one commitment is for block from current era,
-        // then all commitments should be checked with current era validators.
-        require(
-            Gear.validateSignaturesAt(
-                router, keccak256(blockCommitmentsHashes), _signatureType, _signatures, maxTimestamp
-            ),
-            "signatures verification failed"
-        );
-    }
-
     function commitBatch(
         Gear.BatchCommitment calldata _batchCommitment,
         Gear.SignatureType _signatureType,
@@ -442,6 +333,43 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             ),
             "signatures verification failed"
         );
+    }
+
+    /// @dev Set validators for the next era.
+    function commitValidators(
+        Gear.ValidatorsCommitment calldata _validatorsCommitment,
+        Gear.SignatureType _signatureType,
+        bytes[] calldata _signatures
+    ) external {
+        Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+
+        require(_validatorsCommitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
+
+        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * _validatorsCommitment.eraIndex;
+        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
+
+        // Maybe free slot for new validators:
+        Gear.Validators storage _validators = Gear.previousEraValidators(router);
+        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
+
+        bytes32 commitmentHash = Gear.validatorsCommitmentHash(_validatorsCommitment);
+        require(
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures),
+            "next era validators signatures verification failed"
+        );
+
+        _resetValidators(
+            _validators,
+            _validatorsCommitment.aggregatedPublicKey,
+            _validatorsCommitment.verifyingShares,
+            _validatorsCommitment.validators,
+            nextEraStart
+        );
+
+        emit NextEraValidatorsCommitted(nextEraStart);
     }
 
     /* Helper private functions */

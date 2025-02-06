@@ -202,7 +202,11 @@ contract Base is POCBaseTest {
             _codesBytes = bytes.concat(_codesBytes, Gear.codeCommitmentHash(_commitment));
         }
 
-        router.commitCodes(_commitments, Gear.SignatureType.FROST, signBytes(_privateKeys, _codesBytes));
+        router.commitBatch(
+            Gear.BatchCommitment({codeCommitments: _commitments, blockCommitments: new Gear.BlockCommitment[](0)}),
+            Gear.SignatureType.FROST,
+            signBytes(_privateKeys, abi.encodePacked(keccak256(_codesBytes), keccak256("")))
+        );
     }
 
     function commitBlock(uint256[] memory _privateKeys, Gear.BlockCommitment memory _commitment) internal {
@@ -219,7 +223,11 @@ contract Base is POCBaseTest {
             _message = bytes.concat(_message, blockCommitmentHash(_commitment));
         }
 
-        router.commitBlocks(_commitments, Gear.SignatureType.FROST, signBytes(_privateKeys, _message));
+        router.commitBatch(
+            Gear.BatchCommitment({codeCommitments: new Gear.CodeCommitment[](0), blockCommitments: _commitments}),
+            Gear.SignatureType.FROST,
+            signBytes(_privateKeys, abi.encodePacked(keccak256(""), keccak256(_message)))
+        );
     }
 
     function blockCommitmentHash(Gear.BlockCommitment memory _commitment) internal pure returns (bytes32) {

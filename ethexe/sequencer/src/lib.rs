@@ -367,7 +367,6 @@ impl SequencerService {
     fn handle_validation_round_end(&mut self, block_hash: H256) -> SequencerEvent {
         log::debug!("Validation round for {block_hash} ended");
 
-        // NOTE: previusly if not enough signatures: `submitted = true`
         let mut submitted = false;
 
         if (self.codes_candidate.is_some() || self.blocks_candidate.is_some())
