@@ -81,8 +81,6 @@ impl TxPoolService {
     }
 }
 
-// TODO [sab] do we really need the service? we can just propagate the transaction
-// after the TxPoolService::process
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TxPoolEvent {
     PropogateTransaction(SignedTransaction),
