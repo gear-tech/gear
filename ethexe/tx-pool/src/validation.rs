@@ -130,7 +130,6 @@ mod tests {
     use crate::tests;
     use ethexe_db::{BlockMetaStorage, Database, MemDb};
     use gprimitives::H256;
-    use parity_scale_codec::Encode;
 
     #[test]
     fn test_signature_validation() {
