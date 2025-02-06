@@ -22,6 +22,7 @@ use crate::{
     peer_score::Handle,
 };
 use ethexe_db::{CodesStorage, Database};
+use futures::FutureExt;
 use libp2p::{
     request_response,
     request_response::OutboundRequestId,
@@ -30,12 +31,14 @@ use libp2p::{
 use rand::seq::IteratorRandom;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    future::Future,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
-use tokio::{task::JoinSet, time, time::Sleep};
+use tokio::{
+    task::JoinSet,
+    time::{Instant, Sleep},
+};
 
 #[derive(Debug)]
 pub(crate) struct SendRequestError {
@@ -103,7 +106,7 @@ pub(crate) struct OngoingRequest {
     request: Request,
     response: Option<Response>,
     tried_peers: HashSet<PeerId>,
-    timeout: Pin<Box<Sleep>>,
+    deadline: Instant,
     peer_score_handle: Handle,
 }
 
@@ -128,7 +131,7 @@ impl OngoingRequest {
             request,
             response: None,
             tried_peers: HashSet::new(),
-            timeout: Box::pin(time::sleep(timeout)),
+            deadline: Instant::now().checked_add(timeout).expect("infallible"),
             peer_score_handle,
         }
     }
@@ -238,6 +241,7 @@ pub(crate) struct OngoingRequests {
     max_rounds_per_request: u32,
     request_timeout: Duration,
     peer_score_handle: Handle,
+    nearest_timeout: Option<Pin<Box<Sleep>>>,
 }
 
 impl OngoingRequests {
@@ -250,6 +254,7 @@ impl OngoingRequests {
             max_rounds_per_request: config.max_rounds_per_request,
             request_timeout: config.request_timeout,
             peer_score_handle,
+            nearest_timeout: None,
         }
     }
 
@@ -298,21 +303,42 @@ impl OngoingRequests {
     }
 
     pub(crate) fn remove_if_timeout(&mut self, cx: &mut Context<'_>) -> Option<RequestId> {
+        let mut nearest_deadline: Option<Instant> = None;
+
         let outbound_request_id =
             self.active_requests
                 .iter_mut()
                 .find_map(|(&request_id, active_request)| {
-                    if active_request.timeout.as_mut().poll(cx).is_ready() {
-                        Some(request_id)
-                    } else {
+                    // If hasn't yet timed out, find nearest deadline.
+                    if active_request.deadline.elapsed().is_zero() {
+                        if let Some(deadline) = nearest_deadline.as_mut() {
+                            *deadline = (*deadline).min(active_request.deadline);
+                        } else {
+                            nearest_deadline = Some(active_request.deadline);
+                        }
+
                         None
+                    } else {
+                        // Timed out, returning request id.
+                        Some(request_id)
                     }
-                })?;
+                });
+
+        self.nearest_timeout = None;
+
+        if let Some(deadline) = nearest_deadline {
+            let mut sleep = Box::pin(tokio::time::sleep_until(deadline));
+
+            if sleep.as_mut().poll_unpin(cx).is_pending() {
+                self.nearest_timeout = Some(sleep);
+            }
+        }
 
         let outgoing_request = self
             .active_requests
-            .remove(&outbound_request_id)
+            .remove(&outbound_request_id?)
             .expect("infallible");
+
         Some(outgoing_request.request_id)
     }
 
