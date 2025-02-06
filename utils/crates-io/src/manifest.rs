@@ -53,6 +53,7 @@ impl Workspace {
                 mutable_manifest,
                 path,
                 is_published: true,
+                is_actualized: true,
             },
             lock_file: LockFile {
                 content,
@@ -190,12 +191,14 @@ pub struct Manifest {
     pub path: PathBuf,
     /// Whether the crate is published
     pub is_published: bool,
+    /// Whether the current version is published
+    pub is_actualized: bool,
 }
 
 impl Manifest {
     /// Complete the manifest of the specified crate from
     /// the workspace manifest
-    pub fn new(pkg: &Package, is_published: bool) -> Result<Self> {
+    pub fn new(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Self> {
         let original_manifest: DocumentMut = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         let mut mutable_manifest = original_manifest.clone();
 
@@ -210,6 +213,7 @@ impl Manifest {
             mutable_manifest,
             path: pkg.manifest_path.clone().into(),
             is_published,
+            is_actualized,
         })
     }
 
