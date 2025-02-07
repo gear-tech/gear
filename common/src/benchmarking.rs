@@ -67,17 +67,15 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     mbuilder.push_import(Import::memory("env", "memory", num_pages.into(), None));
 
     // alloc
-    mbuilder.add_func(
-        FuncType::new([ValType::I32], [ValType::I32]),
-        Function::default(),
-    );
+    let alloc_idx = mbuilder.push_type(FuncType::new([ValType::I32], [ValType::I32]));
+    mbuilder.push_import(Import::func("env", "alloc", alloc_idx));
 
     // init
-    mbuilder.add_func(FuncType::new([], []), Function::default());
-    mbuilder.push_export(Export::func("init", 1));
+    let init_idx = mbuilder.add_func(FuncType::new([], []), Function::default());
+    mbuilder.push_export(Export::func("init", init_idx));
 
     // handle
-    mbuilder.add_func(
+    let handle_idx = mbuilder.add_func(
         FuncType::new([], []),
         Function {
             locals: vec![(1, ValType::I32)],
@@ -89,7 +87,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
             ],
         },
     );
-    mbuilder.push_export(Export::func("handle", 2));
+    mbuilder.push_export(Export::func("handle", handle_idx));
 
     let code = mbuilder
         .build()
