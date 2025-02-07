@@ -25,6 +25,7 @@ wasm_init() {
     rustup update stable
   fi
 
+  rustup target add wasm32v1-none --toolchain stable
   rustup target add wasm32v1-none --toolchain nightly
 }
 
