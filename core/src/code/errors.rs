@@ -18,8 +18,7 @@
 
 //! Module that describes various code errors.
 
-pub use gear_wasm_instrument::InstrumentationError;
-use gear_wasm_instrument::ModuleError;
+pub use gear_wasm_instrument::{InstrumentationError, ModuleError};
 pub use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
