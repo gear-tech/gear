@@ -18,12 +18,12 @@
 
 use crate::{
     gas_metering::ConstantCostRules,
-    module::{ConstExpr, Function, Global, Instruction, Instruction::*, ModuleBuilder},
+    module::{Function, Global, Instruction, Instruction::*, ModuleBuilder},
     syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
     InstrumentationBuilder, InstrumentationError, Module, Rules, GLOBAL_NAME_GAS,
 };
 use alloc::format;
-use wasmparser::{BlockType, FuncType, GlobalType, ValType};
+use wasmparser::{BlockType, FuncType, ValType};
 
 pub(crate) fn parse_wat(source: &str) -> Module {
     let module_bytes = wat::parse_str(source).unwrap();
@@ -54,15 +54,7 @@ fn get_function_body(module: &Module, index: usize) -> Option<&[Instruction]> {
 fn prebuilt_simple_module() -> Module {
     let mut builder = ModuleBuilder::default();
 
-    builder.push_global(Global {
-        ty: GlobalType {
-            content_type: ValType::I32,
-            mutable: false,
-            shared: false,
-        },
-        init_expr: ConstExpr::empty(),
-    });
-
+    builder.push_global(Global::i32_value(0));
     builder.add_func(FuncType::new([ValType::I32], []), Function::default());
 
     builder.add_func(
