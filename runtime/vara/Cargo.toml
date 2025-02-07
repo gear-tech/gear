@@ -124,7 +124,6 @@ wat.workspace = true
 gear-core.workspace = true
 gear-core-processor.workspace = true
 gwasm-instrument.workspace = true
-wabt.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true

@@ -916,13 +916,8 @@ fn default_wasm_module() -> Module {
         (func $handle)
         (func $init)
     )"#;
-    Module::from_bytes(
-        wabt::Wat2Wasm::new()
-            .validate(false)
-            .convert(simple_wat)
-            .expect("failed to parse module"),
-    )
-    .expect("module instantiation failed")
+    Module::from_bytes(wat::parse_str(simple_wat).expect("failed to parse module"))
+        .expect("module instantiation failed")
 }
 
 // This test must never fail during local development/release.

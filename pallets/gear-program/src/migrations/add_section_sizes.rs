@@ -189,10 +189,6 @@ mod test {
     use gear_core::{ids::CodeId, message::DispatchKind};
     use sp_runtime::traits::Zero;
 
-    fn wat2wasm(s: &str) -> Vec<u8> {
-        wabt::Wat2Wasm::new().convert(s).unwrap().as_ref().to_vec()
-    }
-
     #[test]
     fn add_section_sizes_works() {
         new_test_ext().execute_with(|| {
@@ -220,7 +216,7 @@ mod test {
             "#;
 
             let code = v8::InstrumentedCode {
-                code: wat2wasm(wat),
+                code: wat::parse_str(wat).unwrap(),
                 original_code_len: 100,
                 exports: vec![DispatchKind::Init].into_iter().collect(),
                 static_pages: 1.into(),

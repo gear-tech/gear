@@ -443,12 +443,11 @@ mod tests {
     use gear_wasm_instrument::{InstrumentationError, STACK_END_EXPORT_NAME};
 
     fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
-        wabt::Wat2Wasm::new()
-            .validate(validate)
-            .convert(s)
-            .unwrap()
-            .as_ref()
-            .to_vec()
+        let code = wat::parse_str(s).unwrap();
+        if validate {
+            wasmparser::validate(&code).unwrap();
+        }
+        code
     }
 
     fn wat2wasm(s: &str) -> Vec<u8> {

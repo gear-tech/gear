@@ -15284,7 +15284,7 @@ fn program_with_large_indexes() {
     "#
     );
 
-    let wasm = wabt::wat2wasm(&wat).expect("failed to compile wat to wasm");
+    let wasm = wat::parse_str(&wat).expect("failed to compile wat to wasm");
     assert!(
         code_len_limit as usize - wasm.len() < 140,
         "Failed to reach the max limit of code size."
@@ -16678,12 +16678,11 @@ pub(crate) mod utils {
                 }
             };
 
-            wabt::Wat2Wasm::new()
-                .validate(validate)
-                .convert(source)
-                .expect("failed to parse module")
-                .as_ref()
-                .to_vec()
+            let code = wat::parse_str(source).expect("failed to parse module");
+            if validate {
+                wasmparser::validate(&code).expect("failed to validate module");
+            }
+            code
         }
     }
 

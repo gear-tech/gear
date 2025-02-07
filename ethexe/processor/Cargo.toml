@@ -23,14 +23,13 @@ anyhow = { workspace = true, features = ["std"] }
 wasmtime.workspace = true
 log.workspace = true
 parity-wasm.workspace = true
-rand = { workspace = true, features = ["std", "std_rng"] }
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
 tokio = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
-wabt.workspace = true
 env_logger.workspace = true
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
+wat.workspace = true
