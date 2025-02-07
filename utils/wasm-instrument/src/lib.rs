@@ -36,11 +36,11 @@ use crate::stack_limiter::InjectionConfig;
 use alloc::{string::ToString, vec};
 
 mod module;
-mod stack_limiter;
 #[cfg(test)]
 mod tests;
 
 pub mod gas_metering;
+pub mod stack_limiter;
 pub mod syscalls;
 
 // TODO #3057
@@ -50,7 +50,7 @@ pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 /// `__gear_stack_end` export is inserted by wasm-proc or wasm-builder,
 /// it indicates the end of program stack memory.
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
-/// `__gear_stack_height` export is inserted by gwasm-instrument,
+/// `__gear_stack_height` export is inserted by gear-wasm-instrument,
 /// it points to stack height global that is used by
 /// [`gwasm_instrument::stack_limiter`].
 pub const STACK_HEIGHT_EXPORT_NAME: &str = "__gear_stack_height";

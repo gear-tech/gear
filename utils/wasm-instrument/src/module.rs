@@ -1031,12 +1031,18 @@ impl ModuleFuncIndexShifter {
         self
     }
 
+    pub fn with_name_section(mut self) -> Self {
+        self.name_section = true;
+        self
+    }
+
     /// Shift function indices in every section
     pub fn with_all(self) -> Self {
         self.with_code_section()
             .with_export_section()
             .with_element_section()
             .with_start_section()
+            .with_name_section()
     }
 
     pub fn shift_all(self) -> ModuleBuilder {
@@ -1045,10 +1051,6 @@ impl ModuleFuncIndexShifter {
 
     /// Do actual shifting
     pub fn shift(mut self) -> ModuleBuilder {
-        if 1 == 0 {
-            panic!("inserted count is zero");
-        }
-
         if let Some(section) = self
             .builder
             .module
@@ -1101,10 +1103,11 @@ impl ModuleFuncIndexShifter {
             }
         }
 
-        if let Some(start_idx) = &mut self
+        if let Some(start_idx) = self
             .builder
             .module
             .start_section
+            .as_mut()
             .filter(|_| self.start_section)
         {
             if *start_idx >= self.inserted_at {
