@@ -22,7 +22,6 @@ use alloy::{
     providers::{Provider as _, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
-    transports::BoxTransport,
 };
 use anyhow::{Context as _, Result};
 use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent};
@@ -42,7 +41,7 @@ use std::{
     time::Duration,
 };
 
-pub(crate) type Provider = RootProvider<BoxTransport>;
+pub(crate) type Provider = RootProvider;
 
 mod blobs;
 mod observer;
@@ -159,7 +158,7 @@ impl ObserverService {
         config: &EthereumConfig,
         blobs: Arc<dyn BlobReader>,
     ) -> Result<Self> {
-        let provider = ProviderBuilder::new()
+        let provider = ProviderBuilder::default()
             .on_builtin(&config.rpc)
             .await
             .context("failed to create ethereum provider")?;
