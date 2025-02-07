@@ -13,7 +13,6 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-gwasm-instrument = { workspace = true, features = ["sign_ext"] }
 derive_more.workspace = true
 enum-iterator.workspace = true
 wasmparser.workspace = true

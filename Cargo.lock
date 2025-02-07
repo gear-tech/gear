@@ -6553,12 +6553,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-wasm"
-version = "0.45.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbfbfa701dc65e683fcd2fb24f046bcef22634acbdf47ad14724637dc39ad05b"
-
-[[package]]
 name = "gear-wasm-builder"
 version = "1.7.1"
 dependencies = [
@@ -6614,7 +6608,6 @@ dependencies = [
  "derive_more 0.99.18",
  "diff",
  "enum-iterator 1.5.0",
- "gwasm-instrument",
  "indexmap 2.7.1",
  "log",
  "rand",
@@ -7059,15 +7052,6 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand",
-]
-
-[[package]]
-name = "gwasm-instrument"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09c5fda64a6f7f331a6425df8d678dfc542f3135b43e3cc229d431d391ff3c7d"
-dependencies = [
- "gear-wasm",
 ]
 
 [[package]]
