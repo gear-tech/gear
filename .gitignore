@@ -16,3 +16,4 @@ utils/**/fuzz/coverage/*
 utils/**/fuzz/artifacts/*
 utils/**/fuzz/fuzz/*
 .ethexe.toml
+fuzz_run
