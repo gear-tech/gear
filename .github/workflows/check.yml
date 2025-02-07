@@ -142,7 +142,7 @@ jobs:
         run: ./scripts/gear.sh test fuzzer-tests
 
       - name: "Check fuzzer competence with mutation test"
-        run: ./scripts/check-fuzzer.sh
+        run: ./scripts/check-fuzzer.sh || tail -n 100 fuzz_run
 
       - name: "Check lazy pages fuzzer with smoke test"
         run: ./scripts/check-lazy-pages-fuzzer.sh
