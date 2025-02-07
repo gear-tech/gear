@@ -434,14 +434,14 @@ impl Service {
             mut prometheus,
             rpc,
         } = self;
-        let mut rpc_handle = if let Some(rpc) = rpc {
+        let (mut rpc_handle, mut rpc_receiver) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
 
-            let rpc_run = rpc.run_server().await?;
+            let (rpc_run, rpc_receiver) = rpc.run_server().await?;
 
-            Some(tokio::spawn(rpc_run.stopped()))
+            (Some(tokio::spawn(rpc_run.stopped())), Some(rpc_receiver))
         } else {
-            None
+            (None, None)
         };
 
         let mut roles = "Observer".to_string();
@@ -713,6 +713,9 @@ impl Service {
                             };
                         }
                     }
+                }
+                event = rpc_receiver.maybe_next_some() => {
+                    log::info!("Received RPC event {event:#?}");
                 }
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
