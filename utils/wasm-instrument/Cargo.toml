@@ -22,10 +22,11 @@ log.workspace = true
 
 [dev-dependencies]
 wat.workspace = true
-rand = { workspace = true, features = ["std", "std_rng"] }
-binaryen = "0.12"
-diff = "0.1.13"
 wasmprinter.workspace = true
+wasm-smith.workspace = true
+arbitrary.workspace = true
+rand = { workspace = true, features = ["std", "std_rng"] }
+diff = "0.1.13"
 
 [features]
 default = ["std"]
