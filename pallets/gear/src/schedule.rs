@@ -1597,7 +1597,7 @@ mod test {
     fn module_with_full_idx(count: usize) -> usize {
         let funcs = "(func)".repeat(count);
         let wat = format!("(module {funcs})");
-        wabt::wat2wasm(wat).expect("Failed to serialize wasm").len()
+        wat::parse_str(wat).expect("Failed to serialize wasm").len()
     }
 
     #[test]

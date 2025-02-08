@@ -24,4 +24,4 @@ colored.workspace = true
 
 [dev-dependencies]
 wasmer.workspace = true
-wabt.workspace = true
+wat.workspace = true
