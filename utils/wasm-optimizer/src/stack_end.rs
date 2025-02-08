@@ -360,8 +360,8 @@ mod test {
 
         let binary = wat2wasm(wat);
 
-        let mut module = gear_wasm_instrument::Module::new(&binary)
-            .expect("failed to deserialize binary");
+        let mut module =
+            gear_wasm_instrument::Module::new(&binary).expect("failed to deserialize binary");
         insert_stack_end_export(&mut module).expect("insert_stack_end_export failed");
 
         let gear_stack_end = module

@@ -32,8 +32,7 @@ fn main() -> anyhow::Result<()> {
     let schedule = vara_runtime::Schedule::get();
     let inf_recursion = fs::read_to_string("examples/wat/spec/inf_recursion.wat")
         .context("Failed to read `inf_recursion.wat`")?;
-    let inf_recursion = wat::parse_str(inf_recursion)
-        .context("Failed to convert WAT to WASM")?;
+    let inf_recursion = wat::parse_str(inf_recursion).context("Failed to convert WAT to WASM")?;
 
     let code = Code::try_new_mock_with_rules(
         inf_recursion.clone(),
