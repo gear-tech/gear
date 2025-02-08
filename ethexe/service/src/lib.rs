@@ -38,7 +38,7 @@ use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::{ops::Not, sync::Arc};
+use std::sync::Arc;
 
 pub mod config;
 
@@ -74,8 +74,7 @@ pub enum NetworkMessage {
         blocks: Vec<BlockCommitmentValidationRequest>,
     },
     ApproveCommitments {
-        codes: Option<(Digest, Signature)>,
-        blocks: Option<(Digest, Signature)>,
+        batch_commitment: (Digest, Signature),
     },
 }
 
@@ -581,27 +580,16 @@ impl Service {
                                 // it's possible that some of collected commitments validation will fail
                                 // on local validator. So we just print warning in this case.
 
-                                if !code_requests.is_empty() {
-                                    match v.validate_code_commitments(&db, code_requests) {
+                                if !code_requests.is_empty() || !block_requests.is_empty() {
+                                    match v.validate_batch_commitment(&db, code_requests, block_requests) {
                                         Ok((digest, signature)) => {
-                                            s.receive_codes_signature(digest, signature)?;
+                                            s.receive_batch_commitment_signature(digest, signature)?;
                                         }
                                         Err(err) => {
-                                            log::warn!("Collected code commitments validation failed: {err}");
+                                            log::warn!("Collected batch commitments validation failed: {err}");
                                         }
                                     }
-                                };
-
-                                if !block_requests.is_empty() {
-                                    match v.validate_block_commitments(&db, block_requests) {
-                                        Ok((digest, signature)) => {
-                                            s.receive_blocks_signature(digest, signature)?;
-                                        }
-                                        Err(err) => {
-                                            log::warn!("Collected block commitments validation failed: {err}");
-                                        }
-                                    }
-                                };
+                                }
                             };
                         },
                         SequencerEvent::ValidationRoundEnded { .. } => {},
@@ -635,41 +623,25 @@ impl Service {
                                 },
                                 NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
                                     if let Some(v) = validator.as_mut() {
-                                        let codes = codes
-                                            .is_empty()
-                                            .not()
-                                            .then(|| v.validate_code_commitments(&db, codes))
+                                        let maybe_batch_commitment = (!codes.is_empty() || !blocks.is_empty())
+                                            .then(|| v.validate_batch_commitment(&db, codes, blocks))
                                             .transpose()
-                                            .inspect_err(|e| log::warn!("failed to validate code commitments from network: {e}"))
-                                            .ok()
-                                            .flatten();
-
-                                        let blocks = blocks
-                                            .is_empty()
-                                            .not()
-                                            .then(|| v.validate_block_commitments(&db, blocks))
-                                            .transpose()
-                                            .inspect_err(|e| log::warn!("failed to validate block commitments from network: {e}"))
+                                            .inspect_err(|e| log::warn!("failed to validate batch commitment from network: {e}"))
                                             .ok()
                                             .flatten();
 
                                         if let Some(n) = network.as_mut() {
-                                            let message = NetworkMessage::ApproveCommitments { codes, blocks };
-                                            n.publish_message(message.encode());
+                                            if let Some(batch_commitment) = maybe_batch_commitment {
+                                                let message = NetworkMessage::ApproveCommitments { batch_commitment };
+                                                n.publish_message(message.encode());
+                                            }
                                         }
                                     }
                                 },
-                                NetworkMessage::ApproveCommitments { codes, blocks } => {
+                                NetworkMessage::ApproveCommitments { batch_commitment: (digest, signature) } => {
                                     if let Some(s) = sequencer.as_mut() {
-                                        if let Some((digest, signature)) = codes {
-                                            let _ = s.receive_codes_signature(digest, signature)
-                                                .inspect_err(|e| log::warn!("failed to receive codes signature from network: {e}"));
-                                        }
-
-                                        if let Some((digest, signature)) = blocks {
-                                            let _ = s.receive_blocks_signature(digest, signature)
-                                                .inspect_err(|e| log::warn!("failed to receive blocks signature from network: {e}"));
-                                        }
+                                        let _ = s.receive_batch_commitment_signature(digest, signature)
+                                            .inspect_err(|e| log::warn!("failed to receive batch commitment signature from network: {e}"));
                                     }
                                 },
                             };
