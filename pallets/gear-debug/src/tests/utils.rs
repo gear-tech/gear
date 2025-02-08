@@ -26,12 +26,9 @@ pub fn init_logger() {
 }
 
 pub fn parse_wat(source: &str) -> Vec<u8> {
-    wabt::Wat2Wasm::new()
-        .validate(true)
-        .convert(source)
-        .expect("failed to parse module")
-        .as_ref()
-        .to_vec()
+    let code = wat::parse_str(source).expect("failed to parse module");
+    wasmparser::validate(&code).expect("failed to validate module");
+    code
 }
 
 pub fn h256_code_hash(code: &[u8]) -> H256 {

@@ -180,7 +180,6 @@ tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.2"
 wat = "1.0.71"
-wabt = "0.10.0"
 wasmer = { version = "4.3.4", default-features = false, features = ["singlepass"] }
 wasmer-cache = "4.3.4"
 wasmer-types = "4.3.4"
@@ -594,9 +593,6 @@ wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-
 
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
 blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross-compilation-v1.5.4" }
-
-# TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
-wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.225", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.225" }

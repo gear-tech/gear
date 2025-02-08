@@ -123,7 +123,6 @@ env_logger.workspace = true
 wat.workspace = true
 gear-core.workspace = true
 gear-wasm-instrument.workspace = true
-wabt.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true

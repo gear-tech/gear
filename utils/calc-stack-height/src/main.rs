@@ -30,14 +30,13 @@ fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let schedule = vara_runtime::Schedule::get();
-    let inf_recursion = fs::read("examples/wat/spec/inf_recursion.wat")
+    let inf_recursion = fs::read_to_string("examples/wat/spec/inf_recursion.wat")
         .context("Failed to read `inf_recursion.wat`")?;
-    let inf_recursion = wabt::Wat2Wasm::new()
-        .convert(inf_recursion)
+    let inf_recursion = wat::parse_str(inf_recursion)
         .context("Failed to convert WAT to WASM")?;
 
     let code = Code::try_new_mock_with_rules(
-        inf_recursion.as_ref().to_vec(),
+        inf_recursion.clone(),
         |module| schedule.rules(module),
         TryNewCodeConfig {
             version: schedule.instruction_weights.version,
@@ -92,8 +91,6 @@ fn main() -> anyhow::Result<()> {
     let err = init.call(&mut store, &[]).unwrap_err();
     assert_eq!(err.to_trap(), Some(TrapCode::StackOverflow));
 
-    log::info!("Exports: {:?}", instance.exports);
-
     let stack_height = instance
         .exports
         .get_global(STACK_HEIGHT_EXPORT_NAME)
@@ -114,7 +111,7 @@ fn main() -> anyhow::Result<()> {
         let mid = (low + high) / 2;
 
         let code = Code::try_new(
-            inf_recursion.as_ref().to_vec(),
+            inf_recursion.clone(),
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             Some(mid),

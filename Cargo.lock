@@ -1985,7 +1985,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62dc83a094a71d43eeadd254b1ec2d24cb6a0bb6cadce00df51f0db594711a32"
 dependencies = [
  "cc",
- "glob 0.3.1",
+ "glob",
  "threadpool",
  "zeroize",
 ]
@@ -2121,7 +2121,7 @@ checksum = "cdf100c4cea8f207e883ff91ca886d621d8a166cb04971dfaa9bb8fd99ed95df"
 dependencies = [
  "blst",
  "cc",
- "glob 0.3.1",
+ "glob",
  "hex",
  "libc",
  "serde",
@@ -2147,9 +2147,9 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "vara-runtime",
- "wabt",
  "wasmer",
  "wasmer-types",
+ "wat",
 ]
 
 [[package]]
@@ -2172,7 +2172,7 @@ dependencies = [
  "colored",
  "etc",
  "gear-wasm-optimizer",
- "glob 0.3.1",
+ "glob",
  "gtest",
  "serde",
  "serde_json",
@@ -2420,7 +2420,7 @@ version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c688fc74432808e3eb684cae8830a86be1d66a2bd58e1f248ed0960a590baf6f"
 dependencies = [
- "glob 0.3.1",
+ "glob",
  "libc",
  "libloading",
 ]
@@ -2519,15 +2519,6 @@ name = "clap_lex"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
-
-[[package]]
-name = "cmake"
-version = "0.1.50"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31c789563b815f77f4250caee12365734369f942439b7defd71e18a48197130"
-dependencies = [
- "cc",
-]
 
 [[package]]
 name = "codespan-reporting"
@@ -3872,7 +3863,9 @@ name = "demo-wat"
 version = "0.1.0"
 dependencies = [
  "hex",
- "wabt",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmprinter",
+ "wat",
 ]
 
 [[package]]
@@ -4640,7 +4633,8 @@ dependencies = [
  "parity-scale-codec",
  "reqwest",
  "tokio",
- "wabt",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]
@@ -4666,8 +4660,8 @@ dependencies = [
  "sp-allocator",
  "sp-wasm-interface",
  "tokio",
- "wabt",
  "wasmtime",
+ "wat",
 ]
 
 [[package]]
@@ -5868,7 +5862,6 @@ dependencies = [
  "thiserror 1.0.62",
  "tokio",
  "url",
- "wabt",
  "wat",
 ]
 
@@ -6049,8 +6042,8 @@ dependencies = [
  "rand",
  "scale-info",
  "serde",
- "wabt",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]
@@ -6606,10 +6599,10 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "regex",
- "wabt",
  "wasm-opt",
  "wasmer",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
  "which",
 ]
 
@@ -6796,12 +6789,6 @@ dependencies = [
  "openssl-sys",
  "url",
 ]
-
-[[package]]
-name = "glob"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8be18de09a56b60ed0edf84bc9df007e30040691af7acd1c41874faac5895bfb"
 
 [[package]]
 name = "glob"
@@ -9335,7 +9322,7 @@ dependencies = [
  "bindgen",
  "bzip2-sys",
  "cc",
- "glob 0.3.1",
+ "glob",
  "libc",
  "libz-sys",
  "tikv-jemalloc-sys",
@@ -10917,7 +10904,6 @@ dependencies = [
  "demo-distributor",
  "demo-futures-unordered",
  "demo-gas-burned",
- "demo-incomplete-async-payloads",
  "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
@@ -10941,7 +10927,6 @@ dependencies = [
  "demo-value-sender",
  "demo-wait",
  "demo-wait-timeout",
- "demo-wait-wake",
  "demo-waiter",
  "demo-waiting-proxy",
  "derive_more 0.99.18",
@@ -10991,7 +10976,8 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "test-syscalls",
- "wabt",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]
@@ -11122,7 +11108,8 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "test-syscalls",
- "wabt",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]
@@ -11297,7 +11284,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wabt",
+ "wat",
 ]
 
 [[package]]
@@ -17942,7 +17929,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33a5f13f11071020bb12de7a16b925d2d58636175c20c11dc5f96cb64bb6c9b3"
 dependencies = [
  "dissimilar",
- "glob 0.3.1",
+ "glob",
  "serde",
  "serde_derive",
  "serde_json",
@@ -18290,7 +18277,6 @@ dependencies = [
  "sp-version",
  "substrate-build-script-utils",
  "substrate-wasm-builder",
- "wabt",
  "wat",
 ]
 
@@ -18340,27 +18326,6 @@ dependencies = [
  "sha3",
  "thiserror 1.0.62",
  "zeroize",
-]
-
-[[package]]
-name = "wabt"
-version = "0.10.0"
-source = "git+https://github.com/gear-tech/wabt-rs?branch=al-win-crt#4f75824f6740e981415f8eed02aeedd28ac0b15e"
-dependencies = [
- "serde",
- "serde_derive",
- "serde_json",
- "wabt-sys",
-]
-
-[[package]]
-name = "wabt-sys"
-version = "0.8.0"
-source = "git+https://github.com/gear-tech/wabt-rs?branch=al-win-crt#4f75824f6740e981415f8eed02aeedd28ac0b15e"
-dependencies = [
- "cc",
- "cmake",
- "glob 0.2.11",
 ]
 
 [[package]]

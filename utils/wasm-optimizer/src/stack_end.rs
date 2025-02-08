@@ -336,9 +336,14 @@ mod test {
         insert_stack_end_export, insert_start_call_in_export_funcs, move_mut_globals_to_static,
         STACK_END_EXPORT_NAME,
     };
-    use wabt::Wat2Wasm;
     use wasmer::{Imports, Instance, Memory, MemoryType, Module, Store, Value};
     use wasmparser::ExternalKind;
+
+    fn wat2wasm(source: &str) -> Vec<u8> {
+        let code = wat::parse_str(source).expect("failed to parse module");
+        wasmparser::validate(&code).expect("failed to validate module");
+        code
+    }
 
     #[test]
     fn assembly_script_stack_pointer() {
@@ -353,13 +358,9 @@ mod test {
             (func $init)
         )"#;
 
-        let binary = Wat2Wasm::new()
-            .validate(true)
-            .write_debug_names(true)
-            .convert(wat)
-            .expect("failed to parse module");
+        let binary = wat2wasm(wat);
 
-        let mut module = gear_wasm_instrument::Module::new(binary.as_ref())
+        let mut module = gear_wasm_instrument::Module::new(&binary)
             .expect("failed to deserialize binary");
         insert_stack_end_export(&mut module).expect("insert_stack_end_export failed");
 
@@ -392,11 +393,7 @@ mod test {
             )
         )"#;
 
-        let binary = Wat2Wasm::new()
-            .validate(true)
-            .write_debug_names(true)
-            .convert(wat)
-            .expect("failed to parse module");
+        let binary = wat2wasm(wat);
 
         let check = |binary, expected| {
             let mut store: Store = Store::default();
@@ -416,7 +413,7 @@ mod test {
         check(binary.as_ref(), 11);
 
         // Insert `_start` call in `handle` code and check that it works as expected.
-        let mut module = gear_wasm_instrument::Module::new(binary.as_ref()).unwrap();
+        let mut module = gear_wasm_instrument::Module::new(&binary).unwrap();
         insert_start_call_in_export_funcs(&mut module).unwrap();
         check(&module.serialize().unwrap(), 12);
     }
@@ -444,11 +441,7 @@ mod test {
             )
         )"#;
 
-        let binary = Wat2Wasm::new()
-            .validate(true)
-            .write_debug_names(true)
-            .convert(wat)
-            .expect("failed to parse module");
+        let binary = wat2wasm(wat);
 
         let check = |binary, expected1, expected2| {
             let mut store: Store = Store::default();
@@ -487,7 +480,7 @@ mod test {
 
         // Then check that after moving globals to static memory, globals will changed
         // their values after first execution, and second execution will return another result.
-        let mut module = gear_wasm_instrument::Module::new(binary.as_ref()).unwrap();
+        let mut module = gear_wasm_instrument::Module::new(&binary).unwrap();
         move_mut_globals_to_static(&mut module).unwrap();
         check(&module.serialize().unwrap(), 111, 113);
     }
