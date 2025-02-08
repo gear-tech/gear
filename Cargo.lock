@@ -6589,7 +6589,7 @@ dependencies = [
  "enum-iterator 1.5.0",
  "indexmap 2.7.1",
  "log",
- "rand",
+ "proptest",
  "wasm-encoder 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-smith",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",

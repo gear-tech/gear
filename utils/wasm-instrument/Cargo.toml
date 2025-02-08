@@ -25,7 +25,7 @@ wat.workspace = true
 wasmprinter.workspace = true
 wasm-smith.workspace = true
 arbitrary.workspace = true
-rand = { workspace = true, features = ["std", "std_rng"] }
+proptest.workspace = true
 diff = "0.1.13"
 
 [features]
