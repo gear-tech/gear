@@ -395,7 +395,6 @@ mod tests {
             // WASM 2.0
             module_config.bulk_memory_enabled = false;
             module_config.reference_types_enabled = false;
-            module_config.sign_extension_ops_enabled = false;
             module_config.saturating_float_to_int_enabled = false;
             module_config.multi_value_enabled = false;
             // WASM 3.0
