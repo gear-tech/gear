@@ -281,25 +281,18 @@ impl SequencerService {
             &mut self.codes_candidate,
             &mut self.code_commitments,
         );
-
-        let n = code_commitments.len();
-
-        if n > 0 {
-            log::debug!("Collected {n} code commitments. Submitting...");
-            self.status.submitted_code_commitments += n;
-        }
+        let code_commitments_len = code_commitments.len();
 
         let block_commitments = Self::process_multisigned_candidate(
             &mut self.blocks_candidate,
             &mut self.block_commitments,
         );
+        let block_commitments_len = block_commitments.len();
 
-        let n = block_commitments.len();
+        self.status.submitted_code_commitments += code_commitments_len;
+        self.status.submitted_block_commitments += block_commitments_len;
 
-        if n > 0 {
-            log::debug!("Collected {n} block commitments. Submitting...");
-            self.status.submitted_block_commitments += n;
-        }
+        log::debug!("Collected {code_commitments_len} code commitments, {block_commitments_len} block commitments. Submitting...");
 
         self.submissions.push(Box::pin(
             Self::submit_batch_commitment(
