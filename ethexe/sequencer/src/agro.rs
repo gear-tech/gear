@@ -118,11 +118,6 @@ impl Signatures {
         router_address: Address,
         check_origin: impl FnOnce(Address) -> Result<()>,
     ) -> Result<()> {
-        // TODO: maybe support digest check?
-        // if self.digest != digest {
-        //     return Err(anyhow!("Aggregated commitments digest mismatch"));
-        // }
-
         let origin = recover_from_commitments_digest(digest, &signature, router_address)?;
         check_origin(origin)?;
 

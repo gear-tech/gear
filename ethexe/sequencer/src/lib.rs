@@ -501,7 +501,6 @@ impl SequencerService {
         });
         let candidate_digest = candidate_digests.collect();
 
-        // TODO: maybe move this check to append_signature_with_check
         if commitments_digest != candidate_digest {
             return Err(anyhow!("Aggregated commitments digest mismatch"));
         }
