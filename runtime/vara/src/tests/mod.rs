@@ -381,8 +381,3 @@ fn write_is_not_too_cheap() {
     assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);
 }
 
-#[test]
-fn test_journal_note_size_does_not_exceed_32mib() {
-    use gear_core_processor::common::JournalNote;
-    assert!(JournalNote::max_encoded_len() <= 32 * 1024 * 1024);
-}

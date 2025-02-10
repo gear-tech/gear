@@ -565,3 +565,8 @@ pub(crate) struct WasmExecutionContext {
     /// Size of the memory block.
     pub memory_size: WasmPagesAmount,
 }
+
+#[test]
+fn test_journal_note_size_does_not_exceed_32mib() {
+    assert!(JournalNote::max_encoded_len() <= 32 * 1024 * 1024);
+}
