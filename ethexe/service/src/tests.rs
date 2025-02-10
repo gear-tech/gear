@@ -1282,7 +1282,9 @@ mod utils {
 
                 let mirror = self.ethereum.mirror(program_address.into_array().into());
 
-                mirror.executable_balance_top_up(initial_executable_balance).await?;
+                mirror
+                    .executable_balance_top_up(initial_executable_balance)
+                    .await?;
             }
 
             Ok(WaitForProgramCreation {
