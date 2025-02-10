@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! Ethereum address.
 
-use crate::{utils, PublicKey};
+use crate::PublicKey;
 use anyhow::{anyhow, Error, Result};
 use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
@@ -67,7 +67,7 @@ impl FromStr for Address {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        Ok(Self(utils::decode_to_array(s)?))
+        Ok(Self(crate::decode_to_array(s)?))
     }
 }
 
@@ -87,6 +87,15 @@ impl TryFrom<ActorId> for Address {
     }
 }
 
+impl From<u64> for Address {
+    fn from(value: u64) -> Self {
+        let actor_id = ActorId::from(value);
+        actor_id
+            .try_into()
+            .expect("actor id from `u64` has first 12 bytes being 0")
+    }
+}
+
 impl From<Address> for ActorId {
     fn from(value: Address) -> Self {
         H160(value.0).into()
@@ -102,5 +111,16 @@ impl fmt::Debug for Address {
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "0x{}", self.to_hex())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_u64_to_address() {
+        // Does not panic
+        let _ = Address::from(u64::MAX / 2);
     }
 }

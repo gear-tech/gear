@@ -28,7 +28,6 @@
 mod address;
 mod digest;
 mod signature;
-mod utils;
 
 // Exports
 pub use address::Address;
@@ -36,7 +35,7 @@ pub use digest::{Digest, ToDigest};
 pub use sha3;
 pub use signature::Signature;
 
-use anyhow::{bail, Error, Result};
+use anyhow::{anyhow, bail, Error, Result};
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::{
     hashes::hex::{Case, DisplayHex},
@@ -62,7 +61,7 @@ impl FromStr for PrivateKey {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(utils::decode_to_array(s)?))
+        Ok(Self(decode_to_array(s)?))
     }
 }
 
@@ -133,7 +132,7 @@ impl FromStr for PublicKey {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        Ok(Self(utils::decode_to_array(s)?))
+        Ok(Self(decode_to_array(s)?))
     }
 }
 
@@ -296,6 +295,20 @@ impl Signer {
 
         Ok(PrivateKey(buf))
     }
+}
+
+// Decodes hexed string to a byte array.
+pub(crate) fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N]> {
+    let mut buf = [0; N];
+
+    // Strip the "0x" prefix if it exists.
+    let stripped = s.strip_prefix("0x").unwrap_or(s);
+
+    // Decode
+    hex::decode_to_slice(stripped, &mut buf)
+        .map_err(|_| anyhow!("invalid hex format for {stripped:?}"))?;
+
+    Ok(buf)
 }
 
 #[cfg(test)]

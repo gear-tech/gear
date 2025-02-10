@@ -21,7 +21,7 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
     TransactionPoolApi, TransactionPoolServer,
 };
-use ethexe_common::tx_pool::SignedTransaction;
+use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
 use ethexe_observer::MockBlobReader;
 use futures::{stream::FusedStream, FutureExt, Stream};
@@ -204,8 +204,8 @@ impl FusedStream for RpcReceiver {
 
 #[derive(Debug)]
 pub enum RpcEvent {
-    Transaction {
-        transaction: SignedTransaction,
+    OffchainTransaction {
+        transaction: SignedOffchainTransaction,
         response_sender: oneshot::Sender<Result<H256>>,
     },
 }

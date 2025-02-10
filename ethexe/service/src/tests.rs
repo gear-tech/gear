@@ -40,7 +40,7 @@ use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{RawTransacton, SignedTransaction, Transaction};
+use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
 use ethexe_validator::Validator;
 use gear_core::{
     ids::prelude::*,
@@ -1019,11 +1019,10 @@ async fn tx_pool_gossip() {
     let signed_ethexe_tx = {
         let sender_pub_key = env.signer.generate_key().expect("failed generating key");
 
-        let ethexe_tx = Transaction {
-            raw: RawTransacton::SendMessage {
+        let ethexe_tx = OffchainTransaction {
+            raw: RawOffchainTransaction::SendMessage {
                 program_id: H160::random(),
                 payload: vec![],
-                value: 0,
             },
             // referring to the latest valid block hash
             reference_block,
@@ -1032,7 +1031,7 @@ async fn tx_pool_gossip() {
             .signer
             .sign(sender_pub_key, ethexe_tx.encode().as_ref())
             .expect("failed signing tx");
-        SignedTransaction {
+        SignedOffchainTransaction {
             signature: signature.encode(),
             transaction: ethexe_tx,
         }
@@ -1045,10 +1044,7 @@ async fn tx_pool_gossip() {
             "jsonrpc": "2.0",
             "method": "transactionPool_sendMessage",
             "params": {
-                "program_id": signed_ethexe_tx.transaction.raw.program_id(),
-                "payload": signed_ethexe_tx.transaction.raw.payload().to_vec(),
-                "value": signed_ethexe_tx.transaction.raw.value(),
-                "reference_block": signed_ethexe_tx.transaction.reference_block,
+                "ethexe_tx": signed_ethexe_tx.transaction,
                 "signature": signed_ethexe_tx.signature,
             },
             "id": 1,
@@ -1059,6 +1055,14 @@ async fn tx_pool_gossip() {
 
     assert!(resp.status().is_success());
 
+    // This way the response from RPC server is checked to be `Ok`.
+    // In case of error RPC returns the `Ok` response with error message.
+    let resp = resp
+        .json::<serde_json::Value>()
+        .await
+        .expect("failed to deserialize json response from rpc");
+    assert!(resp.get("result").is_some());
+
     // Tx executable validation takes time.
     // Sleep for a while so tx is processed by both nodes.
     tokio::time::sleep(Duration::from_secs(12)).await;
@@ -1067,7 +1071,7 @@ async fn tx_pool_gossip() {
     let tx_hash = signed_ethexe_tx.tx_hash();
     let node1_db_tx = node1
         .db
-        .validated_transaction(tx_hash)
+        .get_offchain_transaction(tx_hash)
         .expect("tx not found");
     assert_eq!(node1_db_tx, signed_ethexe_tx);
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,8 +18,8 @@
 
 //! Transactions validation.
 
-use crate::SignedTransaction;
-use anyhow::{anyhow, Result};
+use crate::SignedOffchainTransaction;
+use anyhow::{anyhow, Context, Result};
 use ethexe_db::Database;
 use ethexe_signer::ToDigest;
 use parity_scale_codec::Encode;
@@ -31,7 +31,7 @@ use parity_scale_codec::Encode;
 /// Basically consumes a transaction and runs all the defined checks on it.
 /// The checks are defined through the `with_*_check` methods.
 pub(crate) struct TxValidator {
-    transaction: SignedTransaction,
+    transaction: SignedOffchainTransaction,
     db: Database,
     signature_check: bool,
     mortality_check: bool,
@@ -39,7 +39,7 @@ pub(crate) struct TxValidator {
 }
 
 impl TxValidator {
-    pub(crate) fn new(transaction: SignedTransaction, db: Database) -> Self {
+    pub(crate) fn new(transaction: SignedOffchainTransaction, db: Database) -> Self {
         Self {
             transaction,
             db,
@@ -73,7 +73,7 @@ impl TxValidator {
 
 impl TxValidator {
     /// Runs all stateful and stateless sync validators for the transaction.
-    pub(crate) fn validate(self) -> Result<SignedTransaction> {
+    pub(crate) fn validate(self) -> Result<SignedOffchainTransaction> {
         if self.signature_check {
             self.check_signature()?;
         }
@@ -101,13 +101,11 @@ impl TxValidator {
     ///
     /// Basically checks that transaction reference block hash is within the recent blocks window.
     fn check_mortality(&self) -> Result<()> {
-        let block_hash = self.transaction.reference_block_hash();
+        let block_hash = self.transaction.reference_block();
 
-        if self.db.check_within_recent_blocks(block_hash) {
-            Ok(())
-        } else {
-            Err(anyhow!("Transaction out of recent blocks window"))
-        }
+        self.db
+            .check_within_recent_blocks(block_hash)
+            .context("Transaction mortality check failed")
     }
 
     /// Validates transaction uniqueness.
@@ -116,7 +114,8 @@ impl TxValidator {
     fn check_uniqueness(&self) -> Result<()> {
         let tx_hash = self.transaction.tx_hash();
 
-        if self.db.validated_transaction(tx_hash).is_none() {
+        // TODO #4505
+        if self.db.get_offchain_transaction(tx_hash).is_none() {
             Ok(())
         } else {
             Err(anyhow!("Transaction already exists"))
@@ -131,12 +130,24 @@ mod tests {
     use ethexe_db::{BlockMetaStorage, Database, MemDb};
     use gprimitives::H256;
 
+    macro_rules! assert_ok {
+        ( $x:expr ) => {
+            assert!($x.is_ok());
+        };
+    }
+
+    macro_rules! assert_err {
+        ( $x:expr ) => {
+            assert!($x.is_err());
+        };
+    }
+
     #[test]
     fn test_signature_validation() {
         let signed_transaction = tests::generate_signed_ethexe_tx(H256::random());
         let db = Database::from_one(&MemDb::default(), Default::default());
         let validator = TxValidator::new(signed_transaction, db).with_signature_check();
-        assert!(validator.validate().is_ok());
+        assert_ok!(validator.validate());
     }
 
     #[test]
@@ -160,7 +171,8 @@ mod tests {
 
         let tx_validator = TxValidator::new(signed_tx, db).with_mortality_check();
 
-        assert!(tx_validator.validate().is_ok());
+        // println!("{:?}", tx_validator.validate());
+        assert_ok!(tx_validator.validate());
     }
 
     #[test]
@@ -171,7 +183,7 @@ mod tests {
 
         let tx_validator = TxValidator::new(invalid_transaction, db).with_mortality_check();
 
-        assert!(tx_validator.validate().is_err());
+        assert_err!(tx_validator.validate());
     }
 
     #[test]
@@ -185,9 +197,9 @@ mod tests {
         db.set_block_header(second_block_hash, second_block_header.clone());
         db.set_latest_valid_block(second_block_hash, second_block_header);
 
-        // Add more 28 blocks
+        // Add more 30 blocks
         let mut block_hash = second_block_hash;
-        for _ in 0..28 {
+        for _ in 0..30 {
             let block_data = tests::new_block(Some(block_hash));
             db.set_block_header(block_data.0, block_data.1.clone());
             db.set_latest_valid_block(block_data.0, block_data.1);
@@ -215,15 +227,13 @@ mod tests {
         db.set_block_header(block_data.0, block_data.1.clone());
         db.set_latest_valid_block(block_data.0, block_data.1);
 
-        // `db` is `Arc`, so no need to instatiate a new validator.
-        assert!(TxValidator::new(transaction1, db.clone())
+        // `db` is `Arc`, so no need to instantiate a new validator.
+        assert_err!(TxValidator::new(transaction1, db.clone())
             .with_mortality_check()
-            .validate()
-            .is_err());
-        assert!(TxValidator::new(transaction2, db.clone())
+            .validate());
+        assert_ok!(TxValidator::new(transaction2, db.clone())
             .with_mortality_check()
-            .validate()
-            .is_ok());
+            .validate());
     }
 
     #[test]
@@ -236,11 +246,10 @@ mod tests {
             .validate()
             .expect("internal error: uniqueness validation failed");
 
-        db.set_validated_transaction(transaction.clone());
+        db.set_offchain_transaction(transaction.clone());
 
-        assert!(TxValidator::new(transaction, db.clone())
+        assert_err!(TxValidator::new(transaction, db.clone())
             .with_uniqueness_check()
-            .validate()
-            .is_err());
+            .validate());
     }
 }

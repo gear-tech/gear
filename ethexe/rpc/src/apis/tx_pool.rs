@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,8 +19,8 @@
 //! Transaction pool rpc interface.
 
 use crate::{errors, RpcEvent};
-use ethexe_common::tx_pool::{RawTransacton, SignedTransaction, Transaction};
-use gprimitives::{H160, H256};
+use ethexe_common::tx_pool::{OffchainTransaction, SignedOffchainTransaction};
+use gprimitives::H256;
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -32,10 +32,7 @@ pub trait TransactionPool {
     #[method(name = "transactionPool_sendMessage")]
     async fn send_message(
         &self,
-        program_id: H160,
-        payload: Vec<u8>,
-        value: u128,
-        reference_block: H256,
+        ethexe_tx: OffchainTransaction,
         signature: Vec<u8>,
     ) -> RpcResult<H256>;
 }
@@ -55,28 +52,18 @@ impl TransactionPoolApi {
 impl TransactionPoolServer for TransactionPoolApi {
     async fn send_message(
         &self,
-        program_id: H160,
-        payload: Vec<u8>,
-        value: u128,
-        reference_block: H256,
+        ethexe_tx: OffchainTransaction,
         signature: Vec<u8>,
     ) -> RpcResult<H256> {
-        let signed_ethexe_tx = SignedTransaction {
-            transaction: Transaction {
-                raw: RawTransacton::SendMessage {
-                    program_id,
-                    payload,
-                    value,
-                },
-                reference_block,
-            },
+        let signed_ethexe_tx = SignedOffchainTransaction {
+            transaction: ethexe_tx,
             signature,
         };
         log::debug!("Called send_message with vars: {signed_ethexe_tx:#?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
         self.rpc_sender
-            .send(RpcEvent::Transaction {
+            .send(RpcEvent::OffchainTransaction {
                 transaction: signed_ethexe_tx,
                 response_sender,
             })
@@ -84,7 +71,7 @@ impl TransactionPoolServer for TransactionPoolApi {
                 // That could be a panic case, as rpc_receiver must not be dropped,
                 // but the main service works independently from rpc and can be malformed.
                 log::error!(
-                    "Failed to send `RpcEvent::Transaction` event task: {e}. \
+                    "Failed to send `RpcEvent::OffchainTransaction` event task: {e}. \
                     The receiving end in the main service might have been dropped."
                 );
                 errors::internal()
@@ -94,7 +81,7 @@ impl TransactionPoolServer for TransactionPoolApi {
             // No panic case, as a responsibility of the RPC API is fulfilled.
             // The dropped sender signalizes that the main service has crashed
             // or is malformed, so problems should be handled there.
-            log::error!("Response sender for the `RpcEvent::Transaction` was dropped: {e}");
+            log::error!("Response sender for the `RpcEvent::OffchainTransaction` was dropped: {e}");
             errors::internal()
         })?;
 

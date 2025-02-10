@@ -22,11 +22,12 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase,
 };
+use anyhow::{bail, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Schedule},
     events::BlockRequestEvent,
     gear::StateTransition,
-    tx_pool::SignedTransaction,
+    tx_pool::{OffchainTransaction, SignedOffchainTransaction},
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -43,8 +44,6 @@ use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const LOG_TARGET: &str = "ethexe-db";
-/// Recent block hashes window size used to check transaction mortality.
-const BLOCK_HASHES_WINDOW_SIZE: u32 = 30;
 
 #[repr(u64)]
 enum KeyPrefix {
@@ -448,7 +447,7 @@ impl Database {
         self.cas.write(data)
     }
 
-    pub fn validated_transaction(&self, tx_hash: H256) -> Option<SignedTransaction> {
+    pub fn get_offchain_transaction(&self, tx_hash: H256) -> Option<SignedOffchainTransaction> {
         self.kv
             .get(&KeyPrefix::Transaction.one(tx_hash))
             .map(|data| {
@@ -457,42 +456,49 @@ impl Database {
             })
     }
 
-    pub fn set_validated_transaction(&self, tx: SignedTransaction) {
+    pub fn set_offchain_transaction(&self, tx: SignedOffchainTransaction) {
         let tx_hash = tx.tx_hash();
         self.kv
             .put(&KeyPrefix::Transaction.one(tx_hash), tx.encode());
     }
 
-    pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> bool {
+    pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> Result<()> {
+        const ERR_MSG: &str = "Reference block isn't within recent blocks window";
+
         let Some((latest_valid_block_hash, latest_valid_block_header)) = self.latest_valid_block()
         else {
-            return false;
+            bail!("No latest valid block found");
         };
         let Some(reference_block_header) = self.block_header(reference_block_hash) else {
-            return false;
+            bail!("No reference block found");
         };
 
         // If reference block is far away from the latest valid block, it's not in the window.
-        if latest_valid_block_header.height - reference_block_header.height
-            > BLOCK_HASHES_WINDOW_SIZE
-        {
-            return false;
+        let Some(actual_window) = latest_valid_block_header
+            .height
+            .checked_sub(reference_block_header.height)
+        else {
+            bail!("Can't calculate actual window: reference block hash doesn't suit actual blocks state");
+        };
+
+        if actual_window > OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
+            bail!(ERR_MSG);
         }
 
         // Check against reorgs.
         let mut block_hash = latest_valid_block_hash;
-        for _ in 0..BLOCK_HASHES_WINDOW_SIZE {
+        for _ in 0..OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
             if block_hash == reference_block_hash {
-                return true;
+                return Ok(());
             }
 
             let Some(block_header) = self.block_header(block_hash) else {
-                return false;
+                bail!("{ERR_MSG}, after possible reorg reference block hash is not actual");
             };
             block_hash = block_header.parent_hash;
         }
 
-        false
+        bail!(ERR_MSG);
     }
 
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {

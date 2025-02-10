@@ -22,112 +22,110 @@ use alloc::vec::Vec;
 use core::fmt;
 use gprimitives::{H160, H256};
 use parity_scale_codec::{Decode, Encode};
+use serde::{Deserialize, Serialize};
 
 /// Ethexe transaction with a signature.
-#[derive(Clone, Encode, Decode, PartialEq, Eq)]
-pub struct SignedTransaction {
+#[derive(Clone, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignedOffchainTransaction {
     pub signature: Vec<u8>,
-    pub transaction: Transaction,
+    pub transaction: OffchainTransaction,
 }
 
-impl SignedTransaction {
+impl SignedOffchainTransaction {
     /// Ethexe transaction blake2b256 hash.
     pub fn tx_hash(&self) -> H256 {
-        gear_core::ids::hash(&self.encode()).into()
+        gear_core::hash(&self.encode()).into()
     }
 
     /// Ethexe transaction reference block hash
     ///
-    /// Reference block hash is used for a transcation mortality check.
-    pub fn reference_block_hash(&self) -> H256 {
+    /// Reference block hash is used for a transaction mortality check.
+    pub fn reference_block(&self) -> H256 {
         self.transaction.reference_block
     }
 }
 
-impl fmt::Debug for SignedTransaction {
+impl fmt::Debug for SignedOffchainTransaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SignedEthexeTransaction")
+        f.debug_struct("SignedOffchainTransaction")
             .field("signature", &hex::encode(&self.signature))
             .field("transaction", &self.transaction)
             .finish()
     }
 }
 
-impl fmt::Display for SignedTransaction {
+impl fmt::Display for SignedOffchainTransaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "SignedEthexeTransaction {{ signature: 0x{}, transaction: {} }}",
+            "SignedOffchainTransaction {{ signature: 0x{}, transaction: {} }}",
             hex::encode(&self.signature),
             self.transaction
         )
     }
 }
 
-/// Ethexe transaction with a reference block for mortality.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct Transaction {
-    pub raw: RawTransacton,
+/// Ethexe offchain transaction with a reference block for mortality.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OffchainTransaction {
+    pub raw: RawOffchainTransaction,
     pub reference_block: H256,
 }
 
-impl fmt::Display for Transaction {
+impl OffchainTransaction {
+    /// Recent block hashes window size used to check transaction mortality.
+    ///
+    /// ### Rationale
+    /// The constant could have been defined in the `ethexe-db`,
+    /// but defined here to ease upgrades without invalidation of the transactions
+    /// stores.
+    pub const BLOCK_HASHES_WINDOW_SIZE: u32 = 32;
+}
+
+impl fmt::Display for OffchainTransaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "EthexeTransaction {{ raw: {}, reference_block: {} }}",
+            "OffchainTransaction {{ raw: {}, reference_block: {} }}",
             self.raw, self.reference_block
         )
     }
 }
 
-/// Raw ethexe transaction.
+/// Raw ethexe offchain transaction.
 ///
 /// A particular job to be processed without external specifics.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub enum RawTransacton {
-    SendMessage {
-        program_id: H160,
-        payload: Vec<u8>,
-        value: u128,
-    },
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RawOffchainTransaction {
+    SendMessage { program_id: H160, payload: Vec<u8> },
 }
 
-impl RawTransacton {
+impl RawOffchainTransaction {
     /// Gets the program id of the transaction.
     pub fn program_id(&self) -> H160 {
         match self {
-            RawTransacton::SendMessage { program_id, .. } => *program_id,
+            RawOffchainTransaction::SendMessage { program_id, .. } => *program_id,
         }
     }
 
     /// Gets the payload of the transaction.
     pub fn payload(&self) -> &[u8] {
         match self {
-            RawTransacton::SendMessage { payload, .. } => payload,
-        }
-    }
-
-    /// Gets the value of the transaction.
-    pub fn value(&self) -> u128 {
-        match self {
-            RawTransacton::SendMessage { value, .. } => *value,
+            RawOffchainTransaction::SendMessage { payload, .. } => payload,
         }
     }
 }
 
-impl fmt::Display for RawTransacton {
+impl fmt::Display for RawOffchainTransaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RawTransacton::SendMessage {
+            RawOffchainTransaction::SendMessage {
                 program_id,
                 payload,
-                value,
             } => f
                 .debug_struct("SendMessage")
                 .field("program_id", program_id)
                 .field("payload", &hex::encode(payload))
-                .field("value", value)
                 .finish(),
         }
     }
