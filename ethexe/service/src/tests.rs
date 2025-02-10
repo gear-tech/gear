@@ -172,12 +172,9 @@ async fn ping() {
         .await
         .unwrap();
 
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
-    assert_eq!(res.reply_payload, b"PONG");
-    assert_eq!(res.reply_value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
 
     let ping_id = res.program_id;
 
@@ -191,12 +188,9 @@ async fn ping() {
         .await
         .unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
-    assert_eq!(res.reply_payload, b"PONG");
-    assert_eq!(res.reply_value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
 
     let res = env
         .send_message(ping_id, b"PUNK", 0)
@@ -206,9 +200,9 @@ async fn ping() {
         .await
         .unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert_eq!(res.reply_payload, b"");
-    assert_eq!(res.reply_value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.payload, b"");
+    assert_eq!(res.value, 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -257,7 +251,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
-        assert_eq!(reply.reply_code, expected_err);
+        assert_eq!(reply.code, expected_err);
 
         let res = env
             .send_message(res.program_id, &[], 0)
@@ -268,7 +262,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
-        assert_eq!(res.reply_code, expected_err);
+        assert_eq!(res.code, expected_err);
     }
 
     // Case #2: async init, replies are acceptable.
@@ -328,7 +322,7 @@ async fn uninitialized_program() {
             .await
             .unwrap();
         let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
-        assert_eq!(res.reply_code, expected_err);
+        assert_eq!(res.code, expected_err);
         // Checking further initialisation.
 
         // Required replies.
@@ -337,7 +331,7 @@ async fn uninitialized_program() {
         }
 
         // Success end of initialisation.
-        let reply_code = listener
+        let code = listener
             .apply_until_block_event(|event| match event {
                 BlockEvent::Mirror {
                     actor_id,
@@ -355,7 +349,7 @@ async fn uninitialized_program() {
             .await
             .unwrap();
 
-        assert!(reply_code.is_success());
+        assert!(code.is_success());
 
         // Handle message handled, but panicked due to incorrect payload as expected.
         let res = env
@@ -367,7 +361,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
-        assert_eq!(res.reply_code, expected_err);
+        assert_eq!(res.code, expected_err);
     }
 }
 
@@ -413,10 +407,7 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(
-        init_res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Auto)
-    );
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
     let pid = res.program_id;
 
@@ -514,10 +505,10 @@ async fn mailbox() {
     let initial_message = res.message_id;
     let reply_info = res.wait_for().await.unwrap();
     assert_eq!(
-        reply_info.reply_code,
+        reply_info.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
-    assert_eq!(reply_info.reply_payload, initial_message.encode());
+    assert_eq!(reply_info.payload, initial_message.encode());
 
     let state_hash = mirror.query().state_hash().await.unwrap();
 
@@ -657,11 +648,8 @@ async fn incoming_transfers() {
         .await
         .unwrap();
 
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
-    assert_eq!(res.reply_value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.value, 0);
 
     let on_eth_balance = wvara
         .query()
@@ -704,7 +692,10 @@ async fn ping_reorg() {
     log::info!("📗 Abort service to simulate node blocks skipping");
     node.stop_service().await;
 
-    let create_program = env.create_program(code_id, 500_000_000_000_000).await.unwrap();
+    let create_program = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap();
     let init = env
         .send_message(create_program.program_id, b"PING", 0)
         .await
@@ -721,7 +712,7 @@ async fn ping_reorg() {
     let res = create_program.wait_for().await.unwrap();
     let init_res = init.wait_for().await.unwrap();
     assert_eq!(res.code_id, code_id);
-    assert_eq!(init_res.reply_payload, b"PONG");
+    assert_eq!(init_res.payload, b"PONG");
 
     let ping_id = res.program_id;
 
@@ -741,7 +732,7 @@ async fn ping_reorg() {
         .await
         .unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_payload, b"PONG");
+    assert_eq!(res.payload, b"PONG");
 
     log::info!("📗 Test after reverting to the program creation snapshot");
     env.observer
@@ -759,7 +750,7 @@ async fn ping_reorg() {
         .await
         .unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_payload, b"PONG");
+    assert_eq!(res.payload, b"PONG");
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
@@ -778,7 +769,7 @@ async fn ping_reorg() {
 
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_payload, b"PONG");
+    assert_eq!(res.payload, b"PONG");
 }
 
 // Mine 150 blocks - send message - mine 150 blocks.
@@ -825,10 +816,10 @@ async fn ping_deep_sync() {
         .await
         .unwrap();
     assert_eq!(res.code_id, code_id);
-    assert_eq!(init_res.reply_payload, b"PONG");
-    assert_eq!(init_res.reply_value, 0);
+    assert_eq!(init_res.payload, b"PONG");
+    assert_eq!(init_res.value, 0);
     assert_eq!(
-        init_res.reply_code,
+        init_res.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
 
@@ -846,12 +837,9 @@ async fn ping_deep_sync() {
 
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_payload, b"PONG");
-    assert_eq!(res.reply_value, 0);
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -925,12 +913,9 @@ async fn multiple_validators() {
         .await
         .unwrap();
     assert_eq!(res.code_id, ping_code_id);
-    assert_eq!(init_res.reply_payload, b"");
-    assert_eq!(init_res.reply_value, 0);
-    assert_eq!(
-        init_res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Auto)
-    );
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
     let ping_id = res.program_id;
 
@@ -961,12 +946,9 @@ async fn multiple_validators() {
         .await
         .unwrap();
     assert_eq!(res.code_id, async_code_id);
-    assert_eq!(init_res.reply_payload, b"");
-    assert_eq!(init_res.reply_value, 0);
-    assert_eq!(
-        init_res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Auto)
-    );
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
     let async_id = res.program_id;
 
@@ -981,12 +963,9 @@ async fn multiple_validators() {
         .await
         .unwrap();
     assert_eq!(res.program_id, async_id);
-    assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
-    assert_eq!(res.reply_value, 0);
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
+    assert_eq!(res.value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 
     log::info!("📗 Stop validator 2 and check that all is still working");
     validator2.stop_service().await;
@@ -997,7 +976,7 @@ async fn multiple_validators() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
 
     log::info!("📗 Stop validator 1 and check that it's not working");
     validator1.stop_service().await;
@@ -1025,7 +1004,7 @@ async fn multiple_validators() {
     env.force_new_block().await;
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
-    assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
 }
 
 mod utils {
@@ -1281,7 +1260,11 @@ mod utils {
             Ok(WaitForUploadCode { listener, code_id })
         }
 
-        pub async fn create_program(&self, code_id: CodeId, balance_to_approve: u128) -> Result<WaitForProgramCreation> {
+        pub async fn create_program(
+            &self,
+            code_id: CodeId,
+            balance_to_approve: u128,
+        ) -> Result<WaitForProgramCreation> {
             log::info!("📗 Create program, code_id {code_id}");
 
             let listener = self.events_publisher().subscribe().await;
@@ -1290,7 +1273,6 @@ mod utils {
 
             let (_, program_id) = router.create_program(code_id, H256::random()).await?;
 
-           
             if balance_to_approve != 0 {
                 let program_address = program_id.to_address_lossy().0.into();
                 router
@@ -1817,9 +1799,9 @@ mod utils {
     pub struct ReplyInfo {
         pub message_id: MessageId,
         pub program_id: ActorId,
-        pub reply_payload: Vec<u8>,
-        pub reply_code: ReplyCode,
-        pub reply_value: u128,
+        pub payload: Vec<u8>,
+        pub code: ReplyCode,
+        pub value: u128,
     }
 
     impl WaitForReplyTo {
@@ -1843,9 +1825,9 @@ mod utils {
                         info = Some(ReplyInfo {
                             message_id: reply_to,
                             program_id: actor_id,
-                            reply_payload: payload,
-                            reply_code,
-                            reply_value: value,
+                            payload,
+                            code: reply_code,
+                            value,
                         });
                         Ok(Some(()))
                     }
