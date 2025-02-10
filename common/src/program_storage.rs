@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesIntervalsTree};
+use gear_core::pages::{numerated::tree::IntervalsTree, WasmPage};
 
 use super::*;
 use crate::storage::{MapStorage, TripleMapStorage};
@@ -116,13 +116,11 @@ pub trait ProgramStorage {
         }
     }
 
-    fn allocations(program_id: ProgramId) -> Option<WasmPagesIntervalsTree> {
-        // should not panic, we're not storing more than 1024 allocations.
+    fn allocations(program_id: ProgramId) -> Option<IntervalsTree<WasmPage>> {
         Self::AllocationsMap::get(&program_id)
-            .map(|allocations| WasmPagesIntervalsTree::try_from(allocations).unwrap())
     }
 
-    fn set_allocations(program_id: ProgramId, allocations: WasmPagesIntervalsTree) {
+    fn set_allocations(program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         Self::update_active_program(program_id, |program| {
             program.allocations_tree_len = u32::try_from(allocations.intervals_amount())
                 .unwrap_or_else(|err| {
@@ -134,7 +132,7 @@ pub trait ProgramStorage {
             // set_allocations must be called only for active programs.
             unreachable!("Failed to update program allocations: {err:?}")
         });
-        Self::AllocationsMap::insert(program_id, allocations.into_intervals_tree());
+        Self::AllocationsMap::insert(program_id, allocations);
     }
 
     fn clear_allocations(program_id: ProgramId) {

@@ -15424,7 +15424,7 @@ fn incorrect_store_context() {
 
 #[test]
 fn allocate_in_init_free_in_handle() {
-    use gear_core::pages::WasmPagesIntervalsTree;
+    use gear_core::pages::numerated::tree::IntervalsTree;
     let static_pages = 16u16;
     let wat = format!(
         r#"
@@ -15465,7 +15465,7 @@ fn allocate_in_init_free_in_handle() {
         let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
         assert_eq!(
             allocations,
-            WasmPagesIntervalsTree::from([WasmPage::from(static_pages)])
+            IntervalsTree::from_iter(std::iter::once(WasmPage::from(static_pages)))
         );
 
         Gear::send_message(
@@ -15773,8 +15773,7 @@ fn use_big_memory() {
             .collect();
 
         assert_eq!(
-            ProgramStorageOf::<Test>::allocations(program_id)
-                .map(|allocations| allocations.into_intervals_tree()),
+            ProgramStorageOf::<Test>::allocations(program_id),
             Some(expected_allocations),
         );
 

@@ -21,7 +21,7 @@
 use crate::{
     buffer::LimitedVec,
     gas::ChargeError,
-    pages::{GearPage, WasmPage, WasmPagesAmount, WasmPagesIntervalsTree},
+    pages::{GearPage, WasmPage, WasmPagesAmount},
 };
 use alloc::format;
 use byteorder::{ByteOrder, LittleEndian};
@@ -30,7 +30,10 @@ use core::{
     fmt::Debug,
     ops::{Deref, DerefMut},
 };
-use numerated::interval::{Interval, TryFromRangeError};
+use numerated::{
+    interval::{Interval, TryFromRangeError},
+    tree::IntervalsTree,
+};
 use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
@@ -233,8 +236,8 @@ pub trait Memory<Context> {
 #[derive(Debug)]
 pub struct AllocationsContext {
     /// Pages which has been in storage before execution
-    init_allocations: WasmPagesIntervalsTree,
-    allocations: WasmPagesIntervalsTree,
+    init_allocations: IntervalsTree<WasmPage>,
+    allocations: IntervalsTree<WasmPage>,
     max_pages: WasmPagesAmount,
     static_pages: WasmPagesAmount,
 }
@@ -329,7 +332,7 @@ impl AllocationsContext {
     /// Returns `MemorySetupError` on incorrect memory params.
     pub fn try_new(
         memory_size: WasmPagesAmount,
-        allocations: WasmPagesIntervalsTree,
+        allocations: IntervalsTree<WasmPage>,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
         max_pages: WasmPagesAmount,
@@ -354,7 +357,7 @@ impl AllocationsContext {
     /// NOTE: this params partially checked in `Code::try_new` in `gear-core`.
     fn validate_memory_params(
         memory_size: WasmPagesAmount,
-        allocations: &WasmPagesIntervalsTree,
+        allocations: &IntervalsTree<WasmPage>,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
         max_pages: WasmPagesAmount,
@@ -463,9 +466,7 @@ impl AllocationsContext {
             grow_handler.after_grow_action(ctx, mem);
         }
 
-        self.allocations
-            .insert(interval)
-            .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+        self.allocations.insert(interval);
 
         Ok(interval.start())
     }
@@ -499,8 +500,8 @@ impl AllocationsContext {
         self,
     ) -> (
         WasmPagesAmount,
-        WasmPagesIntervalsTree,
-        WasmPagesIntervalsTree,
+        IntervalsTree<WasmPage>,
+        IntervalsTree<WasmPage>,
     ) {
         (self.static_pages, self.init_allocations, self.allocations)
     }
@@ -567,7 +568,7 @@ mod tests {
 
         let mut ctx = AllocationsContext::try_new(
             1.into(),
-            WasmPagesIntervalsTree::from([WasmPage::from(0)]),
+            [WasmPage::from(0)].into_iter().collect(),
             0.into(),
             None,
             1.into(),
@@ -577,7 +578,7 @@ mod tests {
 
         let mut ctx = AllocationsContext::try_new(
             4.into(),
-            WasmPagesIntervalsTree::from([WasmPage::from(1), WasmPage::from(3)]),
+            [WasmPage::from(1), WasmPage::from(3)].into_iter().collect(),
             1.into(),
             None,
             4.into(),
@@ -646,7 +647,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &WasmPagesIntervalsTree::from([WasmPage::from(2)]),
+                &[WasmPage::from(2)].into_iter().collect(),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -699,7 +700,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &WasmPagesIntervalsTree::from([WasmPage::from(1), WasmPage::from(3)]),
+                &[WasmPage::from(1), WasmPage::from(3)].into_iter().collect(),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -714,7 +715,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &WasmPagesIntervalsTree::from([WasmPage::from(2), WasmPage::from(4)]),
+                &[WasmPage::from(2), WasmPage::from(4)].into_iter().collect(),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -729,7 +730,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 13.into(),
-                &WasmPagesIntervalsTree::from([WasmPage::from(1)]),
+                &[WasmPage::from(1)].into_iter().collect(),
                 10.into(),
                 None,
                 13.into()
@@ -744,7 +745,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 13.into(),
-                &WasmPagesIntervalsTree::from([WasmPage::from(1)]),
+                &[WasmPage::from(1)].into_iter().collect(),
                 WasmPagesAmount::UPPER,
                 None,
                 13.into()
@@ -758,7 +759,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 WasmPagesAmount::UPPER,
-                &WasmPagesIntervalsTree::from([WasmPage::from(1)]),
+                &[WasmPage::from(1)].into_iter().collect(),
                 10.into(),
                 None,
                 WasmPagesAmount::UPPER,
@@ -772,8 +773,6 @@ mod tests {
     }
 
     mod property_tests {
-        use crate::pages::WasmPagesIntervalsTree;
-
         use super::*;
         use proptest::{
             arbitrary::any,
@@ -801,15 +800,9 @@ mod tests {
             proptest::collection::vec(action, 0..1024)
         }
 
-        fn allocations(start: u16, end: u16) -> impl Strategy<Value = WasmPagesIntervalsTree> {
+        fn allocations(start: u16, end: u16) -> impl Strategy<Value = IntervalsTree<WasmPage>> {
             proptest::collection::btree_set(wasm_page_with_range(start, end), size_range(0..1024))
-                .prop_map(|pages| {
-                    // cannot panic, `size_range` is limited by 1024.
-                    WasmPagesIntervalsTree::try_from(
-                        pages.into_iter().collect::<IntervalsTree<WasmPage>>(),
-                    )
-                    .unwrap()
-                })
+                .prop_map(|pages| pages.into_iter().collect())
         }
 
         fn wasm_page_with_range(start: u16, end: u16) -> impl Strategy<Value = WasmPage> {
@@ -842,7 +835,7 @@ mod tests {
             max_pages: WasmPagesAmount,
             mem_size: WasmPagesAmount,
             static_pages: WasmPagesAmount,
-            allocations: WasmPagesIntervalsTree,
+            allocations: IntervalsTree<WasmPage>,
         }
 
         // This high-order strategy generates valid memory parameters in a specific way that allows passing `AllocationContext::validate_memory_params` checks.

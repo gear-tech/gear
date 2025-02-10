@@ -83,7 +83,7 @@ use gear_core::{
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     memory::Memory,
     message::DispatchKind,
-    pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount, WasmPagesIntervalsTree},
+    pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
     program::ActiveProgram,
 };
 use gear_core_backend::{
@@ -671,7 +671,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let limited_allocations =
-            WasmPagesIntervalsTree::try_from(allocations.collect::<IntervalsTree<_>>()).unwrap();
+            IntervalsTree<WasmPage>::try_from(allocations.collect::<IntervalsTree<_>>()).unwrap();
         ProgramStorageOf::<T>::set_allocations(program_id, limited_allocations);
     }: {
         let _ = ProgramStorageOf::<T>::allocations(program_id).unwrap();

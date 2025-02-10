@@ -40,7 +40,8 @@ use gear_core::{
         InitPacket, MessageContext, Packet, ReplyPacket,
     },
     pages::{
-        numerated::interval::Interval, GearPage, WasmPage, WasmPagesAmount, WasmPagesIntervalsTree,
+        numerated::{interval::Interval, tree::IntervalsTree},
+        GearPage, WasmPage, WasmPagesAmount,
     },
     program::MemoryInfix,
     reservation::GasReserver,
@@ -151,7 +152,7 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: Option<WasmPagesIntervalsTree>,
+    pub allocations: Option<IntervalsTree<WasmPage>>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
@@ -1538,7 +1539,7 @@ mod tests {
 
         let allocations_context = AllocationsContext::try_new(
             512.into(),
-            WasmPagesIntervalsTree::from([existing_page]),
+            [existing_page].into_iter().collect(),
             1.into(),
             None,
             512.into(),

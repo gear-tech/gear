@@ -23,7 +23,9 @@ use std::{cell::RefCell, collections::BTreeMap, fmt};
 use core_processor::common::ExecutableActorData;
 use gear_common::{CodeId, GearPage, MessageId, PageBuf, ProgramId};
 use gear_core::{
-    code::InstrumentedCode, pages::WasmPagesIntervalsTree, reservation::GasReservationMap,
+    code::InstrumentedCode,
+    pages::{numerated::tree::IntervalsTree, WasmPage},
+    reservation::GasReservationMap,
 };
 
 use crate::WasmProgram;
@@ -208,7 +210,7 @@ impl TestActor {
 pub(crate) struct GenuineProgram {
     pub code_id: CodeId,
     pub code: InstrumentedCode,
-    pub allocations: WasmPagesIntervalsTree,
+    pub allocations: IntervalsTree<WasmPage>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub gas_reservation_map: GasReservationMap,
 }

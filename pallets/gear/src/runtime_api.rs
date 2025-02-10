@@ -23,7 +23,7 @@ use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::TryNewCodeConfig,
     message::ReplyInfo,
-    pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesIntervalsTree},
+    pages::{numerated::tree::IntervalsTree, WasmPage},
     program::{ActiveProgram, MemoryInfix},
 };
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -470,7 +470,7 @@ where
         core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("state"),
             instrumented_code,
-            Some(WasmPagesIntervalsTree::try_from(allocations).unwrap()),
+            Some(allocations),
             Some((program_id, memory_infix)),
             payload,
             gas_allowance,
@@ -506,7 +506,7 @@ where
         core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("metahash"),
             instrumented_code,
-            Some(WasmPagesIntervalsTree::try_from(allocations).unwrap()),
+            Some(allocations),
             Some((program_id, memory_infix)),
             Default::default(),
             gas_allowance,
@@ -544,7 +544,7 @@ where
 
         Ok(CodeWithMemoryData {
             instrumented_code: code,
-            allocations: allocations.into_intervals_tree(),
+            allocations,
             memory_infix: program.memory_infix,
         })
     }

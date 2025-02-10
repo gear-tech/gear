@@ -11,7 +11,7 @@ use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
     message::{Dispatch as CoreDispatch, MessageWaitedType, StoredDispatch},
-    pages::{GearPage, WasmPagesIntervalsTree},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
@@ -334,7 +334,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn update_allocations(
         &mut self,
         program_id: ProgramId,
-        new_allocations: WasmPagesIntervalsTree,
+        new_allocations: IntervalsTree<WasmPage>,
     ) {
         self.update_state(program_id, |state, storage, _| {
             let Program::Active(ActiveProgram {

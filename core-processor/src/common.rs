@@ -35,7 +35,7 @@ use gear_core::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
         PayloadSizeError, StoredDispatch,
     },
-    pages::{GearPage, WasmPagesAmount, WasmPagesIntervalsTree},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
     str::LimitedStr,
@@ -87,7 +87,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: Option<WasmPagesIntervalsTree>,
+    pub allocations: Option<IntervalsTree<WasmPage>>,
     /// Whether this execution sent out a reply.
     pub reply_sent: bool,
 }
@@ -259,7 +259,7 @@ pub enum JournalNote {
         /// Program id.
         program_id: ProgramId,
         /// New allocations set for the program.
-        allocations: WasmPagesIntervalsTree,
+        allocations: IntervalsTree<WasmPage>,
     },
     /// Send value
     SendValue {
@@ -394,7 +394,7 @@ pub trait JournalHandler {
     /// Process page update.
     fn update_pages_data(&mut self, program_id: ProgramId, pages_data: BTreeMap<GearPage, PageBuf>);
     /// Process [JournalNote::UpdateAllocations].
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: WasmPagesIntervalsTree);
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>);
     /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
     /// Store new programs in storage.
@@ -525,7 +525,7 @@ pub struct Actor {
 #[derive(Clone, Debug)]
 pub struct ExecutableActorData {
     /// Set of wasm pages, which are allocated by the program.
-    pub allocations: WasmPagesIntervalsTree,
+    pub allocations: IntervalsTree<WasmPage>,
     /// The infix of memory pages in a storage.
     pub memory_infix: MemoryInfix,
     /// Id of the program code.
@@ -548,7 +548,7 @@ pub(crate) struct Program {
     /// Instrumented code.
     pub code: InstrumentedCode,
     /// Allocations.
-    pub allocations: WasmPagesIntervalsTree,
+    pub allocations: IntervalsTree<WasmPage>,
 }
 
 /// Execution context.
@@ -564,9 +564,4 @@ pub(crate) struct WasmExecutionContext {
     pub program: Program,
     /// Size of the memory block.
     pub memory_size: WasmPagesAmount,
-}
-
-#[test]
-fn test_journal_note_size_does_not_exceed_32mib() {
-    assert!(JournalNote::max_encoded_len() <= 32 * 1024 * 1024);
 }

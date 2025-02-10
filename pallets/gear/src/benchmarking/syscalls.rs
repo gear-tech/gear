@@ -40,7 +40,7 @@ use gear_core::{
     message::{Message, Value},
     pages::{
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
-        GearPage, WasmPage, WasmPagesAmount, WasmPagesIntervalsTree,
+        GearPage, WasmPage, WasmPagesAmount,
     },
     reservation::GasReservationSlot,
 };
@@ -205,10 +205,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
 
         let program_id = ProgramId::from_origin(instance.addr);
-        let limited_allocations =
-            WasmPagesIntervalsTree::try_from(allocations.collect::<IntervalsTree<_>>())
-                .map_err(|_| "too many allocations")?;
-        ProgramStorageOf::<T>::set_allocations(program_id, limited_allocations);
+        ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
