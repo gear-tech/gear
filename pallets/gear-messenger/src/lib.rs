@@ -145,8 +145,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub mod migrations;
 pub mod pallet_tests;
+
+pub mod migrations {}
 
 // Public exports from pallet.
 pub use pallet::*;
