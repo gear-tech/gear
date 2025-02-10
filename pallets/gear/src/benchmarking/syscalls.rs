@@ -38,10 +38,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
-    pages::{
-        numerated::{iterators::IntervalIterator, tree::IntervalsTree},
-        GearPage, WasmPage, WasmPagesAmount,
-    },
+    pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage, WasmPagesAmount},
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
