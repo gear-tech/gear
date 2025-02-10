@@ -24,12 +24,11 @@ use ethexe_signer::Signer;
 use std::time::Duration;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
-    wabt::Wat2Wasm::new()
-        .validate(validate)
-        .convert(s)
-        .unwrap()
-        .as_ref()
-        .to_vec()
+    let code = wat::parse_str(s).unwrap();
+    if validate {
+        wasmparser::validate(&code).unwrap();
+    }
+    code
 }
 
 fn wat2wasm(s: &str) -> Vec<u8> {
@@ -82,32 +81,36 @@ async fn test_deployment() -> Result<()> {
         .request_code_validation_with_sidecar(&wasm)
         .await?;
 
-    let code_id = pending_builder.code_id();
-    let tx_hash = pending_builder.tx_hash();
+    let request_code_id = pending_builder.code_id();
+    let request_tx_hash = pending_builder.tx_hash();
 
     blob_reader
-        .add_blob_transaction(tx_hash, wasm.clone())
+        .add_blob_transaction(request_tx_hash, wasm.clone())
         .await;
 
     let event = observer
         .next()
         .await
-        .expect("observer did not receive event");
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
 
     assert!(matches!(event, ObserverEvent::Block(..)));
 
     let event = observer
         .next()
         .await
-        .expect("observer did not receive event");
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
 
-    assert_eq!(
+    assert!(matches!(
         event,
         ObserverEvent::Blob {
             code_id,
-            code: wasm
+            code,
+            ..
         }
-    );
+        if code_id == request_code_id && code == wasm
+    ));
 
     Ok(())
 }

@@ -9,6 +9,9 @@ import {Gear} from "./libraries/Gear.sol";
 interface IRouter {
     /// @custom:storage-location erc7201:router.storage.Router.
     struct Storage {
+        /// @notice Reserved storage slot.
+        /// @dev This slot is reserved for gas estimation purposes. Must be zero.
+        uint256 reserved;
         /// @notice Genesis block information for this router.
         /// @dev This identifies the co-processor instance. To allow interactions with the router, after initialization, someone must call `lookupGenesisHash()`.
         Gear.GenesisBlockInfo genesisBlock;
@@ -109,16 +112,10 @@ interface IRouter {
     /// @dev ProgramCreated Emitted on success.
     function createProgramWithDecoder(address decoderImpl, bytes32 codeId, bytes32 salt) external returns (address);
 
-    // # Validators calls.
     /// @dev CodeGotValidated Emitted for each code in commitment.
-    function commitCodes(
-        Gear.CodeCommitment[] calldata codeCommitments,
-        Gear.SignatureType signatureType,
-        bytes[] calldata signatures
-    ) external;
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
-    function commitBlocks(
-        Gear.BlockCommitment[] calldata blockCommitments,
+    function commitBatch(
+        Gear.BatchCommitment calldata batchCommitment,
         Gear.SignatureType signatureType,
         bytes[] calldata signatures
     ) external;

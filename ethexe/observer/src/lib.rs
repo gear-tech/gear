@@ -27,12 +27,20 @@ use alloy::{
 use anyhow::{Context as _, Result};
 use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent};
 use ethexe_db::BlockHeader;
-use ethexe_service_utils::AsyncFnStream;
 use ethexe_signer::Address;
-use futures::{future::BoxFuture, stream::FuturesUnordered, Stream, StreamExt};
+use futures::{
+    future::BoxFuture,
+    stream::{FusedStream, FuturesUnordered},
+    FutureExt, Stream, StreamExt,
+};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 pub(crate) type Provider = RootProvider<BoxTransport>;
 
@@ -47,8 +55,8 @@ pub use blobs::*;
 pub use observer::*;
 pub use query::*;
 
-type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, Vec<u8>)>>;
-type BlocksStream = dyn Stream<Item = (H256, BlockHeader, Vec<BlockEvent>)> + Send;
+type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, u64, Vec<u8>)>>;
+type BlockFuture = BoxFuture<'static, Result<(H256, BlockHeader, Vec<BlockEvent>)>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -60,7 +68,11 @@ pub struct EthereumConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ObserverEvent {
-    Blob { code_id: CodeId, code: Vec<u8> },
+    Blob {
+        code_id: CodeId,
+        timestamp: u64,
+        code: Vec<u8>,
+    },
     Block(BlockData),
 }
 
@@ -73,33 +85,64 @@ pub struct ObserverService {
 
     last_block_number: u32,
 
-    stream: Pin<Box<BlocksStream>>,
+    headers_stream: SubscriptionStream<Header>,
+    block_future: Option<BlockFuture>,
+
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
 
-impl AsyncFnStream for ObserverService {
+impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
-    async fn like_next(&mut self) -> Option<Self::Item> {
-        Some(self.next().await)
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.block_future.is_none() {
+            if let Poll::Ready(res) = self.headers_stream.poll_next_unpin(cx) {
+                if let Some(header) = res {
+                    self.block_future = Some(Box::pin(Self::get_block(
+                        header,
+                        self.provider.clone(),
+                        self.router,
+                    )));
+                } else {
+                    // TODO: test resubscribe works.
+                    log::warn!("Alloy headers stream ended, resubscribing");
+                    self.headers_stream = self.subscription.resubscribe().into_stream();
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
+                }
+            }
+        }
+
+        if let Some(fut) = self.block_future.as_mut() {
+            if let Poll::Ready(res) = fut.poll_unpin(cx) {
+                let event =
+                    res.map(|(hash, header, events)| self.handle_stream_next(hash, header, events));
+
+                self.block_future = None;
+
+                return Poll::Ready(Some(event));
+            }
+        }
+
+        if let Poll::Ready(Some(res)) = self.codes_futures.poll_next_unpin(cx) {
+            let event = res.map(|(code_id, timestamp, code)| ObserverEvent::Blob {
+                code_id,
+                timestamp,
+                code,
+            });
+
+            return Poll::Ready(Some(event));
+        }
+
+        Poll::Pending
     }
 }
 
-// TODO: fix it by some wrapper. It's not possible to implement Stream for SequencerService like this.
-// impl Stream for ObserverService {
-//     type Item = Result<ObserverEvent>;
-
-//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-//         let e = ready!(pin!(self.next_event()).poll(cx));
-//         Poll::Ready(Some(e))
-//     }
-// }
-
-// impl FusedStream for ObserverService {
-//     fn is_terminated(&self) -> bool {
-//         false
-//     }
-// }
+impl FusedStream for ObserverService {
+    fn is_terminated(&self) -> bool {
+        false
+    }
+}
 
 impl ObserverService {
     pub async fn new(config: &EthereumConfig) -> Result<Self> {
@@ -126,13 +169,7 @@ impl ObserverService {
             .await
             .context("failed to subscribe blocks")?;
 
-        let blocks_stream = subscription.resubscribe().into_stream();
-
-        let stream = Box::pin(Self::events_all(
-            blocks_stream,
-            provider.clone(),
-            config.router_address,
-        ));
+        let headers_stream = subscription.resubscribe().into_stream();
 
         Ok(Self {
             blobs,
@@ -140,7 +177,8 @@ impl ObserverService {
             subscription,
             router: config.router_address,
             last_block_number: 0,
-            stream,
+            headers_stream,
+            block_future: None,
             codes_futures: FuturesUnordered::new(),
         })
     }
@@ -156,74 +194,72 @@ impl ObserverService {
         }
     }
 
-    pub fn lookup_code(&mut self, code_id: CodeId, tx_hash: H256) {
+    pub fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
         self.codes_futures.push(Box::pin(read_code_from_tx_hash(
             self.blobs.clone(),
             code_id,
+            timestamp,
             tx_hash,
             Some(3),
         )));
     }
 
-    fn events_all(
-        mut stream: SubscriptionStream<Header>,
+    async fn get_block(
+        header: Header,
         provider: Provider,
         router: Address,
-    ) -> impl Stream<Item = (H256, BlockHeader, Vec<BlockEvent>)> {
-        async_stream::stream! {
-            while let Some(header) = stream.like_next().await {
-                let hash = (*header.hash).into();
-                let parent_hash = (*header.parent_hash).into();
-                let block_number = header.number as u32;
-                let block_timestamp = header.timestamp;
+    ) -> Result<(H256, BlockHeader, Vec<BlockEvent>)> {
+        let hash = (*header.hash).into();
+        let parent_hash = (*header.parent_hash).into();
+        let block_number = header.number as u32;
+        let block_timestamp = header.timestamp;
 
-                let header = BlockHeader {
-                    height: block_number,
-                    timestamp: block_timestamp,
-                    parent_hash,
-                };
+        let header = BlockHeader {
+            height: block_number,
+            timestamp: block_timestamp,
+            parent_hash,
+        };
 
-                let events = read_block_events(hash, &provider, router.0.into()).await.unwrap();
-
-                yield (hash, header, events);
-            }
-        }
+        read_block_events(hash, &provider, router.0.into())
+            .await
+            .map(|events| (hash, header, events))
     }
 
-    pub async fn next(&mut self) -> Result<ObserverEvent> {
-        tokio::select! {
-            Some((hash, header, events)) = self.stream.next() => {
-                // TODO (breathx): set in db?
-                log::trace!("Received block: {hash:?}");
+    fn handle_stream_next(
+        &mut self,
+        hash: H256,
+        header: BlockHeader,
+        events: Vec<BlockEvent>,
+    ) -> ObserverEvent {
+        // TODO (breathx): set in db?
+        log::trace!("Received block: {hash:?}");
 
-                self.last_block_number = header.height;
+        self.last_block_number = header.height;
 
-                // TODO: replace me with proper processing of all events, including commitments.
-                for event in &events {
-                    if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, tx_hash }) = event {
-                        self.lookup_code(*code_id, *tx_hash);
-                    }
-                }
-
-                Ok(ObserverEvent::Block(BlockData {
-                    hash,
-                    header,
-                    events,
-                }))
-            },
-            Some(res) = self.codes_futures.next() => {
-                res.map(|(code_id, code)| ObserverEvent::Blob { code_id, code })
+        // TODO: replace me with proper processing of all events, including commitments.
+        for event in &events {
+            if let BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                code_id,
+                timestamp,
+                tx_hash,
+            }) = event
+            {
+                self.lookup_code(*code_id, *timestamp, *tx_hash);
             }
         }
+
+        ObserverEvent::Block(BlockData {
+            hash,
+            header,
+            events,
+        })
     }
 }
 
 impl Clone for ObserverService {
     fn clone(&self) -> Self {
         let subscription = self.subscription.resubscribe();
-        let stream = subscription.resubscribe().into_stream();
-
-        let stream = Self::events_all(stream, self.provider.clone(), self.router);
+        let headers_stream = subscription.resubscribe().into_stream();
 
         Self {
             blobs: self.blobs.clone(),
@@ -231,7 +267,8 @@ impl Clone for ObserverService {
             subscription,
             router: self.router,
             last_block_number: self.last_block_number,
-            stream: Box::pin(stream),
+            headers_stream,
+            block_future: None,
             codes_futures: FuturesUnordered::new(),
         }
     }

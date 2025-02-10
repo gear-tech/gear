@@ -4,6 +4,7 @@ src = "src"
 out = "out"
 libs = ["lib"]
 evm_version = "cancun"
+optimizer = true
 # Required for OpenZeppelin Foundry Upgrades https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
 ffi = true
 ast = true

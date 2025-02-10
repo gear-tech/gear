@@ -439,12 +439,17 @@ impl Query {
         Ok(events)
     }
 
-    pub async fn download_code(&self, expected_code_id: CodeId, tx_hash: H256) -> Result<Vec<u8>> {
+    pub async fn download_code(
+        &self,
+        expected_code_id: CodeId,
+        timestamp: u64,
+        tx_hash: H256,
+    ) -> Result<Vec<u8>> {
         let blob_reader = self.blob_reader.clone();
         let attempts = Some(3);
 
-        crate::read_code_from_tx_hash(blob_reader, expected_code_id, tx_hash, attempts)
+        crate::read_code_from_tx_hash(blob_reader, expected_code_id, timestamp, tx_hash, attempts)
             .await
-            .map(|res| res.1)
+            .map(|res| res.2)
     }
 }

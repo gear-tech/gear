@@ -42,7 +42,8 @@ pub type Sum = ProgramId;
 /// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
 pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
-#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
     pub height: u32,
     pub timestamp: u64,
@@ -63,8 +64,8 @@ impl BlockHeader {
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode)]
-pub struct CodeUploadInfo {
-    pub origin: ActorId,
+pub struct CodeInfo {
+    pub timestamp: u64,
     pub tx_hash: H256,
 }
 
@@ -119,8 +120,8 @@ pub trait CodesStorage: Send + Sync {
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
 
-    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256>;
-    fn set_code_blob_tx(&self, code_id: CodeId, tx_hash: H256);
+    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo>;
+    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo);
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);

@@ -23,7 +23,7 @@ use ethexe_common::{
     events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
 };
-use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use ethexe_db::{BlockMetaStorage, CodeInfo, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService, RequestBlockData};
@@ -35,9 +35,10 @@ use ethexe_sequencer::{
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
+use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::{ops::Not, sync::Arc};
+use std::sync::Arc;
 
 pub mod config;
 
@@ -73,8 +74,7 @@ pub enum NetworkMessage {
         blocks: Vec<BlockCommitmentValidationRequest>,
     },
     ApproveCommitments {
-        codes: Option<(Digest, Signature)>,
-        blocks: Option<(Digest, Signature)>,
+        batch_commitment: (Digest, Signature),
     },
 }
 
@@ -293,9 +293,10 @@ impl Service {
             match event {
                 BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
                     code_id,
+                    timestamp,
                     tx_hash,
                 }) => {
-                    db.set_code_blob_tx(code_id, tx_hash);
+                    db.set_code_info(code_id, CodeInfo { timestamp, tx_hash });
                 }
                 BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
                     code_id, ..
@@ -306,11 +307,11 @@ impl Service {
 
                     log::debug!("📥 downloading absent code: {code_id}");
 
-                    let tx_hash = db
-                        .code_blob_tx(code_id)
-                        .ok_or_else(|| anyhow!("Tx hash not found for code {code_id}"))?;
+                    let CodeInfo { timestamp, tx_hash } = db
+                        .code_info(code_id)
+                        .ok_or_else(|| anyhow!("Code info not found for code {code_id}"))?;
 
-                    let code = query.download_code(code_id, tx_hash).await?;
+                    let code = query.download_code(code_id, timestamp, tx_hash).await?;
 
                     processor.process_upload_code(code_id, code.as_slice())?;
                 }
@@ -432,14 +433,14 @@ impl Service {
             mut prometheus,
             rpc,
         } = self;
-        let mut rpc_handle = if let Some(rpc) = rpc {
+        let (mut rpc_handle, mut rpc_receiver) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
 
-            let rpc_run = rpc.run_server().await?;
+            let (rpc_run, rpc_receiver) = rpc.run_server().await?;
 
-            Some(tokio::spawn(rpc_run.stopped()))
+            (Some(tokio::spawn(rpc_run.stopped())), Some(rpc_receiver))
         } else {
-            None
+            (None, None)
         };
 
         let mut roles = "Observer".to_string();
@@ -453,13 +454,13 @@ impl Service {
 
         loop {
             tokio::select! {
-                event = observer.next() => {
+                event = observer.select_next_some() => {
                     match event? {
-                        ObserverEvent::Blob { code_id, code } => {
+                        ObserverEvent::Blob { code_id, timestamp, code } => {
                             // TODO: spawn blocking here?
                             let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
 
-                            let code_commitments = vec![CodeCommitment { id: code_id, valid }];
+                            let code_commitments = vec![CodeCommitment { id: code_id, timestamp, valid }];
 
                             if let Some(v) = validator.as_mut() {
                                 let aggregated_code_commitments = v.aggregate(code_commitments)?;
@@ -538,7 +539,7 @@ impl Service {
                         }
                     }
                 },
-                Some(event) = sequencer.maybe_next() => {
+                event = sequencer.maybe_next_some() => {
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
                     };
@@ -579,34 +580,23 @@ impl Service {
                                 // it's possible that some of collected commitments validation will fail
                                 // on local validator. So we just print warning in this case.
 
-                                if !code_requests.is_empty() {
-                                    match v.validate_code_commitments(&db, code_requests) {
+                                if !code_requests.is_empty() || !block_requests.is_empty() {
+                                    match v.validate_batch_commitment(&db, code_requests, block_requests) {
                                         Ok((digest, signature)) => {
-                                            s.receive_codes_signature(digest, signature)?;
+                                            s.receive_batch_commitment_signature(digest, signature)?;
                                         }
                                         Err(err) => {
-                                            log::warn!("Collected code commitments validation failed: {err}");
+                                            log::warn!("Collected batch commitments validation failed: {err}");
                                         }
                                     }
-                                };
-
-                                if !block_requests.is_empty() {
-                                    match v.validate_block_commitments(&db, block_requests) {
-                                        Ok((digest, signature)) => {
-                                            s.receive_blocks_signature(digest, signature)?;
-                                        }
-                                        Err(err) => {
-                                            log::warn!("Collected block commitments validation failed: {err}");
-                                        }
-                                    }
-                                };
+                                }
                             };
                         },
                         SequencerEvent::ValidationRoundEnded { .. } => {},
                         SequencerEvent::CommitmentSubmitted { .. } => {},
                     }
                 },
-                Some(event) = network.maybe_next() => {
+                event = network.maybe_next_some() => {
                     match event {
                         NetworkEvent::Message { source, data } => {
                             log::trace!("Received a network message from peer {source:?}");
@@ -633,41 +623,25 @@ impl Service {
                                 },
                                 NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
                                     if let Some(v) = validator.as_mut() {
-                                        let codes = codes
-                                            .is_empty()
-                                            .not()
-                                            .then(|| v.validate_code_commitments(&db, codes))
+                                        let maybe_batch_commitment = (!codes.is_empty() || !blocks.is_empty())
+                                            .then(|| v.validate_batch_commitment(&db, codes, blocks))
                                             .transpose()
-                                            .inspect_err(|e| log::warn!("failed to validate code commitments from network: {e}"))
-                                            .ok()
-                                            .flatten();
-
-                                        let blocks = blocks
-                                            .is_empty()
-                                            .not()
-                                            .then(|| v.validate_block_commitments(&db, blocks))
-                                            .transpose()
-                                            .inspect_err(|e| log::warn!("failed to validate block commitments from network: {e}"))
+                                            .inspect_err(|e| log::warn!("failed to validate batch commitment from network: {e}"))
                                             .ok()
                                             .flatten();
 
                                         if let Some(n) = network.as_mut() {
-                                            let message = NetworkMessage::ApproveCommitments { codes, blocks };
-                                            n.publish_message(message.encode());
+                                            if let Some(batch_commitment) = maybe_batch_commitment {
+                                                let message = NetworkMessage::ApproveCommitments { batch_commitment };
+                                                n.publish_message(message.encode());
+                                            }
                                         }
                                     }
                                 },
-                                NetworkMessage::ApproveCommitments { codes, blocks } => {
+                                NetworkMessage::ApproveCommitments { batch_commitment: (digest, signature) } => {
                                     if let Some(s) = sequencer.as_mut() {
-                                        if let Some((digest, signature)) = codes {
-                                            let _ = s.receive_codes_signature(digest, signature)
-                                                .inspect_err(|e| log::warn!("failed to receive codes signature from network: {e}"));
-                                        }
-
-                                        if let Some((digest, signature)) = blocks {
-                                            let _ = s.receive_blocks_signature(digest, signature)
-                                                .inspect_err(|e| log::warn!("failed to receive blocks signature from network: {e}"));
-                                        }
+                                        let _ = s.receive_batch_commitment_signature(digest, signature)
+                                            .inspect_err(|e| log::warn!("failed to receive batch commitment signature from network: {e}"));
                                     }
                                 },
                             };
@@ -687,7 +661,7 @@ impl Service {
                         }
                         _ => {}
                     }},
-                Some(event) = prometheus.maybe_next() => {
+                event = prometheus.maybe_next_some() => {
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
                     };
@@ -711,6 +685,9 @@ impl Service {
                             };
                         }
                     }
+                }
+                event = rpc_receiver.maybe_next_some() => {
+                    log::info!("Received RPC event {event:#?}");
                 }
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");

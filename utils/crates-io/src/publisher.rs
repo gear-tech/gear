@@ -105,6 +105,7 @@ impl Publisher {
             }
 
             let mut is_published = false;
+            let mut is_actualized = false;
 
             if verify {
                 match crate::verify_owners(name).await? {
@@ -116,10 +117,11 @@ impl Publisher {
 
             if verify && crate::verify(name, &version, self.simulator.as_ref()).await? {
                 println!("Package {name}@{version} already published!");
-                continue;
+                is_actualized = true;
             }
 
-            self.graph.push(handler::patch(pkg, is_published)?);
+            self.graph
+                .push(handler::patch(pkg, is_published, is_actualized)?);
         }
 
         workspace.complete(self.index.clone(), self.simulator.is_some())?;
@@ -188,7 +190,7 @@ impl Publisher {
             path,
             is_published,
             ..
-        } in self.graph.iter()
+        } in self.graph.iter().filter(|m| !m.is_actualized)
         {
             println!("Publishing {path:?}");
             let status = crate::publish(&path.to_string_lossy())?;
