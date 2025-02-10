@@ -397,7 +397,7 @@ impl Service {
         let mut commitments = vec![];
 
         let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
-        log::debug!("Last commited chain {:#?}", last_committed_chain);
+        log::debug!("Last committed chain {:#?}", last_committed_chain);
 
         for block_hash in last_committed_chain.into_iter().rev() {
             let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
