@@ -35,7 +35,7 @@ enum Color {
 
 /// Remove call recursions in `module` by using mock functions.
 pub fn remove_recursion(module: Module) -> Module {
-    if module.code_section().is_none() {
+    if module.code_section.is_none() {
         return module;
     }
 
@@ -60,8 +60,8 @@ pub fn remove_recursion(module: Module) -> Module {
 
     let import_count = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
 
-    let signature_entries = module.function_section().unwrap().to_vec();
-    let types = module.type_section().unwrap().clone();
+    let signature_entries = module.function_section.clone().unwrap();
+    let types = module.type_section.clone().unwrap();
 
     let mut mbuilder = ModuleBuilder::from_module(module);
 
@@ -95,7 +95,7 @@ pub fn remove_recursion(module: Module) -> Module {
 
     // change call indices to mock functions to disable recursion
     let mut module = mbuilder.build();
-    let code_section = module.code_section_mut().unwrap();
+    let code_section = module.code_section.as_mut().unwrap();
     for (call_to_change, calls) in calls_to_change {
         let index = call_to_change - import_count;
         let function_body = &mut code_section[index];
@@ -125,7 +125,7 @@ pub fn find_recursion<Callback>(module: &Module, mut callback: Callback)
 where
     Callback: FnMut(&[usize], usize),
 {
-    let function_bodies = match module.code_section() {
+    let function_bodies = match &module.code_section {
         Some(s) if !s.is_empty() => s,
         _ => return,
     };
@@ -237,7 +237,7 @@ fn find_recursion_impl<Callback>(
 /// ```
 pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Module {
     // add gr_gas_available import if needed
-    let maybe_gr_gas_available_index = module.import_section().and_then(|section| {
+    let maybe_gr_gas_available_index = module.import_section.as_ref().and_then(|section| {
         section
             .iter()
             .filter(|entry| matches!(entry.ty, TypeRef::Func(_)))
@@ -275,7 +275,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
     };
 
     let (Some(type_section), Some(function_section)) =
-        (module.type_section(), module.function_section())
+        (&module.type_section, &module.function_section)
     else {
         return module;
     };
@@ -283,7 +283,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
     let type_section = type_section.clone();
     let signature_entries = function_section.clone();
 
-    let Some(code_section) = module.code_section_mut() else {
+    let Some(code_section) = &mut module.code_section else {
         return module;
     };
 

@@ -175,9 +175,12 @@ impl<'m> MaxStackHeightCounterContext<'m> {
                 .import_count(|ty| matches!(ty, TypeRef::Func(_)))
                 .try_into()
                 .map_err(|_| "Can't convert func imports count to u32")?,
-            func_section: module.function_section().ok_or("No function section")?,
-            code_section: module.code_section().ok_or("No code section")?,
-            type_section: module.type_section().ok_or("No type section")?,
+            func_section: module
+                .function_section
+                .as_ref()
+                .ok_or("No function section")?,
+            code_section: module.code_section.as_ref().ok_or("No code section")?,
+            type_section: module.type_section.as_ref().ok_or("No type section")?,
         })
     }
 }

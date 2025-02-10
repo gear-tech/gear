@@ -60,7 +60,8 @@ impl<'u> InjectGlobals<'u> {
         let mut next_global_idx = module.globals_space() as u32;
 
         let code_section = module
-            .code_section_mut()
+            .code_section
+            .as_mut()
             .ok_or_else(|| anyhow::Error::msg("No code section found"))?;
 
         // Insert global access instructions
@@ -135,7 +136,8 @@ mod tests {
         assert_eq!(module.globals_space(), 3);
         assert_eq!(
             module
-                .export_section()
+                .export_section
+                .as_ref()
                 .unwrap()
                 .iter()
                 .filter(|export| { export.kind == ExternalKind::Global })

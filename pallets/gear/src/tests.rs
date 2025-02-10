@@ -8062,7 +8062,8 @@ fn gas_spent_precalculated() {
         let module = Module::new(instrumented_code.code()).expect("invalid wasm bytes");
 
         let (handle_export_func_body, gas_charge_func_body) = module
-            .code_section()
+            .code_section
+            .as_ref()
             .and_then(|section| match &section[..] {
                 [.., handle_export, gas_charge] => Some((handle_export, gas_charge)),
                 _ => None,

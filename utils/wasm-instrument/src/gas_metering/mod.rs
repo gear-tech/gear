@@ -221,7 +221,7 @@ pub fn post_injection_handler<R: Rules>(
     let total_func = module.functions_space() as u32;
     let mut need_grow_counter = false;
 
-    if let Some(code_section) = module.code_section_mut() {
+    if let Some(code_section) = &mut module.code_section {
         for (i, func_body) in code_section.iter_mut().enumerate() {
             if i + import_count == gas_charge_index {
                 continue;
@@ -755,7 +755,8 @@ mod tests {
 
     fn get_function_body(module: &Module, index: usize) -> Option<&[Instruction]> {
         module
-            .code_section()
+            .code_section
+            .as_ref()
             .and_then(|code_section| code_section.get(index))
             .map(|func_body| func_body.instructions.as_slice())
     }

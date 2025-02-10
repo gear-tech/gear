@@ -93,7 +93,8 @@ impl<'u> InjectMemoryAccesses<'u> {
         mut module: Module,
     ) -> Result<(Module, Unstructured<'u>), InjectMemoryAccessesError> {
         let import_section = module
-            .import_section()
+            .import_section
+            .as_ref()
             .ok_or(InjectMemoryAccessesError::NoMemoryImports)?;
         let initial_memory_limit = import_section
             .iter()
@@ -108,7 +109,8 @@ impl<'u> InjectMemoryAccesses<'u> {
             .ok_or(InjectMemoryAccessesError::NoMemoryImports)?;
 
         let code_section = module
-            .code_section_mut()
+            .code_section
+            .as_mut()
             .ok_or(InjectMemoryAccessesError::NoCodeSection)?;
 
         for function in code_section {

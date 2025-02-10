@@ -137,7 +137,8 @@ fn features_tracking() {
         .unwrap();
         Module::new(&wasm)
             .unwrap()
-            .export_section()
+            .export_section
+            .as_ref()
             .unwrap()
             .iter()
             .find(|entry| entry.name == name)

@@ -35,7 +35,8 @@ pub trait InstanceAccessGlobal {
 /// List of generated globals
 pub fn globals_list(module: &Module) -> Vec<String> {
     module
-        .export_section()
+        .export_section
+        .as_ref()
         .map(|section| {
             section
                 .iter()

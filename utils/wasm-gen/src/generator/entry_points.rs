@@ -164,13 +164,15 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
         // Get export body call signature
         let export_body_call_func_type = self.module.with(|module| {
             let &func_type_ref = module
-                .function_section()
+                .function_section
+                .as_ref()
                 .expect("has at least one function by config")
                 .get(export_body_call_idx)
                 .expect("call index is received from module");
 
             let func_type = module
-                .type_section()
+                .type_section
+                .as_ref()
                 .expect("")
                 .get(func_type_ref as usize)
                 .cloned()

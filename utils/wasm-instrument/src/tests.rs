@@ -46,7 +46,8 @@ where
 
 fn get_function_body(module: &Module, index: usize) -> Option<&[Instruction]> {
     module
-        .code_section()
+        .code_section
+        .as_ref()
         .and_then(|code_section| code_section.get(index))
         .map(|func_body| func_body.instructions.as_ref())
 }

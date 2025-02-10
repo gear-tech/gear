@@ -288,7 +288,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
             self.module.with(|mut module| {
                 let code = &mut module
-                    .code_section_mut()
+                    .code_section
+                    .as_mut()
                     .expect("has at least one function by config")[insert_into_fn]
                     .instructions;
                 code.splice(pos..pos, instructions);
@@ -1118,7 +1119,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
         self.module.with(|mut module| {
             let each_func_instructions = module
-                .code_section_mut()
+                .code_section
+                .as_mut()
                 .expect("has at least 1 function by config")
                 .iter_mut()
                 .flat_map(|body| body.instructions.iter_mut());
@@ -1150,7 +1152,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             }
 
             let export_funcs_call_indexes_handles = module
-                .export_section_mut()
+                .export_section
+                .as_mut()
                 // This generator is instantiated from SyscallsImportsGenerator, which can only be
                 // generated if entry points and memory import were generated.
                 .expect("has at least 1 export")

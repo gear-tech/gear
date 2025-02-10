@@ -274,10 +274,18 @@ where
 
     // Func stack costs collection is not empty, so stack height counter has counted costs
     // for module with non empty function and type sections.
-    let types = module.type_section().expect("checked earlier").clone();
-    let functions = module.function_section().expect("checked earlier").clone();
+    let types = module
+        .type_section
+        .as_ref()
+        .expect("checked earlier")
+        .clone();
+    let functions = module
+        .function_section
+        .as_ref()
+        .expect("checked earlier")
+        .clone();
 
-    if let Some(code_section) = module.code_section_mut() {
+    if let Some(code_section) = &mut module.code_section {
         for (func_idx, func_body) in code_section.iter_mut().enumerate() {
             let opcodes = &mut func_body.instructions;
 
@@ -482,13 +490,14 @@ fn generate_postamble(
 }
 
 fn resolve_func_type(func_idx: u32, module: &Module) -> Result<&FuncType, &'static str> {
-    let types = module.type_section().map(Vec::as_slice).unwrap_or_default();
-    let functions = module.function_section().map(Vec::as_slice).unwrap_or(&[]);
+    let types = module.type_section.as_deref().unwrap_or_default();
+    let functions = module.function_section.as_deref().unwrap_or_default();
 
     let func_imports = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
     let sig_idx = if func_idx < func_imports as u32 {
         module
-            .import_section()
+            .import_section
+            .as_ref()
             .expect("function import count is not zero; import section must exists; qed")
             .iter()
             .filter_map(|entry| match entry.ty {

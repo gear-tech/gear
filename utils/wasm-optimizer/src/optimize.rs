@@ -96,7 +96,7 @@ impl Optimizer {
 
     /// Keeps only allowlisted exports.
     pub fn strip_exports(&mut self, ty: OptType) {
-        if let Some(export_section) = self.module.export_section_mut() {
+        if let Some(export_section) = self.module.export_section.as_mut() {
             let exports = if ty == OptType::Opt {
                 OPTIMIZED_EXPORTS.map(str::to_string).to_vec()
             } else {

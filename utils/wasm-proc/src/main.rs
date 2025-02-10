@@ -151,7 +151,8 @@ fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), S
     let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
 
     let is_dev = module
-        .custom_section()
+        .custom_section
+        .as_ref()
         .iter()
         .copied()
         .flatten()
@@ -167,7 +168,10 @@ fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), S
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
     let wasm = fs::read(path_to_wasm).map_err(|e| format!("Read error: {e}"))?;
     let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
-    let imports = module.import_section().ok_or("Import section not found")?;
+    let imports = module
+        .import_section
+        .as_ref()
+        .ok_or("Import section not found")?;
 
     let mut unexpected_imports = vec![];
 

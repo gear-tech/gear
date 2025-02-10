@@ -112,7 +112,7 @@ impl TryFrom<(Module, ExportError)> for ExportErrorWithContext {
                 Self::MutableGlobalExport(global_index, get_export_name(&module, export_index)?)
             }
             ExportReferencesToImportFunction(export_index, func_index) => {
-                let Some(import_name) = module.import_section().and_then(|section| {
+                let Some(import_name) = module.import_section.as_ref().and_then(|section| {
                     section
                         .iter()
                         .filter_map(|import| {
@@ -126,7 +126,7 @@ impl TryFrom<(Module, ExportError)> for ExportErrorWithContext {
                 Self::ExportReferencesToImport(get_export_name(&module, export_index)?, import_name)
             }
             ExportReferencesToImportGlobal(export_index, global_index) => {
-                let Some(import_name) = module.import_section().and_then(|section| {
+                let Some(import_name) = module.import_section.as_ref().and_then(|section| {
                     section
                         .iter()
                         .filter_map(|import| {
@@ -153,11 +153,13 @@ impl TryFrom<(Module, ExportError)> for ExportErrorWithContext {
                 let real_func_index = export_func_index - import_count;
 
                 let &type_id = module
-                    .function_section()
+                    .function_section
+                    .as_ref()
                     .and_then(|section| section.get(real_func_index as usize))
                     .ok_or_else(|| anyhow!("failed to get function type"))?;
                 let func_type = module
-                    .type_section()
+                    .type_section
+                    .as_ref()
                     .and_then(|section| section.get(type_id as usize))
                     .ok_or_else(|| anyhow!("failed to get function signature"))?
                     .clone();
@@ -182,7 +184,8 @@ fn get_export_name(module: &Module, export_index: u32) -> anyhow::Result<String>
 
 fn get_export(module: &Module, export_index: u32) -> anyhow::Result<&Export> {
     module
-        .export_section()
+        .export_section
+        .as_ref()
         .and_then(|section| section.get(export_index as usize))
         .ok_or_else(|| anyhow!("failed to get export by index"))
 }
@@ -217,7 +220,8 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
         };
 
         let Some(import_entry) = module
-            .import_section()
+            .import_section
+            .as_ref()
             .and_then(|section| section.get(idx as usize))
         else {
             bail!("failed to get import entry by index");
@@ -246,7 +250,8 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
                     PrintableFunctionType(import_name.clone(), syscall.signature().func_type());
 
                 let Some(func_type) = module
-                    .type_section()
+                    .type_section
+                    .as_ref()
                     .and_then(|section| section.get(func_index as usize).cloned())
                 else {
                     bail!("failed to get function type");

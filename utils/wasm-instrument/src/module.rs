@@ -1054,7 +1054,8 @@ impl ModuleFuncIndexShifter {
         if let Some(section) = self
             .builder
             .module
-            .code_section_mut()
+            .code_section
+            .as_mut()
             .filter(|_| self.code_section)
         {
             for func in section {
@@ -1071,7 +1072,8 @@ impl ModuleFuncIndexShifter {
         if let Some(section) = self
             .builder
             .module
-            .export_section_mut()
+            .export_section
+            .as_mut()
             .filter(|_| self.export_section)
         {
             for export in section {
@@ -1086,7 +1088,8 @@ impl ModuleFuncIndexShifter {
         if let Some(section) = self
             .builder
             .module
-            .element_section_mut()
+            .element_section
+            .as_mut()
             .filter(|_| self.element_section)
         {
             for segment in section {
@@ -1118,7 +1121,8 @@ impl ModuleFuncIndexShifter {
         if let Some(section) = self
             .builder
             .module
-            .name_section_mut()
+            .name_section
+            .as_mut()
             .filter(|_| self.name_section)
         {
             for name in section {
@@ -1445,7 +1449,7 @@ impl Module {
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let mut module = wasm_encoder::Module::new();
 
-        if let Some(crate_section) = self.type_section() {
+        if let Some(crate_section) = &self.type_section {
             let mut encoder_section = wasm_encoder::TypeSection::new();
             for func_type in crate_section.clone() {
                 encoder_section
@@ -1455,7 +1459,7 @@ impl Module {
             module.section(&encoder_section);
         }
 
-        if let Some(crate_section) = self.import_section() {
+        if let Some(crate_section) = &self.import_section {
             let mut encoder_section = wasm_encoder::ImportSection::new();
             for import in crate_section.clone() {
                 import.reencode(&mut encoder_section)?;
@@ -1463,7 +1467,7 @@ impl Module {
             module.section(&encoder_section);
         }
 
-        if let Some(crate_section) = self.function_section() {
+        if let Some(crate_section) = &self.function_section {
             let mut encoder_section = wasm_encoder::FunctionSection::new();
             for &function in crate_section {
                 encoder_section.function(function);
@@ -1471,19 +1475,19 @@ impl Module {
             module.section(&encoder_section);
         }
 
-        if let Some(table) = self.table_section() {
+        if let Some(table) = &self.table_section {
             let mut encoder_section = wasm_encoder::TableSection::new();
             table.reencode(&mut encoder_section)?;
             module.section(&encoder_section);
         }
 
-        if let Some(memory) = self.memory_section() {
+        if let Some(memory) = &self.memory_section {
             let mut encoder_section = wasm_encoder::MemorySection::new();
             encoder_section.memory(RoundtripReencoder.memory_type(*memory));
             module.section(&encoder_section);
         }
 
-        if let Some(crate_section) = self.global_section() {
+        if let Some(crate_section) = &self.global_section {
             let mut encoder_section = wasm_encoder::GlobalSection::new();
             for global in crate_section {
                 encoder_section.global(
@@ -1494,7 +1498,7 @@ impl Module {
             module.section(&encoder_section);
         }
 
-        if let Some(crate_section) = self.export_section() {
+        if let Some(crate_section) = &self.export_section {
             let mut encoder_section = wasm_encoder::ExportSection::new();
             for export in crate_section {
                 encoder_section.export(
@@ -1510,7 +1514,7 @@ impl Module {
             module.section(&wasm_encoder::StartSection { function_index });
         }
 
-        if let Some(crate_section) = self.element_section() {
+        if let Some(crate_section) = &self.element_section {
             let mut encoder_section = wasm_encoder::ElementSection::new();
             for element in crate_section {
                 element.reencode(&mut encoder_section)?;
@@ -1518,7 +1522,7 @@ impl Module {
             module.section(&encoder_section);
         }
 
-        if let Some(crate_section) = self.code_section() {
+        if let Some(crate_section) = &self.code_section {
             let mut encoder_section = wasm_encoder::CodeSection::new();
             for function in crate_section {
                 encoder_section.function(&function.reencode()?);
@@ -1526,7 +1530,7 @@ impl Module {
             module.section(&encoder_section);
         }
 
-        if let Some(crate_section) = self.data_section() {
+        if let Some(crate_section) = &self.data_section {
             let mut encoder_section = wasm_encoder::DataSection::new();
             for data in crate_section {
                 encoder_section.active(0, &data.offset_expr.reencode()?, data.data.iter().copied());
@@ -1534,7 +1538,7 @@ impl Module {
             module.section(&encoder_section);
         }
 
-        if let Some(name_section) = self.name_section() {
+        if let Some(name_section) = &self.name_section {
             let mut encoder_section = wasm_encoder::NameSection::new();
             for name in name_section {
                 name.reencode(&mut encoder_section);
@@ -1546,7 +1550,8 @@ impl Module {
     }
 
     pub fn import_count(&self, pred: impl Fn(&TypeRef) -> bool) -> usize {
-        self.import_section()
+        self.import_section
+            .as_ref()
             .map(|imports| imports.iter().filter(|import| pred(&import.ty)).count())
             .unwrap_or(0)
     }
@@ -1554,7 +1559,8 @@ impl Module {
     pub fn functions_space(&self) -> usize {
         self.import_count(|ty| matches!(ty, TypeRef::Func(_)))
             + self
-                .function_section()
+                .function_section
+                .as_ref()
                 .map(|section| section.len())
                 .unwrap_or(0)
     }
@@ -1562,114 +1568,10 @@ impl Module {
     pub fn globals_space(&self) -> usize {
         self.import_count(|ty| matches!(ty, TypeRef::Global(_)))
             + self
-                .global_section()
+                .global_section
+                .as_ref()
                 .map(|section| section.len())
                 .unwrap_or(0)
-    }
-
-    // Getters //
-
-    pub fn type_section(&self) -> Option<&TypeSection> {
-        self.type_section.as_ref()
-    }
-
-    pub fn type_section_mut(&mut self) -> Option<&mut TypeSection> {
-        self.type_section.as_mut()
-    }
-
-    pub fn import_section(&self) -> Option<&Vec<Import>> {
-        self.import_section.as_ref()
-    }
-
-    pub fn import_section_mut(&mut self) -> Option<&mut Vec<Import>> {
-        self.import_section.as_mut()
-    }
-
-    pub fn function_section(&self) -> Option<&FuncSection> {
-        self.function_section.as_ref()
-    }
-
-    pub fn function_section_mut(&mut self) -> Option<&mut FuncSection> {
-        self.function_section.as_mut()
-    }
-
-    pub fn table_section(&self) -> Option<&Table> {
-        self.table_section.as_ref()
-    }
-
-    pub fn table_section_mut(&mut self) -> Option<&mut Table> {
-        self.table_section.as_mut()
-    }
-
-    pub fn memory_section(&self) -> Option<&MemoryType> {
-        self.memory_section.as_ref()
-    }
-
-    pub fn memory_section_mut(&mut self) -> Option<&mut MemoryType> {
-        self.memory_section.as_mut()
-    }
-
-    pub fn global_section(&self) -> Option<&Vec<Global>> {
-        self.global_section.as_ref()
-    }
-
-    pub fn global_section_mut(&mut self) -> Option<&mut Vec<Global>> {
-        self.global_section.as_mut()
-    }
-
-    pub fn export_section(&self) -> Option<&Vec<Export>> {
-        self.export_section.as_ref()
-    }
-
-    pub fn export_section_mut(&mut self) -> Option<&mut Vec<Export>> {
-        self.export_section.as_mut()
-    }
-
-    pub fn start_section(&self) -> Option<u32> {
-        self.start_section
-    }
-
-    pub fn start_section_mut(&mut self) -> Option<&mut u32> {
-        self.start_section.as_mut()
-    }
-
-    pub fn element_section(&self) -> Option<&Vec<Element>> {
-        self.element_section.as_ref()
-    }
-
-    pub fn element_section_mut(&mut self) -> Option<&mut Vec<Element>> {
-        self.element_section.as_mut()
-    }
-    pub fn code_section(&self) -> Option<&Vec<Function>> {
-        self.code_section.as_ref()
-    }
-
-    pub fn code_section_mut(&mut self) -> Option<&mut CodeSection> {
-        self.code_section.as_mut()
-    }
-
-    pub fn data_section(&self) -> Option<&DataSection> {
-        self.data_section.as_ref()
-    }
-
-    pub fn data_section_mut(&mut self) -> Option<&mut DataSection> {
-        self.data_section.as_mut()
-    }
-
-    pub fn name_section(&self) -> Option<&Vec<Name>> {
-        self.name_section.as_ref()
-    }
-
-    pub fn name_section_mut(&mut self) -> Option<&mut Vec<Name>> {
-        self.name_section.as_mut()
-    }
-
-    pub fn custom_section(&self) -> Option<&Vec<CustomSection>> {
-        self.custom_section.as_ref()
-    }
-
-    pub fn custom_section_mut(&mut self) -> Option<&mut Vec<CustomSection>> {
-        self.custom_section.as_mut()
     }
 }
 

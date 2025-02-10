@@ -535,7 +535,8 @@ extern "C" fn metahash() {{
         let module = Module::new(&wasm).with_context(|| format!("File path: {file:?}"))?;
 
         let exports = module
-            .export_section()
+            .export_section
+            .as_ref()
             .ok_or_else(|| anyhow!("Export section not found"))?
             .iter()
             .flat_map(|entry| {

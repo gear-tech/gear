@@ -61,7 +61,8 @@ impl Runtime {
         let module = self.module_mut();
 
         let start_fn_idx = module
-            .export_section()
+            .export_section
+            .as_ref()
             .and_then(|section| {
                 section.iter().find_map(|export| {
                     if export.name == "_start" {

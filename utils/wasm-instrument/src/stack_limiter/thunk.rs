@@ -166,7 +166,7 @@ where
         }
     };
 
-    if let Some(export_section) = module.export_section_mut() {
+    if let Some(export_section) = &mut module.export_section {
         for entry in export_section {
             if let ExternalKind::Func = entry.kind {
                 fixup(&mut entry.index)
@@ -174,7 +174,7 @@ where
         }
     }
 
-    if let Some(elem_section) = module.element_section_mut() {
+    if let Some(elem_section) = &mut module.element_section {
         for segment in elem_section {
             let ElementItems::Functions(funcs) = &mut segment.items;
 
@@ -184,7 +184,7 @@ where
         }
     }
 
-    if let Some(start_idx) = module.start_section_mut() {
+    if let Some(start_idx) = &mut module.start_section {
         fixup(start_idx)
     }
 
@@ -192,12 +192,9 @@ where
 }
 
 fn thunk_function_indexes(module: &Module) -> impl Iterator<Item = u32> + '_ {
-    let exports = module.export_section().map(|v| v.as_slice()).unwrap_or(&[]);
-    let elem_segments = module
-        .element_section()
-        .map(|v| v.as_slice())
-        .unwrap_or(&[]);
-    let start_func_idx = module.start_section();
+    let exports = module.export_section.as_deref().unwrap_or(&[]);
+    let elem_segments = module.element_section.as_deref().unwrap_or(&[]);
+    let start_func_idx = module.start_section;
 
     let exported_func_indices = exports.iter().filter_map(|entry| match entry.kind {
         ExternalKind::Func => Some(entry.index),

@@ -36,7 +36,8 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> 
         .ok_or("has no stack pointer global")?;
 
     let glob_section = module
-        .global_section()
+        .global_section
+        .as_ref()
         .ok_or("Cannot find globals section")?;
     let global = glob_section
         .get(stack_pointer_index as usize)
@@ -53,7 +54,8 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> 
     if let Instruction::I32Const(literal) = init_code[0] {
         log::debug!("stack pointer init == {:#x}", literal);
         let export_section = module
-            .export_section_mut()
+            .export_section
+            .as_mut()
             .ok_or("Cannot find export section")?;
         export_section.push(Export {
             name: STACK_END_EXPORT_NAME.into(),
@@ -74,7 +76,8 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> 
 /// then returns Error.
 pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'static str> {
     let start_func_index = if let Some(start) = module
-        .export_section()
+        .export_section
+        .as_ref()
         .ok_or("Cannot find export section")?
         .iter()
         .find(|export| export.name == "_start")
@@ -89,7 +92,8 @@ pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'st
 
     for export_name in optimize::FUNC_EXPORTS {
         let Some(export) = module
-            .export_section()
+            .export_section
+            .as_ref()
             .ok_or("Cannot find export section")?
             .iter()
             .find(|export| export.name == export_name)
@@ -106,7 +110,7 @@ pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'st
             .checked_sub(module.import_count(|ty| matches!(ty, TypeRef::Func(_))))
             .ok_or("Cannot process case when export function is import")?;
 
-        module.code_section_mut().unwrap()[index_in_functions]
+        module.code_section.as_mut().unwrap()[index_in_functions]
             .instructions
             .insert(0, Instruction::Call(start_func_index));
     }
@@ -130,7 +134,8 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
     // Identify mutable globals and their initial data
     let mut mut_globals = vec![];
     for (index, global) in module
-        .global_section()
+        .global_section
+        .as_ref()
         .ok_or("Cannot find globals section")?
         .iter()
         .enumerate()
@@ -154,7 +159,8 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
 
     let data_end_offset = handle_global_init_data(
         module
-            .global_section()
+            .global_section
+            .as_ref()
             .expect("Cannot find globals section")
             .get(data_end_index as usize)
             .expect("We have already find data end global earlier"),
@@ -194,7 +200,8 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
         // Bypass all instructions in module and replace global.get and global.set
         // by corresponding functions call.
         for instr in own_module
-            .code_section_mut()
+            .code_section
+            .as_mut()
             .ok_or("Cannot find code section")?
             .iter_mut()
             .flat_map(|body| body.instructions.iter_mut())
@@ -219,7 +226,8 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
     // Update data end global value
     handle_mut_global_init_data(
         module
-            .global_section_mut()
+            .global_section
+            .as_mut()
             .expect("Cannot find globals section")
             .get_mut(data_end_index as usize)
             .expect("We have already find data end global earlier"),
@@ -241,7 +249,8 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
 
 fn get_global_index(module: &Module, name_predicate: impl Fn(&str) -> bool) -> Option<u32> {
     module
-        .name_section()
+        .name_section
+        .as_ref()
         .iter()
         .copied()
         .flatten()
@@ -365,7 +374,8 @@ mod test {
         insert_stack_end_export(&mut module).expect("insert_stack_end_export failed");
 
         let gear_stack_end = module
-            .export_section()
+            .export_section
+            .as_ref()
             .expect("export section should exist")
             .iter()
             .find(|e| e.name == STACK_END_EXPORT_NAME)

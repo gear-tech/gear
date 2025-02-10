@@ -47,7 +47,7 @@ impl WasmModule {
 
         let module = Module::new(&wasm_smith_module)
             .expect("internal error: wasm smith generated non-deserializable module");
-        if module.function_section().is_none() {
+        if module.function_section.is_none() {
             panic!("WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!");
         }
 
@@ -56,7 +56,7 @@ impl WasmModule {
 
     /// Counts functions in import section.
     pub fn count_import_funcs(&self) -> usize {
-        self.0.import_section().map_or(0, |isec| {
+        self.0.import_section.as_ref().map_or(0, |isec| {
             isec.iter()
                 .filter(|import| matches!(import.ty, TypeRef::Func(_)))
                 .count()
@@ -66,7 +66,8 @@ impl WasmModule {
     /// Counts functions in function section.
     pub fn count_code_funcs(&self) -> usize {
         self.0
-            .function_section()
+            .function_section
+            .as_ref()
             .map(|fsec| fsec.len())
             .expect("minimal possible is 1 by config")
     }
@@ -74,7 +75,8 @@ impl WasmModule {
     /// Counts amount of instructions in the provided function.
     pub fn count_func_instructions(&self, func_id: usize) -> usize {
         self.0
-            .code_section()
+            .code_section
+            .as_ref()
             .expect("has at least one function by config")
             .get(func_id)
             .expect("invalid `func_id`")
@@ -87,7 +89,7 @@ impl WasmModule {
     ///
     /// This is also referred sometime as "min" memory limit.
     pub fn initial_mem_size(&self) -> Option<u32> {
-        self.0.import_section().and_then(|import_entry| {
+        self.0.import_section.as_ref().and_then(|import_entry| {
             import_entry.iter().find_map(|entry| match entry.ty {
                 TypeRef::Memory(mem_ty) => Some(mem_ty.initial as u32),
                 _ => None,
@@ -98,7 +100,8 @@ impl WasmModule {
     pub fn get_stack_end_offset(&self) -> Option<i32> {
         let stack_end_global_index = self
             .0
-            .export_section()?
+            .export_section
+            .as_ref()?
             .iter()
             .find(|export| export.name == STACK_END_EXPORT_NAME)
             .and_then(|export_entry| match export_entry.kind {
@@ -108,7 +111,8 @@ impl WasmModule {
 
         let stack_end_init_expr = self
             .0
-            .global_section()?
+            .global_section
+            .as_ref()?
             .get(stack_end_global_index as usize)?
             .init_expr
             .instructions
@@ -122,7 +126,7 @@ impl WasmModule {
 
     /// Gets the export function index of the gear entry point.
     pub fn gear_entry_point(&self, ep: EntryPointName) -> Option<u32> {
-        self.0.export_section().and_then(|export_section| {
+        self.0.export_section.as_ref().and_then(|export_section| {
             for export in export_section.iter() {
                 if export.name == ep.to_str() {
                     let ExternalKind::Func = export.kind else {

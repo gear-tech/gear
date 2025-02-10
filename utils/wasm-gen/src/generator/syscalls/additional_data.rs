@@ -155,7 +155,8 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
 
             let mut module = builder.build();
             module
-                .code_section_mut()
+                .code_section
+                .as_mut()
                 .expect("has at least one export")
                 .get_mut(export_idx as usize)
                 .expect("index of existing export")

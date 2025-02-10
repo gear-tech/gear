@@ -196,7 +196,8 @@ fn inject_system_break_import(
     break_module_name: &str,
 ) -> Result<(u32, Module), InstrumentationError> {
     if module
-        .import_section()
+        .import_section
+        .as_ref()
         .map(|section| {
             section.iter().any(|entry| {
                 entry.module == break_module_name && entry.name == SyscallName::SystemBreak.to_str()
@@ -234,7 +235,8 @@ fn inject_gas_limiter<R: Rules>(
     gr_system_break_index: u32,
 ) -> Result<Module, InstrumentationError> {
     if module
-        .export_section()
+        .export_section
+        .as_ref()
         .map(|section| section.iter().any(|entry| entry.name == GLOBAL_NAME_GAS))
         .unwrap_or(false)
     {

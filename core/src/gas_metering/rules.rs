@@ -86,7 +86,8 @@ impl Schedule {
         ScheduleRules {
             schedule: self,
             params: module
-                .type_section()
+                .type_section
+                .as_ref()
                 .iter()
                 .copied()
                 .flatten()

@@ -51,7 +51,8 @@ pub const REQUIRED_EXPORTS: [&str; 2] = ["init", "handle"];
 pub fn get_static_pages(module: &Module) -> Result<WasmPagesAmount, CodeError> {
     // get initial memory size from memory import
     let static_pages = module
-        .import_section()
+        .import_section
+        .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Import))?
         .iter()
         .find_map(|entry| match entry.ty {
@@ -73,7 +74,8 @@ pub fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
     let mut entries = BTreeSet::new();
 
     for entry in module
-        .export_section()
+        .export_section
+        .as_ref()
         .expect("Exports section has been checked for already")
     {
         if let ExternalKind::Func = entry.kind {
@@ -88,17 +90,20 @@ pub fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
 
 pub fn check_exports(module: &Module) -> Result<(), CodeError> {
     let types = module
-        .type_section()
+        .type_section
+        .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Type))?;
 
     let funcs = module
-        .function_section()
+        .function_section
+        .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Function))?;
 
     let import_count = module.import_count(|ty| matches!(ty, TypeRef::Func(_)));
 
     let exports = module
-        .export_section()
+        .export_section
+        .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Export))?;
 
     let mut entry_point_found = false;
@@ -144,11 +149,13 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
 
 pub fn check_imports(module: &Module) -> Result<(), CodeError> {
     let types = module
-        .type_section()
+        .type_section
+        .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Type))?;
 
     let imports = module
-        .import_section()
+        .import_section
+        .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Import))?;
 
     let syscalls = SyscallName::instrumentable_map();
@@ -199,7 +206,8 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
 
 fn get_export_entry_with_index<'a>(module: &'a Module, name: &str) -> Option<(u32, &'a Export)> {
     module
-        .export_section()?
+        .export_section
+        .as_ref()?
         .iter()
         .enumerate()
         .find_map(|(export_index, export)| {
@@ -235,7 +243,8 @@ fn get_export_global_entry(
         ))? as usize;
 
     module
-        .global_section()
+        .global_section
+        .as_ref()
         .and_then(|s| s.get(index))
         .ok_or(ExportError::IncorrectGlobalIndex(global_index, export_index).into())
 }
@@ -247,7 +256,7 @@ pub fn check_data_section(
     stack_end: Option<WasmPage>,
     data_section_amount_limit: Option<u32>,
 ) -> Result<(), CodeError> {
-    let Some(data_section) = module.data_section() else {
+    let Some(data_section) = &module.data_section else {
         // No data section - nothing to check.
         return Ok(());
     };
@@ -327,7 +336,8 @@ pub fn check_and_canonize_gear_stack_end(
     // Remove stack end export from module.
     // Panic below is impossible, because we have checked above, that export section exists.
     module
-        .export_section_mut()
+        .export_section
+        .as_mut()
         .unwrap_or_else(|| unreachable!("Cannot find export section"))
         .retain(|export| export.name != STACK_END_EXPORT_NAME);
 
@@ -348,7 +358,7 @@ pub fn check_and_canonize_gear_stack_end(
 /// 2) Does not have exports to imported globals.
 /// 3) Does not have exports with incorrect global index.
 pub fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
-    let Some(export_section) = module.export_section() else {
+    let Some(export_section) = &module.export_section else {
         return Ok(());
     };
 
@@ -370,7 +380,7 @@ pub fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
 }
 
 pub fn check_start_section(module: &Module) -> Result<(), CodeError> {
-    if module.start_section().is_some() {
+    if module.start_section.is_some() {
         log::debug!("Found start section in program code, which is not allowed");
         Err(SectionError::NotSupported(SectionName::Start))?
     } else {
@@ -383,7 +393,7 @@ pub fn check_start_section(module: &Module) -> Result<(), CodeError> {
 /// in the executor's memory. Additionally, the number of heuristic pages used during instantiation is considered,
 /// as each page contributes to the total weight during instantiation.
 pub fn get_data_section_size(module: &Module) -> Result<u32, CodeError> {
-    let Some(data_section) = module.data_section() else {
+    let Some(data_section) = &module.data_section else {
         // No data section
         return Ok(0);
     };
@@ -413,7 +423,7 @@ pub fn get_data_section_size(module: &Module) -> Result<u32, CodeError> {
 
 /// Calculates the amount of bytes in the global section will be initialized during module instantiation.
 pub fn get_instantiated_global_section_size(module: &Module) -> Result<u32, CodeError> {
-    let Some(global_section) = module.global_section() else {
+    let Some(global_section) = &module.global_section else {
         // No element section
         return Ok(0);
     };
@@ -431,7 +441,7 @@ pub fn get_instantiated_global_section_size(module: &Module) -> Result<u32, Code
 
 /// Calculates the amount of bytes in the table section that will be allocated during module instantiation.
 pub fn get_instantiated_table_section_size(module: &Module) -> u32 {
-    let Some(table) = module.table_section() else {
+    let Some(table) = &module.table_section else {
         return 0;
     };
 
@@ -441,11 +451,11 @@ pub fn get_instantiated_table_section_size(module: &Module) -> u32 {
 
 /// Calculates the amount of bytes in the table/element section that will be initialized during module instantiation.
 pub fn get_instantiated_element_section_size(module: &Module) -> Result<u32, CodeError> {
-    if module.table_section().is_none() {
+    if module.table_section.is_none() {
         return Ok(0);
     }
 
-    let Some(element_section) = module.element_section() else {
+    let Some(element_section) = &module.element_section else {
         // No element section
         return Ok(0);
     };
