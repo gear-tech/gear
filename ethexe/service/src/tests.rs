@@ -1263,7 +1263,7 @@ mod utils {
         pub async fn create_program(
             &self,
             code_id: CodeId,
-            balance_to_approve: u128,
+            initial_balance: u128,
         ) -> Result<WaitForProgramCreation> {
             log::info!("📗 Create program, code_id {code_id}");
 
@@ -1273,16 +1273,16 @@ mod utils {
 
             let (_, program_id) = router.create_program(code_id, H256::random()).await?;
 
-            if balance_to_approve != 0 {
+            if initial_balance != 0 {
                 let program_address = program_id.to_address_lossy().0.into();
                 router
                     .wvara()
-                    .approve(program_address, balance_to_approve)
+                    .approve(program_address, initial_balance)
                     .await?;
 
                 let mirror = self.ethereum.mirror(program_address.into_array().into());
 
-                mirror.executable_balance_top_up(balance_to_approve).await?;
+                mirror.executable_balance_top_up(initial_balance).await?;
             }
 
             Ok(WaitForProgramCreation {
