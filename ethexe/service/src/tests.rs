@@ -156,7 +156,7 @@ async fn ping() {
         .expect("After approval, instrumented code is guaranteed to be in the database");
 
     let res = env
-        .create_program(code_id)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -241,7 +241,7 @@ async fn uninitialized_program() {
     // Case #1: Init failed due to panic in init (decoding).
     {
         let res = env
-            .create_program(code_id)
+            .create_program(code_id, 500_000_000_000_000)
             .await
             .unwrap()
             .wait_for()
@@ -283,7 +283,7 @@ async fn uninitialized_program() {
         let mut listener = env.events_publisher().subscribe().await;
 
         let init_res = env
-            .create_program(code_id)
+            .create_program(code_id, 500_000_000_000_000)
             .await
             .unwrap()
             .wait_for()
@@ -399,7 +399,7 @@ async fn mailbox() {
     let code_id = res.code_id;
 
     let res = env
-        .create_program(code_id)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -588,7 +588,7 @@ async fn incoming_transfers() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -704,7 +704,7 @@ async fn ping_reorg() {
     log::info!("📗 Abort service to simulate node blocks skipping");
     node.stop_service().await;
 
-    let create_program = env.create_program(code_id).await.unwrap();
+    let create_program = env.create_program(code_id, 500_000_000_000_000).await.unwrap();
     let init = env
         .send_message(create_program.program_id, b"PING", 0)
         .await
@@ -811,7 +811,7 @@ async fn ping_deep_sync() {
     let code_id = res.code_id;
 
     let res = env
-        .create_program(code_id)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -911,7 +911,7 @@ async fn multiple_validators() {
     let ping_code_id = res.code_id;
 
     let res = env
-        .create_program(ping_code_id)
+        .create_program(ping_code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -947,7 +947,7 @@ async fn multiple_validators() {
     let async_code_id = res.code_id;
 
     let res = env
-        .create_program(async_code_id)
+        .create_program(async_code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -1281,10 +1281,7 @@ mod utils {
             Ok(WaitForUploadCode { listener, code_id })
         }
 
-        // TODO (breathx): split it into different functions WITHIN THE PR.
-        pub async fn create_program(&self, code_id: CodeId) -> Result<WaitForProgramCreation> {
-            const EXECUTABLE_BALANCE: u128 = 500_000_000_000_000;
-
+        pub async fn create_program(&self, code_id: CodeId, balance_to_approve: u128) -> Result<WaitForProgramCreation> {
             log::info!("📗 Create program, code_id {code_id}");
 
             let listener = self.events_publisher().subscribe().await;
@@ -1293,16 +1290,18 @@ mod utils {
 
             let (_, program_id) = router.create_program(code_id, H256::random()).await?;
 
-            let program_address = program_id.to_address_lossy().0.into();
+           
+            if balance_to_approve != 0 {
+                let program_address = program_id.to_address_lossy().0.into();
+                router
+                    .wvara()
+                    .approve(program_address, balance_to_approve)
+                    .await?;
 
-            router
-                .wvara()
-                .approve(program_address, EXECUTABLE_BALANCE)
-                .await?;
+                let mirror = self.ethereum.mirror(program_address.into_array().into());
 
-            let mirror = self.ethereum.mirror(program_address.into_array().into());
-
-            mirror.executable_balance_top_up(EXECUTABLE_BALANCE).await?;
+                mirror.executable_balance_top_up(balance_to_approve).await?;
+            }
 
             Ok(WaitForProgramCreation {
                 listener,
