@@ -380,4 +380,3 @@ fn write_is_not_too_cheap() {
 
     assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);
 }
-
