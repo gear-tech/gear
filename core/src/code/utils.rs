@@ -430,10 +430,11 @@ pub fn get_instantiated_global_section_size(module: &Module) -> Result<u32, Code
 
     Ok(global_section.iter().fold(0, |total_bytes, global| {
         let value_size = match global.ty.content_type {
-            ValType::I32 | ValType::F32 => size_of::<i32>(),
-            ValType::I64 | ValType::F64 => size_of::<i64>(),
-            ValType::Ref(_) => REF_TYPE_SIZE as usize,
-            ValType::V128 => unreachable!("SIMD is not supported"),
+            ValType::I32 => size_of::<i32>(),
+            ValType::I64 => size_of::<i64>(),
+            ValType::F32 | ValType::F64 | ValType::V128 | ValType::Ref(_) => {
+                unreachable!("f32/64, SIMD and reference types are not supported")
+            }
         } as u32;
         total_bytes.saturating_add(value_size)
     }))
