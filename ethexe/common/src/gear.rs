@@ -67,7 +67,15 @@ pub struct BlockCommitment {
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct CodeCommitment {
     pub id: CodeId,
+    /// represented as u48 in router contract.
+    pub timestamp: u64,
     pub valid: bool,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct BatchCommitment {
+    pub code_commitments: Vec<CodeCommitment>,
+    pub block_commitments: Vec<BlockCommitment>,
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
@@ -100,6 +108,7 @@ pub struct ComputationSettings {
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Message {
     pub id: MessageId,
     pub destination: ActorId,
@@ -130,6 +139,7 @@ pub struct ProtocolData {
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub new_state_hash: H256,
@@ -147,6 +157,7 @@ pub struct ValidationSettings {
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaim {
     pub message_id: MessageId,
     pub destination: ActorId,

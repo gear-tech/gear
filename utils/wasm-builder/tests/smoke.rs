@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_wasm_builder::TARGET;
+use gear_wasm_instrument::{Export, Module};
 use std::{fs, process::Command, sync::OnceLock};
 
 struct CargoRunner(Command);
@@ -57,12 +58,8 @@ fn install_stable_toolchain() {
             .arg("toolchain")
             .arg("install")
             .arg("stable")
-            .arg("--component")
-            .arg("llvm-tools")
-            .arg("--component")
-            .arg("rust-src")
             .arg("--target")
-            .arg("wasm32-unknown-unknown")
+            .arg("wasm32v1-none")
             .status()
             .expect("rustup run error");
         assert!(status.success());
@@ -128,22 +125,24 @@ fn no_infinite_build() {
 #[test]
 fn features_tracking() {
     #[track_caller]
-    fn read_export_entry(name: &str) -> Option<parity_wasm::elements::ExportEntry> {
-        parity_wasm::deserialize_file(format!(
-            "test-program/target/wasm32-unknown-unknown/{}/test_program.wasm",
+    fn read_export_entry(name: &str) -> Option<Export> {
+        let wasm = fs::read(format!(
+            "test-program/target/wasm32-gear/{}/test_program.wasm",
             if cfg!(debug_assertions) {
                 "debug"
             } else {
                 "release"
             }
         ))
-        .unwrap()
-        .export_section()
-        .unwrap()
-        .entries()
-        .iter()
-        .find(|entry| entry.field() == name)
-        .cloned()
+        .unwrap();
+        Module::new(&wasm)
+            .unwrap()
+            .export_section
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|entry| entry.name == name)
+            .cloned()
     }
 
     CargoRunner::new().args(["build", "--features=a"]).run();

@@ -18,20 +18,28 @@
 
 //! Sequencer for ethexe.
 
-use agro::{AggregatedCommitments, MultisignedCommitmentDigests, MultisignedCommitments};
+use agro::{AggregatedCommitments, MultisignedCommitmentDigests, Signatures};
 use anyhow::{anyhow, bail, Result};
 use ethexe_common::{
     db::BlockMetaStorage,
-    gear::{BlockCommitment, CodeCommitment},
+    gear::{BatchCommitment, BlockCommitment, CodeCommitment},
 };
 use ethexe_ethereum::{router::Router, Ethereum};
-use ethexe_service_utils::{AsyncFnStream, Timer};
+use ethexe_service_utils::Timer;
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
+use futures::{
+    future::BoxFuture,
+    stream::{FusedStream, FuturesUnordered},
+    FutureExt, Stream, StreamExt,
+};
 use gprimitives::H256;
 use indexmap::IndexSet;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
+    iter,
     ops::Not,
+    pin::Pin,
+    task::{Context, Poll},
     time::Duration,
 };
 
@@ -41,6 +49,8 @@ pub mod agro;
 mod tests;
 
 pub type CommitmentsMap<C> = BTreeMap<Digest, CommitmentAndOrigins<C>>;
+
+type CommitmentSubmitFuture = BoxFuture<'static, Result<H256>>;
 
 pub struct SequencerConfig {
     pub ethereum_rpc: String,
@@ -54,6 +64,7 @@ pub struct SequencerConfig {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SequencerEvent {
     CollectionRoundEnded { block_hash: H256 },
+    CommitmentSubmitted { tx_hash: Option<H256> },
     ValidationRoundEnded { block_hash: H256, submitted: bool },
 }
 
@@ -70,39 +81,58 @@ pub struct SequencerService {
     block_commitments: CommitmentsMap<BlockCommitment>,
     code_commitments: CommitmentsMap<CodeCommitment>,
 
-    blocks_candidate: Option<MultisignedCommitmentDigests>,
     codes_candidate: Option<MultisignedCommitmentDigests>,
+    blocks_candidate: Option<MultisignedCommitmentDigests>,
+
+    signatures: Signatures,
 
     status: SequencerStatus,
 
     // TODO: consider merging into single timer.
     collection_round: Timer<H256>,
     validation_round: Timer<H256>,
+
+    submissions: FuturesUnordered<CommitmentSubmitFuture>,
 }
 
-impl AsyncFnStream for SequencerService {
+impl Stream for SequencerService {
     type Item = SequencerEvent;
 
-    async fn like_next(&mut self) -> Option<Self::Item> {
-        Some(self.next().await)
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Poll::Ready(block_hash) = self.collection_round.poll_unpin(cx) {
+            let event = self.handle_collection_round_end(block_hash);
+
+            return Poll::Ready(Some(event));
+        }
+
+        if let Poll::Ready(block_hash) = self.validation_round.poll_unpin(cx) {
+            let event = self.handle_validation_round_end(block_hash);
+
+            return Poll::Ready(Some(event));
+        }
+
+        if let Poll::Ready(Some(res)) = self.submissions.poll_next_unpin(cx) {
+            let tx_hash = res
+                .inspect(|tx_hash| {
+                    log::debug!("Successfully submitted batch commitment in tx {tx_hash}")
+                })
+                .inspect_err(|err| log::warn!("Failed to submit batch commitment: {err}"))
+                .ok();
+
+            let event = SequencerEvent::CommitmentSubmitted { tx_hash };
+
+            return Poll::Ready(Some(event));
+        }
+
+        Poll::Pending
     }
 }
 
-// TODO: fix it by some wrapper. It's not possible to implement Stream for SequencerService like this.
-// impl Stream for SequencerService {
-//     type Item = SequencerEvent;
-
-//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-//         let e = ready!(pin!(self.next_event()).poll(cx));
-//         Poll::Ready(Some(e))
-//     }
-// }
-
-// impl FusedStream for SequencerService {
-//     fn is_terminated(&self) -> bool {
-//         false
-//     }
-// }
+impl FusedStream for SequencerService {
+    fn is_terminated(&self) -> bool {
+        false
+    }
+}
 
 impl SequencerService {
     pub async fn new(
@@ -130,13 +160,17 @@ impl SequencerService {
             block_commitments: Default::default(),
             code_commitments: Default::default(),
 
-            blocks_candidate: None,
             codes_candidate: None,
+            blocks_candidate: None,
+
+            signatures: Default::default(),
 
             status: Default::default(),
 
             collection_round: Timer::new("collection", config.block_time / 4),
             validation_round: Timer::new("validation", config.block_time / 4),
+
+            submissions: FuturesUnordered::new(),
         })
     }
 
@@ -169,8 +203,10 @@ impl SequencerService {
         self.block_commitments
             .retain(|_, c| self.waiting_for_commitments.contains(&c.commitment.hash));
 
-        self.blocks_candidate.take();
         self.codes_candidate.take();
+        self.blocks_candidate.take();
+
+        self.signatures = Default::default();
 
         log::debug!("Collection round for {hash} started");
         self.collection_round.start(hash);
@@ -220,178 +256,127 @@ impl SequencerService {
         )
     }
 
-    pub fn receive_codes_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
-        log::debug!("Received codes signature: {digest:?} {signature:?}");
+    pub fn receive_batch_commitment_signature(
+        &mut self,
+        digest: Digest,
+        signature: Signature,
+    ) -> Result<()> {
+        log::debug!("Received batch commitment signature: {digest:?} {signature:?}");
 
         Self::receive_signature(
             digest,
             signature,
             &self.validators,
             self.ethereum.router().address(),
-            self.codes_candidate.as_mut(),
+            &[
+                self.codes_candidate.as_ref(),
+                self.blocks_candidate.as_ref(),
+            ],
+            &mut self.signatures,
         )
     }
 
-    pub fn receive_blocks_signature(&mut self, digest: Digest, signature: Signature) -> Result<()> {
-        log::debug!("Received block signature: {digest:?} {signature:?}");
-
-        Self::receive_signature(
-            digest,
-            signature,
-            &self.validators,
-            self.ethereum.router().address(),
-            self.blocks_candidate.as_mut(),
-        )
-    }
-
-    pub async fn submit_multisigned_commitments(&mut self) -> Result<()> {
-        let mut codes_future = None;
-        let mut blocks_future = None;
-
-        let codes_candidate = Self::process_multisigned_candidate(
+    pub fn submit_multisigned_commitments(&mut self) {
+        let code_commitments = Self::process_multisigned_candidate(
             &mut self.codes_candidate,
             &mut self.code_commitments,
-            self.threshold,
         );
+        let code_commitments_len = code_commitments.len();
 
-        let blocks_candidate = Self::process_multisigned_candidate(
+        let block_commitments = Self::process_multisigned_candidate(
             &mut self.blocks_candidate,
             &mut self.block_commitments,
+        );
+        let block_commitments_len = block_commitments.len();
+
+        self.status.submitted_code_commitments += code_commitments_len;
+        self.status.submitted_block_commitments += block_commitments_len;
+
+        log::debug!("Collected {code_commitments_len} code commitments, {block_commitments_len} block commitments. Submitting...");
+
+        self.submissions.push(Box::pin(
+            Self::submit_batch_commitment(
+                self.ethereum.router(),
+                BatchCommitment {
+                    code_commitments,
+                    block_commitments,
+                },
+                self.signatures.clone(),
+            )
+            .map(|tx_hash| tx_hash),
+        ));
+    }
+
+    async fn submit_batch_commitment(
+        router: Router,
+        commitment: BatchCommitment,
+        signatures: Signatures,
+    ) -> Result<H256> {
+        let (origins, signatures): (Vec<_>, Vec<_>) = signatures.into_inner().into_iter().unzip();
+
+        log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
+
+        router.commit_batch(commitment, signatures).await
+    }
+
+    fn handle_collection_round_end(&mut self, block_hash: H256) -> SequencerEvent {
+        // If chain head is not yet processed by this node, this is normal situation,
+        // so we just skip this round for sequencer.
+        let Some(block_is_empty) = self.db.block_is_empty(block_hash) else {
+            log::warn!("Failed to get block emptiness status for {block_hash}");
+            return SequencerEvent::CollectionRoundEnded { block_hash };
+        };
+
+        let last_non_empty_block = if block_is_empty {
+            let Some(prev_commitment) = self.db.previous_committed_block(block_hash) else {
+                return SequencerEvent::CollectionRoundEnded { block_hash };
+            };
+
+            prev_commitment
+        } else {
+            block_hash
+        };
+
+        self.codes_candidate =
+            Self::codes_commitment_candidate(&self.code_commitments, self.threshold);
+        self.blocks_candidate = Self::blocks_commitment_candidate(
+            &self.block_commitments,
+            last_non_empty_block,
             self.threshold,
         );
 
-        if let Some(candidate) = codes_candidate {
-            let n = candidate.commitments().len();
+        self.signatures = Default::default();
 
-            log::debug!("Collected {n} code commitments. Submitting...");
-            self.status.submitted_code_commitments += n;
+        let to_start_validation = self.codes_candidate.is_some() || self.blocks_candidate.is_some();
 
-            codes_future = Some(Self::submit_codes_commitments(
-                self.ethereum.router(),
-                candidate,
-            ));
-        };
-
-        if let Some(candidate) = blocks_candidate {
-            let n = candidate.commitments().len();
-
-            log::debug!("Collected {n} block commitments. Submitting...",);
-            self.status.submitted_block_commitments += n;
-
-            blocks_future = Some(Self::submit_block_commitments(
-                self.ethereum.router(),
-                candidate,
-            ));
-        };
-
-        match (codes_future, blocks_future) {
-            (Some(codes_future), Some(transitions_future)) => {
-                let (codes_tx, transitions_tx) = futures::join!(codes_future, transitions_future);
-                codes_tx?;
-                transitions_tx?;
-            }
-            (Some(codes_future), None) => codes_future.await?,
-            (None, Some(transitions_future)) => transitions_future.await?,
-            (None, None) => {}
+        if to_start_validation {
+            log::debug!("Validation round for {block_hash} started");
+            self.validation_round.start(block_hash);
         }
 
-        Ok(())
+        SequencerEvent::CollectionRoundEnded { block_hash }
     }
 
-    async fn submit_codes_commitments(
-        router: Router,
-        multisigned: MultisignedCommitments<CodeCommitment>,
-    ) -> Result<()> {
-        let (codes, signatures) = multisigned.into_parts();
-        let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
+    fn handle_validation_round_end(&mut self, block_hash: H256) -> SequencerEvent {
+        log::debug!("Validation round for {block_hash} ended");
 
-        log::debug!("Code commitments to submit: {codes:?}, signed by: {origins:?}",);
+        let mut submitted = false;
 
-        if let Err(e) = router.commit_codes(codes, signatures).await {
-            // TODO: return error?
-            log::error!("Failed to commit code ids: {e}");
+        if (self.codes_candidate.is_some() || self.blocks_candidate.is_some())
+            && self.signatures.len() as u64 >= self.threshold
+        {
+            log::debug!("Submitting commitments");
+            self.submit_multisigned_commitments();
+            submitted = true;
+        } else {
+            log::debug!("No commitments to submit, skipping");
         }
 
-        Ok(())
-    }
+        log::debug!("Validation round ended: block {block_hash}, submitted: {submitted}");
 
-    async fn submit_block_commitments(
-        router: Router,
-        multisigned: MultisignedCommitments<BlockCommitment>,
-    ) -> Result<()> {
-        let (blocks, signatures) = multisigned.into_parts();
-        let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
-
-        log::debug!("Block commitments to submit: {blocks:?}, signed by: {origins:?}",);
-
-        match router.commit_blocks(blocks, signatures).await {
-            Err(e) => {
-                // TODO: return error?
-                log::error!("Failed to commit transitions: {e}");
-            }
-            Ok(tx_hash) => {
-                log::info!(
-                    "Blocks commitment transaction {tx_hash} was added to the pool successfully"
-                );
-            }
-        }
-
-        Ok(())
-    }
-
-    pub async fn next(&mut self) -> SequencerEvent {
-        tokio::select! {
-            block_hash = self.collection_round.rings() => {
-                // If chain head is not yet processed by this node, this is normal situation,
-                // so we just skip this round for sequencer.
-                let Some(block_is_empty) = self.db.block_is_empty(block_hash) else {
-                    log::warn!("Failed to get block emptiness status for {block_hash}");
-                    return SequencerEvent::CollectionRoundEnded { block_hash };
-                };
-
-                let last_non_empty_block = if block_is_empty {
-                    let Some(prev_commitment) = self.db.previous_committed_block(block_hash) else {
-                        return SequencerEvent::CollectionRoundEnded { block_hash };
-                    };
-
-                    prev_commitment
-                } else {
-                    block_hash
-                };
-
-                self.blocks_candidate =
-                    Self::blocks_commitment_candidate(&self.block_commitments, last_non_empty_block, self.threshold);
-                self.codes_candidate =
-                    Self::codes_commitment_candidate(&self.code_commitments, self.threshold);
-
-                let to_start_validation = self.blocks_candidate.is_some() || self.codes_candidate.is_some();
-
-                if to_start_validation {
-                    log::debug!("Validation round for {block_hash} started");
-                    self.validation_round.start(block_hash);
-                }
-
-                SequencerEvent::CollectionRoundEnded { block_hash }
-            }
-            block_hash = self.validation_round.rings() => {
-                log::debug!("Validation round for {block_hash} ended");
-
-                let mut submitted = false;
-
-                if self.blocks_candidate.is_some() || self.codes_candidate.is_some() {
-                    log::debug!("Submitting commitments");
-
-                    if let Err(e) = self.submit_multisigned_commitments().await {
-                        log::error!("Failed to submit multisigned commitments: {e}");
-                    } else {
-                        submitted = true;
-                    }
-                } else {
-                    log::debug!("No commitments to submit, skipping");
-                }
-
-                SequencerEvent::ValidationRoundEnded { block_hash, submitted }
-            }
+        SequencerEvent::ValidationRoundEnded {
+            block_hash,
+            submitted,
         }
     }
 
@@ -507,13 +492,20 @@ impl SequencerService {
         signature: Signature,
         validators: &HashSet<Address>,
         router_address: Address,
-        candidate: Option<&mut MultisignedCommitmentDigests>,
+        candidates: &[Option<&MultisignedCommitmentDigests>],
+        signatures: &mut Signatures,
     ) -> Result<()> {
-        let Some(candidate) = candidate else {
-            return Err(anyhow!("No candidate found"));
-        };
+        let candidate_digests = candidates.iter().map(|candidate| match candidate {
+            Some(candidate) => candidate.digest(),
+            None => iter::empty::<Digest>().collect(),
+        });
+        let candidate_digest = candidate_digests.collect();
 
-        candidate.append_signature_with_check(
+        if commitments_digest != candidate_digest {
+            return Err(anyhow!("Aggregated commitments digest mismatch"));
+        }
+
+        signatures.append_signature_with_check(
             commitments_digest,
             signature,
             router_address,
@@ -529,27 +521,22 @@ impl SequencerService {
     fn process_multisigned_candidate<C: ToDigest>(
         candidate: &mut Option<MultisignedCommitmentDigests>,
         commitments: &mut CommitmentsMap<C>,
-        threshold: u64,
-    ) -> Option<MultisignedCommitments<C>> {
-        if candidate
-            .as_ref()
-            .map(|c| threshold > c.signatures().len() as u64)
-            .unwrap_or(true)
-        {
-            return None;
-        }
-
-        let candidate = candidate.take()?;
-        let multisigned = MultisignedCommitments::from_multisigned_digests(candidate, |digest| {
-            commitments
-                .remove(&digest)
-                .map(|c| c.commitment)
-                .unwrap_or_else(|| {
-                    unreachable!("Guarantied by `Sequencer` implementation to be in the map");
-                })
-        });
-
-        Some(multisigned)
+    ) -> Vec<C> {
+        let Some(candidate) = candidate.take() else {
+            return Vec::new();
+        };
+        candidate
+            .into_digests()
+            .into_iter()
+            .map(|digest| {
+                commitments
+                    .remove(&digest)
+                    .map(|c| c.commitment)
+                    .unwrap_or_else(|| {
+                        unreachable!("Guarantied by `Sequencer` implementation to be in the map");
+                    })
+            })
+            .collect()
     }
 }
 

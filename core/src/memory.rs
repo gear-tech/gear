@@ -99,7 +99,7 @@ impl Debug for MemoryInterval {
 }
 
 /// Error in attempt to make wrong size page buffer.
-#[derive(Debug, Default, PartialEq, Eq, Clone, TypeInfo, derive_more::Display)]
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Clone, TypeInfo, derive_more::Display)]
 #[display(
     fmt = "Trying to make wrong size page buffer, must be {:#x}",
     GearPage::SIZE
@@ -110,7 +110,7 @@ pub struct IntoPageBufError;
 pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
-#[derive(Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
 pub struct PageBuf(PageBufInner);
 
 // These traits are implemented intentionally by hand to achieve two goals:

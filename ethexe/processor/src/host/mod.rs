@@ -16,16 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::Database;
 use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
+use ethexe_runtime_common::unpack_i64_to_u32;
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
-use std::{mem, sync::Arc};
-
-use crate::Database;
+use std::sync::Arc;
 
 pub mod api;
 pub mod runtime;
@@ -200,7 +200,7 @@ impl InstanceWrapper {
     }
 
     fn get_call_output<D: Decode>(&mut self, ptr_len: i64) -> Result<D> {
-        let [ptr, len]: [i32; 2] = unsafe { mem::transmute(ptr_len) };
+        let (ptr, len) = unpack_i64_to_u32(ptr_len);
 
         // TODO: check range.
         let memory = self.memory()?;

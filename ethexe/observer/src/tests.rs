@@ -21,16 +21,14 @@ use crate::MockBlobReader;
 use alloy::node_bindings::Anvil;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
-use gear_core::ids::prelude::CodeIdExt;
 use std::time::Duration;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
-    wabt::Wat2Wasm::new()
-        .validate(validate)
-        .convert(s)
-        .unwrap()
-        .as_ref()
-        .to_vec()
+    let code = wat::parse_str(s).unwrap();
+    if validate {
+        wasmparser::validate(&code).unwrap();
+    }
+    code
 }
 
 fn wat2wasm(s: &str) -> Vec<u8> {
@@ -78,36 +76,41 @@ async fn test_deployment() -> Result<()> {
         "#;
     let wasm = wat2wasm(wat);
 
-    let code_id = CodeId::generate(&wasm);
-    let blob_tx = H256::random();
+    let pending_builder = ethereum
+        .router()
+        .request_code_validation_with_sidecar(&wasm)
+        .await?;
+
+    let request_code_id = pending_builder.code_id();
+    let request_tx_hash = pending_builder.tx_hash();
 
     blob_reader
-        .add_blob_transaction(blob_tx, wasm.clone())
+        .add_blob_transaction(request_tx_hash, wasm.clone())
         .await;
-    ethereum
-        .router()
-        .request_code_validation(code_id, blob_tx)
-        .await?;
 
     let event = observer
         .next()
         .await
-        .expect("observer did not receive event");
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
 
     assert!(matches!(event, ObserverEvent::Block(..)));
 
     let event = observer
         .next()
         .await
-        .expect("observer did not receive event");
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
 
-    assert_eq!(
+    assert!(matches!(
         event,
         ObserverEvent::Blob {
             code_id,
-            code: wasm
+            code,
+            ..
         }
-    );
+        if code_id == request_code_id && code == wasm
+    ));
 
     Ok(())
 }

@@ -55,6 +55,7 @@ std = [
     "sp-arithmetic/std",
     "frame-support/std",
     "frame-system/std",
+    "frame-benchmarking/std",
     "primitive-types/std",
     "gear-wasm-instrument?/std",
 ]

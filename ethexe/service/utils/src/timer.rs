@@ -16,12 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::OptionFuture;
+use futures::{ready, FutureExt};
 use std::{
     fmt::Debug,
-    time::{Duration, Instant},
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
 };
-use tokio::time;
+use tokio::time::{self, Sleep};
 
 /// Asynchronous timer with inner data kept.
 pub struct Timer<T = ()>
@@ -35,7 +38,7 @@ where
     duration: Duration,
 
     /// Moment of time when the timer was started and applied data.
-    inner: Option<(Instant, T)>,
+    inner: Option<(Pin<Box<Sleep>>, T)>,
 }
 
 impl<T: Debug> Timer<T> {
@@ -65,22 +68,13 @@ impl<T: Debug> Timer<T> {
         self.inner.is_some()
     }
 
-    /// Get the remaining time until the timer will be ready to ring if started.
-    pub fn remaining(&self) -> Option<Duration> {
-        self.inner.as_ref().map(|(start, _)| {
-            self.duration
-                .checked_sub(start.elapsed())
-                .unwrap_or(Duration::ZERO)
-        })
-    }
-
     /// Start the timer from the beginning with new data.
     /// Returns the previous data if the timer was already started.
     pub fn start(&mut self, data: T) -> Option<T> {
         log::trace!("Started timer '{}' with data {data:?}", self.name);
 
         self.inner
-            .replace((Instant::now(), data))
+            .replace((Box::pin(time::sleep(self.duration)), data))
             .map(|(_, data)| data)
     }
 
@@ -90,25 +84,22 @@ impl<T: Debug> Timer<T> {
 
         self.inner.take().map(|(_, data)| data)
     }
+}
 
-    /// Result of time passed - timer's ring.
-    pub async fn rings(&mut self) -> T {
-        self.remaining()
-            .map(async |dur| {
-                if !dur.is_zero() {
-                    log::trace!("Timer {} will ring in {dur:?}", self.name);
-                }
+impl<T: Debug + Unpin> Future for Timer<T> {
+    type Output = T;
 
-                time::sleep(dur).await;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some((sleep, _)) = self.inner.as_mut() {
+            ready!(sleep.poll_unpin(cx));
 
-                log::trace!("Timer {} rings!", self.name);
+            let data = self.inner.take().map(|(_, data)| data).unwrap();
 
-                self.inner
-                    .take()
-                    .map(|(_, data)| data)
-                    .expect("stopped or not started timer cannot ring;")
-            })
-            .maybe()
-            .await
+            log::debug!("Timer '{}' with data {:?} rings", self.name, data);
+
+            return Poll::Ready(data);
+        }
+
+        Poll::Pending
     }
 }

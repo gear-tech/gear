@@ -19,7 +19,7 @@ const-str.workspace = true
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
+serde-json-wasm.workspace = true
 
 # Frame deps
 frame-support.workspace = true
@@ -122,9 +122,7 @@ sp-keyring.workspace = true
 env_logger.workspace = true
 wat.workspace = true
 gear-core.workspace = true
-gear-core-processor.workspace = true
-gwasm-instrument.workspace = true
-wabt.workspace = true
+gear-wasm-instrument.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true
@@ -192,9 +190,10 @@ std = [
 	"pallet-vesting/std",
 	"pallet-whitelist/std",
 	"gear-runtime-common/std",
+	"gear-wasm-instrument/std",
 	"runtime-primitives/std",
 	"scale-info/std",
-	"serde_json/std",
+	"serde-json-wasm/std",
 	"sp-api/std",
 	"sp-arithmetic/std",
 	"sp-authority-discovery/std",

@@ -65,9 +65,12 @@ contract POCTest is Base {
 
     function test_POC() public {
         bytes32 _codeId = bytes32(uint256(1));
-        bytes32 _blobTxHash = bytes32(uint256(2));
 
-        router.requestCodeValidation(_codeId, _blobTxHash);
+        bytes32[] memory hashes = new bytes32[](1);
+        hashes[0] = bytes32(uint256(1));
+        vm.blobhashes(hashes);
+
+        router.requestCodeValidation(_codeId);
 
         address[] memory _validators = router.validators();
         assertEq(_validators.length, maxValidators);
@@ -75,7 +78,7 @@ contract POCTest is Base {
         uint256[] memory _privateKeys = new uint256[](1);
         _privateKeys[0] = signingKey.asScalar();
 
-        commitCode(_privateKeys, Gear.CodeCommitment(_codeId, true));
+        commitCode(_privateKeys, Gear.CodeCommitment(_codeId, 42, true));
 
         address _ping = deployPing(_privateKeys, _codeId);
         IMirror actor = IMirror(_ping);

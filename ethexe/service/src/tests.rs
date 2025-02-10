@@ -968,6 +968,7 @@ mod utils {
     use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverEvent, ObserverService, SimpleBlockData};
     use ethexe_sequencer::{SequencerConfig, SequencerService};
+    use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use std::{
         ops::Mul,
@@ -1104,7 +1105,7 @@ mod utils {
                 let handle = task::spawn(async move {
                     send_subscription_created.send(()).unwrap();
 
-                    while let Ok(event) = observer.next().await {
+                    while let Ok(event) = observer.select_next_some().await {
                         log::trace!(target: "test-event", "📗 Event: {:?}", event);
 
                         cloned_sender
@@ -1197,19 +1198,20 @@ mod utils {
         pub async fn upload_code(&self, code: &[u8]) -> Result<WaitForUploadCode> {
             log::info!("📗 Upload code, len {}", code.len());
 
-            let code_id = CodeId::generate(code);
-            let blob_tx = H256::random();
-
             let listener = self.events_publisher().subscribe().await;
 
-            self.blob_reader
-                .add_blob_transaction(blob_tx, code.to_vec())
-                .await;
-            let _tx_hash = self
+            let pending_builder = self
                 .ethereum
                 .router()
-                .request_code_validation(code_id, blob_tx)
+                .request_code_validation_with_sidecar(code)
                 .await?;
+
+            let code_id = pending_builder.code_id();
+            let tx_hash = pending_builder.tx_hash();
+
+            self.blob_reader
+                .add_blob_transaction(tx_hash, code.to_vec())
+                .await;
 
             Ok(WaitForUploadCode { listener, code_id })
         }
@@ -1324,15 +1326,11 @@ mod utils {
         }
 
         #[allow(unused)]
-        pub async fn process_already_uploaded_code(
-            &self,
-            code: &[u8],
-            blob_tx_hash: &str,
-        ) -> CodeId {
+        pub async fn process_already_uploaded_code(&self, code: &[u8], tx_hash: &str) -> CodeId {
             let code_id = CodeId::generate(code);
-            let blob_tx_hash = H256::from_str(blob_tx_hash).unwrap();
+            let tx_hash = H256::from_str(tx_hash).unwrap();
             self.blob_reader
-                .add_blob_transaction(blob_tx_hash, code.to_vec())
+                .add_blob_transaction(tx_hash, code.to_vec())
                 .await;
             code_id
         }
@@ -1686,6 +1684,7 @@ mod utils {
                     ObserverEvent::Blob {
                         code_id: loaded_id,
                         code,
+                        ..
                     } if loaded_id == self.code_id => {
                         code_info = Some(code);
                         Ok(Some(()))
