@@ -348,7 +348,7 @@ impl Default for ConstantParams {
     fn default() -> Self {
         ConstantParams {
             bulk_memory_enabled: false,
-            sign_extension_enabled: true,
+            sign_extension_ops_enabled: true,
             saturating_float_to_int_enabled: false,
             reference_types_enabled: false,
             tail_call_enabled: false,
