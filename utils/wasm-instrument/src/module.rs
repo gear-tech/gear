@@ -524,15 +524,10 @@ impl Import {
         }
     }
 
-    pub fn memory(
-        module: impl Into<Cow<'static, str>>,
-        name: impl Into<Cow<'static, str>>,
-        initial: u32,
-        maximum: Option<u32>,
-    ) -> Self {
+    pub fn memory(initial: u32, maximum: Option<u32>) -> Self {
         Self {
-            module: module.into(),
-            name: name.into(),
+            module: "env".into(),
+            name: "memory".into(),
             ty: TypeRef::Memory(MemoryType {
                 memory64: false,
                 shared: false,

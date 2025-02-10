@@ -54,8 +54,6 @@ impl<'a, 'b> From<GearWasmGenerator<'a, 'b>>
 }
 
 impl MemoryGenerator {
-    pub(crate) const MEMORY_FIELD_NAME: &'static str = "memory";
-
     /// Instantiate the memory generator from wasm module and memory pages config.
     pub fn new(module: WasmModule, config: MemoryPagesConfig) -> Self {
         Self { config, module }
@@ -89,12 +87,7 @@ impl MemoryGenerator {
         // Define memory import in the module
         module.with(|module| {
             let mut builder = ModuleBuilder::from_module(module);
-            builder.push_import(Import::memory(
-                "env",
-                Self::MEMORY_FIELD_NAME,
-                initial_size,
-                upper_limit,
-            ));
+            builder.push_import(Import::memory(initial_size, upper_limit));
 
             // Define optional stack-end
             if let Some(stack_end_page) = stack_end_page {

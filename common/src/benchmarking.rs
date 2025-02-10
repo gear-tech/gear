@@ -44,7 +44,7 @@ pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> 
 //     (export "init" (func 0)))
 pub fn create_module(num_pages: WasmPage) -> Module {
     let mut mbuilder = ModuleBuilder::default();
-    mbuilder.push_import(Import::memory("env", "memory", num_pages.into(), None));
+    mbuilder.push_import(Import::memory(num_pages.into(), None));
     mbuilder.add_func(FuncType::new([], []), Function::default());
     mbuilder.push_export(Export::func("init", 0));
     mbuilder.build()
@@ -64,7 +64,7 @@ pub fn create_module(num_pages: WasmPage) -> Module {
 // )
 pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     let mut mbuilder = ModuleBuilder::default();
-    mbuilder.push_import(Import::memory("env", "memory", num_pages.into(), None));
+    mbuilder.push_import(Import::memory(num_pages.into(), None));
 
     // alloc
     let alloc_idx = mbuilder.push_type(FuncType::new([ValType::I32], [ValType::I32]));

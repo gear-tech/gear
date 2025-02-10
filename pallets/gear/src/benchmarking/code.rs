@@ -212,12 +212,7 @@ where
 
         // Grant access to linear memory.
         if let Some(memory) = &def.memory {
-            program.push_import(Import::memory(
-                "env",
-                "memory",
-                memory.min_pages.into(),
-                None,
-            ));
+            program.push_import(Import::memory(memory.min_pages.into(), None));
         }
 
         // Import supervisor functions. They start with idx 0.
