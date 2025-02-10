@@ -23,7 +23,6 @@ use crate::Runtime;
 use frame_support::dispatch::GetDispatchInfo;
 use frame_system::limits::WeightsPerClass;
 use gear_core::costs::{IoCosts, LazyPagesCosts, PagesCosts};
-use gear_core_processor::common::JournalNote;
 use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use pallet_staking::WeightInfo as _;
 use sp_runtime::AccountId32;
@@ -384,5 +383,6 @@ fn write_is_not_too_cheap() {
 
 #[test]
 fn test_journal_note_size_does_not_exceed_32mib() {
+    use gear_core_processor::common::JournalNote;
     assert!(JournalNote::max_encoded_len() <= 32 * 1024 * 1024);
 }
