@@ -33,6 +33,10 @@ use wasmparser::{
     MemoryType, NameSectionReader, Payload, RefType, TableType, TypeRef, ValType, WasmFeatures,
 };
 
+pub const GEAR_SUPPORTED_FEATURES: WasmFeatures = WasmFeatures::WASM1
+    .union(WasmFeatures::SIGN_EXTENSION)
+    .difference(WasmFeatures::FLOATS);
+
 // based on `wasmparser::_for_each_operator_group` and
 // it's recommended to read its documentation to understand the logic
 //
@@ -1299,9 +1303,7 @@ impl Module {
         let mut name_section = None;
 
         let mut parser = wasmparser::Parser::new(0);
-        parser.set_features(
-            (WasmFeatures::WASM1 | WasmFeatures::SIGN_EXTENSION) & !WasmFeatures::FLOATS,
-        );
+        parser.set_features(GEAR_SUPPORTED_FEATURES);
         for payload in parser.parse_all(code) {
             match payload? {
                 Payload::Version {

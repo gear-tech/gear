@@ -25,7 +25,7 @@ use crate::{
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use gear_wasm_instrument::{InstrumentationBuilder, Module};
+use gear_wasm_instrument::{InstrumentationBuilder, Module, GEAR_SUPPORTED_FEATURES};
 
 mod errors;
 mod instrumented;
@@ -129,12 +129,9 @@ impl Code {
         GetRulesFn: FnMut(&Module) -> R,
     {
         if config.make_validation {
-            wasmparser::Validator::new_with_features(
-                (wasmparser::WasmFeatures::WASM1 | wasmparser::WasmFeatures::SIGN_EXTENSION)
-                    & !wasmparser::WasmFeatures::FLOATS,
-            )
-            .validate_all(&original_code)
-            .map_err(CodeError::Validation)?;
+            wasmparser::Validator::new_with_features(GEAR_SUPPORTED_FEATURES)
+                .validate_all(&original_code)
+                .map_err(CodeError::Validation)?;
         }
 
         let mut module = Module::new(&original_code)?;
