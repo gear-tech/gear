@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -127,7 +127,7 @@ impl WasmProject {
             .expect("Could not find target directory");
 
         let mut wasm_target_dir = target_dir.clone();
-        wasm_target_dir.push("wasm32-unknown-unknown");
+        wasm_target_dir.push("wasm32-gear");
         wasm_target_dir.push(&profile);
 
         target_dir.push("wasm-projects");
@@ -234,6 +234,7 @@ impl WasmProject {
         cargo_toml.insert("profile".into(), profile.into());
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
+        cargo_toml.insert("patch".into(), crate_info.patch.into());
 
         smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
             .context("Failed to write generated manifest path")?;
@@ -429,7 +430,7 @@ extern "C" fn metahash() {{
     /// Post-processing after the WASM binary has been built.
     ///
     /// - Copy WASM binary from `OUT_DIR` to
-    ///   `target/wasm32-unknown-unknown/<profile>`
+    ///   `target/wasm32-gear/<profile>`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     pub fn postprocess(&self) -> Result<Option<(PathBuf, PathBuf)>> {
@@ -439,7 +440,7 @@ extern "C" fn metahash() {{
             .expect("Run `WasmProject::generate()` first");
 
         let original_wasm_path = self.target_dir.join(format!(
-            "wasm32-unknown-unknown/{}/{file_base_name}.wasm",
+            "wasm32v1-none/{}/{file_base_name}.wasm",
             self.profile
         ));
 

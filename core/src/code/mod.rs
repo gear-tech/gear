@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -443,12 +443,11 @@ mod tests {
     use gear_wasm_instrument::{InstrumentationError, STACK_END_EXPORT_NAME};
 
     fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
-        wabt::Wat2Wasm::new()
-            .validate(validate)
-            .convert(s)
-            .unwrap()
-            .as_ref()
-            .to_vec()
+        let code = wat::parse_str(s).unwrap();
+        if validate {
+            wasmparser::validate(&code).unwrap();
+        }
+        code
     }
 
     fn wat2wasm(s: &str) -> Vec<u8> {

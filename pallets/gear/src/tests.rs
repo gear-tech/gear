@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -115,7 +115,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 800_000_000, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 700_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -15284,7 +15284,7 @@ fn program_with_large_indexes() {
     "#
     );
 
-    let wasm = wabt::wat2wasm(&wat).expect("failed to compile wat to wasm");
+    let wasm = wat::parse_str(&wat).expect("failed to compile wat to wasm");
     assert!(
         code_len_limit as usize - wasm.len() < 140,
         "Failed to reach the max limit of code size."
@@ -15398,7 +15398,7 @@ fn incorrect_store_context() {
         let limit = <Test as Config>::OutgoingBytesLimit::get();
         let dispatch = IncomingDispatch::new(DispatchKind::Handle, message.clone(), None);
         let settings = ContextSettings::with_outgoing_limits(1024, limit + 1);
-        let mut message_context = MessageContext::new(dispatch, pid, settings).unwrap();
+        let mut message_context = MessageContext::new(dispatch, pid, settings);
         let mut counter = 0;
         // Fill until the limit is reached
         while counter < limit + 1 {
@@ -16678,12 +16678,11 @@ pub(crate) mod utils {
                 }
             };
 
-            wabt::Wat2Wasm::new()
-                .validate(validate)
-                .convert(source)
-                .expect("failed to parse module")
-                .as_ref()
-                .to_vec()
+            let code = wat::parse_str(source).expect("failed to parse module");
+            if validate {
+                wasmparser::validate(&code).expect("failed to validate module");
+            }
+            code
         }
     }
 

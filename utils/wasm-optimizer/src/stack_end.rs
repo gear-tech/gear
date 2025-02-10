@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -385,8 +385,13 @@ mod test {
         STACK_END_EXPORT_NAME,
     };
     use pwasm_utils::parity_wasm;
-    use wabt::Wat2Wasm;
     use wasmer::{Imports, Instance, Memory, MemoryType, Module, Store, Value};
+
+    fn wat2wasm(source: &str) -> Vec<u8> {
+        let code = wat::parse_str(source).expect("failed to parse module");
+        wasmparser::validate(&code).expect("failed to validate module");
+        code
+    }
 
     #[test]
     fn assembly_script_stack_pointer() {
@@ -403,11 +408,7 @@ mod test {
             (func $init)
         )"#;
 
-        let binary = Wat2Wasm::new()
-            .validate(true)
-            .write_debug_names(true)
-            .convert(wat)
-            .expect("failed to parse module");
+        let binary = wat2wasm(wat);
 
         let mut module =
             elements::deserialize_buffer(binary.as_ref()).expect("failed to deserialize binary");
@@ -445,11 +446,7 @@ mod test {
             )
         )"#;
 
-        let binary = Wat2Wasm::new()
-            .validate(true)
-            .write_debug_names(true)
-            .convert(wat)
-            .expect("failed to parse module");
+        let binary = wat2wasm(wat);
 
         let check = |binary, expected| {
             let mut store: Store = Store::default();
@@ -497,11 +494,7 @@ mod test {
             )
         )"#;
 
-        let binary = Wat2Wasm::new()
-            .validate(true)
-            .write_debug_names(true)
-            .convert(wat)
-            .expect("failed to parse module");
+        let binary = wat2wasm(wat);
 
         let check = |binary, expected1, expected2| {
             let mut store: Store = Store::default();

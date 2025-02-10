@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::observer::ObserverProvider;
+use crate::Provider;
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
     eips::eip4844::kzg_to_versioned_hash,
-    providers::{Provider, ProviderBuilder},
+    providers::{Provider as _, ProviderBuilder},
     rpc::types::{beacon::sidecar::BeaconBlobBundle, eth::BlockTransactionsKind},
 };
 use anyhow::{anyhow, Result};
@@ -44,7 +44,7 @@ pub trait BlobReader: Send + Sync {
 
 #[derive(Clone)]
 pub struct ConsensusLayerBlobReader {
-    provider: ObserverProvider,
+    provider: Provider,
     http_client: Client,
     ethereum_beacon_rpc: String,
     beacon_block_time: Duration,

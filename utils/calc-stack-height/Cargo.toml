@@ -15,5 +15,5 @@ wasmer.workspace = true
 wasmer-types.workspace = true
 log.workspace = true
 env_logger.workspace = true
-wabt.workspace = true
 anyhow.workspace = true
+wat.workspace = true

@@ -31,7 +31,6 @@ rustc_version.workspace = true
 itertools.workspace = true
 
 [dev-dependencies]
-wabt.workspace = true
 parity-wasm.workspace = true
 
 [features]
