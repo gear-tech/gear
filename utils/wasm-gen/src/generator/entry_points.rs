@@ -27,10 +27,8 @@ use crate::{
     EntryPointsSet, MemoryLayout,
 };
 use arbitrary::{Result, Unstructured};
-use gear_wasm_instrument::parity_wasm::{
-    builder,
-    elements::{FunctionType, Instruction, Instructions, Type, ValueType},
-};
+use gear_wasm_instrument::{Export, Function, Instruction, MemArg, ModuleBuilder};
+use wasmparser::{FuncType, ValType};
 
 /// Gear wasm entry points generator.
 ///
@@ -150,7 +148,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     /// 1. The method is intended to generate just exports, not only gear entry points.
     /// 2. If the generator was used to generate some export with a custom name (not gear entry point)
     ///    and then disabled, that export index can be retrieved from [`DisabledEntryPointsGenerator`], by
-    ///    accessing the underlying `parity_wasm::module::Module` and iterating over it's export section.
+    ///    accessing the underlying `gear_wasm_instrument::Module` and iterating over it's export section.
     pub fn generate_export(&mut self, name: &str) -> Result<GearEntryPointGenerationProof> {
         log::trace!(
             "Random data before generating {name} export - {}",
@@ -165,18 +163,17 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
 
         // Get export body call signature
         let export_body_call_func_type = self.module.with(|module| {
-            let func_type_ref = module
-                .function_section()
+            let &func_type_ref = module
+                .function_section
+                .as_ref()
                 .expect("has at least one function by config")
-                .entries()
                 .get(export_body_call_idx)
-                .expect("call index is received from module")
-                .type_ref();
+                .expect("call index is received from module");
 
-            let Type::Function(func_type) = module
-                .type_section()
+            let func_type = module
+                .type_section
+                .as_ref()
                 .expect("")
-                .types()
                 .get(func_type_ref as usize)
                 .cloned()
                 .expect("func exists, so type does");
@@ -188,22 +185,14 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             self.generate_export_body(name, export_body_call_idx, export_body_call_func_type)?;
 
         self.module.with(|module| {
-            let module = builder::from_module(module)
-                .function()
-                .body()
-                .with_instructions(Instructions::new(export_body_instructions))
-                .build()
-                .signature()
-                .build()
-                .build()
-                .export()
-                .field(name)
-                .internal()
-                .func(export_idx as u32)
-                .build()
-                .build();
+            let mut builder = ModuleBuilder::from_module(module);
+            builder.add_func(
+                FuncType::new([], []),
+                Function::from_instructions(export_body_instructions),
+            );
+            builder.push_export(Export::func(name.to_string(), export_idx as u32));
 
-            (module, ())
+            (builder.build(), ())
         });
 
         log::trace!("Generated export - {name}");
@@ -224,7 +213,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
         &mut self,
         name: &str,
         export_body_call_idx: usize,
-        export_body_call_func_type: FunctionType,
+        export_body_call_func_type: FuncType,
     ) -> Result<Vec<Instruction>> {
         let params = export_body_call_func_type.params();
         let results = export_body_call_func_type.results();
@@ -251,13 +240,13 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             // *handle_flags_ptr = 0
             Instruction::I32Const(handle_flags_ptr),
             Instruction::I32Const(0),
-            Instruction::I32Store(2, 0),
+            Instruction::I32Store(MemArg::i32()),
         ]);
 
         for param in params {
             let instr = match param {
-                ValueType::I32 => Instruction::I32Const(self.unstructured.arbitrary()?),
-                ValueType::I64 => Instruction::I64Const(self.unstructured.arbitrary()?),
+                ValType::I32 => Instruction::I32Const(self.unstructured.arbitrary::<i32>()?),
+                ValType::I64 => Instruction::I64Const(self.unstructured.arbitrary::<i64>()?),
                 _ => panic!("EntryPointsGenerator::get_call_instruction: can't handle f32/f64"),
             };
             res.push(instr);
@@ -271,7 +260,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
                 // *init_called_ptr = true
                 Instruction::I32Const(init_called_ptr),
                 Instruction::I32Const(1),
-                Instruction::I32Store8(0, 0),
+                Instruction::I32Store8(MemArg::zero()),
             ]);
         }
 

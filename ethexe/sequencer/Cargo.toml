@@ -22,7 +22,7 @@ log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 tokio.workspace = true
-indexmap.workspace = true
+indexmap = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 rand.workspace = true
