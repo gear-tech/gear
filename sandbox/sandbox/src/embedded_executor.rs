@@ -36,9 +36,10 @@ use wasmer::{
         VMTableDefinition,
     },
     Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
-    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables, Value as RuntimeValue,
+    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Target, Tunables,
+    Value as RuntimeValue,
 };
-use wasmer_types::{ExternType, Target};
+use wasmer_types::ExternType;
 
 fn cache_base_path() -> PathBuf {
     static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -571,11 +572,10 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
     ) -> Result<ReturnValue, Error> {
         let args = args.iter().cloned().map(to_wasmer).collect::<Vec<_>>();
 
-        let func = self
-            .instance
-            .exports
-            .get_function(name)
-            .map_err(|_| Error::Execution)?;
+        let func = self.instance.exports.get_function(name).map_err(|e| {
+            log::trace!(target: TARGET, "function `{name}` not found: {e}");
+            Error::Execution
+        })?;
 
         let results = func.call(&mut store, &args).map_err(|e| {
             log::trace!(target: TARGET, "invocation error: {e}");
@@ -585,7 +585,10 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         match results.as_ref() {
             [] => Ok(ReturnValue::Unit),
             [val] => {
-                let val = to_interface(val.clone()).ok_or(Error::Execution)?;
+                let val = to_interface(val.clone()).ok_or_else(|| {
+                    log::trace!(target: TARGET, "error converting return value to interface: {val:?}");
+                    Error::Execution
+                })?;
                 Ok(ReturnValue::Value(val))
             }
             _results => {

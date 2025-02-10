@@ -16,24 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::stack_end;
-use anyhow::{anyhow, Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use pwasm_utils::{
-    parity_wasm,
-    parity_wasm::elements::{Internal, Module, Section, Serialize},
-};
 #[cfg(not(feature = "wasm-opt"))]
 use std::process::Command;
+
+#[cfg(feature = "wasm-opt")]
+use wasm_opt::{OptimizationOptions, Pass};
+
+use crate::stack_end;
+use anyhow::{anyhow, Context, Result};
+use gear_wasm_instrument::{Module, STACK_END_EXPORT_NAME};
 use std::{
     fs::{self, metadata},
     path::{Path, PathBuf},
 };
-
-#[cfg(feature = "wasm-opt")]
-use wasm_opt::{OptimizationOptions, Pass};
+use wasmparser::ExternalKind;
 
 pub const FUNC_EXPORTS: [&str; 4] = ["init", "handle", "handle_reply", "handle_signal"];
 
@@ -63,15 +61,14 @@ impl OptType {
 
 pub struct Optimizer {
     module: Module,
-    file: PathBuf,
 }
 
 impl Optimizer {
-    pub fn new(file: PathBuf) -> Result<Self> {
-        let contents = fs::read(&file).context("Failed to read file by optimizer")?;
-        let module = parity_wasm::deserialize_buffer(&contents)
-            .with_context(|| format!("File path: {file:?}"))?;
-        Ok(Self { module, file })
+    pub fn new(file: &PathBuf) -> Result<Self> {
+        let contents = fs::read(file)
+            .with_context(|| format!("Failed to read file by optimizer: {file:?}"))?;
+        let module = Module::new(&contents).with_context(|| format!("File path: {file:?}"))?;
+        Ok(Self { module })
     }
 
     pub fn insert_start_call_in_export_funcs(&mut self) -> Result<(), &'static str> {
@@ -91,51 +88,43 @@ impl Optimizer {
     /// Presently all custom sections are not required so they can be stripped
     /// safely. The name section is already stripped by `wasm-opt`.
     pub fn strip_custom_sections(&mut self) {
+        // we also should strip `reloc` section
+        // if it will be present in the module in the future
+        self.module.custom_section = None;
+        self.module.name_section = None;
+    }
+
+    /// Keeps only allowlisted exports.
+    pub fn strip_exports(&mut self, ty: OptType) {
+        if let Some(export_section) = self.module.export_section.as_mut() {
+            let exports = if ty == OptType::Opt {
+                OPTIMIZED_EXPORTS.map(str::to_string).to_vec()
+            } else {
+                export_section
+                    .iter()
+                    .flat_map(|entry| {
+                        if let ExternalKind::Func = entry.kind {
+                            (!OPTIMIZED_EXPORTS.contains(&&*entry.name))
+                                .then_some(entry.name.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            };
+
+            export_section.retain(|export| exports.contains(&export.name.to_string()));
+        }
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>> {
         self.module
-            .sections_mut()
-            .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
+            .serialize()
+            .context("Failed to serialize module")
     }
 
     pub fn flush_to_file(self, path: &PathBuf) {
-        fs::write(path, self.module.into_bytes().unwrap()).unwrap();
-    }
-
-    /// Process optimization.
-    pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
-        let mut module = self.module.clone();
-
-        let exports = if ty == OptType::Opt {
-            OPTIMIZED_EXPORTS.to_vec()
-        } else {
-            self.module
-                .export_section()
-                .ok_or_else(|| anyhow!("Export section not found"))?
-                .entries()
-                .iter()
-                .flat_map(|entry| {
-                    if let Internal::Function(_) = entry.internal() {
-                        let entry = entry.field();
-                        (!OPTIMIZED_EXPORTS.contains(&entry)).then_some(entry)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        };
-
-        pwasm_utils::optimize(&mut module, exports)
-            .map_err(|e| anyhow!("{e:?}"))
-            .with_context(|| {
-                format!(
-                    "unable to optimize the WASM file `{0}`",
-                    self.file.display()
-                )
-            })?;
-
-        let mut code = vec![];
-        module.serialize(&mut code)?;
-
-        Ok(code)
+        fs::write(path, self.module.serialize().unwrap()).unwrap();
     }
 }
 
@@ -227,6 +216,7 @@ pub fn do_optimization<P: AsRef<Path>>(
         .arg(dest_optimized.as_ref())
         .arg("-mvp")
         .arg("--enable-sign-ext")
+        .arg("--enable-mutable-globals")
         // the memory in our module is imported, `wasm-opt` needs to be told that
         // the memory is initialized to zeroes, otherwise it won't run the
         // memory-packing pre-pass.
@@ -281,6 +271,7 @@ pub fn do_optimization<P: AsRef<Path>>(
     }
     .mvp_features_only()
     .enable_feature(wasm_opt::Feature::SignExt)
+    .enable_feature(wasm_opt::Feature::MutableGlobals)
     .shrink_level(wasm_opt::ShrinkLevel::Level2)
     .add_pass(Pass::Dae)
     .add_pass(Pass::Vacuum)

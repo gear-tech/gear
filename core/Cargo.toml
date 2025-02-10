@@ -24,11 +24,9 @@ parity-scale-codec = { workspace = true, features = [
 scale-info = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 log.workspace = true
-gwasm-instrument = { workspace = true, default-features = false }
 gear-wasm-instrument.workspace = true
 wasmparser.workspace = true
 hex = { workspace = true, features = ["alloc"] }
-hashbrown.workspace = true
 paste.workspace = true
 enum-iterator.workspace = true
 byteorder.workspace = true
@@ -55,5 +53,6 @@ std = [
     "dep:impl-serde",
     "wasmparser/std",
     "gear-core-errors/serde",
+    "gear-wasm-instrument/std",
     "gprimitives/serde",
 ]
