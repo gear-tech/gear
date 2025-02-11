@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -59,7 +59,7 @@ use scale_info::scale::{Decode, Encode};
 /// - [`load_bytes`](super::load_bytes) function returns a payload as a byte
 ///   vector.
 pub fn load<D: Decode>() -> crate::errors::Result<D> {
-    super::with_read_on_stack(
+    super::with_read_on_stack_or_heap(
         |read_result: Result<&mut [u8]>| -> crate::errors::Result<D> {
             let mut buffer = read_result? as &[u8];
             D::decode(&mut buffer).map_err(Error::Decode)

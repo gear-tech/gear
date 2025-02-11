@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -42,7 +42,7 @@ use gear_core::{
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
+use gear_wasm_instrument::{Instruction, SyscallName};
 use rand::{seq::SliceRandom, SeedableRng};
 use rand_pcg::Pcg64;
 use sp_core::Get;

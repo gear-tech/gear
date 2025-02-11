@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,9 +18,8 @@
 
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Event {
     BlockCommitted {
         hash: H256,
@@ -31,8 +30,8 @@ pub enum Event {
     },
     CodeValidationRequested {
         code_id: CodeId,
-        /// This field is replaced with tx hash in case of zero.
-        blob_tx_hash: H256,
+        timestamp: u64,
+        tx_hash: H256,
     },
     ComputationSettingsChanged {
         threshold: u64,
@@ -49,14 +48,16 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn as_request(self) -> Option<RequestEvent> {
+    pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
             Self::CodeValidationRequested {
                 code_id,
-                blob_tx_hash,
+                timestamp,
+                tx_hash,
             } => RequestEvent::CodeValidationRequested {
                 code_id,
-                blob_tx_hash,
+                timestamp,
+                tx_hash,
             },
             Self::ComputationSettingsChanged {
                 threshold,
@@ -77,13 +78,14 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
     CodeValidationRequested {
         code_id: CodeId,
+        timestamp: u64,
         // TODO (breathx): replace with `code: Vec<u8>`
-        /// This field is replaced with tx hash in case of zero.
-        blob_tx_hash: H256,
+        tx_hash: H256,
     },
     ComputationSettingsChanged {
         threshold: u64,

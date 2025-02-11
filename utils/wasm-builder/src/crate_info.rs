@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -34,6 +34,8 @@ pub struct CrateInfo {
     pub features: BTreeMap<String, Vec<String>>,
     /// Crate custom profiles
     pub profiles: BTreeMap<String, toml::Value>,
+    /// Workspace patches
+    pub patch: BTreeMap<String, toml::Value>,
 }
 
 impl CrateInfo {
@@ -63,6 +65,12 @@ impl CrateInfo {
             .map(|(k, v)| Ok((k, toml::Value::try_from(v)?)))
             .collect::<Result<_>>()
             .context("failed to convert profile to `toml::Value`")?;
+        let patch = manifest
+            .patch
+            .into_iter()
+            .map(|(k, v)| Ok((k, toml::Value::try_from(v)?)))
+            .collect::<Result<_>>()
+            .context("failed to convert patch to `toml::Value`")?;
 
         multiple_crate_versions::check(&metadata, &root_package.id)?;
 
@@ -77,6 +85,7 @@ impl CrateInfo {
             version,
             features,
             profiles,
+            patch,
         })
     }
 

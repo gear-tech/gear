@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,10 +18,9 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::Result;
-use gear_wasm_instrument::parity_wasm::elements::Module;
-
 use crate::generate::GLOBAL_NAME_PREFIX;
+use anyhow::Result;
+use gear_wasm_instrument::Module;
 
 pub trait InstanceAccessGlobal {
     fn set_global(&self, name: &str, value: i64) -> Result<()>;
@@ -36,13 +35,13 @@ pub trait InstanceAccessGlobal {
 /// List of generated globals
 pub fn globals_list(module: &Module) -> Vec<String> {
     module
-        .export_section()
+        .export_section
+        .as_ref()
         .map(|section| {
             section
-                .entries()
                 .iter()
                 .filter_map(|entry| {
-                    let export_name = entry.field();
+                    let export_name = &entry.name;
                     if export_name.starts_with(GLOBAL_NAME_PREFIX) {
                         Some(export_name.to_string())
                     } else {
