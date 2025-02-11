@@ -18,10 +18,9 @@
 
 //! ethexe common db types and traits.
 
-use crate::{events::BlockRequestEvent, gear::StateTransition};
+use crate::{events::{BlockEvent, BlockRequestEvent}, gear::StateTransition};
 use alloc::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    vec::Vec,
+    boxed::Box, collections::{BTreeMap, BTreeSet, VecDeque}, vec::Vec
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -125,4 +124,28 @@ pub trait CodesStorage: Send + Sync {
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
+}
+
+pub trait BlocksOnChainData: Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn BlocksOnChainData>;
+
+    fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
+    fn set_block_header(&self, block_hash: H256, header: &BlockHeader);
+
+    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
+    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
+
+    fn original_code_exists(&self, code_id: CodeId) -> bool;
+
+    fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
+    fn set_original_code(&self, code_id: CodeId, code: &[u8]);
+
+    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo>;
+    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo);
+
+    fn block_is_synced(&self, block_hash: H256) -> bool;
+    fn set_block_is_synced(&self, block_hash: H256);
+
+    fn latest_synced_block_height(&self) -> Option<u32>;
+    fn set_latest_synced_block_height(&self, height: u32);
 }

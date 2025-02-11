@@ -106,7 +106,7 @@ impl BlobReader for ConsensusLayerBlobReader {
             Some(attempts) => {
                 let mut count = 0;
                 loop {
-                    log::debug!("trying to get blob, attempt #{}", count + 1);
+                    log::trace!("trying to get blob, attempt #{}", count + 1);
                     let blob_bundle_result = self.read_blob_bundle(slot).await;
                     if blob_bundle_result.is_ok() || count >= attempts {
                         break blob_bundle_result;
@@ -164,7 +164,7 @@ impl BlobReader for MockBlobReader {
             Some(attempts) => {
                 let mut count = 0;
                 loop {
-                    log::debug!("trying to get blob, attempt #{}", count + 1);
+                    log::trace!("trying to get blob, attempt #{}", count + 1);
                     let maybe_blob_data = self.transactions.read().await.get(&tx_hash).cloned();
                     if maybe_blob_data.is_some() || count >= attempts {
                         break maybe_blob_data;

@@ -322,6 +322,9 @@ impl Service {
                     match event? {
                         ObserverEvent::Blob { code_id, timestamp, code } => compute.receive_code(code_id, timestamp, code),
                         ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
+                        ObserverEvent::BlockSynced(block_data) => {
+                            // +_+_+
+                        },
                     }
                 },
                 event = compute.select_next_some() => {

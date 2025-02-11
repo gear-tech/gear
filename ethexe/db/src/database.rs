@@ -23,8 +23,8 @@ use crate::{
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Schedule},
-    events::BlockRequestEvent,
+    db::{BlockHeader, BlockMetaStorage, BlocksOnChainData, CodeInfo, CodesStorage, Schedule},
+    events::{BlockEvent, BlockRequestEvent},
     gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
@@ -58,11 +58,13 @@ enum KeyPrefix {
     CodeValid = 10,
     BlockStartSchedule = 11,
     BlockEndSchedule = 12,
+    BlockIsSynced = 13,
+    LatestSyncedBlockHeight = 14,
 }
 
 impl KeyPrefix {
-    fn prefix(self) -> [u8; 32] {
-        H256::from_low_u64_be(self as u64).0
+    fn prefix(self) -> [u8; 1] {
+        (self as u8).to_le_bytes()
     }
 
     fn one(self, key: impl AsRef<[u8]>) -> Vec<u8> {
@@ -574,6 +576,89 @@ impl Storage for Database {
 
     fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {
         unsafe { HashOf::new(self.cas.write(&data)) }
+    }
+}
+
+impl BlocksOnChainData for Database {
+    fn clone_boxed(&self) -> Box<dyn BlocksOnChainData> {
+        Box::new(self.clone())
+    }
+
+    fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
+        self.kv
+            .get(&KeyPrefix::BlockHeader.one(block_hash))
+            .map(|data| {
+                BlockHeader::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BlockHeader`")
+            })
+    }
+
+    fn set_block_header(&self, block_hash: H256, header: &BlockHeader) {
+        self.kv
+            .put(&KeyPrefix::BlockHeader.one(block_hash), header.encode());
+    }
+
+    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
+        self.kv
+            .get(&KeyPrefix::BlockEvents.two(self.router_address, block_hash))
+            .map(|data| {
+                Vec::<BlockEvent>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<BlockEvent>`")
+            })
+    }
+
+    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
+        self.kv.put(
+            &KeyPrefix::BlockEvents.two(self.router_address, block_hash),
+            events.encode(),
+        );
+    }
+
+    fn original_code_exists(&self, code_id: CodeId) -> bool {
+        CodesStorage::original_code(self, code_id).is_some()
+    }
+
+    fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
+        CodesStorage::original_code(self, code_id)
+    }
+
+    fn set_original_code(&self, code_id: CodeId, code: &[u8]) {
+        let hash = code_id.into();
+        self.cas.write_by_hash(&hash, code);
+    }
+
+    fn block_is_synced(&self, block_hash: H256) -> bool {
+        self.kv
+            .get(&KeyPrefix::BlockIsSynced.one(block_hash))
+            .is_some()
+    }
+
+    fn set_block_is_synced(&self, block_hash: H256) {
+        self.kv
+            .put(&KeyPrefix::BlockIsSynced.one(block_hash), vec![]);
+    }
+
+    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo> {
+        CodesStorage::code_info(self, code_id)
+    }
+
+    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo) {
+        CodesStorage::set_code_info(self, code_id, code_info);
+    }
+
+    fn latest_synced_block_height(&self) -> Option<u32> {
+        self.kv
+            .get(&KeyPrefix::LatestSyncedBlockHeight.one(self.router_address))
+            .map(|data| {
+                u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
+            })
+    }
+
+    fn set_latest_synced_block_height(&self, height: u32) {
+        self.kv.put(
+            &KeyPrefix::LatestSyncedBlockHeight.one(self.router_address),
+            height.encode(),
+        );
     }
 }
 
