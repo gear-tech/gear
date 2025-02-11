@@ -31,7 +31,7 @@ pub struct TryNewCodeConfig {
 
 impl TryNewCodeConfig {
     /// New default config without exports checks.
-    pub fn with_no_exports_check() -> Self {
+    pub fn new_no_exports_check() -> Self {
         Self {
             check_exports: false,
             ..Default::default()

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -53,7 +53,6 @@ use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use runtime_common::constants::BANK_ADDRESS;
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
@@ -114,21 +113,21 @@ pub use frame_support::{
     },
     PalletId, StorageValue,
 };
+pub use gear_runtime_common::{
+    constants::{
+        BANK_ADDRESS, RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR,
+        RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR,
+    },
+    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
+    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
+    VALUE_PER_GAS,
+};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
 pub use pallet_gear_staking_rewards::StakingBlackList;
 #[allow(deprecated)]
 pub use pallet_transaction_payment::{
     CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
-};
-pub use runtime_common::{
-    constants::{
-        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
-        RESUME_SESSION_DURATION_HOUR_FACTOR,
-    },
-    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
-    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
-    VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 
@@ -143,6 +142,7 @@ pub use {
 };
 
 pub mod constants;
+pub mod genesis_config_presets;
 
 pub use constants::{currency::*, time::*};
 
@@ -159,7 +159,7 @@ mod migrations;
 
 // By this we assert if runtime compiled with "dev" feature.
 #[cfg_attr(
-    all(target_arch = "wasm32", target_os = "unknown", feature = "dev"),
+    all(target_arch = "wasm32", feature = "dev"),
     unsafe(link_section = "dev_runtime")
 )]
 static _DEV_RUNTIME: u8 = 0;
@@ -169,8 +169,7 @@ static _DEV_RUNTIME: u8 = 0;
 // into the WASM runtime blob. This is used by the `runtime_wasmBlobVersion` RPC call.
 // The format of the version is `x.y.z-commit_hash`, where the `x.y.z` is the version of this crate,
 // and the `commit_hash` is the hash of the commit from which the WASM blob was built.
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-#[unsafe(link_section = "wasm_blob_version")]
+#[cfg_attr(target_arch = "wasm32", unsafe(link_section = "wasm_blob_version"))]
 static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"))
     .len()] = const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"));
 
@@ -181,7 +180,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
 
-    spec_version: 1700,
+    spec_version: 1710,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -197,7 +196,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 1701,
+    spec_version: 1710,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -229,7 +228,7 @@ const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
     pub const SS58Prefix: u8 = VARA_SS58_PREFIX;
-    pub RuntimeBlockWeights: BlockWeights = runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
+    pub RuntimeBlockWeights: BlockWeights = gear_runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
     pub RuntimeBlockLength: BlockLength =
         BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_LENGTH_RATIO);
 }
@@ -1882,11 +1881,11 @@ impl_runtime_apis_plus_common! {
         }
 
         fn get_preset(id: &Option<sp_genesis_builder::PresetId>) -> Option<Vec<u8>> {
-            get_preset::<RuntimeGenesisConfig>(id, |_| None)
+            get_preset::<RuntimeGenesisConfig>(id, genesis_config_presets::get_preset)
         }
 
         fn preset_names() -> Vec<sp_genesis_builder::PresetId> {
-            vec![]
+            genesis_config_presets::preset_names()
         }
     }
 

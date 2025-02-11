@@ -93,9 +93,7 @@ runtime-benchmarks = [
 ]
 try-runtime = [
     # Gear deps.
-    "common/runtime-benchmarks",
-    "pallet-gear-builtin/runtime-benchmarks",
-    "pallet-staking/runtime-benchmarks",
+    "pallet-gear-builtin/try-runtime",
 
     # Substrate deps.
     "frame-support/try-runtime",

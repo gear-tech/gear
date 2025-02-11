@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -141,8 +141,9 @@ pub use pallet::*;
 #[cfg(test)]
 mod mock;
 
-pub mod migrations;
 pub mod pallet_tests;
+
+pub mod migrations;
 
 #[frame_support::pallet]
 pub mod pallet {

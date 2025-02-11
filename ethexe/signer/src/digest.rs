@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,9 @@
 //! Keccak256 digest type. Implements AsDigest hashing for ethexe common types.
 
 use core::fmt;
-use ethexe_common::gear::{BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim};
+use ethexe_common::gear::{
+    BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -110,7 +112,16 @@ impl ToDigest for [u8] {
 
 impl ToDigest for CodeCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.encode().as_slice());
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            id,
+            timestamp,
+            valid,
+        } = self;
+
+        hasher.update(id.into_bytes().as_slice());
+        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
+        hasher.update([*valid as u8]);
     }
 }
 
@@ -191,6 +202,19 @@ impl ToDigest for BlockCommitment {
     }
 }
 
+impl ToDigest for BatchCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            code_commitments,
+            block_commitments,
+        } = self;
+
+        hasher.update(code_commitments.to_digest().as_ref());
+        hasher.update(block_commitments.to_digest().as_ref());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,6 +225,7 @@ mod tests {
     fn as_digest() {
         let _digest = CodeCommitment {
             id: CodeId::from(0),
+            timestamp: 0,
             valid: true,
         }
         .to_digest();

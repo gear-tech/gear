@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -65,7 +65,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gear_wasm_instrument::{Instruction, Module, STACK_END_EXPORT_NAME};
 use gstd::{
     collections::BTreeMap,
     errors::{CoreError, Error as GstdError},
@@ -114,7 +114,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 800_000_000, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 700_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -232,7 +232,6 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
         )
         .expect("Failed to create dummy code");
 
@@ -5051,7 +5050,6 @@ fn test_code_submission_pass() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
         )
         .expect("Error creating Code");
         assert_eq!(
@@ -6976,7 +6974,6 @@ fn test_create_program_works() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
         )
         .expect("Code failed to load");
 
@@ -7936,11 +7933,6 @@ fn gas_spent_vs_balance() {
 
 #[test]
 fn gas_spent_precalculated() {
-    use gear_wasm_instrument::parity_wasm::{
-        self,
-        elements::{Instruction, Module},
-    };
-
     // After instrumentation will be:
     // (export "handle" (func $handle_export))
     // (func $add
@@ -8048,33 +8040,32 @@ fn gas_spent_precalculated() {
         };
 
         let instrumented_code = get_program_code(pid);
-        let module = parity_wasm::deserialize_buffer::<Module>(instrumented_code.bytes())
-            .expect("invalid wasm bytes");
+        let module = Module::new(instrumented_code.bytes()).expect("invalid wasm bytes");
 
         let (handle_export_func_body, gas_charge_func_body) = module
-            .code_section()
-            .and_then(|section| match section.bodies() {
+            .code_section
+            .as_ref()
+            .and_then(|section| match &section[..] {
                 [.., handle_export, gas_charge] => Some((handle_export, gas_charge)),
                 _ => None,
             })
             .expect("failed to locate `handle_export()` and `gas_charge()` functions");
 
         let gas_charge_call_cost = gas_charge_func_body
-            .code()
-            .elements()
+            .instructions
             .iter()
             .find_map(|instruction| match instruction {
-                Instruction::I64Const(cost) => Some(*cost as u64),
+                Instruction::I64Const(value) => Some(*value as u64),
                 _ => None,
             })
             .expect("failed to get cost of `gas_charge()` function");
 
-        let handle_export_instructions = handle_export_func_body.code().elements();
+        let handle_export_instructions = &handle_export_func_body.instructions;
         assert!(matches!(
-            handle_export_instructions,
+            handle_export_instructions[..],
             [
-                Instruction::I32Const(_), //stack check limit cost
-                Instruction::Call(_),     //call to `gas_charge()`
+                Instruction::I32Const { .. }, //stack check limit cost
+                Instruction::Call { .. },     //call to `gas_charge()`
                 ..
             ]
         ));
@@ -8088,7 +8079,7 @@ fn gas_spent_precalculated() {
         let stack_check_limit_cost = handle_export_instructions
             .iter()
             .find_map(|instruction| match instruction {
-                Instruction::I32Const(cost) => Some(*cost as u64),
+                Instruction::I32Const(value) => Some(*value as u64),
                 _ => None,
             })
             .expect("failed to get stack check limit cost")
@@ -10533,7 +10524,6 @@ fn test_mad_big_prog_instrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
-            schedule.limits.table_number.into(),
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -13525,7 +13515,6 @@ fn wrong_entry_type() {
                 |_| CustomConstantCostRules::default(),
                 None,
                 None,
-                None,
             ),
             Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
         ));
@@ -14553,7 +14542,7 @@ fn remove_from_waitlist_after_exit_reply() {
     })
 }
 
-// currently `parity_wasm` doesn't support WASM reference types
+// currently we don't support WASM reference types
 #[test]
 fn wasm_ref_types_doesnt_work() {
     const WAT: &str = r#"
@@ -15272,7 +15261,7 @@ fn program_with_large_indexes() {
     "#
     );
 
-    let wasm = wabt::wat2wasm(&wat).expect("failed to compile wat to wasm");
+    let wasm = wat::parse_str(&wat).expect("failed to compile wat to wasm");
     assert!(
         code_len_limit as usize - wasm.len() < 140,
         "Failed to reach the max limit of code size."
@@ -15386,7 +15375,7 @@ fn incorrect_store_context() {
         let limit = <Test as Config>::OutgoingBytesLimit::get();
         let dispatch = IncomingDispatch::new(DispatchKind::Handle, message.clone(), None);
         let settings = ContextSettings::with_outgoing_limits(1024, limit + 1);
-        let mut message_context = MessageContext::new(dispatch, pid, settings).unwrap();
+        let mut message_context = MessageContext::new(dispatch, pid, settings);
         let mut counter = 0;
         // Fill until the limit is reached
         while counter < limit + 1 {
@@ -16670,12 +16659,11 @@ pub(crate) mod utils {
                 }
             };
 
-            wabt::Wat2Wasm::new()
-                .validate(validate)
-                .convert(source)
-                .expect("failed to parse module")
-                .as_ref()
-                .to_vec()
+            let code = wat::parse_str(source).expect("failed to parse module");
+            if validate {
+                wasmparser::validate(&code).expect("failed to validate module");
+            }
+            code
         }
     }
 

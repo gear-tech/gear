@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -28,7 +28,6 @@ use gear_lazy_pages_common::{GlobalsAccessError, Status};
 use numerated::tree::IntervalsTree;
 use std::{fmt, num::NonZero};
 
-// TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
     #[display(fmt = "Accessed memory interval is out of wasm memory")]
@@ -234,12 +233,10 @@ impl LazyPagesExecutionContext {
 
     pub fn set_write_accessed(&mut self, page: GearPage) -> Result<(), Error> {
         self.set_accessed(page);
-        // TODO: consider to optimize `contains + insert` after #3879
-        if self.write_accessed_pages.contains(page) {
-            return Err(Error::DoubleWriteAccess(page));
+        match self.write_accessed_pages.insert(page) {
+            true => Ok(()),
+            false => Err(Error::DoubleWriteAccess(page)),
         }
-        self.write_accessed_pages.insert(page);
-        Ok(())
     }
 
     pub fn cost(&self, no: CostNo) -> u64 {

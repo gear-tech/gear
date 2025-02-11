@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use ark_ff::biginteger::BigInt;
 use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{ops::Mul, UniformRand};
 use common::Origin;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::benchmarks;
 use gear_core::message::MAX_PAYLOAD_SIZE;
 use parity_scale_codec::{Compact, Encode, Input};
 
@@ -288,10 +288,10 @@ benchmarks! {
     } verify {
         assert!(ArkScale::<G2Affine>::decode(&mut &_result.unwrap()[..]).is_ok())
     }
-}
 
-impl_benchmark_test_suite!(
-    BuiltinActorPallet,
-    crate::mock::new_test_ext(),
-    crate::mock::Test,
-);
+    impl_benchmark_test_suite!(
+        BuiltinActorPallet,
+        crate::mock::new_test_ext(),
+        crate::mock::Test,
+    );
+}

@@ -1,0 +1,14 @@
+[package]
+name = "ethexe-service-utils"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+log.workspace = true
+futures.workspace = true
+tokio = { workspace = true, features = ["time"] }

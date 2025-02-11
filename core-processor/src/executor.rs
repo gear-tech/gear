@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -90,14 +90,7 @@ where
     .map_err(SystemExecutionError::from)?;
 
     // Creating message context.
-    let Some(message_context) = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings)
-    else {
-        return Err(ActorExecutionError {
-            gas_amount: gas_counter.to_amount(),
-            reason: ActorExecutionErrorReplyReason::UnsupportedMessage,
-        }
-        .into());
-    };
+    let message_context = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings);
 
     // Creating value counter.
     //
@@ -306,8 +299,7 @@ where
         ),
         program.id,
         Default::default(),
-    )
-    .ok_or("Incorrect message store context: out of outgoing bytes limit")?;
+    );
 
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),

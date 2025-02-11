@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,25 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::slice;
-
-use anyhow::{anyhow, bail, Context};
-
-use gear_wasm_gen::SyscallName;
-use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
-use region::{Allocation, Protection};
-use wasmi::{
-    core::UntypedVal, Caller, Config, Engine, Error, Instance, Linker, Memory, MemoryType,
-    Module as WasmiModule, StackLimits, Store, Val,
-};
-
 use crate::{
     globals::{get_globals, globals_list, InstanceAccessGlobal},
     lazy_pages::{self, FuzzerLazyPagesContext},
     RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
-
+use anyhow::{anyhow, bail, Context};
 use error::CustomHostError;
+use gear_wasm_gen::SyscallName;
+use gear_wasm_instrument::{Module, GLOBAL_NAME_GAS};
+use region::{Allocation, Protection};
+use std::slice;
+use wasmi::{
+    core::UntypedVal, Caller, Config, Engine, Error, Instance, Linker, Memory, MemoryType,
+    Module as WasmiModule, StackLimits, Store, Val,
+};
+
 mod error;
 
 #[derive(Clone)]
@@ -115,11 +112,9 @@ impl Runner for WasmiRunner {
     fn run(module: &Module) -> anyhow::Result<RunResult> {
         let engine = Engine::new(&config());
 
-        let wasmi_module = WasmiModule::new(
-            &engine,
-            &module.clone().into_bytes().map_err(anyhow::Error::msg)?,
-        )
-        .context("failed to load wasm")?;
+        let wasmi_module =
+            WasmiModule::new(&engine, &module.serialize().map_err(anyhow::Error::msg)?)
+                .context("failed to load wasm")?;
 
         let mut store = Store::new(&engine, ());
 
