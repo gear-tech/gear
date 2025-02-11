@@ -29,6 +29,11 @@ pub mod gear;
 pub use gear_core;
 pub use gprimitives;
 
+use alloc::vec::Vec;
+use db::BlockHeader;
+use events::BlockEvent;
+use gprimitives::H256;
+
 pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     let [_, _, b1, b2, b3, b4, b5, b6] = val.to_be_bytes();
 
@@ -38,9 +43,9 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
 // TODO: move to submodule.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockData {
-    pub hash: gprimitives::H256,
-    pub header: db::BlockHeader,
-    pub events: alloc::vec::Vec<events::BlockEvent>,
+    pub hash: H256,
+    pub header: BlockHeader,
+    pub events: Vec<BlockEvent>,
 }
 
 impl BlockData {
@@ -54,6 +59,6 @@ impl BlockData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimpleBlockData {
-    pub hash: gprimitives::H256,
-    pub header: db::BlockHeader,
+    pub hash: H256,
+    pub header: BlockHeader,
 }

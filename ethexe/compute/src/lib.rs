@@ -67,27 +67,24 @@ impl Stream for ComputeService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(Poll::Ready(res)) = self.process_block.as_mut().map(|f| f.poll_unpin(cx)) {
-            if let Some(block) = self.blocks_queue.pop_front() {
-                let context = ChainHeadProcessContext {
+            self.process_block = self.blocks_queue.pop_front().map(|block| {
+                ChainHeadProcessContext {
                     db: self.db.clone(),
                     processor: self.processor.clone(),
                     query: self.query.clone(),
-                };
-
-                self.process_block = Some(Box::pin(context.process(block)));
-            } else {
-                self.process_block = None;
-            }
+                }
+                .process(block)
+                .boxed()
+            });
 
             return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
         }
 
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
-            let res = match res {
-                Ok(res) => res.map(ComputeEvent::CodeProcessed),
-                Err(err) => Err(err.into()),
-            };
-            return Poll::Ready(Some(res));
+            return Poll::Ready(Some(
+                res.map_err(Into::into)
+                    .and_then(|res| res.map(ComputeEvent::CodeProcessed)),
+            ));
         }
 
         Poll::Pending
