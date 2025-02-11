@@ -306,14 +306,14 @@ async fn uninitialized_program() {
             .unwrap();
         let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
         assert_eq!(res.reply_code, expected_err);
-        // Checking further initialisation.
+        // Checking further initialization.
 
         // Required replies.
         for mid in msgs_for_reply {
             mirror.send_reply(mid, [], 0).await.unwrap();
         }
 
-        // Success end of initialisation.
+        // Success end of initialization.
         let reply_code = listener
             .apply_until_block_event(|event| match event {
                 BlockEvent::Mirror {
@@ -966,8 +966,9 @@ async fn multiple_validators() {
 mod utils {
     use super::*;
     use ethexe_common::SimpleBlockData;
+    use ethexe_db::BlocksOnChainData;
     use ethexe_network::export::Multiaddr;
-    use ethexe_observer::{ObserverEvent, ObserverService};
+    use ethexe_observer::{ObserverEvent, ObserverService, ObserverServiceConfig};
     use ethexe_sequencer::{SequencerConfig, SequencerService};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
@@ -1000,6 +1001,7 @@ mod utils {
 
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+        db: Database,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
     }
@@ -1085,15 +1087,20 @@ mod utils {
 
             let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
+            let db = Database::from_one(&MemDb::default(), router_address.0);
+
             let eth_cfg = EthereumConfig {
                 rpc: rpc_url.clone(),
                 beacon_rpc: Default::default(),
                 router_address,
                 block_time: config.block_time,
             };
-            let observer = ObserverService::new_with_blobs(&eth_cfg, blob_reader.clone())
-                .await
-                .unwrap();
+            let observer_config = ObserverServiceConfig {
+                ethereum: eth_cfg,
+                db: BlocksOnChainData::clone_boxed(&db),
+                blobs_reader: Some(blob_reader.clone()),
+            };
+            let observer = ObserverService::new(observer_config).await?;
 
             let (broadcaster, _events_stream) = {
                 let mut observer = observer.clone();
@@ -1150,6 +1157,7 @@ mod utils {
                 block_time,
                 continuous_block_generation,
                 broadcaster,
+                db,
                 _anvil: anvil,
                 _events_stream,
             })
@@ -1300,6 +1308,7 @@ mod utils {
         pub fn events_publisher(&self) -> EventsPublisher {
             EventsPublisher {
                 broadcaster: self.broadcaster.clone(),
+                db: self.db.clone(),
             }
         }
 
@@ -1427,24 +1436,28 @@ mod utils {
 
     pub struct EventsPublisher {
         broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+        db: Database,
     }
 
     impl EventsPublisher {
         pub async fn subscribe(&self) -> EventsListener {
             EventsListener {
                 receiver: self.broadcaster.lock().await.subscribe(),
+                db: self.db.clone(),
             }
         }
     }
 
     pub struct EventsListener {
         receiver: broadcast::Receiver<ObserverEvent>,
+        db: Database,
     }
 
     impl Clone for EventsListener {
         fn clone(&self) -> Self {
             Self {
                 receiver: self.receiver.resubscribe(),
+                db: self.db.clone(),
             }
         }
     }
@@ -1480,13 +1493,21 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let ObserverEvent::Block(block) = event else {
+                let ObserverEvent::BlockSynced(block) = event else {
                     continue;
                 };
 
-                let block_data = block.to_simple();
+                let header = BlocksOnChainData::block_header(&self.db, block)
+                    .expect("Block header not found");
+                let events = BlocksOnChainData::block_events(&self.db, block)
+                    .expect("Block events not found");
 
-                for event in block.events {
+                let block_data = SimpleBlockData {
+                    hash: block,
+                    header,
+                };
+
+                for event in events {
                     if let Some(res) = f(event, &block_data)? {
                         return Ok(res);
                     }

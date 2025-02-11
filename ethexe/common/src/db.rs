@@ -18,9 +18,14 @@
 
 //! ethexe common db types and traits.
 
-use crate::{events::{BlockEvent, BlockRequestEvent}, gear::StateTransition};
+use crate::{
+    events::{BlockEvent, BlockRequestEvent},
+    gear::StateTransition,
+};
 use alloc::{
-    boxed::Box, collections::{BTreeMap, BTreeSet, VecDeque}, vec::Vec
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    vec::Vec,
 };
 use gear_core::{
     code::InstrumentedCode,

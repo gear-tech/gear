@@ -18,13 +18,16 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
-use anyhow::{bail, Context, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use anyhow::{anyhow, bail, Context, Result};
+use ethexe_common::{
+    gear::{BlockCommitment, CodeCommitment},
+    BlockData,
+};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
-use ethexe_db::Database;
+use ethexe_db::{BlocksOnChainData, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
+use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService, ObserverServiceConfig};
 use ethexe_processor::ProcessorConfig;
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
@@ -100,7 +103,12 @@ impl Service {
             .with_context(|| "failed to open database")?;
         let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
 
-        let observer = ObserverService::new(&config.ethereum)
+        let observer_config = ObserverServiceConfig {
+            ethereum: config.ethereum.clone(),
+            db: BlocksOnChainData::clone_boxed(&db),
+            blobs_reader: None,
+        };
+        let observer = ObserverService::new(observer_config)
             .await
             .context("failed to create observer service")?;
 
@@ -321,9 +329,14 @@ impl Service {
                 event = observer.select_next_some() => {
                     match event? {
                         ObserverEvent::Blob { code_id, timestamp, code } => compute.receive_code(code_id, timestamp, code),
-                        ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
-                        ObserverEvent::BlockSynced(block_data) => {
-                            // +_+_+
+                        ObserverEvent::Block(block_data) => {
+                            log::debug!("Received a new block from observer: {block_data:?}");
+                        },
+                        ObserverEvent::BlockSynced(block_hash) => {
+                            let header = db.block_header(block_hash).ok_or_else(|| anyhow!("block header not found in db"))?;
+                            let events = db.block_events(block_hash).ok_or_else(|| anyhow!("block events not found in db"))?;
+                            let block_data = BlockData { hash: block_hash, header, events };
+                            compute.receive_chain_head(block_data);
                         },
                     }
                 },
