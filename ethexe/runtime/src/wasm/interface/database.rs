@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::wasm::interface;
-use core::{mem, slice};
+use core::slice;
+use ethexe_runtime_common::unpack_i64_to_u32;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 
@@ -43,7 +44,7 @@ pub fn read_raw(hash: &H256) -> Option<&[u8]> {
         let ptr_len = sys::ext_database_read_by_hash_version_1(hash.as_ptr() as _);
 
         (ptr_len != 0).then(|| {
-            let [ptr, len]: [i32; 2] = mem::transmute(ptr_len);
+            let (ptr, len) = unpack_i64_to_u32(ptr_len);
             slice::from_raw_parts(ptr as _, len as usize)
         })
     }

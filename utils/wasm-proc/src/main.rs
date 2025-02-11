@@ -18,10 +18,10 @@
 
 use clap::Parser;
 use gear_wasm_builder::{
-    code_validator::CodeValidator,
+    code_validator::validate_program,
     optimize::{self, OptType, Optimizer},
 };
-use parity_wasm::elements::External;
+use gear_wasm_instrument::{Module, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
 
 const RT_ALLOWED_IMPORTS: [&str; 76] = [
@@ -147,10 +147,16 @@ struct Args {
 }
 
 fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), String> {
-    let module = parity_wasm::deserialize_file(path_to_wasm)
-        .map_err(|e| format!("Deserialization error: {e}"))?;
+    let wasm = fs::read(path_to_wasm).map_err(|e| format!("Read error: {e}"))?;
+    let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
 
-    let is_dev = module.custom_sections().any(|v| v.name() == "dev_runtime");
+    let is_dev = module
+        .custom_section
+        .as_ref()
+        .iter()
+        .copied()
+        .flatten()
+        .any(|v| v.0 == "dev_runtime");
 
     match (expected_to_be_dev, is_dev) {
         (true, false) => Err(String::from("Runtime expected to be DEV, but it's NOT DEV")),
@@ -160,19 +166,18 @@ fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), S
 }
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
-    let module = parity_wasm::deserialize_file(path_to_wasm)
-        .map_err(|e| format!("Deserialization error: {e}"))?;
+    let wasm = fs::read(path_to_wasm).map_err(|e| format!("Read error: {e}"))?;
+    let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
     let imports = module
-        .import_section()
-        .ok_or("Import section not found")?
-        .entries();
+        .import_section
+        .as_ref()
+        .ok_or("Import section not found")?;
 
     let mut unexpected_imports = vec![];
 
     for import in imports {
-        if matches!(import.external(), External::Function(_) if !allowed_imports.contains(import.field()))
-        {
-            unexpected_imports.push(import.field().to_string());
+        if matches!(import.ty, TypeRef::Func(_) if !allowed_imports.contains(&*import.name)) {
+            unexpected_imports.push(import.name.clone());
         }
     }
 
@@ -234,24 +239,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let original_wasm_path = PathBuf::from(file);
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
+        let mut optimizer = Optimizer::new(&original_wasm_path)?;
 
         // Make pre-handle if input wasm has been built from as-script
-        let wasm_path = if assembly_script {
-            let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
+        if assembly_script {
             optimizer
                 .insert_start_call_in_export_funcs()
                 .expect("Failed to insert call _start in func exports");
             optimizer
                 .move_mut_globals_to_static()
                 .expect("Failed to move mutable globals to static");
-            optimizer.flush_to_file(&optimized_wasm_path);
-            optimized_wasm_path.clone()
-        } else {
-            original_wasm_path.clone()
-        };
+        }
+
+        optimizer.strip_exports(OptType::Opt);
+        optimizer.flush_to_file(&optimized_wasm_path);
 
         // Make generic size optimizations by wasm-opt
-        let res = optimize::optimize_wasm(wasm_path, optimized_wasm_path.clone(), "s", true)?;
+        let res = optimize::optimize_wasm(&optimized_wasm_path, &optimized_wasm_path, "s", true)?;
         log::debug!(
             "wasm-opt has changed wasm size: {} Kb -> {} Kb",
             res.original_size,
@@ -259,7 +263,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         // Insert stack hint for optimized performance on-chain
-        let mut optimizer = Optimizer::new(optimized_wasm_path.clone())?;
+        let mut optimizer = Optimizer::new(&optimized_wasm_path)?;
         if insert_stack_end {
             optimizer.insert_stack_end_export().unwrap_or_else(|err| {
                 log::debug!("Failed to insert stack end: {}", err);
@@ -271,13 +275,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimizer.strip_custom_sections();
         }
 
-        log::debug!(
-            "*** Processing chain optimization: {}",
-            optimized_wasm_path.display()
-        );
-        let code = optimizer.optimize(OptType::Opt)?;
         log::info!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
+        let code = optimizer.serialize()?;
         fs::write(&optimized_wasm_path, &code)?;
 
         log::debug!(
@@ -285,7 +285,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimized_wasm_path.display()
         );
 
-        CodeValidator::try_from(code)?.validate_program()?;
+        validate_program(code)?;
     }
 
     Ok(())

@@ -27,10 +27,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::gas_metering::CustomConstantCostRules;
-use gwasm_instrument::{
-    gas_metering::Rules,
-    parity_wasm::elements::{Instruction, Module},
-};
+use gear_wasm_instrument::{BlockType, Instruction, MemArg, Module, Rules};
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     Slot, BABE_ENGINE_ID,
@@ -792,10 +789,11 @@ fn process_costs_are_same() {
 }
 
 fn all_measured_instructions() -> Vec<Instruction> {
-    use gwasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction::*};
-    let default_table_data = BrTableData {
-        table: Default::default(),
+    use Instruction::*;
+
+    let default_table_data = gear_wasm_instrument::BrTable {
         default: 0,
+        targets: vec![],
     };
 
     // A set of instructions weights for which the Gear provides.
@@ -807,42 +805,42 @@ fn all_measured_instructions() -> Vec<Instruction> {
         Else,
         I32Const(0),
         I64Const(0),
-        Block(BlockType::NoResult),
-        Loop(BlockType::NoResult),
+        Block(BlockType::Empty),
+        Loop(BlockType::Empty),
         Nop,
         Drop,
-        I32Load(0, 0),
-        I32Load8S(0, 0),
-        I32Load8U(0, 0),
-        I32Load16S(0, 0),
-        I32Load16U(0, 0),
-        I64Load(0, 0),
-        I64Load8S(0, 0),
-        I64Load8U(0, 0),
-        I64Load16S(0, 0),
-        I64Load16U(0, 0),
-        I64Load32S(0, 0),
-        I64Load32U(0, 0),
-        I32Store(0, 0),
-        I32Store8(0, 0),
-        I32Store16(0, 0),
-        I64Store(0, 0),
-        I64Store8(0, 0),
-        I64Store16(0, 0),
-        I64Store32(0, 0),
+        I32Load(MemArg::zero()),
+        I32Load8S(MemArg::zero()),
+        I32Load8U(MemArg::zero()),
+        I32Load16S(MemArg::zero()),
+        I32Load16U(MemArg::zero()),
+        I64Load(MemArg::zero()),
+        I64Load8S(MemArg::zero()),
+        I64Load8U(MemArg::zero()),
+        I64Load16S(MemArg::zero()),
+        I64Load16U(MemArg::zero()),
+        I64Load32S(MemArg::zero()),
+        I64Load32U(MemArg::zero()),
+        I32Store(MemArg::zero()),
+        I32Store8(MemArg::zero()),
+        I32Store16(MemArg::zero()),
+        I64Store(MemArg::zero()),
+        I64Store8(MemArg::zero()),
+        I64Store16(MemArg::zero()),
+        I64Store32(MemArg::zero()),
         Select,
-        If(BlockType::NoResult),
+        If(BlockType::Empty),
         Br(0),
         BrIf(0),
         Call(0),
-        GetLocal(0),
-        SetLocal(0),
-        TeeLocal(0),
-        GetGlobal(0),
-        SetGlobal(0),
-        CurrentMemory(0),
-        CallIndirect(0, 0),
-        BrTable(default_table_data.into()),
+        LocalGet(0),
+        LocalSet(0),
+        LocalTee(0),
+        GlobalGet(0),
+        GlobalSet(0),
+        MemorySize(0),
+        CallIndirect(0),
+        BrTable(default_table_data),
         I32Clz,
         I64Clz,
         I32Ctz,
@@ -851,8 +849,8 @@ fn all_measured_instructions() -> Vec<Instruction> {
         I64Popcnt,
         I32Eqz,
         I64Eqz,
-        I64ExtendSI32,
-        I64ExtendUI32,
+        I64ExtendI32S,
+        I64ExtendI32U,
         I32WrapI64,
         I32Eq,
         I64Eq,
@@ -916,13 +914,8 @@ fn default_wasm_module() -> Module {
         (func $handle)
         (func $init)
     )"#;
-    Module::from_bytes(
-        wabt::Wat2Wasm::new()
-            .validate(false)
-            .convert(simple_wat)
-            .expect("failed to parse module"),
-    )
-    .expect("module instantiation failed")
+    Module::new(&wat::parse_str(simple_wat).expect("failed to parse module"))
+        .expect("module instantiation failed")
 }
 
 // This test must never fail during local development/release.

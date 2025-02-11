@@ -25,7 +25,6 @@ use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use std::collections::{BTreeMap, BTreeSet};
 use utils::*;
-use wabt::wat2wasm;
 
 fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
     let chain_head = H256::random();
@@ -625,7 +624,7 @@ mod utils {
     }
 
     pub fn wat_to_wasm(wat: &str) -> (CodeId, Vec<u8>) {
-        let code = wat2wasm(wat).expect("failed to parse wat to bin");
+        let code = wat::parse_str(wat).expect("failed to parse wat to bin");
         let code_id = CodeId::generate(&code);
 
         (code_id, code)

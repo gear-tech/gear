@@ -20,16 +20,6 @@ use crate::{Error, Result};
 pub use gear_utils::now_micros;
 use gsdk::ext::sp_runtime::AccountId32;
 use std::{fs, path::Path};
-use wabt::Wat2Wasm;
-
-/// Compile a source WebAssembly Text (WAT) to Wasm binary code.
-pub fn wat2wasm(wat: impl AsRef<str>) -> Vec<u8> {
-    Wat2Wasm::new()
-        .convert(wat.as_ref())
-        .expect("Failed to parse WAT")
-        .as_ref()
-        .to_vec()
-}
 
 /// Return the full path to the optimized Wasm binary file with the `demo_name`
 /// name located in the `root_path` directory.
@@ -38,14 +28,11 @@ pub fn wat2wasm(wat: impl AsRef<str>) -> Vec<u8> {
 ///
 /// ```
 /// let wasm_path = gclient::wasm_target(".", "demo_ping");
-/// assert_eq!(
-///     wasm_path,
-///     "./target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
-/// );
+/// assert_eq!(wasm_path, "./target/wasm32-gear/release/demo_ping.opt.wasm");
 /// ```
 pub fn wasm_target(root_path: impl AsRef<str>, demo_name: impl AsRef<str>) -> String {
     format!(
-        "{}/target/wasm32-unknown-unknown/release/{}.opt.wasm",
+        "{}/target/wasm32-gear/release/{}.opt.wasm",
         root_path.as_ref(),
         demo_name.as_ref()
     )

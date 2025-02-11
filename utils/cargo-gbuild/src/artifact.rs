@@ -151,16 +151,19 @@ impl Artifact {
         let (input, output) = self.names();
         let output = root.join(output);
 
-        optimize::optimize_wasm(src.join(input), output.clone(), "4", true)?;
-        let mut optimizer = Optimizer::new(output.clone())?;
+        let mut optimizer = Optimizer::new(&src.join(input))?;
         if !self.opt.is_meta() {
             optimizer
                 .insert_stack_end_export()
                 .map_err(|e| anyhow!("{e}"));
             optimizer.strip_custom_sections();
+            optimizer.strip_exports(OptType::Opt);
         }
+        optimizer.flush_to_file(&output);
 
-        fs::write(output, optimizer.optimize(self.opt)?).map_err(Into::into)
+        optimize::optimize_wasm(&output, &output, "4", true)?;
+
+        Ok(())
     }
 }
 

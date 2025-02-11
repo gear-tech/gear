@@ -16,19 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{bail, Context, Result};
-
-use gear_wasm_gen::SyscallName;
-use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
-use wasmer::{
-    Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
-    Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,
-};
-
 use crate::{
     globals::{get_globals, globals_list, InstanceAccessGlobal},
     lazy_pages::{self, FuzzerLazyPagesContext},
     RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
+};
+use anyhow::{bail, Context, Result};
+use gear_wasm_gen::SyscallName;
+use gear_wasm_instrument::{Module, GLOBAL_NAME_GAS};
+use wasmer::{
+    Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
+    Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,
 };
 
 #[derive(Clone)]
@@ -67,10 +65,8 @@ impl Runner for WasmerRunner {
         let compiler = Singlepass::default();
         let mut store = Store::new(compiler);
 
-        let wasmer_module = WasmerModule::new(
-            &store,
-            module.clone().into_bytes().map_err(anyhow::Error::msg)?,
-        )?;
+        let wasmer_module =
+            WasmerModule::new(&store, module.serialize().map_err(anyhow::Error::msg)?)?;
 
         let ty = MemoryType::new(INITIAL_PAGES, None, false);
         let m = Memory::new(&mut store, ty).context("memory allocated")?;
