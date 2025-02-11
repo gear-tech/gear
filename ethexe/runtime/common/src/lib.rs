@@ -34,8 +34,9 @@ use gear_core::{
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::CodeId;
+use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
+use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
@@ -60,6 +61,7 @@ pub trait RuntimeInterface<S: Storage> {
     fn init_lazy_pages(&self);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn storage(&self) -> &S;
+    fn update_state_hash(&self, state_hash: &H256);
 }
 
 pub struct TransitionController<'a, S: Storage> {
@@ -93,10 +95,12 @@ impl<S: Storage> TransitionController<'_, S> {
     }
 }
 
-pub fn process_next_message<S, RI>(
+fn process_dispatch<S, RI>(
+    dispatch: Dispatch,
+    block_config: &BlockConfig,
     program_id: ProgramId,
-    program_state: ProgramState,
-    instrumented_code: Option<InstrumentedCode>,
+    program_state: &mut ProgramState,
+    instrumented_code: &Option<InstrumentedCode>,
     code_id: CodeId,
     ri: &RI,
 ) -> Vec<JournalNote>
@@ -105,19 +109,145 @@ where
     RI: RuntimeInterface<S>,
     <RI as RuntimeInterface<S>>::LazyPages: Send,
 {
+    log::trace!("Processing next message for program {program_id}");
+
+    let Dispatch {
+        id: dispatch_id,
+        kind,
+        source,
+        payload,
+        value,
+        details,
+        context,
+    } = dispatch;
+
+    let payload = payload.query(ri.storage()).expect("failed to get payload");
+
+    let gas_limit = block_config
+        .gas_multiplier
+        .value_to_gas(program_state.executable_balance)
+        .min(BLOCK_GAS_LIMIT);
+
+    let incoming_message =
+        IncomingMessage::new(dispatch_id, source, payload, gas_limit, value, details);
+
+    let dispatch = IncomingDispatch::new(kind, incoming_message, context);
+
+    let context = match core_processor::precharge_for_program(
+        block_config,
+        1_000_000_000_000,
+        dispatch,
+        program_id,
+    ) {
+        Ok(dispatch) => dispatch,
+        Err(journal) => return journal,
+    };
+
+    let active_state = match &mut program_state.program {
+        state::Program::Active(state) => state,
+        state::Program::Exited(program_id) | state::Program::Terminated(program_id) => {
+            log::trace!("Program {program_id} is not active");
+            return core_processor::process_non_executable(context);
+        }
+    };
+
+    if active_state.initialized && kind == DispatchKind::Init {
+        // Panic is impossible, because gear protocol does not provide functionality
+        // to send second init message to any already existing program.
+        unreachable!(
+            "Init message {dispatch_id} is sent to already initialized program {program_id}",
+        );
+    }
+
+    // If the destination program is uninitialized, then we allow
+    // to process message, if it's a reply or init message.
+    // Otherwise, we return error reply.
+    if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
+        log::trace!("Program {program_id} is not yet finished initialization, so cannot process handle message");
+        return core_processor::process_non_executable(context);
+    }
+
+    // TODO: support normal allocations len #4068
+    let allocations = active_state.allocations_hash.with_hash_or_default(|hash| {
+        ri.storage()
+            .read_allocations(hash)
+            .expect("Cannot get allocations")
+    });
+
+    let context = match core_processor::precharge_for_allocations(
+        block_config,
+        context,
+        allocations.tree_len(),
+    ) {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
+
+    let code = instrumented_code
+        .as_ref()
+        .expect("Instrumented code must be provided if program is active");
+
+    let actor_data = ExecutableActorData {
+        allocations: allocations.into(),
+        code_id,
+        code_exports: code.exports().clone(),
+        static_pages: code.static_pages(),
+        gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
+        memory_infix: active_state.memory_infix,
+    };
+
+    let context = match core_processor::precharge_for_code_length(block_config, context, actor_data)
+    {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
+
+    let context = ContextChargedForCode::from(context);
+    let context = ContextChargedForInstrumentation::from(context);
+    let context = match core_processor::precharge_for_module_instantiation(
+        block_config,
+        context,
+        code.instantiated_section_sizes(),
+    ) {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
+
+    let execution_context =
+        ProcessExecutionContext::from((context, code.clone(), program_state.balance));
+
+    let random_data = ri.random_data();
+
+    core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
+        .unwrap_or_else(|err| unreachable!("{err}"))
+}
+
+pub fn process_queue<S, RI>(
+    program_id: ProgramId,
+    mut program_state: ProgramState,
+    instrumented_code: Option<InstrumentedCode>,
+    code_id: CodeId,
+    ri: &RI,
+) -> Vec<Vec<JournalNote>>
+where
+    S: Storage,
+    RI: RuntimeInterface<S>,
+    <RI as RuntimeInterface<S>>::LazyPages: Send,
+{
     let block_info = ri.block_info();
 
-    log::trace!("Processing next message for program {program_id}");
+    log::trace!("Processing queue for program {program_id}");
+
+    if program_state.queue_hash.is_empty() {
+        // Queue is empty, nothing to process.
+        return Vec::new();
+    }
 
     let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
         ri.storage()
             .read_queue(hash)
             .expect("Cannot get message queue")
     });
-
-    if queue.is_empty() {
-        return Vec::new();
-    }
 
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {
@@ -161,112 +291,34 @@ where
         reserve_for: 0,
     };
 
-    let Dispatch {
-        id: dispatch_id,
-        kind,
-        source,
-        payload,
-        value,
-        details,
-        context,
-    } = queue.dequeue().unwrap();
-
-    let payload = payload.query(ri.storage()).expect("failed to get payload");
-
-    let gas_limit = block_config
-        .gas_multiplier
-        .value_to_gas(program_state.executable_balance)
-        .min(BLOCK_GAS_LIMIT);
-
-    let incoming_message =
-        IncomingMessage::new(dispatch_id, source, payload, gas_limit, value, details);
-
-    let dispatch = IncomingDispatch::new(kind, incoming_message, context);
-
-    let context = match core_processor::precharge_for_program(
-        &block_config,
-        1_000_000_000_000,
-        dispatch,
-        program_id,
-    ) {
-        Ok(dispatch) => dispatch,
-        Err(journal) => return journal,
-    };
-
-    let active_state = match program_state.program {
-        state::Program::Active(state) => state,
-        state::Program::Exited(program_id) | state::Program::Terminated(program_id) => {
-            log::trace!("Program {program_id} is not active");
-            return core_processor::process_non_executable(context);
-        }
-    };
-
-    if active_state.initialized && kind == DispatchKind::Init {
-        // Panic is impossible, because gear protocol does not provide functionality
-        // to send second init message to any already existing program.
-        unreachable!(
-            "Init message {dispatch_id} is sent to already initialized program {program_id}",
-        );
-    }
-
-    // If the destination program is uninitialized, then we allow
-    // to process message, if it's a reply or init message.
-    // Otherwise, we return error reply.
-    if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
-        log::trace!("Program {program_id} is not yet finished initialization, so cannot process handle message");
-        return core_processor::process_non_executable(context);
-    }
-
-    // TODO: support normal allocations len #4068
-    let allocations = active_state.allocations_hash.with_hash_or_default(|hash| {
-        ri.storage()
-            .read_allocations(hash)
-            .expect("Cannot get allocations")
-    });
-
-    let context = match core_processor::precharge_for_allocations(
-        &block_config,
-        context,
-        allocations.tree_len(),
-    ) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
-
-    let code = instrumented_code.expect("Instrumented code must be provided if program is active");
-
-    let actor_data = ExecutableActorData {
-        allocations: allocations.into(),
-        code_id,
-        code_exports: code.exports().clone(),
-        static_pages: code.static_pages(),
-        gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
-        memory_infix: active_state.memory_infix,
-    };
-
-    let context =
-        match core_processor::precharge_for_code_length(&block_config, context, actor_data) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
-
-    let context = ContextChargedForCode::from(context);
-    let context = ContextChargedForInstrumentation::from(context);
-    let context = match core_processor::precharge_for_module_instantiation(
-        &block_config,
-        context,
-        code.instantiated_section_sizes(),
-    ) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
-
-    let execution_context = ProcessExecutionContext::from((context, code, program_state.balance));
-
-    let random_data = ri.random_data();
-
     ri.init_lazy_pages();
 
-    core_processor::process::<Ext<RI::LazyPages>>(&block_config, execution_context, random_data)
-        .unwrap_or_else(|err| unreachable!("{err}"))
+    let mut mega_journal = Vec::new();
+
+    for _ in 0..queue.len() {
+        let dispatch = queue.dequeue().expect("Should be non-empty");
+
+        let journal_notes = process_dispatch(
+            dispatch,
+            &block_config,
+            program_id,
+            &mut program_state,
+            &instrumented_code,
+            code_id,
+            ri,
+        );
+        let mut handler = RuntimeJournalHandler {
+            storage: ri.storage(),
+            program_state: &mut program_state,
+        };
+        let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal_notes);
+        mega_journal.push(unhandled_journal_notes);
+
+        // Update state hash if it was changed.
+        if let Some(new_state_hash) = new_state_hash {
+            ri.update_state_hash(&new_state_hash);
+        }
+    }
+
+    mega_journal
 }

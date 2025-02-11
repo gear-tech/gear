@@ -130,7 +130,7 @@ impl InstanceWrapper {
         original_code_id: CodeId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
-    ) -> Result<Vec<JournalNote>> {
+    ) -> Result<(Vec<JournalNote>, H256)> {
         let chain_head = self.chain_head.expect("chain head must be set before run");
         threads::set(db, chain_head, state_hash);
 
@@ -151,7 +151,9 @@ impl InstanceWrapper {
             journal.extend(journal_chunk);
         }
 
-        Ok(journal)
+        let new_state_hash = threads::with_params(|params| params.state_hash);
+
+        Ok((journal, new_state_hash))
     }
 
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {

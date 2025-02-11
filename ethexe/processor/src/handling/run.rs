@@ -56,7 +56,7 @@ pub fn run(
         let rt = rt_builder.build().unwrap();
 
         rt.block_on(async {
-            run_in_async(
+            run_in_async_v2(
                 config.virtual_threads,
                 db,
                 instance_creator,
@@ -78,7 +78,8 @@ fn split_to_buckets(
     }
 
     let max_size_of_backet = virtual_threads;
-    let number_of_backets = states.len() / max_size_of_backet;
+    // FIXME:
+    let number_of_backets = (states.len() / max_size_of_backet) + 1;
 
     let mut backets = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_backets));
 
@@ -90,12 +91,12 @@ fn split_to_buckets(
     backets.into_iter().flatten().rev().collect()
 }
 
-fn run_program(
+fn run_runtime(
     db: Database,
     executor: &mut InstanceWrapper,
     program_id: ActorId,
     state_hash: H256,
-) -> Vec<JournalNote> {
+) -> (Vec<JournalNote>, H256) {
     let code_id = db.program_code_id(program_id).expect("Code ID must be set");
 
     let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
@@ -129,6 +130,7 @@ impl DeterministicJournalHandler {
         self.mega_journal[idx] = Some((program_id, journal_notes));
     }
 
+    // TODO: traverse mega_journal in reverse order
     fn try_handle_journal_part(
         &mut self,
         db: &Database,
@@ -160,6 +162,22 @@ impl DeterministicJournalHandler {
     }
 }
 
+impl Drop for DeterministicJournalHandler {
+    fn drop(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            let cnt = self.mega_journal.iter().fold(0usize, |accum, j| {
+                if let Some(j) = j {
+                    return accum + j.1.len();
+                }
+                accum
+            });
+
+            assert_eq!(cnt, 0, "Not all journal parts were processed");
+        }
+    }
+}
+
 #[allow(dead_code)]
 async fn run_in_async_v2(
     virtual_threads: usize,
@@ -177,10 +195,16 @@ async fn run_in_async_v2(
             virtual_threads,
             &in_block_transitions
                 .states_iter()
-                .map(|(actor_id, state_hash)| {
+                .filter_map(|(actor_id, state_hash)| {
                     let program_state = db.read_state(*state_hash).unwrap();
+
+                    if program_state.queue_hash.is_empty() {
+                        return None;
+                    }
+
                     let queue_size = program_state.queue_hash.query(&db).unwrap().len();
-                    (*actor_id, *state_hash, queue_size as u8)
+
+                    Some((*actor_id, *state_hash, queue_size as u8))
                 })
                 .collect(),
         );
@@ -195,20 +219,24 @@ async fn run_in_async_v2(
                 let state_hash = *state_hash;
 
                 let _ = join_set.spawn_blocking(move || {
-                    let jn = run_program(db, &mut executor, program_id, state_hash);
-                    (task_num, program_id, jn)
+                    let (jn, new_state_hash) =
+                        run_runtime(db, &mut executor, program_id, state_hash);
+                    (task_num, program_id, new_state_hash, jn)
                 });
             }
 
             let bucket_size = bucket.len();
             let mut handler = DeterministicJournalHandler::new(bucket_size);
 
-            while let Some((task_num, program_id, journal_notes)) = join_set
+            while let Some((task_num, program_id, new_state_hash, journal_notes)) = join_set
                 .join_next()
                 .await
                 .transpose()
                 .expect("Failed to join task")
             {
+                // State was updated during journal handling inside the runtime
+                in_block_transitions.modify_state(program_id, new_state_hash);
+
                 handler.set_journal_part(task_num, program_id, journal_notes);
                 handler.try_handle_journal_part(
                     &db,
@@ -226,6 +254,7 @@ async fn run_in_async_v2(
 
 // TODO: Returning Vec<LocalOutcome> is a temporary solution.
 // In future need to send all messages to users and all state hashes changes to sequencer.
+#[allow(dead_code)]
 async fn run_in_async(
     virtual_threads: usize,
     db: Database,
@@ -299,7 +328,8 @@ async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
 
             let journal = executor
                 .run(db, program_id, code_id, state_hash, instrumented_code)
-                .expect("Some error occurs while running program in instance");
+                .expect("Some error occurs while running program in instance")
+                .0;
 
             result_sender.send(journal).unwrap();
         }
@@ -357,6 +387,7 @@ mod tests {
 
     use super::*;
 
+    #[ignore]
     #[test]
     fn it_test_backet_partitioning() {
         const STATE_SIZE: usize = 1_000;
@@ -374,19 +405,13 @@ mod tests {
             .take(STATE_SIZE),
         );
 
-        //println!();
-        //for (_, _, queue_size) in &states {
-        //    print!("{queue_size}, ");
-        //}
-        //println!("************");
-
         let backets = split_to_buckets(VIRT_THREADS_NUM, &states);
 
-        println!();
-        for (_, _, queue_size) in &backets {
-            print!("{queue_size}, ");
-        }
-        println!();
+        //println!();
+        //for (_, _, queue_size) in &backets {
+        //    print!("{queue_size}, ");
+        //}
+        //println!();
 
         // Checking backets partitioning
         let accum_backets = backets

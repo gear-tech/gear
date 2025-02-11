@@ -1,11 +1,12 @@
 use crate::{
-    state::{ActiveProgram, Dispatch, Program, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{
+        ActiveProgram, Dispatch, Program, ProgramState, Storage, ValueWithExpiry, MAILBOX_VALIDITY,
+    },
     TransitionController,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
-use anyhow::bail;
 use core::{mem, num::NonZero};
-use core_processor::common::{DispatchOutcome, JournalHandler};
+use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::db::ScheduledTask;
 use gear_core::{
     ids::ProgramId,
@@ -15,7 +16,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
+use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
 #[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct Handler<'a, S: Storage> {
@@ -111,56 +112,11 @@ impl<S: Storage> Handler<'_, S> {
 impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn message_dispatched(
         &mut self,
-        message_id: MessageId,
+        _message_id: MessageId,
         _source: ProgramId,
-        outcome: DispatchOutcome,
+        _outcome: DispatchOutcome,
     ) {
-        match outcome {
-            DispatchOutcome::Exit { program_id } => {
-                log::trace!("Dispatch outcome exit: {message_id} for program {program_id}")
-            }
-
-            DispatchOutcome::InitSuccess { program_id } => {
-                log::trace!("Dispatch {message_id} successfully initialized program {program_id}");
-
-                self.update_state(program_id, |state, _, _| {
-                    match &mut state.program {
-                        Program::Active(ActiveProgram { initialized, .. }) if *initialized => {
-                            bail!("an attempt to initialize already initialized program")
-                        }
-                        &mut Program::Active(ActiveProgram {
-                            ref mut initialized,
-                            ..
-                        }) => *initialized = true,
-                        _ => bail!("an attempt to dispatch init message for inactive program"),
-                    };
-
-                    Ok(())
-                })
-                .expect("failed to update state");
-            }
-
-            DispatchOutcome::InitFailure {
-                program_id,
-                origin,
-                reason,
-            } => {
-                log::trace!("Dispatch {message_id} failed init of program {program_id}: {reason}");
-
-                self.update_state(program_id, |state, _, _| {
-                    state.program = Program::Terminated(origin)
-                });
-            }
-
-            DispatchOutcome::MessageTrap { program_id, trap } => {
-                log::trace!("Dispatch {message_id} trapped");
-                log::debug!("🪤 Program {program_id} terminated with a trap: {trap}");
-            }
-
-            DispatchOutcome::Success => log::trace!("Dispatch {message_id} succeed"),
-
-            DispatchOutcome::NoExecution => log::trace!("Dispatch {message_id} wasn't executed"),
-        }
+        // Handled inside runtime by `RuntimeJournalHandler`
     }
 
     fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {
@@ -307,58 +263,18 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
     fn update_pages_data(
         &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
+        _program_id: ProgramId,
+        _pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
-        if pages_data.is_empty() {
-            return;
-        }
-
-        self.update_state(program_id, |state, storage, _| {
-            let Program::Active(ActiveProgram {
-                ref mut pages_hash, ..
-            }) = state.program
-            else {
-                bail!("an attempt to update pages data of inactive program");
-            };
-
-            pages_hash.modify_pages(storage, |pages| {
-                pages.update_and_store_regions(storage, storage.write_pages_data(pages_data));
-            });
-
-            Ok(())
-        })
-        .expect("failed to update state");
+        // Handled inside runtime by `RuntimeJournalHandler`
     }
 
     fn update_allocations(
         &mut self,
-        program_id: ProgramId,
-        new_allocations: IntervalsTree<WasmPage>,
+        _program_id: ProgramId,
+        _new_allocations: IntervalsTree<WasmPage>,
     ) {
-        self.update_state(program_id, |state, storage, _| {
-            let Program::Active(ActiveProgram {
-                allocations_hash,
-                pages_hash,
-                ..
-            }) = &mut state.program
-            else {
-                bail!("an attempt to update allocations of inactive program");
-            };
-
-            allocations_hash.modify_allocations(storage, |allocations| {
-                let removed_pages = allocations.update(new_allocations);
-
-                if !removed_pages.is_empty() {
-                    pages_hash.modify_pages(storage, |pages| {
-                        pages.remove_and_store_regions(storage, &removed_pages);
-                    })
-                }
-            });
-
-            Ok(())
-        })
-        .expect("failed to update state");
+        // Handled inside runtime by `RuntimeJournalHandler`
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
@@ -416,5 +332,159 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
     fn reply_deposit(&mut self, _: MessageId, _: MessageId, _: u64) {
         unreachable!("deprecated");
+    }
+}
+
+pub struct RuntimeJournalHandler<'s, S>
+where
+    S: Storage,
+{
+    pub storage: &'s S,
+    pub program_state: &'s mut ProgramState,
+}
+
+impl<S> RuntimeJournalHandler<'_, S>
+where
+    S: Storage,
+{
+    // Returns unhandled journal notes and new program state hash
+    pub fn handle_journal(
+        &mut self,
+        journal: impl IntoIterator<Item = JournalNote>,
+    ) -> (Vec<JournalNote>, Option<H256>) {
+        let mut page_updates = BTreeMap::new();
+        let mut allocations_update = BTreeMap::new();
+
+        let filtered = journal
+            .into_iter()
+            .filter_map(|note| {
+                let mut not_processed = None;
+
+                match note {
+                    JournalNote::MessageDispatched {
+                        message_id,
+                        source,
+                        outcome,
+                    } => self.message_dispatched(message_id, source, outcome),
+                    JournalNote::UpdatePage {
+                        program_id,
+                        page_number,
+                        data,
+                    } => {
+                        let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
+                        entry.insert(page_number, data);
+                    }
+                    JournalNote::UpdateAllocations {
+                        program_id,
+                        allocations,
+                    } => {
+                        allocations_update.insert(program_id, allocations);
+                    }
+                    note => not_processed = Some(note),
+                }
+
+                not_processed
+            })
+            .collect();
+
+        for pages_data in page_updates.into_values() {
+            self.update_pages_data(pages_data);
+        }
+
+        for allocations in allocations_update.into_values() {
+            self.update_allocations(allocations);
+        }
+
+        let state_hash = self.storage.write_state(self.program_state.clone());
+
+        (filtered, Some(state_hash))
+    }
+
+    fn message_dispatched(
+        &mut self,
+        message_id: MessageId,
+        _source: ProgramId,
+        outcome: DispatchOutcome,
+    ) {
+        match outcome {
+            DispatchOutcome::Exit { program_id } => {
+                log::trace!("Dispatch outcome exit: {message_id} for program {program_id}")
+            }
+
+            DispatchOutcome::InitSuccess { program_id } => {
+                log::trace!("Dispatch {message_id} successfully initialized program {program_id}");
+
+                match self.program_state.program {
+                    Program::Active(ActiveProgram {
+                        ref mut initialized,
+                        ..
+                    }) if *initialized => {
+                        panic!("an attempt to initialize already initialized program")
+                    }
+                    Program::Active(ActiveProgram {
+                        ref mut initialized,
+                        ..
+                    }) => *initialized = true,
+                    _ => panic!("an attempt to dispatch init message for inactive program"),
+                };
+            }
+
+            DispatchOutcome::InitFailure {
+                program_id,
+                origin,
+                reason,
+            } => {
+                log::trace!("Dispatch {message_id} failed init of program {program_id}: {reason}");
+
+                self.program_state.program = Program::Terminated(origin)
+            }
+
+            DispatchOutcome::MessageTrap { program_id, trap } => {
+                log::trace!("Dispatch {message_id} trapped");
+                log::debug!("🪤 Program {program_id} terminated with a trap: {trap}");
+            }
+
+            DispatchOutcome::Success => log::trace!("Dispatch {message_id} succeed"),
+
+            DispatchOutcome::NoExecution => log::trace!("Dispatch {message_id} wasn't executed"),
+        }
+    }
+
+    fn update_pages_data(&mut self, pages_data: BTreeMap<GearPage, PageBuf>) {
+        if pages_data.is_empty() {
+            return;
+        }
+
+        let Program::Active(ActiveProgram {
+            ref mut pages_hash, ..
+        }) = self.program_state.program
+        else {
+            panic!("an attempt to update pages data of inactive program");
+        };
+
+        pages_hash.modify_pages(self.storage, |pages| {
+            pages.update_and_store_regions(self.storage, self.storage.write_pages_data(pages_data));
+        });
+    }
+
+    fn update_allocations(&mut self, new_allocations: IntervalsTree<WasmPage>) {
+        let Program::Active(ActiveProgram {
+            allocations_hash,
+            pages_hash,
+            ..
+        }) = &mut self.program_state.program
+        else {
+            panic!("an attempt to update allocations of inactive program");
+        };
+
+        allocations_hash.modify_allocations(self.storage, |allocations| {
+            let removed_pages = allocations.update(new_allocations);
+
+            if !removed_pages.is_empty() {
+                pages_hash.modify_pages(self.storage, |pages| {
+                    pages.remove_and_store_regions(self.storage, &removed_pages);
+                })
+            }
+        });
     }
 }
