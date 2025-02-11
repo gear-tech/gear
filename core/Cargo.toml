@@ -24,11 +24,9 @@ parity-scale-codec = { workspace = true, features = [
 scale-info = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 log.workspace = true
-gwasm-instrument = { workspace = true, default-features = false }
 gear-wasm-instrument.workspace = true
 wasmparser.workspace = true
 hex = { workspace = true, features = ["alloc"] }
-hashbrown.workspace = true
 paste.workspace = true
 enum-iterator.workspace = true
 byteorder.workspace = true
@@ -41,8 +39,8 @@ serde = { workspace = true, features = ["derive"], optional = true }
 impl-serde = { workspace = true, optional = true }
 
 [dev-dependencies]
-wabt.workspace = true
 env_logger.workspace = true
+wat.workspace = true
 proptest.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 numerated = { workspace = true, features = ["mock"] }
@@ -55,5 +53,6 @@ std = [
     "dep:impl-serde",
     "wasmparser/std",
     "gear-core-errors/serde",
+    "gear-wasm-instrument/std",
     "gprimitives/serde",
 ]

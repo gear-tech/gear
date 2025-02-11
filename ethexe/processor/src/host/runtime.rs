@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use parity_wasm::elements::{Internal, Module};
+use gear_wasm_instrument::{ExternalKind, Module};
 use std::borrow::Cow;
 
 pub enum Runtime {
     Raw(Cow<'static, [u8]>),
-    Modified(Module),
+    Modified(Box<Module>),
 }
 
 impl Default for Runtime {
@@ -32,7 +32,7 @@ impl Default for Runtime {
 
 impl From<Module> for Runtime {
     fn from(module: Module) -> Self {
-        Self::Modified(module)
+        Self::Modified(Box::new(module))
     }
 }
 
@@ -47,7 +47,7 @@ impl Runtime {
 
     fn module_mut(&mut self) -> &mut Module {
         if let Self::Raw(bytes) = self {
-            *self = Self::Modified(Module::from_bytes(bytes).unwrap());
+            *self = Self::Modified(Box::new(Module::new(bytes).unwrap()));
         }
 
         let Self::Modified(module) = self else {
@@ -61,12 +61,13 @@ impl Runtime {
         let module = self.module_mut();
 
         let start_fn_idx = module
-            .export_section()
+            .export_section
+            .as_ref()
             .and_then(|section| {
-                section.entries().iter().find_map(|export| {
-                    if export.field() == "_start" {
-                        if let Internal::Function(idx) = export.internal() {
-                            Some(*idx)
+                section.iter().find_map(|export| {
+                    if export.name == "_start" {
+                        if let ExternalKind::Func = export.kind {
+                            Some(export.index)
                         } else {
                             None
                         }
@@ -77,13 +78,13 @@ impl Runtime {
             })
             .unwrap();
 
-        module.set_start_section(start_fn_idx);
+        module.start_section = Some(start_fn_idx);
     }
 
     pub fn into_bytes(self) -> Vec<u8> {
         match self {
             Self::Raw(bytes) => bytes.to_vec(),
-            Self::Modified(module) => module.into_bytes().unwrap(),
+            Self::Modified(module) => module.serialize().unwrap(),
         }
     }
 }
