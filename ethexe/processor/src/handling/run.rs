@@ -25,18 +25,8 @@ use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::{
     state::Storage, InBlockTransitions, JournalHandler, TransitionController,
 };
-use gear_core::ids::ProgramId;
 use gprimitives::{ActorId, H256};
-use std::{collections::BTreeMap, iter};
-use tokio::sync::{mpsc, oneshot};
-
-enum Task {
-    Run {
-        program_id: ProgramId,
-        state_hash: H256,
-        result_sender: oneshot::Sender<Vec<JournalNote>>,
-    },
-}
+use std::iter;
 
 pub fn run(
     config: &ProcessorConfig,
@@ -56,7 +46,7 @@ pub fn run(
         let rt = rt_builder.build().unwrap();
 
         rt.block_on(async {
-            run_in_async_v2(
+            run_in_async(
                 config.virtual_threads,
                 db,
                 instance_creator,
@@ -173,13 +163,12 @@ impl Drop for DeterministicJournalHandler {
                 accum
             });
 
-            assert_eq!(cnt, 0, "Not all journal parts were processed");
+            assert_eq!(cnt, 0, "Not all journal notes were processed");
         }
     }
 }
 
-#[allow(dead_code)]
-async fn run_in_async_v2(
+async fn run_in_async(
     virtual_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
@@ -252,134 +241,6 @@ async fn run_in_async_v2(
     }
 }
 
-// TODO: Returning Vec<LocalOutcome> is a temporary solution.
-// In future need to send all messages to users and all state hashes changes to sequencer.
-#[allow(dead_code)]
-async fn run_in_async(
-    virtual_threads: usize,
-    db: Database,
-    instance_creator: InstanceCreator,
-    in_block_transitions: &mut InBlockTransitions,
-) {
-    let mut task_senders = vec![];
-    let mut handles = vec![];
-
-    // create workers
-    for id in 0..virtual_threads {
-        let (task_sender, task_receiver) = mpsc::channel(100);
-        task_senders.push(task_sender);
-        let handle = tokio::spawn(worker(
-            id,
-            db.clone(),
-            instance_creator.clone(),
-            task_receiver,
-        ));
-        handles.push(handle);
-    }
-
-    loop {
-        // Send tasks to process programs in workers, until all queues are empty.
-
-        let mut no_more_to_do = true;
-        for index in (0..in_block_transitions.states_amount()).step_by(virtual_threads) {
-            let result_receivers = one_batch(index, &task_senders, in_block_transitions).await;
-
-            let mut super_journal = vec![];
-            for (program_id, receiver) in result_receivers.into_iter() {
-                let journal = receiver.await.unwrap();
-                if !journal.is_empty() {
-                    no_more_to_do = false;
-                }
-                super_journal.push((program_id, journal));
-            }
-
-            for (program_id, journal) in super_journal {
-                let mut handler = JournalHandler {
-                    program_id,
-                    controller: TransitionController {
-                        transitions: in_block_transitions,
-                        storage: &db,
-                    },
-                };
-                core_processor::handle_journal(journal, &mut handler);
-            }
-        }
-
-        if no_more_to_do {
-            break;
-        }
-    }
-
-    for handle in handles {
-        handle.abort();
-    }
-}
-
-async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
-    match task {
-        Task::Run {
-            program_id,
-            state_hash,
-            result_sender,
-        } => {
-            let code_id = db.program_code_id(program_id).expect("Code ID must be set");
-
-            let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
-
-            let journal = executor
-                .run(db, program_id, code_id, state_hash, instrumented_code)
-                .expect("Some error occurs while running program in instance")
-                .0;
-
-            result_sender.send(journal).unwrap();
-        }
-    }
-}
-
-async fn worker(
-    id: usize,
-    db: Database,
-    instance_creator: InstanceCreator,
-    mut task_receiver: mpsc::Receiver<Task>,
-) {
-    log::trace!("Worker {} started", id);
-
-    let mut executor = instance_creator
-        .instantiate()
-        .expect("Failed to instantiate executor");
-
-    while let Some(task) = task_receiver.recv().await {
-        run_task(db.clone(), &mut executor, task).await;
-    }
-}
-
-async fn one_batch(
-    from_index: usize,
-    task_senders: &[mpsc::Sender<Task>],
-    in_block_transitions: &mut InBlockTransitions,
-) -> BTreeMap<ProgramId, oneshot::Receiver<Vec<JournalNote>>> {
-    let mut result_receivers = BTreeMap::new();
-
-    for (sender, (program_id, state_hash)) in task_senders
-        .iter()
-        .zip(in_block_transitions.states_iter().skip(from_index))
-    {
-        let (result_sender, result_receiver) = oneshot::channel();
-
-        let task = Task::Run {
-            program_id: *program_id,
-            state_hash: *state_hash,
-            result_sender,
-        };
-
-        sender.send(task).await.unwrap();
-
-        result_receivers.insert(*program_id, result_receiver);
-    }
-
-    result_receivers
-}
-
 #[cfg(test)]
 mod tests {
     use gprimitives::ActorId;
@@ -387,7 +248,6 @@ mod tests {
 
     use super::*;
 
-    #[ignore]
     #[test]
     fn it_test_backet_partitioning() {
         const STATE_SIZE: usize = 1_000;

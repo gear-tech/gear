@@ -397,6 +397,7 @@ where
 
         let state_hash = self.storage.write_state(self.program_state.clone());
 
+        // TODO: return state hash only if it's changed
         (filtered, Some(state_hash))
     }
 
