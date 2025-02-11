@@ -17,6 +17,7 @@ ethexe-network.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
 ethexe-service.workspace = true
+ethexe-observer.workspace = true
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
 gprimitives.workspace = true

@@ -7,9 +7,8 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+ethexe-service-utils.workspace = true
 ethexe-signer.workspace = true
 ethexe-observer.workspace = true
 ethexe-processor.workspace = true
@@ -23,7 +22,7 @@ log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 tokio.workspace = true
-indexmap.workspace = true
+indexmap = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 rand.workspace = true

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -123,10 +123,6 @@ pub struct Limits {
     #[doc = ""]
     #[doc = " Currently, the only type of element that is allowed in a table is funcref."]
     pub table_size: u32,
-    #[doc = " Maximum number of tables allowed for a program."]
-    #[doc = " The same limit also imposed by `wasmparser`,"]
-    #[doc = " see <https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs>"]
-    pub table_number: u32,
     #[doc = " Maximum number of elements that can appear as immediate value to the br_table instruction."]
     pub br_table_size: u32,
     #[doc = " The maximum length of a subject in bytes used for PRNG generation."]
@@ -152,7 +148,6 @@ impl Default for Limits {
             parameters: 128,
             memory_pages: 32768,
             table_size: 4096,
-            table_number: 100,
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,

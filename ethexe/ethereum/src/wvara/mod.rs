@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -137,6 +137,24 @@ impl WVaraQuery {
             .call()
             .await
             .map(|res| U256(res._0.into_limbs()))
+            .map_err(Into::into)
+    }
+
+    pub async fn name(&self) -> Result<String> {
+        self.0
+            .name()
+            .call()
+            .await
+            .map(|res| res._0.to_string())
+            .map_err(Into::into)
+    }
+
+    pub async fn symbol(&self) -> Result<String> {
+        self.0
+            .symbol()
+            .call()
+            .await
+            .map(|res| res._0.to_string())
             .map_err(Into::into)
     }
 }

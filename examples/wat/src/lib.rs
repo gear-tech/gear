@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,12 +20,8 @@
 
 extern crate alloc;
 
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{string::String, vec::Vec};
 use core::fmt::{self, Debug, Display, Formatter};
-use wabt::{Wasm2Wat, Wat2Wasm};
 
 pub struct WatStr(String);
 
@@ -64,22 +60,22 @@ impl WatExample {
         }
     }
 
-    pub fn from_wat(wat: impl AsRef<str>) -> Option<Self> {
-        let wat = wat.as_ref();
+    pub fn from_wat(wat: impl Into<String>) -> Option<Self> {
+        let wat = wat.into();
+        let wasm = wat::parse_str(&wat).ok()?;
 
-        Wat2Wasm::new()
-            .validate(Self::VALIDATION)
-            .convert(wat)
-            .map(|_| Self::Custom(WatStr(wat.to_string())))
-            .ok()
+        if Self::VALIDATION {
+            wasmparser::validate(&wasm).ok()?;
+        }
+
+        Some(Self::Custom(WatStr(wat)))
     }
 
     pub fn from_code(code: impl AsRef<[u8]>) -> Option<Self> {
-        Wasm2Wat::new().convert(code).ok().and_then(|wat| {
-            String::from_utf8(wat.as_ref().to_vec())
-                .ok()
-                .map(|wat| Self::Custom(WatStr(wat)))
-        })
+        wasmprinter::print_bytes(code)
+            .ok()
+            .map(WatStr)
+            .map(Self::Custom)
     }
 
     pub fn from_hex(hex: impl AsRef<str>) -> Option<Self> {
@@ -101,11 +97,12 @@ impl WatExample {
     }
 
     pub fn code(&self) -> Vec<u8> {
-        Wat2Wasm::new()
-            .validate(Self::VALIDATION)
-            .convert(self.wat())
-            .expect("Failed to parse module")
-            .as_ref()
-            .to_vec()
+        let wasm = wat::parse_str(self.wat()).expect("Failed to parse module");
+
+        if Self::VALIDATION {
+            wasmparser::validate(&wasm).expect("Failed to validate module");
+        }
+
+        wasm
     }
 }

@@ -21,12 +21,12 @@ futures.workspace = true
 gear-core = { workspace = true, features = [ "std" ] }
 gear-core-errors.workspace = true
 hex.workspace = true
-indexmap.workspace = true
+indexmap = { workspace = true, features = ["std"] }
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 log.workspace = true
 scale-value.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, features = [ "std" ] }
 subxt.workspace = true
 thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
