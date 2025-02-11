@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::context::HostContext;
+use ethexe_runtime_common::{pack_u32_to_i64, unpack_i64_to_u32};
 use parity_scale_codec::{Decode, Encode};
 use sp_wasm_interface::{FunctionContext as _, IntoValue as _, StoreData};
-use std::mem;
 use wasmtime::{Caller, Memory, StoreContext, StoreContextMut};
 
 pub mod allocator;
@@ -58,7 +58,7 @@ impl MemoryWrap {
         store: impl Into<StoreContext<'a, T>>,
         ptr_len: i64,
     ) -> &'a [u8] {
-        let [ptr, len]: [i32; 2] = unsafe { mem::transmute(ptr_len) };
+        let (ptr, len) = unpack_i64_to_u32(ptr_len);
 
         self.slice(store, ptr as usize, len as usize)
     }
@@ -119,7 +119,7 @@ pub fn allocate_and_write_raw(
 
     memory.write(&mut caller, ptr as usize, data).unwrap();
 
-    let res = unsafe { mem::transmute::<[i32; 2], i64>([ptr, len as i32]) };
+    let res = pack_u32_to_i64(ptr as u32, len as u32);
 
     (caller, res)
 }

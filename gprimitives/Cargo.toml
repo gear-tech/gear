@@ -22,3 +22,4 @@ gear-ss58.workspace = true
 [features]
 codec = ["parity-scale-codec", "scale-info"]
 serde = ["dep:serde", "primitive-types/serde_no_std"]
+ethexe = []

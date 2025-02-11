@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -38,8 +38,8 @@ pub fn crates_io_name(pkg: &str) -> &str {
 }
 
 /// Patch specified manifest by provided name.
-pub fn patch(pkg: &Package, is_published: bool) -> Result<Manifest> {
-    let mut manifest = Manifest::new(pkg, is_published)?;
+pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Manifest> {
+    let mut manifest = Manifest::new(pkg, is_published, is_actualized)?;
     let doc = &mut manifest.mutable_manifest;
 
     match manifest.name.as_str() {

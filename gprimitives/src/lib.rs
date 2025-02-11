@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -226,7 +226,7 @@ impl FromStr for ActorId {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", not(feature = "ethexe")))]
 impl Serialize for ActorId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -236,6 +236,17 @@ impl Serialize for ActorId {
             .to_ss58check_with_version(gear_ss58::VARA_SS58_PREFIX)
             .map_err(serde::ser::Error::custom)?;
         serializer.serialize_str(address.as_str())
+    }
+}
+
+#[cfg(all(feature = "serde", feature = "ethexe"))]
+impl Serialize for ActorId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let id: H160 = self.to_address_lossy();
+        id.serialize(serializer)
     }
 }
 

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,11 +18,12 @@
 
 //! Gear syscalls for programs execution signatures.
 
-use crate::parity_wasm::elements::{FunctionType, ValueType};
+pub use pointers::*;
+
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec::Vec};
 use core::iter;
 use enum_iterator::{self, Sequence};
-pub use pointers::*;
+use wasmparser::{FuncType, ValType};
 
 /// All available syscalls.
 ///
@@ -193,9 +194,9 @@ impl SyscallName {
         use RegularParamType::*;
 
         match self {
-            Self::Alloc => SyscallSignature::system(([Alloc], [ValueType::I32])),
-            Self::Free => SyscallSignature::system(([Free], [ValueType::I32])),
-            Self::FreeRange => SyscallSignature::system(([Free, FreeUpperBound], [ValueType::I32])),
+            Self::Alloc => SyscallSignature::system(([Alloc], [ValType::I32])),
+            Self::Free => SyscallSignature::system(([Free], [ValType::I32])),
+            Self::FreeRange => SyscallSignature::system(([Free, FreeUpperBound], [ValType::I32])),
             Self::Debug => SyscallSignature::gr_infallible([
                 Ptr::SizedBufferStart {
                     length_param_idx: 1,
@@ -539,17 +540,17 @@ pub enum HashType {
     SubjectId,
 }
 
-impl From<ParamType> for ValueType {
+impl From<ParamType> for ValType {
     fn from(value: ParamType) -> Self {
         use RegularParamType::*;
 
         match value {
             ParamType::Regular(regular_ptr) => match regular_ptr {
                 Length | Pointer(_) | Offset | DurationBlockNumber | DelayBlockNumber | Handler
-                | Alloc | Free | FreeUpperBound | Version => ValueType::I32,
-                Gas => ValueType::I64,
+                | Alloc | Free | FreeUpperBound | Version => ValType::I32,
+                Gas => ValType::I64,
             },
-            ParamType::Error(_) => ValueType::I32,
+            ParamType::Error(_) => ValType::I32,
         }
     }
 }
@@ -583,21 +584,24 @@ impl SyscallSignature {
         }
     }
 
-    pub fn results(&self) -> Option<&[ValueType]> {
+    pub fn results(&self) -> Option<&[ValType]> {
         match self {
             SyscallSignature::Fallible(_) | SyscallSignature::Infallible(_) => None,
             SyscallSignature::System(system) => Some(&system.results),
         }
     }
 
-    pub fn func_type(&self) -> FunctionType {
+    pub fn func_type(&self) -> FuncType {
         let (params, results) = match self {
             SyscallSignature::Fallible(fallible) => (fallible.params(), Vec::new()),
             SyscallSignature::Infallible(infallible) => (infallible.params(), Vec::new()),
             SyscallSignature::System(system) => (system.params(), system.results().to_owned()),
         };
 
-        FunctionType::new(params.iter().copied().map(Into::into).collect(), results)
+        FuncType::new(
+            params.iter().copied().map(Into::into).collect::<Vec<_>>(),
+            results,
+        )
     }
 
     pub fn is_fallible(&self) -> bool {
@@ -666,13 +670,13 @@ impl<const N: usize> From<[RegularParamType; N]> for InfallibleSyscallSignature 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SystemSyscallSignature {
     params: Vec<ParamType>,
-    results: Vec<ValueType>,
+    results: Vec<ValType>,
 }
 
 impl SystemSyscallSignature {
     pub fn new<const N: usize, const M: usize>(
         params: [RegularParamType; N],
-        results: [ValueType; M],
+        results: [ValType; M],
     ) -> Self {
         SystemSyscallSignature {
             params: params.into_iter().map(ParamType::Regular).collect(),
@@ -684,15 +688,15 @@ impl SystemSyscallSignature {
         &self.params
     }
 
-    pub fn results(&self) -> &[ValueType] {
+    pub fn results(&self) -> &[ValType] {
         &self.results
     }
 }
 
-impl<const N: usize, const M: usize> From<([RegularParamType; N], [ValueType; M])>
+impl<const N: usize, const M: usize> From<([RegularParamType; N], [ValType; M])>
     for SystemSyscallSignature
 {
-    fn from((params, results): ([RegularParamType; N], [ValueType; M])) -> Self {
+    fn from((params, results): ([RegularParamType; N], [ValType; M])) -> Self {
         SystemSyscallSignature::new(params, results)
     }
 }

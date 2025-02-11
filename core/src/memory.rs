@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -99,7 +99,7 @@ impl Debug for MemoryInterval {
 }
 
 /// Error in attempt to make wrong size page buffer.
-#[derive(Debug, Default, PartialEq, Eq, Clone, TypeInfo, derive_more::Display)]
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Clone, TypeInfo, derive_more::Display)]
 #[display(
     fmt = "Trying to make wrong size page buffer, must be {:#x}",
     GearPage::SIZE
@@ -110,7 +110,7 @@ pub struct IntoPageBufError;
 pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
-#[derive(Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
 pub struct PageBuf(PageBufInner);
 
 // These traits are implemented intentionally by hand to achieve two goals:
@@ -472,11 +472,9 @@ impl AllocationsContext {
 
     /// Free specific memory page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
-        // TODO: do not use `contains` #3879
-        if page < self.static_pages || page >= self.max_pages || !self.allocations.contains(page) {
+        if page < self.static_pages || page >= self.max_pages || !self.allocations.remove(page) {
             Err(AllocError::InvalidFree(page))
         } else {
-            self.allocations.remove(page);
             Ok(())
         }
     }

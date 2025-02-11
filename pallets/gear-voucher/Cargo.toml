@@ -16,9 +16,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
-parity-wasm = { workspace = true, optional = true }
 primitive-types = { workspace = true, features = ["scale-info"] }
-hex = { workspace = true, features = ["alloc"] }
 derive_more.workspace = true
 
 # Internal deps

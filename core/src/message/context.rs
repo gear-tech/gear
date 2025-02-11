@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -226,17 +226,17 @@ impl MessageContext {
         dispatch: IncomingDispatch,
         program_id: ProgramId,
         settings: ContextSettings,
-    ) -> Option<Self> {
+    ) -> Self {
         let (kind, message, store) = dispatch.into_parts();
 
-        Some(Self {
+        Self {
             kind,
             outcome: ContextOutcome::new(program_id, message.source(), message.id()),
             current: message,
             store: store.unwrap_or_default(),
             outgoing_payloads: OutgoingPayloads::default(),
             settings,
-        })
+        }
     }
 
     /// Getter for inner settings.
@@ -635,8 +635,7 @@ mod tests {
             Default::default(),
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         // first init to default ProgramId.
         assert_ok!(message_context.init_program(Default::default(), 0));
@@ -654,8 +653,7 @@ mod tests {
             Default::default(),
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, 10),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         let handle = message_context.send_init().unwrap();
 
@@ -678,8 +676,7 @@ mod tests {
             Default::default(),
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, 10),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         let handle = message_context.send_init().unwrap();
 
@@ -726,8 +723,7 @@ mod tests {
             Default::default(),
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         let handle = message_context.send_init().unwrap();
 
@@ -778,8 +774,7 @@ mod tests {
             incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, 10),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         let handle = message_context.send_init().unwrap();
 
@@ -824,8 +819,7 @@ mod tests {
             let settings = ContextSettings::with_outgoing_limits(n, u32::MAX);
 
             let mut message_context =
-                MessageContext::new(Default::default(), Default::default(), settings)
-                    .expect("Outgoing messages bytes limit exceeded");
+                MessageContext::new(Default::default(), Default::default(), settings);
             // send n messages
             for _ in 0..n {
                 let handle = message_context.send_init().expect("unreachable");
@@ -858,8 +852,7 @@ mod tests {
             Default::default(),
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         // Use invalid handle 0.
         let out_of_bounds = message_context.send_commit(0, Default::default(), 0, None);
@@ -885,8 +878,7 @@ mod tests {
             Default::default(),
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         // First reply.
         assert_ok!(message_context.reply_commit(Default::default(), None));
@@ -901,8 +893,7 @@ mod tests {
     #[test]
     fn reply_commit_message_size_limit() {
         let mut message_context =
-            MessageContext::new(Default::default(), Default::default(), Default::default())
-                .expect("Outgoing messages bytes limit exceeded");
+            MessageContext::new(Default::default(), Default::default(), Default::default());
 
         assert_ok!(message_context.reply_push(&[1]));
 
@@ -942,8 +933,7 @@ mod tests {
             incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         // Checking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id(), MessageId::from(INCOMING_MESSAGE_ID));
@@ -1083,8 +1073,7 @@ mod tests {
             incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         context.wake(MessageId::default(), 10).unwrap();
 
@@ -1111,8 +1100,7 @@ mod tests {
             incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         let handle = message_context.send_init().expect("unreachable");
         message_context
@@ -1146,8 +1134,7 @@ mod tests {
             incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        )
-        .expect("Outgoing messages bytes limit exceeded");
+        );
 
         let message_id = message_context
             .reply_commit(ReplyPacket::default(), None)
