@@ -29,11 +29,13 @@ use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService, RequestBlockData};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
+use ethexe_rpc::RpcEvent;
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
+use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
 use gprimitives::H256;
@@ -53,6 +55,7 @@ pub struct Service {
     router_query: RouterQuery,
     processor: ethexe_processor::Processor,
     signer: ethexe_signer::Signer,
+    tx_pool: TxPoolService,
 
     // Optional services
     network: Option<NetworkService>,
@@ -75,6 +78,9 @@ pub enum NetworkMessage {
     },
     ApproveCommitments {
         batch_commitment: (Digest, Signature),
+    },
+    OffchainTransaction {
+        transaction: SignedOffchainTransaction,
     },
 }
 
@@ -226,6 +232,8 @@ impl Service {
             ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
         });
 
+        let tx_pool = TxPoolService::new(db.clone());
+
         Ok(Self {
             db,
             network,
@@ -238,6 +246,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
+            tx_pool,
         })
     }
 
@@ -258,6 +267,7 @@ impl Service {
         router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
+        tx_pool: TxPoolService,
         network: Option<NetworkService>,
         sequencer: Option<SequencerService>,
         validator: Option<ethexe_validator::Validator>,
@@ -276,6 +286,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
+            tx_pool,
         }
     }
 
@@ -385,6 +396,7 @@ impl Service {
         let mut commitments = vec![];
 
         let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
+        log::debug!("Last committed chain {:#?}", last_committed_chain);
 
         for block_hash in last_committed_chain.into_iter().rev() {
             let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
@@ -413,9 +425,8 @@ impl Service {
     }
 
     pub async fn run(self) -> Result<()> {
-        self.run_inner().await.map_err(|err| {
+        self.run_inner().await.inspect_err(|err| {
             log::error!("Service finished work with error: {err:?}");
-            err
         })
     }
 
@@ -429,6 +440,7 @@ impl Service {
             mut processor,
             mut sequencer,
             signer: _signer,
+            tx_pool,
             mut validator,
             mut prometheus,
             rpc,
@@ -644,6 +656,11 @@ impl Service {
                                             .inspect_err(|e| log::warn!("failed to receive batch commitment signature from network: {e}"));
                                     }
                                 },
+                                NetworkMessage::OffchainTransaction { transaction } => {
+                                    if let Err(e) = Self::process_offchain_transaction(transaction, &tx_pool, &db, network.as_mut()) {
+                                        log::warn!("Failed to process offchain transaction received by p2p: {e}");
+                                    }
+                                },
                             };
                         }
                         NetworkEvent::ExternalValidation(validating_response) => {
@@ -688,6 +705,25 @@ impl Service {
                 }
                 event = rpc_receiver.maybe_next_some() => {
                     log::info!("Received RPC event {event:#?}");
+
+                    match event {
+                        RpcEvent::OffchainTransaction { transaction, response_sender } => {
+                            let res = Self::process_offchain_transaction(
+                                transaction,
+                                &tx_pool,
+                                &db,
+                                network.as_mut(),
+                            ).context("Failed to process offchain transaction received from RPC");
+
+
+                            if let Err(e) = response_sender.send(res) {
+                                // No panic case as a responsibility of the service is fulfilled.
+                                // The dropped receiver signalizes that the rpc service has crashed
+                                // or is malformed, so problems should be handled there.
+                                log::error!("Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}");
+                            }
+                        }
+                    }
                 }
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
@@ -718,5 +754,39 @@ impl Service {
         }
 
         Ok(true)
+    }
+
+    fn process_offchain_transaction(
+        transaction: SignedOffchainTransaction,
+        tx_pool: &TxPoolService,
+        db: &Database,
+        network: Option<&mut NetworkService>,
+    ) -> Result<H256> {
+        let validated_tx = tx_pool
+            .validate(transaction)
+            .context("Failed to validate offchain transaction")?;
+        let tx_hash = validated_tx.tx_hash();
+
+        // Set valid transaction
+        db.set_offchain_transaction(validated_tx.clone());
+
+        // Try propagate transaction
+        if let Some(n) = network {
+            n.publish_offchain_transaction(
+                NetworkMessage::OffchainTransaction {
+                    transaction: validated_tx,
+                }
+                .encode(),
+            );
+        } else {
+            log::debug!(
+                "Validated offchain transaction won't be propagated, network service isn't defined"
+            );
+        }
+
+        // TODO (breathx) Execute transaction
+        log::info!("Unimplemented tx execution");
+
+        Ok(tx_hash)
     }
 }

@@ -25,6 +25,7 @@ extern crate alloc;
 pub mod db;
 pub mod events;
 pub mod gear;
+pub mod tx_pool;
 
 pub use gear_core;
 pub use gprimitives;

@@ -201,6 +201,7 @@ dependencies = [
  "auto_impl",
  "c-kzg",
  "derive_more 1.0.0",
+ "k256",
  "serde",
 ]
 
@@ -289,6 +290,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "derive_more 1.0.0",
+ "k256",
  "serde",
 ]
 
@@ -4782,6 +4784,7 @@ dependencies = [
  "ethexe-sequencer",
  "ethexe-service-utils",
  "ethexe-signer",
+ "ethexe-tx-pool",
  "ethexe-validator",
  "futures",
  "futures-timer",
@@ -4794,7 +4797,9 @@ dependencies = [
  "ntest",
  "parity-scale-codec",
  "rand",
+ "reqwest",
  "serde",
+ "serde_json",
  "static_init",
  "tempfile",
  "tokio",
@@ -4826,6 +4831,23 @@ dependencies = [
  "secp256k1 0.30.0",
  "sha3",
  "tempfile",
+]
+
+[[package]]
+name = "ethexe-tx-pool"
+version = "1.7.1"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-signer",
+ "futures",
+ "gear-utils",
+ "gprimitives",
+ "hex",
+ "log",
+ "parity-scale-codec",
+ "tokio",
 ]
 
 [[package]]
