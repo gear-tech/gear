@@ -1640,11 +1640,12 @@ mod utils {
                 None,
                 self.broadcaster.clone(),
             );
-            
+
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);
 
-            self.wait_for(|event| Ok(matches!(event, ServiceEvent::ServiceStarted))).await;
+            self.wait_for(|event| Ok(matches!(event, ServiceEvent::ServiceStarted)))
+                .await;
         }
 
         pub async fn stop_service(&mut self) {
