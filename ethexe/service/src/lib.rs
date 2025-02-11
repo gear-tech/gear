@@ -94,6 +94,14 @@ impl EventsListener {
         self.receiver.recv().await.map_err(Into::into)
     }
 
+    pub async fn wait_for(
+        &mut self,
+        mut f: impl FnMut(ServiceEvent) -> Result<bool>,
+    ) -> Result<()> {
+        self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
+            .await
+    }
+
     pub async fn apply_until<R: Sized>(
         &mut self,
         mut f: impl FnMut(ServiceEvent) -> Result<Option<R>>,
@@ -807,7 +815,7 @@ impl Service {
                 },
                 event = rpc_receiver.maybe_next_some() => {
                     let _ = event_sender.lock().await.send(ServiceEvent::Rpc(event.clone()));
-
+                    log::info!("Received RPC event: {event:#?}");
                 },
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
