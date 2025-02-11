@@ -32,7 +32,7 @@ use gear_core::{
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval},
-    message::{DispatchKind, HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
@@ -242,8 +242,8 @@ impl Externalities for MockExt {
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
         &self._forbidden_funcs
     }
-    fn endpoint_dispatch_kind(&self) -> DispatchKind {
-        Default::default()
+    fn msg_ctx(&self) -> &MessageContext {
+        unimplemented!()
     }
     fn reserve_gas(
         &mut self,

@@ -1421,8 +1421,8 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         &self.context.forbidden_funcs
     }
 
-    fn endpoint_dispatch_kind(&self) -> DispatchKind {
-        self.context.message_context.kind()
+    fn msg_ctx(&self) -> &MessageContext {
+        &self.context.message_context
     }
 }
 

@@ -167,10 +167,7 @@ where
 
     pub fn check_func_forbiddenness(&mut self, syscall_name: SyscallName) -> Result<(), HostError> {
         if self.ext_mut().forbidden_funcs().contains(&syscall_name)
-            || self
-                .ext_mut()
-                .endpoint_dispatch_kind()
-                .forbids(syscall_name)
+            || self.ext_mut().msg_ctx().kind().forbids(syscall_name)
         {
             self.set_termination_reason(
                 ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into(),
