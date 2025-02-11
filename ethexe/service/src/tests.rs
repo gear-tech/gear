@@ -959,7 +959,7 @@ async fn multiple_validators() {
 }
 
 mod utils {
-    use crate::{EventsListener, EventsPublisher, ServiceEvent};
+    use crate::{EventsPublisher, ServiceEvent};
 
     use super::*;
     use ethexe_network::export::Multiaddr;
@@ -1645,7 +1645,8 @@ mod utils {
             self.running_service_handle = Some(handle);
 
             self.wait_for(|event| Ok(matches!(event, ServiceEvent::ServiceStarted)))
-                .await;
+                .await
+                .unwrap();
         }
 
         pub async fn stop_service(&mut self) {
@@ -1661,7 +1662,7 @@ mod utils {
         // TODO(playX18): Tests that actually use ServiceEvent broadcast channel extensively
         pub async fn wait_for(
             &mut self,
-            mut f: impl FnMut(ServiceEvent) -> Result<bool>,
+            f: impl FnMut(ServiceEvent) -> Result<bool>,
         ) -> Result<()> {
             EventsPublisher::from_broadcaster(self.broadcaster.clone())
                 .subscribe()

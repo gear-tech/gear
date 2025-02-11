@@ -57,7 +57,6 @@ pub enum ServiceEvent {
     Sequencer(SequencerEvent),
     Network(NetworkEvent),
     Prometheus(PrometheusEvent),
-    Rpc(ethexe_rpc::RpcEvent),
     ServiceStarted,
 }
 
@@ -814,7 +813,6 @@ impl Service {
                     }
                 },
                 event = rpc_receiver.maybe_next_some() => {
-                    let _ = event_sender.lock().await.send(ServiceEvent::Rpc(event.clone()));
                     log::info!("Received RPC event: {event:#?}");
                 },
                 _ = rpc_handle.as_mut().maybe() => {

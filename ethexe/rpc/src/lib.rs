@@ -200,5 +200,5 @@ impl FusedStream for RpcReceiver {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum RpcEvent {}
