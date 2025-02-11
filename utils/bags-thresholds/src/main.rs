@@ -23,7 +23,7 @@ use generate_bags::generate_thresholds;
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
-// #[clap(author, version, about)]
+#[clap(author, version, about)]
 struct Opt {
     /// How many bags to generate.
     #[arg(long, default_value_t = 200)]
