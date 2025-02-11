@@ -98,6 +98,7 @@ impl FusedStream for ComputeService {
 }
 
 impl ComputeService {
+    // TODO (gsobol): consider to create Processor inside ComputeService
     pub fn new(db: Database, processor: Processor, query: Query) -> Self {
         Self {
             db,
