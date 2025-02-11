@@ -31,12 +31,14 @@ use parity_scale_codec::{Decode, Encode};
 
 pub struct Validator {
     pub_key: PublicKey,
+    pub_key_session: PublicKey,
     signer: Signer,
     router_address: Address,
 }
 
 pub struct Config {
     pub pub_key: PublicKey,
+    pub pub_key_session: PublicKey,
     pub router_address: Address,
 }
 
@@ -94,6 +96,7 @@ impl Validator {
         Self {
             signer,
             pub_key: config.pub_key,
+            pub_key_session: config.pub_key_session,
             router_address: config.router_address,
         }
     }
@@ -104,6 +107,10 @@ impl Validator {
 
     pub fn address(&self) -> Address {
         self.pub_key.to_address()
+    }
+
+    pub fn pub_key_session(&self) -> PublicKey {
+        self.pub_key_session
     }
 
     pub fn aggregate<C: ToDigest>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {

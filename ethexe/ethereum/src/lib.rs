@@ -46,11 +46,16 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use ethexe_common::gear::{AggregatedPublicKey, VerifyingShare};
+use ethexe_common::gear::AggregatedPublicKey;
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
+use gprimitives::{ActorId, U256 as GearU256};
 use mirror::Mirror;
+use roast_secp256k1_evm::frost::{
+    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
+    Identifier,
+};
 use router::{Router, RouterQuery};
-use std::{iter, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 mod abi;
 mod eip1167;
@@ -106,8 +111,25 @@ impl Ethereum {
         validators: Vec<LocalAddress>,
         signer: LocalSigner,
         sender_address: LocalAddress,
+        verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
     ) -> Result<Self> {
         const VALUE_PER_GAS: u128 = 6;
+
+        let maybe_validator_identifiers: Result<Vec<_>, _> = validators
+            .iter()
+            .map(|address| Identifier::deserialize(&ActorId::from(*address).into_bytes()))
+            .collect();
+        let validator_identifiers = maybe_validator_identifiers?;
+        let identifiers = validator_identifiers.into_iter().collect();
+        let public_key_package =
+            PublicKeyPackage::from_commitment(&identifiers, &verifiable_secret_sharing_commitment)?;
+        let public_key_compressed: [u8; 33] = public_key_package
+            .verifying_key()
+            .serialize()?
+            .try_into()
+            .unwrap();
+        let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+        let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
         let provider = create_provider(rpc_url, signer, sender_address).await?;
         let validators: Vec<_> = validators
@@ -159,21 +181,13 @@ impl Ethereum {
                     _electionDuration: U256::from(2 * 60 * 60),
                     _validationDelay: U256::from(60),
                     _aggregatedPublicKey: (AggregatedPublicKey {
-                        x: "0x0000000000000000000000000000000000000000000000000000000000000001"
-                            .parse()?,
-                        y: "0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE"
-                            .parse()?,
+                        x: GearU256::from_big_endian(public_key_x_bytes),
+                        y: GearU256::from_big_endian(public_key_y_bytes),
                     })
                     .into(),
-                    _verifyingShares: iter::repeat(VerifyingShare {
-                        x: "0x0000000000000000000000000000000000000000000000000000000000000001"
-                            .parse()?,
-                        y: "0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE"
-                            .parse()?,
-                    })
-                    .take(validators.len())
-                    .map(Into::into)
-                    .collect(),
+                    _verifiableSecretSharingCommitment: Bytes::copy_from_slice(
+                        &verifiable_secret_sharing_commitment.serialize()?.concat(),
+                    ),
                     _validators: validators,
                 }
                 .abi_encode(),
