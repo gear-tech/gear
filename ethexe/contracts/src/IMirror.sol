@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import {Gear} from "./libraries/Gear.sol";
+
 // TODO (breathx): sort here everything.
 interface IMirror {
     /* Events section */
@@ -85,33 +87,19 @@ interface IMirror {
 
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata payload, uint128 value) external payable returns (bytes32);
+    function sendMessage(bytes calldata payload, uint128 value) external returns (bytes32);
 
-    function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external payable;
+    function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external;
 
-    // payable?
     function claimValue(bytes32 claimedId) external;
 
-    function executableBalanceTopUp(uint128 value) external payable;
+    function executableBalanceTopUp(uint128 value) external;
 
-    function sendValueToInheritor() external;
+    function transferLockedValueToInheritor() external;
 
     /* Router-driven state and funds management */
-    // NOTE: all of these methods will have additional handler (with hooks) for decoder.
 
-    function updateState(bytes32 newStateHash) external;
+    function initialize(address initializer, address decoder) external;
 
-    function setInheritor(address inheritor) external;
-
-    function messageSent(bytes32 id, address destination, bytes calldata payload, uint128 value) external;
-
-    function replySent(address destination, bytes calldata payload, uint128 value, bytes32 replyTo, bytes4 replyCode)
-        external;
-
-    function valueClaimed(bytes32 claimedId, address destination, uint128 value) external;
-
-    function createDecoder(address implementation, bytes32 salt) external;
-
-    // TODO (breathx): consider removal of this in favor of separated creation and init.
-    function initMessage(address source, bytes calldata payload, uint128 value, uint128 executableBalance) external;
+    function performStateTransition(Gear.StateTransition calldata transition) external returns (bytes32);
 }

@@ -21,8 +21,8 @@ RUN wget https://sh.rustup.rs/rustup-init.sh
 RUN chmod +x rustup-init.sh
 RUN ./rustup-init.sh -y
 ENV PATH="/root/.cargo/bin:$PATH"
-RUN rustup toolchain install nightly-2024-07-30
-RUN rustup target add wasm32-unknown-unknown --toolchain nightly-2024-07-30
+RUN rustup toolchain install nightly-2025-01-09
+RUN rustup target add wasm32v1-none --toolchain nightly-2025-01-09
 
 # Build
 RUN cargo build -p ethexe-cli --profile $PROFILE

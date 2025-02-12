@@ -1,29 +1,40 @@
-use std::{
-    collections::{BTreeSet, HashMap, VecDeque},
-    sync::Arc,
-};
+// This file is part of Gear.
+//
+// Copyright (C) 2024-2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    observer::{
-        read_block_events, read_block_request_events, read_block_request_events_batch,
-        read_code_from_tx_hash, ObserverProvider,
-    },
-    BlobReader,
-};
+use crate::{BlobReader, Provider, MAX_QUERY_BLOCK_RANGE};
 use alloy::{
-    eips::BlockNumberOrTag,
+    network::{Ethereum, Network},
     primitives::Address as AlloyAddress,
-    providers::{Provider, ProviderBuilder},
-    rpc::types::eth::BlockTransactionsKind,
+    providers::{Provider as _, ProviderBuilder},
+    rpc::{client::BatchRequest, types::eth::BlockTransactionsKind},
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
-    router::Event as RouterEvent,
-    BlockEvent, BlockRequestEvent,
+    events::{BlockEvent, BlockRequestEvent, RouterEvent},
 };
 use ethexe_signer::Address;
+use futures::future;
 use gprimitives::{CodeId, H256};
+use std::{
+    collections::{BTreeSet, HashMap, VecDeque},
+    sync::Arc,
+};
 
 /// Height difference to start fast sync.
 const DEEP_SYNC: u32 = 10;
@@ -31,7 +42,7 @@ const DEEP_SYNC: u32 = 10;
 #[derive(Clone)]
 pub struct Query {
     database: Arc<dyn BlockMetaStorage>,
-    provider: ObserverProvider,
+    provider: Provider,
     router_address: AlloyAddress,
     genesis_block_hash: H256,
     blob_reader: Arc<dyn BlobReader>,
@@ -65,7 +76,8 @@ impl Query {
         let hash = self.genesis_block_hash;
         self.database
             .set_block_commitment_queue(hash, Default::default());
-        self.database.set_block_prev_commitment(hash, H256::zero());
+        self.database
+            .set_previous_committed_block(hash, H256::zero());
         self.database.set_block_end_state_is_valid(hash, true);
         self.database.set_block_is_empty(hash, true);
         self.database
@@ -89,10 +101,59 @@ impl Query {
             .await?
             .into_iter()
             .filter_map(|event| match event {
-                BlockEvent::Router(RouterEvent::BlockCommitted { block_hash }) => Some(block_hash),
+                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => Some(hash),
                 _ => None,
             })
             .collect())
+    }
+
+    async fn batch_get_block_headers(
+        provider: Provider,
+        database: Arc<dyn BlockMetaStorage>,
+        from_block: u64,
+        to_block: u64,
+    ) -> Result<Vec<(H256, BlockHeader)>> {
+        log::debug!("Querying blocks from {from_block} to {to_block}");
+
+        let mut batch = BatchRequest::new(provider.client());
+
+        let handles: Vec<_> = (from_block..=to_block)
+            .map(|bn| {
+                batch
+                    .add_call::<_, Option<<Ethereum as Network>::BlockResponse>>(
+                        "eth_getBlockByNumber",
+                        &(format!("0x{bn:x}"), false),
+                    )
+                    .expect("infallible")
+            })
+            .collect();
+
+        batch.send().await?;
+
+        let blocks: Vec<_> = future::join_all(handles).await;
+
+        let mut res = Vec::with_capacity(blocks.len());
+
+        for block in blocks {
+            let block = block?.ok_or_else(|| anyhow!("Block not found"))?;
+            let block_hash = H256(block.header.hash.0);
+
+            let height = block.header.number as u32;
+            let timestamp = block.header.timestamp;
+            let parent_hash = H256(block.header.parent_hash.0);
+
+            let header = BlockHeader {
+                height,
+                timestamp,
+                parent_hash,
+            };
+
+            database.set_block_header(block_hash, header.clone());
+
+            res.push((block_hash, header))
+        }
+
+        Ok(res)
     }
 
     /// Populate database with blocks using rpc provider.
@@ -102,59 +163,52 @@ impl Query {
         to_block: u32,
     ) -> Result<HashMap<H256, BlockHeader>> {
         let total_blocks = to_block.saturating_sub(from_block) + 1;
+
         log::info!("Starting to load {total_blocks} blocks from {from_block} to {to_block}");
 
-        let fetches = (from_block..=to_block).map(|block_number| {
-            let provider = self.provider.clone();
-            let database = Arc::clone(&self.database);
-            tokio::spawn(async move {
-                let block = provider
-                    .get_block_by_number(BlockNumberOrTag::Number(block_number as u64), false)
-                    .await?;
-                let block = block
-                    .ok_or_else(|| anyhow!("Block not found for block number {block_number}"))?;
+        let headers_handles: Vec<_> = (from_block..=to_block)
+            .step_by(MAX_QUERY_BLOCK_RANGE)
+            .map(|start| {
+                let end = (start + MAX_QUERY_BLOCK_RANGE as u32 - 1).min(to_block);
 
-                let height = u32::try_from(block.header.number)
-                    .map_err(|err| anyhow!("Ethereum block number not fit in u32: {err}"))?;
-                let timestamp = block.header.timestamp;
-                let block_hash = H256(block.header.hash.0);
-                let parent_hash = H256(block.header.parent_hash.0);
+                let provider = self.provider.clone();
+                let database = self.database.clone();
 
-                let header = BlockHeader {
-                    height,
-                    timestamp,
-                    parent_hash,
-                };
-
-                database.set_block_header(block_hash, header.clone());
-
-                Ok::<(H256, BlockHeader), anyhow::Error>((block_hash, header))
+                tokio::spawn(async move {
+                    Self::batch_get_block_headers(provider, database, start as u64, end as u64)
+                        .await
+                })
             })
-        });
+            .collect();
 
-        // Fetch events in block range.
-        let mut blocks_events = read_block_request_events_batch(
+        let headers_fut = future::join_all(headers_handles);
+
+        let events_fut = crate::read_block_request_events_batch(
             from_block,
             to_block,
             &self.provider,
             self.router_address,
-        )
-        .await?;
+        );
 
-        // Collect results
-        let mut block_headers = HashMap::new();
-        for result in futures::future::join_all(fetches).await {
-            let (block_hash, header) = result??;
-            // Set block events, empty vec if no events.
-            self.database.set_block_events(
-                block_hash,
-                blocks_events.remove(&block_hash).unwrap_or_default(),
-            );
-            block_headers.insert(block_hash, header);
+        let (headers_batches, maybe_events) = future::join(headers_fut, events_fut).await;
+        let mut events = maybe_events?;
+
+        let mut res = HashMap::with_capacity(total_blocks as usize);
+
+        for batch in headers_batches {
+            let batch = batch??;
+
+            for (hash, header) in batch {
+                self.database
+                    .set_block_events(hash, events.remove(&hash).unwrap_or_default());
+
+                res.insert(hash, header);
+            }
         }
-        log::trace!("{} blocks loaded", block_headers.len());
 
-        Ok(block_headers)
+        log::trace!("{} blocks loaded", res.len());
+
+        Ok(res)
     }
 
     pub async fn get_last_committed_chain(&mut self, block_hash: H256) -> Result<Vec<H256>> {
@@ -186,8 +240,15 @@ impl Query {
         };
 
         let mut chain = Vec::new();
-        let mut committed_blocks = Vec::new();
         let mut headers_map = HashMap::new();
+
+        let committed_blocks = crate::read_committed_blocks_batch(
+            latest_valid_block_height + 1,
+            current_block.height,
+            &self.provider,
+            self.router_address,
+        )
+        .await?;
 
         if is_deep_sync {
             // Load blocks in batch from provider by numbers.
@@ -218,7 +279,6 @@ impl Query {
             }
 
             log::trace!("Include block {hash} in chain for processing");
-            committed_blocks.extend(self.get_committed_blocks(hash).await?);
             chain.push(hash);
 
             // Fetch parent hash from headers_map or database
@@ -305,12 +365,13 @@ impl Query {
         {
             let parent_prev_commitment = self
                 .database
-                .block_prev_commitment(parent)
+                .previous_committed_block(parent)
                 .ok_or_else(|| anyhow!("parent block prev commitment not found"))?;
             self.database
-                .set_block_prev_commitment(block_hash, parent_prev_commitment);
+                .set_previous_committed_block(block_hash, parent_prev_commitment);
         } else {
-            self.database.set_block_prev_commitment(block_hash, parent);
+            self.database
+                .set_previous_committed_block(block_hash, parent);
         }
 
         Ok(())
@@ -341,9 +402,12 @@ impl Query {
                 self.database.set_block_header(block_hash, meta.clone());
 
                 // Populate block events in db.
-                let events =
-                    read_block_request_events(block_hash, &self.provider, self.router_address)
-                        .await?;
+                let events = crate::read_block_request_events(
+                    block_hash,
+                    &self.provider,
+                    self.router_address,
+                )
+                .await?;
                 self.database.set_block_events(block_hash, events);
 
                 Ok(meta)
@@ -356,7 +420,7 @@ impl Query {
     }
 
     pub async fn get_block_events(&mut self, block_hash: H256) -> Result<Vec<BlockEvent>> {
-        read_block_events(block_hash, &self.provider, self.router_address).await
+        crate::read_block_events(block_hash, &self.provider, self.router_address).await
     }
 
     pub async fn get_block_request_events(
@@ -368,7 +432,8 @@ impl Query {
         }
 
         let events =
-            read_block_request_events(block_hash, &self.provider, self.router_address).await?;
+            crate::read_block_request_events(block_hash, &self.provider, self.router_address)
+                .await?;
         self.database.set_block_events(block_hash, events.clone());
 
         Ok(events)
@@ -377,13 +442,14 @@ impl Query {
     pub async fn download_code(
         &self,
         expected_code_id: CodeId,
-        blob_tx_hash: H256,
+        timestamp: u64,
+        tx_hash: H256,
     ) -> Result<Vec<u8>> {
         let blob_reader = self.blob_reader.clone();
         let attempts = Some(3);
 
-        read_code_from_tx_hash(blob_reader, expected_code_id, blob_tx_hash, attempts)
+        crate::read_code_from_tx_hash(blob_reader, expected_code_id, timestamp, tx_hash, attempts)
             .await
-            .map(|res| res.1)
+            .map(|res| res.2)
     }
 }

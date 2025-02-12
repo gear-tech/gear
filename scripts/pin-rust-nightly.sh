@@ -12,7 +12,7 @@ fi
 pin_date=$1
 os_name="$(uname)"
 suffix=$(rustc -Vv | grep "host: " | sed "s/^host: \(.*\)$/\1/")
-rustup toolchain install nightly-$pin_date --component llvm-tools-preview
-rustup target add wasm32-unknown-unknown --toolchain nightly-$pin_date
+rustup toolchain install nightly-$pin_date --component llvm-tools
+rustup target add wasm32v1-none --toolchain nightly-$pin_date
 rm -rf ~/.rustup/toolchains/nightly-$suffix
 ln -s ~/.rustup/toolchains/nightly-$pin_date-$suffix ~/.rustup/toolchains/nightly-$suffix

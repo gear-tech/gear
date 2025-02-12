@@ -1,7 +1,7 @@
 /*
  * This file is part of Gear.
  *
- * Copyright (C) 2022-2024 Gear Technologies Inc.
+ * Copyright (C) 2022-2025 Gear Technologies Inc.
  * SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
  *
  * This program is free software: you can redistribute it and/or modify
@@ -42,7 +42,7 @@ cfg_if! {
     if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             let error_reg = nix::libc::REG_ERR as usize;
-            let error_code = (*ucontext).uc_mcontext.gregs[error_reg];
+            let error_code = unsafe { *ucontext }.uc_mcontext.gregs[error_reg];
             // Use second bit from err reg. See https://git.io/JEQn3
             Some(error_code & 0b10 == 0b10)
         }
@@ -151,8 +151,8 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
 
     unsafe fn init_sigstack() -> Result<StackInfo, ThreadInitError> {
         // Check whether old signal stack exist and suitable for lazy-pages signal handler.
-        let mut old_stack = mem::zeroed();
-        let res = libc::sigaltstack(ptr::null(), &mut old_stack);
+        let mut old_stack = unsafe { mem::zeroed() };
+        let res = unsafe { libc::sigaltstack(ptr::null(), &mut old_stack) };
         if res != 0 {
             return Err(ThreadInitError::OldStack(errno::errno()));
         }
@@ -161,14 +161,16 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
         }
 
         // Alloc memory for new signal stack.
-        let ptr = libc::mmap(
-            ptr::null_mut(),
-            SIGNAL_STACK_SIZE,
-            libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_PRIVATE | libc::MAP_ANON,
-            -1,
-            0,
-        );
+        let ptr = unsafe {
+            libc::mmap(
+                ptr::null_mut(),
+                SIGNAL_STACK_SIZE,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_PRIVATE | libc::MAP_ANON,
+                -1,
+                0,
+            )
+        };
         if ptr == libc::MAP_FAILED {
             return Err(ThreadInitError::Mmap(errno::errno()));
         }
@@ -179,7 +181,7 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
             ss_flags: 0,
             ss_size: SIGNAL_STACK_SIZE,
         };
-        let res = libc::sigaltstack(&new_stack, ptr::null_mut());
+        let res = unsafe { libc::sigaltstack(&new_stack, ptr::null_mut()) };
         if res != 0 {
             return Err(ThreadInitError::SigAltStack(errno::errno()));
         }
@@ -232,7 +234,8 @@ where
         signal::SIGSEGV
     };
 
-    let old_sigaction = signal::sigaction(signal, &sig_action).map_err(io::Error::from)?;
+    let old_sigaction =
+        unsafe { signal::sigaction(signal, &sig_action) }.map_err(io::Error::from)?;
     let handler = old_sigaction.handler();
     let _ = OLD_SIG_HANDLER
         .set(handler)

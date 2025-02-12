@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,9 +23,7 @@
 // Effectively, this procedure executes a composition of `MAX_ITER` programs `f`
 // where the output of the previous call is fed to the input of the next call.
 
-extern crate alloc;
-
-use gstd::{debug, exec, msg, String};
+use gstd::{debug, exec, msg, prelude::*, String};
 
 static mut DEBUG: DebugInfo = DebugInfo { me: String::new() };
 static mut STATE: State = State { intrinsic: 0 };
@@ -50,20 +48,21 @@ impl State {
             .expect("Multiplication overflow");
         debug!(
             "[0x{} mul_by_const::unchecked_mul] Calculated {} x {other} == {z}",
-            DEBUG.me, self.intrinsic
+            static_ref!(DEBUG).me,
+            self.intrinsic
         );
         z
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let x: u64 = msg::load().expect("Expecting a u64 number");
 
-    msg::reply(unsafe { STATE.unchecked_mul(x) }, 0).unwrap();
+    msg::reply(unsafe { static_mut!(STATE).unchecked_mul(x) }, 0).unwrap();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let val: u64 = msg::load().expect("Expecting a u64 number");
     unsafe {
@@ -75,6 +74,6 @@ extern "C" fn init() {
     msg::reply_bytes([], 0).unwrap();
     debug!(
         "[0x{} mul_by_const::init] Program initialized with input {val}",
-        unsafe { &DEBUG.me },
+        unsafe { static_ref!(DEBUG).me.as_str() },
     );
 }

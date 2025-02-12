@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -56,7 +56,7 @@ pub fn env_vars() -> EnvVars {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     if exec::block_height() >= 1000 {
 ///         msg::reply(b"Block #1000 reached", 0).unwrap();
@@ -80,7 +80,7 @@ pub fn block_height() -> u32 {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     if exec::block_timestamp() >= 1645488000000 {
 ///         msg::reply(b"The current block is generated after February 22, 2022", 0)
@@ -106,7 +106,7 @@ pub fn block_timestamp() -> u64 {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let message_id =
 ///         msg::send(msg::source(), b"Outgoing message", 0).expect("Failed to send message");
@@ -114,7 +114,7 @@ pub fn block_timestamp() -> u64 {
 ///     exec::reply_deposit(message_id, 100_000).expect("Failed to deposit reply");
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle_reply() {
 ///     // I will be executed for pre-defined (deposited) 100_000 of gas!
 /// }
@@ -143,7 +143,7 @@ pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     // ...
 ///     exec::exit(msg::source());
@@ -169,12 +169,12 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 ///
 /// static mut RESERVED: ReservationId = ReservationId::zero();
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn init() {
 ///     unsafe { RESERVED = exec::reserve_gas(50_000_000, 7).unwrap() };
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     exec::unreserve_gas(unsafe { RESERVED }).expect("Unable to unreserve");
 /// }
@@ -201,13 +201,13 @@ pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
 /// ```
 /// use gcore::exec;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     exec::system_reserve_gas(1_000_000).expect("Unable to reserve");
 ///     exec::wait();
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle_signal() {
 ///     // Message removed from waitlist!
 /// }
@@ -258,7 +258,7 @@ pub fn unreserve_gas(id: ReservationId) -> Result<u64> {
 /// ```
 /// use gcore::exec;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     while exec::gas_available() > 1000 {
 ///         // ...
@@ -281,7 +281,7 @@ pub fn gas_available() -> u64 {
 /// ```
 /// use gcore::exec;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     if exec::gas_available() < 1_000_000 {
 ///         exec::leave();
@@ -304,7 +304,7 @@ pub fn leave() -> ! {
 /// ```
 /// use gcore::exec;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let my_balance = exec::value_available();
 /// }
@@ -332,7 +332,7 @@ pub fn value_available() -> u128 {
 /// ```
 /// use gcore::exec;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     // ...
 ///     exec::wait();
@@ -372,13 +372,13 @@ pub fn wait_up_to(duration: u32) -> ! {
 ///
 /// static mut MSG_ID: MessageId = MessageId::zero();
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn init() {
 ///     unsafe { MSG_ID = msg::id() };
 ///     exec::wait();
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     exec::wake(unsafe { MSG_ID }).expect("Unable to wake");
 /// }
@@ -401,7 +401,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// ```
 /// use gcore::exec;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let whoami = exec::program_id();
 /// }
@@ -433,7 +433,7 @@ pub fn program_id() -> ActorId {
 /// use core::array;
 /// use gcore::exec;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let subject: [u8; 32] = array::from_fn(|i| i as u8 + 1);
 ///     let (seed, block_number) = exec::random(subject).expect("Error in random");

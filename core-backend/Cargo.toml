@@ -2,12 +2,13 @@
 name = "gear-core-backend"
 description = "Gear WASM backend"
 documentation = "https://docs.rs/gear-core-backend"
+edition.workspace = true
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 gear-core.workspace = true
@@ -29,6 +30,7 @@ codec.workspace = true
 
 [dev-dependencies]
 codec.workspace = true
+env_logger.workspace = true
 
 [features]
 default = ["std"]

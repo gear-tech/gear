@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -34,7 +34,7 @@ pub(crate) struct Toolchain(String);
 
 impl Toolchain {
     /// This is a version of nightly toolchain, tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2024-07-30";
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2025-01-09";
 
     /// Returns `Toolchain` representing the recommended nightly version.
     pub fn recommended_nightly() -> Self {
@@ -60,7 +60,7 @@ impl Toolchain {
             let channels = TOOLCHAIN_CHANNELS.join("|");
             let pattern = format!(r"(?:{channels})(?:-\d{{4}}-\d{{2}}-\d{{2}})?");
             // Note this regex gives you a guaranteed match of the channel[-date] as group 0,
-            // for example: `nightly-2024-07-30`
+            // for example: `nightly-2025-01-09
             Regex::new(&pattern).unwrap()
         });
 
@@ -94,16 +94,11 @@ impl Toolchain {
             self.raw_toolchain_str() == toolchain,
             anyhow!(
                 "recommended toolchain `{x}` not found, install it using the command:\n\
-        rustup toolchain install {x} --component llvm-tools --target wasm32-unknown-unknown\n\n\
+        rustup toolchain install {x} --target wasm32v1-none\n\n\
         after installation, do not forget to set `channel = \"{x}\"` in `rust-toolchain.toml` file",
                 x = toolchain
             )
         );
         Ok(())
-    }
-
-    /// Returns bool representing nightly toolchain.
-    pub fn is_nightly(&self) -> bool {
-        self.0.starts_with("nightly")
     }
 }

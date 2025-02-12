@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -307,7 +307,7 @@ impl RawSs58Address {
                 let first = ((ident & 0b0000_0000_1111_1100) as u8) >> 2;
                 // lower two bits of the lower byte in the high pos,
                 // lower bits of the upper byte in the low pos
-                let second = ((ident >> 8) as u8) | ((ident & 0b0000_0000_0000_0011) as u8) << 6;
+                let second = ((ident >> 8) as u8) | (((ident & 0b0000_0000_0000_0011) as u8) << 6);
 
                 buffer[0] = first | 0b01000000;
                 buffer[1] = second;

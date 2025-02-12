@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -123,7 +123,7 @@ impl UserSignalHandler for FuzzerLazyPagesSignalHandler {
         log::debug!("Interrupted, exception info = {:?}", info);
         FUZZER_LP_CONTEXT.with(|ctx| {
             let mut borrow = ctx.borrow_mut();
-            let ctx = borrow.as_mut().ok_or_else(|| Error::WasmMemAddrIsNotSet)?;
+            let ctx = borrow.as_mut().ok_or(Error::WasmMemAddrIsNotSet)?;
             user_signal_handler_internal(ctx, info)
         })
     }
@@ -134,7 +134,7 @@ fn user_signal_handler_internal(
     info: ExceptionInfo,
 ) -> Result<(), Error> {
     let native_addr = info.fault_addr as usize;
-    let is_write = info.is_write.ok_or_else(|| Error::ReadOrWriteIsUnknown)?;
+    let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
     let wasm_mem_range = &ctx.memory_range;
 
     if !wasm_mem_range.contains(&native_addr) {
@@ -210,7 +210,7 @@ unsafe fn mprotect_interval(
     if allow_exec {
         mask |= region::Protection::EXECUTE;
     }
-    region::protect(addr as *mut (), size, mask)?;
+    unsafe { region::protect(addr as *mut (), size, mask)? };
     log::trace!("mprotect interval: {addr:#x}, size: {size:#x}, mask: {mask}");
     Ok(())
 }
@@ -229,7 +229,9 @@ unsafe fn simulate_data_load(addr: usize) {
 unsafe fn memset(addr: *mut u8, value: u8, size: usize) {
     let mut addr = addr;
     for _ in 0..size {
-        *addr = value;
-        addr = addr.add(1);
+        unsafe {
+            *addr = value;
+            addr = addr.add(1);
+        }
     }
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -88,7 +88,7 @@ where
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&self, ctx: &Caller) -> HostPointer {
-        self.inner.get_buff(ctx) as HostPointer
+        unsafe { self.inner.get_buff(ctx) as HostPointer }
     }
 }
 
@@ -348,7 +348,9 @@ where
             let err_msg = format!(
                 "MemoryAccessIo::write: Backend bug error, buffer size is not equal to registered buffer size. \
                 write.ptr - {}, write.size - {}, buff.len - {}",
-                write.ptr, write.size, buff.len()
+                write.ptr,
+                write.size,
+                buff.len()
             );
 
             log::error!("{err_msg}");

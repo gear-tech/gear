@@ -6,70 +6,33 @@ edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [[bin]]
 name = "ethexe"
 path = "src/main.rs"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-ethexe-db.workspace = true
 ethexe-network.workspace = true
-ethexe-observer.workspace = true
-ethexe-processor.workspace = true
-ethexe-signer.workspace = true
-ethexe-sequencer.workspace = true
-ethexe-ethereum.workspace = true
-ethexe-validator.workspace = true
-ethexe-common.workspace = true
-ethexe-runtime-common.workspace = true
-ethexe-prometheus-endpoint.workspace = true
+ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
-ethexe-utils.workspace = true
+ethexe-service.workspace = true
+ethexe-observer.workspace = true
+ethexe-signer.workspace = true
+ethexe-ethereum.workspace = true
 gprimitives.workspace = true
 
-clap = { workspace = true, features = ["derive"] }
-log.workspace = true
-env_logger.workspace = true
-directories.workspace = true
 anyhow.workspace = true
-tokio = { workspace = true, features = [
-    "signal",
-    "macros",
-    "rt",
-    "rt-multi-thread",
-    "time",
-] }
-futures.workspace = true
-serde = { workspace = true, features = ["derive"] }
-toml.workspace = true
-parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+clap = { workspace = true, features = ["derive"] }
+directories.workspace = true
+env_logger.workspace = true
 hex.workspace = true
-rand.workspace = true
+log.workspace = true
+serde.workspace = true
+static_init.workspace = true
 tempfile.workspace = true
-futures-timer.workspace = true
-derive_more.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+toml.workspace = true
 
-static_init = "1.0.3"
-
-[dev-dependencies]
-alloy = { workspace = true, features = [
-    "consensus",
-    "eips",
-    "node-bindings",
-    "provider-http",
-    "provider-ws",
-    "provider-anvil-api",
-    "pubsub",
-    "rpc-client",
-    "rpc-types-eth",
-    "rpc-types-beacon",
-    "signer-local",
-] }
-ntest = "0.9.3"
-gear-core.workspace = true
-gear-utils.workspace = true
-
-demo-ping = { workspace = true, features = ["debug", "ethexe"] }
-demo-async = { workspace = true, features = ["debug", "ethexe"] }
+[lints]
+workspace = true

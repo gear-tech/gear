@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::mock::*;
-use common::{self, event::MessageEntry, CodeStorage, Origin as _};
+use common::{self, event::MessageEntry, CodeStorage, Origin};
 use frame_support::assert_ok;
 use gear_core::{
     ids::{prelude::*, CodeId, MessageId, ProgramId},
@@ -84,7 +84,7 @@ fn vec() {
         assert!(snapshot.dispatch_queue.is_empty());
         assert_eq!(snapshot.programs.len(), 1);
 
-        let program_details = &snapshot.programs[0];
+        let program_details = snapshot.programs.first().unwrap();
         assert_eq!(program_details.id, vec_id);
 
         let crate::ProgramState::Active(ref program_info) = program_details.state else {
@@ -164,14 +164,15 @@ fn debug_mode_works() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
-                programs: vec![crate::ProgramDetails {
+                programs: [crate::ProgramDetails {
                     id: program_id_1,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages: Default::default(),
                         code_hash: utils::h256_code_hash(&code_1),
                     }),
-                }],
+                }]
+                .into(),
             })
             .into(),
         );
@@ -194,7 +195,7 @@ fn debug_mode_works() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
-                programs: vec![
+                programs: [
                     crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
@@ -211,7 +212,8 @@ fn debug_mode_works() {
                             code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
-                ],
+                ]
+                .into(),
             })
             .into(),
         );
@@ -251,7 +253,7 @@ fn debug_mode_works() {
                         DispatchKind::Handle,
                         StoredMessage::new(
                             message_id_1,
-                            1.into(),
+                            1.cast(),
                             program_id_1,
                             Default::default(),
                             0,
@@ -263,7 +265,7 @@ fn debug_mode_works() {
                         DispatchKind::Handle,
                         StoredMessage::new(
                             message_id_2,
-                            1.into(),
+                            1.cast(),
                             program_id_2,
                             Default::default(),
                             0,
@@ -272,7 +274,7 @@ fn debug_mode_works() {
                         None,
                     ),
                 ],
-                programs: vec![
+                programs: [
                     crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
@@ -289,7 +291,8 @@ fn debug_mode_works() {
                             code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
-                ],
+                ]
+                .into(),
             })
             .into(),
         );
@@ -301,7 +304,7 @@ fn debug_mode_works() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
-                programs: vec![
+                programs: [
                     crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
@@ -318,7 +321,8 @@ fn debug_mode_works() {
                             code_hash: utils::h256_code_hash(&code_1),
                         }),
                     },
-                ],
+                ]
+                .into(),
             })
             .into(),
         );
@@ -356,10 +360,12 @@ fn get_last_program_id() -> ProgramId {
 }
 
 #[track_caller]
-fn maybe_last_message(account: u64) -> Option<UserMessage> {
+fn maybe_last_message(account: impl Origin) -> Option<UserMessage> {
+    let account = account.cast();
+
     System::events().into_iter().rev().find_map(|e| {
         if let super::mock::RuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-            if message.destination() == account.into() {
+            if message.destination() == account {
                 Some(message)
             } else {
                 None
@@ -544,14 +550,15 @@ fn check_not_allocated_pages() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
-                programs: vec![crate::ProgramDetails {
+                programs: [crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 0.into(),
                         persistent_pages: persistent_pages.clone(),
                         code_hash: h256_code_hash(&code),
                     }),
-                }],
+                }]
+                .into(),
             })
             .into(),
         );
@@ -575,14 +582,15 @@ fn check_not_allocated_pages() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
-                programs: vec![crate::ProgramDetails {
+                programs: [crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 0.into(),
                         persistent_pages: persistent_pages.clone(),
                         code_hash: h256_code_hash(&code),
                     }),
-                }],
+                }]
+                .into(),
             })
             .into(),
         );
@@ -778,14 +786,15 @@ fn check_changed_pages_in_storage() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
-                programs: vec![crate::ProgramDetails {
+                programs: [crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages: persistent_pages.clone(),
                         code_hash: h256_code_hash(&code),
                     }),
-                }],
+                }]
+                .into(),
             })
             .into(),
         );
@@ -815,14 +824,15 @@ fn check_changed_pages_in_storage() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
-                programs: vec![crate::ProgramDetails {
+                programs: [crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages,
                         code_hash: h256_code_hash(&code),
                     }),
-                }],
+                }]
+                .into(),
             })
             .into(),
         );
@@ -901,14 +911,15 @@ fn check_gear_stack_end() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
-                programs: vec![crate::ProgramDetails {
+                programs: [crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 4.into(),
                         persistent_pages,
                         code_hash: utils::h256_code_hash(&code),
                     }),
-                }],
+                }]
+                .into(),
             })
             .into(),
         );

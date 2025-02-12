@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,18 +19,18 @@
 use crate::{REPLY_REPLY, SEND_REPLY};
 use gstd::msg;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let value = msg::load().unwrap_or(0);
     msg::send_bytes(msg::source(), [], value).expect("Failed to send message");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     msg::send(msg::source(), SEND_REPLY, 0).unwrap();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     msg::send(msg::source(), REPLY_REPLY, 0).unwrap();
 }

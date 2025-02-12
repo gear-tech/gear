@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,6 +21,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![allow(clippy::manual_inspect)]
+#![allow(clippy::useless_conversion)]
 
 extern crate alloc;
 
@@ -46,7 +47,7 @@ pub mod migrations;
 pub mod pallet_tests;
 
 pub use crate::{
-    builtin::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn},
+    builtin::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn},
     manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
@@ -1140,7 +1141,6 @@ pub mod pallet {
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
-                schedule.limits.table_number.into(),
             )?;
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
@@ -1165,7 +1165,6 @@ pub mod pallet {
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
-                schedule.limits.table_number.into(),
             )
             .map_err(|e| {
                 log::debug!("Code checking or instrumentation failed: {e}");

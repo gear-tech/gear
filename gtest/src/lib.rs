@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -75,7 +75,7 @@
 //! #![no_std]
 //! use gstd::msg;
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! extern "C" fn handle() {
 //!     let payload = msg::load_bytes().expect("Failed to load payload");
 //!
@@ -203,7 +203,7 @@
 //!     # let sys = gtest::System::new();
 //!     let prog = Program::from_file(
 //!         &sys,
-//!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+//!         "./target/wasm32-gear/release/demo_ping.wasm",
 //!     );
 //!     ```
 //!
@@ -467,7 +467,7 @@
 //!     B(u128),
 //! }
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
 //!     let query: State = msg::load().expect("Unable to decode `State`");
 //!     let encoded = match query {
@@ -531,10 +531,13 @@ pub mod constants {
 
     /// Gas allowance for executing user dispatch and set of generated
     /// by programs dispatches from execution of the user dispatch.
-    pub const GAS_ALLOWANCE: Gas = 750_000_000_000;
+    pub const GAS_ALLOWANCE: Gas = 1_000_000_000_000;
+
+    /// Max allowed user gas to apply for external message.
+    pub const MAX_USER_GAS_LIMIT: Gas = 750_000_000_000;
 
     /// Gas multiplier used to calculate equivalence of gas in token value.
-    pub const GAS_MULTIPLIER: GasMultiplier<Value, Gas> = GasMultiplier::ValuePerGas(6);
+    pub const GAS_MULTIPLIER: GasMultiplier<Value, Gas> = GasMultiplier::ValuePerGas(VALUE_PER_GAS);
 
     /* Currency-related constants */
 
@@ -583,5 +586,5 @@ pub mod constants {
     }
 
     /// Default initial balance for users.
-    pub const DEFAULT_USERS_INITIAL_BALANCE: Value = EXISTENTIAL_DEPOSIT * 100_000;
+    pub const DEFAULT_USERS_INITIAL_BALANCE: Value = 100_000 * UNITS;
 }

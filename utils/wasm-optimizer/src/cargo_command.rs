@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -32,34 +32,24 @@ pub struct CargoCommand {
     toolchain: Toolchain,
     check_recommended_toolchain: bool,
     force_recommended_toolchain: bool,
-    force_wasm_mvp: bool,
 }
 
 impl CargoCommand {
     /// Initialize new cargo command.
     pub fn new() -> CargoCommand {
         let toolchain = Toolchain::try_from_rustup().expect("Failed to get toolchain from rustup");
-        let rustc_version = rustc_version::version().expect("Failed to get rustc version");
-        let force_wasm_mvp = toolchain != Toolchain::recommended_nightly()
-            && rustc_version.major == 1
-            && rustc_version.minor >= 82;
 
         CargoCommand {
             path: "rustup".to_string(),
             manifest_path: "Cargo.toml".into(),
             profile: "dev".to_string(),
-            rustc_flags: if force_wasm_mvp {
-                // -C linker-plugin-lto causes conflict: https://github.com/rust-lang/rust/issues/130604
-                vec!["-C", "link-arg=--import-memory"]
-            } else {
-                vec!["-C", "link-arg=--import-memory", "-C", "linker-plugin-lto"]
-            },
+            // TODO: enable `-C linker-plugin-lto` (https://github.com/rust-lang/rust/issues/130604)
+            rustc_flags: vec!["-C", "link-arg=--import-memory"],
             target_dir: "target".into(),
             features: vec![],
             toolchain,
             check_recommended_toolchain: false,
             force_recommended_toolchain: false,
-            force_wasm_mvp,
         }
     }
 }
@@ -124,15 +114,11 @@ impl CargoCommand {
             .arg(toolchain.raw_toolchain_str().as_ref())
             .arg("cargo")
             .arg("rustc")
-            .arg("--target=wasm32-unknown-unknown")
+            .arg("--target=wasm32v1-none")
             .arg("--color=always")
             .arg(format!("--manifest-path={}", self.manifest_path.display()))
             .arg("--profile")
             .arg(&self.profile);
-
-        if self.force_wasm_mvp {
-            cargo.arg("-Zbuild-std=core,alloc,panic_abort");
-        }
 
         if !self.features.is_empty() {
             cargo.arg("--features");
@@ -147,12 +133,7 @@ impl CargoCommand {
 
         self.remove_cargo_encoded_rustflags(&mut cargo);
 
-        if self.force_wasm_mvp {
-            cargo.env("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=mvp");
-            if !self.toolchain.is_nightly() {
-                cargo.env("RUSTC_BOOTSTRAP", "1");
-            }
-        }
+        cargo.env("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-feature=+sign-ext");
 
         let status = cargo.status().context("unable to execute cargo command")?;
         ensure!(

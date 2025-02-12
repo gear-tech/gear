@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -22,6 +22,7 @@ mod digest;
 mod signature;
 
 pub use digest::{Digest, ToDigest};
+use secp256k1::hashes::hex::{Case, DisplayHex};
 pub use sha3;
 pub use signature::Signature;
 
@@ -73,6 +74,12 @@ impl TryFrom<ActorId> for Address {
             .all(|&byte| byte == 0)
             .then_some(Address(id.to_address_lossy().0))
             .ok_or_else(|| anyhow!("First 12 bytes are not 0, it is not ethereum address"))
+    }
+}
+
+impl From<Address> for ActorId {
+    fn from(value: Address) -> Self {
+        H160(value.0).into()
     }
 }
 
@@ -248,6 +255,11 @@ impl Signer {
 
         let local_public = PublicKey::from_bytes(public_key.serialize());
 
+        log::debug!(
+            "Secret key generated: {}",
+            secret_key.secret_bytes().to_hex_string(Case::Lower)
+        );
+
         let key_file = self.key_store.join(local_public.to_hex());
         fs::write(key_file, secret_key.secret_bytes())?;
         Ok(local_public)
@@ -291,7 +303,7 @@ impl Signer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{keccak256, Signature};
+    use alloy::primitives::{keccak256, PrimitiveSignature as Signature};
     use std::env::temp_dir;
 
     #[test]

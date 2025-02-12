@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {IRouter} from "./IRouter.sol";
+import {Gear} from "./libraries/Gear.sol";
+import {Secp256k1} from "frost-secp256k1-evm/utils/cryptography/Secp256k1.sol";
+import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
+import {IMirrorDecoder} from "./IMirrorDecoder.sol";
+import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
+// TODO (gsobol): append middleware for slashing support.
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
-    using ECDSA for bytes32;
-    using MessageHashUtils for address;
-
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
 
@@ -25,503 +24,498 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function initialize(
-        address initialOwner,
+        address _owner,
         address _mirror,
         address _mirrorProxy,
         address _wrappedVara,
-        address[] memory _validatorsKeys
+        uint256 _eraDuration,
+        uint256 _electionDuration,
+        uint256 _validationDelay,
+        Gear.AggregatedPublicKey calldata _aggregatedPublicKey,
+        Gear.VerifyingShare[] calldata _verifyingShares,
+        address[] calldata _validators
     ) public initializer {
-        __Ownable_init(initialOwner);
+        __Ownable_init(_owner);
 
-        setStorageSlot("router.storage.RouterV1");
-        Storage storage router = _getStorage();
+        // Because of validator storages impl we have to check, that current timestamp is greater than 0.
+        require(block.timestamp > 0, "current timestamp must be greater than 0");
+        require(_electionDuration > 0, "election duration must be greater than 0");
+        require(_eraDuration > _electionDuration, "era duration must be greater than election duration");
+        // _validationDelay must be small enough,
+        // in order to restrict old era validators to make commitments, which can damage the system.
+        require(_validationDelay < (_eraDuration - _electionDuration) / 10, "validation delay is too big");
 
-        router.genesisBlockHash = blockhash(block.number - 1);
-        router.mirror = _mirror;
-        router.mirrorProxy = _mirrorProxy;
-        router.wrappedVara = _wrappedVara;
-        router.signingThresholdPercentage = 6666; // 2/3 percentage (66.66%).
-        router.baseWeight = 2_500_000_000;
-        router.valuePerWeight = 10;
-        _setValidators(_validatorsKeys);
+        _setStorageSlot("router.storage.RouterV1");
+        Storage storage router = _router();
+
+        router.genesisBlock = Gear.newGenesis();
+        router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
+        router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
+        router.computeSettings = Gear.defaultComputationSettings();
+        router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
+
+        // Set validators for the era 0.
+        _resetValidators(
+            router.validationSettings.validators0, _aggregatedPublicKey, _verifyingShares, _validators, block.timestamp
+        );
     }
 
     function reinitialize() public onlyOwner reinitializer(2) {
-        Storage storage oldRouter = _getStorage();
+        Storage storage oldRouter = _router();
 
-        address _mirror = oldRouter.mirror;
-        address _mirrorProxy = oldRouter.mirrorProxy;
-        address _wrappedVara = oldRouter.wrappedVara;
-        address[] memory _validatorsKeys = oldRouter.validatorsKeys;
+        _setStorageSlot("router.storage.RouterV2");
+        Storage storage newRouter = _router();
 
-        setStorageSlot("router.storage.RouterV2");
-        Storage storage router = _getStorage();
+        // Set current block as genesis.
+        newRouter.genesisBlock = Gear.newGenesis();
 
-        router.genesisBlockHash = blockhash(block.number - 1);
-        router.mirror = _mirror;
-        router.mirrorProxy = _mirrorProxy;
-        router.wrappedVara = _wrappedVara;
-        _setValidators(_validatorsKeys);
+        // New router latestCommittedBlock is already zeroed.
+
+        // Copy impl addresses from the old router.
+        newRouter.implAddresses = oldRouter.implAddresses;
+
+        // Copy signing threshold percentage from the old router.
+        newRouter.validationSettings.signingThresholdPercentage =
+            oldRouter.validationSettings.signingThresholdPercentage;
+
+        // Copy validators from the old router.
+        // TODO (gsobol): consider what to do. Maybe we should start reelection process.
+        // Skipping validators1 copying - means we forget election results
+        // if an election is already done for the next era.
+        _resetValidators(
+            oldRouter.validationSettings.validators0,
+            Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
+            Gear.currentEraValidators(oldRouter).verifyingShares,
+            Gear.currentEraValidators(oldRouter).list,
+            block.timestamp
+        );
+
+        // Copy computation settings from the old router.
+        newRouter.computeSettings = oldRouter.computeSettings;
+
+        // Copy timelines from the old router.
+        newRouter.timelines = oldRouter.timelines;
+
+        // All protocol data must be removed - so leave it zeroed in new router.
     }
 
-    /* Operational functions */
-
-    function getStorageSlot() public view returns (bytes32) {
-        return StorageSlot.getBytes32Slot(SLOT_STORAGE).value;
-    }
-
-    function setStorageSlot(string memory namespace) public onlyOwner {
-        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
-
-        StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
-
-        emit StorageSlotChanged();
-    }
-
+    // # Views.
     function genesisBlockHash() public view returns (bytes32) {
-        Storage storage router = _getStorage();
-        return router.genesisBlockHash;
+        return _router().genesisBlock.hash;
     }
 
-    function lastBlockCommitmentHash() public view returns (bytes32) {
-        Storage storage router = _getStorage();
-        return router.lastBlockCommitmentHash;
+    function genesisTimestamp() public view returns (uint48) {
+        return _router().genesisBlock.timestamp;
+    }
+
+    function latestCommittedBlockHash() public view returns (bytes32) {
+        return _router().latestCommittedBlock.hash;
+    }
+
+    function mirrorImpl() public view returns (address) {
+        return _router().implAddresses.mirror;
+    }
+
+    function mirrorProxyImpl() public view returns (address) {
+        return _router().implAddresses.mirrorProxy;
     }
 
     function wrappedVara() public view returns (address) {
-        Storage storage router = _getStorage();
-        return router.wrappedVara;
+        return _router().implAddresses.wrappedVara;
     }
 
-    function mirrorProxy() public view returns (address) {
-        Storage storage router = _getStorage();
-        return router.mirrorProxy;
+    function validatorsAggregatedPublicKey() public view returns (Gear.AggregatedPublicKey memory) {
+        return Gear.currentEraValidators(_router()).aggregatedPublicKey;
     }
 
-    function mirror() public view returns (address) {
-        Storage storage router = _getStorage();
-        return router.mirror;
+    function validatorsVerifyingShares() public view returns (Gear.VerifyingShare[] memory) {
+        return Gear.currentEraValidators(_router()).verifyingShares;
     }
 
-    function setMirror(address _mirror) external onlyOwner {
-        Storage storage router = _getStorage();
-        router.mirror = _mirror;
-    }
+    function areValidators(address[] calldata _validators) public view returns (bool) {
+        Gear.Validators storage _currentValidators = Gear.currentEraValidators(_router());
 
-    /* Codes and programs observing functions */
-
-    function validatedCodesCount() public view returns (uint256) {
-        Storage storage router = _getStorage();
-        return router.validatedCodesCount;
-    }
-
-    function codeState(bytes32 codeId) public view returns (CodeState) {
-        Storage storage router = _getStorage();
-        return router.codes[codeId];
-    }
-
-    function programsCount() public view returns (uint256) {
-        Storage storage router = _getStorage();
-        return router.programsCount;
-    }
-
-    function programCodeId(address program) public view returns (bytes32) {
-        Storage storage router = _getStorage();
-        return router.programs[program];
-    }
-
-    /* Validators' set related functions */
-
-    function signingThresholdPercentage() public view returns (uint256) {
-        Storage storage router = _getStorage();
-        return router.signingThresholdPercentage;
-    }
-
-    function validatorsThreshold() public view returns (uint256) {
-        // Dividing by 10000 to adjust for percentage
-        return (validatorsCount() * signingThresholdPercentage() + 9999) / 10000;
-    }
-
-    function validatorsCount() public view returns (uint256) {
-        Storage storage router = _getStorage();
-        return router.validatorsKeys.length;
-    }
-
-    function validatorExists(address validator) public view returns (bool) {
-        Storage storage router = _getStorage();
-        return router.validators[validator];
-    }
-
-    function validators() public view returns (address[] memory) {
-        Storage storage router = _getStorage();
-        return router.validatorsKeys;
-    }
-
-    // TODO: replace `OnlyOwner` with `OnlyDAO` or smth.
-    function updateValidators(address[] calldata validatorsAddressArray) external onlyOwner {
-        _cleanValidators();
-        _setValidators(validatorsAddressArray);
-
-        emit ValidatorsSetChanged();
-    }
-
-    /* Economic and token related functions */
-
-    function baseWeight() public view returns (uint64) {
-        Storage storage router = _getStorage();
-        return router.baseWeight;
-    }
-
-    function setBaseWeight(uint64 _baseWeight) external onlyOwner {
-        Storage storage router = _getStorage();
-        router.baseWeight = _baseWeight;
-
-        emit BaseWeightChanged(_baseWeight);
-    }
-
-    function valuePerWeight() public view returns (uint128) {
-        Storage storage router = _getStorage();
-        return router.valuePerWeight;
-    }
-
-    function setValuePerWeight(uint128 _valuePerWeight) external onlyOwner {
-        Storage storage router = _getStorage();
-        router.valuePerWeight = _valuePerWeight;
-
-        emit ValuePerWeightChanged(_valuePerWeight);
-    }
-
-    function baseFee() public view returns (uint128) {
-        return uint128(baseWeight()) * valuePerWeight();
-    }
-
-    /* Primary Gear logic */
-
-    function requestCodeValidation(bytes32 codeId, bytes32 blobTxHash) external {
-        require(blobTxHash != 0 || blobhash(0) != 0, "blobTxHash couldn't be found");
-
-        Storage storage router = _getStorage();
-
-        require(router.codes[codeId] == CodeState.Unknown, "code with such id already requested or validated");
-
-        router.codes[codeId] = CodeState.ValidationRequested;
-
-        emit CodeValidationRequested(codeId, blobTxHash);
-    }
-
-    function createProgram(bytes32 codeId, bytes32 salt, bytes calldata payload, uint128 _value)
-        external
-        payable
-        returns (address)
-    {
-        (address actorId, uint128 executableBalance) = _createProgramWithoutMessage(codeId, salt, _value);
-
-        IMirror(actorId).initMessage(tx.origin, payload, _value, executableBalance);
-
-        return actorId;
-    }
-
-    function createProgramWithDecoder(
-        address decoderImplementation,
-        bytes32 codeId,
-        bytes32 salt,
-        bytes calldata payload,
-        uint128 _value
-    ) external payable returns (address) {
-        (address actorId, uint128 executableBalance) = _createProgramWithoutMessage(codeId, salt, _value);
-
-        IMirror mirrorInstance = IMirror(actorId);
-
-        mirrorInstance.createDecoder(decoderImplementation, keccak256(abi.encodePacked(codeId, salt)));
-
-        mirrorInstance.initMessage(tx.origin, payload, _value, executableBalance);
-
-        return actorId;
-    }
-
-    function commitCodes(CodeCommitment[] calldata codeCommitmentsArray, bytes[] calldata signatures) external {
-        Storage storage router = _getStorage();
-
-        bytes memory codeCommetmentsHashes;
-
-        for (uint256 i = 0; i < codeCommitmentsArray.length; i++) {
-            CodeCommitment calldata codeCommitment = codeCommitmentsArray[i];
-
-            bytes32 codeCommitmentHash = _codeCommitmentHash(codeCommitment);
-
-            codeCommetmentsHashes = bytes.concat(codeCommetmentsHashes, codeCommitmentHash);
-
-            bytes32 codeId = codeCommitment.id;
-            require(router.codes[codeId] == CodeState.ValidationRequested, "code should be requested for validation");
-
-            if (codeCommitment.valid) {
-                router.codes[codeId] = CodeState.Validated;
-                router.validatedCodesCount++;
-
-                emit CodeGotValidated(codeId, true);
-            } else {
-                delete router.codes[codeId];
-
-                emit CodeGotValidated(codeId, false);
+        for (uint256 i = 0; i < _validators.length; i++) {
+            if (!_currentValidators.map[_validators[i]]) {
+                return false;
             }
         }
 
-        _validateSignatures(keccak256(codeCommetmentsHashes), signatures);
+        return true;
     }
 
-    function commitBlocks(BlockCommitment[] calldata blockCommitmentsArray, bytes[] calldata signatures)
-        external
-        nonReentrant
-    {
-        bytes memory blockCommitmentsHashes;
+    function isValidator(address _validator) public view returns (bool) {
+        return Gear.currentEraValidators(_router()).map[_validator];
+    }
 
-        for (uint256 i = 0; i < blockCommitmentsArray.length; i++) {
-            BlockCommitment calldata blockCommitment = blockCommitmentsArray[i];
+    function signingThresholdPercentage() public view returns (uint16) {
+        return _router().validationSettings.signingThresholdPercentage;
+    }
 
-            bytes32 blockCommitmentHash = _commitBlock(blockCommitment);
+    function validators() public view returns (address[] memory) {
+        return Gear.currentEraValidators(_router()).list;
+    }
 
-            blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, blockCommitmentHash);
+    function validatorsCount() public view returns (uint256) {
+        return Gear.currentEraValidators(_router()).list.length;
+    }
+
+    function validatorsThreshold() public view returns (uint256) {
+        IRouter.Storage storage router = _router();
+        return Gear.validatorsThreshold(
+            Gear.currentEraValidators(router).list.length, router.validationSettings.signingThresholdPercentage
+        );
+    }
+
+    function computeSettings() public view returns (Gear.ComputationSettings memory) {
+        return _router().computeSettings;
+    }
+
+    function codeState(bytes32 _codeId) public view returns (Gear.CodeState) {
+        return _router().protocolData.codes[_codeId];
+    }
+
+    function codesStates(bytes32[] calldata _codesIds) public view returns (Gear.CodeState[] memory) {
+        Storage storage router = _router();
+
+        Gear.CodeState[] memory res = new Gear.CodeState[](_codesIds.length);
+
+        for (uint256 i = 0; i < _codesIds.length; i++) {
+            res[i] = router.protocolData.codes[_codesIds[i]];
         }
 
-        _validateSignatures(keccak256(blockCommitmentsHashes), signatures);
+        return res;
+    }
+
+    function programCodeId(address _programId) public view returns (bytes32) {
+        return _router().protocolData.programs[_programId];
+    }
+
+    function programsCodeIds(address[] calldata _programsIds) public view returns (bytes32[] memory) {
+        Storage storage router = _router();
+
+        bytes32[] memory res = new bytes32[](_programsIds.length);
+
+        for (uint256 i = 0; i < _programsIds.length; i++) {
+            res[i] = router.protocolData.programs[_programsIds[i]];
+        }
+
+        return res;
+    }
+
+    function programsCount() public view returns (uint256) {
+        return _router().protocolData.programsCount;
+    }
+
+    function validatedCodesCount() public view returns (uint256) {
+        return _router().protocolData.validatedCodesCount;
+    }
+
+    // Owner calls.
+    function setMirror(address newMirror) external onlyOwner {
+        _router().implAddresses.mirror = newMirror;
+    }
+
+    // # Calls.
+    function lookupGenesisHash() external {
+        Storage storage router = _router();
+
+        require(router.genesisBlock.hash == bytes32(0), "genesis hash already set");
+
+        bytes32 genesisHash = blockhash(router.genesisBlock.number);
+
+        require(genesisHash != bytes32(0), "unable to lookup genesis hash");
+
+        router.genesisBlock.hash = blockhash(router.genesisBlock.number);
+    }
+
+    function requestCodeValidation(bytes32 _codeId) external {
+        require(blobhash(0) != 0, "blob can't be found, router expected EIP-4844 transaction with WASM blob");
+
+        Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+
+        require(
+            router.protocolData.codes[_codeId] == Gear.CodeState.Unknown,
+            "given code id is already on validation or validated"
+        );
+
+        router.protocolData.codes[_codeId] = Gear.CodeState.ValidationRequested;
+
+        emit CodeValidationRequested(_codeId);
+    }
+
+    function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {
+        address mirror = _createProgram(_codeId, _salt);
+
+        IMirror(mirror).initialize(msg.sender, address(0));
+
+        return mirror;
+    }
+
+    function createProgramWithDecoder(address _decoderImpl, bytes32 _codeId, bytes32 _salt)
+        external
+        returns (address)
+    {
+        address mirror = _createProgram(_codeId, _salt);
+        address decoder = _createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)), mirror);
+
+        IMirror(mirror).initialize(msg.sender, decoder);
+
+        return mirror;
+    }
+
+    function commitBatch(
+        Gear.BatchCommitment calldata _batchCommitment,
+        Gear.SignatureType _signatureType,
+        bytes[] calldata _signatures
+    ) external nonReentrant {
+        Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+
+        require(
+            !(_batchCommitment.codeCommitments.length == 0 && _batchCommitment.blockCommitments.length == 0),
+            "no commitments to commit"
+        );
+
+        uint256 maxTimestamp = 0;
+
+        /* Commit Codes */
+
+        bytes memory codeCommitmentsHashes;
+
+        for (uint256 i = 0; i < _batchCommitment.codeCommitments.length; i++) {
+            Gear.CodeCommitment calldata codeCommitment = _batchCommitment.codeCommitments[i];
+
+            require(
+                router.protocolData.codes[codeCommitment.id] == Gear.CodeState.ValidationRequested,
+                "code must be requested for validation to be committed"
+            );
+
+            if (codeCommitment.valid) {
+                router.protocolData.codes[codeCommitment.id] = Gear.CodeState.Validated;
+                router.protocolData.validatedCodesCount++;
+            } else {
+                delete router.protocolData.codes[codeCommitment.id];
+            }
+
+            emit CodeGotValidated(codeCommitment.id, codeCommitment.valid);
+
+            codeCommitmentsHashes = bytes.concat(codeCommitmentsHashes, Gear.codeCommitmentHash(codeCommitment));
+            if (codeCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = codeCommitment.timestamp;
+            }
+        }
+
+        /* Commit Blocks */
+
+        bytes memory blockCommitmentsHashes;
+
+        for (uint256 i = 0; i < _batchCommitment.blockCommitments.length; i++) {
+            Gear.BlockCommitment calldata blockCommitment = _batchCommitment.blockCommitments[i];
+            blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
+            if (blockCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = blockCommitment.timestamp;
+            }
+        }
+
+        // NOTE: Use maxTimestamp to validate signatures for all commitments.
+        // This means that if at least one commitment is for block from current era,
+        // then all commitments should be checked with current era validators.
+
+        require(
+            Gear.validateSignaturesAt(
+                router,
+                keccak256(abi.encodePacked(keccak256(codeCommitmentsHashes), keccak256(blockCommitmentsHashes))),
+                _signatureType,
+                _signatures,
+                maxTimestamp
+            ),
+            "signatures verification failed"
+        );
+    }
+
+    /// @dev Set validators for the next era.
+    function commitValidators(
+        Gear.ValidatorsCommitment calldata _validatorsCommitment,
+        Gear.SignatureType _signatureType,
+        bytes[] calldata _signatures
+    ) external {
+        Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+
+        require(_validatorsCommitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
+
+        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * _validatorsCommitment.eraIndex;
+        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
+
+        // Maybe free slot for new validators:
+        Gear.Validators storage _validators = Gear.previousEraValidators(router);
+        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
+
+        bytes32 commitmentHash = Gear.validatorsCommitmentHash(_validatorsCommitment);
+        require(
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures),
+            "next era validators signatures verification failed"
+        );
+
+        _resetValidators(
+            _validators,
+            _validatorsCommitment.aggregatedPublicKey,
+            _validatorsCommitment.verifyingShares,
+            _validatorsCommitment.validators,
+            nextEraStart
+        );
+
+        emit NextEraValidatorsCommitted(nextEraStart);
     }
 
     /* Helper private functions */
 
-    function _createProgramWithoutMessage(bytes32 codeId, bytes32 salt, uint128 _value)
-        private
-        returns (address, uint128)
-    {
-        Storage storage router = _getStorage();
+    function _createProgram(bytes32 _codeId, bytes32 _salt) private returns (address) {
+        Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
-        require(router.codes[codeId] == CodeState.Validated, "code must be validated before program creation");
-
-        uint128 baseFeeValue = baseFee();
-        uint128 executableBalance = baseFeeValue * 10;
-
-        uint128 totalValue = baseFeeValue + executableBalance + _value;
-
-        _retrieveValue(totalValue);
+        require(
+            router.protocolData.codes[_codeId] == Gear.CodeState.Validated,
+            "code must be validated before program creation"
+        );
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
-        address actorId = Clones.cloneDeterministic(router.mirrorProxy, keccak256(abi.encodePacked(codeId, salt)));
+        address actorId =
+            Clones.cloneDeterministic(router.implAddresses.mirrorProxy, keccak256(abi.encodePacked(_codeId, _salt)));
 
-        router.programs[actorId] = codeId;
-        router.programsCount++;
+        router.protocolData.programs[actorId] = _codeId;
+        router.protocolData.programsCount++;
 
-        emit ProgramCreated(actorId, codeId);
+        emit ProgramCreated(actorId, _codeId);
 
-        return (actorId, executableBalance);
+        return actorId;
     }
 
-    function _validateSignatures(bytes32 dataHash, bytes[] calldata signatures) private view {
-        Storage storage router = _getStorage();
+    function _createDecoder(address _implementation, bytes32 _salt, address _mirror) private returns (address) {
+        address decoder = Clones.cloneDeterministic(_implementation, _salt);
 
-        uint256 threshold = validatorsThreshold();
+        IMirrorDecoder(decoder).initialize(_mirror);
 
-        bytes32 messageHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(dataHash));
-        uint256 validSignatures = 0;
-
-        for (uint256 i = 0; i < signatures.length; i++) {
-            bytes calldata signature = signatures[i];
-
-            address validator = messageHash.recover(signature);
-
-            if (router.validators[validator]) {
-                if (++validSignatures == threshold) {
-                    break;
-                }
-            } else {
-                require(false, "incorrect signature");
-            }
-        }
-
-        require(validSignatures >= threshold, "not enough valid signatures");
+        return decoder;
     }
 
-    function _commitBlock(BlockCommitment calldata blockCommitment) private returns (bytes32) {
-        Storage storage router = _getStorage();
-
+    function _commitBlock(Storage storage router, Gear.BlockCommitment calldata _blockCommitment)
+        private
+        returns (bytes32)
+    {
         require(
-            router.lastBlockCommitmentHash == blockCommitment.prevCommitmentHash, "invalid previous commitment hash"
+            router.latestCommittedBlock.hash == _blockCommitment.previousCommittedBlock,
+            "invalid previous committed block hash"
         );
-        require(_isPredecessorHash(blockCommitment.predBlockHash), "allowed predecessor block not found");
+
+        /*
+         * @dev `router.reserved` is always `0` but can be overridden in an RPC request
+         *       to estimate gas excluding `Gear.blockIsPredecessor()`.
+         */
+        if (router.reserved == 0) {
+            require(
+                Gear.blockIsPredecessor(_blockCommitment.predecessorBlock), "allowed predecessor block wasn't found"
+            );
+        }
 
         /*
          * @dev SECURITY: this settlement should be performed before any other calls to avoid reentrancy.
          */
-        router.lastBlockCommitmentHash = blockCommitment.blockHash;
+        router.latestCommittedBlock = Gear.CommittedBlockInfo(_blockCommitment.hash, _blockCommitment.timestamp);
 
+        bytes32 transitionsHashesHash = _commitTransitions(router, _blockCommitment.transitions);
+
+        emit BlockCommitted(_blockCommitment.hash);
+
+        return Gear.blockCommitmentHash(
+            _blockCommitment.hash,
+            _blockCommitment.timestamp,
+            _blockCommitment.previousCommittedBlock,
+            _blockCommitment.predecessorBlock,
+            transitionsHashesHash
+        );
+    }
+
+    function _commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
+        private
+        returns (bytes32)
+    {
         bytes memory transitionsHashes;
 
-        for (uint256 i = 0; i < blockCommitment.transitions.length; i++) {
-            StateTransition calldata stateTransition = blockCommitment.transitions[i];
+        for (uint256 i = 0; i < _transitions.length; i++) {
+            Gear.StateTransition calldata transition = _transitions[i];
 
-            bytes32 transitionHash = _doStateTransition(stateTransition);
+            require(
+                router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
+            );
+
+            IWrappedVara(router.implAddresses.wrappedVara).transfer(transition.actorId, transition.valueToReceive);
+
+            bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);
 
             transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
         }
 
-        emit BlockCommitted(blockCommitment.blockHash);
+        return keccak256(transitionsHashes);
+    }
 
-        return _blockCommitmentHash(
-            blockCommitment.blockHash,
-            blockCommitment.prevCommitmentHash,
-            blockCommitment.predBlockHash,
-            keccak256(transitionsHashes)
+    function _resetValidators(
+        Gear.Validators storage _validators,
+        Gear.AggregatedPublicKey memory _newAggregatedPublicKey,
+        Gear.VerifyingShare[] memory _verifyingShares,
+        address[] memory _newValidators,
+        uint256 _useFromTimestamp
+    ) private {
+        // basic checks for aggregated public key
+        // but it probably should be checked with
+        // [`frost_core::keys::PublicKeyPackage::{from_commitment, from_dkg_commitments}`]
+        // https://docs.rs/frost-core/latest/frost_core/keys/struct.PublicKeyPackage.html#method.from_dkg_commitments
+        // ideally onchain
+        require(
+            FROST.isValidPublicKey(_newAggregatedPublicKey.x, _newAggregatedPublicKey.y),
+            "FROST aggregated public key is invalid"
         );
-    }
-
-    function _isPredecessorHash(bytes32 hash) private view returns (bool) {
-        for (uint256 i = block.number - 1; i > 0; i--) {
-            bytes32 ret = blockhash(i);
-            if (ret == hash) {
-                return true;
-            } else if (ret == 0) {
-                break;
-            }
-        }
-        return false;
-    }
-
-    function _doStateTransition(StateTransition calldata stateTransition) private returns (bytes32) {
-        Storage storage router = _getStorage();
-
-        require(router.programs[stateTransition.actorId] != 0, "couldn't perform transition for unknown program");
-
-        IWrappedVara wrappedVaraActor = IWrappedVara(router.wrappedVara);
-        wrappedVaraActor.transfer(stateTransition.actorId, stateTransition.valueToReceive);
-
-        IMirror mirrorActor = IMirror(stateTransition.actorId);
-
-        bytes memory valueClaimsBytes;
-
-        for (uint256 i = 0; i < stateTransition.valueClaims.length; i++) {
-            ValueClaim calldata valueClaim = stateTransition.valueClaims[i];
-
-            valueClaimsBytes = bytes.concat(
-                valueClaimsBytes, abi.encodePacked(valueClaim.messageId, valueClaim.destination, valueClaim.value)
-            );
-
-            mirrorActor.valueClaimed(valueClaim.messageId, valueClaim.destination, valueClaim.value);
-        }
-
-        bytes memory messagesHashes;
-
-        for (uint256 i = 0; i < stateTransition.messages.length; i++) {
-            OutgoingMessage calldata outgoingMessage = stateTransition.messages[i];
-
-            messagesHashes = bytes.concat(messagesHashes, _outgoingMessageHash(outgoingMessage));
-
-            if (outgoingMessage.replyDetails.to == 0) {
-                mirrorActor.messageSent(
-                    outgoingMessage.id, outgoingMessage.destination, outgoingMessage.payload, outgoingMessage.value
-                );
-            } else {
-                mirrorActor.replySent(
-                    outgoingMessage.destination,
-                    outgoingMessage.payload,
-                    outgoingMessage.value,
-                    outgoingMessage.replyDetails.to,
-                    outgoingMessage.replyDetails.code
-                );
-            }
-        }
-
-        if (stateTransition.inheritor != address(0)) {
-            mirrorActor.setInheritor(stateTransition.inheritor);
-        }
-
-        mirrorActor.updateState(stateTransition.newStateHash);
-
-        return _stateTransitionHash(
-            stateTransition.actorId,
-            stateTransition.newStateHash,
-            stateTransition.inheritor,
-            stateTransition.valueToReceive,
-            keccak256(valueClaimsBytes),
-            keccak256(messagesHashes)
+        _validators.aggregatedPublicKey = _newAggregatedPublicKey;
+        // NOTE: we do not checked that aggregated public key is equal to the sum of verifying shares right now
+        require(
+            _verifyingShares.length == _newValidators.length, "verifying shares count must be equal to validators count"
         );
-    }
-
-    function _blockCommitmentHash(
-        bytes32 blockHash,
-        bytes32 prevCommitmentHash,
-        bytes32 predBlockHash,
-        bytes32 transitionsHashesHash
-    ) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(blockHash, prevCommitmentHash, predBlockHash, transitionsHashesHash));
-    }
-
-    function _stateTransitionHash(
-        address actorId,
-        bytes32 newStateHash,
-        address inheritor,
-        uint128 valueToReceive,
-        bytes32 valueClaimsHash,
-        bytes32 messagesHashesHash
-    ) private pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(actorId, newStateHash, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash)
-        );
-    }
-
-    function _outgoingMessageHash(OutgoingMessage calldata outgoingMessage) private pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                outgoingMessage.id,
-                outgoingMessage.destination,
-                outgoingMessage.payload,
-                outgoingMessage.value,
-                outgoingMessage.replyDetails.to,
-                outgoingMessage.replyDetails.code
-            )
-        );
-    }
-
-    function _codeCommitmentHash(CodeCommitment calldata codeCommitment) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
-    }
-
-    function _retrieveValue(uint128 _value) private {
-        Storage storage router = _getStorage();
-
-        bool success = IERC20(router.wrappedVara).transferFrom(tx.origin, address(this), _value);
-
-        require(success, "failed to retrieve WVara");
-    }
-
-    function _cleanValidators() private {
-        Storage storage router = _getStorage();
-
-        for (uint256 i = 0; i < router.validatorsKeys.length; i++) {
-            address validator = router.validatorsKeys[i];
-            delete router.validators[validator];
+        for (uint256 i = 0; i < _verifyingShares.length; i++) {
+            Gear.VerifyingShare memory verifyingShare = _verifyingShares[i];
+            require(Secp256k1.isOnCurve(verifyingShare.x, verifyingShare.y), "verifying share is not on curve");
         }
-
-        delete router.validatorsKeys;
-    }
-
-    function _setValidators(address[] memory _validatorsArray) private {
-        Storage storage router = _getStorage();
-
-        require(router.validatorsKeys.length == 0, "previous validators weren't removed");
-
-        for (uint256 i = 0; i < _validatorsArray.length; i++) {
-            address validator = _validatorsArray[i];
-            router.validators[validator] = true;
+        _validators.verifyingShares = _verifyingShares;
+        for (uint256 i = 0; i < _validators.list.length; i++) {
+            address _validator = _validators.list[i];
+            _validators.map[_validator] = false;
         }
-
-        router.validatorsKeys = _validatorsArray;
+        for (uint256 i = 0; i < _newValidators.length; i++) {
+            address _validator = _newValidators[i];
+            _validators.map[_validator] = true;
+        }
+        _validators.list = _newValidators;
+        _validators.useFromTimestamp = _useFromTimestamp;
     }
 
-    function _getStorage() private view returns (Storage storage router) {
-        bytes32 slot = getStorageSlot();
+    function _router() private view returns (Storage storage router) {
+        bytes32 slot = _getStorageSlot();
 
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             router.slot := slot
         }
+    }
+
+    function _getStorageSlot() private view returns (bytes32) {
+        return StorageSlot.getBytes32Slot(SLOT_STORAGE).value;
+    }
+
+    function _setStorageSlot(string memory namespace) private onlyOwner {
+        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
+        StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
     }
 }

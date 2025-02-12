@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -167,7 +167,7 @@ impl NonZeroU256 {
     #[inline]
     pub const unsafe fn new_unchecked(n: U256) -> Self {
         // SAFETY: The caller guarantees that `n` is non-zero
-        transmute(n)
+        unsafe { transmute(n) }
     }
 
     /// Returns the contained value as a primitive type.
@@ -411,7 +411,7 @@ where
     }
 }
 
-impl<'a, T> core::ops::Add<T> for &'a NonZeroU256
+impl<T> core::ops::Add<T> for &NonZeroU256
 where
     T: Into<U256>,
 {
@@ -447,7 +447,7 @@ where
     }
 }
 
-impl<'a, T> core::ops::Sub<T> for &'a NonZeroU256
+impl<T> core::ops::Sub<T> for &NonZeroU256
 where
     T: Into<U256>,
 {
@@ -499,7 +499,7 @@ impl<'a> core::ops::Mul<&'a NonZeroU256> for &'a NonZeroU256 {
     }
 }
 
-impl<'a> core::ops::Mul<NonZeroU256> for &'a NonZeroU256 {
+impl core::ops::Mul<NonZeroU256> for &NonZeroU256 {
     type Output = NonZeroU256;
 
     fn mul(self, other: NonZeroU256) -> NonZeroU256 {

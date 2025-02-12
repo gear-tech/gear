@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,16 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::interface::database_ri;
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 use core_processor::configs::BlockInfo;
 use ethexe_runtime_common::{
     state::{
-        Allocations, DispatchStash, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage,
-        Waitlist,
+        Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
+        ProgramState, Storage, Waitlist,
     },
     RuntimeInterface,
 };
-use gear_core::{memory::PageBuf, message::Payload, pages::GearPage};
+use gear_core::{memory::PageBuf, message::Payload};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gprimitives::H256;
 
@@ -34,65 +34,12 @@ use gprimitives::H256;
 pub struct RuntimeInterfaceStorage;
 
 impl Storage for RuntimeInterfaceStorage {
-    fn read_allocations(&self, hash: H256) -> Option<Allocations> {
-        database_ri::read_unwrapping(&hash)
-    }
-
-    fn read_page_data(&self, hash: H256) -> Option<PageBuf> {
-        database_ri::read_unwrapping(&hash)
-    }
-
-    fn read_pages(&self, hash: H256) -> Option<MemoryPages> {
-        database_ri::read_unwrapping(&hash)
-    }
-
-    fn read_payload(&self, hash: H256) -> Option<Payload> {
-        // TODO: review this.
-        database_ri::read_raw(&hash).map(|slice| slice.to_vec().try_into().unwrap())
-    }
-
-    fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
-        database_ri::read_unwrapping(&hash)
-    }
-
     fn read_state(&self, hash: H256) -> Option<ProgramState> {
         if hash.is_zero() {
-            return Some(ProgramState::zero());
+            Some(ProgramState::zero())
+        } else {
+            database_ri::read_unwrapping(&hash)
         }
-
-        database_ri::read_unwrapping(&hash)
-    }
-
-    fn read_waitlist(&self, hash: H256) -> Option<Waitlist> {
-        database_ri::read_unwrapping(&hash)
-    }
-
-    fn read_stash(&self, hash: H256) -> Option<DispatchStash> {
-        database_ri::read_unwrapping(&hash)
-    }
-
-    fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
-        database_ri::read_unwrapping(&hash)
-    }
-
-    fn write_allocations(&self, allocations: Allocations) -> H256 {
-        database_ri::write(allocations)
-    }
-
-    fn write_page_data(&self, data: PageBuf) -> H256 {
-        database_ri::write(data)
-    }
-
-    fn write_pages(&self, pages: MemoryPages) -> H256 {
-        database_ri::write(pages)
-    }
-
-    fn write_payload(&self, payload: Payload) -> H256 {
-        database_ri::write(payload)
-    }
-
-    fn write_queue(&self, queue: MessageQueue) -> H256 {
-        database_ri::write(queue)
     }
 
     fn write_state(&self, state: ProgramState) -> H256 {
@@ -103,16 +50,77 @@ impl Storage for RuntimeInterfaceStorage {
         database_ri::write(state)
     }
 
-    fn write_waitlist(&self, waitlist: Waitlist) -> H256 {
-        database_ri::write(waitlist)
+    fn read_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
+        database_ri::read_unwrapping(&hash.hash())
     }
 
-    fn write_stash(&self, stash: DispatchStash) -> H256 {
-        database_ri::write(stash)
+    fn write_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
+        unsafe { HashOf::new(database_ri::write(queue)) }
     }
 
-    fn write_mailbox(&self, mailbox: Mailbox) -> H256 {
-        database_ri::write(mailbox)
+    fn read_waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
+        database_ri::read_unwrapping(&hash.hash())
+    }
+
+    fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist> {
+        unsafe { HashOf::new(database_ri::write(waitlist)) }
+    }
+
+    fn read_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
+        database_ri::read_unwrapping(&hash.hash())
+    }
+
+    fn write_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
+        unsafe { HashOf::new(database_ri::write(stash)) }
+    }
+
+    fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
+        database_ri::read_unwrapping(&hash.hash())
+    }
+
+    fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
+        unsafe { HashOf::new(database_ri::write(mailbox)) }
+    }
+
+    fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
+        database_ri::read_unwrapping(&hash.hash())
+    }
+
+    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+        database_ri::read_unwrapping(&hash.hash())
+    }
+
+    fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
+        unsafe { HashOf::new(database_ri::write(pages)) }
+    }
+
+    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+        unsafe { HashOf::new(database_ri::write(pages_region)) }
+    }
+
+    fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
+        database_ri::read_unwrapping(&hash.hash())
+    }
+
+    fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations> {
+        unsafe { HashOf::new(database_ri::write(allocations)) }
+    }
+
+    fn read_payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
+        // TODO: review this.
+        database_ri::read_raw(&hash.hash()).map(|slice| slice.to_vec().try_into().unwrap())
+    }
+
+    fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
+        unsafe { HashOf::new(database_ri::write(payload)) }
+    }
+
+    fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
+        database_ri::read_unwrapping(&hash.hash())
+    }
+
+    fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {
+        unsafe { HashOf::new(database_ri::write(data)) }
     }
 }
 
@@ -129,7 +137,7 @@ impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
         self.block_info
     }
 
-    fn init_lazy_pages(&self, _: BTreeMap<GearPage, H256>) {
+    fn init_lazy_pages(&self) {
         assert!(Self::LazyPages::try_to_enable_lazy_pages(Default::default()))
     }
 

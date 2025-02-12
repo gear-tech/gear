@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -85,15 +85,17 @@ pub fn signed_extra(nonce: Nonce) -> SignedExtra {
         CustomCheckNonce::from(nonce),
         frame_system::CheckWeight::new(),
         CustomChargeTransactionPayment::from(0),
+        frame_metadata_hash_extension::CheckMetadataHash::new(false),
     )
 }
 
-/// Sign given a `CheckedExtrinsic`.
+/// Sign given `CheckedExtrinsic`.
 pub fn sign(
     xt: CheckedExtrinsic,
     spec_version: u32,
     tx_version: u32,
     genesis_hash: [u8; 32],
+    metadata_hash: Option<[u8; 32]>,
 ) -> UncheckedExtrinsic {
     match xt.signed {
         Some((signed, extra)) => {
@@ -104,6 +106,7 @@ pub fn sign(
                 tx_version,
                 genesis_hash,
                 genesis_hash,
+                metadata_hash,
             );
             let key = AccountKeyring::from_account_id(&signed).unwrap();
             let signature = payload

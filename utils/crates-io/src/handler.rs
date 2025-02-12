@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -37,8 +37,8 @@ pub fn crates_io_name(pkg: &str) -> &str {
 }
 
 /// Patch specified manifest by provided name.
-pub fn patch(pkg: &Package) -> Result<Manifest> {
-    let mut manifest = Manifest::new(pkg)?;
+pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Manifest> {
+    let mut manifest = Manifest::new(pkg, is_published, is_actualized)?;
     let doc = &mut manifest.mutable_manifest;
 
     match manifest.name.as_str() {
@@ -171,43 +171,6 @@ mod substrate {
     /// <https://github.com/gear-tech/substrate/tree/cl/v1.1.x-crates-io>.
     pub fn patch_workspace(name: &str, table: &mut InlineTable) {
         match name {
-            "frame-support" | "frame-system" | "sp-core" => {
-                table.insert("version", "22.0.0".into());
-            }
-            "frame-support-test" => return,
-            "frame-benchmarking-cli" => {
-                table.insert("version", "26.0.0".into());
-            }
-            "sc-cli" => {
-                table.insert("version", "0.30.0".into());
-            }
-            "sc-client-db" | "sc-service" => {
-                table.insert("version", "0.29.0".into());
-            }
-            "sp-api" | "sp-rpc" => {
-                table.insert("version", "20.0.0".into());
-            }
-            "sp-arithmetic" => {
-                table.insert("version", "17.0.0".into());
-            }
-            "sp-debug-derive" | "sp-std" => {
-                table.insert("version", "9.0.0".into());
-            }
-            "sp-io" => {
-                table.insert("version", "24.0.0".into());
-            }
-            "sp-runtime" => {
-                table.insert("version", "25.0.0".into());
-            }
-            "sp-version" => {
-                table.insert("version", "23.0.0".into());
-            }
-            "sp-weights" => {
-                table.insert("version", "21.0.0".into());
-            }
-            "try-runtime-cli" => {
-                table.insert("version", "0.32.0".into());
-            }
             // sp-allocator is outdated on crates.io, last
             // 3.0.0 forever, here we use gp-allocator instead.
             "sp-allocator" => {
@@ -235,14 +198,6 @@ mod substrate {
             "sp-runtime-interface" => {
                 table.insert("version", GP_RUNTIME_INTERFACE_VERSION.into());
                 table.insert("package", "gp-runtime-interface".into());
-            }
-            // Depends on sp-wasm-interface.
-            //
-            // ref:
-            // - sp-runtime-interface-18.0.0
-            // - sp-runtime-interface-proc-macro-12.0.0
-            "sp-crypto-ec-utils" => {
-                table.insert("package", "gp-crypto-ec-utils".into());
             }
             _ => return,
         }

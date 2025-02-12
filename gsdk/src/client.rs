@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,6 @@ use jsonrpsee::{
     core::{
         client::{ClientT, Subscription, SubscriptionClientT, SubscriptionKind},
         traits::ToRpcParams,
-        Error as JsonRpseeError,
     },
     http_client::{HttpClient, HttpClientBuilder},
     types::SubscriptionId,
@@ -50,7 +49,7 @@ const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
 struct Params(Option<Box<RawValue>>);
 
 impl ToRpcParams for Params {
-    fn to_rpc_params(self) -> StdResult<Option<Box<RawValue>>, JsonRpseeError> {
+    fn to_rpc_params(self) -> StdResult<Option<Box<RawValue>>, serde_json::Error> {
         Ok(self.0)
     }
 }
@@ -69,11 +68,7 @@ impl RpcClient {
         if uri.starts_with("ws") {
             Ok(Self::Ws(
                 WsClientBuilder::default()
-                    // Actually that stand for the response too.
-                    // *WARNING*:
-                    // After updating jsonrpsee to 0.20.0 and higher
-                    // use another method created only for that.
-                    .max_request_body_size(ONE_HUNDRED_MEGA_BYTES)
+                    .max_request_size(ONE_HUNDRED_MEGA_BYTES)
                     .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
                     .build(uri)

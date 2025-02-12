@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -25,9 +25,9 @@ use abi::{
     IWrappedVara::{self, initializeCall as WrappedVaraInitializeCall},
 };
 use alloy::{
-    consensus::{self as alloy_consensus, SignableTransaction},
+    consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, Bytes, ChainId, Signature, B256, U256},
+    primitives::{Address, Bytes, ChainId, PrimitiveSignature as Signature, B256, U256},
     providers::{
         fillers::{
             BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
@@ -46,10 +46,11 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use ethexe_common::gear::{AggregatedPublicKey, VerifyingShare};
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
 use mirror::Mirror;
 use router::{Router, RouterQuery};
-use std::{sync::Arc, time::Duration};
+use std::{iter, sync::Arc, time::Duration};
 
 mod abi;
 mod eip1167;
@@ -109,7 +110,7 @@ impl Ethereum {
         const VALUE_PER_GAS: u128 = 6;
 
         let provider = create_provider(rpc_url, signer, sender_address).await?;
-        let validators = validators
+        let validators: Vec<_> = validators
             .into_iter()
             .map(|validator_address| Address::new(validator_address.0))
             .collect();
@@ -150,11 +151,30 @@ impl Ethereum {
             deployer_address,
             Bytes::copy_from_slice(
                 &RouterInitializeCall {
-                    initialOwner: deployer_address,
+                    _owner: deployer_address,
                     _mirror: mirror_address,
                     _mirrorProxy: mirror_proxy_address,
                     _wrappedVara: wvara_address,
-                    _validatorsKeys: validators,
+                    _eraDuration: U256::from(24 * 60 * 60),
+                    _electionDuration: U256::from(2 * 60 * 60),
+                    _validationDelay: U256::from(60),
+                    _aggregatedPublicKey: (AggregatedPublicKey {
+                        x: "0x0000000000000000000000000000000000000000000000000000000000000001"
+                            .parse()?,
+                        y: "0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE"
+                            .parse()?,
+                    })
+                    .into(),
+                    _verifyingShares: iter::repeat(VerifyingShare {
+                        x: "0x0000000000000000000000000000000000000000000000000000000000000001"
+                            .parse()?,
+                        y: "0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE"
+                            .parse()?,
+                    })
+                    .take(validators.len())
+                    .map(Into::into)
+                    .collect(),
+                    _validators: validators,
                 }
                 .abi_encode(),
             ),
@@ -169,10 +189,28 @@ impl Ethereum {
         let builder = wrapped_vara.approve(router_address, U256::MAX);
         builder.send().await?.try_get_receipt().await?;
 
-        assert_eq!(router.mirror().call().await?._0, *mirror.address());
+        assert_eq!(router.mirrorImpl().call().await?._0, *mirror.address());
         assert_eq!(
-            router.mirrorProxy().call().await?._0,
+            router.mirrorProxyImpl().call().await?._0,
             *mirror_proxy.address()
+        );
+
+        let builder = router.lookupGenesisHash();
+        builder.send().await?.try_get_receipt().await?;
+
+        log::debug!("Router impl has been deployed at {}", router_impl.address());
+        log::debug!("Router proxy has been deployed at {router_address}");
+
+        log::debug!(
+            "WrappedVara impl has been deployed at {}",
+            wrapped_vara_impl.address()
+        );
+        log::debug!("WrappedVara deployed at {wvara_address}");
+
+        log::debug!("Mirror impl has been deployed at {}", mirror.address());
+        log::debug!(
+            "Mirror proxy has been deployed at {}",
+            mirror_proxy.address()
         );
 
         Ok(Self {
@@ -287,7 +325,7 @@ trait TryGetReceipt<T: Transport + Clone, N: Network> {
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
 }
 
-impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactionBuilder<'_, T, N> {
+impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactionBuilder<T, N> {
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse> {
         let tx_hash = *self.tx_hash();
         let provider = self.provider().clone();
@@ -297,7 +335,9 @@ impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactio
             Err(err) => err,
         };
 
-        for _ in 0..3 {
+        log::trace!("Failed to get transaction receipt for {tx_hash}. Retrying...");
+        for n in 0..3 {
+            log::trace!("Attempt {n}. Error - {err}");
             match err {
                 PendingTransactionError::TransportError(RpcError::NullResp) => {}
                 _ => break,

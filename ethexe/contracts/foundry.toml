@@ -1,8 +1,10 @@
 [profile.default]
+solc_version = "0.8.28"
 src = "src"
 out = "out"
 libs = ["lib"]
 evm_version = "cancun"
+optimizer = true
 # Required for OpenZeppelin Foundry Upgrades https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
 ffi = true
 ast = true
@@ -12,9 +14,11 @@ extra_output = ["storageLayout"]
 ignored_warnings_from = [
     # Warning (3628): This contract has a payable fallback function, but no receive ether function
     "src/MirrorProxy.sol",
+    "lib/",
 ]
 # Enable new EVM codegen
 via_ir = true
+fs_permissions = [{access = "read-write", path = "out"}, { access = "read", path = "lib"}]
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"

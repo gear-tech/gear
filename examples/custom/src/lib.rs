@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -59,7 +59,7 @@ mod wasm {
         reserver::wasm as reserver, simple_waiter::wasm as simple_waiter,
         wake_after_exit::wasm as wake_after_exit, InitMessage,
     };
-    use gstd::msg;
+    use gstd::{msg, prelude::*};
 
     enum State {
         Capacitor(capacitor::State),
@@ -72,7 +72,7 @@ mod wasm {
 
     static mut STATE: Option<State> = None;
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn init() {
         let init_message: InitMessage = msg::load().expect("Failed to load payload bytes");
         let state = match init_message {
@@ -89,9 +89,9 @@ mod wasm {
         unsafe { STATE = Some(state) };
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle() {
-        let state = unsafe { STATE.as_mut().expect("State must be set") };
+        let state = unsafe { static_mut!(STATE).as_mut().expect("State must be set") };
         match state {
             State::Capacitor(state) => capacitor::handle(state),
             State::BTree(state) => btree::handle(state),
@@ -101,17 +101,17 @@ mod wasm {
         }
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn handle_reply() {
-        let state = unsafe { STATE.as_mut().expect("State must be set") };
+        let state = unsafe { static_mut!(STATE).as_mut().expect("State must be set") };
         if let State::WakeAfterExit = state {
             wake_after_exit::handle_reply();
         }
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     extern "C" fn state() {
-        let state = unsafe { STATE.take().expect("State must be set") };
+        let state = unsafe { static_mut!(STATE).take().expect("State must be set") };
         if let State::BTree(state) = state {
             btree::state(state);
         }

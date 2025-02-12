@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -41,15 +41,15 @@ enum HandleSignalState {
     Assert(SignalCode),
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     unsafe { INITIATOR = msg::source() };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     unsafe { HANDLE_MSG = Some(msg::id()) };
-    let do_panic = unsafe { &mut DO_PANIC };
+    let do_panic = unsafe { static_mut!(DO_PANIC) };
 
     let action: HandleAction = msg::load().unwrap();
     match action {
@@ -205,7 +205,7 @@ extern "C" fn handle() {
         HandleAction::IncorrectFree => {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
-            extern "C" {
+            unsafe extern "C" {
                 fn free(ptr: *mut u8) -> *mut u8;
             }
 
@@ -232,9 +232,9 @@ extern "C" fn handle() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_signal() {
-    match unsafe { &HANDLE_SIGNAL_STATE } {
+    match unsafe { static_ref!(HANDLE_SIGNAL_STATE) } {
         HandleSignalState::Normal => {
             msg::send(unsafe { INITIATOR }, b"handle_signal", 0).unwrap();
             let signal_code = msg::signal_code()
@@ -277,7 +277,7 @@ extern "C" fn handle_signal() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     let handle_msg = unsafe { HANDLE_MSG.unwrap() };
     exec::wake(handle_msg).unwrap();

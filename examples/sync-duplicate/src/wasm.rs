@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,7 @@ use gstd::{msg, prelude::*, ActorId};
 static mut COUNTER: i32 = 0;
 static mut DESTINATION: ActorId = ActorId::zero();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let destination = msg::load().expect("Failed to load destination");
     unsafe { DESTINATION = destination };

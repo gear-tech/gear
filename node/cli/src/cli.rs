@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,29 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
+use std::str::FromStr;
+
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Parser, derive_more::Display)]
+pub enum SandboxBackend {
+    #[display(fmt = "wasmer")]
+    Wasmer,
+    #[display(fmt = "wasmi")]
+    Wasmi,
+}
+
+// TODO: use `derive_more::FromStr` when derive_more dependency is updated to 1.0
+impl FromStr for SandboxBackend {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "wasmer" => Ok(SandboxBackend::Wasmer),
+            "wasmi" => Ok(SandboxBackend::Wasmi),
+            _ => Err(format!("Unknown sandbox executor: {}", s)),
+        }
+    }
+}
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
@@ -25,6 +48,17 @@ pub struct RunCmd {
     #[allow(missing_docs)]
     #[command(flatten)]
     pub base: sc_cli::RunCmd,
+
+    /// The Wasm host executor to use in program sandbox.
+    #[arg(long, default_value_t = SandboxBackend::Wasmer)]
+    pub sandbox_backend: SandboxBackend,
+
+    /// Sets a limit at which the underlying sandbox store will be cleared (applies only to the Wasmer sandbox backend),
+    /// potentially altering performance characteristics.
+    ///
+    /// See https://github.com/gear-tech/gear/pull/4420 for more context.
+    #[arg(long, default_value_t = 50)]
+    pub sandbox_store_clear_counter_limit: u32,
 
     /// The upper limit for the amount of gas a validator can burn in one block.
     #[arg(long)]

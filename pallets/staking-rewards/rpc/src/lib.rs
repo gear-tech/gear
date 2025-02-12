@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,9 +19,9 @@
 //! RPC interface for the gear module.
 
 use jsonrpsee::{
-    core::{Error as JsonRpseeError, RpcResult},
+    core::RpcResult,
     proc_macros::rpc,
-    types::error::{CallError, ErrorObject},
+    types::{error::ErrorObject, ErrorObjectOwned},
 };
 pub use pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi as GearStakingRewardsRuntimeApi;
 use pallet_gear_staking_rewards_rpc_runtime_api::InflationInfo;
@@ -81,8 +81,8 @@ where
         let api = self.client.runtime_api();
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        fn map_err(err: impl std::fmt::Debug, desc: &'static str) -> JsonRpseeError {
-            CallError::Custom(ErrorObject::owned(8000, desc, Some(format!("{err:?}")))).into()
+        fn map_err(err: impl std::fmt::Debug, desc: &'static str) -> ErrorObjectOwned {
+            ErrorObject::owned(8000, desc, Some(format!("{err:?}")))
         }
 
         api.inflation_info(at_hash)

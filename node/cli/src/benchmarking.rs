@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -84,6 +84,7 @@ macro_rules! with_signed_payload {
                     runtime::CustomCheckNonce::<runtime::Runtime>::from($nonce),
                     frame_system::CheckWeight::<runtime::Runtime>::new(),
                     pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
+                    frame_metadata_hash_extension::CheckMetadataHash::<runtime::Runtime>::new(false),
                 );
 
                 let $raw_payload = runtime::SignedPayload::from_raw(
@@ -99,6 +100,7 @@ macro_rules! with_signed_payload {
                         (),
                         (),
                         (),
+                        None,
                     ),
                 );
 

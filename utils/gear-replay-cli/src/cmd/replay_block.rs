@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -111,7 +111,7 @@ where
         State::Snap(snap_state) => {
             let ext = State::Snap(snap_state).to_ext(None).await?;
 
-            let header_previous = fetch_header::<Block>(&rpc, Some(ext.block_hash)).await?;
+            let header_previous = fetch_header::<Block>(&rpc, Some(ext.header.hash())).await?;
             let expected = *block.header().number() - One::one();
             if *header_previous.number() != expected {
                 let message = format!(

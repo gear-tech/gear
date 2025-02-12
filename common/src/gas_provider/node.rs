@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -329,7 +329,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
 
     /// Get's a mutable access to node's inner gas balance, if it can have any
     pub fn value_mut(&mut self) -> Option<&mut Balance> {
-        match self {
+        match *self {
             Self::External { ref mut value, .. }
             | Self::Cut { ref mut value, .. }
             | Self::Reserved { ref mut value, .. }
@@ -351,7 +351,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
 
     /// Get's a mutable access to node's locked gas balance, if it can have any.
     pub fn lock_mut(&mut self) -> &mut NodeLock<Balance> {
-        match self {
+        match *self {
             Self::External { ref mut lock, .. }
             | Self::UnspecifiedLocal { ref mut lock, .. }
             | Self::SpecifiedLocal { ref mut lock, .. }

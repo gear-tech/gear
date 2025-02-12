@@ -1,235 +1,128 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-// TODO (breathx): sort here everything.
+import {Gear} from "./libraries/Gear.sol";
+
+/// @title Gear.exe Router Interface
+/// @notice The Router interface provides basic co-processor functionalities, such as WASM submission, program creation, and result settlement, acting as an authority for acknowledged programs, driven by validator signature verification.
+/// @dev The Router serves as the primary entry point representing a co-processor instance. It emits two types of events: *informational* events, which are intended to notify external users of actions that have occurred within the co-processor, and *requesting* events, which are intended to request processing logic from validator nodes.
 interface IRouter {
-    /* Storage related structures */
-
-    /// @custom:storage-location erc7201:router.storage.Router
+    /// @custom:storage-location erc7201:router.storage.Router.
     struct Storage {
-        bytes32 genesisBlockHash;
-        address mirror;
-        address mirrorProxy;
-        address wrappedVara;
-        bytes32 lastBlockCommitmentHash;
-        uint256 signingThresholdPercentage;
-        uint64 baseWeight;
-        uint128 valuePerWeight;
-        mapping(address => bool) validators;
-        address[] validatorsKeys;
-        mapping(bytes32 => CodeState) codes;
-        uint256 validatedCodesCount;
-        mapping(address => bytes32) programs;
-        uint256 programsCount;
+        /// @notice Reserved storage slot.
+        /// @dev This slot is reserved for gas estimation purposes. Must be zero.
+        uint256 reserved;
+        /// @notice Genesis block information for this router.
+        /// @dev This identifies the co-processor instance. To allow interactions with the router, after initialization, someone must call `lookupGenesisHash()`.
+        Gear.GenesisBlockInfo genesisBlock;
+        /// @notice Information about the latest committed block.
+        /// @dev There is a guarantee that, for this block, validators have performed all necessary transitions.
+        Gear.CommittedBlockInfo latestCommittedBlock;
+        /// @notice Details of the related contracts' implementation.
+        Gear.AddressBook implAddresses;
+        /// @notice Parameters for validation and signature verification.
+        /// @dev This contains information about the validator set and the verification threshold for signatures.
+        Gear.ValidationSettings validationSettings;
+        /// @notice Computation parameters for programs processing.
+        /// @dev These parameters should be used for the operational logic of event and message handling on nodes. Any modifications will take effect in the next block.
+        Gear.ComputationSettings computeSettings;
+        /// @notice Protocol timelines.
+        /// @dev This contains information about the protocol's timelines.
+        Gear.Timelines timelines;
+        /// @notice Gear protocol data related to this router instance.
+        /// @dev This contains information about the available codes and programs.
+        Gear.ProtocolData protocolData;
     }
 
-    enum CodeState {
-        Unknown,
-        ValidationRequested,
-        Validated
-    }
+    /// @notice Emitted when all necessary state transitions have been applied and states have changed.
+    /// @dev This is an *informational* event, signaling that the block outcome has been committed.
+    /// @param hash The block hash that was "finalized" in relation to the necessary transitions.
+    event BlockCommitted(bytes32 hash);
 
-    /* Commitment related structures */
+    /// @notice Emitted when a code, previously requested for validation, receives validation results, so its CodeStatus changed.
+    /// @dev This is an *informational* event, signaling the results of code validation.
+    /// @param codeId The ID of the code that was validated.
+    /// @param valid The result of the validation: indicates whether the code ID can be used for program creation.
+    event CodeGotValidated(bytes32 codeId, bool indexed valid);
 
-    struct CodeCommitment {
-        bytes32 id;
-        bool valid;
-    }
+    /// @notice Emitted when a new code validation request is submitted.
+    /// @dev This is a *requesting* event, signaling that validators need to download and validate the code from the transaction blob.
+    /// @param codeId The expected code ID of the applied WASM blob, represented as a Blake2 hash.
+    event CodeValidationRequested(bytes32 codeId);
 
-    struct BlockCommitment {
-        bytes32 blockHash;
-        bytes32 prevCommitmentHash;
-        bytes32 predBlockHash;
-        StateTransition[] transitions;
-    }
+    /// @notice Emitted when validators for the next era has been set.
+    /// @dev This is an *informational* and *request* event, signaling that validators has been set for the next era.
+    /// @param startTimestamp timestamp when the new era starts.
+    event NextEraValidatorsCommitted(uint256 startTimestamp);
 
-    struct StateTransition {
-        address actorId;
-        bytes32 newStateHash;
-        address inheritor;
-        uint128 valueToReceive;
-        ValueClaim[] valueClaims;
-        OutgoingMessage[] messages;
-    }
+    /// @notice Emitted when the computation settings have been changed.
+    /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to change the computation settings. Users and program authors may want to adjust their practices, while validators need to apply the changes internally starting from the next block.
+    /// @param threshold The amount of Gear gas initially allocated for free to allow the program to decide if it wants to process the incoming message.
+    /// @param wvaraPerSecond The amount of WVara to be charged from the program's execution balance per second of computation.
+    event ComputationSettingsChanged(uint64 threshold, uint128 wvaraPerSecond);
 
-    struct ValueClaim {
-        bytes32 messageId;
-        address destination;
-        uint128 value;
-    }
-
-    struct OutgoingMessage {
-        bytes32 id;
-        address destination;
-        bytes payload;
-        uint128 value;
-        ReplyDetails replyDetails;
-    }
-
-    struct ReplyDetails {
-        bytes32 to;
-        bytes4 code;
-    }
-
-    /* Events section */
-
-    /**
-     * @dev Emitted when a new state transitions are applied.
-     *
-     * NOTE:    It's event for USERS:
-     *  it informs about new block outcome committed.
-     */
-    event BlockCommitted(bytes32 blockHash);
-
-    /**
-     * @dev Emitted when a new code validation request submitted.
-     *
-     * NOTE:    It's event for NODES:
-     *  it requires to download and validate code from blob.
-     */
-    event CodeValidationRequested(bytes32 codeId, bytes32 blobTxHash);
-
-    /**
-     * @dev Emitted when a code, previously requested to be validated, gets validated.
-     *
-     * NOTE:    It's event for USERS:
-     *  it informs about validation results of previously requested code.
-     */
-    event CodeGotValidated(bytes32 id, bool indexed valid);
-
-    // TODO (breathx): describe proposal of splitting init in two steps.
-    /**
-     * @dev Emitted when a new program created.
-     *
-     * NOTE:    It's event for USERS:
-     *  it informs about new program creation and it's availability on Ethereum.
-     *
-     * NOTE:    It's event for NODES:
-     *  it requires to create associated gear program in local storage.
-     */
+    /// @notice Emitted when a new program within the co-processor is created and is now available on-chain.
+    /// @dev This is both an *informational* and *requesting* event, signaling the creation of a new program and its Ethereum mirror. Validators need to initialize it with a zeroed hash state internally.
+    /// @param actorId ID of the actor that was created. It is accessible inside the co-processor and on Ethereum by this identifier.
+    /// @param codeId The code ID of the WASM implementation of the created program.
     event ProgramCreated(address actorId, bytes32 indexed codeId);
 
-    /**
-     * @dev Emitted when the validators set is changed.
-     *
-     * NOTE:    It's event for USERS:
-     *  it informs about validators rotation.
-     *
-     * NOTE:    It's event for NODES:
-     *  it requires to update authorities that sign outcomes.
-     */
-    event ValidatorsSetChanged();
-
-    /**
-     * @dev Emitted when the storage slot is changed.
-     *
-     * NOTE:    It's event for USERS:
-     *  it informs about router being wiped and all programs and codes deletion.
-     *
-     * NOTE:    It's event for NODES:
-     *  it requires to clean the local storage.
-     */
+    /// @notice Emitted when the router's storage slot has been changed.
+    /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
     event StorageSlotChanged();
 
-    /**
-     * @dev Emitted when the tx's base weight is changed.
-     *
-     * NOTE:    It's event for USERS:
-     *  it informs about new value of commission for each message sending.
-     *
-     * NOTE:    It's event for NODES:
-     *  it requires to update commission in programs execution parameters.
-     */
-    event BaseWeightChanged(uint64 baseWeight);
-
-    /**
-     * @dev Emitted when the value per executable weight is changed.
-     *
-     * NOTE:    It's event for USERS:
-     *  it informs about new conversion rate between weight and it's WVara price.
-     *
-     * NOTE:    It's event for NODES:
-     *  it requires to update conversion rate in programs execution parameters.
-     */
-    event ValuePerWeightChanged(uint128 valuePerWeight);
-
-    /* Functions section */
-
-    /* Operational functions */
-
-    function getStorageSlot() external view returns (bytes32);
-
-    function setStorageSlot(string calldata namespace) external;
-
+    // # Views.
     function genesisBlockHash() external view returns (bytes32);
+    function genesisTimestamp() external view returns (uint48);
+    function latestCommittedBlockHash() external view returns (bytes32);
 
-    function lastBlockCommitmentHash() external view returns (bytes32);
-
+    function mirrorImpl() external view returns (address);
+    function mirrorProxyImpl() external view returns (address);
     function wrappedVara() external view returns (address);
 
-    function mirrorProxy() external view returns (address);
+    function validatorsAggregatedPublicKey() external view returns (Gear.AggregatedPublicKey memory);
+    function validatorsVerifyingShares() external view returns (Gear.VerifyingShare[] memory);
 
-    function mirror() external view returns (address);
-
-    function setMirror(address mirror) external;
-
-    /* Codes and programs observing functions */
-
-    function validatedCodesCount() external view returns (uint256);
-
-    function codeState(bytes32 codeId) external view returns (CodeState);
-
-    function programsCount() external view returns (uint256);
-
-    /**
-     * @dev Returns bytes32(0) in case of inexistent program.
-     */
-    function programCodeId(address program) external view returns (bytes32);
-
-    /* Validators' set related functions */
-
-    function signingThresholdPercentage() external view returns (uint256);
-
+    function areValidators(address[] calldata validators) external view returns (bool);
+    function isValidator(address validator) external view returns (bool);
+    function signingThresholdPercentage() external view returns (uint16);
+    function validators() external view returns (address[] memory);
+    function validatorsCount() external view returns (uint256);
     function validatorsThreshold() external view returns (uint256);
 
-    function validatorsCount() external view returns (uint256);
+    function computeSettings() external view returns (Gear.ComputationSettings memory);
 
-    function validatorExists(address validator) external view returns (bool);
+    function codeState(bytes32 codeId) external view returns (Gear.CodeState);
+    function codesStates(bytes32[] calldata codesIds) external view returns (Gear.CodeState[] memory);
+    function programCodeId(address programId) external view returns (bytes32);
+    function programsCodeIds(address[] calldata programsIds) external view returns (bytes32[] memory);
+    function programsCount() external view returns (uint256);
+    function validatedCodesCount() external view returns (uint256);
 
-    function validators() external view returns (address[] memory);
+    // # Owner calls.
+    function setMirror(address newMirror) external;
 
-    function updateValidators(address[] calldata validatorsAddressArray) external;
+    // # Calls.
+    function lookupGenesisHash() external;
 
-    /* Economic and token related functions */
+    /// @dev CodeValidationRequested Emitted on success.
+    function requestCodeValidation(bytes32 codeId) external;
+    /// @dev ProgramCreated Emitted on success.
+    function createProgram(bytes32 codeId, bytes32 salt) external returns (address);
+    /// @dev ProgramCreated Emitted on success.
+    function createProgramWithDecoder(address decoderImpl, bytes32 codeId, bytes32 salt) external returns (address);
 
-    function baseWeight() external view returns (uint64);
-
-    function setBaseWeight(uint64 baseWeight) external;
-
-    function valuePerWeight() external view returns (uint128);
-
-    function setValuePerWeight(uint128 valuePerWeight) external;
-
-    function baseFee() external view returns (uint128);
-
-    /* Primary Gear logic */
-
-    function requestCodeValidation(bytes32 codeId, bytes32 blobTxHash) external;
-
-    function createProgram(bytes32 codeId, bytes32 salt, bytes calldata payload, uint128 value)
-        external
-        payable
-        returns (address);
-
-    function createProgramWithDecoder(
-        address decoderImplementation,
-        bytes32 codeId,
-        bytes32 salt,
-        bytes calldata payload,
-        uint128 value
-    ) external payable returns (address);
-
-    function commitCodes(CodeCommitment[] calldata codeCommitmentsArray, bytes[] calldata signatures) external;
-
-    function commitBlocks(BlockCommitment[] calldata blockCommitmentsArray, bytes[] calldata signatures) external;
+    /// @dev CodeGotValidated Emitted for each code in commitment.
+    /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
+    function commitBatch(
+        Gear.BatchCommitment calldata batchCommitment,
+        Gear.SignatureType signatureType,
+        bytes[] calldata signatures
+    ) external;
+    /// @dev NextEraValidatorsCommitted Emitted on success.
+    function commitValidators(
+        Gear.ValidatorsCommitment calldata validatorsCommitment,
+        Gear.SignatureType signatureType,
+        bytes[] calldata signatures
+    ) external;
 }

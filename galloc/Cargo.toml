@@ -3,10 +3,12 @@ name = "galloc"
 description = "Gear Wasm allocator"
 documentation = "https://docs.rs/galloc"
 keywords = ["gear", "allocator", "wasm"]
+edition.workspace = true
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]

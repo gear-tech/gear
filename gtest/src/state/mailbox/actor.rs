@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ use crate::{
     error::usage_panic,
     manager::ExtManager,
     state::{accounts::Accounts, actors::Actors},
-    Log, Value, GAS_ALLOWANCE,
+    Log, Value, MAX_USER_GAS_LIMIT,
 };
 use codec::Encode;
 use gear_common::{
@@ -96,7 +96,7 @@ impl<'a> ActorMailbox<'a> {
         {
             0
         } else {
-            GAS_ALLOWANCE
+            MAX_USER_GAS_LIMIT
         };
 
         // Build a reply message
@@ -167,7 +167,9 @@ impl<'a> ActorMailbox<'a> {
             .find_map(|(msg, _)| log.eq(&msg).then_some(msg))
     }
 
-    fn get_user_mailbox(&self) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> {
+    fn get_user_mailbox(
+        &self,
+    ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> + use<> {
         self.manager.borrow().mailbox.iter_key(self.user_id)
     }
 }

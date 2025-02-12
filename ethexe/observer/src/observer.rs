@@ -1,271 +1,49 @@
-use crate::{
-    event::{BlockData, Event, RequestBlockData, RequestEvent},
-    BlobReader,
-};
+// This file is part of Gear.
+//
+// Copyright (C) 2024-2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::{BlobReader, Provider};
 use alloy::{
     primitives::Address as AlloyAddress,
-    providers::{Provider, ProviderBuilder, RootProvider},
+    providers::Provider as _,
     rpc::types::eth::{Filter, Topic},
-    transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::{
-    router::{Event as RouterEvent, RequestEvent as RouterRequestEvent},
-    BlockEvent, BlockRequestEvent,
-};
-use ethexe_db::BlockHeader;
+use ethexe_common::events::{BlockEvent, BlockRequestEvent};
 use ethexe_ethereum::{
     mirror,
     router::{self, RouterQuery},
     wvara,
 };
-use ethexe_signer::Address;
-use futures::{future, stream::FuturesUnordered, Stream, StreamExt};
+use futures::future;
 use gear_core::ids::prelude::*;
 use gprimitives::{ActorId, CodeId, H256};
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::watch;
 
 /// Max number of blocks to query in alloy.
-pub(crate) const MAX_QUERY_BLOCK_RANGE: u64 = 100_000;
-
-pub(crate) type ObserverProvider = RootProvider<BoxTransport>;
-
-#[derive(Clone)]
-pub struct Observer {
-    provider: ObserverProvider,
-    router_address: AlloyAddress,
-    blob_reader: Arc<dyn BlobReader>,
-    status_sender: watch::Sender<ObserverStatus>,
-    status: ObserverStatus,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ObserverStatus {
-    pub eth_block_number: u64,
-    pub pending_upload_code: u64,
-    pub last_router_state: u64,
-}
-
-impl Observer {
-    pub async fn new(
-        ethereum_rpc: &str,
-        router_address: Address,
-        blob_reader: Arc<dyn BlobReader>,
-    ) -> Result<Self> {
-        let (status_sender, _status_receiver) = watch::channel(ObserverStatus::default());
-        Ok(Self {
-            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
-            router_address: AlloyAddress::new(router_address.0),
-            blob_reader,
-            status: Default::default(),
-            status_sender,
-        })
-    }
-
-    pub fn get_status_receiver(&self) -> watch::Receiver<ObserverStatus> {
-        self.status_sender.subscribe()
-    }
-
-    fn update_status<F>(&mut self, update_fn: F)
-    where
-        F: FnOnce(&mut ObserverStatus),
-    {
-        update_fn(&mut self.status);
-        let _ = self.status_sender.send_replace(self.status);
-    }
-    pub fn provider(&self) -> &ObserverProvider {
-        &self.provider
-    }
-
-    pub fn events_all(&mut self) -> impl Stream<Item = Event> + '_ {
-        async_stream::stream! {
-            let block_subscription = self
-                .provider
-                .subscribe_blocks()
-                .await
-                .expect("failed to subscribe to blocks");
-            let mut block_stream = block_subscription.into_stream();
-            let mut futures = FuturesUnordered::new();
-
-            loop {
-                tokio::select! {
-                    block = block_stream.next() => {
-                        let Some(block) = block else {
-                            log::info!("Block stream ended");
-                            break;
-                        };
-
-                        log::trace!("Received block: {:?}", block.header.hash);
-
-                        let block_hash = (*block.header.hash).into();
-                        let parent_hash = (*block.header.parent_hash).into();
-                        let block_number = block.header.number;
-                        let block_timestamp = block.header.timestamp;
-
-                        let events = match read_block_events(block_hash, &self.provider, self.router_address).await {
-                            Ok(events) => events,
-                            Err(err) => {
-                                log::error!("failed to read events: {err}");
-                                continue;
-                            }
-                        };
-
-                        let mut codes_len = 0;
-
-                        // Create futures to load codes
-                        for event in events.iter() {
-                            if let BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
-                                codes_len += 1;
-
-                                let blob_reader = self.blob_reader.clone();
-
-                                let code_id = *code_id;
-                                let blob_tx_hash = *blob_tx_hash;
-
-                                futures.push(async move {
-                                    let attempts = Some(3);
-
-                                    read_code_from_tx_hash(
-                                        blob_reader,
-                                        code_id,
-                                        blob_tx_hash,
-                                        attempts,
-                                    ).await
-                                });
-                            }
-                        }
-
-                        self.update_status(|status| {
-                            status.eth_block_number = block_number;
-                            if codes_len > 0 {
-                                status.last_router_state = block_number;
-                            }
-                            status.pending_upload_code = codes_len as u64;
-                        });
-
-                        let block_data = BlockData {
-                            hash: block_hash,
-                            header: BlockHeader {
-                                height: block_number as u32,
-                                timestamp: block_timestamp,
-                                parent_hash,
-                            },
-                            events,
-                        };
-
-                        yield Event::Block(block_data);
-                    },
-                    future = futures.next(), if !futures.is_empty() => {
-                        match future {
-                            Some(Ok((code_id, code))) => yield Event::CodeLoaded { code_id, code },
-                            Some(Err(err)) => log::error!("failed to handle upload code event: {err}"),
-                            None => continue,
-                        }
-                    }
-                };
-            }
-        }
-    }
-
-    pub fn request_events(&mut self) -> impl Stream<Item = RequestEvent> + '_ {
-        async_stream::stream! {
-            let block_subscription = self
-                .provider
-                .subscribe_blocks()
-                .await
-                .expect("failed to subscribe to blocks");
-            let mut block_stream = block_subscription.into_stream();
-            let mut futures = FuturesUnordered::new();
-
-            loop {
-                tokio::select! {
-                    block = block_stream.next() => {
-                        let Some(block) = block else {
-                            log::info!("Block stream ended");
-                            break;
-                        };
-
-                        log::trace!("Received block: {:?}", block.header.hash);
-
-                        let block_hash = (*block.header.hash).into();
-                        let parent_hash = (*block.header.parent_hash).into();
-                        let block_number = block.header.number;
-                        let block_timestamp = block.header.timestamp;
-
-                        let events = match read_block_request_events(block_hash, &self.provider, self.router_address).await {
-                            Ok(events) => events,
-                            Err(err) => {
-                                log::error!("failed to read events: {err}");
-                                continue;
-                            }
-                        };
-
-                        let mut codes_len = 0;
-
-                        // Create futures to load codes
-                        // TODO (breathx): remove me from here mb
-                        for event in events.iter() {
-                            if let BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested { code_id, blob_tx_hash }) = event {
-                                codes_len += 1;
-
-                                let blob_reader = self.blob_reader.clone();
-
-                                let code_id = *code_id;
-                                let blob_tx_hash = *blob_tx_hash;
-
-                                futures.push(async move {
-                                    let attempts = Some(3);
-
-                                    read_code_from_tx_hash(
-                                        blob_reader,
-                                        code_id,
-                                        blob_tx_hash,
-                                        attempts,
-                                    ).await
-                                });
-                            }
-                        }
-
-                        self.update_status(|status| {
-                            status.eth_block_number = block_number;
-                            if codes_len > 0 {
-                                status.last_router_state = block_number;
-                            }
-                            status.pending_upload_code = codes_len as u64;
-                        });
-
-                        let block_data = RequestBlockData {
-                            hash: block_hash,
-                            header: BlockHeader {
-                                height: block_number as u32,
-                                timestamp: block_timestamp,
-                                parent_hash,
-                            },
-                            events,
-                        };
-
-                        yield RequestEvent::Block(block_data);
-                    },
-                    future = futures.next(), if !futures.is_empty() => {
-                        match future {
-                            Some(Ok((code_id, code))) => yield RequestEvent::CodeLoaded { code_id, code },
-                            Some(Err(err)) => log::error!("failed to handle upload code event: {err}"),
-                            None => continue,
-                        }
-                    }
-                };
-            }
-        }
-    }
-}
+pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
 
 pub(crate) async fn read_code_from_tx_hash(
     blob_reader: Arc<dyn BlobReader>,
     expected_code_id: CodeId,
+    timestamp: u64,
     tx_hash: H256,
     attempts: Option<u8>,
-) -> Result<(CodeId, Vec<u8>)> {
+) -> Result<(CodeId, u64, Vec<u8>)> {
     let code = blob_reader
         .read_blob_from_tx_hash(tx_hash, attempts)
         .await
@@ -275,15 +53,12 @@ pub(crate) async fn read_code_from_tx_hash(
         .then_some(())
         .ok_or_else(|| anyhow!("unexpected code id"))?;
 
-    Ok((expected_code_id, code))
+    Ok((expected_code_id, timestamp, code))
 }
 
-// TODO (breathx): only read events that require some activity.
-// TODO (breathx): don't store not our events.
-#[allow(unused)] // TODO (breathx).
-pub(crate) async fn read_block_events(
+pub async fn read_block_events(
     block_hash: H256,
-    provider: &ObserverProvider,
+    provider: &Provider,
     router_address: AlloyAddress,
 ) -> Result<Vec<BlockEvent>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
@@ -296,11 +71,10 @@ pub(crate) async fn read_block_events(
         .map(|v| v.into_values().next().unwrap_or_default())
 }
 
-#[allow(unused)] // TODO (breathx)
-pub(crate) async fn read_block_events_batch(
+pub async fn read_block_events_batch(
     from_block: u32,
     to_block: u32,
-    provider: &ObserverProvider,
+    provider: &Provider,
     router_address: AlloyAddress,
 ) -> Result<HashMap<H256, Vec<BlockEvent>>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
@@ -312,7 +86,7 @@ pub(crate) async fn read_block_events_batch(
     let to_block = to_block as u64;
 
     while start_block <= to_block {
-        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE - 1);
+        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE as u64 - 1);
 
         let filter = Filter::new().from_block(start_block).to_block(end_block);
 
@@ -329,7 +103,7 @@ pub(crate) async fn read_block_events_batch(
 async fn read_events_impl(
     router_address: AlloyAddress,
     wvara_address: AlloyAddress,
-    provider: &ObserverProvider,
+    provider: &Provider,
     filter: Filter,
 ) -> Result<HashMap<H256, Vec<BlockEvent>>> {
     let router_and_wvara_topic = Topic::from_iter(
@@ -393,11 +167,9 @@ async fn read_events_impl(
     Ok(res)
 }
 
-// TODO (breathx): only read events that require some activity.
-// TODO (breathx): don't store not our events.
 pub(crate) async fn read_block_request_events(
     block_hash: H256,
-    provider: &ObserverProvider,
+    provider: &Provider,
     router_address: AlloyAddress,
 ) -> Result<Vec<BlockRequestEvent>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
@@ -413,7 +185,7 @@ pub(crate) async fn read_block_request_events(
 pub(crate) async fn read_block_request_events_batch(
     from_block: u32,
     to_block: u32,
-    provider: &ObserverProvider,
+    provider: &Provider,
     router_address: AlloyAddress,
 ) -> Result<HashMap<H256, Vec<BlockRequestEvent>>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
@@ -424,8 +196,9 @@ pub(crate) async fn read_block_request_events_batch(
     let mut start_block = from_block as u64;
     let to_block = to_block as u64;
 
+    // TODO (breathx): FIX WITHIN PR. to iters.
     while start_block <= to_block {
-        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE - 1);
+        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE as u64 - 1);
 
         let filter = Filter::new().from_block(start_block).to_block(end_block);
 
@@ -443,7 +216,7 @@ pub(crate) async fn read_block_request_events_batch(
 async fn read_request_events_impl(
     router_address: AlloyAddress,
     wvara_address: AlloyAddress,
-    provider: &ObserverProvider,
+    provider: &Provider,
     filter: Filter,
 ) -> Result<HashMap<H256, Vec<BlockRequestEvent>>> {
     let router_and_wvara_topic = Topic::from_iter(
@@ -515,96 +288,50 @@ async fn read_request_events_impl(
     Ok(res)
 }
 
-#[cfg(test)]
-mod tests {
-    use std::time::Duration;
+pub(crate) async fn read_committed_blocks_batch(
+    from_block: u32,
+    to_block: u32,
+    provider: &Provider,
+    router_address: AlloyAddress,
+) -> Result<Vec<H256>> {
+    let mut start_block = from_block as u64;
+    let to_block = to_block as u64;
 
-    use super::*;
-    use crate::MockBlobReader;
-    use alloy::node_bindings::Anvil;
-    use ethexe_ethereum::Ethereum;
-    use ethexe_signer::Signer;
-    use tokio::{sync::oneshot, task};
+    let mut res = Vec::new();
 
-    fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
-        wabt::Wat2Wasm::new()
-            .validate(validate)
-            .convert(s)
-            .unwrap()
-            .as_ref()
-            .to_vec()
+    while start_block <= to_block {
+        let end_block = to_block.min(start_block + MAX_QUERY_BLOCK_RANGE as u64 - 1);
+
+        let filter = Filter::new().from_block(start_block).to_block(end_block);
+
+        let iter_res = read_committed_blocks_impl(router_address, provider, filter).await?;
+
+        res.extend(iter_res);
+
+        start_block = end_block + 1;
     }
 
-    fn wat2wasm(s: &str) -> Vec<u8> {
-        wat2wasm_with_validate(s, true)
+    Ok(res)
+}
+
+async fn read_committed_blocks_impl(
+    router_address: AlloyAddress,
+    provider: &Provider,
+    filter: Filter,
+) -> Result<Vec<H256>> {
+    let filter = filter
+        .address(router_address)
+        .event_signature(Topic::from(router::events::signatures::BLOCK_COMMITTED));
+
+    let logs = provider.get_logs(&filter).await?;
+
+    let mut res = Vec::with_capacity(logs.len());
+
+    for log in logs {
+        if let Some(hash) = router::events::try_extract_committed_block_hash(&log)? {
+            res.push(hash);
+        }
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_deployment() -> Result<()> {
-        gear_utils::init_default_logger();
-
-        let anvil = Anvil::new().try_spawn()?;
-
-        let ethereum_rpc = anvil.ws_endpoint();
-
-        let signer = Signer::new("/tmp/keys".into())?;
-
-        let sender_public_key = signer.add_key(
-            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
-        )?;
-        let sender_address = sender_public_key.to_address();
-        let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
-
-        let ethereum = Ethereum::deploy(&ethereum_rpc, validators, signer, sender_address).await?;
-        let blob_reader = Arc::new(MockBlobReader::new(Duration::from_secs(1)));
-
-        let router_address = ethereum.router().address();
-        let cloned_blob_reader = blob_reader.clone();
-
-        let (send_subscription_created, receive_subscription_created) = oneshot::channel::<()>();
-        let handle = task::spawn(async move {
-            let mut observer = Observer::new(&ethereum_rpc, router_address, cloned_blob_reader)
-                .await
-                .expect("failed to create observer");
-
-            let observer_events = observer.events_all();
-            futures::pin_mut!(observer_events);
-
-            send_subscription_created.send(()).unwrap();
-
-            while let Some(event) = observer_events.next().await {
-                if matches!(event, Event::CodeLoaded { .. }) {
-                    return Some(event);
-                }
-            }
-
-            None
-        });
-        receive_subscription_created.await.unwrap();
-
-        let wat = r#"
-            (module
-                (import "env" "memory" (memory 0))
-                (export "init" (func $init))
-                (func $init)
-            )
-        "#;
-        let wasm = wat2wasm(wat);
-
-        let code_id = CodeId::generate(&wasm);
-        let blob_tx = H256::random();
-
-        blob_reader.add_blob_transaction(blob_tx, wasm).await;
-        ethereum
-            .router()
-            .request_code_validation(code_id, blob_tx)
-            .await?;
-
-        assert!(
-            handle.await?.is_some(),
-            "observer did not receive upload code event"
-        );
-
-        Ok(())
-    }
+    Ok(res)
 }

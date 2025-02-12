@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -63,7 +63,7 @@ type HooksMap = HashMap<MessageId, Box<dyn FnMut()>>;
 static mut HOOKS: Option<HooksMap> = None;
 
 fn hooks() -> &'static mut HooksMap {
-    unsafe { HOOKS.get_or_insert_with(HashMap::new) }
+    unsafe { crate::static_mut!(HOOKS).get_or_insert_with(HashMap::new) }
 }
 
 /// Sets critical hook.
@@ -91,7 +91,7 @@ pub fn set_hook<F: FnMut() + 'static>(f: F) {
 /// ```rust,no_run
 /// use gstd::critical;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     critical::set_hook(|| {
 ///         // some code...
@@ -117,7 +117,7 @@ pub fn take_hook() -> Option<Box<dyn FnMut()>> {
 /// ```rust,no_run
 /// use gstd::critical;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle_signal() {
 ///     critical::take_and_execute();
 /// }

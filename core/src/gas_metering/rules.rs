@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,9 +18,9 @@
 
 use super::Schedule;
 use alloc::vec::Vec;
-use gwasm_instrument::{
-    gas_metering::{ConstantCostRules, MemoryGrowCost, Rules},
-    parity_wasm::elements::{self, Instruction, Module, SignExtInstruction, Type},
+use gear_wasm_instrument::{
+    gas_metering::{ConstantCostRules, MemoryGrowCost},
+    Instruction, Module, Rules,
 };
 
 /// This type provides the functionality of [`ConstantCostRules`].
@@ -58,117 +58,11 @@ impl Default for CustomConstantCostRules {
 
 impl Rules for CustomConstantCostRules {
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
-        use self::elements::Instruction::*;
-
-        // list of allowed instructions from `ScheduleRules::<T>::instruction_cost(...)`
-        // method
-        match *instruction {
-            End
-            | Unreachable
-            | Return
-            | Else
-            | Block(_)
-            | Loop(_)
-            | Nop
-            | Drop
-            | I32Const(_)
-            | I64Const(_)
-            | I32Load(_, _)
-            | I32Load8S(_, _)
-            | I32Load8U(_, _)
-            | I32Load16S(_, _)
-            | I32Load16U(_, _)
-            | I64Load(_, _)
-            | I64Load8S(_, _)
-            | I64Load8U(_, _)
-            | I64Load16S(_, _)
-            | I64Load16U(_, _)
-            | I64Load32S(_, _)
-            | I64Load32U(_, _)
-            | I32Store(_, _)
-            | I32Store8(_, _)
-            | I32Store16(_, _)
-            | I64Store(_, _)
-            | I64Store8(_, _)
-            | I64Store16(_, _)
-            | I64Store32(_, _)
-            | Select
-            | If(_)
-            | Br(_)
-            | BrIf(_)
-            | Call(_)
-            | GetLocal(_)
-            | SetLocal(_)
-            | TeeLocal(_)
-            | GetGlobal(_)
-            | SetGlobal(_)
-            | CurrentMemory(_)
-            | CallIndirect(_, _)
-            | BrTable(_)
-            | I32Clz
-            | I64Clz
-            | I32Ctz
-            | I64Ctz
-            | I32Popcnt
-            | I64Popcnt
-            | I32Eqz
-            | I64Eqz
-            | I64ExtendSI32
-            | I64ExtendUI32
-            | I32WrapI64
-            | I32Eq
-            | I64Eq
-            | I32Ne
-            | I64Ne
-            | I32LtS
-            | I64LtS
-            | I32LtU
-            | I64LtU
-            | I32GtS
-            | I64GtS
-            | I32GtU
-            | I64GtU
-            | I32LeS
-            | I64LeS
-            | I32LeU
-            | I64LeU
-            | I32GeS
-            | I64GeS
-            | I32GeU
-            | I64GeU
-            | I32Add
-            | I64Add
-            | I32Sub
-            | I64Sub
-            | I32Mul
-            | I64Mul
-            | I32DivS
-            | I64DivS
-            | I32DivU
-            | I64DivU
-            | I32RemS
-            | I64RemS
-            | I32RemU
-            | I64RemU
-            | I32And
-            | I64And
-            | I32Or
-            | I64Or
-            | I32Xor
-            | I64Xor
-            | I32Shl
-            | I64Shl
-            | I32ShrS
-            | I64ShrS
-            | I32ShrU
-            | I64ShrU
-            | I32Rotl
-            | I64Rotl
-            | I32Rotr
-            | I64Rotr
-            | SignExt(_) => Some(self.constant_cost_rules.instruction_cost(instruction)?),
-            _ => None,
+        if instruction.is_user_forbidden() {
+            return None;
         }
+
+        self.constant_cost_rules.instruction_cost(instruction)
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
@@ -188,62 +82,74 @@ pub struct ScheduleRules<'a> {
 
 impl Schedule {
     /// Returns real gas rules that are used by pallet gear.
-    pub fn rules(&self, module: &Module) -> impl Rules + '_ {
+    pub fn rules(&self, module: &Module) -> impl Rules + use<'_> {
         ScheduleRules {
             schedule: self,
             params: module
-                .type_section()
+                .type_section
+                .as_ref()
                 .iter()
-                .flat_map(|section| section.types())
-                .map(|func| {
-                    let Type::Function(func) = func;
-                    func.params().len() as u32
-                })
+                .copied()
+                .flatten()
+                .map(|func| func.params().len() as u32)
                 .collect(),
         }
     }
 }
 
-impl<'a> Rules for ScheduleRules<'a> {
+impl Rules for ScheduleRules<'_> {
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
         use Instruction::*;
-        use SignExtInstruction::*;
 
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;
 
-        let weight = match *instruction {
-            End | Unreachable | Return | Else | Block(_) | Loop(_) | Nop | Drop => 0,
-            I32Const(_) | I64Const(_) => w.i64const,
-            I32Load(_, _)
-            | I32Load8S(_, _)
-            | I32Load8U(_, _)
-            | I32Load16S(_, _)
-            | I32Load16U(_, _) => w.i32load,
-            I64Load(_, _)
-            | I64Load8S(_, _)
-            | I64Load8U(_, _)
-            | I64Load16S(_, _)
-            | I64Load16U(_, _)
-            | I64Load32S(_, _)
-            | I64Load32U(_, _) => w.i64load,
-            I32Store(_, _) | I32Store8(_, _) | I32Store16(_, _) => w.i32store,
-            I64Store(_, _) | I64Store8(_, _) | I64Store16(_, _) | I64Store32(_, _) => w.i64store,
+        Some(match instruction {
+            // Returning None makes the gas instrumentation fail which we intend for
+            // unsupported or unknown instructions.
+            MemoryGrow { .. } => return None,
+            //
+            End | Unreachable | Return | Else | Block { .. } | Loop { .. } | Nop | Drop => 0,
+            I32Const { .. } | I64Const { .. } => w.i64const,
+            I32Load { .. }
+            | I32Load8S { .. }
+            | I32Load8U { .. }
+            | I32Load16S { .. }
+            | I32Load16U { .. } => w.i32load,
+            I64Load { .. }
+            | I64Load8S { .. }
+            | I64Load8U { .. }
+            | I64Load16S { .. }
+            | I64Load16U { .. }
+            | I64Load32S { .. }
+            | I64Load32U { .. } => w.i64load,
+            I32Store { .. } | I32Store8 { .. } | I32Store16 { .. } => w.i32store,
+            I64Store { .. } | I64Store8 { .. } | I64Store16 { .. } | I64Store32 { .. } => {
+                w.i64store
+            }
             Select => w.select,
-            If(_) => w.r#if,
-            Br(_) => w.br,
-            BrIf(_) => w.br_if,
-            Call(_) => w.call,
-            GetLocal(_) => w.local_get,
-            SetLocal(_) => w.local_set,
-            TeeLocal(_) => w.local_tee,
-            GetGlobal(_) => w.global_get,
-            SetGlobal(_) => w.global_set,
-            CurrentMemory(_) => w.memory_current,
-            CallIndirect(idx, _) => *self.params.get(idx as usize).unwrap_or(&max_params),
-            BrTable(ref data) => w
+            If { .. } => w.r#if,
+            Br { .. } => w.br,
+            BrIf { .. } => w.br_if,
+            Call { .. } => w.call,
+            LocalGet { .. } => w.local_get,
+            LocalSet { .. } => w.local_set,
+            LocalTee { .. } => w.local_tee,
+            GlobalGet { .. } => w.global_get,
+            GlobalSet { .. } => w.global_set,
+            MemorySize { .. } => w.memory_current,
+            CallIndirect(idx) => {
+                let params = self
+                    .params
+                    .get(*idx as usize)
+                    .copied()
+                    .unwrap_or(max_params);
+                w.call_indirect
+                    .saturating_add(w.call_indirect_per_param.saturating_sub(params))
+            }
+            BrTable(targets) => w
                 .br_table
-                .saturating_add(w.br_table_per_entry.saturating_mul(data.table.len() as u32)),
+                .saturating_add(w.br_table_per_entry.saturating_mul(targets.len())),
             I32Clz => w.i32clz,
             I64Clz => w.i64clz,
             I32Ctz => w.i32ctz,
@@ -252,8 +158,9 @@ impl<'a> Rules for ScheduleRules<'a> {
             I64Popcnt => w.i64popcnt,
             I32Eqz => w.i32eqz,
             I64Eqz => w.i64eqz,
-            I64ExtendSI32 => w.i64extendsi32,
-            I64ExtendUI32 => w.i64extendui32,
+            // TODO: rename fields
+            I64ExtendI32S => w.i64extendsi32,
+            I64ExtendI32U => w.i64extendui32,
             I32WrapI64 => w.i32wrapi64,
             I32Eq => w.i32eq,
             I64Eq => w.i64eq,
@@ -305,18 +212,12 @@ impl<'a> Rules for ScheduleRules<'a> {
             I64Rotl => w.i64rotl,
             I32Rotr => w.i32rotr,
             I64Rotr => w.i64rotr,
-            SignExt(ref s) => match s {
-                I32Extend8S => w.i32extend8s,
-                I32Extend16S => w.i32extend16s,
-                I64Extend8S => w.i64extend8s,
-                I64Extend16S => w.i64extend16s,
-                I64Extend32S => w.i64extend32s,
-            },
-            // Returning None makes the gas instrumentation fail which we intend for
-            // unsupported or unknown instructions.
-            _ => return None,
-        };
-        Some(weight)
+            I32Extend8S => w.i32extend8s,
+            I32Extend16S => w.i32extend16s,
+            I64Extend8S => w.i64extend8s,
+            I64Extend16S => w.i64extend16s,
+            I64Extend32S => w.i64extend32s,
+        })
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {

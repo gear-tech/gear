@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -251,8 +251,10 @@ pub mod pallet {
             }
 
             if total != expected {
-                log::error!("Block #{bn:?} ended with unreachable error while performing cleaning of on-finalize value: \
-                total tried to transfer is {total:?}, expected amount is {expected:?}")
+                log::error!(
+                    "Block #{bn:?} ended with unreachable error while performing cleaning of on-finalize value: \
+                total tried to transfer is {total:?}, expected amount is {expected:?}"
+                )
             }
         }
     }

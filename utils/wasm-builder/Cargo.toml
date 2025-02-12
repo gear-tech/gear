@@ -2,9 +2,11 @@
 name = "gear-wasm-builder"
 description = "Utility for building Gear programs"
 documentation = "https://docs.rs/gear-wasm-builder"
-version.workspace = true
 edition.workspace = true
+version.workspace = true
+authors.workspace = true
 license.workspace = true
+homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 include = ["build.rs", "src/**/*", "Cargo.toml", "README.md"]
@@ -17,7 +19,6 @@ cargo_toml.workspace = true
 chrono = "0.4"
 thiserror.workspace = true
 regex.workspace = true
-pwasm-utils = { workspace = true, features = ["sign_ext"] }
 toml.workspace = true
 log.workspace = true
 pathdiff.workspace = true
@@ -26,10 +27,6 @@ gear-wasm-instrument.workspace = true
 gear-wasm-optimizer.workspace = true
 rustc_version.workspace = true
 itertools.workspace = true
-
-[dev-dependencies]
-wabt.workspace = true
-parity-wasm.workspace = true
 
 [features]
 wasm-opt = ["gear-wasm-optimizer/wasm-opt"]

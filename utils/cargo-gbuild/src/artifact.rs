@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -143,14 +143,17 @@ impl Artifact {
         let (input, output) = self.names();
         let output = root.join(output);
 
-        optimize::optimize_wasm(src.join(input), output.clone(), "4", true)?;
-        let mut optimizer = Optimizer::new(output.clone())?;
+        let mut optimizer = Optimizer::new(&src.join(input))?;
         optimizer
             .insert_stack_end_export()
             .map_err(|e| anyhow!("{e}"));
         optimizer.strip_custom_sections();
+        optimizer.strip_exports();
+        optimizer.flush_to_file(&output);
 
-        fs::write(output, optimizer.optimize()?).map_err(Into::into)
+        optimize::optimize_wasm(&output, &output, "4", true)?;
+
+        Ok(())
     }
 }
 

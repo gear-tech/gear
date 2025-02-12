@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -39,7 +39,7 @@ use gstd_codegen::wait_create_program_for_reply;
 /// ```
 /// use gstd::{msg, prog, CodeId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let code_id: CodeId = msg::load().expect("Unable to load");
 ///     let (init_message_id, new_program_id) =
@@ -69,7 +69,7 @@ pub fn create_program_bytes(
 /// ```
 /// use gstd::{msg, prog, CodeId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let code_id: CodeId = msg::load().expect("Unable to load");
 ///     let (init_message_id, new_program_id) =

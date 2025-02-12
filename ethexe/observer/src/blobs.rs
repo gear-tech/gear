@@ -1,8 +1,26 @@
-use crate::observer::ObserverProvider;
+// This file is part of Gear.
+//
+// Copyright (C) 2024-2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::Provider;
 use alloy::{
-    consensus::{SidecarCoder, SimpleCoder},
+    consensus::{SidecarCoder, SimpleCoder, Transaction},
     eips::eip4844::kzg_to_versioned_hash,
-    providers::{Provider, ProviderBuilder},
+    providers::{Provider as _, ProviderBuilder},
     rpc::types::{beacon::sidecar::BeaconBlobBundle, eth::BlockTransactionsKind},
 };
 use anyhow::{anyhow, Result};
@@ -26,7 +44,7 @@ pub trait BlobReader: Send + Sync {
 
 #[derive(Clone)]
 pub struct ConsensusLayerBlobReader {
-    provider: ObserverProvider,
+    provider: Provider,
     http_client: Client,
     ethereum_beacon_rpc: String,
     beacon_block_time: Duration,
@@ -71,7 +89,7 @@ impl BlobReader for ConsensusLayerBlobReader {
             .await?
             .ok_or_else(|| anyhow!("failed to get transaction"))?;
         let blob_versioned_hashes = tx
-            .blob_versioned_hashes
+            .blob_versioned_hashes()
             .ok_or_else(|| anyhow!("failed to get versioned hashes"))?;
         let blob_versioned_hashes = HashSet::<_, RandomState>::from_iter(blob_versioned_hashes);
         let block_hash = tx

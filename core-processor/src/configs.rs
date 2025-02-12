@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -25,9 +25,6 @@ use gear_core::{
 };
 
 pub use gear_wasm_instrument::syscalls::SyscallName;
-
-/// Number of max pages number to use it in tests.
-pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Default)]

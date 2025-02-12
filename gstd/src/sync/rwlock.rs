@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -58,7 +58,7 @@ const READERS_LIMIT: ReadersCount = 32;
 /// static mut DEST: ActorId = ActorId::zero();
 /// static RWLOCK: RwLock<u32> = RwLock::new(0);
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn init() {
 ///     // `some_address` can be obtained from the init payload
 ///     # let some_address = ActorId::zero();
@@ -182,7 +182,7 @@ pub struct RwLockReadGuard<'a, T> {
     holder_msg_id: MessageId,
 }
 
-impl<'a, T> RwLockReadGuard<'a, T> {
+impl<T> RwLockReadGuard<'_, T> {
     fn ensure_access_by_holder(&self) {
         let current_msg_id = msg::id();
         if self.holder_msg_id != current_msg_id {
@@ -195,7 +195,7 @@ impl<'a, T> RwLockReadGuard<'a, T> {
     }
 }
 
-impl<'a, T> Drop for RwLockReadGuard<'a, T> {
+impl<T> Drop for RwLockReadGuard<'_, T> {
     fn drop(&mut self) {
         self.ensure_access_by_holder();
         unsafe {
@@ -241,7 +241,7 @@ pub struct RwLockWriteGuard<'a, T> {
     holder_msg_id: MessageId,
 }
 
-impl<'a, T> RwLockWriteGuard<'a, T> {
+impl<T> RwLockWriteGuard<'_, T> {
     fn ensure_access_by_holder(&self) {
         let current_msg_id = msg::id();
         if self.holder_msg_id != current_msg_id {
@@ -254,7 +254,7 @@ impl<'a, T> RwLockWriteGuard<'a, T> {
     }
 }
 
-impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
+impl<T> Drop for RwLockWriteGuard<'_, T> {
     fn drop(&mut self) {
         self.ensure_access_by_holder();
         unsafe {

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,13 +24,16 @@ use common::scheduler::SchedulingCostsPerBlock;
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
-    costs::{ExtCosts, InstantiationCosts, LazyPagesCosts, ProcessCosts, RentCosts, SyscallCosts},
+    costs::{
+        ExtCosts, InstantiationCosts, IoCosts, LazyPagesCosts, PagesCosts, ProcessCosts, RentCosts,
+        SyscallCosts,
+    },
     message,
     pages::{GearPage, WasmPage},
 };
 use gear_wasm_instrument::{
     gas_metering::{MemoryGrowCost, Rules},
-    parity_wasm::elements::{Instruction, Module, SignExtInstruction, Type},
+    Instruction, Module,
 };
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
@@ -56,23 +59,18 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 /// To avoid potential stack overflow problems we have a panic in sandbox in case,
 /// execution is ended with stack overflow error. So, process queue execution will be
 /// stopped and we will be able to investigate the problem and decrease this constant if needed.
-#[cfg(not(feature = "fuzz"))]
+#[cfg(not(fuzz))]
 pub const STACK_HEIGHT_LIMIT: u32 = 36_743;
 
 /// For the fuzzer, we take the maximum possible stack limit calculated by the `calc-stack-height`
 /// utility, which would be suitable for Linux machines. This has a positive effect on code coverage.
-#[cfg(feature = "fuzz")]
+#[cfg(fuzz)]
 pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 
 /// Maximum number of data segments in a wasm module.
 /// It has been determined that the maximum number of data segments in a wasm module
 /// does not exceed 1024 by a large margin.
 pub const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
-
-/// Maximum number of wasm tables in a wasm module.
-/// The same limit also imposed by `wasmparser`,
-/// see <https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs>
-pub const TABLE_NUMBER_LIMIT: u32 = 100;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -197,11 +195,6 @@ pub struct Limits {
     ///
     /// Currently, the only type of element that is allowed in a table is funcref.
     pub table_size: u32,
-
-    /// Maximum number of tables allowed for a program.
-    /// The same limit also imposed by `wasmparser`,
-    /// see <https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs>
-    pub table_number: u32,
 
     /// Maximum number of elements that can appear as immediate value to the br_table instruction.
     pub br_table_size: u32,
@@ -823,9 +816,9 @@ impl<T: Config> Default for Schedule<T> {
 impl Default for Limits {
     fn default() -> Self {
         Self {
-            #[cfg(not(feature = "fuzz"))]
+            #[cfg(not(fuzz))]
             stack_height: Some(STACK_HEIGHT_LIMIT),
-            #[cfg(feature = "fuzz")]
+            #[cfg(fuzz)]
             stack_height: Some(FUZZER_STACK_HEIGHT_LIMIT),
             data_segments_amount: DATA_SEGMENTS_AMOUNT_LIMIT,
             globals: 256,
@@ -834,7 +827,6 @@ impl Default for Limits {
             memory_pages: MAX_WASM_PAGES_AMOUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
-            table_number: TABLE_NUMBER_LIMIT,
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,
@@ -863,7 +855,7 @@ impl<T: Config> Default for InstructionWeights<T> {
         // See below for the assembly listings of the mentioned instructions.
         type W<T> = <T as Config>::WeightInfo;
         Self {
-            version: 1620,
+            version: 1700,
             i64const: cost_i64const::<T>(),
             i64load: cost_instr::<T>(W::<T>::instr_i64load, 0),
             i32load: cost_instr::<T>(W::<T>::instr_i32load, 0),
@@ -1077,7 +1069,7 @@ impl<T: Config> Default for SyscallWeights<T> {
             gr_reply_commit: cost(W::<T>::gr_reply_commit),
             gr_reply_commit_wgas: cost(W::<T>::gr_reply_commit_wgas),
             gr_reservation_reply: cost(W::<T>::gr_reservation_reply),
-            gr_reservation_reply_per_byte: cost(W::<T>::gr_reservation_reply_per_kb),
+            gr_reservation_reply_per_byte: cost_byte(W::<T>::gr_reservation_reply_per_kb),
             gr_reservation_reply_commit: cost(W::<T>::gr_reservation_reply_commit),
             gr_reply_input: cost(W::<T>::gr_reply_input),
             gr_reply_input_wgas: cost(W::<T>::gr_reply_input_wgas),
@@ -1301,6 +1293,27 @@ impl<T: Config> Default for MemoryWeights<T> {
     }
 }
 
+impl<T: Config> From<MemoryWeights<T>> for IoCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            common: PagesCosts::from(val.clone()),
+            lazy_pages: LazyPagesCosts::from(val),
+        }
+    }
+}
+
+impl<T: Config> From<MemoryWeights<T>> for PagesCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            load_page_data: val.load_page_data.ref_time().into(),
+            upload_page_data: val.upload_page_data.ref_time().into(),
+            mem_grow: val.mem_grow.ref_time().into(),
+            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
+            parachain_read_heuristic: val.parachain_read_heuristic.ref_time().into(),
+        }
+    }
+}
+
 impl<T: Config> From<MemoryWeights<T>> for LazyPagesCosts {
     fn from(val: MemoryWeights<T>) -> Self {
         Self {
@@ -1404,46 +1417,59 @@ struct ScheduleRules<'a, T: Config> {
     params: Vec<u32>,
 }
 
-impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
+impl<T: Config> Rules for ScheduleRules<'_, T> {
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
         use Instruction::*;
-        use SignExtInstruction::*;
 
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;
 
-        let weight = match *instruction {
-            End | Unreachable | Return | Else | Block(_) | Loop(_) | Nop | Drop => 0,
-            I32Const(_) | I64Const(_) => w.i64const,
-            I32Load(_, _)
-            | I32Load8S(_, _)
-            | I32Load8U(_, _)
-            | I32Load16S(_, _)
-            | I32Load16U(_, _) => w.i32load,
-            I64Load(_, _)
-            | I64Load8S(_, _)
-            | I64Load8U(_, _)
-            | I64Load16S(_, _)
-            | I64Load16U(_, _)
-            | I64Load32S(_, _)
-            | I64Load32U(_, _) => w.i64load,
-            I32Store(_, _) | I32Store8(_, _) | I32Store16(_, _) => w.i32store,
-            I64Store(_, _) | I64Store8(_, _) | I64Store16(_, _) | I64Store32(_, _) => w.i64store,
+        Some(match instruction {
+            // Returning None makes the gas instrumentation fail which we intend for
+            // unsupported or unknown instructions.
+            MemoryGrow { .. } => return None,
+            //
+            End | Unreachable | Return | Else | Block { .. } | Loop { .. } | Nop | Drop => 0,
+            I32Const { .. } | I64Const { .. } => w.i64const,
+            I32Load { .. }
+            | I32Load8S { .. }
+            | I32Load8U { .. }
+            | I32Load16S { .. }
+            | I32Load16U { .. } => w.i32load,
+            I64Load { .. }
+            | I64Load8S { .. }
+            | I64Load8U { .. }
+            | I64Load16S { .. }
+            | I64Load16U { .. }
+            | I64Load32S { .. }
+            | I64Load32U { .. } => w.i64load,
+            I32Store { .. } | I32Store8 { .. } | I32Store16 { .. } => w.i32store,
+            I64Store { .. } | I64Store8 { .. } | I64Store16 { .. } | I64Store32 { .. } => {
+                w.i64store
+            }
             Select => w.select,
-            If(_) => w.r#if,
-            Br(_) => w.br,
-            BrIf(_) => w.br_if,
-            Call(_) => w.call,
-            GetLocal(_) => w.local_get,
-            SetLocal(_) => w.local_set,
-            TeeLocal(_) => w.local_tee,
-            GetGlobal(_) => w.global_get,
-            SetGlobal(_) => w.global_set,
-            CurrentMemory(_) => w.memory_current,
-            CallIndirect(idx, _) => *self.params.get(idx as usize).unwrap_or(&max_params),
-            BrTable(ref data) => w
+            If { .. } => w.r#if,
+            Br { .. } => w.br,
+            BrIf { .. } => w.br_if,
+            Call { .. } => w.call,
+            LocalGet { .. } => w.local_get,
+            LocalSet { .. } => w.local_set,
+            LocalTee { .. } => w.local_tee,
+            GlobalGet { .. } => w.global_get,
+            GlobalSet { .. } => w.global_set,
+            MemorySize { .. } => w.memory_current,
+            CallIndirect(idx) => {
+                let params = self
+                    .params
+                    .get(*idx as usize)
+                    .copied()
+                    .unwrap_or(max_params);
+                w.call_indirect
+                    .saturating_add(w.call_indirect_per_param.saturating_sub(params))
+            }
+            BrTable(targets) => w
                 .br_table
-                .saturating_add(w.br_table_per_entry.saturating_mul(data.table.len() as u32)),
+                .saturating_add(w.br_table_per_entry.saturating_mul(targets.len())),
             I32Clz => w.i32clz,
             I64Clz => w.i64clz,
             I32Ctz => w.i32ctz,
@@ -1452,8 +1478,9 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
             I64Popcnt => w.i64popcnt,
             I32Eqz => w.i32eqz,
             I64Eqz => w.i64eqz,
-            I64ExtendSI32 => w.i64extendsi32,
-            I64ExtendUI32 => w.i64extendui32,
+            // TODO: rename fields
+            I64ExtendI32S => w.i64extendsi32,
+            I64ExtendI32U => w.i64extendui32,
             I32WrapI64 => w.i32wrapi64,
             I32Eq => w.i32eq,
             I64Eq => w.i64eq,
@@ -1505,18 +1532,12 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
             I64Rotl => w.i64rotl,
             I32Rotr => w.i32rotr,
             I64Rotr => w.i64rotr,
-            SignExt(ref s) => match s {
-                I32Extend8S => w.i32extend8s,
-                I32Extend16S => w.i32extend16s,
-                I64Extend8S => w.i64extend8s,
-                I64Extend16S => w.i64extend16s,
-                I64Extend32S => w.i64extend32s,
-            },
-            // Returning None makes the gas instrumentation fail which we intend for
-            // unsupported or unknown instructions.
-            _ => return None,
-        };
-        Some(weight)
+            I32Extend8S => w.i32extend8s,
+            I32Extend16S => w.i32extend16s,
+            I64Extend8S => w.i64extend8s,
+            I64Extend16S => w.i64extend16s,
+            I64Extend32S => w.i64extend32s,
+        })
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
@@ -1529,17 +1550,16 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &Module) -> impl Rules + '_ {
+    pub fn rules(&self, module: &Module) -> impl Rules + use<'_, T> {
         ScheduleRules {
             schedule: self,
             params: module
-                .type_section()
+                .type_section
+                .as_ref()
                 .iter()
-                .flat_map(|section| section.types())
-                .map(|func| {
-                    let Type::Function(func) = func;
-                    func.params().len() as u32
-                })
+                .copied()
+                .flatten()
+                .map(|func| func.params().len() as u32)
                 .collect(),
         }
     }
@@ -1561,60 +1581,5 @@ impl<T: Config> Schedule<T> {
             instantiation_costs: self.instantiation_weights.clone().into(),
             load_allocations_per_interval: self.load_allocations_weight.ref_time().into(),
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    /// This function creates a program with full of empty
-    /// functions, and returns the size of the wasm code.
-    fn module_with_full_idx(count: usize) -> usize {
-        let funcs = "(func)".repeat(count);
-        let wat = format!("(module {funcs})");
-        wabt::wat2wasm(wat).expect("Failed to serialize wasm").len()
-    }
-
-    #[test]
-    fn deserialize_max_fn_idx_with_code_limit() {
-        use gear_wasm_instrument::parity_wasm::elements::{IndexMap, Serialize, VarUint32};
-        use std::io;
-
-        // Calculates the max limit of the function indexes
-        // with our code length limit.
-        let code_limit = Limits::default().code_len as usize;
-        let empty_program_len = module_with_full_idx(1);
-        let empty_fn_len = module_with_full_idx(2) - empty_program_len;
-
-        // NOTE:
-        //
-        // For triggering the bug, assigning `u32::MAX` to `max_idx`.
-        let max_idx = ((code_limit - empty_program_len) / empty_fn_len + 1) as u32;
-
-        // NOTE:
-        //
-        // We are not generating the wasm module in memory because it
-        // takes too much.
-        //
-        // Mock the max idx in the index map of parity-wasm, cherry-pick
-        // https://github.com/casper-network/casper-wasm/pull/1 to our
-        // parity-wasm fork when this test getting failed which could be
-        // happened on **raising the code len limit of our programs**.
-        //
-        // For the current testing machine, Apple M1 chip, 16GB memory,
-        // deserializing a program with full of indexes in code size 4GB
-        // will lead to the problem.
-        let mut buffer = vec![];
-        VarUint32::from(1u32).serialize(&mut buffer).unwrap();
-        VarUint32::from(max_idx - 1).serialize(&mut buffer).unwrap();
-        "foobar".to_string().serialize(&mut buffer).unwrap();
-
-        let indexmap =
-            IndexMap::<String>::deserialize(max_idx as usize, &mut io::Cursor::new(buffer))
-                .unwrap();
-
-        assert_eq!(indexmap.get(max_idx - 1), Some(&"foobar".to_string()));
-        assert_eq!(indexmap.len(), 1);
     }
 }

@@ -13,15 +13,19 @@ repository.workspace = true
 tokio = { workspace = true }
 anyhow.workspace = true
 futures.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["serde", "ethexe"] }
 ethexe-db.workspace = true
 ethexe-processor.workspace = true
-jsonrpsee = { version = "0.24", features = ["server", "macros"] }
-tower = { version = "0.4.13", features = ["full"] }
-hyper = { version = "1.4.1", features = ["server"] }
+tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true, features = ["cors"] }
+jsonrpsee = { workspace = true, features = ["server", "macros"] }
+hyper = { workspace = true, features = ["server"] }
 log.workspace = true
 parity-scale-codec.workspace = true
 hex.workspace = true
-ethexe-common.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
+ethexe-runtime-common = { workspace = true, features = ["std"] }
 sp-core = { workspace = true, features = ["serde"] }
 gear-core = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["std"] }
+ethexe-observer.workspace = true

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -237,7 +237,7 @@ fn calculate_gas_info_works() {
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
-                message.destination() == ProgramId::from(SIGNER) && message.details().is_some() && {
+                message.destination() == SIGNER.cast() && message.details().is_some() && {
                     let details = message.details().expect("Value checked above");
                     details.to_reply_code()
                         == ReplyCode::Error(ErrorReplyReason::Execution(

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -39,7 +39,7 @@ pub(crate) struct DefaultUserSignalHandler;
 
 impl UserSignalHandler for DefaultUserSignalHandler {
     unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
-        user_signal_handler(info)
+        unsafe { user_signal_handler(info) }
     }
 }
 
@@ -64,10 +64,8 @@ unsafe fn user_signal_handler_internal(
     info: ExceptionInfo,
 ) -> Result<(), Error> {
     let native_addr = info.fault_addr as usize;
-    let is_write = info.is_write.ok_or_else(|| Error::ReadOrWriteIsUnknown)?;
-    let wasm_mem_addr = exec_ctx
-        .wasm_mem_addr
-        .ok_or_else(|| Error::WasmMemAddrIsNotSet)?;
+    let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
+    let wasm_mem_addr = exec_ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
 
     if native_addr < wasm_mem_addr {
         return Err(Error::OutOfWasmMemoryAccess);
@@ -85,11 +83,13 @@ unsafe fn user_signal_handler_internal(
             load_data_cost: exec_ctx.cost(CostNo::LoadPageDataFromStorage),
         };
 
-        let gas_counter = globals::apply_for_global(
-            globals_config,
-            globals_config.names[GlobalNo::Gas as usize].as_str(),
-            |_| Ok(None),
-        )?;
+        let gas_counter = unsafe {
+            globals::apply_for_global(
+                globals_config,
+                globals_config.names[GlobalNo::Gas as usize].as_str(),
+                |_| Ok(None),
+            )
+        }?;
 
         Some((gas_counter, gas_charger))
     } else {
@@ -107,7 +107,7 @@ pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Erro
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
         let (rt_ctx, exec_ctx) = ctx.contexts_mut()?;
-        user_signal_handler_internal(rt_ctx, exec_ctx, info)
+        unsafe { user_signal_handler_internal(rt_ctx, exec_ctx, info) }
     })
 }
 

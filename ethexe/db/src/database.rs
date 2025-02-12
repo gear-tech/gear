@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -23,12 +23,13 @@ use crate::{
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage, Schedule},
-    router::StateTransition,
-    BlockRequestEvent,
+    db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Schedule},
+    events::BlockRequestEvent,
+    gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
-    Allocations, DispatchStash, Mailbox, MemoryPages, MessageQueue, ProgramState, Storage, Waitlist,
+    Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
+    ProgramState, Storage, Waitlist,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -100,7 +101,8 @@ impl Clone for Database {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
+#[cfg_attr(test, derive(serde::Serialize))]
+#[derive(Debug, Clone, Default, Encode, Decode)]
 struct BlockSmallMetaInfo {
     block_end_state_is_valid: bool,
     is_empty: Option<bool>,
@@ -175,12 +177,12 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_prev_commitment(&self, block_hash: H256) -> Option<H256> {
+    fn previous_committed_block(&self, block_hash: H256) -> Option<H256> {
         self.block_small_meta(block_hash)
             .and_then(|meta| meta.prev_commitment)
     }
 
-    fn set_block_prev_commitment(&self, block_hash: H256, prev_commitment: H256) {
+    fn set_previous_committed_block(&self, block_hash: H256, prev_commitment: H256) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set prev commitment: {prev_commitment}");
         let meta = self.block_small_meta(block_hash).unwrap_or_default();
         self.set_block_small_meta(
@@ -338,7 +340,7 @@ impl CodesStorage for Database {
 
         self.kv
             .iter_prefix(&key_prefix)
-            .map(|#[allow(unused_variables)] (key, code_id)| {
+            .map(|(key, code_id)| {
                 let (split_key_prefix, program_id) = key.split_at(key_prefix.len());
                 debug_assert_eq!(split_key_prefix, key_prefix);
                 let program_id =
@@ -376,17 +378,17 @@ impl CodesStorage for Database {
         );
     }
 
-    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256> {
+    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo> {
         self.kv
             .get(&KeyPrefix::CodeUpload.one(code_id))
             .map(|data| {
-                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
+                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `CodeInfo`")
             })
     }
 
-    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256) {
+    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo) {
         self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), blob_tx_hash.encode());
+            .put(&KeyPrefix::CodeUpload.one(code_id), code_info.encode());
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
@@ -482,83 +484,96 @@ impl Storage for Database {
         self.cas.write(&state.encode())
     }
 
-    fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
-        let data = self.cas.read(&hash)?;
-        Some(
-            MessageQueue::decode(&mut &data[..])
-                .expect("Failed to decode data into `MessageQueue`"),
-        )
+    fn read_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
+        self.cas.read(&hash.hash()).map(|data| {
+            MessageQueue::decode(&mut &data[..]).expect("Failed to decode data into `MessageQueue`")
+        })
     }
 
-    fn write_queue(&self, queue: MessageQueue) -> H256 {
-        self.cas.write(&queue.encode())
+    fn write_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
+        unsafe { HashOf::new(self.cas.write(&queue.encode())) }
     }
 
-    fn read_waitlist(&self, hash: H256) -> Option<Waitlist> {
-        self.cas.read(&hash).map(|data| {
+    fn read_waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
+        self.cas.read(&hash.hash()).map(|data| {
             Waitlist::decode(&mut data.as_slice()).expect("Failed to decode data into `Waitlist`")
         })
     }
 
-    fn write_waitlist(&self, waitlist: Waitlist) -> H256 {
-        self.cas.write(&waitlist.encode())
+    fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist> {
+        unsafe { HashOf::new(self.cas.write(&waitlist.encode())) }
     }
 
-    fn read_stash(&self, hash: H256) -> Option<DispatchStash> {
-        self.cas.read(&hash).map(|data| {
+    fn read_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
+        self.cas.read(&hash.hash()).map(|data| {
             DispatchStash::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `DispatchStash`")
         })
     }
 
-    fn write_stash(&self, stash: DispatchStash) -> H256 {
-        self.cas.write(&stash.encode())
+    fn write_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
+        unsafe { HashOf::new(self.cas.write(&stash.encode())) }
     }
 
-    fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
-        self.cas.read(&hash).map(|data| {
+    fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
+        self.cas.read(&hash.hash()).map(|data| {
             Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
         })
     }
 
-    fn write_mailbox(&self, mailbox: Mailbox) -> H256 {
-        self.cas.write(&mailbox.encode())
+    fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
+        unsafe { HashOf::new(self.cas.write(&mailbox.encode())) }
     }
 
-    fn read_pages(&self, hash: H256) -> Option<MemoryPages> {
-        let data = self.cas.read(&hash)?;
-        Some(MemoryPages::decode(&mut &data[..]).expect("Failed to decode data into `MemoryPages`"))
+    fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
+        self.cas.read(&hash.hash()).map(|data| {
+            MemoryPages::decode(&mut &data[..]).expect("Failed to decode data into `MemoryPages`")
+        })
     }
 
-    fn write_pages(&self, pages: MemoryPages) -> H256 {
-        self.cas.write(&pages.encode())
+    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+        self.cas.read(&hash.hash()).map(|data| {
+            MemoryPagesRegion::decode(&mut &data[..])
+                .expect("Failed to decode data into `MemoryPagesRegion`")
+        })
     }
 
-    fn read_allocations(&self, hash: H256) -> Option<Allocations> {
-        let data = self.cas.read(&hash)?;
-        Some(Allocations::decode(&mut &data[..]).expect("Failed to decode data into `Allocations`"))
+    fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
+        unsafe { HashOf::new(self.cas.write(&pages.encode())) }
     }
 
-    fn write_allocations(&self, allocations: Allocations) -> H256 {
-        self.cas.write(&allocations.encode())
+    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+        unsafe { HashOf::new(self.cas.write(&pages_region.encode())) }
     }
 
-    fn read_payload(&self, hash: H256) -> Option<Payload> {
-        let data = self.cas.read(&hash)?;
-        Some(Payload::try_from(data).expect("Failed to decode data into `Payload`"))
+    fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
+        self.cas.read(&hash.hash()).map(|data| {
+            Allocations::decode(&mut &data[..]).expect("Failed to decode data into `Allocations`")
+        })
     }
 
-    fn write_payload(&self, payload: Payload) -> H256 {
-        self.cas.write(payload.inner())
+    fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations> {
+        unsafe { HashOf::new(self.cas.write(&allocations.encode())) }
     }
 
-    fn read_page_data(&self, hash: H256) -> Option<PageBuf> {
-        let data = self.cas.read(&hash)?;
-        Some(PageBuf::decode(&mut data.as_slice()).expect("Failed to decode data into `PageBuf`"))
+    fn read_payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
+        self.cas
+            .read(&hash.hash())
+            .map(|data| Payload::try_from(data).expect("Failed to decode data into `Payload`"))
     }
 
-    fn write_page_data(&self, data: PageBuf) -> H256 {
-        self.cas.write(&data)
+    fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
+        unsafe { HashOf::new(self.cas.write(payload.inner())) }
+    }
+
+    fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
+        self.cas.read(&hash.hash()).map(|data| {
+            PageBuf::decode(&mut data.as_slice()).expect("Failed to decode data into `PageBuf`")
+        })
+    }
+
+    fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {
+        unsafe { HashOf::new(self.cas.write(&data)) }
     }
 }
 

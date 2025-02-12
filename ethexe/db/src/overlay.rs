@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -89,7 +89,7 @@ impl KVDatabase for KVOverlay {
     fn iter_prefix<'a>(
         &'a self,
         prefix: &'a [u8],
-    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + '_> {
+    ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a> {
         let mem_iter = self.mem.iter_prefix(prefix);
         let db_iter = self.db.iter_prefix(prefix);
 

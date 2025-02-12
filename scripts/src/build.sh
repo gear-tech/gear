@@ -26,11 +26,11 @@ EOF
 }
 
 gear_build() {
-  $CARGO build --workspace "$@" --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz
+  $CARGO build --workspace "$@"
 }
 
 fuzzer_build() {
-  $CARGO build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
+  RUSTFLAGS="--cfg fuzz" $CARGO build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
 
 node_build() {
@@ -47,7 +47,7 @@ gear_replay_build() {
 
 # $1 = TARGET DIR
 examples_proc() {
-  WASM_EXAMPLES_DIR="$1"/wasm32-unknown-unknown/release
+  WASM_EXAMPLES_DIR="$1"/wasm32-gear/release
   WASM_EXAMPLES_LIST=$(find $WASM_EXAMPLES_DIR -name "*.wasm" | tr '\n' ' ' | sed 's/ $//')
   "$1"/release/wasm-proc $WASM_EXAMPLES_LIST
 }

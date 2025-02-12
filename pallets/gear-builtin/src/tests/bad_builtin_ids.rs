@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError};
+use crate::{
+    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
+};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
@@ -99,15 +101,18 @@ pallet_gear::impl_config!(
 
 pub struct SomeBuiltinActor {}
 impl BuiltinActor for SomeBuiltinActor {
-    type Error = BuiltinActorError;
-
     fn handle(
         _dispatch: &StoredDispatch,
-        _gas_limit: u64,
-    ) -> (Result<Payload, BuiltinActorError>, u64) {
+        context: &mut BuiltinContext,
+    ) -> Result<Payload, BuiltinActorError> {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
+        context.try_charge_gas(1_000_u64)?;
 
-        (Ok(payload), 1_000_u64)
+        Ok(payload)
+    }
+
+    fn max_gas() -> u64 {
+        Default::default()
     }
 }
 
@@ -119,6 +124,7 @@ impl pallet_gear_builtin::Config for Test {
         ActorWithId<3, SomeBuiltinActor>,
         ActorWithId<2, SomeBuiltinActor>, // 2 already exists
     );
+    type BlockLimiter = GearGas;
     type WeightInfo = ();
 }
 

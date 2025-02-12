@@ -24,9 +24,11 @@ use crate::{
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
-use gear_wasmer_cache::get_or_compile_with_cache;
 use sp_wasm_interface_common::HostPointer;
-use std::{collections::btree_map::BTreeMap, fs, marker::PhantomData, path::PathBuf, ptr::NonNull};
+use std::{
+    collections::btree_map::BTreeMap, fs, marker::PhantomData, path::PathBuf, ptr::NonNull,
+    sync::OnceLock,
+};
 use wasmer::{
     sys::{BaseTunables, VMConfig},
     vm::{
@@ -34,17 +36,21 @@ use wasmer::{
         VMTableDefinition,
     },
     Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
-    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Tunables, Value as RuntimeValue,
+    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Target, Tunables,
+    Value as RuntimeValue,
 };
-use wasmer_types::{ExternType, Target};
+use wasmer_types::ExternType;
 
-fn fs_cache() -> PathBuf {
-    let out_dir = PathBuf::from(env!("OUT_DIR"));
-    let cache = out_dir.join("wasmer-cache");
-    if !cache.exists() {
-        fs::create_dir(&cache).unwrap();
-    }
-    cache
+fn cache_base_path() -> PathBuf {
+    static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
+    CACHE_DIR
+        .get_or_init(|| {
+            let out_dir = PathBuf::from(env!("OUT_DIR"));
+            let cache = out_dir.join("wasmer-cache");
+            fs::create_dir_all(&cache).unwrap();
+            cache
+        })
+        .into()
 }
 
 struct CustomTunables {
@@ -91,8 +97,10 @@ impl Tunables for CustomTunables {
         style: &MemoryStyle,
         vm_definition_location: NonNull<VMMemoryDefinition>,
     ) -> Result<VMMemory, MemoryError> {
-        self.inner
-            .create_vm_memory(ty, style, vm_definition_location)
+        unsafe {
+            self.inner
+                .create_vm_memory(ty, style, vm_definition_location)
+        }
     }
 
     fn create_host_table(&self, ty: &TableType, style: &TableStyle) -> Result<VMTable, String> {
@@ -105,8 +113,10 @@ impl Tunables for CustomTunables {
         style: &TableStyle,
         vm_definition_location: NonNull<VMTableDefinition>,
     ) -> Result<VMTable, String> {
-        self.inner
-            .create_vm_table(ty, style, vm_definition_location)
+        unsafe {
+            self.inner
+                .create_vm_table(ty, style, vm_definition_location)
+        }
     }
 
     fn create_global(&self, ty: GlobalType) -> Result<VMGlobal, String> {
@@ -126,8 +136,10 @@ impl Tunables for CustomTunables {
         >,
         wasmer_compiler::LinkError,
     > {
-        self.inner
-            .create_memories(context, module, memory_styles, memory_definition_locations)
+        unsafe {
+            self.inner
+                .create_memories(context, module, memory_styles, memory_definition_locations)
+        }
     }
 
     unsafe fn create_tables(
@@ -143,8 +155,10 @@ impl Tunables for CustomTunables {
         >,
         wasmer_compiler::LinkError,
     > {
-        self.inner
-            .create_tables(context, module, table_styles, table_definition_locations)
+        unsafe {
+            self.inner
+                .create_tables(context, module, table_styles, table_definition_locations)
+        }
     }
 
     fn create_globals(
@@ -424,10 +438,9 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         code: &[u8],
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
-        let module = get_or_compile_with_cache(code, store.engine(), fs_cache).map_err(|e| {
-            log::trace!(target: TARGET, "Failed to create module: {e}");
-            Error::Module
-        })?;
+        let module = gear_wasmer_cache::get(store.engine(), code, cache_base_path())
+            .inspect_err(|e| log::trace!(target: TARGET, "Failed to create module: {e}"))
+            .map_err(|_e| Error::Module)?;
         let mut imports = Imports::new();
 
         for import in module.imports() {
@@ -559,11 +572,10 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
     ) -> Result<ReturnValue, Error> {
         let args = args.iter().cloned().map(to_wasmer).collect::<Vec<_>>();
 
-        let func = self
-            .instance
-            .exports
-            .get_function(name)
-            .map_err(|_| Error::Execution)?;
+        let func = self.instance.exports.get_function(name).map_err(|e| {
+            log::trace!(target: TARGET, "function `{name}` not found: {e}");
+            Error::Execution
+        })?;
 
         let results = func.call(&mut store, &args).map_err(|e| {
             log::trace!(target: TARGET, "invocation error: {e}");
@@ -573,7 +585,10 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         match results.as_ref() {
             [] => Ok(ReturnValue::Unit),
             [val] => {
-                let val = to_interface(val.clone()).ok_or(Error::Execution)?;
+                let val = to_interface(val.clone()).ok_or_else(|| {
+                    log::trace!(target: TARGET, "error converting return value to interface: {val:?}");
+                    Error::Execution
+                })?;
                 Ok(ReturnValue::Value(val))
             }
             _results => {

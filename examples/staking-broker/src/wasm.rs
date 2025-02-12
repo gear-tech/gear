@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -223,7 +223,7 @@ impl StakingBroker {
 
 #[gstd::async_main]
 async fn main() {
-    let broker = unsafe { STATE.get_or_insert(Default::default()) };
+    let broker = unsafe { static_mut!(STATE).get_or_insert(Default::default()) };
 
     let request: Request = msg::load().expect("Expecting a valid payload");
     match request {
@@ -260,7 +260,7 @@ async fn main() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let sb: StakingBroker = Default::default();
     unsafe { STATE = Some(sb) };

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,26 +16,38 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::anyhow;
-use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
-use ethexe_processor::Processor;
-use futures::FutureExt;
-use gear_core::message::ReplyInfo;
-use gprimitives::{H160, H256};
+use anyhow::{anyhow, Result};
+use apis::{
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
+};
+use ethexe_db::Database;
+use ethexe_observer::MockBlobReader;
+use futures::{stream::FusedStream, FutureExt, Stream};
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
-    proc_macros::rpc,
     server::{
         serve_with_graceful_shutdown, stop_channel, Server, ServerHandle, StopHandle,
         TowerServiceBuilder,
     },
-    types::ErrorObject,
-    Methods,
+    Methods, RpcModule as JsonrpcModule,
 };
-use sp_core::Bytes;
-use std::net::SocketAddr;
-use tokio::net::TcpListener;
+use std::{
+    mem,
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
+use tokio::{
+    net::TcpListener,
+    sync::mpsc::{self, UnboundedReceiver},
+};
 use tower::Service;
+
+mod apis;
+mod common;
+mod errors;
+
+pub(crate) mod util;
 
 #[derive(Clone)]
 struct PerConnection<RpcMiddleware, HttpMiddleware> {
@@ -44,116 +56,62 @@ struct PerConnection<RpcMiddleware, HttpMiddleware> {
     svc_builder: TowerServiceBuilder<RpcMiddleware, HttpMiddleware>,
 }
 
-#[rpc(server)]
-pub trait RpcApi {
-    #[method(name = "blockHeader")]
-    async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)>;
-
-    #[method(name = "calculateReplyForHandle")]
-    async fn calculate_reply_for_handle(
-        &self,
-        at: Option<H256>,
-        source: H160,
-        program_id: H160,
-        payload: Bytes,
-        value: u128,
-    ) -> RpcResult<ReplyInfo>;
-}
-
-pub struct RpcModule {
-    db: Database,
-}
-
-impl RpcModule {
-    pub fn new(db: Database) -> Self {
-        Self { db }
-    }
-
-    pub fn block_header_at_or_latest(
-        &self,
-        at: impl Into<Option<H256>>,
-    ) -> RpcResult<(H256, BlockHeader)> {
-        if let Some(hash) = at.into() {
-            self.db
-                .block_header(hash)
-                .map(|header| (hash, header))
-                .ok_or_else(|| db_err("Block header for requested hash wasn't found"))
-        } else {
-            self.db
-                .latest_valid_block()
-                .ok_or_else(|| db_err("Latest block header wasn't found"))
-        }
-    }
-}
-
-#[async_trait]
-impl RpcApiServer for RpcModule {
-    async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)> {
-        self.block_header_at_or_latest(hash)
-    }
-
-    async fn calculate_reply_for_handle(
-        &self,
-        at: Option<H256>,
-        source: H160,
-        program_id: H160,
-        payload: Bytes,
-        value: u128,
-    ) -> RpcResult<ReplyInfo> {
-        let block_hash = self.block_header_at_or_latest(at)?.0;
-
-        // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
-        // TODO (breathx): optimize here instantiation if matches actual runtime.
-        let processor = Processor::new(self.db.clone()).map_err(|_| internal())?;
-
-        let mut overlaid_processor = processor.overlaid();
-
-        overlaid_processor
-            .execute_for_reply(
-                block_hash,
-                source.into(),
-                program_id.into(),
-                payload.0,
-                value,
-            )
-            .map_err(runtime_err)
-    }
-}
-
-fn db_err(err: &'static str) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Database error", Some(err))
-}
-
-fn runtime_err(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
-}
-
-fn internal() -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Internal error", None::<&str>)
-}
-
+/// Configuration of the RPC endpoint.
+#[derive(Debug, Clone)]
 pub struct RpcConfig {
-    port: u16,
-    db: Database,
+    /// Listen address.
+    pub listen_addr: SocketAddr,
+    /// CORS.
+    pub cors: Option<Vec<String>>,
+    /// Dev mode.
+    pub dev: bool,
 }
 
 pub struct RpcService {
     config: RpcConfig,
+    db: Database,
+    blob_reader: Option<Arc<MockBlobReader>>,
 }
 
 impl RpcService {
-    pub fn new(port: u16, db: Database) -> Self {
+    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<Arc<MockBlobReader>>) -> Self {
         Self {
-            config: RpcConfig { port, db },
+            config,
+            db,
+            blob_reader,
         }
     }
 
-    pub async fn run_server(self) -> anyhow::Result<(ServerHandle, u16)> {
-        let listener =
-            TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], self.config.port))).await?;
+    pub const fn port(&self) -> u16 {
+        self.config.listen_addr.port()
+    }
 
-        let service_builder = Server::builder().to_service_builder();
-        let module = RpcApiServer::into_rpc(RpcModule::new(self.config.db));
+    pub async fn run_server(self) -> Result<(ServerHandle, RpcReceiver)> {
+        let (rpc_sender, rpc_receiver) = mpsc::unbounded_channel();
+
+        // TODO: Temporary solution, will be changed with introducing tx pool.
+        mem::forget(rpc_sender);
+
+        let listener = TcpListener::bind(self.config.listen_addr).await?;
+
+        let cors = util::try_into_cors(self.config.cors)?;
+
+        let http_middleware = tower::ServiceBuilder::new().layer(cors);
+
+        let service_builder = Server::builder()
+            .set_http_middleware(http_middleware)
+            .to_service_builder();
+
+        let mut module = JsonrpcModule::new(());
+        module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
+        module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
+        module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
+
+        if self.config.dev {
+            module.merge(DevServer::into_rpc(DevApi::new(
+                self.blob_reader.unwrap().clone(),
+            )))?;
+        }
 
         let (stop_handle, server_handle) = stop_channel();
 
@@ -222,6 +180,25 @@ impl RpcService {
             }
         });
 
-        Ok((server_handle, self.config.port))
+        Ok((server_handle, RpcReceiver(rpc_receiver)))
     }
 }
+
+pub struct RpcReceiver(UnboundedReceiver<RpcEvent>);
+
+impl Stream for RpcReceiver {
+    type Item = RpcEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.0.poll_recv(cx)
+    }
+}
+
+impl FusedStream for RpcReceiver {
+    fn is_terminated(&self) -> bool {
+        self.0.is_closed()
+    }
+}
+
+#[derive(Debug)]
+pub enum RpcEvent {}

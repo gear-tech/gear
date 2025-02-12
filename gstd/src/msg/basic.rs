@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -52,7 +52,7 @@ use scale_info::scale::Output;
 /// ```
 /// use gstd::msg::{self, MessageHandle};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let msg_handle = MessageHandle::init().expect("Unable to init");
 ///     msg_handle.push(b"Hello,").expect("Unable to push");
@@ -96,7 +96,7 @@ impl MessageHandle {
     /// ```
     /// use gstd::msg::{self, MessageHandle};
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     let msg_handle = MessageHandle::init().expect("Unable to init");
     ///     msg_handle
@@ -141,7 +141,7 @@ impl MessageHandle {
     /// ```
     /// use gstd::msg::{self, MessageHandle};
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     let msg_handle = MessageHandle::init().expect("Unable to init");
     ///     msg_handle.push(b"Hello,").expect("Unable to push");
@@ -188,7 +188,7 @@ impl MessageHandle {
     ///     ReservationId,
     /// };
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     let reservation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserve");
     ///     let msg_handle = MessageHandle::init().expect("Unable to init");
@@ -257,7 +257,7 @@ impl From<gcore::MessageHandle> for MessageHandle {
 /// ```
 /// use gstd::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let payload = msg::load_bytes().expect("Unable to load");
 /// }
@@ -294,7 +294,7 @@ pub fn load_bytes() -> Result<Vec<u8>> {
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_bytes(b"PING", exec::value_available()).expect("Unable to reply");
 /// }
@@ -323,7 +323,7 @@ pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> 
 /// ```
 /// use gstd::{msg, prelude::*, ReservationId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let reservation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserve");
 ///     msg::reply_from_reservation(reservation_id, b"PING", 0).unwrap();
@@ -350,7 +350,7 @@ pub fn reply_bytes_from_reservation(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_bytes_with_gas(b"PING", exec::gas_available() / 2, 0).expect("Unable to reply");
 /// }
@@ -387,7 +387,7 @@ pub fn reply_bytes_with_gas(
 /// ```
 /// use gstd::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello,").expect("Unable to push");
 ///     msg::reply_push(b" world!").expect("Unable to push");
@@ -412,7 +412,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// ```
 /// use gstd::{msg, prelude::*, ReservationId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello,").expect("Unable to push");
 ///     msg::reply_push(b" world!").expect("Unable to push");
@@ -437,7 +437,7 @@ pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<M
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello, ").expect("Unable to push");
 ///     msg::reply_push(b", world!").expect("Unable to push");
@@ -489,7 +489,7 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
 /// ```
 /// use gstd::msg;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     msg::reply_push_input(0..msg::size() / 2).expect("Unable to push");
 ///     msg::reply_commit(0).expect("Unable to commit");
@@ -526,7 +526,7 @@ pub fn reply_push_input(range: impl RangeBounds<usize>) -> Result<()> {
 /// ```
 /// use gstd::{msg, ActorId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
@@ -567,7 +567,7 @@ pub fn send_bytes_delayed<T: AsRef<[u8]>>(
 /// ```
 /// use gstd::{msg, ActorId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
@@ -623,7 +623,7 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
 /// ```
 /// use gstd::{msg, prelude::*, ReservationId};
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     // Reserve 5 million of gas for 100 blocks
 ///     let reservation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserve");

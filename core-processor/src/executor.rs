@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -90,14 +90,7 @@ where
     .map_err(SystemExecutionError::from)?;
 
     // Creating message context.
-    let Some(message_context) = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings)
-    else {
-        return Err(ActorExecutionError {
-            gas_amount: gas_counter.to_amount(),
-            reason: ActorExecutionErrorReplyReason::UnsupportedMessage,
-        }
-        .into());
-    };
+    let message_context = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings);
 
     // Creating value counter.
     //
@@ -173,7 +166,7 @@ where
             let mut termination = match termination_reason {
                 TerminationReason::Actor(reason) => reason,
                 TerminationReason::System(reason) => {
-                    return Err(ExecutionError::System(reason.into()))
+                    return Err(ExecutionError::System(reason.into()));
                 }
             };
 
@@ -187,7 +180,7 @@ where
             (termination, store, memory, ext)
         }
         Err(EnvironmentError::System(e)) => {
-            return Err(ExecutionError::System(SystemExecutionError::Environment(e)))
+            return Err(ExecutionError::System(SystemExecutionError::Environment(e)));
         }
         Err(EnvironmentError::Actor(gas_amount, err)) => {
             log::trace!("ActorExecutionErrorReplyReason::Environment({err}) occurred");
@@ -304,8 +297,7 @@ where
         ),
         program.id,
         Default::default(),
-    )
-    .ok_or("Incorrect message store context: out of outgoing bytes limit")?;
+    );
 
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
@@ -372,7 +364,7 @@ where
             let termination_reason = match termination_reason {
                 TerminationReason::Actor(reason) => reason,
                 TerminationReason::System(reason) => {
-                    return Err(format!("Backend error: {reason}"))
+                    return Err(format!("Backend error: {reason}"));
                 }
             };
 
@@ -385,7 +377,7 @@ where
         ActorTerminationReason::Exit(_)
         | ActorTerminationReason::Leave
         | ActorTerminationReason::Wait(_, _) => {
-            return Err("Execution has incorrect termination reason".into())
+            return Err("Execution has incorrect termination reason".into());
         }
         ActorTerminationReason::Success => (),
         ActorTerminationReason::Trap(explanation) => {

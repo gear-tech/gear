@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -39,13 +39,23 @@ static mut ARGUMENTS: InputArgs = InputArgs {
 
 static mut RESPONSES: u8 = 0;
 
+#[cfg(feature = "ethexe")]
+fn ping_reply_fut(addr: ActorId) -> msg::MessageFuture {
+    msg::send_bytes_for_reply(addr, "PING", 0).expect("Failed to send message")
+}
+
+#[cfg(not(feature = "ethexe"))]
+fn ping_reply_fut(addr: ActorId) -> msg::MessageFuture {
+    msg::send_bytes_for_reply(addr, "PING", 0, 0).expect("Failed to send message")
+}
+
 #[gstd::async_init]
 async fn init() {
     let arguments: InputArgs = msg::load().expect("Failed to load arguments");
 
     let mut requests = arguments
         .iter()
-        .map(|&addr| msg::send_bytes_for_reply(addr, "PING", 0, 0).expect("Failed to send message"))
+        .map(|&addr| ping_reply_fut(addr))
         .collect::<Vec<_>>();
 
     unsafe {
@@ -72,8 +82,8 @@ async fn main() {
 
     assert_eq!(message, b"PING");
 
-    let requests = unsafe { ARGUMENTS.iter() }
-        .map(|&addr| msg::send_bytes_for_reply(addr, "PING", 0, 0).expect("Failed to send message"))
+    let requests = unsafe { static_ref!(ARGUMENTS).iter() }
+        .map(|&addr| ping_reply_fut(addr))
         .collect::<Vec<_>>();
 
     let _ = future::select_all(requests).await;

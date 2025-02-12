@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,13 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
-    router::{BlockCommitment, CodeCommitment},
+    gear::{BlockCommitment, CodeCommitment},
 };
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
-use ethexe_signer::{sha3, Address, Digest, PublicKey, Signature, Signer, ToDigest};
+use ethexe_signer::{
+    sha3::{self, Digest as _},
+    Address, Digest, PublicKey, Signature, Signer, ToDigest,
+};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
@@ -40,28 +43,49 @@ pub struct Config {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct BlockCommitmentValidationRequest {
     pub block_hash: H256,
-    pub prev_commitment_hash: H256,
-    pub pred_block_hash: H256,
+    pub block_timestamp: u64,
+    pub previous_committed_block: H256,
+    pub predecessor_block: H256,
     pub transitions_digest: Digest,
 }
 
 impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
     fn from(commitment: &BlockCommitment) -> Self {
+        // To avoid missing incorrect hashing while developing.
+        let BlockCommitment {
+            hash,
+            timestamp,
+            previous_committed_block,
+            predecessor_block,
+            transitions,
+        } = commitment;
+
         Self {
-            block_hash: commitment.block_hash,
-            prev_commitment_hash: commitment.prev_commitment_hash,
-            pred_block_hash: commitment.pred_block_hash,
-            transitions_digest: commitment.transitions.to_digest(),
+            block_hash: *hash,
+            block_timestamp: *timestamp,
+            previous_committed_block: *previous_committed_block,
+            predecessor_block: *predecessor_block,
+            transitions_digest: transitions.to_digest(),
         }
     }
 }
 
 impl ToDigest for BlockCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        sha3::Digest::update(hasher, self.block_hash.as_bytes());
-        sha3::Digest::update(hasher, self.prev_commitment_hash.as_bytes());
-        sha3::Digest::update(hasher, self.pred_block_hash.as_bytes());
-        sha3::Digest::update(hasher, self.transitions_digest.as_ref());
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            block_hash,
+            block_timestamp,
+            previous_committed_block,
+            predecessor_block,
+            transitions_digest,
+        } = self;
+
+        hasher.update(block_hash.as_bytes());
+        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*block_timestamp).as_slice());
+        hasher.update(previous_committed_block.as_bytes());
+        hasher.update(predecessor_block.as_bytes());
+        hasher.update(transitions_digest.as_ref());
     }
 }
 
@@ -91,56 +115,60 @@ impl Validator {
         )
     }
 
-    pub fn validate_code_commitments(
+    pub fn validate_batch_commitment(
         &mut self,
-        db: &impl CodesStorage,
-        requests: impl IntoIterator<Item = CodeCommitment>,
+        db: &(impl CodesStorage + BlockMetaStorage),
+        codes_requests: impl IntoIterator<Item = CodeCommitment>,
+        blocks_requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
     ) -> Result<(Digest, Signature)> {
-        let mut commitment_digests = Vec::new();
-        for request in requests {
-            log::debug!("Receive code commitment for validation: {:?}", request);
-            commitment_digests.push(request.to_digest());
-            Self::validate_code_commitment(db, request)?;
+        let mut code_commitment_digests = Vec::new();
+
+        for code_request in codes_requests {
+            log::debug!("Receive code commitment for validation: {code_request:?}");
+            code_commitment_digests.push(code_request.to_digest());
+            Self::validate_code_commitment(db, code_request)?;
         }
 
-        let commitments_digest = commitment_digests.iter().collect();
+        let code_commitments_digest: Digest = code_commitment_digests.iter().collect();
+
+        let mut block_commitment_digests = Vec::new();
+
+        for block_request in blocks_requests.into_iter() {
+            log::debug!("Receive block commitment for validation: {block_request:?}");
+            block_commitment_digests.push(block_request.to_digest());
+            Self::validate_block_commitment(db, block_request)?;
+        }
+
+        let block_commitments_digest: Digest = block_commitment_digests.iter().collect();
+
+        let batch_commitment_digest = [code_commitments_digest, block_commitments_digest]
+            .iter()
+            .collect();
+
         agro::sign_commitments_digest(
-            commitments_digest,
+            batch_commitment_digest,
             &self.signer,
             self.pub_key,
             self.router_address,
         )
-        .map(|signature| (commitments_digest, signature))
-    }
-
-    pub fn validate_block_commitments(
-        &mut self,
-        db: &impl BlockMetaStorage,
-        requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
-    ) -> Result<(Digest, Signature)> {
-        let mut commitment_digests = Vec::new();
-        for request in requests.into_iter() {
-            log::debug!("Receive block commitment for validation: {:?}", request);
-            commitment_digests.push(request.to_digest());
-            Self::validate_block_commitment(db, request)?;
-        }
-
-        let commitments_digest = commitment_digests.iter().collect();
-        agro::sign_commitments_digest(
-            commitments_digest,
-            &self.signer,
-            self.pub_key,
-            self.router_address,
-        )
-        .map(|signature| (commitments_digest, signature))
+        .map(|signature| (batch_commitment_digest, signature))
     }
 
     fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {
-        let CodeCommitment { id: code_id, valid } = request;
-        if db
-            .code_valid(code_id)
-            .ok_or_else(|| anyhow!("Code {code_id} is not validated by this node"))?
-            .ne(&valid)
+        let CodeCommitment {
+            id: code_id,
+            timestamp: expected_timestamp,
+            valid,
+        } = request;
+        if !(db
+            .code_info(code_id)
+            .ok_or_else(|| anyhow!("Code {code_id} is not in storage"))?
+            .timestamp
+            .eq(&expected_timestamp)
+            && db
+                .code_valid(code_id)
+                .ok_or_else(|| anyhow!("Code {code_id} is not validated by this node"))?
+                .eq(&valid))
         {
             return Err(anyhow!(
                 "Requested and local code validation results mismatch"
@@ -155,8 +183,9 @@ impl Validator {
     ) -> Result<()> {
         let BlockCommitmentValidationRequest {
             block_hash,
-            pred_block_hash: allowed_pred_block_hash,
-            prev_commitment_hash: allowed_prev_commitment_hash,
+            block_timestamp,
+            previous_committed_block: allowed_previous_committed_block,
+            predecessor_block: allowed_predecessor_block,
             transitions_digest,
         } = request;
 
@@ -165,6 +194,12 @@ impl Validator {
                 "Requested block {block_hash} is not processed by this node"
             ));
         }
+
+        let header = db.block_header(block_hash).ok_or_else(|| {
+            anyhow!("Requested block {block_hash} header wasn't found in storage")
+        })?;
+
+        ensure!(header.timestamp == block_timestamp, "Timestamps mismatch");
 
         if db
             .block_outcome(block_hash)
@@ -176,18 +211,18 @@ impl Validator {
             return Err(anyhow!("Requested and local transitions digest mismatch"));
         }
 
-        if db.block_prev_commitment(block_hash).ok_or_else(|| {
+        if db.previous_committed_block(block_hash).ok_or_else(|| {
             anyhow!("Cannot get from db previous commitment for block {block_hash}")
-        })? != allowed_prev_commitment_hash
+        })? != allowed_previous_committed_block
         {
             return Err(anyhow!(
                 "Requested and local previous commitment block hash mismatch"
             ));
         }
 
-        if !Self::verify_is_predecessor(db, allowed_pred_block_hash, block_hash, None)? {
+        if !Self::verify_is_predecessor(db, allowed_predecessor_block, block_hash, None)? {
             return Err(anyhow!(
-                "{block_hash} is not a predecessor of {allowed_pred_block_hash}"
+                "{block_hash} is not a predecessor of {allowed_predecessor_block}"
             ));
         }
 
@@ -241,8 +276,8 @@ impl Validator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::router::StateTransition;
-    use ethexe_db::BlockHeader;
+    use ethexe_common::gear::StateTransition;
+    use ethexe_db::{BlockHeader, CodeInfo};
     use gprimitives::CodeId;
 
     #[test]
@@ -257,9 +292,10 @@ mod tests {
         };
 
         let commitment = BlockCommitment {
-            block_hash: H256::random(),
-            prev_commitment_hash: H256::random(),
-            pred_block_hash: H256::random(),
+            hash: H256::random(),
+            timestamp: rand::random(),
+            previous_committed_block: H256::random(),
+            predecessor_block: H256::random(),
             transitions: vec![transition.clone(), transition],
         };
 
@@ -279,16 +315,26 @@ mod tests {
             &db,
             CodeCommitment {
                 id: code_id,
+                timestamp: 42,
                 valid: true,
             },
         )
         .expect_err("Code is not in db");
 
         db.set_code_valid(code_id, true);
+        db.set_code_info(
+            code_id,
+            CodeInfo {
+                timestamp: 42,
+                tx_hash: H256::random(),
+            },
+        );
+
         Validator::validate_code_commitment(
             &db,
             CodeCommitment {
                 id: code_id,
+                timestamp: 42,
                 valid: false,
             },
         )
@@ -298,6 +344,7 @@ mod tests {
             &db,
             CodeCommitment {
                 id: code_id,
+                timestamp: 42,
                 valid: true,
             },
         )
@@ -309,19 +356,20 @@ mod tests {
         let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
 
         let block_hash = H256::random();
+        let block_timestamp = rand::random::<u32>() as u64;
         let pred_block_hash = H256::random();
-        let prev_commitment_hash = H256::random();
+        let previous_committed_block = H256::random();
         let transitions = vec![];
         let transitions_digest = transitions.to_digest();
 
         db.set_block_end_state_is_valid(block_hash, true);
         db.set_block_outcome(block_hash, transitions);
-        db.set_block_prev_commitment(block_hash, prev_commitment_hash);
+        db.set_previous_committed_block(block_hash, previous_committed_block);
         db.set_block_header(
             block_hash,
             BlockHeader {
                 height: 100,
-                timestamp: 100,
+                timestamp: block_timestamp,
                 parent_hash: pred_block_hash,
             },
         );
@@ -330,8 +378,9 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
-                pred_block_hash: block_hash,
-                prev_commitment_hash,
+                block_timestamp,
+                previous_committed_block,
+                predecessor_block: block_hash,
                 transitions_digest,
             },
         )
@@ -341,8 +390,21 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
-                pred_block_hash: H256::random(),
-                prev_commitment_hash,
+                block_timestamp: block_timestamp + 1,
+                previous_committed_block,
+                predecessor_block: block_hash,
+                transitions_digest,
+            },
+        )
+        .expect_err("Timestamps mismatch");
+
+        Validator::validate_block_commitment(
+            &db,
+            BlockCommitmentValidationRequest {
+                block_hash,
+                block_timestamp,
+                previous_committed_block,
+                predecessor_block: H256::random(),
                 transitions_digest,
             },
         )
@@ -352,8 +414,9 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
-                pred_block_hash: block_hash,
-                prev_commitment_hash: H256::random(),
+                block_timestamp,
+                previous_committed_block: H256::random(),
+                predecessor_block: block_hash,
                 transitions_digest,
             },
         )
@@ -363,8 +426,9 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
-                pred_block_hash: block_hash,
-                prev_commitment_hash,
+                block_timestamp,
+                previous_committed_block,
+                predecessor_block: block_hash,
                 transitions_digest: Digest::from([2; 32]),
             },
         )
@@ -374,8 +438,9 @@ mod tests {
             &db,
             BlockCommitmentValidationRequest {
                 block_hash: H256::random(),
-                pred_block_hash: block_hash,
-                prev_commitment_hash,
+                block_timestamp,
+                previous_committed_block,
+                predecessor_block: block_hash,
                 transitions_digest,
             },
         )

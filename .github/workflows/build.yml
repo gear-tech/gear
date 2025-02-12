@@ -35,6 +35,7 @@ run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
+  RUST_LIB_BACKTRACE: 1
   TERM: xterm-256color
   BINARYEN_VERSION: version_111
 
@@ -77,8 +78,6 @@ jobs:
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
 
       - name: "Show: Versioning"
         run: |
@@ -126,7 +125,7 @@ jobs:
 
       - name: "Test: Benchmarks in WASM"
         # unoptimized benchmarks take a few hours to run
-        if: ${{ matrix.profile == 'release' }}
+        if: ${{ matrix.profiles.name == 'release' }}
         run: |
           cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.profiles.flags }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
@@ -148,16 +147,33 @@ jobs:
       - name: "Test: Try runtime migrations"
         run: |
           echo "---------- Downloading try-runtime CLI ----------"
-          curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.5.4/try-runtime-x86_64-unknown-linux-musl -o try-runtime
+
+          curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
 
-          echo "---------- Building vara runtime ----------"
+
+          echo "---------- Creating Vara Mainnet db snapshot [vara_ci.snap] ----------"
+
+          time ./try-runtime \
+            create-snapshot \
+            --uri wss://rpc-private.vara-network.io \
+            vara_ci.snap
+
+
+          echo "---------- Building Vara Mainnet runtime ----------"
+
           time cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
-          echo "---------- Executing on-runtime-upgrade for Vara ----------"
-          time ./try-runtime --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks=all --no-weight-warnings --disable-spec-version-check live --uri ws://rpc-private.vara-network.io:9944
-          sleep 5
-        env:
-          RUST_LOG: info,pallet=debug
+
+
+          echo "---------- Executing on-runtime-upgrade for snapshot ----------"
+
+          time ./try-runtime \
+            --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm \
+            on-runtime-upgrade \
+            --blocktime 3000 \
+            --checks all \
+            --disable-spec-version-check \
+            snap -p vara_ci.snap
 
       - name: "Build: Production binaries"
         if: ${{ inputs.production && matrix.profiles.name == 'release' }}
@@ -167,7 +183,7 @@ jobs:
         if: ${{ inputs.production && matrix.profiles.name == 'release' }}
         run: |
           mkdir -p artifact
-          tar czvf artifact/examples.tar.gz target/wasm32-unknown-unknown/release/*.wasm
+          tar czvf artifact/examples.tar.gz target/wasm32-gear/release/*.wasm
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
@@ -218,6 +234,13 @@ jobs:
         run: |
           wineboot
           winetricks win10
+
+      - name: "Install: FireDaemon OpenSSL"
+        run: |
+          wget https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-3.4.0.zip
+          unzip openssl-3.4.0.zip "x64/*" -d openssl
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=$(pwd)/openssl/x64" >> $GITHUB_ENV
 
       - name: "Install: LLVM"
         run: |

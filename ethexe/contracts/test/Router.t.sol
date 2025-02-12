@@ -1,210 +1,362 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {Test, console} from "forge-std/Test.sol";
+import {Vm, console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {IMirror, Mirror} from "../src/Mirror.sol";
-import {MirrorProxy} from "../src/MirrorProxy.sol";
-import {IRouter, Router} from "../src/Router.sol";
-import {WrappedVara} from "../src/WrappedVara.sol";
+import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
+import {Gear} from "../src/libraries/Gear.sol";
+import {Base} from "./Base.t.sol";
 
-contract RouterTest is Test {
+contract RouterTest is Base {
     using MessageHashUtils for address;
+    using FROSTOffchain for SigningKey;
 
-    address immutable deployerAddress = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
+    address immutable deployer = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
 
-    address immutable validatorPublicKey_1 = 0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1;
-    uint256 immutable validatorPrivateKey_1 = 0x32816f851b9cc71c4eb956214ded8cf481f7af66c125d1fb9deae366ae4f13a6;
+    address immutable alicePublic = 0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1;
+    uint256 immutable alicePrivate = 0x32816f851b9cc71c4eb956214ded8cf481f7af66c125d1fb9deae366ae4f13a6;
 
-    address[] public validatorsArray;
+    address immutable bobPublic = 0xeFDa593324697918773069E0226dAD49d702f4D8;
+    uint256 immutable bobPrivate = 0x068cc4910d9f5aae82f66d926757fde55a7d2e72b25b2a243606e5147712a450;
+
+    address immutable charliePublic = 0x84de3f115eC548A32CcC9464D14376f888ab49e1;
+    uint256 immutable charliePrivate = 0xa3f79c90a74fd984fd9c2a9c4286c53ad5ac38e32123e06720e9211566378bc4;
+
+    SigningKey public signingKey;
+    address[] public validators;
     uint256[] public validatorsPrivateKeys;
 
-    WrappedVara public wrappedVara;
-    Router public router;
-    Mirror public mirror;
-    MirrorProxy public mirrorProxy;
+    function setUp() public override {
+        admin = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
+        eraDuration = 1000;
+        electionDuration = 100;
+        blockDuration = 12;
+        maxValidators = 3;
+        validationDelay = 60;
 
-    function setUp() public {
-        validatorsArray.push(validatorPublicKey_1);
-        validatorsPrivateKeys.push(validatorPrivateKey_1);
+        setUpWrappedVara();
 
-        startPrank(deployerAddress);
+        signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory publicKey = vm.createWallet(signingKey.asScalar());
 
-        wrappedVara = WrappedVara(
-            Upgrades.deployTransparentProxy(
-                "WrappedVara.sol", deployerAddress, abi.encodeCall(WrappedVara.initialize, (deployerAddress))
-            )
-        );
+        validators.push(alicePublic);
+        validators.push(bobPublic);
+        validators.push(charliePublic);
 
-        address wrappedVaraAddress = address(wrappedVara);
-        address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
-        address mirrorProxyAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
+        validatorsPrivateKeys.push(alicePrivate);
+        validatorsPrivateKeys.push(bobPrivate);
+        validatorsPrivateKeys.push(charliePrivate);
 
-        router = Router(
-            Upgrades.deployTransparentProxy(
-                "Router.sol",
-                deployerAddress,
-                abi.encodeCall(
-                    Router.initialize,
-                    (deployerAddress, mirrorAddress, mirrorProxyAddress, wrappedVaraAddress, validatorsArray)
-                )
-            )
-        );
-        mirror = new Mirror();
-        mirrorProxy = new MirrorProxy(address(router));
-
-        wrappedVara.approve(address(router), type(uint256).max);
-
-        assertEq(router.mirror(), address(mirror));
-        assertEq(router.mirrorProxy(), address(mirrorProxy));
-        assertEq(mirrorProxy.router(), address(router));
-
-        assertEq(router.validators(), validatorsArray);
-        assert(router.validatorExists(validatorPublicKey_1));
+        setUpRouter(Gear.AggregatedPublicKey(publicKey.publicKeyX, publicKey.publicKeyY), validators);
     }
 
-    function test_ping() public {
-        startPrank(deployerAddress);
+    function test_validatorsCommitment() public {
+        address[] memory _validators = new address[](3);
+        uint256[] memory _validatorPrivateKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
+            _validators[i] = addr;
+            _validatorPrivateKeys[i] = key;
+        }
 
-        bytes32 codeId = bytes32(uint256(1));
-        bytes32 blobTxHash = bytes32(uint256(2));
+        SigningKey _signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
 
-        router.requestCodeValidation(codeId, blobTxHash);
-
-        IRouter.CodeCommitment[] memory codeCommitmentsArray = new IRouter.CodeCommitment[](1);
-        codeCommitmentsArray[0] = IRouter.CodeCommitment(codeId, true);
-
-        commitCodes(codeCommitmentsArray);
-
-        address actorId = router.createProgram(codeId, "salt", "PING", 1_000_000_000);
-        IMirror deployedProgram = IMirror(actorId);
-
-        assertEq(deployedProgram.router(), address(router));
-        assertEq(deployedProgram.stateHash(), 0);
-        assertEq(deployedProgram.inheritor(), address(0));
-
-        vm.roll(100);
-
-        // TODO (breathx): add test on this.
-        IRouter.ValueClaim[] memory valueClaims = new IRouter.ValueClaim[](0);
-
-        IRouter.OutgoingMessage[] memory outgoingMessages = new IRouter.OutgoingMessage[](1);
-        outgoingMessages[0] = IRouter.OutgoingMessage(0, deployerAddress, "PONG", 0, IRouter.ReplyDetails(0, 0));
-
-        IRouter.StateTransition[] memory transitionsArray = new IRouter.StateTransition[](1);
-        IRouter.BlockCommitment[] memory blockCommitmentsArray = new IRouter.BlockCommitment[](1);
-        transitionsArray[0] =
-            IRouter.StateTransition(actorId, bytes32(uint256(1)), address(0), 0, valueClaims, outgoingMessages);
-        blockCommitmentsArray[0] = IRouter.BlockCommitment(
-            bytes32(uint256(1)), bytes32(uint256(0)), blockhash(block.number - 1), transitionsArray
+        Gear.ValidatorsCommitment memory commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
+            Gear.dummyVerifyingShares(_validators.length),
+            _validators,
+            1
         );
 
-        commitBlocks(blockCommitmentsArray);
+        // Election is not yet started
+        vm.expectRevert();
+        commitValidators(commitment);
 
-        assertEq(deployedProgram.stateHash(), bytes32(uint256(1)));
-        assertEq(deployedProgram.nonce(), 1);
+        // Still not started
+        vm.warp(router.genesisTimestamp() + eraDuration - electionDuration - 1);
+        vm.expectRevert();
+        commitValidators(commitment);
+
+        vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
+
+        // Started but wrong era index
+        Gear.ValidatorsCommitment memory commitment2 = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
+            Gear.dummyVerifyingShares(_validators.length),
+            _validators,
+            2
+        );
+        vm.expectRevert();
+        commitValidators(commitment2);
+
+        // Correct commitment
+        commitValidators(commitment);
+
+        // Try to set validators twice
+        vm.expectRevert();
+        commitValidators(commitment);
+
+        // Validators are not updated yet
+        assertEq(router.validators(), validators);
+
+        vm.warp(router.genesisTimestamp() + eraDuration);
+
+        // Validators are updated
+        assertEq(router.validators(), _validators);
+
+        // Update them locally
+        signingKey = _signingKey;
+        validators = _validators;
+        validatorsPrivateKeys = _validatorPrivateKeys;
+
+        // Commit the same validators again
+        vm.warp(vm.getBlockTimestamp() + eraDuration - electionDuration);
+        commitValidators(commitment2);
+
+        vm.warp(vm.getBlockTimestamp() + electionDuration);
+        assertEq(router.validators(), _validators);
+
+        // Do not commit validators - should continue to work with validators from previous era then.
+        vm.warp(vm.getBlockTimestamp() + 10 * eraDuration);
+        assertEq(router.validators(), _validators);
+
+        // Try to commit from past validators
+        uint256 currentEraIndex = (vm.getBlockTimestamp() - router.genesisTimestamp()) / eraDuration;
+        vm.warp(router.genesisTimestamp() + (currentEraIndex + 1) * eraDuration - electionDuration);
+        assertEq(router.validators(), _validators);
+        commitment.eraIndex = currentEraIndex + 1;
+
+        uint256[] memory wrongValidatorPrivateKeys = new uint256[](3);
+        wrongValidatorPrivateKeys[0] = 1;
+        wrongValidatorPrivateKeys[1] = 2;
+        wrongValidatorPrivateKeys[2] = 3;
+        assertNotEq(wrongValidatorPrivateKeys, validatorsPrivateKeys);
+
+        vm.expectRevert();
+        commitValidators(wrongValidatorPrivateKeys, commitment);
+    }
+
+    function test_lateCommitments() public {
+        address[] memory _validators = new address[](3);
+        uint256[] memory _validatorPrivateKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
+            _validators[i] = addr;
+            _validatorPrivateKeys[i] = key;
+        }
+
+        SigningKey _signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
+
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
+            Gear.dummyVerifyingShares(_validators.length),
+            _validators,
+            1
+        );
+
+        vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
+        commitValidators(_commitment);
+
+        // Go to the next era, setting block hash to the last 1 blocks of the era
+        vm.warp(router.genesisTimestamp() + eraDuration - uint48(blockDuration));
+        rollBlocks(1);
+
+        uint256 _eraStartNumber = vm.getBlockNumber();
+        uint48 _eraStartTimestamp = uint48(vm.getBlockTimestamp());
+
+        Gear.BlockCommitment memory _blockCommitment = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 1),
+            timestamp: _eraStartTimestamp - uint48(blockDuration),
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(_eraStartNumber - 1),
+            transitions: new Gear.StateTransition[](0)
+        });
+
+        // Try to commit block from the previous era using new validators
+        vm.expectRevert();
+        uint256[] memory _privateKeys = new uint256[](1);
+        _privateKeys[0] = _signingKey.asScalar();
+        commitBlock(_privateKeys, _blockCommitment);
+
+        // Now try to commit block from the previous era using old validators
+        _privateKeys[0] = signingKey.asScalar();
+        commitBlock(_privateKeys, _blockCommitment);
+
+        rollBlocks(1);
+        _blockCommitment = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber),
+            timestamp: _eraStartTimestamp,
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+
+        // Try to commit block from the new era using old validators
+        vm.expectRevert();
+        _privateKeys[0] = signingKey.asScalar();
+        commitBlock(_privateKeys, _blockCommitment);
+
+        // Now try to commit block from the new era using new validators
+        _privateKeys[0] = _signingKey.asScalar();
+        commitBlock(_privateKeys, _blockCommitment);
+    }
+
+    function test_lateCommitmentsAfterDelay() public {
+        address[] memory _validators = new address[](3);
+        uint256[] memory _validatorPrivateKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
+            _validators[i] = addr;
+            _validatorPrivateKeys[i] = key;
+        }
+
+        SigningKey _signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
+
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
+            Gear.dummyVerifyingShares(_validators.length),
+            _validators,
+            1
+        );
+
+        vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
+        commitValidators(_commitment);
+
+        // Go to the next era, setting block hash to the last 5 blocks of the era and first 5 blocks of the new era
+        vm.warp(router.genesisTimestamp() + eraDuration - 5 * uint48(blockDuration));
+        rollBlocks(10);
+
+        Gear.BlockCommitment memory _blockCommitment = Gear.BlockCommitment({
+            hash: blockHash(vm.getBlockNumber() - 6),
+            timestamp: uint48(vm.getBlockTimestamp() - 6 * blockDuration),
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(vm.getBlockNumber() - 1),
+            transitions: new Gear.StateTransition[](0)
+        });
+
+        // Try to commit block from the previous era using old validators
+        // Must be failed because the validation delay is already passed
+        vm.expectRevert();
+        uint256[] memory _privateKeys = new uint256[](1);
+        _privateKeys[0] = signingKey.asScalar();
+        commitBlock(_privateKeys, _blockCommitment);
+
+        // Now try to commit block from the previous era using new validators
+        // Must be successful because the validation delay is already passed
+        _privateKeys[0] = _signingKey.asScalar();
+        commitBlock(_privateKeys, _blockCommitment);
+    }
+
+    function test_manyLateCommitments() public {
+        address[] memory _validators = new address[](3);
+        uint256[] memory _validatorPrivateKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
+            _validators[i] = addr;
+            _validatorPrivateKeys[i] = key;
+        }
+
+        SigningKey _signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
+
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
+            Gear.dummyVerifyingShares(_validators.length),
+            _validators,
+            1
+        );
+
+        vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
+        commitValidators(_commitment);
+
+        // Go to the next era, setting block hash to the last 4 blocks of the era
+        vm.warp(router.genesisTimestamp() + eraDuration - 4 * uint48(blockDuration));
+        rollBlocks(4);
+
+        uint256 _eraStartNumber = vm.getBlockNumber();
+        uint48 _eraStartTimestamp = uint48(vm.getBlockTimestamp());
+
+        // Try to commit blocks: [n - 4] <- [n - 3] <- [n]
+        // Where [n] is a start of the new era
+        Gear.BlockCommitment[] memory _commitments = new Gear.BlockCommitment[](3);
+        _commitments[0] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 4),
+            timestamp: _eraStartTimestamp - 4 * uint48(blockDuration),
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        _commitments[1] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 3),
+            timestamp: _eraStartTimestamp - 3 * uint48(blockDuration),
+            previousCommittedBlock: _commitments[0].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        _commitments[2] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber),
+            timestamp: _eraStartTimestamp,
+            previousCommittedBlock: _commitments[1].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+
+        // Roll to next block to be possible to make commitment for the era start block
+        rollBlocks(1);
+
+        // Validation must fail because the last block is from new era, so must be committed by new validators
+        vm.expectRevert();
+        uint256[] memory _privateKeys = new uint256[](1);
+        _privateKeys[0] = signingKey.asScalar();
+        commitBlocks(_privateKeys, _commitments);
+
+        // Now try to commit [n - 4] <- [n - 3] <- [n - 2]
+        _commitments[2] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 2),
+            timestamp: _eraStartTimestamp - 2 * uint48(blockDuration),
+            previousCommittedBlock: _commitments[1].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        // Must be successful, because all blocks are from the previous era
+        commitBlocks(_privateKeys, _commitments);
+
+        // Now try to commit [n - 1] <- [n] <- [n + 1] using new validators
+        rollBlocks(1);
+        _commitments[0] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber - 1),
+            timestamp: _eraStartTimestamp - uint48(blockDuration),
+            previousCommittedBlock: router.latestCommittedBlockHash(),
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        _commitments[1] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber),
+            timestamp: _eraStartTimestamp,
+            previousCommittedBlock: _commitments[0].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        _commitments[2] = Gear.BlockCommitment({
+            hash: blockHash(_eraStartNumber + 1),
+            timestamp: _eraStartTimestamp + uint48(blockDuration),
+            previousCommittedBlock: _commitments[1].hash,
+            predecessorBlock: blockHash(_eraStartNumber),
+            transitions: new Gear.StateTransition[](0)
+        });
+        // Must be successful, because the newest blocks are from the new era
+        _privateKeys[0] = _signingKey.asScalar();
+        commitBlocks(_privateKeys, _commitments);
     }
 
     /* helper functions */
 
-    function startPrank(address msgSender) private {
-        vm.startPrank(msgSender, msgSender);
-    }
-
-    function commitCodes(IRouter.CodeCommitment[] memory codeCommitmentsArray) private {
-        bytes memory codesBytes;
-
-        for (uint256 i = 0; i < codeCommitmentsArray.length; i++) {
-            IRouter.CodeCommitment memory codeCommitment = codeCommitmentsArray[i];
-            codesBytes = bytes.concat(codesBytes, keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid)));
-        }
-
-        router.commitCodes(codeCommitmentsArray, createSignatures(codesBytes));
-    }
-
-    function commitBlocks(IRouter.BlockCommitment[] memory commitments) private {
-        bytes memory message;
-
-        for (uint256 i = 0; i < commitments.length; i++) {
-            IRouter.BlockCommitment memory commitment = commitments[i];
-            message = bytes.concat(message, commitBlock(commitment));
-        }
-
-        router.commitBlocks(commitments, createSignatures(message));
-    }
-
-    function commitBlock(IRouter.BlockCommitment memory commitment) private pure returns (bytes32) {
-        bytes memory transitionsHashesBytes;
-
-        for (uint256 i = 0; i < commitment.transitions.length; i++) {
-            IRouter.StateTransition memory transition = commitment.transitions[i];
-
-            bytes memory valueClaimsBytes;
-
-            for (uint256 j = 0; j < transition.valueClaims.length; j++) {
-                IRouter.ValueClaim memory valueClaim = transition.valueClaims[j];
-
-                valueClaimsBytes = bytes.concat(
-                    valueClaimsBytes, abi.encodePacked(valueClaim.messageId, valueClaim.destination, valueClaim.value)
-                );
-            }
-
-            bytes memory messagesHashesBytes;
-
-            for (uint256 j = 0; j < transition.messages.length; j++) {
-                IRouter.OutgoingMessage memory outgoingMessage = transition.messages[j];
-
-                messagesHashesBytes = bytes.concat(
-                    messagesHashesBytes,
-                    keccak256(
-                        abi.encodePacked(
-                            outgoingMessage.id,
-                            outgoingMessage.destination,
-                            outgoingMessage.payload,
-                            outgoingMessage.value,
-                            outgoingMessage.replyDetails.to,
-                            outgoingMessage.replyDetails.code
-                        )
-                    )
-                );
-            }
-
-            transitionsHashesBytes = bytes.concat(
-                transitionsHashesBytes,
-                keccak256(
-                    abi.encodePacked(
-                        transition.actorId,
-                        transition.newStateHash,
-                        transition.inheritor,
-                        transition.valueToReceive,
-                        keccak256(valueClaimsBytes),
-                        keccak256(messagesHashesBytes)
-                    )
-                )
-            );
-        }
-
-        return keccak256(
-            abi.encodePacked(
-                commitment.blockHash,
-                commitment.prevCommitmentHash,
-                commitment.predBlockHash,
-                keccak256(transitionsHashesBytes)
-            )
-        );
-    }
-
-    function createSignatures(bytes memory message) private view returns (bytes[] memory) {
-        bytes[] memory signatures = new bytes[](validatorsPrivateKeys.length);
-        bytes32 messageHash = address(router).toDataWithIntendedValidatorHash(abi.encodePacked(keccak256(message)));
-
-        for (uint256 i = 0; i < validatorsPrivateKeys.length; i++) {
-            uint256 validatorPrivateKey = validatorsPrivateKeys[i];
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(validatorPrivateKey, messageHash);
-            signatures[i] = abi.encodePacked(r, s, v);
-        }
-
-        return signatures;
+    function commitValidators(Gear.ValidatorsCommitment memory commitment) private {
+        uint256[] memory _privateKeys = new uint256[](1);
+        _privateKeys[0] = signingKey.asScalar();
+        commitValidators(_privateKeys, commitment);
     }
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! ethexe common db types and traits.
 
-use crate::{router::StateTransition, BlockRequestEvent};
+use crate::{events::BlockRequestEvent, gear::StateTransition};
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
@@ -42,7 +42,8 @@ pub type Sum = ProgramId;
 /// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
 pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
-#[derive(Debug, Clone, Default, Encode, Decode, serde::Serialize)]
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
     pub height: u32,
     pub timestamp: u64,
@@ -63,8 +64,8 @@ impl BlockHeader {
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode)]
-pub struct CodeUploadInfo {
-    pub origin: ActorId,
+pub struct CodeInfo {
+    pub timestamp: u64,
     pub tx_hash: H256,
 }
 
@@ -83,8 +84,8 @@ pub trait BlockMetaStorage: Send + Sync {
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
 
-    fn block_prev_commitment(&self, block_hash: H256) -> Option<H256>;
-    fn set_block_prev_commitment(&self, block_hash: H256, prev_commitment: H256);
+    fn previous_committed_block(&self, block_hash: H256) -> Option<H256>;
+    fn set_previous_committed_block(&self, block_hash: H256, prev_commitment: H256);
 
     fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
     fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
@@ -119,8 +120,8 @@ pub trait CodesStorage: Send + Sync {
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
 
-    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256>;
-    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256);
+    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo>;
+    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo);
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);

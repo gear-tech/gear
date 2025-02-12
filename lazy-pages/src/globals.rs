@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -44,7 +44,7 @@ struct GlobalsAccessWasmRuntime<'a> {
     pub instance: &'a mut SandboxInstance,
 }
 
-impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
+impl GlobalsAccessor for GlobalsAccessWasmRuntime<'_> {
     fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         // SAFETY: this is safe because this method is called only from signal handler context
         unsafe {
@@ -80,7 +80,7 @@ struct GlobalsAccessNativeRuntime<'a, 'b> {
     pub inner_access_provider: &'a mut &'b mut dyn GlobalsAccessor,
 }
 
-impl<'a, 'b> GlobalsAccessor for GlobalsAccessNativeRuntime<'a, 'b> {
+impl GlobalsAccessor for GlobalsAccessNativeRuntime<'_, '_> {
     fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.inner_access_provider.get_i64(name)
     }
@@ -117,15 +117,14 @@ pub(crate) unsafe fn apply_for_global(
 ) -> Result<u64, Error> {
     match globals_ctx.access_mod {
         GlobalsAccessMod::WasmRuntime => {
-            let instance = (globals_ctx.access_ptr as *mut SandboxInstance)
-                .as_mut()
+            let instance = unsafe { (globals_ctx.access_ptr as *mut SandboxInstance).as_mut() }
                 .ok_or(Error::HostInstancePointerIsInvalid)?;
             apply_for_global_internal(GlobalsAccessWasmRuntime { instance }, global_name, f)
         }
         GlobalsAccessMod::NativeRuntime => {
-            let inner_access_provider = (globals_ctx.access_ptr as *mut &mut dyn GlobalsAccessor)
-                .as_mut()
-                .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
+            let inner_access_provider =
+                unsafe { (globals_ctx.access_ptr as *mut &mut dyn GlobalsAccessor).as_mut() }
+                    .ok_or(Error::DynGlobalsAccessPointerIsInvalid)?;
             apply_for_global_internal(
                 GlobalsAccessNativeRuntime {
                     inner_access_provider,

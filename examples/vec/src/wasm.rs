@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,14 +20,14 @@ use gstd::{debug, msg, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let size = msg::load::<i32>().expect("Failed to load `i32`") as usize;
 
     let request = format!("Request: size = {size}");
 
     debug!("{request}");
-    unsafe { MESSAGE_LOG.push(request) };
+    unsafe { static_mut!(MESSAGE_LOG).push(request) };
 
     let vec = vec![42u8; size];
     let last_idx = size - 1;
@@ -44,15 +44,17 @@ extern "C" fn handle() {
     // so we must skip `v` destruction.
     core::mem::forget(vec);
 
-    let requests_amount = unsafe { MESSAGE_LOG.len() };
+    let requests_amount = unsafe { static_ref!(MESSAGE_LOG).len() };
     debug!("Total requests amount: {requests_amount}");
     unsafe {
-        MESSAGE_LOG.iter().for_each(|log| debug!("{log}"));
+        static_ref!(MESSAGE_LOG)
+            .iter()
+            .for_each(|log| debug!("{log}"));
     }
 }
 
 // State-sharing function
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn state() {
-    msg::reply(unsafe { MESSAGE_LOG.clone() }, 0).expect("Failed to share state");
+    msg::reply(unsafe { static_ref!(MESSAGE_LOG).clone() }, 0).expect("Failed to share state");
 }

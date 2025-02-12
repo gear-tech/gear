@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -91,7 +91,7 @@ pub enum Error {
     #[error(transparent)]
     Tx(#[from] TxError),
     #[error(transparent)]
-    SubxtRpc(#[from] jsonrpsee::core::Error),
+    SubxtRpc(#[from] jsonrpsee::core::ClientError),
     #[error("Page {0} of Program {1} was not found in the storage.")]
     PageNotFound(u32, String),
     #[error("Program has been terminated.")]

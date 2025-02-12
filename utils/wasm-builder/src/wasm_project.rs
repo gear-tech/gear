@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{code_validator::CodeValidator, crate_info::CrateInfo, smart_fs};
+use crate::{code_validator::validate_program, crate_info::CrateInfo, smart_fs};
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
@@ -105,7 +105,7 @@ impl WasmProject {
             .expect("Could not find target directory");
 
         let mut wasm_target_dir = target_dir.clone();
-        wasm_target_dir.push("wasm32-unknown-unknown");
+        wasm_target_dir.push("wasm32-gear");
         wasm_target_dir.push(&profile);
 
         target_dir.push("wasm-projects");
@@ -211,6 +211,7 @@ impl WasmProject {
         cargo_toml.insert("profile".into(), profile.into());
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
+        cargo_toml.insert("patch".into(), crate_info.patch.into());
 
         smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
             .context("Failed to write generated manifest path")?;
@@ -264,7 +265,7 @@ impl WasmProject {
     pub fn postprocess_opt<P: AsRef<Path>>(
         &self,
         original_wasm_path: P,
-        file_base_name: &String,
+        file_base_name: &str,
     ) -> Result<PathBuf> {
         let [original_copy_wasm_path, opt_wasm_path] = [".wasm", ".opt.wasm"]
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
@@ -275,27 +276,25 @@ impl WasmProject {
 
         // Optimize wasm using and `wasm-opt` and our optimizations.
         if smart_fs::check_if_newer(&original_wasm_path, &opt_wasm_path)? {
-            let path = optimize::optimize_wasm(&original_copy_wasm_path, &opt_wasm_path, "4", true)
+            let mut optimizer = Optimizer::new(&original_copy_wasm_path)?;
+            optimizer
+                .insert_stack_end_export()
+                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
+            optimizer.strip_custom_sections();
+            optimizer.strip_exports();
+            optimizer.flush_to_file(&opt_wasm_path);
+
+            optimize::optimize_wasm(&opt_wasm_path, &opt_wasm_path, "4", true)
                 .map(|res| {
                     log::info!(
                         "Wasm-opt reduced wasm size: {} -> {}",
                         res.original_size,
                         res.optimized_size
                     );
-                    opt_wasm_path.clone()
                 })
                 .unwrap_or_else(|err| {
                     println!("cargo:warning=wasm-opt optimizations error: {}", err);
-                    original_copy_wasm_path.clone()
                 });
-
-            let mut optimizer = Optimizer::new(path)?;
-            optimizer
-                .insert_stack_end_export()
-                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
-            optimizer.strip_custom_sections();
-            fs::write(&opt_wasm_path, optimizer.optimize()?)
-                .context("Failed to write optimized WASM binary")?;
         }
 
         // Create `wasm_binary.rs`
@@ -317,7 +316,7 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
     /// Post-processing after the WASM binary has been built.
     ///
     /// - Copy WASM binary from `OUT_DIR` to
-    ///   `target/wasm32-unknown-unknown/<profile>`
+    ///   `target/wasm32-gear/<profile>`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     pub fn postprocess(&self) -> Result<Option<(PathBuf, PathBuf)>> {
@@ -327,7 +326,7 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
             .expect("Run `WasmProject::generate()` first");
 
         let original_wasm_path = self.target_dir.join(format!(
-            "wasm32-unknown-unknown/{}/{file_base_name}.wasm",
+            "wasm32v1-none/{}/{file_base_name}.wasm",
             self.profile
         ));
 
@@ -346,7 +345,9 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
                 .filter(|(target, _)| *target == PreProcessorTarget::Default)
                 .count();
             if default_targets > 1 {
-                return Err(anyhow!("Pre-processor \"{pre_processor_name}\" cannot have more than one default target."));
+                return Err(anyhow!(
+                    "Pre-processor \"{pre_processor_name}\" cannot have more than one default target."
+                ));
             }
 
             for (pre_processor_target, content) in pre_processor_output {
@@ -395,9 +396,8 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
 
         for (wasm_path, _) in &wasm_files {
             let code = fs::read(wasm_path)?;
-            let validator = CodeValidator::try_from(code)?;
 
-            validator.validate_program()?;
+            validate_program(code)?;
         }
 
         if env::var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING").is_err() {

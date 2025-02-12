@@ -9,6 +9,9 @@ homepage.workspace = true
 repository.workspace = true
 readme = "README.md"
 
+[lints]
+workspace = true
+
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
@@ -69,8 +72,9 @@ demo-signal-entry = { workspace = true, optional = true }
 
 # Some of tests require `debug` feature enabled
 [dev-dependencies]
-wabt.workspace = true
 hex.workspace = true
+wat.workspace = true
+wasmparser.workspace = true
 blake2.workspace = true
 gstd.workspace = true
 demo-async.workspace = true
@@ -90,7 +94,6 @@ demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
 demo-read-big-state.workspace = true
-demo-incomplete-async-payloads.workspace = true
 demo-gas-burned.workspace = true
 demo-waiting-proxy.workspace = true
 demo-calc-hash.workspace = true
@@ -102,7 +105,6 @@ demo-mul-by-const.workspace = true
 demo-wait.workspace = true
 demo-waiter = { workspace = true, features = ["debug"] }
 demo-wait-timeout.workspace = true
-demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
 demo-rwlock.workspace = true
 demo-reservation-manager.workspace = true
@@ -181,7 +183,6 @@ runtime-benchmarks = [
     "frame-system/runtime-benchmarks",
     "frame-support/runtime-benchmarks",
     "common/runtime-benchmarks",
-    "gear-runtime-interface/runtime-benchmarks",
     "gear-core-backend/mock",
     "gear-core-errors/codec",
     "gear-sandbox",
@@ -203,4 +204,3 @@ runtime-benchmarks = [
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
-fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]

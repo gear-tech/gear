@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -272,13 +272,8 @@ parameter_types! {
 impl pallet_treasury::Config for Test {
     type PalletId = TreasuryPalletId;
     type Currency = Balances;
-    type ApproveOrigin = EnsureRoot<AccountId>;
     type RejectOrigin = EnsureRoot<AccountId>;
     type RuntimeEvent = RuntimeEvent;
-    type OnSlash = ();
-    type ProposalBond = ProposalBond;
-    type ProposalBondMinimum = ProposalBondMinimum;
-    type ProposalBondMaximum = ();
     type SpendPeriod = SpendPeriod;
     type Burn = Burn;
     type BurnDestination = ();
@@ -350,7 +345,6 @@ impl multi_phase::Config for Test {
     type EstimateCallFee = ConstU32<1_000>;
     type SignedPhase = SignedPhase;
     type UnsignedPhase = UnsignedPhase;
-    type BetterUnsignedThreshold = BetterUnsignedThreshold;
     type BetterSignedThreshold = ();
     type OffchainRepeat = OffchainRepeat;
     type MinerTxPriority = MinerTxPriority;
@@ -518,6 +512,7 @@ where
                 .iter()
                 .map(|x| (x.0, x.0, x.1.clone()))
                 .collect(),
+            ..Default::default()
         }
         .assimilate_storage(&mut storage)
         .unwrap();
@@ -782,13 +777,8 @@ pub(crate) mod two_block_producers {
     impl pallet_treasury::Config for Test {
         type PalletId = TreasuryPalletId;
         type Currency = Balances;
-        type ApproveOrigin = EnsureRoot<AccountId>;
         type RejectOrigin = EnsureRoot<AccountId>;
         type RuntimeEvent = RuntimeEvent;
-        type OnSlash = ();
-        type ProposalBond = ProposalBond;
-        type ProposalBondMinimum = ProposalBondMinimum;
-        type ProposalBondMaximum = ();
         type SpendPeriod = SpendPeriod;
         type Burn = Burn;
         type BurnDestination = ();
@@ -838,7 +828,6 @@ pub(crate) mod two_block_producers {
         type EstimateCallFee = ConstU32<1_000>;
         type SignedPhase = SignedPhase;
         type UnsignedPhase = UnsignedPhase;
-        type BetterUnsignedThreshold = BetterUnsignedThreshold;
         type BetterSignedThreshold = ();
         type OffchainRepeat = OffchainRepeat;
         type MinerTxPriority = MinerTxPriority;

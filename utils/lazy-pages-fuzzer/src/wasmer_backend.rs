@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,24 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{bail, Context, Result};
-
-use gear_wasm_gen::SyscallName;
-use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
-use wasmer::{
-    Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
-    Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,
-};
-
 use crate::{
     globals::{get_globals, globals_list, InstanceAccessGlobal},
     lazy_pages::{self, FuzzerLazyPagesContext},
     RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
+use anyhow::{bail, Context, Result};
+use gear_wasm_gen::SyscallName;
+use gear_wasm_instrument::{Module, GLOBAL_NAME_GAS};
+use wasmer::{
+    Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
+    Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,
+};
 
 #[derive(Clone)]
 struct InstanceBundle {
     instance: Instance,
+    // NOTE: Due to the implementation of lazy pages, which need to access the Store to retrieve globals,
+    // we have to use a second mutable reference to the Store in the form of a raw pointer
+    // to use it within the lazy pages' signal handler context.
+    //
+    // We consider it relatively safe because we rely on the fact that during an external function call,
+    // Wasmer does not access globals mutably, allowing us to access them mutably from the lazy pages' signal handler.
     store: *mut Store,
 }
 
@@ -61,10 +65,8 @@ impl Runner for WasmerRunner {
         let compiler = Singlepass::default();
         let mut store = Store::new(compiler);
 
-        let wasmer_module = WasmerModule::new(
-            &store,
-            module.clone().into_bytes().map_err(anyhow::Error::msg)?,
-        )?;
+        let wasmer_module =
+            WasmerModule::new(&store, module.serialize().map_err(anyhow::Error::msg)?)?;
 
         let ty = MemoryType::new(INITIAL_PAGES, None, false);
         let m = Memory::new(&mut store, ty).context("memory allocated")?;

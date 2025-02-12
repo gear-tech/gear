@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -30,6 +30,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, mocking, pallet_prelude::BlockNumberFor};
 use pallet_gear_voucher::VoucherId;
+#[allow(deprecated)]
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
@@ -98,6 +99,7 @@ parameter_types! {
     pub const QueueLengthStep: u64 = 5;
 }
 
+#[allow(deprecated)]
 impl pallet_transaction_payment::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
@@ -127,7 +129,7 @@ type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
 
 pub struct DealWithFees;
 impl OnUnbalanced<NegativeImbalance> for DealWithFees {
-    fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance>) {
+    fn on_unbalanceds(mut fees_then_tips: impl Iterator<Item = NegativeImbalance>) {
         if let Some(fees) = fees_then_tips.next() {
             if let Some(author) = Authorship::author() {
                 Balances::resolve_creating(&author, fees);

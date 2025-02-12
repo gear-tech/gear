@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -25,6 +25,7 @@
 // TODO: remove on rust update.
 #![allow(unknown_lints)]
 #![allow(clippy::manual_inspect)]
+#![allow(clippy::useless_conversion)]
 
 pub use builtin::Actor;
 pub use internal::{EthMessage, Proof};

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -412,7 +412,7 @@ macro_rules! syscalls {
         )*
     ) => {
         #[allow(improper_ctypes)]
-        extern "C" {
+        unsafe extern "C" {
             $(
                 $(#[$attrs])*
                 $vis fn $symbol($($arg_name: $arg_ty),*) $(-> $ret_ty)?;
@@ -424,11 +424,11 @@ macro_rules! syscalls {
             use $crate::*;
 
             $(
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 $vis extern "C" fn $symbol($(_: $arg_ty),*) $(-> $ret_ty)? {
                     unimplemented!(concat!(
                         stringify!($symbol),
-                        " syscall is only available for wasm32-unknown-unknown target"
+                        " syscall is only available for wasm32 architecture"
                     ))
                 }
             )*

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -62,7 +62,7 @@ unsafe fn sys_mprotect_interval(
     if allow_exec {
         mask |= region::Protection::EXECUTE;
     }
-    let res = region::protect(addr as *mut (), size, mask);
+    let res = unsafe { region::protect(addr as *mut (), size, mask) };
     if let Err(reason) = res {
         return Err(MprotectError::SyscallError {
             interval: addr..=addr + size,

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -103,7 +103,7 @@ impl Reservation {
 ///
 /// static mut RESERVATIONS: Reservations = Reservations::new();
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn init() {
 ///     unsafe {
 ///         RESERVATIONS
@@ -118,7 +118,7 @@ impl Reservation {
 ///     }
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let reservation = unsafe { RESERVATIONS.try_take_reservation(100_000) };
 ///     if let Some(reservation) = reservation {

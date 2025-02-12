@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -31,7 +31,7 @@ macro_rules! impl_runtime_apis_plus_common {
 					Executive::execute_block(block);
 				}
 
-				fn initialize_block(header: &<Block as BlockT>::Header) {
+				fn initialize_block(header: &<Block as BlockT>::Header) -> sp_runtime::ExtrinsicInclusionMode {
 					Executive::initialize_block(header)
 				}
 			}

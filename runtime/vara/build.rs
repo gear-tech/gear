@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,14 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(all(feature = "std", not(feature = "metadata-hash")))]
 fn main() {
     substrate_build_script_utils::generate_cargo_keys();
-    #[cfg(all(feature = "std", not(feature = "fuzz")))]
+    #[cfg(all(feature = "std", not(fuzz)))]
     {
-        substrate_wasm_builder::WasmBuilder::new()
-            .with_current_project()
-            .export_heap_base()
-            .import_memory()
+        substrate_wasm_builder::WasmBuilder::build_using_defaults()
+    }
+}
+
+#[cfg(all(feature = "std", feature = "metadata-hash"))]
+fn main() {
+    substrate_build_script_utils::generate_cargo_keys();
+    #[cfg(all(feature = "std", not(fuzz)))]
+    {
+        const TOKEN_SYMBOL: &str = if cfg!(not(feature = "dev")) {
+            "VARA"
+        } else {
+            "TVARA"
+        };
+
+        const DECIMALS: u8 = 12;
+
+        substrate_wasm_builder::WasmBuilder::init_with_defaults()
+            .enable_metadata_hash(TOKEN_SYMBOL, DECIMALS)
             .build()
     }
+}
+
+#[cfg(not(feature = "std"))]
+fn main() {
+    substrate_build_script_utils::generate_cargo_keys();
 }

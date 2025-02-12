@@ -46,6 +46,7 @@ pallet-authorship = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
 pallet-grandpa = { workspace = true, features = ["std"] }
 pallet-session = { workspace = true, features = ["std"] }
+pallet-staking = { workspace = true, features = ["std"] }
 sp-session = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
@@ -92,8 +93,7 @@ runtime-benchmarks = [
 ]
 try-runtime = [
     # Gear deps.
-    "common/runtime-benchmarks",
-    "pallet-gear-builtin/runtime-benchmarks",
+    "pallet-gear-builtin/try-runtime",
 
     # Substrate deps.
     "frame-support/try-runtime",

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -130,8 +130,7 @@ impl ProcessorContext {
                 Default::default(),
                 Default::default(),
                 Default::default(),
-            )
-            .unwrap(),
+            ),
             block_info: Default::default(),
             performance_multiplier: gsys::Percent::new(100),
             program_id: Default::default(),
@@ -359,7 +358,7 @@ struct ExtMutator<'a, LP: LazyPagesInterface> {
     reservation_to_mark: Option<ReservationId>,
 }
 
-impl<'a, LP: LazyPagesInterface> core::ops::Deref for ExtMutator<'a, LP> {
+impl<LP: LazyPagesInterface> core::ops::Deref for ExtMutator<'_, LP> {
     type Target = Ext<LP>;
 
     fn deref(&self) -> &Self::Target {
@@ -406,7 +405,6 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
                 }
                 Ok(())
             })
-            .map_err(Into::into)
     }
 
     fn reduce_gas(&mut self, limit: GasLimit) -> Result<(), FallibleExtError> {
@@ -827,7 +825,9 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
             let err_msg = format!(
                 "CounterOwner::decrease_current_counter_to: Tried to set gas limit left bigger than before. \
                 Message id - {message_id}, program id - {program_id}, gas counter - {gas_counter:?}, diff - {diff}",
-                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_counter = self.context.gas_counter
+                message_id = self.context.message_context.current().id(),
+                program_id = self.context.program_id,
+                gas_counter = self.context.gas_counter
             );
 
             log::error!("{err_msg}");
@@ -838,7 +838,9 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
             let err_msg = format!(
                 "CounterOwner::decrease_current_counter_to: Tried to set gas allowance left bigger than before. \
                 Message id - {message_id}, program id - {program_id}, gas allowance counter - {gas_allowance_counter:?}, diff - {diff}",
-                message_id = self.context.message_context.current().id(), program_id = self.context.program_id, gas_allowance_counter = self.context.gas_allowance_counter,
+                message_id = self.context.message_context.current().id(),
+                program_id = self.context.program_id,
+                gas_allowance_counter = self.context.gas_allowance_counter,
             );
 
             log::error!("{err_msg}");
@@ -1453,7 +1455,6 @@ mod tests {
                 self.program_id,
                 self.context_settings,
             )
-            .unwrap()
         }
 
         fn with_outgoing_limit(mut self, outgoing_limit: u32) -> Self {

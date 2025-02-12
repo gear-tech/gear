@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::cli::{Cli, Subcommand};
+use crate::{
+    cli::{Cli, Subcommand},
+    SandboxBackend,
+};
 use runtime_primitives::Block;
 use sc_cli::{ChainSpec, SubstrateCli};
 use sc_service::config::BasePath;
@@ -130,6 +133,14 @@ macro_rules! unwrap_client {
 pub fn run() -> sc_cli::Result<()> {
     let cli = Cli::from_args();
 
+    gear_runtime_interface::sandbox_init(
+        match cli.run.sandbox_backend {
+            SandboxBackend::Wasmer => gear_runtime_interface::SandboxBackend::Wasmer,
+            SandboxBackend::Wasmi => gear_runtime_interface::SandboxBackend::Wasmi,
+        },
+        cli.run.sandbox_store_clear_counter_limit.into(),
+    );
+
     let old_base = BasePath::from_project("", "", "gear-node");
     let new_base = BasePath::from_project("", "", &Cli::executable_name());
     if old_base.path().exists() && !new_base.path().exists() {
@@ -211,7 +222,7 @@ pub fn run() -> sc_cli::Result<()> {
             use frame_benchmarking_cli::{
                 BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE,
             };
-            use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
+            use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
             use sp_keyring::Sr25519Keyring;
 
             let runner = cli.create_runner(cmd)?;
@@ -231,12 +242,10 @@ pub fn run() -> sc_cli::Result<()> {
                         match &config.chain_spec {
                             #[cfg(feature = "vara-native")]
                             spec if spec.is_vara() => cmd
-                                .run::<service::vara_runtime::Block, ExtendedHostFunctions<
-                                sp_io::SubstrateHostFunctions,
-                                <service::VaraExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
-                            >>(
-                                    config,
-                                ),
+                                .run_with_spec::<sp_runtime::traits::HashingFor<service::vara_runtime::Block>, ExtendedHostFunctions<
+                                    sp_io::SubstrateHostFunctions,
+                                    service::ExtendHostFunctions,
+                                >>(Some(config.chain_spec)),
                             _ => Err("invalid chain spec".into()),
                         }
                     }

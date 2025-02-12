@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,35 +24,13 @@
 #![allow(non_local_definitions)]
 
 // Make the WASM binary available.
-#[cfg(all(feature = "std", not(feature = "fuzz")))]
+#[cfg(all(feature = "std", not(fuzz)))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use common::{storage::Messenger, DelegateFee};
 use frame_election_provider_support::{
     bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, NposSolution, SequentialPhragmen,
     VoteWeight,
-};
-pub use frame_support::{
-    construct_runtime,
-    dispatch::{DispatchClass, WeighData},
-    genesis_builder_helper::{build_config, create_default_config},
-    parameter_types,
-    traits::{
-        fungible::HoldConsideration,
-        tokens::{PayFromAccount, UnityAssetBalanceConversion},
-        ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
-        EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
-        LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo,
-        WithdrawReasons,
-    },
-    weights::{
-        constants::{
-            BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS,
-            WEIGHT_REF_TIME_PER_SECOND,
-        },
-        Weight,
-    },
-    PalletId, StorageValue,
 };
 use frame_support::{
     dispatch::DispatchInfo,
@@ -67,43 +45,20 @@ use frame_system::{
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
-pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_gear_builtin::ActorWithId;
-pub use pallet_gear_payment::CustomChargeTransactionPayment;
-pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
-pub use pallet_timestamp::Call as TimestampCall;
-pub use pallet_transaction_payment::{
-    CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
-};
-use runtime_common::constants::BANK_ADDRESS;
-pub use runtime_common::{
-    constants::{
-        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
-        RESUME_SESSION_DURATION_HOUR_FACTOR,
-    },
-    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
-    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
-    VALUE_PER_GAS,
-};
-pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
-#[cfg(any(feature = "std", test))]
-use sp_api::{CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder};
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
-#[cfg(any(feature = "std", test))]
-use sp_runtime::traits::HashingFor;
-#[cfg(not(feature = "dev"))]
-use sp_runtime::traits::OpaqueKeys;
 use sp_runtime::{
-    codec::{Decode, Encode, MaxEncodedLen},
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
         AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
@@ -116,28 +71,78 @@ use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
 };
-#[cfg(feature = "std")]
-use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
+#[cfg(not(feature = "dev"))]
+use sp_runtime::traits::OpaqueKeys;
+
 #[cfg(any(feature = "std", test))]
-pub use frame_system::Call as SystemCall;
-#[cfg(any(feature = "std", test))]
-pub use pallet_balances::Call as BalancesCall;
-#[cfg(any(feature = "std", test))]
-pub use pallet_staking::StakerStatus;
-#[cfg(all(feature = "dev", any(feature = "std", test)))]
-pub use pallet_sudo::Call as SudoCall;
-#[cfg(any(feature = "std", test))]
-pub use sp_runtime::BuildStorage;
+use {
+    sp_api::{CallApiAt, CallContext, ProofRecorder},
+    sp_externalities::Extensions,
+    sp_runtime::traits::HashingFor,
+    sp_state_machine::OverlayedChanges,
+};
 
 pub use pallet_gear;
-#[cfg(feature = "dev")]
-pub use pallet_gear_debug;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
 
+#[cfg(feature = "dev")]
+pub use pallet_gear_debug;
+
+pub use frame_support::{
+    construct_runtime, derive_impl,
+    dispatch::{DispatchClass, WeighData},
+    genesis_builder_helper::{build_state, get_preset},
+    parameter_types,
+    traits::{
+        fungible::HoldConsideration,
+        tokens::{PayFromAccount, UnityAssetBalanceConversion},
+        ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
+        EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
+        LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo,
+        VariantCountOf, WithdrawReasons,
+    },
+    weights::{
+        constants::{
+            BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS,
+            WEIGHT_REF_TIME_PER_SECOND,
+        },
+        Weight,
+    },
+    PalletId, StorageValue,
+};
+pub use gear_runtime_common::{
+    constants::{
+        BANK_ADDRESS, RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR,
+        RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR,
+    },
+    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
+    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
+    VALUE_PER_GAS,
+};
+pub use pallet_gear::manager::{ExtManager, HandleKind};
+pub use pallet_gear_payment::CustomChargeTransactionPayment;
+pub use pallet_gear_staking_rewards::StakingBlackList;
+#[allow(deprecated)]
+pub use pallet_transaction_payment::{
+    CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
+};
+pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
+
+#[cfg(all(feature = "dev", any(feature = "std", test)))]
+pub use pallet_sudo::Call as SudoCall;
+
+#[cfg(any(feature = "std", test))]
+pub use {
+    frame_system::Call as SystemCall, pallet_balances::Call as BalancesCall,
+    pallet_staking::StakerStatus, pallet_timestamp::Call as TimestampCall,
+    sp_runtime::BuildStorage,
+};
+
 pub mod constants;
+pub mod genesis_config_presets;
 
 pub use constants::{currency::*, time::*};
 
@@ -154,8 +159,8 @@ mod migrations;
 
 // By this we assert if runtime compiled with "dev" feature.
 #[cfg_attr(
-    all(target_arch = "wasm32", target_os = "unknown", feature = "dev"),
-    link_section = "dev_runtime"
+    all(target_arch = "wasm32", feature = "dev"),
+    unsafe(link_section = "dev_runtime")
 )]
 static _DEV_RUNTIME: u8 = 0;
 
@@ -164,24 +169,40 @@ static _DEV_RUNTIME: u8 = 0;
 // into the WASM runtime blob. This is used by the `runtime_wasmBlobVersion` RPC call.
 // The format of the version is `x.y.z-commit_hash`, where the `x.y.z` is the version of this crate,
 // and the `commit_hash` is the hash of the commit from which the WASM blob was built.
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-#[link_section = "wasm_blob_version"]
+#[cfg_attr(target_arch = "wasm32", unsafe(link_section = "wasm_blob_version"))]
 static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"))
     .len()] = const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"));
 
+/// Vara Network runtime version.
+#[cfg(not(feature = "dev"))]
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
-    authoring_version: 1,
-    // The version of the runtime specification. A full node will not attempt to use its native
-    //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
-    //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1620,
-    impl_version: 1,
+
+    spec_version: 1710,
+
     apis: RUNTIME_API_VERSIONS,
-    transaction_version: 1,
+    authoring_version: 1,
+    impl_version: 1,
     state_version: 1,
+    transaction_version: 1,
+};
+
+/// Vara Network Testnet (and dev) runtime version.
+#[cfg(feature = "dev")]
+#[sp_version::runtime_version]
+pub const VERSION: RuntimeVersion = RuntimeVersion {
+    spec_name: create_runtime_str!("vara-testnet"),
+    impl_name: create_runtime_str!("vara-testnet"),
+
+    spec_version: 1710,
+
+    apis: RUNTIME_API_VERSIONS,
+    authoring_version: 1,
+    impl_version: 1,
+    state_version: 1,
+    transaction_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -204,25 +225,17 @@ const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
     u64::MAX,
 );
 
-/// The version information used to identify this runtime when compiled natively.
-#[cfg(feature = "std")]
-pub fn native_version() -> NativeVersion {
-    NativeVersion {
-        runtime_version: VERSION,
-        can_author_with: Default::default(),
-    }
-}
-
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
     pub const SS58Prefix: u8 = VARA_SS58_PREFIX;
-    pub RuntimeBlockWeights: BlockWeights = runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
+    pub RuntimeBlockWeights: BlockWeights = gear_runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
     pub RuntimeBlockLength: BlockLength =
         BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_LENGTH_RATIO);
 }
 
 // Configure FRAME pallets to include in runtime.
 
+#[derive_impl(frame_system::config_preludes::SolochainDefaultConfig)]
 impl frame_system::Config for Runtime {
     /// The basic call filter to use in dispatchable.
     type BaseCallFilter = Everything;
@@ -246,6 +259,8 @@ impl frame_system::Config for Runtime {
     type Block = Block;
     /// The ubiquitous event type.
     type RuntimeEvent = RuntimeEvent;
+    /// Contains an aggregation of all tasks in this runtime.
+    type RuntimeTask = RuntimeTask;
     /// The ubiquitous origin type.
     type RuntimeOrigin = RuntimeOrigin;
     /// Maximum number of block number to block hash mappings to keep (oldest pruned first).
@@ -372,6 +387,8 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Runtime {
+    type RuntimeHoldReason = RuntimeHoldReason;
+    type RuntimeFreezeReason = RuntimeFreezeReason;
     type MaxLocks = MaxLocks;
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
@@ -381,11 +398,8 @@ impl pallet_balances::Config for Runtime {
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
     type WeightInfo = ();
-    type RuntimeFreezeReason = RuntimeFreezeReason;
     type FreezeIdentifier = RuntimeFreezeReason;
-    type MaxFreezes = ConstU32<8>;
-    type RuntimeHoldReason = RuntimeHoldReason;
-    type MaxHolds = ConstU32<2>;
+    type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
 }
 
 parameter_types! {
@@ -394,6 +408,9 @@ parameter_types! {
     pub const OperationalFeeMultiplier: u8 = 5;
 }
 
+// Can't use `FungibleAdapter` here until Treasury pallet migrates to fungibles
+// <https://github.com/paritytech/polkadot-sdk/issues/226>
+#[allow(deprecated)]
 impl pallet_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
@@ -575,8 +592,6 @@ parameter_types! {
     pub const SignedDepositBase: Balance = ECONOMIC_UNITS;
     pub const SignedDepositByte: Balance = ECONOMIC_CENTIUNITS;
 
-    pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
-
     // miner configs
     pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
     pub MinerMaxWeight: Weight = RuntimeBlockWeights::get()
@@ -666,7 +681,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type EstimateCallFee = TransactionPayment;
     type SignedPhase = SignedPhase;
     type UnsignedPhase = UnsignedPhase;
-    type BetterUnsignedThreshold = BetterUnsignedThreshold;
     type BetterSignedThreshold = ();
     type OffchainRepeat = OffchainRepeat;
     type MinerTxPriority = MultiPhaseUnsignedPriority;
@@ -705,6 +719,7 @@ parameter_types! {
     // this is an unbounded number. We just set it to a reasonably high value, 1 full page
     // of nominators.
     pub const MaxNominators: u32 = 512;
+    pub const MaxControllersInDeprecationBatch: u32 = 5900;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     // 2 hour session, 30 min unsigned phase, 16 offchain executions.
     pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 16;
@@ -742,15 +757,16 @@ impl pallet_staking::Config for Runtime {
     type EraPayout = StakingRewards;
     type NextNewSession = Session;
     type MaxExposurePageSize = MaxExposurePageSize;
-    type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
     type NominationsQuota = pallet_staking::FixedNominationsQuota<{ MaxNominations::get() }>;
     type MaxUnlockingChunks = ConstU32<32>;
+    type MaxControllersInDeprecationBatch = MaxControllersInDeprecationBatch;
     type HistoryDepth = HistoryDepth;
     type EventListeners = NominationPools;
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
     type BenchmarkingConfig = StakingBenchmarkingConfig;
+    type DisablingStrategy = pallet_staking::UpToLimitDisablingStrategy;
 }
 
 parameter_types! {
@@ -792,13 +808,14 @@ impl pallet_nomination_pools::Config for Runtime {
     type RewardCounter = FixedU128;
     type BalanceToU256 = BalanceToU256;
     type U256ToBalance = U256ToBalance;
-    type Staking = Staking;
+    type StakeAdapter = pallet_nomination_pools::adapter::TransferStake<Self, Staking>;
     type PostUnbondingPoolsWindow = ConstU32<4>;
     type MaxMetadataLen = ConstU32<256>;
     // we use the same number of allowed unlocking chunks as with staking.
     type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
     type PalletId = NominationPoolsPalletId;
     type MaxPointsToBalance = MaxPointsToBalance;
+    type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -827,13 +844,8 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
     type PalletId = TreasuryPalletId;
     type Currency = Balances;
-    type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RuntimeEvent = RuntimeEvent;
-    type OnSlash = Treasury;
-    type ProposalBond = ProposalBond;
-    type ProposalBondMinimum = ProposalBondMinimum;
-    type ProposalBondMaximum = ();
     type SpendPeriod = SpendPeriod;
     type Burn = Burn;
     type BurnDestination = ();
@@ -873,6 +885,7 @@ impl pallet_bounties::Config for Runtime {
     type MaximumReasonLength = MaximumReasonLength;
     type WeightInfo = pallet_bounties::weights::SubstrateWeight<Runtime>;
     type ChildBountyManager = ChildBounties;
+    type OnSlash = Treasury;
 }
 
 parameter_types! {
@@ -932,6 +945,12 @@ impl pallet_identity::Config for Runtime {
     type Slashed = Treasury;
     type ForceOrigin = EitherOf<EnsureRoot<AccountId>, GeneralAdmin>;
     type RegistrarOrigin = EitherOf<EnsureRoot<AccountId>, GeneralAdmin>;
+    type OffchainSignature = Signature;
+    type SigningPublicKey = <Signature as sp_runtime::traits::Verify>::Signer;
+    type UsernameAuthorityOrigin = EnsureRoot<Self::AccountId>;
+    type PendingUsernameExpiration = ConstU32<{ 7 * DAYS }>;
+    type MaxSuffixLength = ConstU32<7>;
+    type MaxUsernameLength = ConstU32<32>;
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
@@ -1022,21 +1041,26 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
         match self {
             ProxyType::Any => true,
             ProxyType::NonTransfer => {
+                // Dev pallets.
                 #[cfg(feature = "dev")]
-                return !matches!(
+                if matches!(
                     c,
-                    RuntimeCall::Balances(..)
+                    RuntimeCall::GearDebug(..)
+                        | RuntimeCall::GearEthBridge(..)
                         | RuntimeCall::Sudo(..)
-                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
-                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
-                );
-                #[cfg(not(feature = "dev"))]
-                return !matches!(
+                ) {
+                    return false;
+                }
+
+                !matches!(
                     c,
-                    RuntimeCall::Balances(..)
-                        | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
-                        | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
-                );
+                    // Classic pallets.
+                    RuntimeCall::Balances(..) | RuntimeCall::Vesting(..)
+                    // Gear pallets.
+                    | RuntimeCall::Gear(..)
+                    | RuntimeCall::GearVoucher(..)
+                    | RuntimeCall::StakingRewards(..)
+                )
             }
             ProxyType::Governance => matches!(
                 c,
@@ -1210,6 +1234,7 @@ pub type BuiltinActors = (
 impl pallet_gear_builtin::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
+    type BlockLimiter = GearGas;
     type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
 }
 
@@ -1293,130 +1318,326 @@ impl pallet_vesting::Config for Runtime {
     type MinVestedTransfer = MinVestedTransfer;
     type WeightInfo = pallet_vesting::weights::SubstrateWeight<Runtime>;
     type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
+    type BlockNumberProvider = System;
     const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[cfg(feature = "dev")]
-construct_runtime!(
-    pub struct Runtime
-    {
-        System: frame_system = 0,
-        Timestamp: pallet_timestamp = 1,
-        Authorship: pallet_authorship = 2,
-        AuthorityDiscovery: pallet_authority_discovery = 9,
-        Babe: pallet_babe = 3,
-        Grandpa: pallet_grandpa = 4,
-        Balances: pallet_balances = 5,
-        Vesting: pallet_vesting = 10,
-        TransactionPayment: pallet_transaction_payment = 6,
-        BagsList: pallet_bags_list::<Instance1> = 11,
-        ImOnline: pallet_im_online = 12,
-        Staking: pallet_staking = 13,
-        Session: pallet_session = 7,
-        Treasury: pallet_treasury = 14,
-        Historical: pallet_session_historical = 15,
-        Utility: pallet_utility = 8,
+#[frame_support::runtime]
+mod runtime {
+    #[runtime::runtime]
+    #[runtime::derive(
+        RuntimeCall,
+        RuntimeEvent,
+        RuntimeError,
+        RuntimeOrigin,
+        RuntimeFreezeReason,
+        RuntimeHoldReason,
+        RuntimeSlashReason,
+        RuntimeLockId,
+        RuntimeTask
+    )]
+    pub struct Runtime;
 
-        // Governance
-        ConvictionVoting: pallet_conviction_voting = 16,
-        Referenda: pallet_referenda = 17,
-        FellowshipCollective: pallet_ranked_collective::<Instance1> = 18,
-        FellowshipReferenda: pallet_referenda::<Instance2> = 19,
-        Origins: pallet_custom_origins = 20,
-        Whitelist: pallet_whitelist = 21,
+    #[runtime::pallet_index(0)]
+    pub type System = frame_system;
 
-        Scheduler: pallet_scheduler = 22,
-        Preimage: pallet_preimage = 23,
-        Identity: pallet_identity = 24,
-        Proxy: pallet_proxy = 25,
-        Multisig: pallet_multisig = 26,
+    #[runtime::pallet_index(1)]
+    pub type Timestamp = pallet_timestamp;
 
-        ElectionProviderMultiPhase: pallet_election_provider_multi_phase = 27,
-        Offences: pallet_offences = 28,
-        Bounties: pallet_bounties = 29,
-        ChildBounties: pallet_child_bounties = 30,
-        NominationPools: pallet_nomination_pools = 31,
+    #[runtime::pallet_index(2)]
+    pub type Authorship = pallet_authorship;
 
-        GearProgram: pallet_gear_program = 100,
-        GearMessenger: pallet_gear_messenger = 101,
-        GearScheduler: pallet_gear_scheduler = 102,
-        GearGas: pallet_gear_gas = 103,
-        Gear: pallet_gear = 104,
-        GearPayment: pallet_gear_payment = 105,
-        StakingRewards: pallet_gear_staking_rewards = 106,
-        GearVoucher: pallet_gear_voucher = 107,
-        GearBank: pallet_gear_bank = 108,
-        GearBuiltin: pallet_gear_builtin = 109,
-        GearEthBridge: pallet_gear_eth_bridge = 110,
+    #[runtime::pallet_index(9)]
+    pub type AuthorityDiscovery = pallet_authority_discovery;
 
-        Sudo: pallet_sudo = 99,
+    #[runtime::pallet_index(3)]
+    pub type Babe = pallet_babe;
 
-        // NOTE (!): `pallet_airdrop` used to be idx(198).
+    #[runtime::pallet_index(4)]
+    pub type Grandpa = pallet_grandpa;
 
-        // Only available with "dev" feature on
-        GearDebug: pallet_gear_debug = 199,
-    }
-);
+    #[runtime::pallet_index(5)]
+    pub type Balances = pallet_balances;
+
+    #[runtime::pallet_index(10)]
+    pub type Vesting = pallet_vesting;
+
+    #[runtime::pallet_index(6)]
+    pub type TransactionPayment = pallet_transaction_payment;
+
+    #[runtime::pallet_index(11)]
+    pub type BagsList = pallet_bags_list<Instance1>;
+
+    #[runtime::pallet_index(12)]
+    pub type ImOnline = pallet_im_online;
+
+    #[runtime::pallet_index(13)]
+    pub type Staking = pallet_staking;
+
+    #[runtime::pallet_index(7)]
+    pub type Session = pallet_session;
+
+    #[runtime::pallet_index(14)]
+    pub type Treasury = pallet_treasury;
+
+    #[runtime::pallet_index(15)]
+    pub type Historical = pallet_session_historical;
+
+    #[runtime::pallet_index(8)]
+    pub type Utility = pallet_utility;
+
+    // Governance
+
+    #[runtime::pallet_index(16)]
+    pub type ConvictionVoting = pallet_conviction_voting;
+
+    #[runtime::pallet_index(17)]
+    pub type Referenda = pallet_referenda;
+
+    #[runtime::pallet_index(18)]
+    pub type FellowshipCollective = pallet_ranked_collective<Instance1>;
+
+    #[runtime::pallet_index(19)]
+    pub type FellowshipReferenda = pallet_referenda<Instance2>;
+
+    #[runtime::pallet_index(20)]
+    pub type Origins = pallet_custom_origins;
+
+    #[runtime::pallet_index(21)]
+    pub type Whitelist = pallet_whitelist;
+
+    #[runtime::pallet_index(22)]
+    pub type Scheduler = pallet_scheduler;
+
+    #[runtime::pallet_index(23)]
+    pub type Preimage = pallet_preimage;
+
+    #[runtime::pallet_index(24)]
+    pub type Identity = pallet_identity;
+
+    #[runtime::pallet_index(25)]
+    pub type Proxy = pallet_proxy;
+
+    #[runtime::pallet_index(26)]
+    pub type Multisig = pallet_multisig;
+
+    #[runtime::pallet_index(27)]
+    pub type ElectionProviderMultiPhase = pallet_election_provider_multi_phase;
+
+    #[runtime::pallet_index(28)]
+    pub type Offences = pallet_offences;
+
+    #[runtime::pallet_index(29)]
+    pub type Bounties = pallet_bounties;
+
+    #[runtime::pallet_index(30)]
+    pub type ChildBounties = pallet_child_bounties;
+
+    #[runtime::pallet_index(31)]
+    pub type NominationPools = pallet_nomination_pools;
+
+    // Gear
+    // NOTE (!): if adding new pallet, don't forget to extend non payable proxy filter.
+
+    #[runtime::pallet_index(100)]
+    pub type GearProgram = pallet_gear_program;
+
+    #[runtime::pallet_index(101)]
+    pub type GearMessenger = pallet_gear_messenger;
+
+    #[runtime::pallet_index(102)]
+    pub type GearScheduler = pallet_gear_scheduler;
+
+    #[runtime::pallet_index(103)]
+    pub type GearGas = pallet_gear_gas;
+
+    #[runtime::pallet_index(104)]
+    pub type Gear = pallet_gear;
+
+    #[runtime::pallet_index(105)]
+    pub type GearPayment = pallet_gear_payment;
+
+    #[runtime::pallet_index(106)]
+    pub type StakingRewards = pallet_gear_staking_rewards;
+
+    #[runtime::pallet_index(107)]
+    pub type GearVoucher = pallet_gear_voucher;
+
+    #[runtime::pallet_index(108)]
+    pub type GearBank = pallet_gear_bank;
+
+    #[runtime::pallet_index(109)]
+    pub type GearBuiltin = pallet_gear_builtin;
+
+    #[runtime::pallet_index(110)]
+    pub type GearEthBridge = pallet_gear_eth_bridge;
+
+    #[runtime::pallet_index(99)]
+    pub type Sudo = pallet_sudo;
+
+    // NOTE (!): `pallet_airdrop` used to be idx(198).
+
+    // Only available with "dev" feature on
+    #[runtime::pallet_index(199)]
+    pub type GearDebug = pallet_gear_debug;
+}
 
 #[cfg(not(feature = "dev"))]
-construct_runtime!(
-    pub struct Runtime
-    {
-        System: frame_system = 0,
-        Timestamp: pallet_timestamp = 1,
-        Authorship: pallet_authorship = 2,
-        AuthorityDiscovery: pallet_authority_discovery = 9,
-        Babe: pallet_babe = 3,
-        Grandpa: pallet_grandpa = 4,
-        Balances: pallet_balances = 5,
-        Vesting: pallet_vesting = 10,
-        TransactionPayment: pallet_transaction_payment = 6,
-        BagsList: pallet_bags_list::<Instance1> = 11,
-        ImOnline: pallet_im_online = 12,
-        Staking: pallet_staking = 13,
-        Session: pallet_session = 7,
-        Treasury: pallet_treasury = 14,
-        Historical: pallet_session_historical = 15,
-        Utility: pallet_utility = 8,
+#[frame_support::runtime]
+mod runtime {
+    #[runtime::runtime]
+    #[runtime::derive(
+        RuntimeCall,
+        RuntimeEvent,
+        RuntimeError,
+        RuntimeOrigin,
+        RuntimeFreezeReason,
+        RuntimeHoldReason,
+        RuntimeSlashReason,
+        RuntimeLockId,
+        RuntimeTask
+    )]
+    pub struct Runtime;
 
-        // Governance
-        ConvictionVoting: pallet_conviction_voting = 16,
-        Referenda: pallet_referenda = 17,
-        FellowshipCollective: pallet_ranked_collective::<Instance1> = 18,
-        FellowshipReferenda: pallet_referenda::<Instance2> = 19,
-        Origins: pallet_custom_origins = 20,
-        Whitelist: pallet_whitelist = 21,
+    #[runtime::pallet_index(0)]
+    pub type System = frame_system;
 
-        Scheduler: pallet_scheduler = 22,
-        Preimage: pallet_preimage = 23,
-        Identity: pallet_identity = 24,
-        Proxy: pallet_proxy = 25,
-        Multisig: pallet_multisig = 26,
+    #[runtime::pallet_index(1)]
+    pub type Timestamp = pallet_timestamp;
 
-        ElectionProviderMultiPhase: pallet_election_provider_multi_phase = 27,
-        Offences: pallet_offences = 28,
-        Bounties: pallet_bounties = 29,
-        ChildBounties: pallet_child_bounties = 30,
-        NominationPools: pallet_nomination_pools = 31,
+    #[runtime::pallet_index(2)]
+    pub type Authorship = pallet_authorship;
 
-        GearProgram: pallet_gear_program = 100,
-        GearMessenger: pallet_gear_messenger = 101,
-        GearScheduler: pallet_gear_scheduler = 102,
-        GearGas: pallet_gear_gas = 103,
-        Gear: pallet_gear = 104,
-        GearPayment: pallet_gear_payment = 105,
-        StakingRewards: pallet_gear_staking_rewards = 106,
-        GearVoucher: pallet_gear_voucher = 107,
-        GearBank: pallet_gear_bank = 108,
-        GearBuiltin: pallet_gear_builtin = 109,
-        // Uncomment me, once ready for prod runtime.
-        // GearEthBridge: pallet_gear_eth_bridge = 110,
+    #[runtime::pallet_index(9)]
+    pub type AuthorityDiscovery = pallet_authority_discovery;
 
-        // NOTE (!): `pallet_sudo` used to be idx(99).
-        // NOTE (!): `pallet_airdrop` used to be idx(198).
-    }
-);
+    #[runtime::pallet_index(3)]
+    pub type Babe = pallet_babe;
+
+    #[runtime::pallet_index(4)]
+    pub type Grandpa = pallet_grandpa;
+
+    #[runtime::pallet_index(5)]
+    pub type Balances = pallet_balances;
+
+    #[runtime::pallet_index(10)]
+    pub type Vesting = pallet_vesting;
+
+    #[runtime::pallet_index(6)]
+    pub type TransactionPayment = pallet_transaction_payment;
+
+    #[runtime::pallet_index(11)]
+    pub type BagsList = pallet_bags_list<Instance1>;
+
+    #[runtime::pallet_index(12)]
+    pub type ImOnline = pallet_im_online;
+
+    #[runtime::pallet_index(13)]
+    pub type Staking = pallet_staking;
+
+    #[runtime::pallet_index(7)]
+    pub type Session = pallet_session;
+
+    #[runtime::pallet_index(14)]
+    pub type Treasury = pallet_treasury;
+
+    #[runtime::pallet_index(15)]
+    pub type Historical = pallet_session_historical;
+
+    #[runtime::pallet_index(8)]
+    pub type Utility = pallet_utility;
+
+    // Governance
+
+    #[runtime::pallet_index(16)]
+    pub type ConvictionVoting = pallet_conviction_voting;
+
+    #[runtime::pallet_index(17)]
+    pub type Referenda = pallet_referenda;
+
+    #[runtime::pallet_index(18)]
+    pub type FellowshipCollective = pallet_ranked_collective<Instance1>;
+
+    #[runtime::pallet_index(19)]
+    pub type FellowshipReferenda = pallet_referenda<Instance2>;
+
+    #[runtime::pallet_index(20)]
+    pub type Origins = pallet_custom_origins;
+
+    #[runtime::pallet_index(21)]
+    pub type Whitelist = pallet_whitelist;
+
+    #[runtime::pallet_index(22)]
+    pub type Scheduler = pallet_scheduler;
+
+    #[runtime::pallet_index(23)]
+    pub type Preimage = pallet_preimage;
+
+    #[runtime::pallet_index(24)]
+    pub type Identity = pallet_identity;
+
+    #[runtime::pallet_index(25)]
+    pub type Proxy = pallet_proxy;
+
+    #[runtime::pallet_index(26)]
+    pub type Multisig = pallet_multisig;
+
+    #[runtime::pallet_index(27)]
+    pub type ElectionProviderMultiPhase = pallet_election_provider_multi_phase;
+
+    #[runtime::pallet_index(28)]
+    pub type Offences = pallet_offences;
+
+    #[runtime::pallet_index(29)]
+    pub type Bounties = pallet_bounties;
+
+    #[runtime::pallet_index(30)]
+    pub type ChildBounties = pallet_child_bounties;
+
+    #[runtime::pallet_index(31)]
+    pub type NominationPools = pallet_nomination_pools;
+
+    // Gear
+
+    #[runtime::pallet_index(100)]
+    pub type GearProgram = pallet_gear_program;
+
+    #[runtime::pallet_index(101)]
+    pub type GearMessenger = pallet_gear_messenger;
+
+    #[runtime::pallet_index(102)]
+    pub type GearScheduler = pallet_gear_scheduler;
+
+    #[runtime::pallet_index(103)]
+    pub type GearGas = pallet_gear_gas;
+
+    #[runtime::pallet_index(104)]
+    pub type Gear = pallet_gear;
+
+    #[runtime::pallet_index(105)]
+    pub type GearPayment = pallet_gear_payment;
+
+    #[runtime::pallet_index(106)]
+    pub type StakingRewards = pallet_gear_staking_rewards;
+
+    #[runtime::pallet_index(107)]
+    pub type GearVoucher = pallet_gear_voucher;
+
+    #[runtime::pallet_index(108)]
+    pub type GearBank = pallet_gear_bank;
+
+    #[runtime::pallet_index(109)]
+    pub type GearBuiltin = pallet_gear_builtin;
+
+    // Uncomment me, once ready for prod runtime.
+    // #[runtime::pallet_index(110)]
+    // pub type GearEthBridge = pallet_gear_eth_bridge;
+
+    // NOTE (!): `pallet_sudo` used to be idx(99).
+    // NOTE (!): `pallet_airdrop` used to be idx(198).
+}
 
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
@@ -1436,6 +1657,7 @@ pub type SignedExtra = (
     CustomCheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
     CustomChargeTransactionPayment<Runtime>,
+    frame_metadata_hash_extension::CheckMetadataHash<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
@@ -1552,6 +1774,12 @@ impl_runtime_apis_plus_common! {
 
     }
 
+    impl sp_authority_discovery::AuthorityDiscoveryApi<Block> for Runtime {
+        fn authorities() -> Vec<AuthorityDiscoveryId> {
+            AuthorityDiscovery::authorities()
+        }
+    }
+
     impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, RuntimeCall>
         for Runtime
     {
@@ -1569,13 +1797,9 @@ impl_runtime_apis_plus_common! {
         }
     }
 
-    impl pallet_nomination_pools_runtime_api::NominationPoolsApi<
-        Block,
-        AccountId,
-        Balance,
-    > for Runtime {
-        fn pending_rewards(member: AccountId) -> Balance {
-            NominationPools::api_pending_rewards(member).unwrap_or_default()
+    impl pallet_nomination_pools_runtime_api::NominationPoolsApi<Block, AccountId, Balance> for Runtime {
+        fn pending_rewards(who: AccountId) -> Balance {
+            NominationPools::api_pending_rewards(who).unwrap_or_default()
         }
 
         fn points_to_balance(pool_id: pallet_nomination_pools::PoolId, points: Balance) -> Balance {
@@ -1584,6 +1808,30 @@ impl_runtime_apis_plus_common! {
 
         fn balance_to_points(pool_id: pallet_nomination_pools::PoolId, new_funds: Balance) -> Balance {
             NominationPools::api_balance_to_points(pool_id, new_funds)
+        }
+
+        fn pool_pending_slash(pool_id: pallet_nomination_pools::PoolId) -> Balance {
+            NominationPools::api_pool_pending_slash(pool_id)
+        }
+
+        fn member_pending_slash(member: AccountId) -> Balance {
+            NominationPools::api_member_pending_slash(member)
+        }
+
+        fn pool_needs_delegate_migration(pool_id: pallet_nomination_pools::PoolId) -> bool {
+            NominationPools::api_pool_needs_delegate_migration(pool_id)
+        }
+
+        fn member_needs_delegate_migration(member: AccountId) -> bool {
+            NominationPools::api_member_needs_delegate_migration(member)
+        }
+
+        fn member_total_balance(member: AccountId) -> Balance {
+            NominationPools::api_member_total_balance(member)
+        }
+
+        fn pool_balance(pool_id: pallet_nomination_pools::PoolId) -> Balance {
+            NominationPools::api_pool_balance(pool_id)
         }
     }
 
@@ -1594,6 +1842,10 @@ impl_runtime_apis_plus_common! {
 
         fn eras_stakers_page_count(era: sp_staking::EraIndex, account: AccountId) -> sp_staking::Page {
             Staking::api_eras_stakers_page_count(era, account)
+        }
+
+        fn pending_rewards(era: sp_staking::EraIndex, account: AccountId) -> bool {
+            Staking::api_pending_rewards(era, account)
         }
     }
 
@@ -1624,12 +1876,16 @@ impl_runtime_apis_plus_common! {
     }
 
     impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
-        fn create_default_config() -> Vec<u8> {
-            create_default_config::<RuntimeGenesisConfig>()
+        fn build_state(config: Vec<u8>) -> sp_genesis_builder::Result {
+            build_state::<RuntimeGenesisConfig>(config)
         }
 
-        fn build_config(config: Vec<u8>) -> sp_genesis_builder::Result {
-            build_config::<RuntimeGenesisConfig>(config)
+        fn get_preset(id: &Option<sp_genesis_builder::PresetId>) -> Option<Vec<u8>> {
+            get_preset::<RuntimeGenesisConfig>(id, genesis_config_presets::get_preset)
+        }
+
+        fn preset_names() -> Vec<sp_genesis_builder::PresetId> {
+            genesis_config_presets::preset_names()
         }
     }
 

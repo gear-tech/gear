@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 use crate::{abi::IMirror, AlloyProvider, AlloyTransport, TryGetReceipt};
 use alloy::{
-    primitives::Address,
+    primitives::{Address, U256},
     providers::{Provider, ProviderBuilder, RootProvider},
     transports::BoxTransport,
 };
@@ -51,6 +51,13 @@ impl Mirror {
             *self.0.address(),
             Arc::new(self.0.provider().root().clone()),
         ))
+    }
+
+    pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
+        let builder = self.0.executableBalanceTopUp(value);
+        let receipt = builder.send().await?.try_get_receipt().await?;
+
+        Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn send_message(
@@ -122,6 +129,42 @@ impl MirrorQuery {
             .call()
             .await
             .map(|res| H256(*res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn inheritor(&self) -> Result<LocalAddress> {
+        self.0
+            .inheritor()
+            .call()
+            .await
+            .map(|res| LocalAddress(res._0.into()))
+            .map_err(Into::into)
+    }
+
+    pub async fn nonce(&self) -> Result<U256> {
+        self.0
+            .nonce()
+            .call()
+            .await
+            .map(|res| U256::from(res._0))
+            .map_err(Into::into)
+    }
+
+    pub async fn router(&self) -> Result<LocalAddress> {
+        self.0
+            .router()
+            .call()
+            .await
+            .map(|res| LocalAddress(res._0.into()))
+            .map_err(Into::into)
+    }
+
+    pub async fn decoder(&self) -> Result<LocalAddress> {
+        self.0
+            .decoder()
+            .call()
+            .await
+            .map(|res| LocalAddress(res._0.into()))
             .map_err(Into::into)
     }
 }

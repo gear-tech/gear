@@ -49,26 +49,26 @@ $ anvil
 
 ```shell
 $ source .env
-$ forge script script/Deployment.s.sol:DeploymentScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
-$ forge script script/Deployment.s.sol:DeploymentScript --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
+$ forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
+$ forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 ```
 
 ### Upgrade
 
-> [!WARNING]  
+> [!WARNING]
 > Before you run upgrade scripts, edit `reinitialize` method depending on how you want to perform upgrade!
 
 ```shell
 $ source .env
 
-$ forge script upgrades/Mirror.s.sol:MirrorScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
-$ forge script upgrades/Mirror.s.sol:MirrorScript --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
+$ forge script upgrades/Mirror.s.sol:MirrorScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
+$ forge script upgrades/Mirror.s.sol:MirrorScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 
-$ forge script upgrades/Router.s.sol:RouterScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
-$ forge script upgrades/Router.s.sol:RouterScript --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
+$ forge script upgrades/Router.s.sol:RouterScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
+$ forge script upgrades/Router.s.sol:RouterScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 
-$ forge script upgrades/WrappedVara.s.sol:WrappedVaraScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
-$ forge script upgrades/WrappedVara.s.sol:WrappedVaraScript --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
+$ forge script upgrades/WrappedVara.s.sol:WrappedVaraScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
+$ forge script upgrades/WrappedVara.s.sol:WrappedVaraScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 ```
 
 ### Cast

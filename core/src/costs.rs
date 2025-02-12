@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -502,6 +502,21 @@ impl SyscallCosts {
     }
 }
 
+/// Memory pages costs.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PagesCosts {
+    /// Loading from storage and moving it in program memory cost.
+    pub load_page_data: CostOf<GearPagesAmount>,
+    /// Uploading page data to storage cost.
+    pub upload_page_data: CostOf<GearPagesAmount>,
+    /// Memory grow cost.
+    pub mem_grow: CostOf<GearPagesAmount>,
+    /// Memory grow per page cost.
+    pub mem_grow_per_page: CostOf<GearPagesAmount>,
+    /// Parachain read heuristic cost.
+    pub parachain_read_heuristic: CostOf<GearPagesAmount>,
+}
+
 /// Memory pages lazy access costs.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct LazyPagesCosts {
@@ -519,6 +534,15 @@ pub struct LazyPagesCosts {
     pub host_func_write_after_read: CostOf<GearPagesAmount>,
     /// Loading page data from storage cost.
     pub load_page_storage_data: CostOf<GearPagesAmount>,
+}
+
+/// IO costs.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct IoCosts {
+    /// Consts for common pages.
+    pub common: PagesCosts,
+    /// Consts for lazy pages.
+    pub lazy_pages: LazyPagesCosts,
 }
 
 /// Holding in storages rent costs.

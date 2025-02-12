@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -83,7 +83,7 @@ impl Inner {
     }
 
     /// Listen transaction process and print logs.
-    pub async fn process<'a>(&self, tx: DynamicPayload) -> Result<TxInBlock> {
+    pub async fn process(&self, tx: DynamicPayload) -> Result<TxInBlock> {
         use subxt::tx::TxStatus::*;
 
         let signer_rpc = SignerRpc(Arc::new(self.clone()));
@@ -194,7 +194,7 @@ impl Inner {
     ///
     /// // ...
     /// ```
-    pub async fn run_tx<'a, Call: CallInfo>(
+    pub async fn run_tx<Call: CallInfo>(
         &self,
         call: Call,
         fields: impl Into<Composite<()>>,
@@ -205,7 +205,7 @@ impl Inner {
     }
 
     /// Run transaction with sudo.
-    pub async fn sudo_run_tx<'a, Call: CallInfo>(
+    pub async fn sudo_run_tx<Call: CallInfo>(
         &self,
         call: Call,
         fields: impl Into<Composite<()>>,
@@ -222,7 +222,7 @@ impl Inner {
     }
 
     /// Wrapper for submit and watch with nonce.
-    async fn sign_and_submit_then_watch<'a>(
+    async fn sign_and_submit_then_watch(
         &self,
         tx: &DynamicPayload,
     ) -> Result<TxProgressT, SubxtError> {

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -26,6 +26,9 @@ pub const VARA_DECIMAL: u8 = 12;
 
 /// Vara Token Symbol
 pub const VARA_TOKEN_SYMBOL: &str = "VARA";
+
+/// Vara Testnet Token Symbol
+pub const VARA_TESTNET_TOKEN_SYMBOL: &str = "TVARA";
 
 /// The minimal amount of blocks to resume represented as a factor of weeks.
 pub const RENT_RESUME_WEEK_FACTOR: BlockNumber = 4;

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ static mut DST_PROGRAM_ID: ActorId = ActorId::new([0u8; 32]);
 
 type HandleParams = ([u8; 32], u128);
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let program_id: [u8; 32] = msg::load().expect("internal error: invalid payload");
     debug!(

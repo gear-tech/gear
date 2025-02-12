@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -104,9 +104,10 @@ where
     T::AccountId: Origin,
     CallOf<T>: From<pallet_staking::Call<T>>,
 {
-    type Error = BuiltinActorError;
-
-    fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
+    fn handle(
+        dispatch: &StoredDispatch,
+        context: &mut BuiltinContext,
+    ) -> Result<Payload, BuiltinActorError> {
         let message = dispatch.message();
         let origin = dispatch.source();
         let mut payload = message.payload_bytes();
@@ -121,18 +122,19 @@ where
                 * 11
                 / 10;
         if payload.len() > max_payload_size {
-            return (Err(BuiltinActorError::DecodingError), 0);
+            return Err(BuiltinActorError::DecodingError);
         }
 
         // Decode the message payload to derive the desired action
-        let Ok(request) = Request::decode(&mut payload) else {
-            return (Err(BuiltinActorError::DecodingError), 0);
-        };
+        let request =
+            Request::decode(&mut payload).map_err(|_| BuiltinActorError::DecodingError)?;
 
         // Handle staking requests
         let call = Self::cast(request);
-        let (result, gas_spent) = Pallet::<T>::dispatch_call(origin, call, gas_limit);
+        Pallet::<T>::dispatch_call(origin, call, context).map(|_| Default::default())
+    }
 
-        (result.map(|_| Default::default()), gas_spent)
+    fn max_gas() -> u64 {
+        Default::default()
     }
 }

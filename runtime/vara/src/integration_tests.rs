@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,10 +27,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::gas_metering::CustomConstantCostRules;
-use gwasm_instrument::{
-    gas_metering::Rules,
-    parity_wasm::elements::{Instruction, Module},
-};
+use gear_wasm_instrument::{BlockType, Instruction, MemArg, Module, Rules};
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     Slot, BABE_ENGINE_ID,
@@ -185,6 +182,7 @@ impl ExtBuilder {
                     )
                 })
                 .collect(),
+            ..Default::default()
         }
         .assimilate_storage(&mut storage)
         .unwrap();
@@ -543,91 +541,6 @@ fn dust_ends_up_in_offset_pool() {
         });
 }
 
-#[test]
-fn slashed_proposals_back_to_treasury() {
-    init_logger();
-
-    let alice = AccountKeyring::Alice;
-    let bob = AccountKeyring::Bob;
-    let charlie = AccountKeyring::Charlie;
-    let dave = AccountKeyring::Dave;
-    let ferdie = AccountKeyring::Ferdie;
-
-    let treasury_id = Treasury::account_id();
-
-    ExtBuilder::default()
-        .initial_authorities(vec![
-            (
-                alice.into(),
-                charlie.into(),
-                alice.public(),
-                ed25519::Pair::from_string("//Alice", None)
-                    .unwrap()
-                    .public(),
-                alice.public(),
-                alice.public(),
-            ),
-            (
-                bob.into(),
-                dave.into(),
-                bob.public(),
-                ed25519::Pair::from_string("//Bob", None).unwrap().public(),
-                bob.public(),
-                bob.public(),
-            ),
-        ])
-        .stash(STASH)
-        .endowment(ENDOWMENT)
-        .endowed_accounts(vec![charlie.into(), dave.into()])
-        .root(alice.into())
-        .build()
-        .execute_with(|| {
-            // Treasury pot is empty in the beginning
-            assert_eq!(Treasury::pot(), 0);
-
-            let initial_total_issuance = Balances::total_issuance();
-
-            // Top up treasury balance
-            assert_ok!(Balances::transfer_allow_death(
-                RuntimeOrigin::signed(charlie.to_account_id()),
-                sp_runtime::MultiAddress::Id(treasury_id.clone()),
-                1_000 * UNITS,
-            ));
-            assert_eq!(Treasury::pot(), 1_000 * UNITS);
-
-            assert_ok!(Treasury::propose_spend(
-                RuntimeOrigin::signed(dave.to_account_id()),
-                1_000 * UNITS,
-                sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
-            ));
-            let proposal_bond =
-                <Runtime as pallet_treasury::Config>::ProposalBond::get() * UNITS * 1_000;
-            let dave_acc_data = System::account(dave.to_account_id()).data;
-            // Proposer's free balance has decreased by the `proposal_bond`
-            assert_eq!(dave_acc_data.free, ENDOWMENT - proposal_bond);
-            // The reserved balance is 5% of the proposed amount
-            assert_eq!(dave_acc_data.reserved, proposal_bond);
-
-            assert_ok!(Treasury::reject_proposal(RuntimeOrigin::root(), 0));
-
-            // Run chain for a day so that `Treasury::spend_funds()` is triggered
-            run_to_block(DAYS);
-
-            // The `proposal_bond` has been slashed
-            let dave_acc_data = System::account(dave.to_account_id()).data;
-            assert_eq!(dave_acc_data.free, ENDOWMENT - proposal_bond);
-            // Nothing is reserved now
-            assert_eq!(dave_acc_data.reserved, 0);
-
-            // Treasury funds haven't been spent, no burning has taken place,
-            // the slashed deposit has landed in the `Treasury`, as well
-            assert_eq!(Treasury::pot(), 1_000 * UNITS + proposal_bond);
-
-            // The total issuance has, therefore, persisted
-            assert_eq!(Balances::total_issuance(), initial_total_issuance);
-        });
-}
-
 // Setting lock on an account prevents the account from being dusted
 #[test]
 fn dusting_prevented_by_lock() {
@@ -876,10 +789,11 @@ fn process_costs_are_same() {
 }
 
 fn all_measured_instructions() -> Vec<Instruction> {
-    use gwasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction::*};
-    let default_table_data = BrTableData {
-        table: Default::default(),
+    use Instruction::*;
+
+    let default_table_data = gear_wasm_instrument::BrTable {
         default: 0,
+        targets: vec![],
     };
 
     // A set of instructions weights for which the Gear provides.
@@ -891,42 +805,42 @@ fn all_measured_instructions() -> Vec<Instruction> {
         Else,
         I32Const(0),
         I64Const(0),
-        Block(BlockType::NoResult),
-        Loop(BlockType::NoResult),
+        Block(BlockType::Empty),
+        Loop(BlockType::Empty),
         Nop,
         Drop,
-        I32Load(0, 0),
-        I32Load8S(0, 0),
-        I32Load8U(0, 0),
-        I32Load16S(0, 0),
-        I32Load16U(0, 0),
-        I64Load(0, 0),
-        I64Load8S(0, 0),
-        I64Load8U(0, 0),
-        I64Load16S(0, 0),
-        I64Load16U(0, 0),
-        I64Load32S(0, 0),
-        I64Load32U(0, 0),
-        I32Store(0, 0),
-        I32Store8(0, 0),
-        I32Store16(0, 0),
-        I64Store(0, 0),
-        I64Store8(0, 0),
-        I64Store16(0, 0),
-        I64Store32(0, 0),
+        I32Load(MemArg::zero()),
+        I32Load8S(MemArg::zero()),
+        I32Load8U(MemArg::zero()),
+        I32Load16S(MemArg::zero()),
+        I32Load16U(MemArg::zero()),
+        I64Load(MemArg::zero()),
+        I64Load8S(MemArg::zero()),
+        I64Load8U(MemArg::zero()),
+        I64Load16S(MemArg::zero()),
+        I64Load16U(MemArg::zero()),
+        I64Load32S(MemArg::zero()),
+        I64Load32U(MemArg::zero()),
+        I32Store(MemArg::zero()),
+        I32Store8(MemArg::zero()),
+        I32Store16(MemArg::zero()),
+        I64Store(MemArg::zero()),
+        I64Store8(MemArg::zero()),
+        I64Store16(MemArg::zero()),
+        I64Store32(MemArg::zero()),
         Select,
-        If(BlockType::NoResult),
+        If(BlockType::Empty),
         Br(0),
         BrIf(0),
         Call(0),
-        GetLocal(0),
-        SetLocal(0),
-        TeeLocal(0),
-        GetGlobal(0),
-        SetGlobal(0),
-        CurrentMemory(0),
-        CallIndirect(0, 0),
-        BrTable(default_table_data.into()),
+        LocalGet(0),
+        LocalSet(0),
+        LocalTee(0),
+        GlobalGet(0),
+        GlobalSet(0),
+        MemorySize(0),
+        CallIndirect(0),
+        BrTable(default_table_data),
         I32Clz,
         I64Clz,
         I32Ctz,
@@ -935,8 +849,8 @@ fn all_measured_instructions() -> Vec<Instruction> {
         I64Popcnt,
         I32Eqz,
         I64Eqz,
-        I64ExtendSI32,
-        I64ExtendUI32,
+        I64ExtendI32S,
+        I64ExtendI32U,
         I32WrapI64,
         I32Eq,
         I64Eq,
@@ -1000,13 +914,8 @@ fn default_wasm_module() -> Module {
         (func $handle)
         (func $init)
     )"#;
-    Module::from_bytes(
-        wabt::Wat2Wasm::new()
-            .validate(false)
-            .convert(simple_wat)
-            .expect("failed to parse module"),
-    )
-    .expect("module instantiation failed")
+    Module::new(&wat::parse_str(simple_wat).expect("failed to parse module"))
+        .expect("module instantiation failed")
 }
 
 // This test must never fail during local development/release.

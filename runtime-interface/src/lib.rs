@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,6 @@
 
 extern crate alloc;
 
-use byteorder::{ByteOrder, LittleEndian};
 use codec::{Decode, Encode};
 use gear_core::{
     gas::GasLeft,
@@ -50,7 +49,9 @@ use {
 
 pub use gear_sandbox_interface::sandbox;
 #[cfg(feature = "std")]
-pub use gear_sandbox_interface::{detail as sandbox_detail, Instantiate};
+pub use gear_sandbox_interface::{
+    detail as sandbox_detail, init as sandbox_init, Instantiate, SandboxBackend,
+};
 
 const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
@@ -151,7 +152,10 @@ pub enum ProcessAccessErrorVer1 {
 pub trait GearRI {
     #[version(2)]
     fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
-        lazy_pages_detail::pre_process_memory_accesses(reads, writes, gas_bytes)
+        let mut gas_counter = u64::from_le_bytes(*gas_bytes);
+        let res = lazy_pages_detail::pre_process_memory_accesses(reads, writes, &mut gas_counter);
+        gas_bytes.copy_from_slice(&gas_counter.to_le_bytes());
+        res
     }
 
     fn lazy_pages_status() -> (Status,) {
@@ -222,7 +226,7 @@ pub trait GearRI {
 pub mod lazy_pages_detail {
     use super::*;
 
-    pub fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_bytes: &mut [u8; 8]) -> u8 {
+    pub fn pre_process_memory_accesses(reads: &[u8], writes: &[u8], gas_counter: &mut u64) -> u8 {
         let mem_interval_size = size_of::<MemoryInterval>();
         let reads_len = reads.len();
         let writes_len = writes.len();
@@ -232,20 +236,13 @@ pub mod lazy_pages_detail {
         let mut writes_intervals = Vec::with_capacity(writes_len / mem_interval_size);
         deserialize_mem_intervals(writes, &mut writes_intervals);
 
-        let mut gas_counter = LittleEndian::read_u64(gas_bytes);
-
-        let res = match gear_lazy_pages::pre_process_memory_accesses(
+        gear_lazy_pages::pre_process_memory_accesses(
             &reads_intervals,
             &writes_intervals,
-            &mut gas_counter,
-        ) {
-            Ok(_) => 0,
-            Err(err) => err.into(),
-        };
-
-        LittleEndian::write_u64(gas_bytes, gas_counter);
-
-        res
+            gas_counter,
+        )
+        .map(|_| 0)
+        .unwrap_or_else(|err| err.into())
     }
 
     pub fn lazy_pages_status() -> (Status,) {

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,146 +16,168 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{bail, Context};
-
-use gear_wasm_gen::SyscallName;
-use gear_wasm_instrument::{parity_wasm::elements::Module, GLOBAL_NAME_GAS};
-use sandbox_wasmi::{
-    memory_units::Pages, ExternVal, FuncInstance, FuncRef, ImportsBuilder, MemoryInstance,
-    MemoryRef, Module as WasmiModule, ModuleImportResolver, ModuleInstance, ModuleRef,
-    RuntimeValue, Trap, TrapCode, ValueType,
-};
-
 use crate::{
     globals::{get_globals, globals_list, InstanceAccessGlobal},
     lazy_pages::{self, FuzzerLazyPagesContext},
     RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
-
+use anyhow::{anyhow, bail, Context};
 use error::CustomHostError;
+use gear_wasm_gen::SyscallName;
+use gear_wasm_instrument::{Module, GLOBAL_NAME_GAS};
+use region::{Allocation, Protection};
+use std::slice;
+use wasmi::{
+    core::UntypedVal, Caller, Config, Engine, Error, Instance, Linker, Memory, MemoryType,
+    Module as WasmiModule, StackLimits, Store, Val,
+};
+
 mod error;
 
-struct Resolver {
-    memory: MemoryRef,
+#[derive(Clone)]
+struct InstanceBundle {
+    instance: Instance,
+    // NOTE: Due to the implementation of lazy pages, which need to access the Store to retrieve globals,
+    // we have to use a second mutable reference to the Store in the form of a raw pointer
+    // to use it within the lazy pages' signal handler context.
+    //
+    // We consider it relatively safe because we rely on the fact that during an external function call,
+    // Wasmi does not access globals mutably, allowing us to access them mutably from the lazy pages' signal handler.
+    store: *mut Store<()>,
 }
 
-impl ModuleImportResolver for Resolver {
-    fn resolve_func(
-        &self,
-        field_name: &str,
-        _signature: &sandbox_wasmi::Signature,
-    ) -> Result<FuncRef, sandbox_wasmi::Error> {
-        if field_name == SyscallName::SystemBreak.to_str() {
-            Ok(FuncInstance::alloc_host(
-                sandbox_wasmi::Signature::new([ValueType::I32].as_slice(), None),
-                0,
-            ))
-        } else {
-            Err(sandbox_wasmi::Error::Instantiation(format!(
-                "Export '{field_name}' not found"
-            )))
-        }
-    }
-
-    fn resolve_memory(
-        &self,
-        _field_name: &str,
-        _memory_type: &sandbox_wasmi::MemoryDescriptor,
-    ) -> Result<MemoryRef, sandbox_wasmi::Error> {
-        Ok(self.memory.clone())
-    }
-}
-
-struct Externals {
-    gr_system_break_idx: usize,
-}
-
-impl sandbox_wasmi::Externals for Externals {
-    fn invoke_index(
-        &mut self,
-        index: usize,
-        _args: sandbox_wasmi::RuntimeArgs,
-    ) -> Result<Option<sandbox_wasmi::RuntimeValue>, sandbox_wasmi::Trap> {
-        Err(if index == self.gr_system_break_idx {
-            sandbox_wasmi::Trap::host(CustomHostError::from("out of gas"))
-        } else {
-            TrapCode::Unreachable.into()
-        })
-    }
-}
-
-impl InstanceAccessGlobal for ModuleRef {
+impl InstanceAccessGlobal for InstanceBundle {
     fn set_global(&self, name: &str, value: i64) -> anyhow::Result<()> {
-        let Some(ExternVal::Global(global)) = self.export_by_name(name) else {
-            bail!("global '{name}' not found");
-        };
-
-        Ok(global.set(RuntimeValue::I64(value))?)
+        let global = self
+            .instance
+            .get_global(unsafe { &*self.store }, name)
+            .ok_or_else(|| anyhow!("failed to get global {name}"))?;
+        global.set(unsafe { &mut *self.store }, Val::I64(value))?;
+        Ok(())
     }
 
     fn get_global(&self, name: &str) -> anyhow::Result<i64> {
-        let Some(ExternVal::Global(global)) = self.export_by_name(name) else {
-            bail!("global '{name}' not found");
-        };
-
-        let RuntimeValue::I64(v) = global.get() else {
-            bail!("global is not an i64");
+        let global = self
+            .instance
+            .get_global(unsafe { &*self.store }, name)
+            .ok_or_else(|| anyhow!("failed to get global {name}"))?;
+        let Val::I64(v) = global.get(unsafe { &mut *self.store }) else {
+            bail!("global {name} is not an i64")
         };
 
         Ok(v)
     }
 }
 
+fn config() -> Config {
+    let register_len = size_of::<UntypedVal>();
+
+    const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
+    // Fuzzer requires bigger stack size
+    const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT * 16;
+    const DEFAULT_MAX_RECURSION_DEPTH: usize = 16384;
+
+    let mut config = Config::default();
+    config.set_stack_limits(
+        StackLimits::new(
+            DEFAULT_MIN_VALUE_STACK_HEIGHT / register_len,
+            DEFAULT_MAX_VALUE_STACK_HEIGHT / register_len,
+            DEFAULT_MAX_RECURSION_DEPTH,
+        )
+        .expect("infallible"),
+    );
+
+    config
+}
+
+fn memory(store: &mut Store<()>) -> anyhow::Result<(Memory, Allocation)> {
+    let mut alloc = region::alloc(u32::MAX as usize, Protection::READ_WRITE)
+        .unwrap_or_else(|err| unreachable!("Failed to allocate memory: {err}"));
+    // # Safety:
+    //
+    // `wasmi::Memory::new_static()` requires static lifetime so we convert our buffer to it
+    // but actual lifetime of the buffer is lifetime of `wasmi::Store` itself,
+    // because the store might hold reference to the memory.
+    let memref =
+        unsafe { slice::from_raw_parts_mut::<'static, u8>(alloc.as_mut_ptr(), alloc.len()) };
+    let ty = MemoryType::new(INITIAL_PAGES, None).context("failed to create memory type")?;
+    let memref = Memory::new_static(store, ty, memref).context("failed to create memory")?;
+
+    Ok((memref, alloc))
+}
+
 pub struct WasmiRunner;
 
 impl Runner for WasmiRunner {
     fn run(module: &Module) -> anyhow::Result<RunResult> {
+        let engine = Engine::new(&config());
+
         let wasmi_module =
-            WasmiModule::from_buffer(module.clone().into_bytes().map_err(anyhow::Error::msg)?)
+            WasmiModule::new(&engine, &module.serialize().map_err(anyhow::Error::msg)?)
                 .context("failed to load wasm")?;
 
-        let memory = MemoryInstance::alloc(Pages(INITIAL_PAGES as usize), None)
-            .context("failed to allocate memory")?;
+        let mut store = Store::new(&engine, ());
 
-        let mem_ptr = memory.direct_access().as_ref().as_ptr() as usize;
-        let mem_size = memory.direct_access().as_ref().len();
+        // NOTE: alloc should be dropped after exit of this function's scope
+        let (memory, _alloc) = memory(&mut store)?;
+        let mem_ptr = memory.data_ptr(&store) as usize;
+        let mem_size = memory.data_size(&store);
 
-        let resolver = Resolver { memory };
-        let imports = ImportsBuilder::new().with_resolver(MODULE_ENV, &resolver);
+        let mut linker: Linker<()> = <Linker<()>>::new(&engine);
+        linker
+            .func_wrap(
+                MODULE_ENV,
+                SyscallName::SystemBreak.to_str(),
+                |_caller: Caller<()>, _param: i32| -> Result<(), Error> {
+                    Err(Error::host(CustomHostError::from("out of gas")))
+                },
+            )
+            .context("failed to define host function")?;
 
-        let instance = ModuleInstance::new(&wasmi_module, &imports)
+        linker
+            .define(MODULE_ENV, "memory", memory)
+            .context("failed to define memory")?;
+
+        let instance = linker
+            .instantiate(&mut store, &wasmi_module)
             .context("failed to instantiate wasm module")?
-            .assert_no_start();
+            .ensure_no_start(&mut store)
+            .context("failed to ensure no start")?;
 
-        instance
-            .set_global(GLOBAL_NAME_GAS, PROGRAM_GAS)
+        let gas = instance
+            .get_global(&store, GLOBAL_NAME_GAS)
+            .context("failed to get gas")?;
+        gas.set(&mut store, Val::I64(PROGRAM_GAS))
             .context("failed to set gas")?;
 
+        let global_accessor = InstanceBundle {
+            instance,
+            store: &mut store,
+        };
+
+        let init_fn = instance
+            .get_func(&store, "init")
+            .context("failed to get export fn")?;
+
         lazy_pages::init_fuzzer_lazy_pages(FuzzerLazyPagesContext {
-            instance: Box::new(instance.clone()),
+            instance: Box::new(global_accessor.clone()),
             memory_range: mem_ptr..(mem_ptr + mem_size),
             pages: Default::default(),
             globals_list: globals_list(module),
         });
 
-        if let Err(error) = instance.invoke_export(
-            "init",
-            &[],
-            &mut Externals {
-                gr_system_break_idx: 0,
-            },
-        ) {
-            if let sandbox_wasmi::Error::Trap(Trap::Host(_)) = error {
-                log::info!("out of gas");
+        if let Err(error) = init_fn.call(&mut store, &[], &mut []) {
+            if let Some(custom_error) = error.downcast_ref::<CustomHostError>() {
+                log::info!("{custom_error}");
             } else {
                 Err(error)?;
             }
         }
 
         let result = RunResult {
-            gas_global: instance.get_global(GLOBAL_NAME_GAS)?,
+            gas_global: gas.get(&store).i64().context("failed to get gas global")?,
             pages: lazy_pages::get_touched_pages(),
-            globals: get_globals(&instance, module).context("failed to get globals")?,
+            globals: get_globals(&global_accessor, module).context("failed to get globals")?,
         };
 
         Ok(result)

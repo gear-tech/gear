@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -52,6 +52,8 @@ impl Workspace {
                 original_manifest,
                 mutable_manifest,
                 path,
+                is_published: true,
+                is_actualized: true,
             },
             lock_file: LockFile {
                 content,
@@ -66,7 +68,7 @@ impl Workspace {
             let version = if let Some(version) = version {
                 version
             } else {
-                workspace.version()? + "-" + &version::hash()?
+                workspace.version()? + "-" + &version::hash()? + "commit"
             };
 
             workspace.mutable_manifest["workspace"]["package"]["version"] =
@@ -187,12 +189,16 @@ pub struct Manifest {
     pub mutable_manifest: DocumentMut,
     /// Path of the manifest
     pub path: PathBuf,
+    /// Whether the crate is published
+    pub is_published: bool,
+    /// Whether the current version is published
+    pub is_actualized: bool,
 }
 
 impl Manifest {
     /// Complete the manifest of the specified crate from
     /// the workspace manifest
-    pub fn new(pkg: &Package) -> Result<Self> {
+    pub fn new(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Self> {
         let original_manifest: DocumentMut = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         let mut mutable_manifest = original_manifest.clone();
 
@@ -206,6 +212,8 @@ impl Manifest {
             original_manifest,
             mutable_manifest,
             path: pkg.manifest_path.clone().into(),
+            is_published,
+            is_actualized,
         })
     }
 

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -86,8 +86,7 @@ impl<Ext: BackendExternalities, Mem> State<Ext, Mem> {
         ) {
             termination_reason
         } else {
-            let err_msg =
-                "State::terminate: Termination reason is not success, but executor successfully ends execution";
+            let err_msg = "State::terminate: Termination reason is not success, but executor successfully ends execution";
 
             log::error!("{err_msg}");
             unreachable!("{err_msg}")

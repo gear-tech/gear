@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -75,21 +75,20 @@ where
     <T as ProxyConfig>::ProxyType: From<BuiltinProxyType>,
     CallOf<T>: From<pallet_proxy::Call<T>>,
 {
-    type Error = BuiltinActorError;
-
-    fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64) {
-        let Ok(request) = Request::decode(&mut dispatch.payload_bytes()) else {
-            return (Err(BuiltinActorError::DecodingError), 0);
-        };
+    fn handle(
+        dispatch: &StoredDispatch,
+        context: &mut BuiltinContext,
+    ) -> Result<Payload, BuiltinActorError> {
+        let request = Request::decode(&mut dispatch.payload_bytes())
+            .map_err(|_| BuiltinActorError::DecodingError)?;
 
         let origin = dispatch.source();
 
-        match Self::cast(request) {
-            Ok(call) => {
-                let (result, actual_gas) = Pallet::<T>::dispatch_call(origin, call, gas_limit);
-                (result.map(|_| Default::default()), actual_gas)
-            }
-            Err(e) => (Err(e), gas_limit),
-        }
+        let call = Self::cast(request)?;
+        Pallet::<T>::dispatch_call(origin, call, context).map(|_| Default::default())
+    }
+
+    fn max_gas() -> u64 {
+        Default::default()
     }
 }

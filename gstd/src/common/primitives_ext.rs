@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -39,13 +39,13 @@ mod private {
 ///
 /// static mut RESERVED: Option<ReservationId> = None;
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn init() {
 ///     let reservation_id = ReservationId::reserve(50_000_000, 7).expect("Unable to reserve");
 ///     unsafe { RESERVED = Some(reservation_id) };
 /// }
 ///
-/// #[no_mangle]
+/// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
 ///     let reservation_id = unsafe { RESERVED.take().expect("Empty `RESERVED`") };
 ///     reservation_id.unreserve().expect("Unable to unreserve");
@@ -67,7 +67,7 @@ pub trait ReservationIdExt: private::Sealed + Sized {
     /// ```
     /// use gstd::{msg, prelude::*, ReservationId};
     ///
-    /// #[no_mangle]
+    /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
     ///     let reservation_id = ReservationId::reserve(50_000_000, 1).expect("Unable to reserve");
     ///     msg::reply_bytes_from_reservation(reservation_id.clone(), b"PONG", 0)

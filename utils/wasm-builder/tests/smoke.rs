@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_wasm_builder::TARGET;
+use gear_wasm_instrument::{Export, Module};
 use std::{fs, process::Command, sync::OnceLock};
 
 struct CargoRunner(Command);
@@ -57,10 +58,8 @@ fn install_stable_toolchain() {
             .arg("toolchain")
             .arg("install")
             .arg("stable")
-            .arg("--component")
-            .arg("llvm-tools")
             .arg("--target")
-            .arg("wasm32-unknown-unknown")
+            .arg("wasm32v1-none")
             .status()
             .expect("rustup run error");
         assert!(status.success());
@@ -72,8 +71,7 @@ fn install_stable_toolchain() {
 fn test_debug() {
     install_stable_toolchain();
 
-    //TODO: uncomment after solving issue #3915
-    //CargoRunner::new().args(["test"]).run();
+    CargoRunner::new().args(["test"]).run();
     CargoRunner::stable().args(["test"]).run();
 }
 
@@ -91,8 +89,7 @@ fn build_debug() {
 fn test_release() {
     install_stable_toolchain();
 
-    //TODO: uncomment after solving issue #3915
-    //CargoRunner::new().args(["test", "--release"]).run();
+    CargoRunner::new().args(["test", "--release"]).run();
     CargoRunner::stable().args(["test", "--release"]).run();
 }
 
@@ -128,22 +125,24 @@ fn no_infinite_build() {
 #[test]
 fn features_tracking() {
     #[track_caller]
-    fn read_export_entry(name: &str) -> Option<parity_wasm::elements::ExportEntry> {
-        parity_wasm::deserialize_file(format!(
-            "test-program/target/wasm32-unknown-unknown/{}/test_program.wasm",
+    fn read_export_entry(name: &str) -> Option<Export> {
+        let wasm = fs::read(format!(
+            "test-program/target/wasm32-gear/{}/test_program.wasm",
             if cfg!(debug_assertions) {
                 "debug"
             } else {
                 "release"
             }
         ))
-        .unwrap()
-        .export_section()
-        .unwrap()
-        .entries()
-        .iter()
-        .find(|entry| entry.field() == name)
-        .cloned()
+        .unwrap();
+        Module::new(&wasm)
+            .unwrap()
+            .export_section
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|entry| entry.name == name)
+            .cloned()
     }
 
     CargoRunner::new().args(["build", "--features=a"]).run();
@@ -164,7 +163,7 @@ fn build_release_for_target_deny_duplicate_crate() {
         .0;
     cmd.arg("--color=always");
     cmd.arg("--manifest-path=test-program/Cargo.toml");
-    cmd.arg("--config=env.GEAR_WASM_BUILDER_DENIED_DUPLICATE_CRATES=\'syn\'");
+    cmd.env("__GEAR_WASM_BUILDER_DENIED_DUPLICATE_CRATES", "syn");
 
     let status = cmd.status().expect("cargo run error");
     assert!(!status.success())

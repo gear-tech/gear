@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -56,7 +56,7 @@
 //!     answer: u8,
 //! }
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! extern "C" fn handle() {
 //!     let payload: Payload = msg::load().expect("Unable to decode payload");
 //!     if payload.question == "life-universe-everything" {
@@ -165,8 +165,8 @@ pub use async_runtime::{handle_reply_with_hook, message_loop};
 pub use common::errors;
 pub use config::{Config, SYSTEM_RESERVE};
 pub use gcore::{
-    ext, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
-    Ss58Address, Value,
+    debug, ext, static_mut, static_ref, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas,
+    GasMultiplier, MessageId, Percent, Ss58Address, Value,
 };
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;

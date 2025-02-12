@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 use crate::{builder_error::BuilderError, multiple_crate_versions};
 use anyhow::{ensure, Context, Result};
-use cargo_metadata::{Metadata, MetadataCommand, Package};
+use cargo_metadata::{CrateType, Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
 
 /// Helper to get a crate info extracted from the `Cargo.toml`.
@@ -34,6 +34,8 @@ pub struct CrateInfo {
     pub features: BTreeMap<String, Vec<String>>,
     /// Crate custom profiles
     pub profiles: BTreeMap<String, toml::Value>,
+    /// Workspace patches
+    pub patch: BTreeMap<String, toml::Value>,
 }
 
 impl CrateInfo {
@@ -63,6 +65,12 @@ impl CrateInfo {
             .map(|(k, v)| Ok((k, toml::Value::try_from(v)?)))
             .collect::<Result<_>>()
             .context("failed to convert profile to `toml::Value`")?;
+        let patch = manifest
+            .patch
+            .into_iter()
+            .map(|(k, v)| Ok((k, toml::Value::try_from(v)?)))
+            .collect::<Result<_>>()
+            .context("failed to convert patch to `toml::Value`")?;
 
         multiple_crate_versions::check(&metadata, &root_package.id)?;
 
@@ -77,6 +85,7 @@ impl CrateInfo {
             version,
             features,
             profiles,
+            patch,
         })
     }
 
@@ -100,7 +109,7 @@ impl CrateInfo {
         // is the "compiler recommended" style of library.
         //
         // see also https://doc.rust-lang.org/reference/linkage.html
-        let validated_lib = |ty: &String| ty == "lib" || ty == "rlib";
+        let validated_lib = |ty: &CrateType| matches!(ty, CrateType::Lib | CrateType::RLib);
         let pkg_snake_case_name = pkg.name.replace('-', "_");
 
         // Check for rustc version. See https://github.com/rust-lang/cargo/pull/12783

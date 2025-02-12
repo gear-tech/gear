@@ -2,7 +2,7 @@
 FROM amazonlinux:2023 as builder
 
 ARG PROFILE=production
-ARG TOOLCHAIN=nightly-2023-04-25
+ARG TOOLCHAIN=nightly-2025-01-09
 
 RUN yum update -y && \
     yum install -y clang gcc git gzip make tar wget unzip && \
@@ -32,7 +32,7 @@ COPY . /gear
 WORKDIR /gear
 
 RUN rustup toolchain install $TOOLCHAIN && \
-    rustup target add wasm32-unknown-unknown --toolchain $TOOLCHAIN
+    rustup target add wasm32v1-none --toolchain $TOOLCHAIN
 
 RUN cargo build -p gear-cli --profile $PROFILE
 

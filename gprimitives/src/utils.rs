@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -28,7 +28,7 @@ const MEDIAN: usize = (LEN + 1) / 2;
 
 pub(crate) struct ByteArray<'a>(pub &'a [u8; LEN]);
 
-impl<'a> fmt::Display for ByteArray<'a> {
+impl fmt::Display for ByteArray<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut e1 = MEDIAN;
         let mut s2 = MEDIAN;
@@ -68,7 +68,7 @@ impl<T: FromStr> HexStrVisitor<T> {
 }
 
 #[cfg(feature = "serde")]
-impl<'de, T: FromStr> de::Visitor<'de> for HexStrVisitor<T> {
+impl<T: FromStr> de::Visitor<'_> for HexStrVisitor<T> {
     type Value = T;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

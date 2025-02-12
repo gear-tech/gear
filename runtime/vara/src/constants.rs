@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -43,23 +43,23 @@ pub mod currency {
 pub mod time {
     use runtime_primitives::{BlockNumber, Moment};
 
-    /// Since BABE is probabilistic this is the average expected block time that
-    /// we are targeting. Blocks will be produced at a minimum duration defined
-    /// by `SLOT_DURATION`, but some slots will not be allocated to any
-    /// authority and hence no block will be produced. We expect to have this
-    /// block time on average following the defined slot duration and the value
-    /// of `c` configured for BABE (where `1 - c` represents the probability of
-    /// a slot being empty).
-    /// This value is only used indirectly to define the unit constants below
-    /// that are expressed in blocks. The rest of the code should use
-    /// `SLOT_DURATION` instead (like the Timestamp pallet for calculating the
-    /// minimum period).
-    ///
-    /// If using BABE with secondary slots (default) then all of the slots will
-    /// always be assigned, in which case `MILLISECS_PER_BLOCK` and
-    /// `SLOT_DURATION` should have the same value.
-    ///
-    /// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
+    // Since BABE is probabilistic this is the average expected block time that
+    // we are targeting. Blocks will be produced at a minimum duration defined
+    // by `SLOT_DURATION`, but some slots will not be allocated to any
+    // authority and hence no block will be produced. We expect to have this
+    // block time on average following the defined slot duration and the value
+    // of `c` configured for BABE (where `1 - c` represents the probability of
+    // a slot being empty).
+    // This value is only used indirectly to define the unit constants below
+    // that are expressed in blocks. The rest of the code should use
+    // `SLOT_DURATION` instead (like the Timestamp pallet for calculating the
+    // minimum period).
+    //
+    // If using BABE with secondary slots (default) then all of the slots will
+    // always be assigned, in which case `MILLISECS_PER_BLOCK` and
+    // `SLOT_DURATION` should have the same value.
+    //
+    // <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 
     pub const MILLISECS_PER_BLOCK: Moment = 3000;
 

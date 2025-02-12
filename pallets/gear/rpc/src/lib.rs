@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -25,9 +25,9 @@
 use gear_common::Origin;
 use gear_core_errors::*;
 use jsonrpsee::{
-    core::{async_trait, Error as JsonRpseeError, RpcResult},
+    core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::error::{CallError, ErrorObject},
+    types::{error::ErrorObject, ErrorObjectOwned},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
@@ -38,13 +38,8 @@ use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
 /// Converts a runtime trap into a [`CallError`].
-fn runtime_error_into_rpc_error(err: impl std::fmt::Display) -> JsonRpseeError {
-    CallError::Custom(ErrorObject::owned(
-        8000,
-        "Runtime error",
-        Some(format!("{err}")),
-    ))
-    .into()
+fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> ErrorObjectOwned {
+    ErrorObject::owned(8000, "Runtime error", Some(format!("{:?}", err)))
 }
 
 #[rpc(server)]
@@ -185,17 +180,17 @@ where
         runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
     }
 
-    fn get_api_version(&self, at_hash: <Block as BlockT>::Hash) -> Result<u32, CallError> {
+    fn get_api_version(&self, at_hash: <Block as BlockT>::Hash) -> Result<u32, ErrorObjectOwned> {
         self.client
             .runtime_api()
             .api_version::<dyn GearRuntimeApi<Block>>(at_hash)
-            .map_err(|e| into_call_err(e, "Failed to get gear runtime api version"))?
+            .map_err(|e| ErrorObject::owned(8000, e.to_string(), None::<String>))?
             .ok_or_else(|| {
-                CallError::Custom(ErrorObject::owned(
+                ErrorObject::owned(
                     8000,
                     "Gear runtime api wasn't found in the runtime",
                     None::<String>,
-                ))
+                )
             })
     }
 
@@ -254,10 +249,6 @@ impl From<Error> for i64 {
             Error::DecodeError => 2,
         }
     }
-}
-
-fn into_call_err(error: impl ToString, desc: &'static str) -> CallError {
-    CallError::Custom(ErrorObject::owned(8000, desc, Some(error.to_string())))
 }
 
 #[async_trait]
@@ -460,15 +451,14 @@ where
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Vec<Bytes>> {
         if batch_id_payload.len() > self.max_batch_size as usize {
-            return Err(CallError::Custom(ErrorObject::owned(
+            return Err(ErrorObject::owned(
                 8000,
                 "Runtime error",
                 Some(format!(
                     "Batch size must be lower than {:?}",
                     self.max_batch_size
                 )),
-            ))
-            .into());
+            ));
         }
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
@@ -555,15 +545,14 @@ where
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<Vec<Bytes>> {
         if batch_id_payload.len() > self.max_batch_size as usize {
-            return Err(CallError::Custom(ErrorObject::owned(
+            return Err(ErrorObject::owned(
                 8000,
                 "Runtime error",
                 Some(format!(
                     "Batch size must be lower than {:?}",
                     self.max_batch_size
                 )),
-            ))
-            .into());
+            ));
         }
 
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);

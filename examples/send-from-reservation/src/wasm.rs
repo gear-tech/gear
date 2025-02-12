@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use gstd::{msg, prelude::*, ReservationId};
 #[derive(Debug, Encode, Decode)]
 pub struct Receive([u8; 32]);
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let action: HandleAction = msg::load().expect("Failed to load handle payload");
     match action {
@@ -84,7 +84,7 @@ extern "C" fn handle() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {
     let Receive(user) = msg::load().expect("Failed to load handle payload");
     assert_eq!(msg::value(), 900);

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,60 +17,63 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Processor;
-use anyhow::{ensure, Result};
-use ethexe_db::CodesStorage;
+use anyhow::{anyhow, Result};
+use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
 use ethexe_runtime_common::{
-    state::{ComplexStorage as _, Dispatch},
-    InBlockTransitions, ScheduleHandler,
+    state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 
 pub(crate) mod events;
 pub(crate) mod run;
 
-impl Processor {
-    pub fn run_schedule(&mut self, in_block_transitions: &mut InBlockTransitions) {
-        let tasks = in_block_transitions.take_actual_tasks();
+pub struct ProcessingHandler {
+    pub block_hash: H256,
+    pub db: Database,
+    pub transitions: InBlockTransitions,
+}
 
-        log::debug!(
-            "Running schedule for #{}: tasks are {tasks:?}",
-            in_block_transitions.header().height
-        );
-
-        let mut handler = ScheduleHandler {
-            in_block_transitions,
+impl ProcessingHandler {
+    pub fn controller(&mut self) -> TransitionController<'_, Database> {
+        TransitionController {
             storage: &self.db,
-        };
-
-        for task in tasks {
-            let _gas = task.process_with(&mut handler);
+            transitions: &mut self.transitions,
         }
     }
 
-    pub(crate) fn handle_message_queueing(
+    pub fn update_state<T>(
         &mut self,
-        state_hash: H256,
-        dispatch: Dispatch,
-    ) -> Result<H256> {
-        self.handle_messages_queueing(state_hash, vec![dispatch])
+        program_id: ActorId,
+        f: impl FnOnce(&mut ProgramState, &Database, &mut InBlockTransitions) -> T,
+    ) -> T {
+        self.controller().update_state(program_id, f)
     }
+}
 
-    pub(crate) fn handle_messages_queueing(
-        &mut self,
-        state_hash: H256,
-        dispatches: Vec<Dispatch>,
-    ) -> Result<H256> {
-        if dispatches.is_empty() {
-            return Ok(state_hash);
-        }
+impl Processor {
+    pub fn handler(&self, block_hash: H256) -> Result<ProcessingHandler> {
+        let header = self
+            .db
+            .block_header(block_hash)
+            .ok_or_else(|| anyhow!("failed to get block header for under-processing block"))?;
 
-        self.db.mutate_state(state_hash, |processor, state| {
-            ensure!(state.program.is_active(), "program should be active");
+        let states = self
+            .db
+            .block_start_program_states(block_hash)
+            .ok_or_else(|| {
+                anyhow!("failed to get block start program states for under-processing block")
+            })?;
 
-            state.queue_hash = processor
-                .modify_queue(state.queue_hash.clone(), |queue| queue.extend(dispatches))?;
+        let schedule = self.db.block_start_schedule(block_hash).ok_or_else(|| {
+            anyhow!("failed to get block start schedule for under-processing block")
+        })?;
 
-            Ok(())
+        let transitions = InBlockTransitions::new(header, states, schedule);
+
+        Ok(ProcessingHandler {
+            block_hash,
+            db: self.db.clone(),
+            transitions,
         })
     }
 
@@ -96,5 +99,24 @@ impl Processor {
         );
 
         Ok(Some(code_id))
+    }
+}
+
+impl ProcessingHandler {
+    pub fn run_schedule(&mut self) {
+        let tasks = self.transitions.take_actual_tasks();
+
+        log::debug!(
+            "Running schedule for #{}: tasks are {tasks:?}",
+            self.transitions.header().height
+        );
+
+        let mut handler = ScheduleHandler {
+            controller: self.controller(),
+        };
+
+        for task in tasks {
+            let _gas = task.process_with(&mut handler);
+        }
     }
 }

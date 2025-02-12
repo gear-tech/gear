@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,6 @@ use crate::{
     block_builder::{BlockBuilder, BlockBuilderBuilder},
     ProposerFactory,
 };
-
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
@@ -41,7 +40,6 @@ use pallet_gear_rpc_runtime_api::GearApi;
 use parking_lot::{Mutex, RwLock};
 use runtime_primitives::{Block as TestBlock, BlockNumber};
 use sc_client_api::Backend as _;
-use sc_executor::{NativeElseWasmExecutor, WasmExecutor};
 use sc_service::client::Client;
 use sc_transaction_pool::{BasicPool, FullPool};
 use sc_transaction_pool_api::{
@@ -69,7 +67,7 @@ use std::{
 };
 use testing::{
     client::{
-        Backend as TestBackend, Client as TestClient, ClientBlockImportExt, ExecutorDispatch,
+        Backend as TestBackend, Client as TestClient, ClientBlockImportExt, RuntimeExecutor,
         TestClientBuilder, TestClientBuilderExt,
     },
     keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
@@ -80,13 +78,9 @@ use vara_runtime::{
 
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 
-fn get_executor() -> &'static RwLock<ExecutorDispatch> {
-    static EXECUTOR: OnceLock<RwLock<ExecutorDispatch>> = OnceLock::new();
-    EXECUTOR.get_or_init(|| {
-        RwLock::new(NativeElseWasmExecutor::new_with_wasm_executor(
-            WasmExecutor::builder().build(),
-        ))
-    })
+fn get_executor() -> &'static RwLock<RuntimeExecutor> {
+    static EXECUTOR: OnceLock<RwLock<RuntimeExecutor>> = OnceLock::new();
+    EXECUTOR.get_or_init(|| RwLock::new(RuntimeExecutor::builder().build()))
 }
 
 const SOURCE: TransactionSource = TransactionSource::External;
@@ -144,7 +138,7 @@ where
 {
     extrinsics
         .into_iter()
-        .map(|x| sign(x, spec_version, tx_version, best_hash).into())
+        .map(|x| sign(x, spec_version, tx_version, best_hash, None).into())
         .collect()
 }
 
@@ -252,7 +246,7 @@ pub fn init() -> (
     let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
     let executor = get_executor().read();
-    let client = Arc::new(client_builder.build_with_wasm_executor(Some(executor.clone())));
+    let client = Arc::new(client_builder.build(Some(executor.clone())));
     let spawner = sp_core::testing::TaskExecutor::new();
     let txpool = BasicPool::new_full(
         Default::default(),
@@ -268,7 +262,7 @@ pub fn init() -> (
 }
 
 pub fn create_proposal<A>(
-    mut client: Arc<TestClient>,
+    client: Arc<TestClient>,
     _backend: Arc<TestBackend>,
     txpool: Arc<A>,
     spawner: sp_core::testing::TaskExecutor,
@@ -537,6 +531,7 @@ fn test_block_max_gas_works() {
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
+        None,
     )
     .into()];
     submit_and_maintain(client.clone(), txpool.clone(), extrinsics.clone());
@@ -659,6 +654,7 @@ fn test_pseudo_inherent_discarded_from_txpool() {
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
+        None,
     );
     // A `DispatchClass::Normal` extrinsic - supposed to end up in the txpool
     let legit_xt = sign(
@@ -669,6 +665,7 @@ fn test_pseudo_inherent_discarded_from_txpool() {
         VERSION.spec_version,
         VERSION.transaction_version,
         genesis_hash,
+        None,
     );
 
     let extrinsics = vec![
@@ -716,6 +713,7 @@ fn test_block_builder_cloned_ok() {
         .unwrap();
 
     extrinsics.into_iter().for_each(|xt: OpaqueExtrinsic| {
+        log::info!("{:?}", &xt);
         assert_ok!(block_builder.push(xt));
     });
 

@@ -5,20 +5,20 @@ include!("rebuild_test.rs");
 use gstd::{debug, msg};
 
 #[cfg(feature = "a")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_reply() {}
 
 #[cfg(feature = "b")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_signal() {}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     debug!("handle()");
     msg::reply_bytes("Hello world!", 0).unwrap();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     debug!("init()");
 }
@@ -27,12 +27,13 @@ extern "C" fn init() {
 mod gtest_tests {
     extern crate std;
 
-    use gtest::{Log, Program, System};
+    use gtest::{constants::UNITS, Log, Program, System};
 
     #[test]
     fn init_self() {
         let system = System::new();
         system.init_logger();
+        system.mint_to(123, UNITS * 100);
 
         let this_program = Program::current(&system);
 
@@ -76,27 +77,27 @@ mod tests {
     #[cfg(debug_assertions)]
     fn debug_wasm() {
         assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/debug/test_program.wasm").unwrap(),
+            fs::read("target/wasm32-gear/debug/test_program.wasm").unwrap(),
             code::WASM_BINARY,
         );
         assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/debug/test_program.opt.wasm").unwrap(),
+            fs::read("target/wasm32-gear/debug/test_program.opt.wasm").unwrap(),
             code::WASM_BINARY_OPT,
         );
-        assert!(fs::read("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").is_err());
+        assert!(fs::read("target/wasm32-gear/debug/test_program.meta.wasm").is_err());
     }
 
     #[test]
     #[cfg(not(debug_assertions))]
     fn release_wasm() {
         assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/release/test_program.wasm").unwrap(),
+            fs::read("target/wasm32-gear/release/test_program.wasm").unwrap(),
             code::WASM_BINARY,
         );
         assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/release/test_program.opt.wasm").unwrap(),
+            fs::read("target/wasm32-gear/release/test_program.opt.wasm").unwrap(),
             code::WASM_BINARY_OPT,
         );
-        assert!(fs::read("target/wasm32-unknown-unknown/release/test_program.meta.wasm").is_err());
+        assert!(fs::read("target/wasm32-gear/release/test_program.meta.wasm").is_err());
     }
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -234,7 +234,7 @@ impl GearApi {
             .api()
             .read_state(H256(program_id.into()), payload, at)
             .await?;
-        crate::utils::hex_to_vec(response).map_err(Into::into)
+        crate::utils::hex_to_vec(response)
     }
 
     /// Read the program's state as decoded data.

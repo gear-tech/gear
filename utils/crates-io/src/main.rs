@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -62,14 +62,16 @@ async fn main() -> Result<()> {
             simulate,
             registry_path,
         } => {
-            let publisher =
-                Publisher::with_simulation(simulate, registry_path)?.build(true, version)?;
+            let publisher = Publisher::with_simulation(simulate, registry_path)?
+                .build(true, version)
+                .await?
+                .check()?;
             let result = publisher.publish();
             publisher.restore()?;
             result
         }
         Command::Build => {
-            Publisher::new()?.build(false, None)?;
+            Publisher::new()?.build(false, None).await?;
             Ok(())
         }
     }

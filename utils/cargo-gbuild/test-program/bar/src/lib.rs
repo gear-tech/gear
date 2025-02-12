@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,11 +18,11 @@
 
 #![no_std]
 
-use gstd::msg;
+use gstd::{msg, prelude::*};
 
 static mut STATE: bool = false;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn init() {
     let payload = msg::load_bytes().expect("Failed to load payload");
     gstd::debug!("Received payload: {payload:?}");
@@ -31,7 +31,7 @@ extern "C" fn init() {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle() {
     let payload = msg::load_bytes().expect("Failed to load payload");
 
@@ -43,7 +43,7 @@ extern "C" fn handle() {
 }
 
 // State-sharing function
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn state() {
-    msg::reply(unsafe { STATE.clone() }, 0).expect("Failed to share state");
+    msg::reply(unsafe { static_ref!(STATE).clone() }, 0).expect("Failed to share state");
 }

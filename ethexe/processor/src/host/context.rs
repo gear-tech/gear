@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ pub(crate) struct HostContext<'a> {
     pub(crate) caller: Caller<'a, StoreData>,
 }
 
-impl<'a> sp_wasm_interface::FunctionContext for HostContext<'a> {
+impl sp_wasm_interface::FunctionContext for HostContext<'_> {
     fn read_memory_into(
         &self,
         address: Pointer<u8>,

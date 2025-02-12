@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -42,7 +42,6 @@ macro_rules! impl_pallet_balances_inner {
     ($runtime:ty) => {
         impl pallet_balances::Config for $runtime {
             type MaxLocks = ();
-            type MaxHolds = ConstU32<1>;
             type MaxFreezes = ConstU32<1>;
             type MaxReserves = ();
             type RuntimeFreezeReason = RuntimeFreezeReason;
@@ -112,6 +111,7 @@ macro_rules! impl_pallet_system_inner {
             type Block = Block;
             type RuntimeEvent = RuntimeEvent;
             type BlockHashCount = BlockHashCount;
+            type RuntimeTask = ();
             type Version = ();
             type PalletInfo = PalletInfo;
             type AccountData = pallet_balances::AccountData<Balance>;
@@ -121,6 +121,11 @@ macro_rules! impl_pallet_system_inner {
             type SS58Prefix = $crate::pallet_tests::SS58Prefix;
             type OnSetCode = ();
             type MaxConsumers = frame_support::traits::ConstU32<16>;
+            type MultiBlockMigrator = ();
+            type SingleBlockMigrations = ();
+            type PreInherents = ();
+            type PostInherents = ();
+            type PostTransactions = ();
         }
     };
 
@@ -255,6 +260,7 @@ macro_rules! impl_pallet_staking_inner {
             pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
             pub const HistoryDepth: u32 = 84;
             pub const MaxNominations: u32 = 16;
+            pub const MaxControllersInDeprecationBatch: u32 = 5900;
         }
 
         impl pallet_staking::Config for Test {
@@ -276,7 +282,6 @@ macro_rules! impl_pallet_staking_inner {
             type EraPayout = StakingConfigEraPayout;
             type NextNewSession = StakingConfigNextNewSession;
             type MaxExposurePageSize = MaxExposurePageSize;
-            type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
             type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Self>;
             type TargetList = pallet_staking::UseValidatorsMap<Self>;
             type NominationsQuota = pallet_staking::FixedNominationsQuota<16>;
@@ -285,6 +290,8 @@ macro_rules! impl_pallet_staking_inner {
             type EventListeners = ();
             type WeightInfo = ();
             type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
+            type MaxControllersInDeprecationBatch = MaxControllersInDeprecationBatch;
+            type DisablingStrategy = pallet_staking::UpToLimitDisablingStrategy;
         }
     };
 

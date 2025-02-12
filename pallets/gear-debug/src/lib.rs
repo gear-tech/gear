@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::manual_inspect)]
+#![allow(clippy::useless_conversion)]
 
 extern crate alloc;
 
@@ -51,7 +52,11 @@ pub mod pallet {
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_runtime::Percent;
-    use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
+    use sp_std::{
+        collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+        convert::TryInto,
+        prelude::*,
+    };
 
     pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 
@@ -94,7 +99,7 @@ pub mod pallet {
     pub enum Error<T> {}
 
     /// Program debug info.
-    #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
+    #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
     pub struct ProgramInfo {
         pub static_pages: WasmPagesAmount,
         pub persistent_pages: BTreeMap<GearPage, PageBuf>,
@@ -127,13 +132,13 @@ pub mod pallet {
         }
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo, Debug)]
     pub enum ProgramState {
         Active(ProgramInfo),
         Terminated,
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo, Debug)]
     pub struct ProgramDetails {
         pub id: ProgramId,
         pub state: ProgramState,
@@ -142,7 +147,7 @@ pub mod pallet {
     #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct DebugData {
         pub dispatch_queue: Vec<StoredDispatch>,
-        pub programs: Vec<ProgramDetails>,
+        pub programs: BTreeSet<ProgramDetails>,
     }
 
     #[pallet::storage]
@@ -219,7 +224,7 @@ pub mod pallet {
                             return ProgramDetails {
                                 id,
                                 state: ProgramState::Terminated,
-                            }
+                            };
                         }
                     };
                     let static_pages = match T::CodeStorage::get_code(active.code_hash.cast()) {
