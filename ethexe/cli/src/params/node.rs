@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MergeParams;
-use anyhow::{bail, Context, Result};
+use anyhow::{ensure, Context, Result};
 use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
@@ -84,12 +84,10 @@ impl NodeParams {
 
     /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
-        if !matches!(
-            (self.validator.as_ref(), self.validator_session.as_ref()),
-            (None, None) | (Some(_), Some(_))
-        ) {
-            bail!("`validator` and `validator-session` must be both set or both unset");
-        }
+        ensure!(
+            self.validator.is_some() == self.validator_session.is_some(),
+            "`validator` and `validator-session` must be both set or both unset"
+        );
 
         Ok(NodeConfig {
             database_path: self.db_dir(),

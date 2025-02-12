@@ -164,7 +164,7 @@ rayon = "1.10"
 regex = "^1.9"
 region = "3.0.2"
 reqwest = { version = "0.12.8", default-features = false }
-roast-secp256k1-evm = { version = "0.1.0", git = "https://github.com/StackOverflowExcept1on/roast.git", branch = "dev-codec" }
+roast-secp256k1-evm = { version = "0.1.0", git = "https://github.com/gear-tech/roast", branch = "gear-v0.1.0" }
 scale-info = { version = "2.5.0", default-features = false }
 serde = { version = "^1", default-features = false }
 serde_json = { version = "1.0.135", default-features = false, features = ["alloc"] }

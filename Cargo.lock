@@ -5582,7 +5582,7 @@ dependencies = [
 [[package]]
 name = "frost-core"
 version = "2.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/frost?branch=frost-secp256k1-evm-crates-io-no-std-codec#2f26b0a00ec9ee1e8a1e38865ccf192884a654b8"
+source = "git+https://github.com/gear-tech/frost?branch=gear-v2.1.0#00bfffac18abadd19d48e7925704359721776cb2"
 dependencies = [
  "byteorder",
  "const-crc32-nostd",
@@ -5605,7 +5605,7 @@ dependencies = [
 [[package]]
 name = "frost-rerandomized"
 version = "2.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/frost?branch=frost-secp256k1-evm-crates-io-no-std-codec#2f26b0a00ec9ee1e8a1e38865ccf192884a654b8"
+source = "git+https://github.com/gear-tech/frost?branch=gear-v2.1.0#00bfffac18abadd19d48e7925704359721776cb2"
 dependencies = [
  "derive-getters",
  "document-features",
@@ -5617,7 +5617,7 @@ dependencies = [
 [[package]]
 name = "frost-secp256k1-evm"
 version = "2.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/frost?branch=frost-secp256k1-evm-crates-io-no-std-codec#2f26b0a00ec9ee1e8a1e38865ccf192884a654b8"
+source = "git+https://github.com/gear-tech/frost?branch=gear-v2.1.0#00bfffac18abadd19d48e7925704359721776cb2"
 dependencies = [
  "document-features",
  "frost-core",
@@ -13564,7 +13564,7 @@ dependencies = [
 [[package]]
 name = "roast-core"
 version = "0.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/roast.git?branch=dev-codec#d9c7bf4f47c6e55bb03cdf70e2ccdf56474439a9"
+source = "git+https://github.com/gear-tech/roast?branch=gear-v0.1.0#925a0e7313534b8ab901c4ff8b6c4af91b149d01"
 dependencies = [
  "aes 0.8.4",
  "ctr 0.9.2",
@@ -13581,7 +13581,7 @@ dependencies = [
 [[package]]
 name = "roast-secp256k1-evm"
 version = "0.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/roast.git?branch=dev-codec#d9c7bf4f47c6e55bb03cdf70e2ccdf56474439a9"
+source = "git+https://github.com/gear-tech/roast?branch=gear-v0.1.0#925a0e7313534b8ab901c4ff8b6c4af91b149d01"
 dependencies = [
  "document-features",
  "frost-secp256k1-evm",
