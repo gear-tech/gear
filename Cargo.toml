@@ -115,6 +115,8 @@ members = [
 
 [workspace.dependencies]
 alloy = "0.9.1"
+alloy-primitives = { version = "0.8", default-features = false }
+alloy-sol-types = { version = "0.8", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"

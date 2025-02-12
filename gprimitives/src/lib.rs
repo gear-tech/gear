@@ -29,6 +29,8 @@ pub use primitive_types::{H160, H256, U256};
 
 mod macros;
 mod nonzero_u256;
+#[cfg(feature = "ethexe")]
+mod sol_types;
 mod utils;
 
 use core::{
