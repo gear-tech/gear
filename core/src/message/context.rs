@@ -29,6 +29,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
+use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -160,6 +161,16 @@ pub struct ContextStore {
     /// but now it is moved to [OutgoingPayloads] thus we need to keep nonce here. Now to calculate nonce we simple increment `local_nonce`
     /// in each `init` call.
     local_nonce: u32,
+}
+
+impl MaxEncodedLen for ContextStore {
+    fn max_encoded_len() -> usize {
+        // reservation_nonce_max + system_reservation_max + local_nonce_max + initialized_max
+        u64::max_encoded_len()
+            + Option::<u64>::max_encoded_len()
+            + u32::max_encoded_len()
+            + (ProgramId::max_encoded_len() * 1024) // maximum 1024 outgoing messages
+    }
 }
 
 impl ContextStore {

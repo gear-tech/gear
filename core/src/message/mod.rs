@@ -36,6 +36,7 @@ pub use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
+use parity_scale_codec::MaxEncodedLen;
 pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
 pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
@@ -96,7 +97,7 @@ pub type Value = u128;
 pub type Salt = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
 
 /// Composite wait type for messages waiting.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo, MaxEncodedLen)]
 pub enum MessageWaitedType {
     /// Program called `gr_wait` while executing message.
     Wait,
@@ -112,7 +113,19 @@ pub enum MessageWaitedType {
 
 /// Entry point for dispatch processing.
 #[derive(
-    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+    Copy,
+    Clone,
+    Default,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    MaxEncodedLen,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum DispatchKind {

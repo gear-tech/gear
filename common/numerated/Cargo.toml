@@ -16,7 +16,7 @@ rust-version.workspace = true
 num-traits.workspace = true
 derive_more.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
-parity-scale-codec = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
 log = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 
