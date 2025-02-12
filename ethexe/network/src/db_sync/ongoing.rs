@@ -21,7 +21,7 @@ use crate::{
     export::PeerId,
     peer_score::Handle,
 };
-use ethexe_db::{CodesStorage, Database};
+use ethexe_db::Database;
 use libp2p::{
     request_response,
     request_response::OutboundRequestId,
@@ -295,8 +295,9 @@ impl OngoingRequests {
     }
 
     fn next_request_id(&mut self) -> RequestId {
+        let id = self.request_id_counter;
         self.request_id_counter += 1;
-        RequestId(self.request_id_counter)
+        RequestId(id)
     }
 
     pub(crate) fn push_pending_request(&mut self, request: Request) -> RequestId {
@@ -473,8 +474,9 @@ impl OngoingResponses {
     }
 
     fn next_response_id(&mut self) -> ResponseId {
+        let id = self.response_id_counter;
         self.response_id_counter += 1;
-        ResponseId(self.response_id_counter)
+        ResponseId(id)
     }
 
     pub(crate) fn prepare_response(
@@ -491,16 +493,7 @@ impl OngoingResponses {
 
         let db = self.db.clone();
         self.db_readers.spawn_blocking(move || {
-            let response = match request {
-                Request::DataForHashes(hashes) => Response::DataForHashes(
-                    hashes
-                        .into_iter()
-                        .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                        .collect(),
-                ),
-                Request::ProgramIds => Response::ProgramIds(db.program_ids()),
-            };
-
+            let response = Response::from_db(request, &db);
             OngoingResponse {
                 response_id,
                 peer_id,

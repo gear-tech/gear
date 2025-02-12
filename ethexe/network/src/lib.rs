@@ -71,7 +71,10 @@ pub enum NetworkEvent {
         source: Option<PeerId>,
         data: Vec<u8>,
     },
-    DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
+    DbResponse {
+        request_id: db_sync::RequestId,
+        result: Result<db_sync::Response, db_sync::RequestFailure>,
+    },
     PeerBlocked(PeerId),
     ExternalValidation(db_sync::ValidatingResponse),
 }
@@ -384,16 +387,19 @@ impl NetworkService {
                 return Some(NetworkEvent::ExternalValidation(validating_response));
             }
             BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
-                request_id: _,
+                request_id,
                 response,
             }) => {
-                return Some(NetworkEvent::DbResponse(Ok(response)));
+                return Some(NetworkEvent::DbResponse {
+                    request_id,
+                    result: Ok(response),
+                });
             }
-            BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
-                request_id: _,
-                error,
-            }) => {
-                return Some(NetworkEvent::DbResponse(Err(error)));
+            BehaviourEvent::DbSync(db_sync::Event::RequestFailed { request_id, error }) => {
+                return Some(NetworkEvent::DbResponse {
+                    request_id,
+                    result: Err(error),
+                });
             }
             BehaviourEvent::DbSync(_) => {}
         }
@@ -420,8 +426,8 @@ impl NetworkService {
         }
     }
 
-    pub fn request_db_data(&mut self, request: db_sync::Request) {
-        self.swarm.behaviour_mut().db_sync.request(request);
+    pub fn request_db_data(&mut self, request: db_sync::Request) -> db_sync::RequestId {
+        self.swarm.behaviour_mut().db_sync.request(request)
     }
 
     pub fn request_validated(
@@ -602,7 +608,8 @@ mod tests {
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        service1.request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
+        let request_id =
+            service1.request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -610,9 +617,12 @@ mod tests {
             .unwrap();
         assert_eq!(
             event,
-            NetworkEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
-                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-            )))
+            NetworkEvent::DbResponse {
+                request_id,
+                result: Ok(db_sync::Response::DataForHashes(
+                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+                ))
+            }
         );
     }
 
@@ -649,7 +659,7 @@ mod tests {
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        service1.request_db_data(db_sync::Request::ProgramIds);
+        let request_id = service1.request_db_data(db_sync::Request::ProgramIds);
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -667,7 +677,10 @@ mod tests {
             .unwrap();
         assert_eq!(
             event,
-            NetworkEvent::DbResponse(Ok(db_sync::Response::ProgramIds([].into())))
+            NetworkEvent::DbResponse {
+                request_id,
+                result: Ok(db_sync::Response::ProgramIds([].into()))
+            }
         );
     }
 }

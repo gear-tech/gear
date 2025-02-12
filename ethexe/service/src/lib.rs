@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
-use alloy::primitives::U256;
 use anyhow::{anyhow, bail, Context, Result};
 use ethexe_common::{
     events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
@@ -25,7 +24,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, CodeInfo, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{db_sync, NetworkEvent, NetworkService};
+use ethexe_network::{NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService, RequestBlockData};
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
@@ -42,6 +41,7 @@ use std::sync::Arc;
 
 pub mod config;
 
+mod fast_sync;
 #[cfg(test)]
 mod tests;
 
@@ -60,6 +60,8 @@ pub struct Service {
     validator: Option<ethexe_validator::Validator>,
     prometheus: Option<PrometheusService>,
     rpc: Option<ethexe_rpc::RpcService>,
+
+    fast_sync: bool,
 }
 
 // TODO: consider to move this to another module #4176
@@ -238,6 +240,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
+            fast_sync: false, // TODO: add to Config
         })
     }
 
@@ -263,6 +266,7 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         prometheus: Option<PrometheusService>,
         rpc: Option<ethexe_rpc::RpcService>,
+        fast_sync: bool,
     ) -> Self {
         Self {
             db,
@@ -276,6 +280,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
+            fast_sync,
         }
     }
 
@@ -412,7 +417,11 @@ impl Service {
         Ok(commitments)
     }
 
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
+        if self.fast_sync {
+            fast_sync::sync(&mut self).await?;
+        }
+
         self.run_inner().await.map_err(|err| {
             log::error!("Service finished work with error: {err:?}");
             err
@@ -425,13 +434,14 @@ impl Service {
             mut network,
             mut observer,
             mut query,
-            mut router_query,
+            router_query: _,
             mut processor,
             mut sequencer,
             signer: _signer,
             mut validator,
             mut prometheus,
             rpc,
+            fast_sync: _,
         } = self;
         let (mut rpc_handle, mut rpc_receiver) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
@@ -646,19 +656,6 @@ impl Service {
                                 },
                             };
                         }
-                        NetworkEvent::ExternalValidation(validating_response) => {
-                            let validated = Self::process_response_validation(&validating_response, &mut router_query).await?;
-                            let res = if validated {
-                                Ok(validating_response)
-                            } else {
-                                Err(validating_response)
-                            };
-
-                            network
-                                .as_mut()
-                                .expect("if network receiver is `Some()` so does sender")
-                                .request_validated(res);
-                        }
                         _ => {}
                     }},
                 event = prometheus.maybe_next_some() => {
@@ -694,29 +691,5 @@ impl Service {
                 }
             }
         }
-    }
-
-    async fn process_response_validation(
-        validating_response: &db_sync::ValidatingResponse,
-        router_query: &mut RouterQuery,
-    ) -> Result<bool> {
-        let response = validating_response.response();
-
-        if let db_sync::Response::ProgramIds(ids) = response {
-            let ethereum_programs = router_query.programs_count().await?;
-            if ethereum_programs != U256::from(ids.len()) {
-                return Ok(false);
-            }
-
-            // TODO: #4309
-            for &id in ids {
-                let code_id = router_query.program_code_id(id).await?;
-                if code_id.is_none() {
-                    return Ok(false);
-                }
-            }
-        }
-
-        Ok(true)
     }
 }

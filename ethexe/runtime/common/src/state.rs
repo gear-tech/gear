@@ -27,6 +27,7 @@ use alloc::{
 use anyhow::{anyhow, Result};
 use core::{
     any::Any,
+    cmp::Ordering,
     marker::PhantomData,
     mem,
     ops::{Index, IndexMut},
@@ -140,9 +141,7 @@ impl PayloadLookup {
     }
 }
 
-#[derive(
-    Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::DebugCustom, derive_more::Display,
-)]
+#[derive(Encode, Decode, derive_more::Into, derive_more::DebugCustom, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[debug(fmt = "HashOf<{}>({hash:?})", "private::shortname::<S>()")]
 #[display(fmt = "{hash}")]
@@ -152,6 +151,26 @@ pub struct HashOf<S: Sealed + 'static> {
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
     _phantom: PhantomData<S>,
+}
+
+impl<S: Sealed> PartialEq for HashOf<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash.eq(&other.hash)
+    }
+}
+
+impl<S: Sealed> Eq for HashOf<S> {}
+
+impl<S: Sealed> PartialOrd for HashOf<S> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<S: Sealed> Ord for HashOf<S> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.hash.cmp(&other.hash)
+    }
 }
 
 impl<S: Sealed> Clone for HashOf<S> {
@@ -172,7 +191,7 @@ impl<S: Sealed> HashOf<S> {
         }
     }
 
-    pub fn hash(&self) -> H256 {
+    pub fn hash(self) -> H256 {
         self.hash
     }
 }
@@ -220,7 +239,7 @@ impl<S: Sealed> MaybeHashOf<S> {
         self.0.is_none()
     }
 
-    pub fn hash(&self) -> Option<HashOf<S>> {
+    pub fn hash(self) -> Option<HashOf<S>> {
         self.0
     }
 
@@ -960,6 +979,10 @@ impl MemoryPages {
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages(self)))
     }
+
+    pub fn to_inner(&self) -> MemoryPagesInner {
+        self.0
+    }
 }
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
@@ -971,6 +994,10 @@ pub type MemoryPagesRegionInner = BTreeMap<GearPage, HashOf<PageBuf>>;
 impl MemoryPagesRegion {
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages_region(self)))
+    }
+
+    pub fn as_inner(&self) -> &MemoryPagesRegionInner {
+        &self.0
     }
 }
 

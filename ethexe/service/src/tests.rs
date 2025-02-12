@@ -20,6 +20,7 @@
 
 use crate::{
     config::{self, Config},
+    tests::utils::NodeNetworkConfig,
     Service,
 };
 use alloy::{
@@ -963,6 +964,63 @@ async fn multiple_validators() {
     assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn fast_sync() {
+    gear_utils::init_default_logger();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::Generated(1),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("Starting Alice");
+    let alice_key = env.wallets.next();
+    let mut alice = env.new_node(
+        NodeConfig::default()
+            .sequencer(alice_key)
+            .validator(env.validators[0])
+            .network(None, None),
+    );
+    alice.start_service().await;
+
+    log::info!("Uploading `demo-ping` program");
+
+    let code_info = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = code_info.code_id;
+
+    for _ in 0..5 {
+        let _program_info = env
+            .create_program(code_id, b"PING", 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+    }
+
+    log::info!("Starting Bob");
+    let mut bob = env.new_node(
+        NodeConfig::default().network_with_config(NodeNetworkConfig {
+            address: None,
+            bootstrap_address: alice.multiaddr,
+            fast_sync: true,
+        }),
+    );
+    bob.start_service().await;
+
+    tokio::time::sleep(Duration::from_secs(10)).await;
+
+    bob.stop_service().await;
+}
+
 mod utils {
     use super::*;
     use ethexe_network::export::Multiaddr;
@@ -1013,6 +1071,15 @@ mod utils {
                 router_address,
                 continuous_block_generation,
             } = config;
+
+            // we set our own hook with `exit(1)` because
+            // we use multithreaded tokio runtime in tests
+            // so panics are not observed until any service is stopped
+            let default_panic = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
+                default_panic(info);
+                std::process::exit(1);
+            }));
 
             log::info!(
                 "📗 Starting new test environment. Continuous block generation: {}",
@@ -1167,12 +1234,15 @@ mod utils {
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
-                    static NONCE: AtomicUsize = AtomicUsize::new(1);
+                    static NONCE: AtomicUsize = AtomicUsize::new(10);
                     let nonce = NONCE.fetch_add(1, Ordering::Relaxed);
                     format!("/memory/{nonce}")
                 })
             });
-
+            let fast_sync = network
+                .as_ref()
+                .map(|network| network.fast_sync)
+                .unwrap_or(false);
             let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
 
             Node {
@@ -1192,6 +1262,7 @@ mod utils {
                 validator_public_key,
                 network_address,
                 network_bootstrap_address,
+                fast_sync,
             }
         }
 
@@ -1403,16 +1474,17 @@ mod utils {
             self
         }
 
-        pub fn network(
-            mut self,
-            address: Option<String>,
-            bootstrap_address: Option<String>,
-        ) -> Self {
-            self.network = Some(NodeNetworkConfig {
+        pub fn network_with_config(mut self, config: NodeNetworkConfig) -> Self {
+            self.network = Some(config);
+            self
+        }
+
+        pub fn network(self, address: Option<String>, bootstrap_address: Option<String>) -> Self {
+            self.network_with_config(NodeNetworkConfig {
                 address,
                 bootstrap_address,
-            });
-            self
+                fast_sync: false,
+            })
         }
     }
 
@@ -1422,6 +1494,8 @@ mod utils {
         pub address: Option<String>,
         /// Network bootstrap address, if not provided, then no bootstrap address will be used.
         pub bootstrap_address: Option<String>,
+        /// Do P2P database synchronization before the main loop
+        pub fast_sync: bool,
     }
 
     pub struct EventsPublisher {
@@ -1553,6 +1627,7 @@ mod utils {
         validator_public_key: Option<ethexe_signer::PublicKey>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
+        fast_sync: bool,
     }
 
     impl Node {
@@ -1640,6 +1715,7 @@ mod utils {
                 validator,
                 None,
                 None,
+                self.fast_sync,
             );
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);

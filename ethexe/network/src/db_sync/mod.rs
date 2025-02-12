@@ -29,7 +29,7 @@ use crate::{
     peer_score,
     utils::ParityScaleCodec,
 };
-use ethexe_db::Database;
+use ethexe_db::{CodesStorage, Database};
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use libp2p::{
@@ -52,10 +52,10 @@ use std::{
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub struct RequestId(u64);
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub struct ResponseId(u64);
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
@@ -101,6 +101,18 @@ pub enum Response {
 }
 
 impl Response {
+    fn from_db(request: Request, db: &Database) -> Self {
+        match request {
+            Request::DataForHashes(hashes) => Response::DataForHashes(
+                hashes
+                    .into_iter()
+                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
+                    .collect(),
+            ),
+            Request::ProgramIds => Response::ProgramIds(db.program_ids()),
+        }
+    }
+
     fn merge(&mut self, new_response: Response) {
         match (self, new_response) {
             (Response::DataForHashes(data), Response::DataForHashes(new_data)) => {
