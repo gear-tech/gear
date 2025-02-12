@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+ethexe-compute.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-db.workspace = true
 ethexe-network.workspace = true
