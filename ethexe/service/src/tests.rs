@@ -1009,8 +1009,9 @@ async fn multiple_validators() {
 
 mod utils {
     use super::*;
+    use ethexe_common::SimpleBlockData;
     use ethexe_network::export::Multiaddr;
-    use ethexe_observer::{ObserverEvent, ObserverService, SimpleBlockData};
+    use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_sequencer::{SequencerConfig, SequencerService};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
