@@ -422,13 +422,9 @@ impl AllocationsContext {
         pages: WasmPagesAmount,
         charge_gas_for_grow: impl FnOnce(WasmPagesAmount) -> Result<(), ChargeError>,
     ) -> Result<WasmPage, AllocError> {
-        let heap = match self.heap {
-            Some(heap) => heap,
-
-            // Empty heap means that all memory is static, then no pages can be allocated.
-            // NOTE: returns an error even if `pages` == 0.
-            None => return Err(AllocError::ProgramAllocOutOfBounds),
-        };
+        // Empty heap means that all memory is static, then no pages can be allocated.
+        // NOTE: returns an error even if `pages` == 0.
+        let heap = self.heap.ok_or(AllocError::ProgramAllocOutOfBounds)?;
 
         // If trying to allocate zero pages, then returns heap start page (legacy).
         if pages == WasmPage::from(0) {
