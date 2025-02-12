@@ -235,8 +235,8 @@ pub trait Memory<Context> {
 #[derive(Debug)]
 pub struct AllocationsContext {
     /// Pages which has been in storage before execution
-    init_allocations: IntervalsTree<WasmPage>,
     allocations: IntervalsTree<WasmPage>,
+    allocations_changed: bool,
     heap: Option<Interval<WasmPage>>,
     static_pages: WasmPagesAmount,
 }
@@ -352,8 +352,8 @@ impl AllocationsContext {
         };
 
         Ok(Self {
-            init_allocations: allocations.clone(),
             allocations,
+            allocations_changed: false,
             heap,
             static_pages,
         })
@@ -457,6 +457,7 @@ impl AllocationsContext {
         }
 
         self.allocations.insert(interval);
+        self.allocations_changed = true;
 
         Ok(interval.start())
     }
@@ -465,6 +466,7 @@ impl AllocationsContext {
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
         if let Some(heap) = self.heap {
             if page >= heap.start() && page <= heap.end() && self.allocations.remove(page) {
+                self.allocations_changed = true;
                 return Ok(());
             }
         }
@@ -478,6 +480,7 @@ impl AllocationsContext {
         if let Some(heap) = self.heap {
             if interval.start() >= heap.start() && interval.end() <= heap.end() {
                 self.allocations.remove(interval);
+                self.allocations_changed = true;
                 return Ok(());
             }
         }
@@ -488,15 +491,13 @@ impl AllocationsContext {
         ))
     }
 
-    /// Decomposes this instance and returns allocations.
-    pub fn into_parts(
-        self,
-    ) -> (
-        WasmPagesAmount,
-        IntervalsTree<WasmPage>,
-        IntervalsTree<WasmPage>,
-    ) {
-        (self.static_pages, self.init_allocations, self.allocations)
+    /// Decomposes this instance and returns `static_pages`, `allocations` and `allocations_changed` params.
+    pub fn into_parts(self) -> (WasmPagesAmount, IntervalsTree<WasmPage>, bool) {
+        (
+            self.static_pages,
+            self.allocations,
+            self.allocations_changed,
+        )
     }
 }
 
@@ -764,6 +765,60 @@ mod tests {
         );
     }
 
+    #[test]
+    fn allocations_changed_correctness() {
+        let new_ctx = |allocations| {
+            AllocationsContext::try_new(16.into(), allocations, 0.into(), None, 16.into()).unwrap()
+        };
+
+        // correct `alloc`
+        let mut ctx = new_ctx(Default::default());
+        assert!(
+            !ctx.allocations_changed,
+            "Expecting no changes after creation"
+        );
+        let mut mem = TestMemory::new(16.into());
+        alloc_ok(&mut ctx, &mut mem, 16, 0);
+        assert!(ctx.allocations_changed);
+
+        let (_, allocations, allocations_changed) = ctx.into_parts();
+        assert!(allocations_changed);
+
+        // fail `alloc`
+        let mut ctx = new_ctx(allocations);
+        alloc_err(&mut ctx, &mut mem, 16, AllocError::ProgramAllocOutOfBounds);
+        assert!(
+            !ctx.allocations_changed,
+            "Expecting allocations don't change because of error"
+        );
+
+        // fail `free`
+        assert!(ctx.free(16.into()).is_err());
+        assert!(!ctx.allocations_changed);
+
+        // correct `free`
+        assert!(ctx.free(15.into()).is_ok());
+        assert!(ctx.allocations_changed);
+
+        let (_, allocations, allocations_changed) = ctx.into_parts();
+        assert!(allocations_changed);
+
+        // correct `free_range`
+        let mut ctx = new_ctx(allocations);
+        let interval = Interval::<WasmPage>::try_from(0u16..16).unwrap();
+        assert!(ctx.free_range(interval).is_ok());
+        assert!(ctx.allocations_changed);
+
+        let (_, allocations, allocations_changed) = ctx.into_parts();
+        assert!(allocations_changed);
+
+        // fail `free_range`
+        let mut ctx = new_ctx(allocations);
+        let interval = Interval::<WasmPage>::try_from(0u16..17).unwrap();
+        assert!(ctx.free_range(interval).is_err());
+        assert!(!ctx.allocations_changed);
+        assert!(!ctx.into_parts().2);
+    }
     mod property_tests {
         use super::*;
         use proptest::{
