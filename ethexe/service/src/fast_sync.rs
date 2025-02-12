@@ -29,7 +29,7 @@ use ethexe_ethereum::{
     primitives::{Address, U256},
     router::RouterQuery,
 };
-use ethexe_network::{db_sync, NetworkEvent};
+use ethexe_network::{db_sync, db_sync::RequestId, NetworkEvent, NetworkService};
 use ethexe_observer::Query;
 use ethexe_runtime_common::state::{
     ActiveProgram, HashOf, MaybeHashOf, MemoryPages, MemoryPagesRegion, Program, ProgramState,
@@ -39,14 +39,54 @@ use futures::StreamExt;
 use gear_core::ids::ProgramId;
 use gprimitives::H256;
 use parity_scale_codec::Decode;
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    mem,
+};
 
-enum FastSyncRequest {
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+enum RequestKind {
     ProgramState,
-    ProgramStateFields,
     MemoryPages,
     MemoryPagesRegions,
-    MemoryPagesData,
+    /// We don't care about an actual type of the request
+    /// because we will just insert data into the database
+    Data,
+}
+
+#[derive(Debug, Default)]
+struct Requests {
+    /// Buffered hashes we sent after all of them are collected
+    buffered_request: BTreeSet<H256>,
+    /// Buffered requests kinds we drain into `pending_requests` when `RequestId` is known
+    buffered_kinds: Vec<(RequestKind, H256)>,
+    /// Pending requests, we remove one by one on each hash from response
+    pending_requests: HashMap<(RequestId, H256), RequestKind>,
+}
+
+impl Requests {
+    fn add(&mut self, request: RequestKind, hashes: impl IntoIterator<Item = H256>) {
+        for hash in hashes {
+            self.buffered_request.insert(hash);
+            self.buffered_kinds.push((request, hash));
+        }
+    }
+
+    fn request(&mut self, network: &mut NetworkService) {
+        let buffered_request = mem::take(&mut self.buffered_request);
+        let request_id = network.request_db_data(db_sync::Request::DataForHashes(buffered_request));
+        for (request, hash) in self.buffered_kinds.drain(..) {
+            self.pending_requests.insert((request_id, hash), request);
+        }
+    }
+
+    fn remove(&mut self, request_id: RequestId, hash: H256) -> Option<RequestKind> {
+        self.pending_requests.remove(&(request_id, hash))
+    }
+
+    fn is_empty(&self) -> bool {
+        self.pending_requests.is_empty()
+    }
 }
 
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
@@ -59,7 +99,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         ..
     } = service;
     let Some(network) = network else {
-        log::info!("Fast synchronization has been skipped because network service is disabled");
+        log::warn!("Fast synchronization has been skipped because network service is disabled");
         return Ok(());
     };
 
@@ -70,25 +110,28 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             .await?;
     log::error!("Program IDs from mirrors: {programs_states:?}");
 
-    let mut requests = HashMap::new();
-    for (_program_id, states) in programs_states {
-        let request_id = network.request_db_data(db_sync::Request::DataForHashes(states));
-        requests.insert(request_id, FastSyncRequest::ProgramState);
-    }
+    let mut requests = Requests::default();
+    requests.add(
+        RequestKind::ProgramState,
+        programs_states
+            .into_iter()
+            .map(|(_program_id, states)| states)
+            .flatten(),
+    );
+    requests.request(network);
 
     while let Some(event) = network.next().await {
         match event {
             NetworkEvent::DbResponse { request_id, result } => match result {
                 Ok(db_sync::Response::DataForHashes(data)) => {
-                    let request = requests
-                        .remove(&request_id)
-                        .expect("unknown `db-sync` response");
-                    match request {
-                        FastSyncRequest::ProgramState => {
-                            let mut hashes = BTreeSet::new();
+                    for (hash, data) in data {
+                        let request = requests
+                            .remove(request_id, hash)
+                            .expect("unknown `db-sync` response");
 
-                            for (_hash, state) in data {
-                                let state: ProgramState = Decode::decode(&mut &state[..])
+                        match request {
+                            RequestKind::ProgramState => {
+                                let state: ProgramState = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
 
                                 log::error!("Program state {state:?}");
@@ -110,40 +153,39 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                                     initialized: _,
                                 }) = program
                                 {
-                                    hashes.extend(allocations_hash.hash().map(HashOf::hash));
+                                    requests.add(
+                                        RequestKind::Data,
+                                        allocations_hash.hash().map(HashOf::hash),
+                                    );
 
-                                    let pages_hash = pages_hash.hash().map(HashOf::hash);
-                                    if let Some(pages_hash) = pages_hash {
-                                        let request_id = network.request_db_data(
-                                            db_sync::Request::DataForHashes([pages_hash].into()),
-                                        );
-                                        requests.insert(request_id, FastSyncRequest::MemoryPages);
-                                    }
+                                    requests.add(
+                                        RequestKind::MemoryPages,
+                                        pages_hash.hash().map(HashOf::hash),
+                                    );
                                 }
 
-                                hashes.extend(queue_hash.hash().map(HashOf::hash));
-                                hashes.extend(waitlist_hash.hash().map(HashOf::hash));
-                                hashes.extend(stash_hash.hash().map(HashOf::hash));
-                                hashes.extend(mailbox_hash.hash().map(HashOf::hash));
+                                requests.add(
+                                    RequestKind::Data,
+                                    [
+                                        queue_hash.hash().map(HashOf::hash),
+                                        waitlist_hash.hash().map(HashOf::hash),
+                                        stash_hash.hash().map(HashOf::hash),
+                                        mailbox_hash.hash().map(HashOf::hash),
+                                    ]
+                                    .into_iter()
+                                    .flatten(),
+                                );
 
                                 db.write_state(state);
                             }
-
-                            let request_id =
-                                network.request_db_data(db_sync::Request::DataForHashes(hashes));
-                            requests.insert(request_id, FastSyncRequest::ProgramStateFields);
-                        }
-                        FastSyncRequest::MemoryPages => {
-                            let mut hashes = BTreeSet::new();
-
-                            for (_hash, memory_pages) in data {
-                                let memory_pages: MemoryPages =
-                                    Decode::decode(&mut &memory_pages[..])
-                                        .expect("`db-sync` must validate data");
+                            RequestKind::MemoryPages => {
+                                let memory_pages: MemoryPages = Decode::decode(&mut &data[..])
+                                    .expect("`db-sync` must validate data");
 
                                 log::error!("Memory pages: {memory_pages:?}");
 
-                                hashes.extend(
+                                requests.add(
+                                    RequestKind::MemoryPagesRegions,
                                     memory_pages
                                         .to_inner()
                                         .map(MaybeHashOf::hash)
@@ -154,22 +196,15 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
                                 db.write_pages(memory_pages);
                             }
-
-                            let request_id =
-                                network.request_db_data(db_sync::Request::DataForHashes(hashes));
-                            requests.insert(request_id, FastSyncRequest::MemoryPagesRegions);
-                        }
-                        FastSyncRequest::MemoryPagesRegions => {
-                            let mut hashes = BTreeSet::new();
-
-                            for (_hash, pages_region) in data {
+                            RequestKind::MemoryPagesRegions => {
                                 let pages_region: MemoryPagesRegion =
-                                    Decode::decode(&mut &pages_region[..])
+                                    Decode::decode(&mut &data[..])
                                         .expect("`db-sync` must validate data");
 
                                 log::error!("Memory pages region: {pages_region:?}");
 
-                                hashes.extend(
+                                requests.add(
+                                    RequestKind::Data,
                                     pages_region
                                         .as_inner()
                                         .iter()
@@ -178,14 +213,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
                                 db.write_pages_region(pages_region);
                             }
-
-                            let request_id =
-                                network.request_db_data(db_sync::Request::DataForHashes(hashes));
-                            requests.insert(request_id, FastSyncRequest::MemoryPagesData);
-                        }
-                        FastSyncRequest::ProgramStateFields | FastSyncRequest::MemoryPagesData => {
-                            log::error!("New data: {data:?}");
-                            for (_hash, data) in data {
+                            RequestKind::Data => {
+                                log::error!("New data: {data:?}");
                                 db.write(&data);
                             }
                         }
@@ -205,6 +234,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             }
             _ => {}
         }
+
+        requests.request(network);
 
         if requests.is_empty() {
             break;

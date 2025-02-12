@@ -969,18 +969,26 @@ async fn fast_sync() {
     gear_utils::init_default_logger();
 
     let config = TestEnvConfig {
-        validators: ValidatorsConfig::Generated(1),
+        validators: ValidatorsConfig::Generated(3),
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
 
-    log::info!("Starting Alice");
-    let alice_key = env.wallets.next();
-    let mut alice = env.new_node(
+    log::info!("Starting sequencer");
+    let sequencer_key = env.wallets.next();
+    let mut sequencer = env.new_node(
         NodeConfig::default()
-            .sequencer(alice_key)
+            .sequencer(sequencer_key)
             .validator(env.validators[0])
             .network(None, None),
+    );
+    sequencer.start_service().await;
+
+    log::info!("Starting Alice");
+    let mut alice = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[1])
+            .network(None, sequencer.multiaddr.clone()),
     );
     alice.start_service().await;
 
@@ -1006,17 +1014,24 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    log::info!("Starting Bob");
+    log::info!("Stopping Alice");
+    alice.stop_service().await;
+
+    log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(
-        NodeConfig::default().network_with_config(NodeNetworkConfig {
-            address: None,
-            bootstrap_address: alice.multiaddr,
-            fast_sync: true,
-        }),
+        NodeConfig::default()
+            .validator(env.validators[2])
+            .network_with_config(NodeNetworkConfig {
+                address: None,
+                bootstrap_address: sequencer.multiaddr,
+                fast_sync: true,
+            }),
     );
     bob.start_service().await;
 
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    env.skip_blocks(1000).await;
+
+    tokio::time::sleep(Duration::from_secs(15)).await;
 
     bob.stop_service().await;
 }
