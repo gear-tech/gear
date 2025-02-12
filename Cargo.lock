@@ -5564,7 +5564,7 @@ dependencies = [
 [[package]]
 name = "frost-core"
 version = "2.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/frost?branch=frost-secp256k1-evm-crates-io-no-std-codec#44b5b5b3173090af97a834aef05eeb759a2acee0"
+source = "git+https://github.com/StackOverflowExcept1on/frost?branch=frost-secp256k1-evm-crates-io-no-std-codec#2f26b0a00ec9ee1e8a1e38865ccf192884a654b8"
 dependencies = [
  "byteorder",
  "const-crc32-nostd",
@@ -5587,7 +5587,7 @@ dependencies = [
 [[package]]
 name = "frost-rerandomized"
 version = "2.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/frost?branch=frost-secp256k1-evm-crates-io-no-std-codec#44b5b5b3173090af97a834aef05eeb759a2acee0"
+source = "git+https://github.com/StackOverflowExcept1on/frost?branch=frost-secp256k1-evm-crates-io-no-std-codec#2f26b0a00ec9ee1e8a1e38865ccf192884a654b8"
 dependencies = [
  "derive-getters",
  "document-features",
@@ -5599,7 +5599,7 @@ dependencies = [
 [[package]]
 name = "frost-secp256k1-evm"
 version = "2.1.0"
-source = "git+https://github.com/StackOverflowExcept1on/frost?branch=frost-secp256k1-evm-crates-io-no-std-codec#44b5b5b3173090af97a834aef05eeb759a2acee0"
+source = "git+https://github.com/StackOverflowExcept1on/frost?branch=frost-secp256k1-evm-crates-io-no-std-codec#2f26b0a00ec9ee1e8a1e38865ccf192884a654b8"
 dependencies = [
  "document-features",
  "frost-core",
