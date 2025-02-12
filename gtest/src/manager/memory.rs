@@ -56,41 +56,6 @@ impl ExtManager {
             Err(TestError::ActorIsNotExecutable(*program_id))
         }
     }
-
-    pub(crate) fn read_state_bytes_using_wasm(
-        &mut self,
-        payload: Vec<u8>,
-        program_id: &ProgramId,
-        fn_name: &str,
-        wasm: Vec<u8>,
-        args: Option<Vec<u8>>,
-    ) -> Result<Vec<u8>> {
-        let mapping_code = Code::try_new_mock_const_or_no_rules(
-            wasm,
-            true,
-            TryNewCodeConfig::new_no_exports_check(),
-        )
-        .map_err(|_| TestError::Instrumentation)?;
-
-        let (_, mapping_code, code_metadata) =
-            CodeAndId::new(mapping_code).into_parts().0.into_parts();
-
-        let mut mapping_code_payload = args.unwrap_or_default();
-        mapping_code_payload.append(&mut self.read_state_bytes(payload, program_id)?);
-
-        core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
-            String::from(fn_name),
-            mapping_code,
-            code_metadata,
-            None,
-            None,
-            mapping_code_payload,
-            GAS_ALLOWANCE,
-            self.blocks_manager.get(),
-        )
-        .map_err(TestError::ReadStateError)
-    }
-
     pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> BTreeMap<GearPage, PageBuf> {
         Actors::access(*program_id, |actor| {
             let program = match actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
