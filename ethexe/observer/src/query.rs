@@ -60,7 +60,7 @@ impl Query {
     ) -> Result<Self> {
         let mut query = Self {
             database,
-            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
+            provider: ProviderBuilder::default().on_builtin(ethereum_rpc).await?,
             router_address: AlloyAddress::new(router_address.0),
             genesis_block_hash,
             blob_reader,

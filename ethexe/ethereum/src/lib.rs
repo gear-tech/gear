@@ -42,7 +42,7 @@ use alloy::{
         Result as SignerResult, Signer, SignerSync,
     },
     sol_types::{SolCall, SolEvent},
-    transports::{BoxTransport, RpcError, Transport},
+    transports::RpcError,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -62,9 +62,7 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
-pub(crate) type AlloyTransport = BoxTransport;
-type AlloyProvider =
-    FillProvider<ExeFiller, RootProvider<AlloyTransport>, AlloyTransport, AlloyEthereum>;
+type AlloyProvider = FillProvider<ExeFiller, RootProvider, AlloyEthereum>;
 
 pub(crate) type ExeFiller = JoinFill<
     JoinFill<
@@ -244,7 +242,6 @@ async fn create_provider(
 ) -> Result<Arc<AlloyProvider>> {
     Ok(Arc::new(
         ProviderBuilder::new()
-            .with_recommended_fillers()
             .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
             .on_builtin(rpc_url)
             .await?,
@@ -320,12 +317,12 @@ impl SignerSync for Sender {
 }
 
 // TODO: Maybe better to append solution like this to alloy.
-trait TryGetReceipt<T: Transport + Clone, N: Network> {
+trait TryGetReceipt<N: Network> {
     /// Works like `self.get_receipt().await`, but retries a few times if rpc returns a null response.
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
 }
 
-impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactionBuilder<T, N> {
+impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse> {
         let tx_hash = *self.tx_hash();
         let provider = self.provider().clone();
