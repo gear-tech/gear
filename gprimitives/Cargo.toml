@@ -15,15 +15,13 @@ alloy-primitives = { workspace = true, optional = true }
 alloy-sol-types = { workspace = true, optional = true }
 derive_more.workspace = true
 primitive-types = { workspace = true, features = ["scale-info", "rustc-hex"] }
-parity-scale-codec = { workspace = true, features = [
-    "derive",
-], optional = true }
+parity-scale-codec = { workspace = true, features = ["derive"], optional = true }
 scale-info = { workspace = true, features = ["derive"], optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 hex.workspace = true
 gear-ss58.workspace = true
 
 [features]
-codec = ["parity-scale-codec", "scale-info"]
+codec = ["dep:parity-scale-codec", "dep:scale-info"]
 serde = ["dep:serde", "primitive-types/serde_no_std"]
 ethexe = ["dep:alloy-primitives", "dep:alloy-sol-types"]

@@ -23,6 +23,8 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+extern crate alloc;
+
 pub use gear_ss58::Ss58Address;
 pub use nonzero_u256::NonZeroU256;
 pub use primitive_types::{H160, H256, U256};
