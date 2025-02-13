@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ use crate::{
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage, Schedule},
+    db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Schedule},
     events::BlockRequestEvent,
     gear::StateTransition,
 };
@@ -340,7 +340,7 @@ impl CodesStorage for Database {
 
         self.kv
             .iter_prefix(&key_prefix)
-            .map(|#[allow(unused_variables)] (key, code_id)| {
+            .map(|(key, code_id)| {
                 let (split_key_prefix, program_id) = key.split_at(key_prefix.len());
                 debug_assert_eq!(split_key_prefix, key_prefix);
                 let program_id =
@@ -378,17 +378,17 @@ impl CodesStorage for Database {
         );
     }
 
-    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256> {
+    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo> {
         self.kv
             .get(&KeyPrefix::CodeUpload.one(code_id))
             .map(|data| {
-                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
+                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `CodeInfo`")
             })
     }
 
-    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256) {
+    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo) {
         self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), blob_tx_hash.encode());
+            .put(&KeyPrefix::CodeUpload.one(code_id), code_info.encode());
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {

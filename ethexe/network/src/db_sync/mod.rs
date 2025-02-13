@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -92,7 +92,7 @@ enum ResponseValidationError {
     DataHashMismatch,
 }
 
-#[derive(Debug, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Debug, Eq, PartialEq, Encode, Decode)]
 pub enum Response {
     /// Key (hash) - value (bytes) data
     DataForHashes(BTreeMap<H256, Vec<u8>>),
@@ -165,7 +165,7 @@ pub enum NewRequestRoundReason {
     PeerFailed,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RequestFailure {
     /// Request exceeded its round limit
     OutOfRounds,

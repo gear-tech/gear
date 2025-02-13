@@ -9,4 +9,6 @@ repository.workspace = true
 
 [dependencies]
 hex.workspace = true
-wabt.workspace = true
+wasmparser.workspace = true
+wat.workspace = true
+wasmprinter.workspace = true

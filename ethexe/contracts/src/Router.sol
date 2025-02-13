@@ -3,6 +3,9 @@ pragma solidity ^0.8.26;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Gear} from "./libraries/Gear.sol";
+import {SSTORE2} from "./libraries/SSTORE2.sol";
+import {Secp256k1} from "frost-secp256k1-evm/utils/cryptography/Secp256k1.sol";
+import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
 import {IMirrorDecoder} from "./IMirrorDecoder.sol";
 import {IRouter} from "./IRouter.sol";
@@ -29,6 +32,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         uint256 _eraDuration,
         uint256 _electionDuration,
         uint256 _validationDelay,
+        Gear.AggregatedPublicKey calldata _aggregatedPublicKey,
+        bytes calldata _verifiableSecretSharingCommitment,
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
@@ -51,7 +56,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
 
         // Set validators for the era 0.
-        _resetValidators(router.validationSettings.validators0, _validators, block.timestamp);
+        _resetValidators(
+            router.validationSettings.validators0,
+            _aggregatedPublicKey,
+            _verifiableSecretSharingCommitment,
+            _validators,
+            block.timestamp
+        );
     }
 
     function reinitialize() public onlyOwner reinitializer(2) {
@@ -77,7 +88,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         // Skipping validators1 copying - means we forget election results
         // if an election is already done for the next era.
         _resetValidators(
-            newRouter.validationSettings.validators0, Gear.currentEraValidators(oldRouter).list, block.timestamp
+            oldRouter.validationSettings.validators0,
+            Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
+            SSTORE2.read(Gear.currentEraValidators(oldRouter).verifiableSecretSharingCommitmentPointer),
+            Gear.currentEraValidators(oldRouter).list,
+            block.timestamp
         );
 
         // Copy computation settings from the old router.
@@ -112,6 +127,14 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function wrappedVara() public view returns (address) {
         return _router().implAddresses.wrappedVara;
+    }
+
+    function validatorsAggregatedPublicKey() public view returns (Gear.AggregatedPublicKey memory) {
+        return Gear.currentEraValidators(_router()).aggregatedPublicKey;
+    }
+
+    function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory) {
+        return SSTORE2.read(Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer);
     }
 
     function areValidators(address[] calldata _validators) public view returns (bool) {
@@ -211,8 +234,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         router.genesisBlock.hash = blockhash(router.genesisBlock.number);
     }
 
-    function requestCodeValidation(bytes32 _codeId, bytes32 _blobTxHash) external {
-        require(_blobTxHash != 0 || blobhash(0) != 0, "blob can't be found");
+    function requestCodeValidation(bytes32 _codeId) external {
+        require(blobhash(0) != 0, "blob can't be found, router expected EIP-4844 transaction with WASM blob");
 
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
@@ -224,7 +247,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         router.protocolData.codes[_codeId] = Gear.CodeState.ValidationRequested;
 
-        emit CodeValidationRequested(_codeId, _blobTxHash);
+        emit CodeValidationRequested(_codeId);
     }
 
     function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {
@@ -247,42 +270,27 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return mirror;
     }
 
-    // # Validators calls.
-
-    /// @dev Set validators for the next era.
-    function commitValidators(Gear.ValidatorsCommitment calldata commitment, bytes[] calldata signatures) external {
-        Storage storage router = _router();
-
-        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
-
-        require(commitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
-
-        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * commitment.eraIndex;
-        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
-
-        // Maybe free slot for new validators:
-        Gear.Validators storage _validators = Gear.previousEraValidators(router);
-        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
-
-        bytes32 commitmentHash = Gear.validatorsCommitmentHash(commitment);
-        require(
-            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), signatures),
-            "next era validators signatures verification failed"
-        );
-
-        _resetValidators(_validators, commitment.validators, nextEraStart);
-
-        emit NextEraValidatorsCommitted(nextEraStart);
-    }
-
-    function commitCodes(Gear.CodeCommitment[] calldata _codeCommitments, bytes[] calldata _signatures) external {
+    function commitBatch(
+        Gear.BatchCommitment calldata _batchCommitment,
+        Gear.SignatureType _signatureType,
+        bytes[] calldata _signatures
+    ) external nonReentrant {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
+        require(
+            !(_batchCommitment.codeCommitments.length == 0 && _batchCommitment.blockCommitments.length == 0),
+            "no commitments to commit"
+        );
+
+        uint256 maxTimestamp = 0;
+
+        /* Commit Codes */
+
         bytes memory codeCommitmentsHashes;
 
-        for (uint256 i = 0; i < _codeCommitments.length; i++) {
-            Gear.CodeCommitment calldata codeCommitment = _codeCommitments[i];
+        for (uint256 i = 0; i < _batchCommitment.codeCommitments.length; i++) {
+            Gear.CodeCommitment calldata codeCommitment = _batchCommitment.codeCommitments[i];
 
             require(
                 router.protocolData.codes[codeCommitment.id] == Gear.CodeState.ValidationRequested,
@@ -299,41 +307,74 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             emit CodeGotValidated(codeCommitment.id, codeCommitment.valid);
 
             codeCommitmentsHashes = bytes.concat(codeCommitmentsHashes, Gear.codeCommitmentHash(codeCommitment));
+            if (codeCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = codeCommitment.timestamp;
+            }
         }
 
-        require(
-            Gear.validateSignatures(router, keccak256(codeCommitmentsHashes), _signatures),
-            "signatures verification failed"
-        );
-    }
-
-    function commitBlocks(Gear.BlockCommitment[] calldata _blockCommitments, bytes[] calldata _signatures)
-        external
-        nonReentrant
-    {
-        Storage storage router = _router();
-        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
-
-        require(_blockCommitments.length > 0, "no block commitments to commit");
+        /* Commit Blocks */
 
         bytes memory blockCommitmentsHashes;
-        uint256 maxTimestamp = 0;
 
-        for (uint256 i = 0; i < _blockCommitments.length; i++) {
-            Gear.BlockCommitment calldata blockCommitment = _blockCommitments[i];
+        for (uint256 i = 0; i < _batchCommitment.blockCommitments.length; i++) {
+            Gear.BlockCommitment calldata blockCommitment = _batchCommitment.blockCommitments[i];
             blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
             if (blockCommitment.timestamp > maxTimestamp) {
                 maxTimestamp = blockCommitment.timestamp;
             }
         }
 
-        // NOTE: Use maxTimestamp to validate signatures for all block commitments.
+        // NOTE: Use maxTimestamp to validate signatures for all commitments.
         // This means that if at least one commitment is for block from current era,
         // then all commitments should be checked with current era validators.
+
         require(
-            Gear.validateSignaturesAt(router, keccak256(blockCommitmentsHashes), _signatures, maxTimestamp),
+            Gear.validateSignaturesAt(
+                router,
+                keccak256(abi.encodePacked(keccak256(codeCommitmentsHashes), keccak256(blockCommitmentsHashes))),
+                _signatureType,
+                _signatures,
+                maxTimestamp
+            ),
             "signatures verification failed"
         );
+    }
+
+    /// @dev Set validators for the next era.
+    function commitValidators(
+        Gear.ValidatorsCommitment memory _validatorsCommitment,
+        Gear.SignatureType _signatureType,
+        bytes[] calldata _signatures
+    ) external {
+        Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+
+        require(_validatorsCommitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
+
+        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * _validatorsCommitment.eraIndex;
+        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
+
+        // Maybe free slot for new validators:
+        Gear.Validators storage _validators = Gear.previousEraValidators(router);
+        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
+
+        bytes32 commitmentHash = Gear.validatorsCommitmentHash(_validatorsCommitment);
+        require(
+            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures),
+            "next era validators signatures verification failed"
+        );
+
+        _resetValidators(
+            _validators,
+            _validatorsCommitment.aggregatedPublicKey,
+            _validatorsCommitment.verifiableSecretSharingCommitment,
+            _validatorsCommitment.validators,
+            nextEraStart
+        );
+
+        emit NextEraValidatorsCommitted(nextEraStart);
     }
 
     /* Helper private functions */
@@ -377,7 +418,15 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             "invalid previous committed block hash"
         );
 
-        require(Gear.blockIsPredecessor(_blockCommitment.predecessorBlock), "allowed predecessor block wasn't found");
+        /*
+         * @dev `router.reserved` is always `0` but can be overridden in an RPC request
+         *       to estimate gas excluding `Gear.blockIsPredecessor()`.
+         */
+        if (router.reserved == 0) {
+            require(
+                Gear.blockIsPredecessor(_blockCommitment.predecessorBlock), "allowed predecessor block wasn't found"
+            );
+        }
 
         /*
          * @dev SECURITY: this settlement should be performed before any other calls to avoid reentrancy.
@@ -422,9 +471,22 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function _resetValidators(
         Gear.Validators storage _validators,
+        Gear.AggregatedPublicKey memory _newAggregatedPublicKey,
+        bytes memory _verifiableSecretSharingCommitment,
         address[] memory _newValidators,
         uint256 _useFromTimestamp
     ) private {
+        // basic checks for aggregated public key
+        // but it probably should be checked with
+        // [`frost_core::keys::PublicKeyPackage::{from_commitment, from_dkg_commitments}`]
+        // https://docs.rs/frost-core/latest/frost_core/keys/struct.PublicKeyPackage.html#method.from_dkg_commitments
+        // ideally onchain
+        require(
+            FROST.isValidPublicKey(_newAggregatedPublicKey.x, _newAggregatedPublicKey.y),
+            "FROST aggregated public key is invalid"
+        );
+        _validators.aggregatedPublicKey = _newAggregatedPublicKey;
+        _validators.verifiableSecretSharingCommitmentPointer = SSTORE2.write(_verifiableSecretSharingCommitment);
         for (uint256 i = 0; i < _validators.list.length; i++) {
             address _validator = _validators.list[i];
             _validators.map[_validator] = false;

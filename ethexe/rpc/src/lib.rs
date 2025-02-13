@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, Result};
-use apis::{BlockApi, BlockServer, ProgramApi, ProgramServer};
+use apis::{
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
+};
 use ethexe_db::Database;
-use futures::FutureExt;
+use ethexe_observer::MockBlobReader;
+use futures::{stream::FusedStream, FutureExt, Stream};
 use jsonrpsee::{
     server::{
         serve_with_graceful_shutdown, stop_channel, Server, ServerHandle, StopHandle,
@@ -27,8 +30,17 @@ use jsonrpsee::{
     },
     Methods, RpcModule as JsonrpcModule,
 };
-use std::net::SocketAddr;
-use tokio::net::TcpListener;
+use std::{
+    mem,
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
+use tokio::{
+    net::TcpListener,
+    sync::mpsc::{self, UnboundedReceiver},
+};
 use tower::Service;
 
 mod apis;
@@ -51,23 +63,35 @@ pub struct RpcConfig {
     pub listen_addr: SocketAddr,
     /// CORS.
     pub cors: Option<Vec<String>>,
+    /// Dev mode.
+    pub dev: bool,
 }
 
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
+    blob_reader: Option<Arc<MockBlobReader>>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database) -> Self {
-        Self { config, db }
+    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<Arc<MockBlobReader>>) -> Self {
+        Self {
+            config,
+            db,
+            blob_reader,
+        }
     }
 
     pub const fn port(&self) -> u16 {
         self.config.listen_addr.port()
     }
 
-    pub async fn run_server(self) -> Result<ServerHandle> {
+    pub async fn run_server(self) -> Result<(ServerHandle, RpcReceiver)> {
+        let (rpc_sender, rpc_receiver) = mpsc::unbounded_channel();
+
+        // TODO: Temporary solution, will be changed with introducing tx pool.
+        mem::forget(rpc_sender);
+
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
         let cors = util::try_into_cors(self.config.cors)?;
@@ -81,6 +105,13 @@ impl RpcService {
         let mut module = JsonrpcModule::new(());
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
+        module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
+
+        if self.config.dev {
+            module.merge(DevServer::into_rpc(DevApi::new(
+                self.blob_reader.unwrap().clone(),
+            )))?;
+        }
 
         let (stop_handle, server_handle) = stop_channel();
 
@@ -149,6 +180,25 @@ impl RpcService {
             }
         });
 
-        Ok(server_handle)
+        Ok((server_handle, RpcReceiver(rpc_receiver)))
     }
 }
+
+pub struct RpcReceiver(UnboundedReceiver<RpcEvent>);
+
+impl Stream for RpcReceiver {
+    type Item = RpcEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.0.poll_recv(cx)
+    }
+}
+
+impl FusedStream for RpcReceiver {
+    fn is_terminated(&self) -> bool {
+        self.0.is_closed()
+    }
+}
+
+#[derive(Debug)]
+pub enum RpcEvent {}

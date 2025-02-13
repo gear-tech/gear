@@ -7,14 +7,15 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["serde"] }
-
 parity-scale-codec.workspace = true
 derive_more.workspace = true
 hex.workspace = true
 anyhow.workspace = true
 serde.workspace = true
+roast-secp256k1-evm.workspace = true
+
+[features]
+std = ["gear-core/std", "gprimitives/serde"]
