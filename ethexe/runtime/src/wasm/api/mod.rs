@@ -46,7 +46,7 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     let (program_id, original_code_id, state_root, maybe_instrumented_code) =
         Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
 
-    let journal = run::run(
+    let (journal, origin) = run::run(
         program_id,
         original_code_id,
         state_root,
@@ -56,9 +56,9 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     let chunks = journal.encoded_size() / 32 * 1024 * 1024 + 1; // never zero
     let chunk_size = (journal.len() / chunks).max(1); // never zero
 
-    let res: Vec<_> = journal.chunks(chunk_size).map(return_val).collect();
+    let chunked_journal: Vec<_> = journal.chunks(chunk_size).map(return_val).collect();
 
-    return_val(res)
+    return_val((chunked_journal, origin))
 }
 
 fn get_vec(ptr: i32, len: i32) -> Vec<u8> {
