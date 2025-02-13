@@ -22,7 +22,10 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{Context, Result};
-use ethexe_common::{db::BlockMetaStorage, events::BlockRequestEvent};
+use ethexe_common::{
+    db::{BlockMetaStorage, CodesStorage},
+    events::BlockRequestEvent,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::{
     mirror::MirrorQuery,
@@ -36,12 +39,11 @@ use ethexe_runtime_common::state::{
     Storage,
 };
 use futures::StreamExt;
-use gear_core::ids::ProgramId;
-use gprimitives::H256;
+use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
     collections::{BTreeSet, HashMap},
-    mem,
+    iter, mem,
 };
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -108,9 +110,14 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let programs_states =
         collect_programs_states(router_query, query, db, observer.provider().root().clone())
             .await?;
+    let code_ids = collect_code_ids(&programs_states, router_query, db).await?;
     log::error!("Program IDs from mirrors: {programs_states:?}");
 
     let mut requests = Requests::default();
+    requests.add(
+        RequestKind::Data,
+        code_ids.into_iter().map(CodeId::into_bytes).map(H256::from),
+    );
     requests.add(
         RequestKind::ProgramState,
         programs_states
@@ -214,7 +221,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                                 db.write_pages_region(pages_region);
                             }
                             RequestKind::Data => {
-                                log::error!("New data: {data:?}");
+                                log::error!("New data: {} bytes", data.len());
                                 db.write(&data);
                             }
                         }
@@ -242,9 +249,25 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
     }
 
+    //let latest_block_header = query.get_block_header_meta(latest_block).await?;
+    // db.set_block_end_state_is_valid(latest_block, true);
+    // db.set_latest_valid_block(latest_block, latest_block_header);
     log::info!("Fast synchronization done");
 
     Ok(())
+}
+
+async fn collect_code_ids(
+    programs_states: &HashMap<ActorId, BTreeSet<H256>>,
+    router_query: &RouterQuery,
+    db: &Database,
+) -> Result<BTreeSet<CodeId>> {
+    let program_ids: Vec<ActorId> = programs_states.keys().copied().collect();
+    let code_ids = router_query.programs_code_ids(program_ids.clone()).await?;
+    for (program_id, &code_id) in iter::zip(program_ids, &code_ids) {
+        db.set_program_code_id(program_id, code_id);
+    }
+    Ok(code_ids.into_iter().collect())
 }
 
 async fn collect_programs_states(
@@ -252,7 +275,7 @@ async fn collect_programs_states(
     query: &mut Query,
     db: &Database,
     provider: RootProvider<BoxTransport>,
-) -> Result<HashMap<ProgramId, BTreeSet<H256>>> {
+) -> Result<HashMap<ActorId, BTreeSet<H256>>> {
     let latest_block = router_query.latest_committed_block_hash().await?;
     debug_assert_ne!(
         latest_block,
@@ -261,7 +284,7 @@ async fn collect_programs_states(
     ); // FIXME: `get_last_committed_chain` should not hang when latest block is zero
     let blocks = query.get_last_committed_chain(latest_block).await?;
 
-    let mut program_states = HashMap::<ProgramId, BTreeSet<H256>>::new();
+    let mut program_states = HashMap::<ActorId, BTreeSet<H256>>::new();
     for block in blocks {
         let events = db
             .block_events(block)
@@ -301,7 +324,7 @@ async fn process_response_validation(
             return Ok(false);
         }
 
-        let ids: Vec<ProgramId> = ids.iter().copied().collect();
+        let ids: Vec<ActorId> = ids.iter().copied().collect();
         let ids_len = ids.len();
         let code_ids = router_query.programs_code_ids(ids).await?;
         if code_ids.len() != ids_len {

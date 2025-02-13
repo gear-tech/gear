@@ -1039,7 +1039,7 @@ async fn fast_sync() {
     log::info!("Uploading `demo-ping` program");
 
     let code_info = env
-        .upload_code(demo_ping::WASM_BINARY)
+        .upload_code(demo_async::WASM_BINARY)
         .await
         .unwrap()
         .wait_for()
@@ -1048,7 +1048,7 @@ async fn fast_sync() {
 
     let code_id = code_info.code_id;
 
-    for _ in 0..5 {
+    for i in 0..5 {
         let program_info = env
             .create_program(code_id, 500_000_000_000_000)
             .await
@@ -1057,8 +1057,10 @@ async fn fast_sync() {
             .await
             .unwrap();
 
+        let destination = ActorId::from(i % 3).into_bytes();
+
         let _reply_info = env
-            .send_message(program_info.program_id, b"PING", 0)
+            .send_message(program_info.program_id, &destination, 0)
             .await
             .unwrap()
             .wait_for()
