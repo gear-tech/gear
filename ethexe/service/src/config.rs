@@ -56,6 +56,7 @@ pub struct NodeConfig {
     pub key_path: PathBuf,
     pub sequencer: ConfigPublicKey,
     pub validator: ConfigPublicKey,
+    pub validator_session: ConfigPublicKey,
     pub max_commitment_depth: u32,
     pub worker_threads_override: Option<usize>,
     pub virtual_threads: usize,

@@ -7,8 +7,6 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 ethexe-compute.workspace = true
 ethexe-service-utils.workspace = true
@@ -70,6 +68,7 @@ gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-utils.workspace = true
 ethexe-network.workspace = true
+roast-secp256k1-evm.workspace = true
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }

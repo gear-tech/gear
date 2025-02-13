@@ -81,7 +81,7 @@ interface IRouter {
     function wrappedVara() external view returns (address);
 
     function validatorsAggregatedPublicKey() external view returns (Gear.AggregatedPublicKey memory);
-    function validatorsVerifyingShares() external view returns (Gear.VerifyingShare[] memory);
+    function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory);
 
     function areValidators(address[] calldata validators) external view returns (bool);
     function isValidator(address validator) external view returns (bool);
@@ -121,7 +121,7 @@ interface IRouter {
     ) external;
     /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(
-        Gear.ValidatorsCommitment calldata validatorsCommitment,
+        Gear.ValidatorsCommitment memory validatorsCommitment,
         Gear.SignatureType signatureType,
         bytes[] calldata signatures
     ) external;
