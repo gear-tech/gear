@@ -24,7 +24,7 @@ use crate::{
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
-    providers::{ext::AnvilApi, Provider},
+    providers::{ext::AnvilApi, Provider as _},
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Result;
@@ -34,7 +34,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{EthereumConfig, MockBlobReader, Query};
+use ethexe_observer::{EthereumConfig, MockBlobReader, Provider};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -685,9 +685,9 @@ async fn ping_reorg() {
 
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
-        env.observer.provider().get_block_number().await.unwrap()
+        env.provider.get_block_number().await.unwrap()
     );
-    let program_created_snapshot_id = env.observer.provider().anvil_snapshot().await.unwrap();
+    let program_created_snapshot_id = env.provider.anvil_snapshot().await.unwrap();
 
     let res = env
         .send_message(ping_id, b"PING", 0)
@@ -700,8 +700,7 @@ async fn ping_reorg() {
     assert_eq!(res.reply_payload, b"PONG");
 
     log::info!("📗 Test after reverting to the program creation snapshot");
-    env.observer
-        .provider()
+    env.provider
         .anvil_revert(program_created_snapshot_id)
         .await
         .map(|res| assert!(res))
@@ -719,7 +718,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::from_one(&MemDb::default(), env.router_address.0);
+    node.db = Database::from_one(&MemDb::default(), env.eth_cfg.router_address.0);
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
@@ -968,7 +967,7 @@ mod utils {
     use ethexe_common::SimpleBlockData;
     use ethexe_db::BlocksOnChainData;
     use ethexe_network::export::Multiaddr;
-    use ethexe_observer::{ObserverEvent, ObserverService, ObserverServiceConfig};
+    use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_sequencer::{SequencerConfig, SequencerService};
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
@@ -983,18 +982,15 @@ mod utils {
     };
 
     pub struct TestEnv {
-        pub rpc_url: String,
+        pub eth_cfg: EthereumConfig,
         pub wallets: Wallets,
-        pub observer: ObserverService,
         pub blob_reader: Arc<MockBlobReader>,
+        pub provider: Provider,
         pub ethereum: Ethereum,
-        #[allow(unused)]
         pub router_query: RouterQuery,
         pub signer: Signer,
         pub validators: Vec<ethexe_signer::PublicKey>,
-        pub router_address: ethexe_signer::Address,
         pub sender_id: ActorId,
-        pub genesis_block_hash: H256,
         pub threshold: u64,
         pub block_time: Duration,
         pub continuous_block_generation: bool,
@@ -1095,15 +1091,13 @@ mod utils {
                 router_address,
                 block_time: config.block_time,
             };
-            let observer_config = ObserverServiceConfig {
-                ethereum: eth_cfg,
-                db: BlocksOnChainData::clone_boxed(&db),
-                blobs_reader: Some(blob_reader.clone()),
-            };
-            let observer = ObserverService::new(observer_config).await?;
+            let mut observer = ObserverService::new(&eth_cfg, &db, Some(blob_reader.clone()))
+                .await
+                .unwrap();
+
+            let provider = observer.provider().clone();
 
             let (broadcaster, _events_stream) = {
-                let mut observer = observer.clone();
                 let (sender, mut receiver) = tokio::sync::broadcast::channel(2048);
                 let sender = Arc::new(Mutex::new(sender));
                 let cloned_sender = sender.clone();
@@ -1138,21 +1132,18 @@ mod utils {
                 (sender, handle)
             };
 
-            let genesis_block_hash = router_query.genesis_block_hash().await?;
             let threshold = router_query.threshold().await?;
 
             Ok(TestEnv {
-                rpc_url,
+                eth_cfg,
                 wallets,
-                observer,
                 blob_reader,
+                provider,
                 ethereum,
                 router_query,
                 signer,
                 validators,
-                router_address,
                 sender_id: ActorId::from(H160::from(sender_address.0)),
-                genesis_block_hash,
                 threshold,
                 block_time,
                 continuous_block_generation,
@@ -1171,8 +1162,9 @@ mod utils {
                 network,
             } = config;
 
-            let db =
-                db.unwrap_or_else(|| Database::from_one(&MemDb::default(), self.router_address.0));
+            let db = db.unwrap_or_else(|| {
+                Database::from_one(&MemDb::default(), self.eth_cfg.router_address.0)
+            });
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
@@ -1187,15 +1179,13 @@ mod utils {
             Node {
                 db,
                 multiaddr: None,
-                rpc_url: self.rpc_url.clone(),
-                genesis_block_hash: self.genesis_block_hash,
+                eth_cfg: self.eth_cfg.clone(),
+                router_query: self.router_query.clone(),
                 blob_reader: self.blob_reader.clone(),
-                observer: self.observer.clone(),
                 signer: self.signer.clone(),
-                block_time: self.block_time,
                 validators: self.validators.iter().map(|k| k.to_address()).collect(),
                 threshold: self.threshold,
-                router_address: self.router_address,
+                block_time: self.block_time,
                 running_service_handle: None,
                 sequencer_public_key,
                 validator_public_key,
@@ -1316,7 +1306,7 @@ mod utils {
             if self.continuous_block_generation {
                 // nothing to do: new block will be generated automatically
             } else {
-                self.observer.provider().evm_mine(None).await.unwrap();
+                self.provider.evm_mine(None).await.unwrap();
             }
         }
 
@@ -1324,8 +1314,7 @@ mod utils {
             if self.continuous_block_generation {
                 tokio::time::sleep(self.block_time.mul(blocks_amount)).await;
             } else {
-                self.observer
-                    .provider()
+                self.provider
                     .evm_mine(Some(MineOptions::Options {
                         timestamp: None,
                         blocks: Some(blocks_amount.into()),
@@ -1561,14 +1550,12 @@ mod utils {
         pub db: Database,
         pub multiaddr: Option<String>,
 
-        rpc_url: String,
-        genesis_block_hash: H256,
+        eth_cfg: EthereumConfig,
         blob_reader: Arc<MockBlobReader>,
-        observer: ObserverService,
+        router_query: RouterQuery,
         signer: Signer,
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
-        router_address: ethexe_signer::Address,
         block_time: Duration,
         running_service_handle: Option<JoinHandle<Result<()>>>,
         sequencer_public_key: Option<ethexe_signer::PublicKey>,
@@ -1585,21 +1572,6 @@ mod utils {
             );
 
             let processor = Processor::new(self.db.clone()).unwrap();
-
-            let query = Query::new(
-                Arc::new(self.db.clone()),
-                &self.rpc_url,
-                self.router_address,
-                self.genesis_block_hash,
-                self.blob_reader.clone(),
-                10000,
-            )
-            .await
-            .unwrap();
-
-            let router_query = RouterQuery::new(&self.rpc_url, self.router_address)
-                .await
-                .unwrap();
 
             let network = self.network_address.as_ref().map(|addr| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
@@ -1623,9 +1595,9 @@ mod utils {
                 Some(key) => Some(
                     SequencerService::new(
                         &SequencerConfig {
-                            ethereum_rpc: self.rpc_url.clone(),
+                            ethereum_rpc: self.eth_cfg.rpc.clone(),
                             sign_tx_public: *key,
-                            router_address: self.router_address,
+                            router_address: self.eth_cfg.router_address,
                             validators: self.validators.clone(),
                             threshold: self.threshold,
                             block_time: self.block_time,
@@ -1643,18 +1615,23 @@ mod utils {
                 Some(key) => Some(Validator::new(
                     &ethexe_validator::Config {
                         pub_key: *key,
-                        router_address: self.router_address,
+                        router_address: self.eth_cfg.router_address,
                     },
+                    Box::new(self.db.clone()),
                     self.signer.clone(),
                 )),
                 None => None,
             };
 
+            let observer =
+                ObserverService::new(&self.eth_cfg, &self.db, Some(self.blob_reader.clone()))
+                    .await
+                    .unwrap();
+
             let service = Service::new_from_parts(
                 self.db.clone(),
-                self.observer.clone(),
-                query,
-                router_query,
+                observer,
+                self.router_query.clone(),
                 processor,
                 self.signer.clone(),
                 network,

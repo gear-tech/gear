@@ -35,8 +35,12 @@ use ethexe_common::{
     events::{BlockEvent, RouterEvent},
     BlockData, SimpleBlockData,
 };
-use ethexe_db::{BlockHeader, CodeInfo};
-use ethexe_ethereum::{mirror, router, wvara};
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo};
+use ethexe_ethereum::{
+    mirror,
+    router::{self, RouterQuery},
+    wvara,
+};
 use ethexe_signer::Address;
 use futures::{
     future::{self, BoxFuture},
@@ -55,7 +59,7 @@ use std::{
 // +_+_+ change codes to futures map
 // use futures_bounded::FuturesMap;
 
-pub(crate) type Provider = RootProvider<BoxTransport>;
+pub type Provider = RootProvider<BoxTransport>;
 
 mod blobs;
 mod observer;
@@ -77,12 +81,6 @@ pub struct EthereumConfig {
     pub beacon_rpc: String,
     pub router_address: Address,
     pub block_time: Duration,
-}
-
-pub struct ObserverServiceConfig {
-    pub ethereum: EthereumConfig,
-    pub db: Box<dyn BlocksOnChainData>,
-    pub blobs_reader: Option<Arc<dyn BlobReader>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -162,13 +160,15 @@ impl Stream for ObserverService {
             if let Poll::Ready(res) = fut.poll_unpin(cx) {
                 self.sync_future = None;
 
-                return Poll::Ready(Some(res.map(|(hash, codes)| {
+                let res = res.map(|(hash, codes)| {
                     for (code_id, code_info) in codes {
                         self.lookup_code(code_id, code_info.timestamp, code_info.tx_hash);
                     }
 
                     ObserverEvent::BlockSynced(hash)
-                })));
+                });
+
+                return Poll::Ready(Some(res));
             }
         }
 
@@ -193,74 +193,54 @@ impl FusedStream for ObserverService {
 }
 
 impl ObserverService {
-    pub async fn new(config: ObserverServiceConfig) -> Result<Self> {
-        let blobs_reader = match config.blobs_reader {
+    pub async fn new<DB>(
+        eth_cfg: &EthereumConfig,
+        db: &DB,
+        blobs_reader: Option<Arc<dyn BlobReader>>,
+    ) -> Result<Self>
+    where
+        DB: BlocksOnChainData + BlockMetaStorage,
+    {
+        let EthereumConfig {
+            rpc,
+            beacon_rpc,
+            router_address,
+            block_time,
+        } = eth_cfg;
+
+        let blobs_reader = match blobs_reader {
             Some(reader) => reader,
             None => Arc::new(
-                ConsensusLayerBlobReader::new(
-                    &config.ethereum.rpc,
-                    &config.ethereum.beacon_rpc,
-                    config.ethereum.block_time,
-                )
-                .await
-                .context("failed to create blob reader")?,
+                ConsensusLayerBlobReader::new(rpc, beacon_rpc, *block_time)
+                    .await
+                    .context("failed to create blob reader")?,
             ),
         };
 
-        let router_query = ethexe_ethereum::router::RouterQuery::new(
-            &config.ethereum.rpc,
-            config.ethereum.router_address,
-        )
-        .await?;
+        let router_query = RouterQuery::new(rpc, *router_address).await?;
 
         let wvara_address = Address(router_query.wvara_address().await?.0 .0);
 
         let provider = ProviderBuilder::new()
-            .on_builtin(&config.ethereum.rpc)
+            .on_builtin(rpc)
             .await
             .context("failed to create ethereum provider")?;
-
-        let genesis_block_hash = router_query.genesis_block_hash().await?;
-        if !config.db.block_is_synced(genesis_block_hash) {
-            let genesis_block = provider
-                .get_block_by_hash(genesis_block_hash.0.into(), Default::default())
-                .await?
-                .ok_or_else(|| {
-                    anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
-                })?;
-
-            let genesis_header = BlockHeader {
-                height: genesis_block.header.number as u32,
-                timestamp: genesis_block.header.timestamp,
-                parent_hash: H256(genesis_block.header.parent_hash.0),
-            };
-
-            config
-                .db
-                .set_block_header(genesis_block_hash, &genesis_header);
-            config.db.set_block_is_synced(genesis_block_hash);
-            config.db.set_block_events(genesis_block_hash, &[]);
-
-            if config.db.latest_synced_block_height().is_none() {
-                config
-                    .db
-                    .set_latest_synced_block_height(genesis_header.height);
-            }
-        }
 
         let subscription = provider
             .subscribe_blocks()
             .await
             .context("failed to subscribe blocks")?;
 
+        Self::pre_process_genesis_for_db(db, &provider, &router_query).await?;
+
         let headers_stream = subscription.resubscribe().into_stream();
 
         Ok(Self {
             provider,
-            database: config.db,
+            database: BlocksOnChainData::clone_boxed(db),
             blobs_reader,
             subscription,
-            router: config.ethereum.router_address,
+            router: *router_address,
             wvara_address,
             last_block_number: 0,
             headers_stream,
@@ -281,7 +261,24 @@ impl ObserverService {
         }
     }
 
-    pub fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
+    pub async fn query_block_by_hash(&self, hash: H256) -> Result<SimpleBlockData> {
+        let block = self
+            .provider
+            .get_block_by_hash(hash.0.into(), Default::default())
+            .await?
+            .ok_or_else(|| anyhow!("Genesis block with hash {hash:?} not found by rpc"))?;
+
+        Ok(SimpleBlockData {
+            hash,
+            header: BlockHeader {
+                height: block.header.number as u32,
+                timestamp: block.header.timestamp,
+                parent_hash: H256(block.header.parent_hash.0),
+            },
+        })
+    }
+
+    fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
         self.codes_futures.push(Box::pin(read_code_from_tx_hash(
             self.blobs_reader.clone(),
             code_id,
@@ -290,26 +287,53 @@ impl ObserverService {
             Some(3),
         )));
     }
-}
 
-impl Clone for ObserverService {
-    fn clone(&self) -> Self {
-        let subscription = self.subscription.resubscribe();
-        let headers_stream = subscription.resubscribe().into_stream();
+    // TODO (gsobol): this is a temporary solution consider where to move it in better place, out of ObserverService.
+    /// If genesis block is not yet fully setup in the database, we need to do it
+    async fn pre_process_genesis_for_db<DB>(
+        db: &DB,
+        provider: &Provider,
+        router_query: &RouterQuery,
+    ) -> Result<()>
+    where
+        DB: BlocksOnChainData + BlockMetaStorage,
+    {
+        let genesis_block_hash = router_query.genesis_block_hash().await?;
 
-        Self {
-            blobs_reader: self.blobs_reader.clone(),
-            provider: self.provider.clone(),
-            database: self.database.clone_boxed(),
-            subscription,
-            router: self.router,
-            wvara_address: self.wvara_address,
-            last_block_number: self.last_block_number,
-            headers_stream,
-            codes_futures: Default::default(),
-            block_sync_queue: Default::default(),
-            sync_future: Default::default(),
+        if BlockMetaStorage::block_end_state_is_valid(db, genesis_block_hash).unwrap_or(false) {
+            return Ok(());
         }
+
+        let genesis_block = provider
+            .get_block_by_hash(genesis_block_hash.0.into(), Default::default())
+            .await?
+            .ok_or_else(|| {
+                anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
+            })?;
+
+        let genesis_header = BlockHeader {
+            height: genesis_block.header.number as u32,
+            timestamp: genesis_block.header.timestamp,
+            parent_hash: H256(genesis_block.header.parent_hash.0),
+        };
+
+        BlocksOnChainData::set_block_header(db, genesis_block_hash, &genesis_header);
+        BlocksOnChainData::set_block_events(db, genesis_block_hash, &[]);
+
+        db.set_latest_synced_block_height(genesis_header.height);
+        db.set_block_is_synced(genesis_block_hash);
+
+        db.set_block_commitment_queue(genesis_block_hash, Default::default());
+        db.set_previous_committed_block(genesis_block_hash, H256::zero());
+        db.set_block_is_empty(genesis_block_hash, true);
+        db.set_block_end_program_states(genesis_block_hash, Default::default());
+        db.set_block_end_schedule(genesis_block_hash, Default::default());
+
+        db.set_latest_valid_block(genesis_block_hash, genesis_header);
+
+        db.set_block_end_state_is_valid(genesis_block_hash, true);
+
+        Ok(())
     }
 }
 
@@ -702,17 +726,17 @@ impl ChainSync {
             self.database.set_original_code(code_id, code.as_slice());
         }
 
-        // Set blocks as synced in reverse order, in order to be sure that: if block is synced, then all its ancestors are synced.
         for hash in chain.iter().rev() {
+            let block_header = self
+                .database
+                .block_header(*hash)
+                .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
+
             // Setting block as synced means: all on-chain data for this block is loaded and at least all positive validated codes are loaded.
             self.database.set_block_is_synced(*hash);
 
-            let block_height = self
-                .database
-                .block_header(*hash)
-                .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"))
-                .height;
-            self.database.set_latest_synced_block_height(block_height);
+            self.database
+                .set_latest_synced_block_height(block_header.height);
         }
 
         Ok((

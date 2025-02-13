@@ -91,6 +91,7 @@ pub trait BlockMetaStorage: Send + Sync {
     fn previous_committed_block(&self, block_hash: H256) -> Option<H256>;
     fn set_previous_committed_block(&self, block_hash: H256, prev_commitment: H256);
 
+    // TODO (gsobol): remove this method
     fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
     fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
 

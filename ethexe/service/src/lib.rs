@@ -18,16 +18,13 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
-use anyhow::{anyhow, bail, Context, Result};
-use ethexe_common::{
-    gear::{BlockCommitment, CodeCommitment},
-    BlockData,
-};
+use anyhow::{bail, Context, Result};
+use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
-use ethexe_db::{BlocksOnChainData, Database};
+use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService, ObserverServiceConfig};
+use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
 use ethexe_processor::ProcessorConfig;
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
@@ -85,30 +82,11 @@ impl Service {
             None
         };
 
-        let blob_reader: Arc<dyn ethexe_observer::BlobReader> = if config.node.dev {
-            mock_blob_reader.clone().unwrap()
-        } else {
-            Arc::new(
-                ethexe_observer::ConsensusLayerBlobReader::new(
-                    &config.ethereum.rpc,
-                    &config.ethereum.beacon_rpc,
-                    config.ethereum.block_time,
-                )
-                .await
-                .with_context(|| "failed to create blob reader")?,
-            )
-        };
-
         let rocks_db = ethexe_db::RocksDatabase::open(config.node.database_path.clone())
             .with_context(|| "failed to open database")?;
         let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
 
-        let observer_config = ObserverServiceConfig {
-            ethereum: config.ethereum.clone(),
-            db: BlocksOnChainData::clone_boxed(&db),
-            blobs_reader: None,
-        };
-        let observer = ObserverService::new(observer_config)
+        let observer = ObserverService::new(&config.ethereum, &db, None)
             .await
             .context("failed to create observer service")?;
 
@@ -142,17 +120,6 @@ impl Service {
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
-
-        let query = ethexe_observer::Query::new(
-            Arc::new(db.clone()),
-            &config.ethereum.rpc,
-            config.ethereum.router_address,
-            genesis_block_hash,
-            blob_reader,
-            config.node.max_commitment_depth,
-        )
-        .await
-        .with_context(|| "failed to create observer query")?;
 
         let processor = ethexe_processor::Processor::with_config(
             ProcessorConfig {
@@ -207,6 +174,7 @@ impl Service {
                         pub_key: key,
                         router_address: config.ethereum.router_address,
                     },
+                    Box::new(db.clone()),
                     signer.clone(),
                 )
             });
@@ -230,7 +198,7 @@ impl Service {
             ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
         });
 
-        let compute = ComputeService::new(db.clone(), processor, query);
+        let compute = ComputeService::new(db.clone(), processor);
 
         Ok(Self {
             db,
@@ -259,7 +227,6 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
-        query: ethexe_observer::Query,
         router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
@@ -269,7 +236,7 @@ impl Service {
         prometheus: Option<PrometheusService>,
         rpc: Option<ethexe_rpc::RpcService>,
     ) -> Self {
-        let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
+        let compute = ComputeService::new(db.clone(), processor);
 
         Self {
             db,
@@ -328,32 +295,39 @@ impl Service {
             tokio::select! {
                 event = observer.select_next_some() => {
                     match event? {
-                        ObserverEvent::Blob { code_id, timestamp, code } => compute.receive_code(code_id, timestamp, code),
+                        ObserverEvent::Blob { code_id, timestamp, code } => {
+                            log::info!(
+                                "🔢 receive a code blob, code_id {code_id}, code size {}",
+                                code.len()
+                            );
+
+                            compute.receive_code(code_id, timestamp, code)
+                        }
                         ObserverEvent::Block(block_data) => {
-                            log::debug!("Received a new block from observer: {block_data:?}");
+                            log::info!(
+                                "📦 receive a chain head, height {}, hash {}, parent hash {}",
+                                block_data.header.height,
+                                block_data.hash,
+                                block_data.header.parent_hash,
+                            );
                         },
                         ObserverEvent::BlockSynced(block_hash) => {
-                            let header = db.block_header(block_hash).ok_or_else(|| anyhow!("block header not found in db"))?;
-                            let events = db.block_events(block_hash).ok_or_else(|| anyhow!("block events not found in db"))?;
-                            let block_data = BlockData { hash: block_hash, header, events };
-                            compute.receive_chain_head(block_data);
+                            compute.receive_synced_head(block_hash);
                         },
                     }
                 },
                 event = compute.select_next_some() => {
                     match event? {
-                        ComputeEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
+                        ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
                             // TODO (gsobol): must be done in observer event handling
                             if let Some(s) = sequencer.as_mut() {
-                                s.on_new_head(chain_head)?
-                            }
-
-                            if commitments.is_empty() {
-                                continue;
+                                s.on_new_head(block_hash)?
                             }
 
                             if let Some(v) = validator.as_mut() {
-                                let aggregated_block_commitments = v.aggregate(commitments)?;
+                                let Some(aggregated_block_commitments) = v.aggregate_commitments_for_block(block_hash)? else {
+                                    continue;
+                                };
 
                                 if let Some(n) = network.as_mut() {
                                     log::debug!("Publishing block commitments to network...");

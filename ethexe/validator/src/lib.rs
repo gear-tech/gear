@@ -30,6 +30,7 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
 pub struct Validator {
+    db: Box<dyn BlockMetaStorage>,
     pub_key: PublicKey,
     signer: Signer,
     router_address: Address,
@@ -90,8 +91,9 @@ impl ToDigest for BlockCommitmentValidationRequest {
 }
 
 impl Validator {
-    pub fn new(config: &Config, signer: Signer) -> Self {
+    pub fn new(config: &Config, db: Box<dyn BlockMetaStorage>, signer: Signer) -> Self {
         Self {
+            db,
             signer,
             pub_key: config.pub_key,
             router_address: config.router_address,
@@ -104,6 +106,62 @@ impl Validator {
 
     pub fn address(&self) -> Address {
         self.pub_key.to_address()
+    }
+
+    pub fn aggregate_commitments_for_block(
+        &self,
+        block: H256,
+    ) -> Result<Option<AggregatedCommitments<BlockCommitment>>> {
+        let commitments_queue = self
+            .db
+            .block_commitment_queue(block)
+            .ok_or_else(|| anyhow!("Block {block} is not in storage"))?;
+
+        if commitments_queue.is_empty() {
+            return Ok(None);
+        }
+
+        let mut commitments = Vec::new();
+
+        let predecessor_block = block;
+
+        for block in commitments_queue {
+            // If there is not computed blocks in the queue, then we should skip aggregation this time.
+            // This can happen when validator syncs from p2p network and skips some old blocks.
+            if !self.db.block_end_state_is_valid(block).unwrap_or(false) {
+                log::warn!(
+                    "Block {block} is not computed by some reasons, so skip the aggregation"
+                );
+                return Ok(None);
+            }
+
+            let outcomes = self
+                .db
+                .block_outcome(block)
+                .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block}"))?;
+
+            let previous_committed_block =
+                self.db.previous_committed_block(block).ok_or_else(|| {
+                    anyhow!(
+                        "Cannot get from db previous committed block for computed block {block}"
+                    )
+                })?;
+
+            let header = self
+                .db
+                .block_header(block)
+                .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block}"))?;
+
+            commitments.push(BlockCommitment {
+                hash: block,
+                timestamp: header.timestamp,
+                previous_committed_block,
+                predecessor_block,
+                transitions: outcomes,
+            });
+        }
+
+        self.aggregate(commitments).map(Some)
     }
 
     pub fn aggregate<C: ToDigest>(&self, commitments: Vec<C>) -> Result<AggregatedCommitments<C>> {

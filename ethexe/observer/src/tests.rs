@@ -60,16 +60,16 @@ async fn test_deployment() -> Result<()> {
     let db = MemDb::default();
     let database = Database::from_one(&db, router_address.0);
 
-    let mut observer = ObserverService::new(ObserverServiceConfig {
-        ethereum: EthereumConfig {
+    let mut observer = ObserverService::new(
+        &EthereumConfig {
             rpc: ethereum_rpc,
             router_address,
             block_time: Duration::from_secs(1),
             beacon_rpc: Default::default(),
         },
-        db: BlocksOnChainData::clone_boxed(&database),
-        blobs_reader: Some(blobs_reader.clone()),
-    })
+        &database,
+        Some(blobs_reader.clone()),
+    )
     .await
     .expect("failed to create observer");
 
