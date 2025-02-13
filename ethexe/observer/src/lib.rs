@@ -345,8 +345,8 @@ pub struct ObserverStatus {
 
 fn router_and_wvara_filter(
     filter: Filter,
-    wvara_address: AlloyAddress,
     router_address: AlloyAddress,
+    wvara_address: AlloyAddress,
 ) -> Filter {
     let router_and_wvara_topic = Topic::from_iter(
         router::events::signatures::ALL
@@ -681,13 +681,18 @@ impl ChainSync {
                         };
                         self.database.set_code_info(*code_id, code_info.clone());
 
-                        if !self.database.original_code_exists(*code_id) {
+                        if !self.database.original_code_exists(*code_id)
+                            && !codes_to_load_now.contains(code_id)
+                        {
                             codes_to_load_later.insert(*code_id, code_info);
                         }
                     }
-                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid }) => {
-                        if *valid && !self.database.original_code_exists(*code_id) {
-                            let _ = codes_to_load_later.remove(code_id);
+                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
+                        if codes_to_load_later.contains_key(code_id) {
+                            return Err(anyhow!("Code {code_id} is validated before requested"));
+                        };
+
+                        if !self.database.original_code_exists(*code_id) {
                             codes_to_load_now.insert(*code_id);
                         }
                     }
