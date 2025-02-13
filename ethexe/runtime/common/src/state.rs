@@ -593,7 +593,11 @@ impl Dispatch {
         }
     }
 
-    pub fn from_stored<S: Storage>(storage: &S, value: StoredDispatch, origin: Origin) -> Self {
+    pub fn from_core_stored<S: Storage>(
+        storage: &S,
+        value: StoredDispatch,
+        origin: Origin,
+    ) -> Self {
         let (kind, message, context) = value.into_parts();
         let (id, source, _destination, payload, value, details) = message.into_parts();
 

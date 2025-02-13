@@ -33,14 +33,14 @@ use gear_core::{
 use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
-/// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
+/// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id, message origin)
 pub type Rfm = (ProgramId, ActorId, Origin);
 
 /// SendDispatch key; (msgs destinations program (stash and queue provider), message id)
 pub type Sd = (ProgramId, MessageId);
 
 /// SendUserMessage key; (msgs sources program (mailbox and stash provider))
-pub type Sum = (ProgramId, Origin);
+pub type Sum = ProgramId;
 
 /// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
 pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;

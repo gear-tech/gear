@@ -75,12 +75,12 @@ impl<S: Storage> Handler<'_, S> {
                     non_zero_delay,
                     ScheduledTask::SendUserMessage {
                         message_id: dispatch.id(),
-                        to_mailbox: (dispatch.source(), dispatch_origin),
+                        to_mailbox: dispatch.source(),
                     },
                 );
 
                 let user_id = dispatch.destination();
-                let dispatch = Dispatch::from_stored(storage, dispatch, dispatch_origin);
+                let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
 
                 state.stash_hash.modify_stash(storage, |stash| {
                     stash.add_to_user(dispatch.id, dispatch, expiry, user_id);
@@ -222,7 +222,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         let dispatch = dispatch.into_stored();
 
         if self.transitions.is_program(&destination) {
-            let dispatch = Dispatch::from_stored(self.storage, dispatch, self.dispatch_origin);
+            let dispatch = Dispatch::from_core_stored(self.storage, dispatch, self.dispatch_origin);
 
             self.send_dispatch_to_program(message_id, destination, dispatch, delay);
         } else {
@@ -252,7 +252,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
             );
 
-            let dispatch = Dispatch::from_stored(storage, dispatch, dispatch_origin);
+            let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
 
             state.queue_hash.modify_queue(storage, |queue| {
                 let head = queue
