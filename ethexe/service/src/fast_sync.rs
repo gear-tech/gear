@@ -254,6 +254,11 @@ async fn collect_programs_states(
     provider: RootProvider<BoxTransport>,
 ) -> Result<HashMap<ProgramId, BTreeSet<H256>>> {
     let latest_block = router_query.latest_committed_block_hash().await?;
+    debug_assert_ne!(
+        latest_block,
+        H256::zero(),
+        "latest commited block hash is zero so `get_last_committed_chain` will hang"
+    ); // FIXME: `get_last_committed_chain` should not hang when latest block is zero
     let blocks = query.get_last_committed_chain(latest_block).await?;
 
     let mut program_states = HashMap::<ProgramId, BTreeSet<H256>>::new();
