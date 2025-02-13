@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -46,8 +46,14 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use ethexe_common::gear::AggregatedPublicKey;
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
+use gprimitives::{ActorId, U256 as GearU256};
 use mirror::Mirror;
+use roast_secp256k1_evm::frost::{
+    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
+    Identifier,
+};
 use router::{Router, RouterQuery};
 use std::{sync::Arc, time::Duration};
 
@@ -105,11 +111,28 @@ impl Ethereum {
         validators: Vec<LocalAddress>,
         signer: LocalSigner,
         sender_address: LocalAddress,
+        verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
     ) -> Result<Self> {
         const VALUE_PER_GAS: u128 = 6;
 
+        let maybe_validator_identifiers: Result<Vec<_>, _> = validators
+            .iter()
+            .map(|address| Identifier::deserialize(&ActorId::from(*address).into_bytes()))
+            .collect();
+        let validator_identifiers = maybe_validator_identifiers?;
+        let identifiers = validator_identifiers.into_iter().collect();
+        let public_key_package =
+            PublicKeyPackage::from_commitment(&identifiers, &verifiable_secret_sharing_commitment)?;
+        let public_key_compressed: [u8; 33] = public_key_package
+            .verifying_key()
+            .serialize()?
+            .try_into()
+            .unwrap();
+        let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+        let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
+
         let provider = create_provider(rpc_url, signer, sender_address).await?;
-        let validators = validators
+        let validators: Vec<_> = validators
             .into_iter()
             .map(|validator_address| Address::new(validator_address.0))
             .collect();
@@ -157,6 +180,14 @@ impl Ethereum {
                     _eraDuration: U256::from(24 * 60 * 60),
                     _electionDuration: U256::from(2 * 60 * 60),
                     _validationDelay: U256::from(60),
+                    _aggregatedPublicKey: (AggregatedPublicKey {
+                        x: GearU256::from_big_endian(public_key_x_bytes),
+                        y: GearU256::from_big_endian(public_key_y_bytes),
+                    })
+                    .into(),
+                    _verifiableSecretSharingCommitment: Bytes::copy_from_slice(
+                        &verifiable_secret_sharing_commitment.serialize()?.concat(),
+                    ),
                     _validators: validators,
                 }
                 .abi_encode(),

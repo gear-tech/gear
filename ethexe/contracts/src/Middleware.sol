@@ -313,7 +313,7 @@ contract Middleware {
             activeOperators[maxValidators - 1] = activeOperators[maxValidators + randomIndex - 1];
         }
 
-        assembly {
+        assembly ("memory-safe") {
             mstore(activeOperators, maxValidators)
         }
 

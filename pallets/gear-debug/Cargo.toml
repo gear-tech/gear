@@ -36,7 +36,6 @@ pallet-authorship.workspace = true
 [dev-dependencies]
 env_logger.workspace = true
 common = { workspace = true, features = ["std"] }
-wabt.workspace = true
 hex-literal.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
@@ -48,6 +47,8 @@ pallet-gear-program = { workspace = true, features = ["std"] }
 gear-wasm-instrument.workspace = true
 demo-vec.workspace = true
 test-syscalls.workspace = true
+wat.workspace = true
+wasmparser.workspace = true
 
 [features]
 default = ['std']
@@ -68,6 +69,7 @@ std = [
 	"primitive-types/std",
 	"pallet-gear/std",
 	"test-syscalls/std",
+	"gear-wasm-instrument/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

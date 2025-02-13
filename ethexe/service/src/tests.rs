@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -34,12 +34,11 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{Event, MockBlobReader, Observer, Query};
+use ethexe_observer::{EthereumConfig, MockBlobReader, Query};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
-use ethexe_sequencer::Sequencer;
 use ethexe_signer::Signer;
 use ethexe_validator::Validator;
 use gear_core::{
@@ -74,12 +73,14 @@ async fn basics() {
         key_path: tmp_dir.join("key"),
         sequencer: Default::default(),
         validator: Default::default(),
+        validator_session: Default::default(),
         max_commitment_depth: 1_000,
         worker_threads_override: None,
         virtual_threads: 16,
+        dev: true,
     };
 
-    let eth_cfg = crate::config::EthereumConfig {
+    let eth_cfg = EthereumConfig {
         rpc: "wss://reth-rpc.gear-tech.io".into(),
         beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
         router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
@@ -99,16 +100,17 @@ async fn basics() {
     Service::new(&config).await.unwrap();
 
     // Enable all optional services
-    config.network = Some(ethexe_network::NetworkEventLoopConfig::new_local(
+    config.network = Some(ethexe_network::NetworkConfig::new_local(
         tmp_dir.join("net"),
     ));
 
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
+        dev: true,
     });
 
-    config.prometheus = Some(PrometheusConfig::new_with_default_registry(
+    config.prometheus = Some(PrometheusConfig::new(
         "DevNode".into(),
         SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
     ));
@@ -127,7 +129,7 @@ async fn ping() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -155,22 +157,25 @@ async fn ping() {
         .expect("After approval, instrumented code is guaranteed to be in the database");
 
     let res = env
-        .create_program(code_id, b"PING", 0)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
     assert_eq!(res.code_id, code_id);
-    assert_eq!(res.init_message_source, env.sender_id);
-    assert_eq!(res.init_message_payload, b"PING");
-    assert_eq!(res.init_message_value, 0);
-    assert_eq!(res.reply_payload, b"PONG");
-    assert_eq!(res.reply_value, 0);
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
+
+    let res = env
+        .send_message(res.program_id, b"PING", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
 
     let ping_id = res.program_id;
 
@@ -184,12 +189,9 @@ async fn ping() {
         .await
         .unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
-    assert_eq!(res.reply_payload, b"PONG");
-    assert_eq!(res.reply_value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
 
     let res = env
         .send_message(ping_id, b"PUNK", 0)
@@ -199,9 +201,9 @@ async fn ping() {
         .await
         .unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert_eq!(res.reply_payload, b"");
-    assert_eq!(res.reply_value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.payload, b"");
+    assert_eq!(res.value, 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -215,7 +217,7 @@ async fn uninitialized_program() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -234,7 +236,15 @@ async fn uninitialized_program() {
     // Case #1: Init failed due to panic in init (decoding).
     {
         let res = env
-            .create_program(code_id, &[], 0)
+            .create_program(code_id, 500_000_000_000_000)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let reply = env
+            .send_message(res.program_id, &[], 0)
             .await
             .unwrap()
             .wait_for()
@@ -242,7 +252,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
-        assert_eq!(res.reply_code, expected_err);
+        assert_eq!(reply.code, expected_err);
 
         let res = env
             .send_message(res.program_id, &[], 0)
@@ -253,7 +263,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
-        assert_eq!(res.reply_code, expected_err);
+        assert_eq!(res.code, expected_err);
     }
 
     // Case #2: async init, replies are acceptable.
@@ -267,8 +277,17 @@ async fn uninitialized_program() {
 
         let mut listener = env.events_publisher().subscribe().await;
 
-        let init_res = env.create_program(code_id, &init_payload, 0).await.unwrap();
-
+        let init_res = env
+            .create_program(code_id, 500_000_000_000_000)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        let init_reply = env
+            .send_message(init_res.program_id, &init_payload, 0)
+            .await
+            .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
 
         let mut msgs_for_reply = vec![];
@@ -304,7 +323,7 @@ async fn uninitialized_program() {
             .await
             .unwrap();
         let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
-        assert_eq!(res.reply_code, expected_err);
+        assert_eq!(res.code, expected_err);
         // Checking further initialisation.
 
         // Required replies.
@@ -313,7 +332,7 @@ async fn uninitialized_program() {
         }
 
         // Success end of initialisation.
-        let reply_code = listener
+        let code = listener
             .apply_until_block_event(|event| match event {
                 BlockEvent::Mirror {
                     actor_id,
@@ -323,7 +342,7 @@ async fn uninitialized_program() {
                             reply_to,
                             ..
                         },
-                } if actor_id == init_res.program_id && reply_to == init_res.message_id => {
+                } if actor_id == init_res.program_id && reply_to == init_reply.message_id => {
                     Ok(Some(reply_code))
                 }
                 _ => Ok(None),
@@ -331,7 +350,7 @@ async fn uninitialized_program() {
             .await
             .unwrap();
 
-        assert!(reply_code.is_success());
+        assert!(code.is_success());
 
         // Handle message handled, but panicked due to incorrect payload as expected.
         let res = env
@@ -343,7 +362,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
-        assert_eq!(res.reply_code, expected_err);
+        assert_eq!(res.code, expected_err);
     }
 }
 
@@ -358,7 +377,7 @@ async fn mailbox() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -375,14 +394,21 @@ async fn mailbox() {
     let code_id = res.code_id;
 
     let res = env
-        .create_program(code_id, &env.sender_id.encode(), 0)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
 
-    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+    let init_res = env
+        .send_message(res.program_id, &env.sender_id.encode(), 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
     let pid = res.program_id;
 
@@ -486,10 +512,10 @@ async fn mailbox() {
     let initial_message = res.message_id;
     let reply_info = res.wait_for().await.unwrap();
     assert_eq!(
-        reply_info.reply_code,
+        reply_info.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
-    assert_eq!(reply_info.reply_payload, initial_message.encode());
+    assert_eq!(reply_info.payload, initial_message.encode());
 
     let state_hash = mirror.query().state_hash().await.unwrap();
 
@@ -546,7 +572,7 @@ async fn incoming_transfers() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -559,9 +585,16 @@ async fn incoming_transfers() {
         .unwrap();
 
     let code_id = res.code_id;
-
     let res = env
-        .create_program(code_id, b"PING", 0)
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, &env.sender_id.encode(), 0)
         .await
         .unwrap()
         .wait_for()
@@ -622,11 +655,8 @@ async fn incoming_transfers() {
         .await
         .unwrap();
 
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
-    assert_eq!(res.reply_value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.value, 0);
 
     let on_eth_balance = wvara
         .query()
@@ -651,7 +681,7 @@ async fn ping_reorg() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_pub_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -669,8 +699,14 @@ async fn ping_reorg() {
     log::info!("📗 Abort service to simulate node blocks skipping");
     node.stop_service().await;
 
-    let create_program = env.create_program(code_id, b"PING", 0).await.unwrap();
-
+    let create_program = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap();
+    let init = env
+        .send_message(create_program.program_id, b"PING", 0)
+        .await
+        .unwrap();
     // Mine some blocks to check missed blocks support
     env.skip_blocks(10).await;
 
@@ -681,8 +717,9 @@ async fn ping_reorg() {
     env.force_new_block().await;
 
     let res = create_program.wait_for().await.unwrap();
+    let init_res = init.wait_for().await.unwrap();
     assert_eq!(res.code_id, code_id);
-    assert_eq!(res.reply_payload, b"PONG");
+    assert_eq!(init_res.payload, b"PONG");
 
     let ping_id = res.program_id;
 
@@ -702,7 +739,7 @@ async fn ping_reorg() {
         .await
         .unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_payload, b"PONG");
+    assert_eq!(res.payload, b"PONG");
 
     log::info!("📗 Test after reverting to the program creation snapshot");
     env.observer
@@ -720,7 +757,7 @@ async fn ping_reorg() {
         .await
         .unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_payload, b"PONG");
+    assert_eq!(res.payload, b"PONG");
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
@@ -739,7 +776,7 @@ async fn ping_reorg() {
 
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_payload, b"PONG");
+    assert_eq!(res.payload, b"PONG");
 }
 
 // Mine 150 blocks - send message - mine 150 blocks.
@@ -755,7 +792,7 @@ async fn ping_deep_sync() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_pub_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -772,19 +809,24 @@ async fn ping_deep_sync() {
     let code_id = res.code_id;
 
     let res = env
-        .create_program(code_id, b"PING", 0)
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, b"PING", 0)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
     assert_eq!(res.code_id, code_id);
-    assert_eq!(res.init_message_payload, b"PING");
-    assert_eq!(res.init_message_value, 0);
-    assert_eq!(res.reply_payload, b"PONG");
-    assert_eq!(res.reply_value, 0);
+    assert_eq!(init_res.payload, b"PONG");
+    assert_eq!(init_res.value, 0);
     assert_eq!(
-        res.reply_code,
+        init_res.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
 
@@ -802,12 +844,9 @@ async fn ping_deep_sync() {
 
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.reply_payload, b"PONG");
-    assert_eq!(res.reply_value, 0);
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -833,7 +872,7 @@ async fn multiple_validators() {
     log::info!("📗 Starting validator 0");
     let mut validator0 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[0])
+            .validator(env.validators[0], env.validator_session_public_keys[0])
             .network(None, sequencer.multiaddr.clone()),
     );
     validator0.start_service().await;
@@ -841,7 +880,7 @@ async fn multiple_validators() {
     log::info!("📗 Starting validator 1");
     let mut validator1 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[1])
+            .validator(env.validators[1], env.validator_session_public_keys[1])
             .network(None, sequencer.multiaddr.clone()),
     );
     validator1.start_service().await;
@@ -849,7 +888,7 @@ async fn multiple_validators() {
     log::info!("📗 Starting validator 2");
     let mut validator2 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[2])
+            .validator(env.validators[2], env.validator_session_public_keys[2])
             .network(None, sequencer.multiaddr.clone()),
     );
     validator2.start_service().await;
@@ -867,18 +906,23 @@ async fn multiple_validators() {
     let ping_code_id = res.code_id;
 
     let res = env
-        .create_program(ping_code_id, b"", 0)
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, b"", 0)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
     assert_eq!(res.code_id, ping_code_id);
-    assert_eq!(res.init_message_payload, b"");
-    assert_eq!(res.init_message_value, 0);
-    assert_eq!(res.reply_payload, b"");
-    assert_eq!(res.reply_value, 0);
-    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
     let ping_id = res.program_id;
 
@@ -895,18 +939,23 @@ async fn multiple_validators() {
     let async_code_id = res.code_id;
 
     let res = env
-        .create_program(async_code_id, ping_id.encode().as_slice(), 0)
+        .create_program(async_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, ping_id.encode().as_slice(), 0)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
     assert_eq!(res.code_id, async_code_id);
-    assert_eq!(res.init_message_payload, ping_id.encode().as_slice());
-    assert_eq!(res.init_message_value, 0);
-    assert_eq!(res.reply_payload, b"");
-    assert_eq!(res.reply_value, 0);
-    assert_eq!(res.reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
     let async_id = res.program_id;
 
@@ -921,12 +970,9 @@ async fn multiple_validators() {
         .await
         .unwrap();
     assert_eq!(res.program_id, async_id);
-    assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
-    assert_eq!(res.reply_value, 0);
-    assert_eq!(
-        res.reply_code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
+    assert_eq!(res.value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 
     log::info!("📗 Stop validator 2 and check that all is still working");
     validator2.stop_service().await;
@@ -937,7 +983,7 @@ async fn multiple_validators() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
 
     log::info!("📗 Stop validator 1 and check that it's not working");
     validator1.stop_service().await;
@@ -955,7 +1001,7 @@ async fn multiple_validators() {
     // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
     let mut validator2 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[2])
+            .validator(env.validators[2], env.validator_session_public_keys[2])
             .network(None, sequencer.multiaddr.clone())
             .db(validator2.db),
     );
@@ -965,27 +1011,44 @@ async fn multiple_validators() {
     env.force_new_block().await;
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
-    assert_eq!(res.reply_payload, res.message_id.encode().as_slice());
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
 }
 
 mod utils {
     use super::*;
-    use ethexe_observer::SimpleBlockData;
+    use ethexe_common::SimpleBlockData;
+    use ethexe_network::export::Multiaddr;
+    use ethexe_observer::{ObserverEvent, ObserverService};
+    use ethexe_sequencer::{SequencerConfig, SequencerService};
+    use ethexe_signer::PrivateKey;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
-    use std::{ops::Mul, str::FromStr};
-    use tokio::sync::{broadcast::Sender, Mutex};
+    use rand::{rngs::StdRng, SeedableRng};
+    use roast_secp256k1_evm::frost::{
+        keys::{self, IdentifierList, PublicKeyPackage},
+        Identifier, SigningKey,
+    };
+    use std::{
+        ops::Mul,
+        str::FromStr,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+    use tokio::sync::{
+        broadcast::{self, Sender},
+        Mutex,
+    };
 
     pub struct TestEnv {
         pub rpc_url: String,
         pub wallets: Wallets,
-        pub observer: Observer,
+        pub observer: ObserverService,
         pub blob_reader: Arc<MockBlobReader>,
         pub ethereum: Ethereum,
         #[allow(unused)]
         pub router_query: RouterQuery,
         pub signer: Signer,
         pub validators: Vec<ethexe_signer::PublicKey>,
+        pub validator_session_public_keys: Vec<ethexe_signer::PublicKey>,
         pub router_address: ethexe_signer::Address,
         pub sender_id: ActorId,
         pub genesis_block_hash: H256,
@@ -993,9 +1056,8 @@ mod utils {
         pub block_time: Duration,
         pub continuous_block_generation: bool,
 
-        network_addresses_nonce: u64,
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
-        broadcaster: Arc<Mutex<Sender<Event>>>,
+        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
     }
@@ -1053,6 +1115,52 @@ mod utils {
                     .collect(),
             };
 
+            let max_signers: u16 = validators.len().try_into().expect("conversion failed");
+            let min_signers = max_signers
+                .checked_mul(2)
+                .expect("multiplication failed")
+                .div_ceil(3);
+
+            let maybe_validator_identifiers: Result<Vec<_>, _> = validators
+                .iter()
+                .map(|public_key| {
+                    Identifier::deserialize(&ActorId::from(public_key.to_address()).into_bytes())
+                })
+                .collect();
+            let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
+            let identifiers = IdentifierList::Custom(&validator_identifiers);
+
+            let mut rng = StdRng::seed_from_u64(123);
+
+            let secret = SigningKey::deserialize(&[0x01; 32]).expect("conversion failed");
+
+            let (secret_shares, public_key_package1) =
+                keys::split(&secret, max_signers, min_signers, identifiers, &mut rng)
+                    .expect("key split failed");
+
+            let verifiable_secret_sharing_commitment = secret_shares
+                .values()
+                .map(|secret_share| secret_share.commitment().clone())
+                .next()
+                .expect("conversion failed");
+
+            let identifiers = validator_identifiers.clone().into_iter().collect();
+            let public_key_package2 = PublicKeyPackage::from_commitment(
+                &identifiers,
+                &verifiable_secret_sharing_commitment,
+            )
+            .expect("conversion failed");
+            assert_eq!(public_key_package1, public_key_package2);
+
+            let validator_session_public_keys: Vec<_> = validator_identifiers
+                .iter()
+                .map(|id| {
+                    let signing_share = *secret_shares[id].signing_share();
+                    let private_key = PrivateKey(signing_share.serialize().try_into().unwrap());
+                    signer.add_key(private_key).unwrap()
+                })
+                .collect();
+
             let sender_address = wallets.next().to_address();
 
             let ethereum = if let Some(router_address) = router_address {
@@ -1071,6 +1179,7 @@ mod utils {
                     validators.iter().map(|k| k.to_address()).collect(),
                     signer.clone(),
                     sender_address,
+                    verifiable_secret_sharing_commitment,
                 )
                 .await?
             };
@@ -1081,25 +1190,28 @@ mod utils {
 
             let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
-            let observer = Observer::new(&rpc_url, router_address, blob_reader.clone())
+            let eth_cfg = EthereumConfig {
+                rpc: rpc_url.clone(),
+                beacon_rpc: Default::default(),
+                router_address,
+                block_time: config.block_time,
+            };
+            let observer = ObserverService::new_with_blobs(&eth_cfg, blob_reader.clone())
                 .await
-                .expect("failed to create observer");
+                .unwrap();
 
             let (broadcaster, _events_stream) = {
                 let mut observer = observer.clone();
-                let (sender, mut receiver) = tokio::sync::broadcast::channel::<Event>(2048);
+                let (sender, mut receiver) = tokio::sync::broadcast::channel(2048);
                 let sender = Arc::new(Mutex::new(sender));
                 let cloned_sender = sender.clone();
 
                 let (send_subscription_created, receive_subscription_created) =
                     oneshot::channel::<()>();
                 let handle = task::spawn(async move {
-                    let observer_events = observer.events_all();
-                    futures::pin_mut!(observer_events);
-
                     send_subscription_created.send(()).unwrap();
 
-                    while let Some(event) = observer_events.next().await {
+                    while let Ok(event) = observer.select_next_some().await {
                         log::trace!(target: "test-event", "📗 Event: {:?}", event);
 
                         cloned_sender
@@ -1116,6 +1228,8 @@ mod utils {
                             .inspect_err(|err| log::error!("Failed to receive event: {err}"))
                             .unwrap();
                     }
+
+                    panic!("📗 Observer stream ended");
                 });
                 receive_subscription_created.await.unwrap();
 
@@ -1134,13 +1248,13 @@ mod utils {
                 router_query,
                 signer,
                 validators,
+                validator_session_public_keys,
                 router_address,
                 sender_id: ActorId::from(H160::from(sender_address.0)),
                 genesis_block_hash,
                 threshold,
                 block_time,
                 continuous_block_generation,
-                network_addresses_nonce: 0,
                 broadcaster,
                 _anvil: anvil,
                 _events_stream,
@@ -1152,6 +1266,7 @@ mod utils {
                 db,
                 sequencer_public_key,
                 validator_public_key,
+                validator_session_public_key,
                 network,
             } = config;
 
@@ -1160,8 +1275,9 @@ mod utils {
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
-                    self.network_addresses_nonce += 1;
-                    format!("/memory/{}", self.network_addresses_nonce)
+                    static NONCE: AtomicUsize = AtomicUsize::new(1);
+                    let nonce = NONCE.fetch_add(1, Ordering::Relaxed);
+                    format!("/memory/{nonce}")
                 })
             });
 
@@ -1182,6 +1298,7 @@ mod utils {
                 running_service_handle: None,
                 sequencer_public_key,
                 validator_public_key,
+                validator_session_public_key,
                 network_address,
                 network_bootstrap_address,
             }
@@ -1190,36 +1307,30 @@ mod utils {
         pub async fn upload_code(&self, code: &[u8]) -> Result<WaitForUploadCode> {
             log::info!("📗 Upload code, len {}", code.len());
 
-            let code_id = CodeId::generate(code);
-            let blob_tx = H256::random();
-
             let listener = self.events_publisher().subscribe().await;
 
-            self.blob_reader
-                .add_blob_transaction(blob_tx, code.to_vec())
-                .await;
-            let _tx_hash = self
+            let pending_builder = self
                 .ethereum
                 .router()
-                .request_code_validation(code_id, blob_tx)
+                .request_code_validation_with_sidecar(code)
                 .await?;
+
+            let code_id = pending_builder.code_id();
+            let tx_hash = pending_builder.tx_hash();
+
+            self.blob_reader
+                .add_blob_transaction(tx_hash, code.to_vec())
+                .await;
 
             Ok(WaitForUploadCode { listener, code_id })
         }
 
-        // TODO (breathx): split it into different functions WITHIN THE PR.
         pub async fn create_program(
             &self,
             code_id: CodeId,
-            payload: &[u8],
-            value: u128,
+            initial_executable_balance: u128,
         ) -> Result<WaitForProgramCreation> {
-            const EXECUTABLE_BALANCE: u128 = 500_000_000_000_000;
-
-            log::info!(
-                "📗 Create program, code_id {code_id}, payload len {}",
-                payload.len()
-            );
+            log::info!("📗 Create program, code_id {code_id}");
 
             let listener = self.events_publisher().subscribe().await;
 
@@ -1227,23 +1338,23 @@ mod utils {
 
             let (_, program_id) = router.create_program(code_id, H256::random()).await?;
 
-            let program_address = program_id.to_address_lossy().0.into();
+            if initial_executable_balance != 0 {
+                let program_address = program_id.to_address_lossy().0.into();
+                router
+                    .wvara()
+                    .approve(program_address, initial_executable_balance)
+                    .await?;
 
-            router
-                .wvara()
-                .approve(program_address, value + EXECUTABLE_BALANCE)
-                .await?;
+                let mirror = self.ethereum.mirror(program_address.into_array().into());
 
-            let mirror = self.ethereum.mirror(program_address.into_array().into());
-
-            mirror.executable_balance_top_up(EXECUTABLE_BALANCE).await?;
-
-            let (_, message_id) = mirror.send_message(payload, value).await?;
+                mirror
+                    .executable_balance_top_up(initial_executable_balance)
+                    .await?;
+            }
 
             Ok(WaitForProgramCreation {
                 listener,
                 program_id,
-                message_id,
             })
         }
 
@@ -1317,15 +1428,11 @@ mod utils {
         }
 
         #[allow(unused)]
-        pub async fn process_already_uploaded_code(
-            &self,
-            code: &[u8],
-            blob_tx_hash: &str,
-        ) -> CodeId {
+        pub async fn process_already_uploaded_code(&self, code: &[u8], tx_hash: &str) -> CodeId {
             let code_id = CodeId::generate(code);
-            let blob_tx_hash = H256::from_str(blob_tx_hash).unwrap();
+            let tx_hash = H256::from_str(tx_hash).unwrap();
             self.blob_reader
-                .add_blob_transaction(blob_tx_hash, code.to_vec())
+                .add_blob_transaction(tx_hash, code.to_vec())
                 .await;
             code_id
         }
@@ -1378,6 +1485,8 @@ mod utils {
         pub sequencer_public_key: Option<ethexe_signer::PublicKey>,
         /// Validator public key, if provided then new node starts as validator.
         pub validator_public_key: Option<ethexe_signer::PublicKey>,
+        /// Validator public key of session, if provided then new node starts as validator.
+        pub validator_session_public_key: Option<ethexe_signer::PublicKey>,
         /// Network configuration, if provided then new node starts with network.
         pub network: Option<NodeNetworkConfig>,
     }
@@ -1393,8 +1502,13 @@ mod utils {
             self
         }
 
-        pub fn validator(mut self, validator_public_key: ethexe_signer::PublicKey) -> Self {
+        pub fn validator(
+            mut self,
+            validator_public_key: ethexe_signer::PublicKey,
+            validator_session_public_key: ethexe_signer::PublicKey,
+        ) -> Self {
             self.validator_public_key = Some(validator_public_key);
+            self.validator_session_public_key = Some(validator_session_public_key);
             self
         }
 
@@ -1420,7 +1534,7 @@ mod utils {
     }
 
     pub struct EventsPublisher {
-        broadcaster: Arc<Mutex<Sender<Event>>>,
+        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
     }
 
     impl EventsPublisher {
@@ -1432,7 +1546,7 @@ mod utils {
     }
 
     pub struct EventsListener {
-        receiver: tokio::sync::broadcast::Receiver<Event>,
+        receiver: broadcast::Receiver<ObserverEvent>,
     }
 
     impl Clone for EventsListener {
@@ -1444,13 +1558,13 @@ mod utils {
     }
 
     impl EventsListener {
-        pub async fn next_event(&mut self) -> Result<Event> {
+        pub async fn next_event(&mut self) -> Result<ObserverEvent> {
             self.receiver.recv().await.map_err(Into::into)
         }
 
         pub async fn apply_until<R: Sized>(
             &mut self,
-            mut f: impl FnMut(Event) -> Result<Option<R>>,
+            mut f: impl FnMut(ObserverEvent) -> Result<Option<R>>,
         ) -> Result<R> {
             loop {
                 let event = self.next_event().await?;
@@ -1474,11 +1588,11 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let Event::Block(block) = event else {
+                let ObserverEvent::Block(block) = event else {
                     continue;
                 };
 
-                let block_data = block.as_simple();
+                let block_data = block.to_simple();
 
                 for event in block.events {
                     if let Some(res) = f(event, &block_data)? {
@@ -1537,7 +1651,7 @@ mod utils {
         rpc_url: String,
         genesis_block_hash: H256,
         blob_reader: Arc<MockBlobReader>,
-        observer: Observer,
+        observer: ObserverService,
         signer: Signer,
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
@@ -1546,6 +1660,7 @@ mod utils {
         running_service_handle: Option<JoinHandle<Result<()>>>,
         sequencer_public_key: Option<ethexe_signer::PublicKey>,
         validator_public_key: Option<ethexe_signer::PublicKey>,
+        validator_session_public_key: Option<ethexe_signer::PublicKey>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
     }
@@ -1576,8 +1691,11 @@ mod utils {
 
             let network = self.network_address.as_ref().map(|addr| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
-                let mut config =
-                    ethexe_network::NetworkEventLoopConfig::new_memory(config_path, addr.as_str());
+                let multiaddr: Multiaddr = addr.parse().unwrap();
+
+                let mut config = ethexe_network::NetworkConfig::new_test(config_path);
+                config.listen_addresses = [multiaddr.clone()].into();
+                config.external_addresses = [multiaddr.clone()].into();
                 if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
                     let multiaddr = bootstrap_addr.parse().unwrap();
                     config.bootstrap_addresses = [multiaddr].into();
@@ -1585,19 +1703,20 @@ mod utils {
                 let network =
                     ethexe_network::NetworkService::new(config, &self.signer, self.db.clone())
                         .unwrap();
-                self.multiaddr = Some(format!("{addr}/p2p/{}", network.event_loop.local_peer_id()));
+                self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
                 network
             });
 
             let sequencer = match self.sequencer_public_key.as_ref() {
                 Some(key) => Some(
-                    Sequencer::new(
-                        &ethexe_sequencer::Config {
+                    SequencerService::new(
+                        &SequencerConfig {
                             ethereum_rpc: self.rpc_url.clone(),
                             sign_tx_public: *key,
                             router_address: self.router_address,
                             validators: self.validators.clone(),
                             threshold: self.threshold,
+                            block_time: self.block_time,
                         },
                         self.signer.clone(),
                         Box::new(self.db.clone()),
@@ -1608,16 +1727,19 @@ mod utils {
                 None => None,
             };
 
-            let validator = match self.validator_public_key.as_ref() {
-                Some(key) => Some(Validator::new(
-                    &ethexe_validator::Config {
-                        pub_key: *key,
-                        router_address: self.router_address,
-                    },
-                    self.signer.clone(),
-                )),
-                None => None,
-            };
+            let validator = self
+                .validator_public_key
+                .zip(self.validator_session_public_key)
+                .map(|(pub_key, pub_key_session)| {
+                    Validator::new(
+                        &ethexe_validator::Config {
+                            pub_key,
+                            pub_key_session,
+                            router_address: self.router_address,
+                        },
+                        self.signer.clone(),
+                    )
+                });
 
             let service = Service::new_from_parts(
                 self.db.clone(),
@@ -1626,7 +1748,6 @@ mod utils {
                 router_query,
                 processor,
                 self.signer.clone(),
-                self.block_time,
                 network,
                 sequencer,
                 validator,
@@ -1673,9 +1794,10 @@ mod utils {
 
             self.listener
                 .apply_until(|event| match event {
-                    Event::CodeLoaded {
+                    ObserverEvent::Blob {
                         code_id: loaded_id,
                         code,
+                        ..
                     } if loaded_id == self.code_id => {
                         code_info = Some(code);
                         Ok(Some(()))
@@ -1708,19 +1830,12 @@ mod utils {
     pub struct WaitForProgramCreation {
         listener: EventsListener,
         pub program_id: ActorId,
-        pub message_id: MessageId,
     }
 
     #[derive(Debug)]
     pub struct ProgramCreationInfo {
         pub program_id: ActorId,
         pub code_id: CodeId,
-        pub init_message_source: ActorId,
-        pub init_message_payload: Vec<u8>,
-        pub init_message_value: u128,
-        pub reply_payload: Vec<u8>,
-        pub reply_code: ReplyCode,
-        pub reply_value: u128,
     }
 
     impl WaitForProgramCreation {
@@ -1728,9 +1843,6 @@ mod utils {
             log::info!("📗 Waiting for program {} creation", self.program_id);
 
             let mut code_id_info = None;
-            let mut init_message_info = None;
-            let mut reply_info = None;
-
             self.listener
                 .apply_until_block_event(|event| {
                     match event {
@@ -1738,29 +1850,9 @@ mod utils {
                             if actor_id == self.program_id =>
                         {
                             code_id_info = Some(code_id);
+                            return Ok(Some(()));
                         }
-                        BlockEvent::Mirror { actor_id, event } if actor_id == self.program_id => {
-                            match event {
-                                MirrorEvent::MessageQueueingRequested {
-                                    source,
-                                    payload,
-                                    value,
-                                    ..
-                                } => {
-                                    init_message_info = Some((source, payload, value));
-                                }
-                                MirrorEvent::Reply {
-                                    payload,
-                                    reply_to,
-                                    reply_code,
-                                    value,
-                                } if self.message_id == reply_to => {
-                                    reply_info = Some((payload, reply_code, value));
-                                    return Ok(Some(()));
-                                }
-                                _ => {}
-                            }
-                        }
+
                         _ => {}
                     }
                     Ok(None)
@@ -1768,20 +1860,9 @@ mod utils {
                 .await?;
 
             let code_id = code_id_info.expect("Code ID must be set");
-            let (init_message_source, init_message_payload, init_message_value) =
-                init_message_info.expect("Init message info must be set");
-            let (reply_payload, reply_code, reply_value) =
-                reply_info.expect("Reply info must be set");
-
             Ok(ProgramCreationInfo {
                 program_id: self.program_id,
                 code_id,
-                init_message_source,
-                init_message_payload,
-                init_message_value,
-                reply_payload,
-                reply_code,
-                reply_value,
             })
         }
     }
@@ -1796,9 +1877,9 @@ mod utils {
     pub struct ReplyInfo {
         pub message_id: MessageId,
         pub program_id: ActorId,
-        pub reply_payload: Vec<u8>,
-        pub reply_code: ReplyCode,
-        pub reply_value: u128,
+        pub payload: Vec<u8>,
+        pub code: ReplyCode,
+        pub value: u128,
     }
 
     impl WaitForReplyTo {
@@ -1822,9 +1903,9 @@ mod utils {
                         info = Some(ReplyInfo {
                             message_id: reply_to,
                             program_id: actor_id,
-                            reply_payload: payload,
-                            reply_code,
-                            reply_value: value,
+                            payload,
+                            code: reply_code,
+                            value,
                         });
                         Ok(Some(()))
                     }

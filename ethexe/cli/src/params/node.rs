@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MergeParams;
-use anyhow::{Context, Result};
+use anyhow::{ensure, Context, Result};
 use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
@@ -41,6 +41,11 @@ pub struct NodeParams {
     #[serde(default)]
     pub tmp: bool,
 
+    /// Flag to run node in development mode.
+    #[arg(long)]
+    #[serde(default)]
+    pub dev: bool,
+
     /// Public key of the sequencer, if node should act as one.
     #[arg(long)]
     pub sequencer: Option<String>,
@@ -48,6 +53,11 @@ pub struct NodeParams {
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
     pub validator: Option<String>,
+
+    /// Public key of the validator session, if node should act as one.
+    #[arg(long)]
+    #[serde(rename = "validator-session")]
+    pub validator_session: Option<String>,
 
     /// Max allowed height diff from head for sync directly from Ethereum.
     #[arg(long)]
@@ -74,6 +84,11 @@ impl NodeParams {
 
     /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
+        ensure!(
+            self.validator.is_some() == self.validator_session.is_some(),
+            "`validator` and `validator-session` must be both set or both unset"
+        );
+
         Ok(NodeConfig {
             database_path: self.db_dir(),
             key_path: self.keys_dir(),
@@ -81,18 +96,21 @@ impl NodeParams {
                 .with_context(|| "invalid `sequencer` key")?,
             validator: ConfigPublicKey::new(&self.validator)
                 .with_context(|| "invalid `validator` key")?,
+            validator_session: ConfigPublicKey::new(&self.validator_session)
+                .with_context(|| "invalid `validator-session` key")?,
             max_commitment_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
             worker_threads_override: self.physical_threads.map(|v| v.get() as usize),
             virtual_threads: self
                 .virtual_threads
                 .unwrap_or(Self::DEFAULT_VIRTUAL_THREADS)
                 .get() as usize,
+            dev: self.dev,
         })
     }
 
     /// Get path to the database directory.
     pub fn db_dir(&self) -> PathBuf {
-        if self.tmp {
+        if self.tmp || self.dev {
             Self::tmp_db()
         } else {
             self.base().join("db")
@@ -144,9 +162,11 @@ impl MergeParams for NodeParams {
         Self {
             base: self.base.or(with.base),
             tmp: self.tmp || with.tmp,
-
+            dev: self.dev || with.dev,
             sequencer: self.sequencer.or(with.sequencer),
+
             validator: self.validator.or(with.validator),
+            validator_session: self.validator_session.or(with.validator_session),
 
             max_depth: self.max_depth.or(with.max_depth),
 

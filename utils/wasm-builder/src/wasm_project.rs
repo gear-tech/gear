@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,12 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{code_validator::CodeValidator, crate_info::CrateInfo, smart_fs};
+use crate::{
+    code_validator::{validate_metawasm, validate_program},
+    crate_info::CrateInfo,
+    smart_fs,
+};
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
+use gear_wasm_instrument::{ExternalKind, Module};
 use gear_wasm_optimizer::{self as optimize, OptType, Optimizer};
 use gmeta::MetadataRepr;
-use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -127,7 +131,7 @@ impl WasmProject {
             .expect("Could not find target directory");
 
         let mut wasm_target_dir = target_dir.clone();
-        wasm_target_dir.push("wasm32-unknown-unknown");
+        wasm_target_dir.push("wasm32-gear");
         wasm_target_dir.push(&profile);
 
         target_dir.push("wasm-projects");
@@ -234,6 +238,7 @@ impl WasmProject {
         cargo_toml.insert("profile".into(), profile.into());
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
+        cargo_toml.insert("patch".into(), crate_info.patch.into());
 
         smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
             .context("Failed to write generated manifest path")?;
@@ -317,10 +322,10 @@ extern "C" fn metahash() {{
             .join([file_base_name, ".meta.wasm"].concat());
 
         if smart_fs::check_if_newer(original_wasm_path, &meta_wasm_path)? {
-            fs::write(
-                meta_wasm_path.clone(),
-                Optimizer::new(original_wasm_path.clone())?.optimize(OptType::Meta)?,
-            )?;
+            let mut optimizer = Optimizer::new(original_wasm_path)?;
+            optimizer.strip_exports(OptType::Meta);
+            optimizer.flush_to_file(&meta_wasm_path);
+            optimize::optimize_wasm(&meta_wasm_path, &meta_wasm_path, "4", true)?;
         }
 
         smart_fs::write(
@@ -375,27 +380,25 @@ extern "C" fn metahash() {{
 
         // Optimize wasm using and `wasm-opt` and our optimizations.
         if smart_fs::check_if_newer(&original_wasm_path, &opt_wasm_path)? {
-            let path = optimize::optimize_wasm(&original_copy_wasm_path, &opt_wasm_path, "4", true)
+            let mut optimizer = Optimizer::new(&original_copy_wasm_path)?;
+            optimizer
+                .insert_stack_end_export()
+                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
+            optimizer.strip_custom_sections();
+            optimizer.strip_exports(OptType::Opt);
+            optimizer.flush_to_file(&opt_wasm_path);
+
+            optimize::optimize_wasm(&opt_wasm_path, &opt_wasm_path, "4", true)
                 .map(|res| {
                     log::info!(
                         "Wasm-opt reduced wasm size: {} -> {}",
                         res.original_size,
                         res.optimized_size
                     );
-                    opt_wasm_path.clone()
                 })
                 .unwrap_or_else(|err| {
                     println!("cargo:warning=wasm-opt optimizations error: {}", err);
-                    original_copy_wasm_path.clone()
                 });
-
-            let mut optimizer = Optimizer::new(path)?;
-            optimizer
-                .insert_stack_end_export()
-                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
-            optimizer.strip_custom_sections();
-            fs::write(&opt_wasm_path, optimizer.optimize(OptType::Opt)?)
-                .context("Failed to write optimized WASM binary")?;
         }
 
         // Create `wasm_binary.rs`
@@ -429,7 +432,7 @@ extern "C" fn metahash() {{
     /// Post-processing after the WASM binary has been built.
     ///
     /// - Copy WASM binary from `OUT_DIR` to
-    ///   `target/wasm32-unknown-unknown/<profile>`
+    ///   `target/wasm32-gear/<profile>`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     pub fn postprocess(&self) -> Result<Option<(PathBuf, PathBuf)>> {
@@ -439,7 +442,7 @@ extern "C" fn metahash() {{
             .expect("Run `WasmProject::generate()` first");
 
         let original_wasm_path = self.target_dir.join(format!(
-            "wasm32-unknown-unknown/{}/{file_base_name}.wasm",
+            "wasm32v1-none/{}/{file_base_name}.wasm",
             self.profile
         ));
 
@@ -513,12 +516,11 @@ extern "C" fn metahash() {{
 
         for (wasm_path, _) in &wasm_files {
             let code = fs::read(wasm_path)?;
-            let validator = CodeValidator::try_from(code)?;
 
             if self.project_type.is_metawasm() {
-                validator.validate_metawasm()?;
+                validate_metawasm(code)?;
             } else {
-                validator.validate_program()?;
+                validate_program(code)?;
             }
         }
 
@@ -529,17 +531,17 @@ extern "C" fn metahash() {{
     }
 
     fn get_exports(file: &PathBuf) -> Result<Vec<String>> {
-        let module =
-            parity_wasm::deserialize_file(file).with_context(|| format!("File path: {file:?}"))?;
+        let wasm = fs::read(file).context("Failed to read wasm file")?;
+        let module = Module::new(&wasm).with_context(|| format!("File path: {file:?}"))?;
 
         let exports = module
-            .export_section()
+            .export_section
+            .as_ref()
             .ok_or_else(|| anyhow!("Export section not found"))?
-            .entries()
             .iter()
             .flat_map(|entry| {
-                if let Internal::Function(_) = entry.internal() {
-                    Some(entry.field().to_string())
+                if let ExternalKind::Func = entry.kind {
+                    Some(entry.name.to_string())
                 } else {
                     None
                 }

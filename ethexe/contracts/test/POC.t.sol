@@ -4,14 +4,14 @@ pragma solidity ^0.8.26;
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import "forge-std/Test.sol";
-
 import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
 import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegator/IOperatorSpecificDelegator.sol";
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
+import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {Gear} from "../src/libraries/Gear.sol";
 import {Base} from "./Base.t.sol";
@@ -21,7 +21,9 @@ import {IRouter} from "../src/IRouter.sol";
 contract POCTest is Base {
     using MessageHashUtils for address;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
+    using FROSTOffchain for SigningKey;
 
+    SigningKey signingKey;
     EnumerableMap.AddressToUintMap private operators;
     address[] private vaults;
 
@@ -36,6 +38,9 @@ contract POCTest is Base {
 
         setUpMiddleware();
 
+        signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory publicKey = vm.createWallet(signingKey.asScalar());
+
         for (uint256 i = 0; i < 10; i++) {
             (address _addr, uint256 _key) = makeAddrAndKey(vm.toString(i + 1));
             operators.set(_addr, _key);
@@ -46,7 +51,7 @@ contract POCTest is Base {
         vm.warp(vm.getBlockTimestamp() + 1);
         address[] memory _validators = middleware.makeElectionAt(uint48(vm.getBlockTimestamp()) - 1, maxValidators);
 
-        setUpRouter(_validators);
+        setUpRouter(Gear.AggregatedPublicKey(publicKey.publicKeyX, publicKey.publicKeyY), _validators);
 
         // Change slash requester and executor to router
         // Note: just to check that it is possible to change them for now and do not affect the poc test
@@ -60,20 +65,20 @@ contract POCTest is Base {
 
     function test_POC() public {
         bytes32 _codeId = bytes32(uint256(1));
-        bytes32 _blobTxHash = bytes32(uint256(2));
 
-        router.requestCodeValidation(_codeId, _blobTxHash);
+        bytes32[] memory hashes = new bytes32[](1);
+        hashes[0] = bytes32(uint256(1));
+        vm.blobhashes(hashes);
+
+        router.requestCodeValidation(_codeId);
 
         address[] memory _validators = router.validators();
         assertEq(_validators.length, maxValidators);
 
-        uint256[] memory _privateKeys = new uint256[](_validators.length);
-        for (uint256 i = 0; i < _validators.length; i++) {
-            address _operator = _validators[i];
-            _privateKeys[i] = operators.get(_operator);
-        }
+        uint256[] memory _privateKeys = new uint256[](1);
+        _privateKeys[0] = signingKey.asScalar();
 
-        commitCode(_privateKeys, Gear.CodeCommitment(_codeId, true));
+        commitCode(_privateKeys, Gear.CodeCommitment(_codeId, 42, true));
 
         address _ping = deployPing(_privateKeys, _codeId);
         IMirror actor = IMirror(_ping);
@@ -98,9 +103,19 @@ contract POCTest is Base {
         depositInto(vaults[1], 10_000);
         depositInto(vaults[2], 10_000);
         rollBlocks((eraDuration - electionDuration) / blockDuration);
+
+        SigningKey _signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
+
+        // TODO: makeElectionAt should also return Gear.AggregatedPublicKey
         _validators = middleware.makeElectionAt(uint48(vm.getBlockTimestamp()) - 1, maxValidators);
 
-        commitValidators(_privateKeys, Gear.ValidatorsCommitment(_validators, 2));
+        commitValidators(
+            _privateKeys,
+            Gear.ValidatorsCommitment(
+                Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 2
+            )
+        );
 
         for (uint256 i = 0; i < _validators.length; i++) {
             address _operator = _validators[i];
@@ -109,9 +124,9 @@ contract POCTest is Base {
             // Validators are sorted in descending order
             (address expected,) = makeAddrAndKey(vm.toString(_validators.length - i));
             assertEq(_operator, expected);
-
-            _privateKeys[i] = operators.get(_operator);
         }
+
+        _privateKeys[0] = _signingKey.asScalar();
 
         // Go to a new era and commit from new validators
         rollBlocks(electionDuration / blockDuration);

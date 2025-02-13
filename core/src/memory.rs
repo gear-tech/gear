@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -99,7 +99,7 @@ impl Debug for MemoryInterval {
 }
 
 /// Error in attempt to make wrong size page buffer.
-#[derive(Debug, Default, PartialEq, Eq, Clone, TypeInfo, derive_more::Display)]
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Clone, TypeInfo, derive_more::Display)]
 #[display(
     fmt = "Trying to make wrong size page buffer, must be {:#x}",
     GearPage::SIZE
@@ -110,7 +110,7 @@ pub struct IntoPageBufError;
 pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
-#[derive(Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
 pub struct PageBuf(PageBufInner);
 
 // These traits are implemented intentionally by hand to achieve two goals:
@@ -237,7 +237,7 @@ pub struct AllocationsContext {
     /// Pages which has been in storage before execution
     init_allocations: IntervalsTree<WasmPage>,
     allocations: IntervalsTree<WasmPage>,
-    max_pages: WasmPagesAmount,
+    heap: Option<Interval<WasmPage>>,
     static_pages: WasmPagesAmount,
 }
 
@@ -344,10 +344,17 @@ impl AllocationsContext {
             max_pages,
         )?;
 
+        let heap = match Interval::try_from(static_pages..max_pages) {
+            Ok(interval) => Some(interval),
+            Err(TryFromRangeError::EmptyRange) => None,
+            // Branch is unreachable due to the check `static_pages <= max_pages`` in `validate_memory_params`.
+            _ => unreachable!(),
+        };
+
         Ok(Self {
             init_allocations: allocations.clone(),
             allocations,
-            max_pages,
+            heap,
             static_pages,
         })
     }
@@ -415,25 +422,9 @@ impl AllocationsContext {
         pages: WasmPagesAmount,
         charge_gas_for_grow: impl FnOnce(WasmPagesAmount) -> Result<(), ChargeError>,
     ) -> Result<WasmPage, AllocError> {
-        // TODO: store `heap` as field in `Self` instead of `static_pages` and `max_pages` #3932
-        let heap = match Interval::try_from(self.static_pages..self.max_pages) {
-            Ok(interval) => interval,
-            Err(TryFromRangeError::IncorrectRange) => {
-                let err_msg = format!(
-                    "AllocationContext:alloc: Must be self.static_pages <= self.max_pages. This is guaranteed by `Code::try_new`. \
-                    Static pages - {:?}, max pages - {:?}",
-                    self.static_pages, self.max_pages
-                );
-
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}")
-            }
-            Err(TryFromRangeError::EmptyRange) => {
-                // If all memory is static, then no pages can be allocated.
-                // NOTE: returns an error even if `pages` == 0.
-                return Err(AllocError::ProgramAllocOutOfBounds);
-            }
-        };
+        // Empty heap means that all memory is static, then no pages can be allocated.
+        // NOTE: returns an error even if `pages` == 0.
+        let heap = self.heap.ok_or(AllocError::ProgramAllocOutOfBounds)?;
 
         // If trying to allocate zero pages, then returns heap start page (legacy).
         if pages == WasmPage::from(0) {
@@ -472,28 +463,29 @@ impl AllocationsContext {
 
     /// Free specific memory page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
-        // TODO: do not use `contains` #3879
-        if page < self.static_pages || page >= self.max_pages || !self.allocations.contains(page) {
-            Err(AllocError::InvalidFree(page))
-        } else {
-            self.allocations.remove(page);
-            Ok(())
+        if let Some(heap) = self.heap {
+            if page >= heap.start() && page <= heap.end() && self.allocations.remove(page) {
+                return Ok(());
+            }
         }
+        Err(AllocError::InvalidFree(page))
     }
 
     /// Try to free pages in range. Will only return error if range is invalid.
     ///
     /// Currently running program should own this pages.
     pub fn free_range(&mut self, interval: Interval<WasmPage>) -> Result<(), AllocError> {
-        if interval.start() < self.static_pages || interval.end() >= self.max_pages {
-            Err(AllocError::InvalidFreeRange(
-                interval.start(),
-                interval.end(),
-            ))
-        } else {
-            self.allocations.remove(interval);
-            Ok(())
+        if let Some(heap) = self.heap {
+            if interval.start() >= heap.start() && interval.end() <= heap.end() {
+                self.allocations.remove(interval);
+                return Ok(());
+            }
         }
+
+        Err(AllocError::InvalidFreeRange(
+            interval.start(),
+            interval.end(),
+        ))
     }
 
     /// Decomposes this instance and returns allocations.

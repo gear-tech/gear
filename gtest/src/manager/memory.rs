@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -55,41 +55,6 @@ impl ExtManager {
             Err(TestError::ActorIsNotExecutable(*program_id))
         }
     }
-
-    pub(crate) fn read_state_bytes_using_wasm(
-        &mut self,
-        payload: Vec<u8>,
-        program_id: &ProgramId,
-        fn_name: &str,
-        wasm: Vec<u8>,
-        args: Option<Vec<u8>>,
-    ) -> Result<Vec<u8>> {
-        let mapping_code = Code::try_new_mock_const_or_no_rules(
-            wasm,
-            true,
-            TryNewCodeConfig::new_no_exports_check(),
-        )
-        .map_err(|_| TestError::Instrumentation)?;
-
-        let mapping_code = InstrumentedCodeAndId::from(CodeAndId::new(mapping_code))
-            .into_parts()
-            .0;
-
-        let mut mapping_code_payload = args.unwrap_or_default();
-        mapping_code_payload.append(&mut self.read_state_bytes(payload, program_id)?);
-
-        core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
-            String::from(fn_name),
-            mapping_code,
-            None,
-            None,
-            mapping_code_payload,
-            GAS_ALLOWANCE,
-            self.blocks_manager.get(),
-        )
-        .map_err(TestError::ReadStateError)
-    }
-
     pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> BTreeMap<GearPage, PageBuf> {
         Actors::access(*program_id, |actor| {
             let program = match actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -25,10 +25,7 @@ use crate::{
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use gear_wasm_instrument::{
-    parity_wasm::{self, elements::Module},
-    InstrumentationBuilder,
-};
+use gear_wasm_instrument::{InstrumentationBuilder, Module, GEAR_SUPPORTED_FEATURES};
 
 mod errors;
 mod instrumented;
@@ -71,8 +68,6 @@ pub struct TryNewCodeConfig {
     pub stack_height: Option<u32>,
     /// Limit of data section amount
     pub data_segments_amount_limit: Option<u32>,
-    /// Limit on the number of tables.
-    pub table_number_limit: Option<u32>,
     /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
@@ -99,7 +94,6 @@ impl Default for TryNewCodeConfig {
             version: 1,
             stack_height: None,
             data_segments_amount_limit: None,
-            table_number_limit: None,
             export_stack_height: false,
             check_exports: true,
             check_imports: true,
@@ -135,11 +129,12 @@ impl Code {
         GetRulesFn: FnMut(&Module) -> R,
     {
         if config.make_validation {
-            wasmparser::validate(&original_code).map_err(CodeError::Validation)?;
+            wasmparser::Validator::new_with_features(GEAR_SUPPORTED_FEATURES)
+                .validate_all(&original_code)
+                .map_err(CodeError::Validation)?;
         }
 
-        let mut module =
-            parity_wasm::deserialize_buffer(&original_code).map_err(CodecError::Decode)?;
+        let mut module = Module::new(&original_code)?;
 
         let static_pages = utils::get_static_pages(&module)?;
 
@@ -157,9 +152,6 @@ impl Code {
                 stack_end,
                 config.data_segments_amount_limit,
             )?;
-        }
-        if config.check_table_section {
-            utils::check_table_section(&module, config.table_number_limit)?;
         }
         if config.check_mut_global_exports {
             utils::check_mut_global_exports(&module)?;
@@ -189,10 +181,10 @@ impl Code {
         // Use instrumented module to get section sizes.
         let data_section_size = utils::get_data_section_size(&module)?;
         let global_section_size = utils::get_instantiated_global_section_size(&module)?;
-        let table_section_size = utils::get_instantiated_table_section_size(&module)?;
+        let table_section_size = utils::get_instantiated_table_section_size(&module);
         let element_section_size = utils::get_instantiated_element_section_size(&module)?;
 
-        let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
+        let code = module.serialize()?;
 
         // Use instrumented code to get section sizes.
         let CodeTypeSectionSizes {
@@ -300,7 +292,6 @@ impl Code {
         get_gas_rules: GetRulesFn,
         stack_height: Option<u32>,
         data_segments_amount_limit: Option<u32>,
-        table_number_limit: Option<u32>,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
@@ -313,7 +304,6 @@ impl Code {
                 version,
                 stack_height,
                 data_segments_amount_limit,
-                table_number_limit,
                 ..Default::default()
             },
         )
@@ -435,20 +425,19 @@ mod tests {
     use crate::{
         code::{
             utils::REF_TYPE_SIZE, Code, CodeError, DataSectionError, ExportError, ImportError,
-            StackEndError, TableSectionError, GENERIC_OS_PAGE_SIZE,
+            StackEndError, TryNewCodeConfig, GENERIC_OS_PAGE_SIZE,
         },
         gas_metering::CustomConstantCostRules,
     };
     use alloc::{format, vec::Vec};
-    use gear_wasm_instrument::{InstrumentationError, STACK_END_EXPORT_NAME};
+    use gear_wasm_instrument::{InstrumentationError, ModuleError, STACK_END_EXPORT_NAME};
 
     fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
-        wabt::Wat2Wasm::new()
-            .validate(validate)
-            .convert(s)
-            .unwrap()
-            .as_ref()
-            .to_vec()
+        let code = wat::parse_str(s).unwrap();
+        if validate {
+            wasmparser::validate(&code).unwrap();
+        }
+        code
     }
 
     fn wat2wasm(s: &str) -> Vec<u8> {
@@ -472,20 +461,22 @@ mod tests {
         wat: &str,
         stack_height: Option<u32>,
         data_segments_amount_limit: Option<u32>,
-        table_number_limit: Option<u32>,
+        make_validation: bool,
     ) -> Result<Code, CodeError> {
-        Code::try_new(
+        Code::try_new_mock_const_or_no_rules(
             wat2wasm(wat),
-            1,
-            |_| CustomConstantCostRules::default(),
-            stack_height,
-            data_segments_amount_limit,
-            table_number_limit,
+            true,
+            TryNewCodeConfig {
+                stack_height,
+                data_segments_amount_limit,
+                make_validation,
+                ..Default::default()
+            },
         )
     }
 
     fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
-        try_new_code_from_wat_with_params(wat, stack_height, None, None)
+        try_new_code_from_wat_with_params(wat, stack_height, None, true)
     }
 
     #[test]
@@ -771,7 +762,6 @@ mod tests {
             |_| CustomConstantCostRules::default(),
             None,
             None,
-            None,
         );
 
         assert_code_err!(res, CodeError::Validation(_));
@@ -840,38 +830,11 @@ mod tests {
                 wat.as_str(),
                 None,
                 DATA_SEGMENTS_AMOUNT_LIMIT.into(),
-                None,
+                true,
             ),
             CodeError::DataSection(DataSectionError::DataSegmentsAmountLimit {
                 limit: DATA_SEGMENTS_AMOUNT_LIMIT,
                 actual: 1025
-            })
-        );
-    }
-
-    #[test]
-    fn table_number_limit() {
-        const TABLE_NUMBER_LIMIT: u32 = 50;
-
-        let table = r#"(table 10 10 funcref)"#;
-
-        let wat = format!(
-            r#"
-            (module
-                (import "env" "memory" (memory 1))
-                (func $init)
-                (export "init" (func $init))
-                {}
-            )
-        "#,
-            table.repeat(100)
-        );
-
-        assert_code_err!(
-            try_new_code_from_wat_with_params(wat.as_str(), None, None, TABLE_NUMBER_LIMIT.into()),
-            CodeError::TableSection(TableSectionError::TableNumberLimit {
-                limit: TABLE_NUMBER_LIMIT,
-                actual: 100
             })
         );
     }
@@ -1091,37 +1054,6 @@ mod tests {
     }
 
     #[test]
-    fn table_section_bytes() {
-        let wat = r#"
-            (module
-                (import "env" "memory" (memory 3))
-                (func $init)
-                (export "init" (func $init))
-                (table 10 10 funcref)
-                (table 10 10 funcref)
-                (table 10 10 funcref)
-                (table 10 10 funcref)
-            )
-        "#;
-
-        assert_eq!(
-            try_new_code_from_wat(wat, Some(1024))
-                .unwrap()
-                .instantiated_section_sizes
-                .table_section,
-            40 * REF_TYPE_SIZE,
-        );
-
-        assert_eq!(
-            try_new_code_from_wat(wat, Some(1024))
-                .unwrap()
-                .instantiated_section_sizes
-                .element_section,
-            0,
-        );
-    }
-
-    #[test]
     fn element_section_bytes() {
         let wat = r#"
             (module
@@ -1174,7 +1106,7 @@ mod tests {
     #[test]
     fn unsupported_instruction() {
         // floats
-        let res = try_new_code_from_wat(
+        let res = try_new_code_from_wat_with_params(
             r#"
             (module
                 (import "env" "memory" (memory 0 1))
@@ -1188,14 +1120,15 @@ mod tests {
             )
             "#,
             Some(1024),
+            None,
+            // check not only `wasmparser` validator denies forbidden instructions
+            false,
         );
 
         assert!(matches!(
             res,
-            Err(CodeError::Instrumentation(
-                InstrumentationError::GasInjection
-            )),
-        ),);
+            Err(CodeError::Module(ModuleError::UnsupportedInstruction(_))),
+        ));
 
         // memory grow
         let res = try_new_code_from_wat(

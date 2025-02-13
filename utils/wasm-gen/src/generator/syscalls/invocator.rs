@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -32,11 +32,11 @@ use arbitrary::{Result, Unstructured};
 use gear_core::ids::CodeId;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
-    parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{
         FallibleSyscallSignature, ParamType, Ptr, RegularParamType, SyscallName, SyscallSignature,
         SystemSyscallSignature,
     },
+    Instruction, MemArg,
 };
 use gsys::{ErrorCode, Handle, Hash};
 use std::{
@@ -45,6 +45,7 @@ use std::{
     iter,
     num::NonZero,
 };
+use wasmparser::{BlockType, ExternalKind, ValType};
 
 #[derive(Debug)]
 pub(crate) enum ProcessedSyscallParams {
@@ -58,7 +59,7 @@ pub(crate) enum ProcessedSyscallParams {
         allowed_values: Option<RegularParamAllowedValues>,
     },
     Value {
-        value_type: ValueType,
+        value_type: ValType,
         allowed_values: Option<RegularParamAllowedValues>,
     },
     MemoryArrayLength,
@@ -286,12 +287,11 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             );
 
             self.module.with(|mut module| {
-                let code = module
-                    .code_section_mut()
-                    .expect("has at least one function by config")
-                    .bodies_mut()[insert_into_fn]
-                    .code_mut()
-                    .elements_mut();
+                let code = &mut module
+                    .code_section
+                    .as_mut()
+                    .expect("has at least one function by config")[insert_into_fn]
+                    .instructions;
                 code.splice(pos..pos, instructions);
                 (module, ())
             });
@@ -430,13 +430,13 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         &[
                             Instruction::I32Const(destination_ptr),
                             Instruction::I32Const(param),
-                            Instruction::I32Store(2, 0),
+                            Instruction::I32Store(MemArg::i32()),
                         ],
                     );
 
                     ret_instr.extend_from_slice(&[
                         Instruction::I32Const(destination_ptr),
-                        Instruction::I32Load(2, 0),
+                        Instruction::I32Load(MemArg::i32()),
                     ]);
 
                     ret.push(ParamInstructions(ret_instr));
@@ -446,10 +446,10 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     allowed_values,
                 } => {
                     let is_i32 = match value_type {
-                        ValueType::I32 => true,
-                        ValueType::I64 => false,
-                        ValueType::F32 | ValueType::F64 => {
-                            panic!("gear wasm must not have any floating nums")
+                        ValType::I32 => true,
+                        ValType::I64 => false,
+                        ValType::F32 | ValType::F64 | ValType::V128 | ValType::Ref(_) => {
+                            panic!("gear wasm must not have any floating nums, SIMD or reference types")
                         }
                     };
                     let param_instructions = if let Some(allowed_values) = allowed_values {
@@ -603,7 +603,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     ..
                 } = MemoryLayout::from(self.memory_size_bytes());
 
-                let reset_bit_flag = self.unstructured.arbitrary()?;
+                let reset_bit_flag: bool = self.unstructured.arbitrary()?;
 
                 let random_reservation_words =
                     WasmWords::new(self.unstructured.arbitrary::<[u8; 32]>()?);
@@ -780,10 +780,10 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
         vec![
             Instruction::I32Const(res_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Const(no_error_val),
             Instruction::I32Ne,
-            Instruction::If(BlockType::NoResult),
+            Instruction::If(BlockType::Empty),
             Instruction::Unreachable,
             Instruction::End,
         ]
@@ -813,7 +813,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         vec![
             Instruction::I32Const(error_code),
             Instruction::I32Eq,
-            Instruction::If(BlockType::NoResult),
+            Instruction::If(BlockType::Empty),
             Instruction::Unreachable,
             Instruction::End,
         ]
@@ -867,16 +867,16 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             0..0,
             [
                 Instruction::I32Const(init_called_ptr),
-                Instruction::I32Load8U(0, 0),
+                Instruction::I32Load8U(MemArg::zero()),
                 // if *init_called_ptr { .. }
-                Instruction::If(BlockType::NoResult),
+                Instruction::If(BlockType::Empty),
                 Instruction::I32Const(wait_called_ptr),
-                Instruction::I32Load(2, 0),
+                Instruction::I32Load(MemArg::i32()),
                 Instruction::I32Const(waiting_probability as i32),
                 Instruction::I32RemU,
                 Instruction::I32Eqz,
                 // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
-                Instruction::If(BlockType::NoResult),
+                Instruction::If(BlockType::Empty),
             ],
         );
 
@@ -886,10 +886,10 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             // *wait_called_ptr += 1
             Instruction::I32Const(wait_called_ptr),
             Instruction::I32Const(wait_called_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Const(1),
             Instruction::I32Add,
-            Instruction::I32Store(2, 0),
+            Instruction::I32Store(MemArg::i32()),
             Instruction::End,
         ]);
     }
@@ -983,47 +983,50 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         instructions.extend_from_slice(&[
             // if *res_ptr == no_error_val
             Instruction::I32Const(res_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Const(no_error_val),
             Instruction::I32Eq,
-            Instruction::If(BlockType::NoResult),
+            Instruction::If(BlockType::Empty),
             // *temp1_ptr = (*flags_ptr).trailing_ones()
             Instruction::I32Const(temp1_ptr),
             Instruction::I32Const(flags_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Const(u32::MAX as i32),
             Instruction::I32Xor,
             Instruction::I32Ctz,
-            Instruction::I32Store(2, 0),
+            Instruction::I32Store(MemArg::i32()),
             // if *temp1_ptr < amount_of_resources
             Instruction::I32Const(temp1_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Const(amount_of_resources as i32),
             Instruction::I32LtU,
-            Instruction::If(BlockType::NoResult),
+            Instruction::If(BlockType::Empty),
             // *flags_ptr |= 1 << *temp1_ptr
             Instruction::I32Const(flags_ptr),
             Instruction::I32Const(1),
             Instruction::I32Const(temp1_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Shl,
             Instruction::I32Const(flags_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Or,
-            Instruction::I32Store(2, 0),
+            Instruction::I32Store(MemArg::i32()),
             // *temp1_ptr = array_ptr + *temp1_ptr * size_of::<T>()
             Instruction::I32Const(temp1_ptr),
             Instruction::I32Const(temp1_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Const(size_of::<T>() as i32),
             Instruction::I32Mul,
             Instruction::I32Const(array_ptr),
             Instruction::I32Add,
-            Instruction::I32Store(2, 0),
+            Instruction::I32Store(MemArg::i32()),
         ]);
 
         let mut copy_instr = utils::memcpy_with_offsets::<U>(
-            &[Instruction::I32Const(temp1_ptr), Instruction::I32Load(2, 0)],
+            &[
+                Instruction::I32Const(temp1_ptr),
+                Instruction::I32Load(MemArg::i32()),
+            ],
             0,
             &[Instruction::I32Const(res_ptr)],
             size_of::<ErrorCode>(),
@@ -1048,29 +1051,29 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         let mut ret_instr = vec![
             // if *flags_ptr > 0
             Instruction::I32Const(flags_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Const(0),
-            Instruction::I32Ne,
-            Instruction::If(BlockType::NoResult),
+            Instruction::I32GtU, // FIXME: should be I32GtU
+            Instruction::If(BlockType::Empty),
             // *temp1_ptr = ((*flags_ptr).trailing_ones() - 1)
             Instruction::I32Const(temp1_ptr),
             Instruction::I32Const(flags_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Const(u32::MAX as i32),
             Instruction::I32Xor,
             Instruction::I32Ctz,
             Instruction::I32Const(1),
             Instruction::I32Sub,
-            Instruction::I32Store(2, 0),
+            Instruction::I32Store(MemArg::i32()),
             // *temp2_ptr = array_ptr + *temp1_ptr * size_of::<T>()
             Instruction::I32Const(temp2_ptr),
             Instruction::I32Const(temp1_ptr),
-            Instruction::I32Load(2, 0),
+            Instruction::I32Load(MemArg::i32()),
             Instruction::I32Const(size_of::<T>() as i32),
             Instruction::I32Mul,
             Instruction::I32Const(array_ptr),
             Instruction::I32Add,
-            Instruction::I32Store(2, 0),
+            Instruction::I32Store(MemArg::i32()),
         ];
 
         if reset_bit_flag {
@@ -1078,21 +1081,24 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 // *flags_ptr &= !(1 << *temp1_ptr)
                 Instruction::I32Const(flags_ptr),
                 Instruction::I32Const(flags_ptr),
-                Instruction::I32Load(2, 0),
+                Instruction::I32Load(MemArg::i32()),
                 Instruction::I32Const(1),
                 Instruction::I32Const(temp1_ptr),
-                Instruction::I32Load(2, 0),
+                Instruction::I32Load(MemArg::i32()),
                 Instruction::I32Shl,
                 Instruction::I32Const(u32::MAX as i32),
                 Instruction::I32Xor,
                 Instruction::I32And,
-                Instruction::I32Store(2, 0),
+                Instruction::I32Store(MemArg::i32()),
             ]);
         }
 
         let mut copy_instr = utils::memcpy::<U>(
             &[Instruction::I32Const(destination_ptr)],
-            &[Instruction::I32Const(temp2_ptr), Instruction::I32Load(2, 0)],
+            &[
+                Instruction::I32Const(temp2_ptr),
+                Instruction::I32Load(MemArg::i32()),
+            ],
             size_of::<T>() / size_of::<U>(),
         );
         ret_instr.append(&mut copy_instr);
@@ -1113,11 +1119,11 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
         self.module.with(|mut module| {
             let each_func_instructions = module
-                .code_section_mut()
+                .code_section
+                .as_mut()
                 .expect("has at least 1 function by config")
-                .bodies_mut()
                 .iter_mut()
-                .flat_map(|body| body.code_mut().elements_mut().iter_mut());
+                .flat_map(|body| body.instructions.iter_mut());
             for instruction in each_func_instructions {
                 if let Instruction::Call(call_indexes_handle) = instruction {
                     let index_ty = self
@@ -1146,14 +1152,14 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             }
 
             let export_funcs_call_indexes_handles = module
-                .export_section_mut()
+                .export_section
+                .as_mut()
                 // This generator is instantiated from SyscallsImportsGenerator, which can only be
                 // generated if entry points and memory import were generated.
                 .expect("has at least 1 export")
-                .entries_mut()
                 .iter_mut()
-                .filter_map(|export| match export.internal_mut() {
-                    Internal::Function(call_indexes_handle) => Some(call_indexes_handle),
+                .filter_map(|export| match export.kind {
+                    ExternalKind::Func => Some(&mut export.index),
                     _ => None,
                 });
 
