@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 ## Gear deps.
+ethexe-common.workspace = true
 ethexe-runtime-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
@@ -33,4 +34,5 @@ std = [
     "gear-core/std",
     "gear-lazy-pages-interface/std",
     "gear-wasm-instrument/std",
+    "ethexe-common/std"
 ]

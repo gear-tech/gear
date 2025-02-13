@@ -21,6 +21,7 @@ use crate::{
     ProcessorConfig,
 };
 use core_processor::common::JournalNote;
+use ethexe_common::gear::Origin;
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
 use gear_core::ids::ProgramId;
@@ -32,7 +33,7 @@ enum Task {
     Run {
         program_id: ProgramId,
         state_hash: H256,
-        result_sender: oneshot::Sender<Vec<JournalNote>>,
+        result_sender: oneshot::Sender<(Vec<JournalNote>, Option<Origin>)>,
     },
 }
 
@@ -93,20 +94,25 @@ async fn run_in_async(
 
             let mut super_journal = vec![];
             for (program_id, receiver) in result_receivers.into_iter() {
-                let journal = receiver.await.unwrap();
+                let (journal, dispatch_origin) = receiver.await.unwrap();
                 if !journal.is_empty() {
+                    super_journal.push((
+                        program_id,
+                        dispatch_origin.expect("origin should be set for non-empty journal"),
+                        journal,
+                    ));
                     no_more_to_do = false;
                 }
-                super_journal.push((program_id, journal));
             }
 
-            for (program_id, journal) in super_journal {
+            for (program_id, dispatch_origin, journal) in super_journal {
                 let mut handler = JournalHandler {
                     program_id,
                     controller: TransitionController {
                         transitions: in_block_transitions,
                         storage: &db,
                     },
+                    dispatch_origin,
                 };
                 core_processor::handle_journal(journal, &mut handler);
             }
@@ -163,7 +169,7 @@ async fn one_batch(
     from_index: usize,
     task_senders: &[mpsc::Sender<Task>],
     in_block_transitions: &mut InBlockTransitions,
-) -> BTreeMap<ProgramId, oneshot::Receiver<Vec<JournalNote>>> {
+) -> BTreeMap<ProgramId, oneshot::Receiver<(Vec<JournalNote>, Option<Origin>)>> {
     let mut result_receivers = BTreeMap::new();
 
     for (sender, (program_id, state_hash)) in task_senders

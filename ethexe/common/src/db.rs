@@ -18,7 +18,10 @@
 
 //! ethexe common db types and traits.
 
-use crate::{events::BlockRequestEvent, gear::StateTransition};
+use crate::{
+    events::BlockRequestEvent,
+    gear::{Origin, StateTransition},
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
@@ -30,8 +33,8 @@ use gear_core::{
 use gprimitives::{MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
-/// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
-pub type Rfm = (ProgramId, ActorId);
+/// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id, message origin)
+pub type Rfm = (ProgramId, ActorId, Origin);
 
 /// SendDispatch key; (msgs destinations program (stash and queue provider), message id)
 pub type Sd = (ProgramId, MessageId);
