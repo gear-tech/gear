@@ -18,8 +18,8 @@
 
 use anyhow::{anyhow, bail};
 use gear_core::{
-    code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig},
-    gas_metering::{CustomConstantCostRules, Schedule},
+    code::{Code, CodeError, ExportError, ImportError},
+    gas_metering::Schedule,
 };
 use gear_wasm_instrument::{Export, ExternalKind, FuncType, Module, SyscallName, TypeRef, ValType};
 use std::fmt;
@@ -307,19 +307,5 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
     ) {
         Ok(_) => Ok(()),
         Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
-    }
-}
-
-/// Validate metawasm code in the same way as
-/// `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`.
-pub fn validate_metawasm(code: Vec<u8>) -> anyhow::Result<()> {
-    let module = Module::new(&code)?;
-    match Code::try_new_mock_with_rules(
-        code.clone(),
-        |_| CustomConstantCostRules::default(),
-        TryNewCodeConfig::new_no_exports_check(),
-    ) {
-        Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
-        _ => Ok(()),
     }
 }

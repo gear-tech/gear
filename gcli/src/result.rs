@@ -51,8 +51,6 @@ pub enum Error {
     Wasmer(wasmer::RuntimeError),
     #[error(transparent)]
     Etc(#[from] etc::Error),
-    #[error("Metadata parsing error {0:?}")]
-    MetaParseError(gmeta::MetadataParseError),
 }
 
 impl From<gear_core::code::CodeError> for Error {

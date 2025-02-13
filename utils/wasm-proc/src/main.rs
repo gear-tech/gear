@@ -19,7 +19,7 @@
 use clap::Parser;
 use gear_wasm_builder::{
     code_validator::validate_program,
-    optimize::{self, OptType, Optimizer},
+    optimize::{self, Optimizer},
 };
 use gear_wasm_instrument::{Module, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
@@ -217,7 +217,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rt_allowed_imports: HashSet<&str> = RT_ALLOWED_IMPORTS.into();
 
     for file in &wasm_files {
-        if !file.ends_with(".wasm") || file.ends_with(".meta.wasm") || file.ends_with(".opt.wasm") {
+        if !file.ends_with(".wasm") || file.ends_with(".opt.wasm") {
             continue;
         }
 
@@ -251,7 +251,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("Failed to move mutable globals to static");
         }
 
-        optimizer.strip_exports(OptType::Opt);
+        optimizer.strip_exports();
         optimizer.flush_to_file(&optimized_wasm_path);
 
         // Make generic size optimizations by wasm-opt

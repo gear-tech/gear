@@ -19,19 +19,7 @@
 #![no_std]
 
 use core::ops::Range;
-use gmeta::{In, InOut, Metadata, Out};
 use gstd::{prelude::*, ActorId};
-
-pub struct FungibleTokenMetadata;
-
-impl Metadata for FungibleTokenMetadata {
-    type Init = In<InitConfig>;
-    type Handle = InOut<FTAction, FTEvent>;
-    type Others = ();
-    type Reply = ();
-    type Signal = ();
-    type State = Out<IoFungibleToken>;
-}
 
 #[derive(Debug, Decode, Encode, TypeInfo)]
 #[codec(crate = gstd::codec)]
@@ -91,4 +79,28 @@ pub struct IoFungibleToken {
     pub balances: Vec<(ActorId, u128)>,
     pub allowances: Vec<(ActorId, Vec<(ActorId, u128)>)>,
     pub decimals: u8,
+}
+
+impl InitConfig {
+    pub fn test_sequence() -> Self {
+        InitConfig {
+            name: "MyToken".to_string(),
+            symbol: "MTK".to_string(),
+            decimals: 18,
+            initial_capacity: None,
+        }
+    }
+}
+
+impl IoFungibleToken {
+    pub fn test_sequence() -> Self {
+        IoFungibleToken {
+            name: "MyToken".to_string(),
+            symbol: "MTK".to_string(),
+            total_supply: 0,
+            balances: vec![],
+            allowances: vec![],
+            decimals: 18,
+        }
+    }
 }
