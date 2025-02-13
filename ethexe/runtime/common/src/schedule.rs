@@ -25,7 +25,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
             let ValueWithExpiry { value, .. } =
                 state.mailbox_hash.modify_mailbox(storage, |mailbox| {
                     mailbox
-                        .remove(user_id, message_id)
+                        .remove_and_store_user_mailbox(storage, user_id, message_id)
                         .expect("failed to find message in mailbox")
                 });
 
@@ -79,7 +79,13 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
             );
 
             state.mailbox_hash.modify_mailbox(storage, |mailbox| {
-                mailbox.add(user_id, stashed_message_id, dispatch.value, expiry);
+                mailbox.add_and_store_user_mailbox(
+                    storage,
+                    user_id,
+                    stashed_message_id,
+                    dispatch.value,
+                    expiry,
+                );
             });
 
             transitions.modify_transition(program_id, |transition| {
