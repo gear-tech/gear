@@ -548,14 +548,17 @@ impl ChainSync {
             self.wvara_address,
         )?;
 
-        if events.len() != 1 {
-            return Err(anyhow!("Expected exactly one block, got {}", events.len()));
+        if events.len() > 1 {
+            return Err(anyhow!(
+                "Expected events for at most 1 block, but got for {}",
+                events.len()
+            ));
         }
 
         let (block_hash, events) = events
             .into_iter()
             .next()
-            .unwrap_or_else(|| unreachable!("at least one block"));
+            .unwrap_or_else(|| (block_hash, Vec::new()));
 
         if block_hash != block {
             return Err(anyhow!("Expected block hash {block}, got {block_hash}"));

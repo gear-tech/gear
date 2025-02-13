@@ -219,6 +219,21 @@ impl ChainHeadProcessContext {
         let events = BlocksOnChainData::block_events(&self.db, block)
             .ok_or_else(|| anyhow!("events not found for synced block {block}"))?;
 
+        for event in &events {
+            if let BlockEvent::Router(RouterEvent::CodeGotValidated {
+                code_id,
+                valid: true,
+            }) = event
+            {
+                use ethexe_common::db::CodesStorage;
+                if self.db.instrumented_code(0, *code_id).is_none() {
+                    let code = CodesStorage::original_code(&self.db, *code_id)
+                        .ok_or_else(|| anyhow!("code not found for validated code {code_id}"))?;
+                    self.processor.process_upload_code(*code_id, &code)?;
+                }
+            }
+        }
+
         let parent = header.parent_hash;
 
         if !self.db.block_end_state_is_valid(parent).unwrap_or(false) {
