@@ -10,7 +10,8 @@ repository.workspace = true
 [dependencies]
 gstd.workspace = true
 hashbrown.workspace = true
-ft-io = { path = "io" }
+parity-scale-codec.workspace = true
+scale-info.workspace = true
 
 [dev-dependencies]
 gstd = { workspace = true, features = ["debug"] }

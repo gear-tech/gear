@@ -3473,14 +3473,15 @@ dependencies = [
 name = "demo-fungible-token"
 version = "0.1.4"
 dependencies = [
- "ft-io",
  "futures",
  "gclient",
  "gear-core",
  "gear-wasm-builder",
  "gstd",
  "hashbrown 0.14.5",
+ "parity-scale-codec",
  "rand",
+ "scale-info",
  "statrs",
  "tokio",
 ]
@@ -5596,13 +5597,6 @@ checksum = "e871a4cfa68bb224863b53149d973df1ac8d1ed2fa1d1bfc37ac1bb65dd37207"
 dependencies = [
  "rustix 0.38.37",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "ft-io"
-version = "0.1.4"
-dependencies = [
- "gstd",
 ]
 
 [[package]]

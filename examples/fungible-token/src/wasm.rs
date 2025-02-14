@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{FTAction, FTEvent, InitConfig, IoFungibleToken};
 use core::ops::Range;
-use ft_io::*;
 use gstd::{msg, prelude::*, ActorId};
 use hashbrown::HashMap;
 
@@ -223,6 +223,10 @@ extern "C" fn handle() {
 
 #[unsafe(no_mangle)]
 extern "C" fn init() {
+    if msg::size() == 0 {
+        return;
+    }
+
     let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
     let ft = FungibleToken {
         name: config.name,
