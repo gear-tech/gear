@@ -39,8 +39,6 @@ etc.workspace = true
 runtime-primitives.workspace = true
 url = { workspace = true, features = ["serde"] }
 toml.workspace = true
-wasmer.workspace = true
-wasmer-types.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

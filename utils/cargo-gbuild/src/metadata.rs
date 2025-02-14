@@ -47,7 +47,6 @@ impl Metadata {
         let gbuild = serde_json::from_value::<MetadataField>(inner.workspace_metadata.clone())
             .map(|mut m| {
                 m.gbuild.programs.dedup();
-                m.gbuild.metas.dedup();
                 m.gbuild
             })
             .unwrap_or_default();
@@ -83,6 +82,4 @@ pub struct MetadataField {
 pub struct GbuildMetadata {
     /// Gear programs in the workspace.
     pub programs: Vec<String>,
-    /// Gear program metas in the workspace.
-    pub metas: Vec<String>,
 }

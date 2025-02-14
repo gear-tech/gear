@@ -5754,8 +5754,6 @@ dependencies = [
  "tokio",
  "toml 0.8.14",
  "url",
- "wasmer",
- "wasmer-types",
  "which",
  "whoami",
 ]

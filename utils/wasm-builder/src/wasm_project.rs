@@ -317,7 +317,7 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
     ///
     /// - Copy WASM binary from `OUT_DIR` to
     ///   `target/wasm32-gear/<profile>`
-    /// - Generate optimized and metadata WASM binaries from the built program
+    /// - Generate optimized binary from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     pub fn postprocess(&self) -> Result<Option<(PathBuf, PathBuf)>> {
         let file_base_name = self

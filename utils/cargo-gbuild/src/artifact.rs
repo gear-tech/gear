@@ -58,7 +58,6 @@ impl Artifacts {
         // Collect all possible packages from metadata
         let mut artifacts: Vec<Artifact> = collect_crates(&cwd, &metadata.gbuild.programs)?
             .into_iter()
-            .chain(collect_crates(&cwd, &metadata.gbuild.metas)?)
             .collect();
 
         // If not using workspace build, filter out the matched package
