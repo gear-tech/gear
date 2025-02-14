@@ -340,14 +340,14 @@ impl CodesStorage for Database {
 
         self.kv
             .iter_prefix(&key_prefix)
-            .map(|(key, code_id)| {
+            .map(|(key, _code_id)| {
                 let (split_key_prefix, program_id) = key.split_at(key_prefix.len());
                 debug_assert_eq!(split_key_prefix, key_prefix);
                 let program_id =
                     ProgramId::try_from(program_id).expect("Failed to decode key into `ProgramId`");
 
                 #[cfg(debug_assertions)]
-                CodeId::try_from(code_id.as_slice()).expect("Failed to decode data into `CodeId`");
+                CodeId::try_from(_code_id.as_slice()).expect("Failed to decode data into `CodeId`");
 
                 program_id
             })
