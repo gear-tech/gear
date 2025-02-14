@@ -466,14 +466,8 @@ async fn mailbox() {
         (
             expiry,
             BTreeSet::from_iter([
-                ScheduledTask::RemoveFromMailbox(
-                    (pid, env.sender_id, Default::default()),
-                    mid_expected_message,
-                ),
-                ScheduledTask::RemoveFromMailbox(
-                    (pid, env.sender_id, Default::default()),
-                    ping_expected_message,
-                ),
+                ScheduledTask::RemoveFromMailbox((pid, env.sender_id), mid_expected_message),
+                ScheduledTask::RemoveFromMailbox((pid, env.sender_id), ping_expected_message),
             ]),
         ),
     ]);

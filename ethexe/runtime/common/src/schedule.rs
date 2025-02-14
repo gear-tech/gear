@@ -17,7 +17,7 @@ pub struct Handler<'a, S: Storage> {
 impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn remove_from_mailbox(
         &mut self,
-        (program_id, user_id, dispatch_origin): (ProgramId, ActorId, Origin),
+        (program_id, user_id): (ProgramId, ActorId),
         message_id: MessageId,
     ) -> u64 {
         self.controller
@@ -43,7 +43,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                     PayloadLookup::empty(),
                     0,
                     SuccessReplyReason::Auto,
-                    dispatch_origin,
+                    // TODO(rmasl): use the actual origin (https://github.com/gear-tech/gear/pull/4460)
+                    Origin::Ethereum,
                 );
 
                 state
@@ -78,10 +79,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 
                 let expiry = transitions.schedule_task(
                     MAILBOX_VALIDITY.try_into().expect("infallible"),
-                    ScheduledTask::RemoveFromMailbox(
-                        (program_id, user_id, dispatch.origin),
-                        stashed_message_id,
-                    ),
+                    ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
                 );
 
                 state.mailbox_hash.modify_mailbox(storage, |mailbox| {

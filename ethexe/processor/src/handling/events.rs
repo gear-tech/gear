@@ -125,10 +125,7 @@ impl ProcessingHandler {
 
                     transitions.remove_task(
                         expiry,
-                        &ScheduledTask::RemoveFromMailbox(
-                            (actor_id, source, Origin::Ethereum),
-                            replied_to,
-                        ),
+                        &ScheduledTask::RemoveFromMailbox((actor_id, source), replied_to),
                     )?;
 
                     let reply = Dispatch::new_reply(
@@ -165,10 +162,7 @@ impl ProcessingHandler {
 
                     transitions.remove_task(
                         expiry,
-                        &ScheduledTask::RemoveFromMailbox(
-                            (actor_id, source, Origin::Ethereum),
-                            claimed_id,
-                        ),
+                        &ScheduledTask::RemoveFromMailbox((actor_id, source), claimed_id),
                     )?;
 
                     let reply = Dispatch::reply(

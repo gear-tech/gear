@@ -89,7 +89,7 @@ impl<S: Storage> Handler<'_, S> {
                     let expiry = transitions.schedule_task(
                         MAILBOX_VALIDITY.try_into().expect("infallible"),
                         ScheduledTask::RemoveFromMailbox(
-                            (dispatch.source(), dispatch.destination(), dispatch_origin),
+                            (dispatch.source(), dispatch.destination()),
                             dispatch.id(),
                         ),
                     );
