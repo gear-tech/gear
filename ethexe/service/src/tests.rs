@@ -1068,6 +1068,8 @@ async fn fast_sync() {
             .unwrap();
     }
 
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
     log::info!("Stopping Alice");
     alice.stop_service().await;
 
@@ -1083,7 +1085,7 @@ async fn fast_sync() {
     );
     bob.start_service().await;
 
-    env.skip_blocks(1000).await;
+    env.skip_blocks(100).await;
 
     tokio::time::sleep(Duration::from_secs(15)).await;
 

@@ -33,17 +33,16 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_network::{db_sync, db_sync::RequestId, NetworkEvent, NetworkService};
-use ethexe_observer::Query;
 use ethexe_runtime_common::state::{
     ActiveProgram, HashOf, MaybeHashOf, MemoryPages, MemoryPagesRegion, Program, ProgramState,
     Storage,
 };
 use futures::StreamExt;
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, H256};
 use parity_scale_codec::Decode;
 use std::{
-    collections::{BTreeSet, HashMap},
-    iter, mem,
+    collections::{HashMap, HashSet},
+    mem,
 };
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -57,37 +56,57 @@ enum RequestKind {
 }
 
 #[derive(Debug, Default)]
-struct Requests {
-    /// Buffered hashes we sent after all of them are collected
-    buffered_request: BTreeSet<H256>,
-    /// Buffered requests kinds we drain into `pending_requests` when `RequestId` is known
-    buffered_kinds: Vec<(RequestKind, H256)>,
+struct BufRequests {
+    /// Total completed requests
+    total_completed_requests: u64,
+    /// Total pending requests
+    total_pending_requests: u64,
+
+    /// Buffered requests we convert into one network request, and after that
+    /// we convert into `pending_requests` because `RequestId` is known
+    buffered_requests: HashSet<(RequestKind, H256)>,
     /// Pending requests, we remove one by one on each hash from response
     pending_requests: HashMap<(RequestId, H256), RequestKind>,
 }
 
-impl Requests {
+impl BufRequests {
     fn add(&mut self, request: RequestKind, hashes: impl IntoIterator<Item = H256>) {
         for hash in hashes {
-            self.buffered_request.insert(hash);
-            self.buffered_kinds.push((request, hash));
+            self.buffered_requests.insert((request, hash));
         }
     }
 
-    fn request(&mut self, network: &mut NetworkService) {
-        let buffered_request = mem::take(&mut self.buffered_request);
-        let request_id = network.request_db_data(db_sync::Request::DataForHashes(buffered_request));
-        for (request, hash) in self.buffered_kinds.drain(..) {
-            self.pending_requests.insert((request_id, hash), request);
+    /// Returns `true` if there are pending requests
+    fn request(&mut self, network: &mut NetworkService) -> bool {
+        let buffered_requests = mem::take(&mut self.buffered_requests);
+        if !buffered_requests.is_empty() {
+            let request = buffered_requests
+                .iter()
+                .map(|(_kind, hash)| hash)
+                .copied()
+                .collect();
+            let request_id = network.request_db_data(db_sync::Request::DataForHashes(request));
+
+            self.total_pending_requests += buffered_requests.len() as u64;
+
+            for (request, hash) in buffered_requests {
+                self.pending_requests.insert((request_id, hash), request);
+            }
         }
+
+        !self.pending_requests.is_empty()
     }
 
-    fn remove(&mut self, request_id: RequestId, hash: H256) -> Option<RequestKind> {
-        self.pending_requests.remove(&(request_id, hash))
+    fn complete(&mut self, request_id: RequestId, hash: H256) -> Option<RequestKind> {
+        let kind = self.pending_requests.remove(&(request_id, hash))?;
+        self.total_completed_requests += 1;
+        Some(kind)
     }
 
-    fn is_empty(&self) -> bool {
-        self.pending_requests.is_empty()
+    /// (total completed request, total pending requests)
+    fn stats(&self) -> (u64, u64) {
+        debug_assert!(self.total_completed_requests <= self.total_pending_requests);
+        (self.total_completed_requests, self.total_pending_requests)
     }
 }
 
@@ -107,33 +126,60 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     log::info!("Fast synchronization is in progress...");
 
-    let programs_states =
-        collect_programs_states(router_query, query, db, observer.provider().root().clone())
-            .await?;
-    let code_ids = collect_code_ids(&programs_states, router_query, db).await?;
-    log::error!("Program IDs from mirrors: {programs_states:?}");
+    let latest_block = router_query.latest_committed_block_hash().await?;
+    debug_assert_ne!(
+        latest_block,
+        H256::zero(),
+        "latest commited block hash is zero so `get_last_committed_chain` will hang"
+    ); // FIXME: `get_last_committed_chain` should not hang when latest block is zero
+    let chain = query.get_last_committed_chain(latest_block).await?;
 
-    let mut requests = Requests::default();
-    requests.add(
-        RequestKind::Data,
-        code_ids.into_iter().map(CodeId::into_bytes).map(H256::from),
-    );
-    requests.add(
-        RequestKind::ProgramState,
-        programs_states
-            .into_iter()
-            .map(|(_program_id, states)| states)
-            .flatten(),
-    );
+    let programs_states =
+        collect_programs_states(&chain, db, observer.provider().root().clone()).await?;
+
+    log::info!("Processing {} blocks", programs_states.len());
+    let mut requests = BufRequests::default();
+
+    for (block_hash, states) in programs_states {
+        log::error!("STATES: {states:?}");
+
+        // we assume the network returns everything we requested
+        // or waits for a chance to get the rest of data
+        db.set_block_end_state_is_valid(block_hash, true);
+
+        if states.is_empty() {
+            continue;
+        }
+
+        for (program_id, state) in states {
+            let code_id = match db.program_code_id(program_id) {
+                Some(code_id) => code_id,
+                None => {
+                    let code_id = router_query
+                        .program_code_id(program_id)
+                        .await?
+                        .context("code ID should exist for this program ID")?;
+                    db.set_program_code_id(program_id, code_id);
+                    code_id
+                }
+            };
+
+            requests.add(RequestKind::Data, Some(code_id.into_bytes().into()));
+            requests.add(RequestKind::ProgramState, Some(state));
+        }
+    }
     requests.request(network);
 
     while let Some(event) = network.next().await {
+        let (completed, pending) = requests.stats();
+        log::error!("[{completed:>05} / {pending:>05}] Processing synchronization");
+
         match event {
             NetworkEvent::DbResponse { request_id, result } => match result {
                 Ok(db_sync::Response::DataForHashes(data)) => {
                     for (hash, data) in data {
                         let request = requests
-                            .remove(request_id, hash)
+                            .complete(request_id, hash)
                             .expect("unknown `db-sync` response");
 
                         match request {
@@ -242,74 +288,43 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             _ => {}
         }
 
-        requests.request(network);
-
-        if requests.is_empty() {
+        if !requests.request(network) {
             break;
         }
     }
 
-    //let latest_block_header = query.get_block_header_meta(latest_block).await?;
-    // db.set_block_end_state_is_valid(latest_block, true);
-    // db.set_latest_valid_block(latest_block, latest_block_header);
-    log::info!("Fast synchronization done");
+    let (completed, pending) = requests.stats();
+    log::info!("[{completed:>05} / {pending:>05}] Fast synchronization done");
 
     Ok(())
 }
 
-async fn collect_code_ids(
-    programs_states: &HashMap<ActorId, BTreeSet<H256>>,
-    router_query: &RouterQuery,
-    db: &Database,
-) -> Result<BTreeSet<CodeId>> {
-    let program_ids: Vec<ActorId> = programs_states.keys().copied().collect();
-    let code_ids = router_query.programs_code_ids(program_ids.clone()).await?;
-    for (program_id, &code_id) in iter::zip(program_ids, &code_ids) {
-        db.set_program_code_id(program_id, code_id);
-    }
-    Ok(code_ids.into_iter().collect())
-}
-
 async fn collect_programs_states(
-    router_query: &RouterQuery,
-    query: &mut Query,
+    blocks: &[H256],
     db: &Database,
     provider: RootProvider<BoxTransport>,
-) -> Result<HashMap<ActorId, BTreeSet<H256>>> {
-    let latest_block = router_query.latest_committed_block_hash().await?;
-    debug_assert_ne!(
-        latest_block,
-        H256::zero(),
-        "latest commited block hash is zero so `get_last_committed_chain` will hang"
-    ); // FIXME: `get_last_committed_chain` should not hang when latest block is zero
-    let blocks = query.get_last_committed_chain(latest_block).await?;
-
-    let mut program_states = HashMap::<ActorId, BTreeSet<H256>>::new();
-    for block in blocks {
+) -> Result<Vec<(H256, Vec<(ActorId, H256)>)>> {
+    let mut handled_blocks = Vec::new();
+    for &block in blocks {
         let events = db
             .block_events(block)
             .context("`get_last_committed_chain` must insert block events")?;
 
+        let mut states = Vec::new();
         for event in events {
-            match event {
-                BlockRequestEvent::Router(_) => {}
-                BlockRequestEvent::Mirror { actor_id, event: _ } => {
-                    let mirror_query = MirrorQuery::from_provider(
-                        Address::from_word(actor_id.into_bytes().into()),
-                        provider.clone(),
-                    );
-                    let state_hash = mirror_query.state_hash().await?;
-                    program_states
-                        .entry(actor_id)
-                        .or_default()
-                        .insert(state_hash);
-                }
-                BlockRequestEvent::WVara(_) => {}
+            if let BlockRequestEvent::Mirror { actor_id, event: _ } = event {
+                let mirror_query = MirrorQuery::from_provider(
+                    Address::from_word(actor_id.into_bytes().into()),
+                    provider.clone(),
+                );
+                let state_hash = mirror_query.state_hash().await?;
+                states.push((actor_id, state_hash));
             }
         }
+        handled_blocks.push((block, states));
     }
 
-    Ok(program_states)
+    Ok(handled_blocks)
 }
 
 async fn process_response_validation(

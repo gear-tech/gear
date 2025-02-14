@@ -460,57 +460,55 @@ impl Service {
                     }
                 },
                 event = network.maybe_next_some() => {
-                    match event {
-                        NetworkEvent::Message { source, data } => {
-                            log::trace!("Received a network message from peer {source:?}");
+                    if let NetworkEvent::Message { source, data } = event {
+                        log::trace!("Received a network message from peer {source:?}");
 
-                            let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
-                                .inspect_err(|e| log::warn!("Failed to decode network message: {e}"))
-                            else {
-                                continue;
-                            };
+                        let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
+                            .inspect_err(|e| log::warn!("Failed to decode network message: {e}"))
+                        else {
+                            continue;
+                        };
 
-                            match message {
-                                NetworkMessage::PublishCommitments { codes, blocks } => {
-                                    if let Some(s) = sequencer.as_mut() {
-                                        if let Some(aggregated) = codes {
-                                            let _ = s.receive_code_commitments(aggregated)
-                                                .inspect_err(|e| log::warn!("failed to receive code commitments from network: {e}"));
-                                        }
-
-                                        if let Some(aggregated) = blocks {
-                                            let _ = s.receive_block_commitments(aggregated)
-                                                .inspect_err(|e| log::warn!("failed to receive block commitments from network: {e}"));
-                                        }
+                        match message {
+                            NetworkMessage::PublishCommitments { codes, blocks } => {
+                                if let Some(s) = sequencer.as_mut() {
+                                    if let Some(aggregated) = codes {
+                                        let _ = s.receive_code_commitments(aggregated)
+                                            .inspect_err(|e| log::warn!("failed to receive code commitments from network: {e}"));
                                     }
-                                },
-                                NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
-                                    if let Some(v) = validator.as_mut() {
-                                        let maybe_batch_commitment = (!codes.is_empty() || !blocks.is_empty())
-                                            .then(|| v.validate_batch_commitment(&db, codes, blocks))
-                                            .transpose()
-                                            .inspect_err(|e| log::warn!("failed to validate batch commitment from network: {e}"))
-                                            .ok()
-                                            .flatten();
 
-                                        if let Some(n) = network.as_mut() {
-                                            if let Some(batch_commitment) = maybe_batch_commitment {
-                                                let message = NetworkMessage::ApproveCommitments { batch_commitment };
-                                                n.publish_message(message.encode());
-                                            }
+                                    if let Some(aggregated) = blocks {
+                                        let _ = s.receive_block_commitments(aggregated)
+                                            .inspect_err(|e| log::warn!("failed to receive block commitments from network: {e}"));
+                                    }
+                                }
+                            },
+                            NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
+                                if let Some(v) = validator.as_mut() {
+                                    let maybe_batch_commitment = (!codes.is_empty() || !blocks.is_empty())
+                                        .then(|| v.validate_batch_commitment(&db, codes, blocks))
+                                        .transpose()
+                                        .inspect_err(|e| log::warn!("failed to validate batch commitment from network: {e}"))
+                                        .ok()
+                                        .flatten();
+
+                                    if let Some(n) = network.as_mut() {
+                                        if let Some(batch_commitment) = maybe_batch_commitment {
+                                            let message = NetworkMessage::ApproveCommitments { batch_commitment };
+                                            n.publish_message(message.encode());
                                         }
                                     }
-                                },
-                                NetworkMessage::ApproveCommitments { batch_commitment: (digest, signature) } => {
-                                    if let Some(s) = sequencer.as_mut() {
-                                        let _ = s.receive_batch_commitment_signature(digest, signature)
-                                            .inspect_err(|e| log::warn!("failed to receive batch commitment signature from network: {e}"));
-                                    }
-                                },
-                            };
-                        }
-                        _ => {}
-                    }},
+                                }
+                            },
+                            NetworkMessage::ApproveCommitments { batch_commitment: (digest, signature) } => {
+                                if let Some(s) = sequencer.as_mut() {
+                                    let _ = s.receive_batch_commitment_signature(digest, signature)
+                                        .inspect_err(|e| log::warn!("failed to receive batch commitment signature from network: {e}"));
+                                }
+                            },
+                        };
+                    }
+                },
                 event = prometheus.maybe_next_some() => {
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
