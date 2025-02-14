@@ -92,7 +92,7 @@ enum ResponseValidationError {
     DataHashMismatch,
 }
 
-#[derive(Debug, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Debug, Eq, PartialEq, Encode, Decode)]
 pub enum Response {
     /// Key (hash) - value (bytes) data
     DataForHashes(BTreeMap<H256, Vec<u8>>),
@@ -165,7 +165,7 @@ pub enum NewRequestRoundReason {
     PeerFailed,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RequestFailure {
     /// Request exceeded its round limit
     OutOfRounds,

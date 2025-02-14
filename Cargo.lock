@@ -83,6 +83,7 @@ dependencies = [
  "cfg-if",
  "cipher 0.4.4",
  "cpufeatures",
+ "zeroize",
 ]
 
 [[package]]
@@ -432,7 +433,7 @@ dependencies = [
  "foldhash",
  "hashbrown 0.15.2",
  "hex-literal",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "itoa",
  "k256",
  "keccak-asm",
@@ -636,7 +637,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "thiserror 2.0.9",
@@ -707,7 +708,7 @@ dependencies = [
  "alloy-sol-macro-input",
  "const-hex",
  "heck 0.5.0",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
@@ -1617,6 +1618,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomic-polyfill"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cf2bce30dfe09ef0bfaef228b9d414faaf7e563035494d7fe092dba54b300f4"
+dependencies = [
+ "critical-section",
+]
+
+[[package]]
 name = "atomic-take"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1997,7 +2007,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62dc83a094a71d43eeadd254b1ec2d24cb6a0bb6cadce00df51f0db594711a32"
 dependencies = [
  "cc",
- "glob 0.3.1",
+ "glob",
  "threadpool",
  "zeroize",
 ]
@@ -2133,7 +2143,7 @@ checksum = "cdf100c4cea8f207e883ff91ca886d621d8a166cb04971dfaa9bb8fd99ed95df"
 dependencies = [
  "blst",
  "cc",
- "glob 0.3.1",
+ "glob",
  "hex",
  "libc",
  "serde",
@@ -2159,9 +2169,9 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "vara-runtime",
- "wabt",
  "wasmer",
  "wasmer-types",
+ "wat",
 ]
 
 [[package]]
@@ -2184,7 +2194,7 @@ dependencies = [
  "colored",
  "etc",
  "gear-wasm-optimizer",
- "glob 0.3.1",
+ "glob",
  "gtest",
  "serde",
  "serde_json",
@@ -2424,6 +2434,7 @@ checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
 dependencies = [
  "crypto-common",
  "inout",
+ "zeroize",
 ]
 
 [[package]]
@@ -2432,7 +2443,7 @@ version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c688fc74432808e3eb684cae8830a86be1d66a2bd58e1f248ed0960a590baf6f"
 dependencies = [
- "glob 0.3.1",
+ "glob",
  "libc",
  "libloading",
 ]
@@ -2533,13 +2544,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
-name = "cmake"
-version = "0.1.50"
+name = "cobs"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31c789563b815f77f4250caee12365734369f942439b7defd71e18a48197130"
-dependencies = [
- "cc",
-]
+checksum = "67ba02a97a2bd10f4b59b25c7973101c79642302776489e030cd13cdab09ed15"
 
 [[package]]
 name = "codespan-reporting"
@@ -2642,6 +2650,12 @@ dependencies = [
  "unicode-width",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "const-crc32-nostd"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "808ac43170e95b11dd23d78aa9eaac5bea45776a602955552c4e833f3f0f823d"
 
 [[package]]
 name = "const-hex"
@@ -2930,6 +2944,12 @@ checksum = "b540bd8bc810d3885c6ea91e2018302f68baba2129ab3e88f32389ee9370880d"
 dependencies = [
  "cfg-if",
 ]
+
+[[package]]
+name = "critical-section"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
 name = "crossbeam-channel"
@@ -3254,6 +3274,12 @@ dependencies = [
  "data-encoding",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "debugless-unwrap"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f400d0750c0c069e8493f2256cb4da6f604b6d2eeb69a0ca8863acde352f8400"
 
 [[package]]
 name = "defer"
@@ -3884,7 +3910,9 @@ name = "demo-wat"
 version = "0.1.0"
 dependencies = [
  "hex",
- "wabt",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmprinter",
+ "wat",
 ]
 
 [[package]]
@@ -3943,6 +3971,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "derive-getters"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74ef43543e701c01ad77d3a5922755c6a1d71b22d942cb8042be4994b380caff"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
 ]
 
 [[package]]
@@ -4359,6 +4398,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-io"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef1a6892d9eef45c8fa6b9e0086428a2cca8491aca8f787c534a3d6d0bcb3ced"
+
+[[package]]
+name = "embedded-io"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+
+[[package]]
 name = "encode_unicode"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4566,7 +4617,25 @@ dependencies = [
  "gprimitives",
  "hex",
  "parity-scale-codec",
+ "roast-secp256k1-evm",
  "serde",
+]
+
+[[package]]
+name = "ethexe-compute"
+version = "1.7.1"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "ethexe-observer",
+ "ethexe-processor",
+ "ethexe-service-utils",
+ "futures",
+ "gprimitives",
+ "log",
+ "tokio",
 ]
 
 [[package]]
@@ -4604,6 +4673,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand",
+ "roast-secp256k1-evm",
  "tokio",
 ]
 
@@ -4650,9 +4720,12 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
+ "rand",
  "reqwest",
+ "roast-secp256k1-evm",
  "tokio",
- "wabt",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]
@@ -4671,16 +4744,15 @@ dependencies = [
  "gear-core-processor",
  "gear-lazy-pages",
  "gear-runtime-interface",
+ "gear-wasm-instrument",
  "gprimitives",
  "log",
  "parity-scale-codec",
- "parity-wasm",
- "rand",
  "sp-allocator",
  "sp-wasm-interface",
  "tokio",
- "wabt",
  "wasmtime",
+ "wat",
 ]
 
 [[package]]
@@ -4769,7 +4841,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gprimitives",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "log",
  "parity-scale-codec",
  "rand",
@@ -4790,6 +4862,7 @@ dependencies = [
  "directories",
  "env_logger",
  "ethexe-common",
+ "ethexe-compute",
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-network",
@@ -4813,6 +4886,7 @@ dependencies = [
  "ntest",
  "parity-scale-codec",
  "rand",
+ "roast-secp256k1-evm",
  "serde",
  "static_init",
  "tempfile",
@@ -5518,6 +5592,54 @@ dependencies = [
 ]
 
 [[package]]
+name = "frost-core"
+version = "2.1.0"
+source = "git+https://github.com/gear-tech/frost?branch=gear-v2.1.0#00bfffac18abadd19d48e7925704359721776cb2"
+dependencies = [
+ "byteorder",
+ "const-crc32-nostd",
+ "debugless-unwrap",
+ "derive-getters",
+ "document-features",
+ "hex",
+ "itertools 0.14.0",
+ "parity-scale-codec",
+ "postcard",
+ "rand_core",
+ "scale-info",
+ "serde",
+ "serdect",
+ "thiserror 2.0.9",
+ "visibility",
+ "zeroize",
+]
+
+[[package]]
+name = "frost-rerandomized"
+version = "2.1.0"
+source = "git+https://github.com/gear-tech/frost?branch=gear-v2.1.0#00bfffac18abadd19d48e7925704359721776cb2"
+dependencies = [
+ "derive-getters",
+ "document-features",
+ "frost-core",
+ "hex",
+ "rand_core",
+]
+
+[[package]]
+name = "frost-secp256k1-evm"
+version = "2.1.0"
+source = "git+https://github.com/gear-tech/frost?branch=gear-v2.1.0#00bfffac18abadd19d48e7925704359721776cb2"
+dependencies = [
+ "document-features",
+ "frost-core",
+ "frost-rerandomized",
+ "k256",
+ "rand_core",
+ "sha3",
+]
+
+[[package]]
 name = "fs-err"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5881,7 +6003,6 @@ dependencies = [
  "thiserror 1.0.62",
  "tokio",
  "url",
- "wabt",
  "wat",
 ]
 
@@ -6050,8 +6171,6 @@ dependencies = [
  "gear-wasm-instrument",
  "gprimitives",
  "gsys",
- "gwasm-instrument",
- "hashbrown 0.14.5",
  "hex",
  "impl-serde",
  "log",
@@ -6064,8 +6183,8 @@ dependencies = [
  "rand",
  "scale-info",
  "serde",
- "wabt",
- "wasmparser-nostd",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]
@@ -6075,6 +6194,7 @@ dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
  "derive_more 0.99.18",
+ "env_logger",
  "gear-core",
  "gear-core-errors",
  "gear-lazy-pages-common",
@@ -6266,17 +6386,6 @@ dependencies = [
  "rand",
  "smallvec",
  "which",
-]
-
-[[package]]
-name = "gear-pwasm-utils"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ea09901ce41f64d1be7369b8c2efc774e89b200ac434496ab24e6af96e68f97"
-dependencies = [
- "byteorder",
- "gear-wasm",
- "log",
 ]
 
 [[package]]
@@ -6557,12 +6666,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-wasm"
-version = "0.45.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbfbfa701dc65e683fcd2fb24f046bcef22634acbdf47ad14724637dc39ad05b"
-
-[[package]]
 name = "gear-wasm-builder"
 version = "1.7.1"
 dependencies = [
@@ -6571,19 +6674,16 @@ dependencies = [
  "cargo_toml",
  "chrono",
  "gear-core",
- "gear-pwasm-utils",
  "gear-wasm-instrument",
  "gear-wasm-optimizer",
  "gmeta",
  "itertools 0.13.0",
  "log",
- "parity-wasm",
  "pathdiff",
  "regex",
  "rustc_version 0.4.0",
  "thiserror 1.0.62",
  "toml 0.8.14",
- "wabt",
 ]
 
 [[package]]
@@ -6600,7 +6700,7 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "indicatif",
  "log",
  "nonempty 0.8.1",
@@ -6608,7 +6708,7 @@ dependencies = [
  "rand",
  "thiserror 1.0.62",
  "wasm-smith",
- "wasmparser-nostd",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmprinter",
  "wat",
 ]
@@ -6617,10 +6717,17 @@ dependencies = [
 name = "gear-wasm-instrument"
 version = "1.7.1"
 dependencies = [
+ "arbitrary",
  "derive_more 0.99.18",
+ "diff",
  "enum-iterator 1.5.0",
- "gwasm-instrument",
- "wasmparser-nostd",
+ "indexmap 2.7.1",
+ "log",
+ "proptest",
+ "wasm-encoder 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasm-smith",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmprinter",
  "wat",
 ]
 
@@ -6630,14 +6737,13 @@ version = "1.7.1"
 dependencies = [
  "anyhow",
  "colored",
- "gear-pwasm-utils",
  "gear-wasm-instrument",
  "log",
  "regex",
- "wabt",
  "wasm-opt",
  "wasmer",
- "wasmparser-nostd",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
  "which",
 ]
 
@@ -6667,7 +6773,7 @@ dependencies = [
  "frame-support",
  "gear-utils",
  "heck 0.5.0",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "pallet-gear",
  "proc-macro2",
  "quote",
@@ -6827,12 +6933,6 @@ dependencies = [
 
 [[package]]
 name = "glob"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8be18de09a56b60ed0edf84bc9df007e30040691af7acd1c41874faac5895bfb"
-
-[[package]]
-name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
@@ -6888,6 +6988,8 @@ dependencies = [
 name = "gprimitives"
 version = "1.7.1"
 dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
  "derive_more 0.99.18",
  "gear-ss58",
  "hex",
@@ -6947,7 +7049,7 @@ dependencies = [
  "gear-utils",
  "gsdk-codegen",
  "hex",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "jsonrpsee 0.24.7",
  "log",
  "parity-scale-codec",
@@ -7055,20 +7157,11 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "hex",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "log",
  "parity-scale-codec",
  "path-clean",
  "rand",
-]
-
-[[package]]
-name = "gwasm-instrument"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09c5fda64a6f7f331a6425df8d678dfc542f3135b43e3cc229d431d391ff3c7d"
-dependencies = [
- "gear-wasm",
 ]
 
 [[package]]
@@ -7083,7 +7176,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http 0.2.9",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "slab",
  "tokio",
  "tokio-util",
@@ -7102,7 +7195,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "http 1.1.0",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "slab",
  "tokio",
  "tokio-util",
@@ -7142,6 +7235,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92c171d55b98633f4ed3860808f004099b36c1cc29c42cfc53aa8591b21efcf2"
 dependencies = [
  "crunchy",
+]
+
+[[package]]
+name = "hash32"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0c35f58762feb77d74ebe43bdbc3210f09be9fe6742234d573bacc26ed92b67"
+dependencies = [
+ "byteorder",
 ]
 
 [[package]]
@@ -7216,6 +7318,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7f66481bfee273957b1f20485a4ff3362987f85b2c236580d81b4eb7a326429"
 dependencies = [
  "http 0.2.9",
+]
+
+[[package]]
+name = "heapless"
+version = "0.7.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdc6457c0eb62c71aac4bc17216026d8410337c4126773b9c5daba343f17964f"
+dependencies = [
+ "atomic-polyfill",
+ "hash32",
+ "rustc_version 0.4.0",
+ "serde",
+ "spin 0.9.8",
+ "stable_deref_trait",
 ]
 
 [[package]]
@@ -7786,9 +7902,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.6.0"
+version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "707907fe3c25f5424cce2cb7e1cbcafee6bdbe735ca90ef77c29e84591e5b9da"
+checksum = "8c9c992b02b5b4c94ea26e32fe5bccb7aa7d9f390ab5c1221ff895bc7ea8b652"
 dependencies = [
  "equivalent",
  "hashbrown 0.15.2",
@@ -7919,6 +8035,15 @@ name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
 dependencies = [
  "either",
 ]
@@ -8450,6 +8575,12 @@ name = "leb128"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
+
+[[package]]
+name = "leb128fmt"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "libc"
@@ -9368,7 +9499,7 @@ dependencies = [
  "bindgen",
  "bzip2-sys",
  "cc",
- "glob 0.3.1",
+ "glob",
  "libc",
  "libz-sys",
  "tikv-jemalloc-sys",
@@ -9525,7 +9656,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "hex-literal",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "libc",
  "mockall 0.12.1",
  "multiaddr 0.17.1",
@@ -10959,7 +11090,6 @@ dependencies = [
  "demo-distributor",
  "demo-futures-unordered",
  "demo-gas-burned",
- "demo-incomplete-async-payloads",
  "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
@@ -10983,7 +11113,6 @@ dependencies = [
  "demo-value-sender",
  "demo-wait",
  "demo-wait-timeout",
- "demo-wait-wake",
  "demo-waiter",
  "demo-waiting-proxy",
  "derive_more 0.99.18",
@@ -11033,7 +11162,8 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "test-syscalls",
- "wabt",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]
@@ -11164,7 +11294,8 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "test-syscalls",
- "wabt",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]
@@ -11237,22 +11368,15 @@ dependencies = [
  "env_logger",
  "frame-benchmarking",
  "frame-support",
- "frame-support-test",
  "frame-system",
  "gear-common",
  "gear-core",
  "log",
- "pallet-authorship",
  "pallet-balances",
  "pallet-gear-messenger",
- "pallet-gear-program",
- "pallet-gear-scheduler",
- "pallet-timestamp",
  "parity-scale-codec",
- "parity-wasm",
  "primitive-types",
  "scale-info",
- "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -11287,7 +11411,6 @@ dependencies = [
 name = "pallet-gear-payment"
 version = "1.7.1"
 dependencies = [
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -11307,13 +11430,11 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
- "parity-wasm",
  "primitive-types",
  "scale-info",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wabt",
 ]
 
 [[package]]
@@ -11349,7 +11470,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wabt",
+ "wat",
 ]
 
 [[package]]
@@ -11474,11 +11595,9 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "hex",
  "log",
  "pallet-balances",
  "parity-scale-codec",
- "parity-wasm",
  "primitive-types",
  "scale-info",
  "sp-core",
@@ -12144,7 +12263,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1d3afd2628e69da2be385eb6f2fd57c8ac7977ceeff6dc166ff1657b0e386a9"
 dependencies = [
  "fixedbitset",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
 ]
 
 [[package]]
@@ -12380,6 +12499,19 @@ name = "portable-atomic"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc9c68a3f6da06753e9335d63e27f6b9754dd1920d941135b7ea8224f141adb2"
+
+[[package]]
+name = "postcard"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "170a2601f67cc9dba8edd8c4870b15f71a6a2dc196daec8c83f72b59dff628a8"
+dependencies = [
+ "cobs",
+ "embedded-io 0.4.0",
+ "embedded-io 0.6.1",
+ "heapless",
+ "serde",
+]
 
 [[package]]
 name = "powerfmt"
@@ -13452,6 +13584,34 @@ checksum = "bb919243f34364b6bd2fc10ef797edbfa75f33c252e7998527479c6d6b47e1ec"
 dependencies = [
  "bytes",
  "rustc-hex",
+]
+
+[[package]]
+name = "roast-core"
+version = "0.1.0"
+source = "git+https://github.com/gear-tech/roast?branch=gear-v0.1.0#925a0e7313534b8ab901c4ff8b6c4af91b149d01"
+dependencies = [
+ "aes 0.8.4",
+ "ctr 0.9.2",
+ "digest 0.10.7",
+ "document-features",
+ "frost-core",
+ "hkdf 0.12.4",
+ "parity-scale-codec",
+ "rand_core",
+ "scale-info",
+ "thiserror 2.0.9",
+]
+
+[[package]]
+name = "roast-secp256k1-evm"
+version = "0.1.0"
+source = "git+https://github.com/gear-tech/roast?branch=gear-v0.1.0#925a0e7313534b8ab901c4ff8b6c4af91b149d01"
+dependencies = [
+ "document-features",
+ "frost-secp256k1-evm",
+ "roast-core",
+ "sha3",
 ]
 
 [[package]]
@@ -15508,7 +15668,7 @@ version = "0.9.34+deprecated"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
 dependencies = [
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "itoa",
  "ryu",
  "serde",
@@ -16654,6 +16814,9 @@ name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+dependencies = [
+ "lock_api",
+]
 
 [[package]]
 name = "spinners"
@@ -17692,7 +17855,7 @@ version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "serde",
  "serde_spanned",
  "toml_datetime",
@@ -17705,7 +17868,7 @@ version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a8534fd7f78b5405e860340ad6575217ce99f38d4d5c8f2442cb5ecb50090e1"
 dependencies = [
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "toml_datetime",
  "winnow 0.5.15",
 ]
@@ -17716,7 +17879,7 @@ version = "0.22.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f21c7aaf97f1bd9ca9d4f9e73b0a6c74bd5afef56f2bc931943a6e1c37e04e38"
 dependencies = [
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "serde",
  "serde_spanned",
  "toml_datetime",
@@ -17996,7 +18159,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33a5f13f11071020bb12de7a16b925d2d58636175c20c11dc5f96cb64bb6c9b3"
 dependencies = [
  "dissimilar",
- "glob 0.3.1",
+ "glob",
  "serde",
  "serde_derive",
  "serde_json",
@@ -18264,10 +18427,9 @@ dependencies = [
  "gbuiltin-staking",
  "gear-common",
  "gear-core",
- "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "gwasm-instrument",
+ "gear-wasm-instrument",
  "hex-literal",
  "log",
  "pallet-authority-discovery",
@@ -18345,7 +18507,6 @@ dependencies = [
  "sp-version",
  "substrate-build-script-utils",
  "substrate-wasm-builder",
- "wabt",
  "wat",
 ]
 
@@ -18366,6 +18527,17 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "visibility"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d674d135b4a8c1d7e813e2f8d1c9a58308aee4a680323066025e53132218bd91"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
+]
 
 [[package]]
 name = "void"
@@ -18395,27 +18567,6 @@ dependencies = [
  "sha3",
  "thiserror 1.0.62",
  "zeroize",
-]
-
-[[package]]
-name = "wabt"
-version = "0.10.0"
-source = "git+https://github.com/gear-tech/wabt-rs?branch=al-win-crt#4f75824f6740e981415f8eed02aeedd28ac0b15e"
-dependencies = [
- "serde",
- "serde_derive",
- "serde_json",
- "wabt-sys",
-]
-
-[[package]]
-name = "wabt-sys"
-version = "0.8.0"
-source = "git+https://github.com/gear-tech/wabt-rs?branch=al-win-crt#4f75824f6740e981415f8eed02aeedd28ac0b15e"
-dependencies = [
- "cc",
- "cmake",
- "glob 0.2.11",
 ]
 
 [[package]]
@@ -18568,10 +18719,21 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.35.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#ffe9abee63ad640c051d50515cedee7f67f31884"
+version = "0.225.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f7eac0445cac73bcf09e6a97f83248d64356dccf9f2b100199769b6b42464e5"
 dependencies = [
- "leb128",
+ "leb128fmt",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "wasm-encoder"
+version = "0.225.0"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225#83d307c9292b003f9c6e443103df1900d9b023f5"
+dependencies = [
+ "leb128fmt",
+ "wasmparser 0.225.0 (git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225)",
 ]
 
 [[package]]
@@ -18629,21 +18791,20 @@ dependencies = [
  "clap 4.5.23",
  "env_logger",
  "gear-wasm-builder",
+ "gear-wasm-instrument",
  "log",
- "parity-wasm",
 ]
 
 [[package]]
 name = "wasm-smith"
-version = "0.12.21"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#ffe9abee63ad640c051d50515cedee7f67f31884"
+version = "0.225.0"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225#83d307c9292b003f9c6e443103df1900d9b023f5"
 dependencies = [
+ "anyhow",
  "arbitrary",
  "flagset",
- "indexmap 2.6.0",
- "leb128",
- "wasm-encoder 0.35.0",
- "wasmparser 0.115.0",
+ "wasm-encoder 0.225.0 (git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225)",
+ "wasmparser 0.225.0 (git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225)",
 ]
 
 [[package]]
@@ -18759,7 +18920,7 @@ dependencies = [
  "bytesize",
  "derive_builder",
  "hex",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "schemars",
  "semver 1.0.18",
  "serde",
@@ -18954,32 +19115,33 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.115.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#ffe9abee63ad640c051d50515cedee7f67f31884"
-dependencies = [
- "indexmap 2.6.0",
- "semver 1.0.18",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.118.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77f1154f1ab868e2a01d9834a805faca7bf8b50d041b4ca714d005d0dab1c50c"
-dependencies = [
- "indexmap 2.6.0",
- "semver 1.0.18",
-]
-
-[[package]]
-name = "wasmparser"
 version = "0.121.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9dbe55c8f9d0dbd25d9447a5a889ff90c0cc3feaa7395310d3d826b2c703eaab"
 dependencies = [
  "bitflags 2.5.0",
- "indexmap 2.6.0",
+ "indexmap 2.7.1",
  "semver 1.0.18",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.225.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36e5456165f81e64cb9908a0fe9b9d852c2c74582aa3fe2be3c2da57f937d3ae"
+dependencies = [
+ "bitflags 2.5.0",
+ "indexmap 2.7.1",
+ "semver 1.0.18",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.225.0"
+source = "git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225#83d307c9292b003f9c6e443103df1900d9b023f5"
+dependencies = [
+ "bitflags 2.5.0",
+ "indexmap 2.7.1",
 ]
 
 [[package]]
@@ -18993,12 +19155,13 @@ dependencies = [
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.75"
+version = "0.225.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d027eb8294904fc715ac0870cebe6b0271e96b90605ee21511e7565c4ce568c"
+checksum = "8c32de8f41929f40bb595d1309549c58bbe1b43b05627fe42517e23a50230e0a"
 dependencies = [
  "anyhow",
- "wasmparser 0.118.2",
+ "termcolor",
+ "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

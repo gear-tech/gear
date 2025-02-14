@@ -122,9 +122,7 @@ sp-keyring.workspace = true
 env_logger.workspace = true
 wat.workspace = true
 gear-core.workspace = true
-gear-core-processor.workspace = true
-gwasm-instrument.workspace = true
-wabt.workspace = true
+gear-wasm-instrument.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true
@@ -192,6 +190,7 @@ std = [
 	"pallet-vesting/std",
 	"pallet-whitelist/std",
 	"gear-runtime-common/std",
+	"gear-wasm-instrument/std",
 	"runtime-primitives/std",
 	"scale-info/std",
 	"serde-json-wasm/std",

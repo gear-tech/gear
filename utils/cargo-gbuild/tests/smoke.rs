@@ -18,8 +18,8 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use gtest::{constants::DEFAULT_USER_ALICE, state_args, Program, System};
-use std::{fs, path::PathBuf, process::Command};
+use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
+use std::{path::PathBuf, process::Command};
 
 fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     // Get program from artifact
@@ -61,14 +61,8 @@ fn test_compile() -> Result<()> {
     gbuild = gbuild.workspace();
     let artifacts = gbuild.build()?;
     ping(&system, artifacts.root.join("gbuild_test_foo.wasm"));
-    let prog = ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
+    ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
 
-    // 3. Test meta build.
-    let metawasm = fs::read(artifacts.root.join("gbuild_test_meta.meta.wasm"))?;
-    let modified: bool = prog
-        .read_state_using_wasm(Vec::<u8>::default(), "modified", metawasm, state_args!())
-        .expect("Failed to read program state");
-    assert!(modified);
     Ok(())
 }
 

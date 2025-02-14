@@ -24,7 +24,10 @@ use alloy::{
     rpc::types::eth::Header,
 };
 use anyhow::{Context as _, Result};
-use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent};
+use ethexe_common::{
+    events::{BlockEvent, RouterEvent},
+    BlockData,
+};
 use ethexe_db::BlockHeader;
 use ethexe_signer::Address;
 use futures::{
@@ -33,7 +36,6 @@ use futures::{
     FutureExt, Stream, StreamExt,
 };
 use gprimitives::{CodeId, H256};
-use parity_scale_codec::{Decode, Encode};
 use std::{
     pin::Pin,
     sync::Arc,
@@ -271,44 +273,6 @@ impl Clone for ObserverService {
             codes_futures: FuturesUnordered::new(),
         }
     }
-}
-
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct BlockData {
-    pub hash: H256,
-    pub header: BlockHeader,
-    pub events: Vec<BlockEvent>,
-}
-
-impl BlockData {
-    pub fn to_simple(&self) -> SimpleBlockData {
-        SimpleBlockData {
-            hash: self.hash,
-            header: self.header.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct RequestBlockData {
-    pub hash: H256,
-    pub header: BlockHeader,
-    pub events: Vec<BlockRequestEvent>,
-}
-
-impl RequestBlockData {
-    pub fn to_simple(&self) -> SimpleBlockData {
-        SimpleBlockData {
-            hash: self.hash,
-            header: self.header.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SimpleBlockData {
-    pub hash: H256,
-    pub header: BlockHeader,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
