@@ -24,7 +24,7 @@ use alloy::{
 use anyhow::{Context, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
-    events::BlockRequestEvent,
+    events::{BlockRequestEvent, RouterRequestEvent},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{
@@ -38,7 +38,7 @@ use ethexe_runtime_common::state::{
     Storage,
 };
 use futures::StreamExt;
-use gprimitives::{ActorId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
     collections::{HashMap, HashSet},
@@ -127,11 +127,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     log::info!("Fast synchronization is in progress...");
 
     let latest_block = router_query.latest_committed_block_hash().await?;
-    debug_assert_ne!(
-        latest_block,
-        H256::zero(),
-        "latest commited block hash is zero so `get_last_committed_chain` will hang"
-    ); // FIXME: `get_last_committed_chain` should not hang when latest block is zero
+    debug_assert_ne!(latest_block, H256::zero(), "router is not deployed");
     let chain = query.get_last_committed_chain(latest_block).await?;
 
     let programs_states =
@@ -151,19 +147,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             continue;
         }
 
-        for (program_id, state) in states {
-            let code_id = match db.program_code_id(program_id) {
-                Some(code_id) => code_id,
-                None => {
-                    let code_id = router_query
-                        .program_code_id(program_id)
-                        .await?
-                        .context("code ID should exist for this program ID")?;
-                    db.set_program_code_id(program_id, code_id);
-                    code_id
-                }
-            };
-
+        for (program_id, code_id, state) in states {
+            db.set_program_code_id(program_id, code_id);
             requests.add(RequestKind::Data, Some(code_id.into_bytes().into()));
             requests.add(RequestKind::ProgramState, Some(state));
         }
@@ -303,7 +288,7 @@ async fn collect_programs_states(
     blocks: &[H256],
     db: &Database,
     provider: RootProvider<BoxTransport>,
-) -> Result<Vec<(H256, Vec<(ActorId, H256)>)>> {
+) -> Result<Vec<(H256, Vec<(ActorId, CodeId, H256)>)>> {
     let mut handled_blocks = Vec::new();
     for &block in blocks {
         let events = db
@@ -312,13 +297,17 @@ async fn collect_programs_states(
 
         let mut states = Vec::new();
         for event in events {
-            if let BlockRequestEvent::Mirror { actor_id, event: _ } = event {
+            if let BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
+                actor_id,
+                code_id,
+            }) = event
+            {
                 let mirror_query = MirrorQuery::from_provider(
                     Address::from_word(actor_id.into_bytes().into()),
                     provider.clone(),
                 );
                 let state_hash = mirror_query.state_hash().await?;
-                states.push((actor_id, state_hash));
+                states.push((actor_id, code_id, state_hash));
             }
         }
         handled_blocks.push((block, states));
