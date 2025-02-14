@@ -191,17 +191,24 @@ impl Service {
             None
         };
 
-        let validator = Self::get_config_public_key(config.node.validator, &signer)
-            .with_context(|| "failed to get validator private key")?
-            .map(|key| {
-                ethexe_validator::Validator::new(
-                    &ethexe_validator::Config {
-                        pub_key: key,
-                        router_address: config.ethereum.router_address,
-                    },
-                    signer.clone(),
-                )
-            });
+        let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
+            .with_context(|| "failed to get validator private key")?;
+        let validator_pub_key_session =
+            Self::get_config_public_key(config.node.validator_session, &signer)
+                .with_context(|| "failed to get validator session private key")?;
+        let validator =
+            validator_pub_key
+                .zip(validator_pub_key_session)
+                .map(|(pub_key, pub_key_session)| {
+                    ethexe_validator::Validator::new(
+                        &ethexe_validator::Config {
+                            pub_key,
+                            pub_key_session,
+                            router_address: config.ethereum.router_address,
+                        },
+                        signer.clone(),
+                    )
+                });
 
         let prometheus = if let Some(config) = config.prometheus.clone() {
             Some(PrometheusService::new(config)?)
