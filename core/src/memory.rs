@@ -478,8 +478,10 @@ impl AllocationsContext {
     /// Currently running program should own this pages.
     pub fn free_range(&mut self, interval: Interval<WasmPage>) -> Result<(), AllocError> {
         if let Some(heap) = self.heap {
-            if interval.start() >= heap.start() && interval.end() <= heap.end() {
-                self.allocations.remove(interval);
+            if interval.start() >= heap.start()
+                && interval.end() <= heap.end()
+                && self.allocations.remove(interval)
+            {
                 self.allocations_changed = true;
                 return Ok(());
             }
