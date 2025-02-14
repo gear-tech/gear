@@ -223,10 +223,6 @@ extern "C" fn handle() {
 
 #[unsafe(no_mangle)]
 extern "C" fn init() {
-    if msg::size() == 0 {
-        return;
-    }
-
     let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
     let ft = FungibleToken {
         name: config.name,
