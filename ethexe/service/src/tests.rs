@@ -73,6 +73,7 @@ async fn basics() {
         key_path: tmp_dir.join("key"),
         sequencer: Default::default(),
         validator: Default::default(),
+        validator_session: Default::default(),
         max_commitment_depth: 1_000,
         worker_threads_override: None,
         virtual_threads: 16,
@@ -128,7 +129,7 @@ async fn ping() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -216,7 +217,7 @@ async fn uninitialized_program() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -376,7 +377,7 @@ async fn mailbox() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -565,7 +566,7 @@ async fn incoming_transfers() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_public_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -674,7 +675,7 @@ async fn ping_reorg() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_pub_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -784,7 +785,7 @@ async fn ping_deep_sync() {
     let mut node = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_pub_key)
-            .validator(env.validators[0]),
+            .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
 
@@ -864,7 +865,7 @@ async fn multiple_validators() {
     log::info!("📗 Starting validator 0");
     let mut validator0 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[0])
+            .validator(env.validators[0], env.validator_session_public_keys[0])
             .network(None, sequencer.multiaddr.clone()),
     );
     validator0.start_service().await;
@@ -872,7 +873,7 @@ async fn multiple_validators() {
     log::info!("📗 Starting validator 1");
     let mut validator1 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[1])
+            .validator(env.validators[1], env.validator_session_public_keys[1])
             .network(None, sequencer.multiaddr.clone()),
     );
     validator1.start_service().await;
@@ -880,7 +881,7 @@ async fn multiple_validators() {
     log::info!("📗 Starting validator 2");
     let mut validator2 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[2])
+            .validator(env.validators[2], env.validator_session_public_keys[2])
             .network(None, sequencer.multiaddr.clone()),
     );
     validator2.start_service().await;
@@ -993,7 +994,7 @@ async fn multiple_validators() {
     // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
     let mut validator2 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[2])
+            .validator(env.validators[2], env.validator_session_public_keys[2])
             .network(None, sequencer.multiaddr.clone())
             .db(validator2.db),
     );
@@ -1013,8 +1014,14 @@ mod utils {
     use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_sequencer::{SequencerConfig, SequencerService};
+    use ethexe_signer::PrivateKey;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
+    use rand::{rngs::StdRng, SeedableRng};
+    use roast_secp256k1_evm::frost::{
+        keys::{self, IdentifierList, PublicKeyPackage},
+        Identifier, SigningKey,
+    };
     use std::{
         ops::Mul,
         str::FromStr,
@@ -1034,6 +1041,7 @@ mod utils {
         pub router_query: RouterQuery,
         pub signer: Signer,
         pub validators: Vec<ethexe_signer::PublicKey>,
+        pub validator_session_public_keys: Vec<ethexe_signer::PublicKey>,
         pub sender_id: ActorId,
         pub threshold: u64,
         pub block_time: Duration,
@@ -1099,6 +1107,52 @@ mod utils {
                     .collect(),
             };
 
+            let max_signers: u16 = validators.len().try_into().expect("conversion failed");
+            let min_signers = max_signers
+                .checked_mul(2)
+                .expect("multiplication failed")
+                .div_ceil(3);
+
+            let maybe_validator_identifiers: Result<Vec<_>, _> = validators
+                .iter()
+                .map(|public_key| {
+                    Identifier::deserialize(&ActorId::from(public_key.to_address()).into_bytes())
+                })
+                .collect();
+            let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
+            let identifiers = IdentifierList::Custom(&validator_identifiers);
+
+            let mut rng = StdRng::seed_from_u64(123);
+
+            let secret = SigningKey::deserialize(&[0x01; 32]).expect("conversion failed");
+
+            let (secret_shares, public_key_package1) =
+                keys::split(&secret, max_signers, min_signers, identifiers, &mut rng)
+                    .expect("key split failed");
+
+            let verifiable_secret_sharing_commitment = secret_shares
+                .values()
+                .map(|secret_share| secret_share.commitment().clone())
+                .next()
+                .expect("conversion failed");
+
+            let identifiers = validator_identifiers.clone().into_iter().collect();
+            let public_key_package2 = PublicKeyPackage::from_commitment(
+                &identifiers,
+                &verifiable_secret_sharing_commitment,
+            )
+            .expect("conversion failed");
+            assert_eq!(public_key_package1, public_key_package2);
+
+            let validator_session_public_keys: Vec<_> = validator_identifiers
+                .iter()
+                .map(|id| {
+                    let signing_share = *secret_shares[id].signing_share();
+                    let private_key = PrivateKey(signing_share.serialize().try_into().unwrap());
+                    signer.add_key(private_key).unwrap()
+                })
+                .collect();
+
             let sender_address = wallets.next().to_address();
 
             let ethereum = if let Some(router_address) = router_address {
@@ -1117,6 +1171,7 @@ mod utils {
                     validators.iter().map(|k| k.to_address()).collect(),
                     signer.clone(),
                     sender_address,
+                    verifiable_secret_sharing_commitment,
                 )
                 .await?
             };
@@ -1187,6 +1242,7 @@ mod utils {
                 router_query,
                 signer,
                 validators,
+                validator_session_public_keys,
                 sender_id: ActorId::from(H160::from(sender_address.0)),
                 threshold,
                 block_time,
@@ -1203,6 +1259,7 @@ mod utils {
                 db,
                 sequencer_public_key,
                 validator_public_key,
+                validator_session_public_key,
                 network,
             } = config;
 
@@ -1233,6 +1290,7 @@ mod utils {
                 running_service_handle: None,
                 sequencer_public_key,
                 validator_public_key,
+                validator_session_public_key,
                 network_address,
                 network_bootstrap_address,
             }
@@ -1419,6 +1477,8 @@ mod utils {
         pub sequencer_public_key: Option<ethexe_signer::PublicKey>,
         /// Validator public key, if provided then new node starts as validator.
         pub validator_public_key: Option<ethexe_signer::PublicKey>,
+        /// Validator public key of session, if provided then new node starts as validator.
+        pub validator_session_public_key: Option<ethexe_signer::PublicKey>,
         /// Network configuration, if provided then new node starts with network.
         pub network: Option<NodeNetworkConfig>,
     }
@@ -1434,8 +1494,13 @@ mod utils {
             self
         }
 
-        pub fn validator(mut self, validator_public_key: ethexe_signer::PublicKey) -> Self {
+        pub fn validator(
+            mut self,
+            validator_public_key: ethexe_signer::PublicKey,
+            validator_session_public_key: ethexe_signer::PublicKey,
+        ) -> Self {
             self.validator_public_key = Some(validator_public_key);
+            self.validator_session_public_key = Some(validator_session_public_key);
             self
         }
 
@@ -1597,6 +1662,7 @@ mod utils {
         running_service_handle: Option<JoinHandle<Result<()>>>,
         sequencer_public_key: Option<ethexe_signer::PublicKey>,
         validator_public_key: Option<ethexe_signer::PublicKey>,
+        validator_session_public_key: Option<ethexe_signer::PublicKey>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
     }
@@ -1648,17 +1714,20 @@ mod utils {
                 None => None,
             };
 
-            let validator = match self.validator_public_key.as_ref() {
-                Some(key) => Some(Validator::new(
-                    &ethexe_validator::Config {
-                        pub_key: *key,
-                        router_address: self.eth_cfg.router_address,
-                    },
-                    Box::new(self.db.clone()),
-                    self.signer.clone(),
-                )),
-                None => None,
-            };
+            let validator = self
+                .validator_public_key
+                .zip(self.validator_session_public_key)
+                .map(|(pub_key, pub_key_session)| {
+                    Validator::new(
+                        &ethexe_validator::Config {
+                            pub_key,
+                            pub_key_session,
+                            router_address: self.eth_cfg.router_address,
+                        },
+                        Box::new(self.db.clone()),
+                        self.signer.clone(),
+                    )
+                });
 
             let observer =
                 ObserverService::new(&self.eth_cfg, &self.db, Some(self.blob_reader.clone()))
