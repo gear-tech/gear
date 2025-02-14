@@ -43,8 +43,6 @@ use std::{
     time::Duration,
 };
 
-pub(crate) type Provider = RootProvider;
-
 mod blobs;
 mod observer;
 mod query;
@@ -79,7 +77,7 @@ pub enum ObserverEvent {
 
 pub struct ObserverService {
     blobs: Arc<dyn BlobReader>,
-    provider: Provider,
+    provider: RootProvider,
     subscription: Subscription<Header>,
 
     router: Address,
@@ -184,7 +182,7 @@ impl ObserverService {
         })
     }
 
-    pub fn provider(&self) -> &Provider {
+    pub fn provider(&self) -> &RootProvider {
         &self.provider
     }
 
@@ -207,7 +205,7 @@ impl ObserverService {
 
     async fn get_block(
         header: Header,
-        provider: Provider,
+        provider: RootProvider,
         router: Address,
     ) -> Result<(H256, BlockHeader, Vec<BlockEvent>)> {
         let hash = (*header.hash).into();
