@@ -20,7 +20,6 @@
 //!
 //! Test here mainly focus on:
 //! - the overall logic of the tx pool to work as expected
-//! - the channels inside the tx pool service to work as expected
 
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
@@ -76,7 +75,7 @@ async fn test_add_transaction() {
 
     let db = Database::from_one(&MemDb::default(), Default::default());
 
-    let mut tx_pool = TxPoolService::new(db.clone());
+    let tx_pool = TxPoolService::new(db.clone());
 
     // -------------- Test adding a valid transaction --------------
 
