@@ -211,6 +211,7 @@ impl Query {
         Ok(res)
     }
 
+    /// Returns last committed chain from given block in descending order
     pub async fn get_last_committed_chain(&mut self, block_hash: H256) -> Result<Vec<H256>> {
         let current_block = self.get_block_header_meta(block_hash).await?;
         let latest_valid_block_height = self

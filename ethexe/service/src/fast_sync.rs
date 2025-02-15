@@ -17,53 +17,44 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Service;
-use alloy::{
-    providers::{Provider, RootProvider},
-    transports::BoxTransport,
-};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, Schedule, ScheduledTask},
-    events::{BlockRequestEvent, RouterRequestEvent},
+    db::{BlockMetaStorage, CodesStorage},
+    events::{BlockEvent, MirrorEvent, RouterEvent},
 };
-use ethexe_db::Database;
-use ethexe_ethereum::{
-    mirror::MirrorQuery,
-    primitives::{Address, U256},
-    router::RouterQuery,
-};
+use ethexe_ethereum::{primitives::U256, router::RouterQuery};
 use ethexe_network::{db_sync, db_sync::RequestId, NetworkEvent, NetworkService};
+use ethexe_observer::Query;
 use ethexe_runtime_common::{
     state::{
         ActiveProgram, DispatchStash, Mailbox, MaybeHashOf, MemoryPages, MemoryPagesRegion,
-        Program, ProgramState, Storage, ValueWithExpiry, Waitlist,
+        Program, ProgramState, Storage, Waitlist,
     },
     ScheduleRestorer,
 };
 use futures::StreamExt;
-use gear_core::ids::ProgramId;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     mem,
 };
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 enum Request {
     ProgramState {
-        program_id: ProgramId,
+        program_id: ActorId,
     },
     MemoryPages,
     MemoryPagesRegions,
     Waitlist {
-        program_id: ProgramId,
+        program_id: ActorId,
     },
     Mailbox {
-        program_id: ProgramId,
+        program_id: ActorId,
     },
     DispatchStash {
-        program_id: ProgramId,
+        program_id: ActorId,
     },
     /// We don't care about an actual type of the request
     /// because we will just insert data into the database
@@ -123,7 +114,6 @@ impl BufRequests {
 
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
-        observer,
         network,
         router_query,
         query,
@@ -142,32 +132,21 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let latest_block_header = query.get_block_header_meta(latest_block).await?;
 
     let chain = query.get_last_committed_chain(latest_block).await?;
-    let programs_states =
-        collect_programs_states(&chain, db, observer.provider().root().clone()).await?;
+    let (program_states, program_code_ids) = collect_event_data(query, &chain).await?;
+    log::info!("Processing {} blocks", chain.len());
 
-    log::info!("Processing {} blocks", programs_states.len());
     let mut requests = BufRequests::default();
+    // initially fill `BufRequests` and database
+    {
+        for (&program_id, &state) in &program_states {
+            requests.add(state, Request::ProgramState { program_id });
+        }
 
-    for (block_hash, states) in programs_states {
-        log::error!("STATES: {states:?}");
+        db.set_block_end_program_states(latest_block, program_states);
 
-        // we assume the network returns everything we requested
-        // or waits for a chance to get the rest of data
-        db.set_block_end_state_is_valid(block_hash, true);
-
-        // TODO: this is valid when `state_hash_at` is works
-        db.set_block_end_program_states(
-            block_hash,
-            states
-                .iter()
-                .map(|&(program_id, _code_id, state)| (program_id, state))
-                .collect(),
-        );
-
-        for (program_id, code_id, state) in states {
+        for (program_id, code_id) in program_code_ids {
             db.set_program_code_id(program_id, code_id);
             requests.add(code_id.into_bytes().into(), Request::Data);
-            requests.add(state, Request::ProgramState { program_id });
         }
     }
     requests.request(network);
@@ -316,6 +295,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
     }
 
+    db.set_block_end_state_is_valid(latest_block, true);
     db.set_latest_valid_block(latest_block, latest_block_header);
     db.set_block_commitment_queue(latest_block, VecDeque::new());
     db.set_block_end_schedule(latest_block, schedule_builder.build());
@@ -329,36 +309,33 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     Ok(())
 }
 
-async fn collect_programs_states(
+async fn collect_event_data(
+    query: &mut Query,
     blocks: &[H256],
-    db: &Database,
-    provider: RootProvider<BoxTransport>,
-) -> Result<Vec<(H256, Vec<(ActorId, CodeId, H256)>)>> {
-    let mut handled_blocks = Vec::new();
-    for &block in blocks {
-        let events = db
-            .block_events(block)
-            .context("`get_last_committed_chain` must insert block events")?;
+) -> Result<(BTreeMap<ActorId, H256>, Vec<(ActorId, CodeId)>)> {
+    let mut states = BTreeMap::new();
+    let mut program_code_ids = Vec::new();
 
-        let mut states = Vec::new();
+    for &block in blocks.iter().rev() {
+        let events = query.get_block_events(block).await?;
+
         for event in events {
-            if let BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
-                actor_id,
-                code_id,
-            }) = event
-            {
-                let mirror_query = MirrorQuery::from_provider(
-                    Address::from_word(actor_id.into_bytes().into()),
-                    provider.clone(),
-                );
-                let state_hash = mirror_query.state_hash().await?;
-                states.push((actor_id, code_id, state_hash));
+            match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event: MirrorEvent::StateChanged { state_hash },
+                } => {
+                    states.insert(actor_id, state_hash);
+                }
+                BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
+                    program_code_ids.push((actor_id, code_id));
+                }
+                _ => {}
             }
         }
-        handled_blocks.push((block, states));
     }
 
-    Ok(handled_blocks)
+    Ok((states, program_code_ids))
 }
 
 async fn process_response_validation(
