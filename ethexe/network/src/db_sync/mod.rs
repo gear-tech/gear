@@ -18,12 +18,9 @@
 
 mod ongoing;
 
-pub use ongoing::ValidatingResponse;
-
 use crate::{
     db_sync::ongoing::{
-        ExternalValidation, OngoingRequests, OngoingResponses, PeerResponse, SendRequestError,
-        SendRequestErrorKind,
+        OngoingRequests, OngoingResponses, PeerResponse, SendRequestError, SendRequestErrorKind,
     },
     export::{Multiaddr, PeerId},
     peer_score,
@@ -128,7 +125,7 @@ impl Response {
     /// Validates response against request.
     ///
     /// Returns `false` if external validation is required.
-    fn validate(&self, request: &Request) -> Result<bool, ResponseValidationError> {
+    fn validate(&self, request: &Request) -> Result<(), ResponseValidationError> {
         match (request, self) {
             (Request::DataForHashes(_requested_hashes), Response::DataForHashes(hashes)) => {
                 for (hash, data) in hashes {
@@ -137,9 +134,9 @@ impl Response {
                     }
                 }
 
-                Ok(true)
+                Ok(())
             }
-            (Request::ProgramIds, Response::ProgramIds(_ids)) => Ok(false),
+            (Request::ProgramIds, Response::ProgramIds(_ids)) => Ok(()),
             (_, _) => Err(ResponseValidationError::TypeMismatch),
         }
     }
@@ -201,8 +198,6 @@ pub enum Event {
         //// The ID of request
         request_id: RequestId,
     },
-    /// External validation is mandatory for response
-    ExternalValidation(ValidatingResponse),
     /// Request completion done
     RequestSucceed {
         /// The ID of request
@@ -305,44 +300,6 @@ impl Behaviour {
         self.ongoing_requests.push_pending_request(request)
     }
 
-    pub(crate) fn request_validated(
-        &mut self,
-        res: Result<ValidatingResponse, ValidatingResponse>,
-    ) {
-        let res = self
-            .ongoing_requests
-            .on_external_validation(res, &mut self.inner);
-        let event = match res {
-            Ok(ExternalValidation::Success {
-                request_id,
-                response,
-            }) => Event::RequestSucceed {
-                request_id,
-                response,
-            },
-            Ok(ExternalValidation::NewRound {
-                peer_id,
-                request_id,
-            }) => Event::NewRequestRound {
-                request_id,
-                peer_id,
-                reason: NewRequestRoundReason::PartialData,
-            },
-            Err(SendRequestError {
-                request_id,
-                kind: SendRequestErrorKind::OutOfRounds,
-            }) => Event::RequestFailed {
-                request_id,
-                error: RequestFailure::OutOfRounds,
-            },
-            Err(SendRequestError {
-                request_id,
-                kind: SendRequestErrorKind::NoPeers,
-            }) => Event::PendingStateRequest { request_id },
-        };
-        self.pending_events.push_back(event);
-    }
-
     fn handle_inner_event(
         &mut self,
         event: request_response::Event<Request, Response>,
@@ -401,9 +358,6 @@ impl Behaviour {
                         peer_id,
                         reason: NewRequestRoundReason::PartialData,
                     },
-                    Ok(PeerResponse::ExternalValidation(validating_response)) => {
-                        Event::ExternalValidation(validating_response)
-                    }
                     Err(SendRequestError {
                         request_id,
                         kind: SendRequestErrorKind::OutOfRounds,
@@ -617,8 +571,7 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
-    use ethexe_db::{CodesStorage, MemDb};
-    use gprimitives::CodeId;
+    use ethexe_db::MemDb;
     use libp2p::{futures::StreamExt, swarm::SwarmEvent, Swarm};
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};
@@ -1112,75 +1065,5 @@ mod tests {
 
         let event = alice.next_behaviour_event().await;
         assert!(matches!(event, Event::ResponseSent { peer_id, .. } if peer_id == bob_peer_id));
-    }
-
-    #[tokio::test]
-    async fn external_validation() {
-        const PID1: ProgramId = ProgramId::new([1; 32]);
-        const PID2: ProgramId = ProgramId::new([2; 32]);
-
-        init_logger();
-
-        let (mut alice, _alice_db) = new_swarm().await;
-        let (mut bob, _bob_db) = new_swarm().await;
-        let (mut charlie, charlie_db) = new_swarm().await;
-        let bob_peer_id = *bob.local_peer_id();
-        let charlie_peer_id = *charlie.local_peer_id();
-
-        alice.connect(&mut bob).await;
-        tokio::spawn(bob.loop_on_next());
-
-        charlie_db.set_program_code_id(PID1, CodeId::zero());
-        charlie_db.set_program_code_id(PID2, CodeId::zero());
-
-        let request_id = alice.behaviour_mut().request(Request::ProgramIds);
-
-        let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::NewRequestRound {
-                request_id,
-                peer_id: bob_peer_id,
-                reason: NewRequestRoundReason::FromQueue,
-            }
-        );
-
-        let event = alice.next_behaviour_event().await;
-        if let Event::ExternalValidation(validating_response) = event {
-            assert_eq!(validating_response.peer_id(), bob_peer_id);
-            let response = validating_response.response();
-            assert_eq!(*response, Response::ProgramIds([].into()));
-            alice
-                .behaviour_mut()
-                .request_validated(Err(validating_response));
-        } else {
-            unreachable!();
-        }
-
-        alice.connect(&mut charlie).await;
-        tokio::spawn(charlie.loop_on_next());
-
-        // `Event::NewRequestRound` skipped by `connect()` above
-
-        let event = alice.next_behaviour_event().await;
-        if let Event::ExternalValidation(validating_response) = event {
-            assert_eq!(validating_response.peer_id(), charlie_peer_id);
-            let response = validating_response.response();
-            assert_eq!(*response, Response::ProgramIds([PID1, PID2].into()));
-            alice
-                .behaviour_mut()
-                .request_validated(Ok(validating_response));
-        } else {
-            unreachable!();
-        }
-
-        let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::RequestSucceed {
-                request_id,
-                response: Response::ProgramIds([PID1, PID2].into()),
-            }
-        );
     }
 }

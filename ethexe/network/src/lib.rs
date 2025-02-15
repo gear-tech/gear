@@ -76,7 +76,6 @@ pub enum NetworkEvent {
         result: Result<db_sync::Response, db_sync::RequestFailure>,
     },
     PeerBlocked(PeerId),
-    ExternalValidation(db_sync::ValidatingResponse),
 }
 
 #[derive(Default, Debug, Clone)]
@@ -383,9 +382,6 @@ impl NetworkService {
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
-            BehaviourEvent::DbSync(db_sync::Event::ExternalValidation(validating_response)) => {
-                return Some(NetworkEvent::ExternalValidation(validating_response));
-            }
             BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
                 request_id,
                 response,
@@ -428,13 +424,6 @@ impl NetworkService {
 
     pub fn request_db_data(&mut self, request: db_sync::Request) -> db_sync::RequestId {
         self.swarm.behaviour_mut().db_sync.request(request)
-    }
-
-    pub fn request_validated(
-        &mut self,
-        res: Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>,
-    ) {
-        self.swarm.behaviour_mut().db_sync.request_validated(res);
     }
 }
 
@@ -647,40 +636,5 @@ mod tests {
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
-    }
-
-    #[tokio::test]
-    async fn external_validation() {
-        init_logger();
-
-        let (_tmp_dir, mut service1) = new_service();
-        let (_tmp_dir, mut service2) = new_service();
-
-        service1.connect(&mut service2).await;
-        tokio::spawn(service2.loop_on_next());
-
-        let request_id = service1.request_db_data(db_sync::Request::ProgramIds);
-
-        let event = timeout(Duration::from_secs(5), service1.next())
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        if let NetworkEvent::ExternalValidation(validating_response) = event {
-            service1.request_validated(Ok(validating_response));
-        } else {
-            unreachable!("{event:?}");
-        }
-
-        let event = timeout(Duration::from_secs(5), service1.next())
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        assert_eq!(
-            event,
-            NetworkEvent::DbResponse {
-                request_id,
-                result: Ok(db_sync::Response::ProgramIds([].into()))
-            }
-        );
     }
 }
