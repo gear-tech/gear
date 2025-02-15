@@ -108,6 +108,15 @@ impl PublicKey {
     pub fn to_address(&self) -> Address {
         (*self).into()
     }
+
+    /// Convert public key to uncompressed public key bytes.
+    pub fn to_uncompressed(&self) -> [u8; 64] {
+        let public_key_uncompressed = Secp256k1PublicKey::from(*self).serialize_uncompressed();
+
+        public_key_uncompressed[1..]
+            .try_into()
+            .expect("Slice is exactly 64 bytes; qed.")
+    }
 }
 
 impl From<PrivateKey> for PublicKey {

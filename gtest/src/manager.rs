@@ -49,7 +49,7 @@ use gear_common::{
     LockId, Origin,
 };
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
+    code::InstrumentedCode,
     gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,

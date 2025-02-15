@@ -43,9 +43,12 @@ pub enum CreateProgram {
     Custom(Vec<([u8; 32], Vec<u8>, u64)>),
 }
 
+// hash of `ProgramCodeKind::Default` from `pallet_gear`
+// you might want to change the hash __and__ `child_contract.wasm` in the contract directory
+// if tooling is updated
 #[allow(unused)]
 const CHILD_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a");
+    hex_literal::hex!("46f0c3cc76e23cf7a9c7ae134eb7b677325d0efba25543fdfd28021c276929ea");
 
 #[cfg(not(feature = "std"))]
 mod wasm;

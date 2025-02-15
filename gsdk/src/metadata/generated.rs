@@ -3162,7 +3162,6 @@ pub mod runtime_types {
                     pub parameters: ::core::primitive::u32,
                     pub memory_pages: ::core::primitive::u16,
                     pub table_size: ::core::primitive::u32,
-                    pub table_number: ::core::primitive::u32,
                     pub br_table_size: ::core::primitive::u32,
                     pub subject_len: ::core::primitive::u32,
                     pub call_depth: ::core::primitive::u32,

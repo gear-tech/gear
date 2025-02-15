@@ -53,10 +53,10 @@ impl From<H160> for Address {
 
 impl From<PublicKey> for Address {
     fn from(key: PublicKey) -> Self {
-        let public_key_uncompressed = secp256k1::PublicKey::from(key).serialize_uncompressed();
+        let public_key_uncompressed = key.to_uncompressed();
 
         let mut address = Address::default();
-        let hash = sha3::Keccak256::digest(&public_key_uncompressed[1..]);
+        let hash = sha3::Keccak256::digest(public_key_uncompressed);
         address.0[..20].copy_from_slice(&hash[12..]);
 
         address

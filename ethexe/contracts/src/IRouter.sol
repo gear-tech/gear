@@ -81,7 +81,7 @@ interface IRouter {
     function wrappedVara() external view returns (address);
 
     function validatorsAggregatedPublicKey() external view returns (Gear.AggregatedPublicKey memory);
-    function validatorsVerifyingShares() external view returns (Gear.VerifyingShare[] memory);
+    function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory);
 
     function areValidators(address[] calldata validators) external view returns (bool);
     function isValidator(address validator) external view returns (bool);
@@ -113,28 +113,15 @@ interface IRouter {
     function createProgramWithDecoder(address decoderImpl, bytes32 codeId, bytes32 salt) external returns (address);
 
     /// @dev CodeGotValidated Emitted for each code in commitment.
-    function commitCodes(
-        Gear.CodeCommitment[] calldata codeCommitments,
-        Gear.SignatureType signatureType,
-        bytes[] calldata signatures
-    ) external;
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
-    function commitBlocks(
-        Gear.BlockCommitment[] calldata blockCommitments,
+    function commitBatch(
+        Gear.BatchCommitment calldata batchCommitment,
         Gear.SignatureType signatureType,
         bytes[] calldata signatures
     ) external;
     /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(
-        Gear.ValidatorsCommitment calldata validatorsCommitment,
-        Gear.SignatureType signatureType,
-        bytes[] calldata signatures
-    ) external;
-
-    /// @dev CodeGotValidated Emitted for each code in commitment.
-    /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
-    function commitBatch(
-        Gear.BatchCommitment calldata batchCommitment,
+        Gear.ValidatorsCommitment memory validatorsCommitment,
         Gear.SignatureType signatureType,
         bytes[] calldata signatures
     ) external;

@@ -25,6 +25,7 @@ contract DeploymentScript is Script {
         address[] memory validatorsArray = vm.envAddress("ROUTER_VALIDATORS_LIST", ",");
         uint256 aggregatedPublicKeyX = vm.envUint("ROUTER_AGGREGATED_PUBLIC_KEY_X");
         uint256 aggregatedPublicKeyY = vm.envUint("ROUTER_AGGREGATED_PUBLIC_KEY_Y");
+        bytes memory verifiableSecretSharingCommitment = vm.envBytes("ROUTER_VERIFIABLE_SECRET_SHARING_COMMITMENT");
         address deployerAddress = vm.addr(privateKey);
 
         vm.startBroadcast(privateKey);
@@ -53,7 +54,7 @@ contract DeploymentScript is Script {
                         2 hours,
                         5 minutes,
                         Gear.AggregatedPublicKey(aggregatedPublicKeyX, aggregatedPublicKeyY),
-                        Gear.dummyVerifyingShares(validatorsArray.length),
+                        verifiableSecretSharingCommitment,
                         validatorsArray
                     )
                 )
