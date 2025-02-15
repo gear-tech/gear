@@ -239,23 +239,27 @@ impl<S: Sealed> MaybeHashOf<S> {
         self.0.is_none()
     }
 
-    pub fn hash(self) -> Option<HashOf<S>> {
+    pub fn hash(self) -> Option<H256> {
+        self.to_option().map(HashOf::hash)
+    }
+
+    pub fn to_option(self) -> Option<HashOf<S>> {
         self.0
     }
 
-    pub fn with_hash<T>(&self, f: impl FnOnce(HashOf<S>) -> T) -> Option<T> {
-        self.hash().map(f)
+    pub fn map<T>(&self, f: impl FnOnce(HashOf<S>) -> T) -> Option<T> {
+        self.to_option().map(f)
     }
 
-    pub fn with_hash_or_default<T: Default>(&self, f: impl FnOnce(HashOf<S>) -> T) -> T {
-        self.with_hash(f).unwrap_or_default()
+    pub fn map_or_default<T: Default>(&self, f: impl FnOnce(HashOf<S>) -> T) -> T {
+        self.map(f).unwrap_or_default()
     }
 
-    pub fn with_hash_or_default_fallible<T: Default>(
+    pub fn try_map_or_default<T: Default>(
         &self,
         f: impl FnOnce(HashOf<S>) -> Result<T>,
     ) -> Result<T> {
-        self.with_hash(f).unwrap_or_else(|| Ok(Default::default()))
+        self.map(f).unwrap_or_else(|| Ok(Default::default()))
     }
 
     pub fn replace(&mut self, other: Option<Self>) {
@@ -273,7 +277,7 @@ impl<S: Sealed + 'static> From<HashOf<S>> for MaybeHashOf<S> {
 
 impl MaybeHashOf<Allocations> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Allocations> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_allocations(hash).ok_or(anyhow!(
                 "failed to read ['Allocations'] from storage by hash"
             ))
@@ -297,7 +301,7 @@ impl MaybeHashOf<Allocations> {
 
 impl MaybeHashOf<DispatchStash> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<DispatchStash> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_stash(hash).ok_or(anyhow!(
                 "failed to read ['DispatchStash'] from storage by hash"
             ))
@@ -321,7 +325,7 @@ impl MaybeHashOf<DispatchStash> {
 
 impl MaybeHashOf<Mailbox> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Mailbox> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage
                 .read_mailbox(hash)
                 .ok_or(anyhow!("failed to read ['Mailbox'] from storage by hash"))
@@ -345,7 +349,7 @@ impl MaybeHashOf<Mailbox> {
 
 impl MaybeHashOf<MemoryPages> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MemoryPages> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_pages(hash).ok_or(anyhow!(
                 "failed to read ['MemoryPages'] from storage by hash"
             ))
@@ -369,7 +373,7 @@ impl MaybeHashOf<MemoryPages> {
 
 impl MaybeHashOf<MessageQueue> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
             ))
@@ -393,7 +397,7 @@ impl MaybeHashOf<MessageQueue> {
 
 impl MaybeHashOf<Payload> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Payload> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage
                 .read_payload(hash)
                 .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash"))
@@ -405,7 +409,7 @@ impl MaybeHashOf<Payload> {
 
 impl MaybeHashOf<Waitlist> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Waitlist> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage
                 .read_waitlist(hash)
                 .ok_or(anyhow!("failed to read ['Waitlist'] from storage by hash"))
@@ -718,6 +722,12 @@ impl Waitlist {
     }
 }
 
+impl AsRef<BTreeMap<MessageId, ValueWithExpiry<Dispatch>>> for Waitlist {
+    fn as_ref(&self) -> &BTreeMap<MessageId, ValueWithExpiry<Dispatch>> {
+        &self.inner
+    }
+}
+
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct DispatchStash(BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>);
@@ -782,8 +792,18 @@ impl DispatchStash {
         (dispatch, user_id)
     }
 
+    pub fn into_inner(self) -> BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>> {
+        self.0
+    }
+
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_stash(self)))
+    }
+}
+
+impl AsRef<BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>> for DispatchStash {
+    fn as_ref(&self) -> &BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>> {
+        &self.0
     }
 }
 
@@ -833,6 +853,12 @@ impl Mailbox {
 
     pub fn into_inner(self) -> BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>> {
         self.into()
+    }
+}
+
+impl AsRef<BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>> for Mailbox {
+    fn as_ref(&self) -> &BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>> {
+        &self.inner
     }
 }
 
@@ -929,7 +955,7 @@ impl MemoryPages {
         for (region_idx, region) in updated_regions {
             let region_hash = region
                 .store(storage)
-                .hash()
+                .to_option()
                 .expect("infallible; pages are only appended here, none are removed");
 
             self[region_idx] = region_hash.into();
@@ -970,7 +996,7 @@ impl MemoryPages {
         }
 
         for (region_idx, region) in updated_regions {
-            if let Some(region_hash) = region.store(storage).hash() {
+            if let Some(region_hash) = region.store(storage).to_option() {
                 self[region_idx] = region_hash.into();
             }
         }

@@ -18,12 +18,11 @@
 
 use crate::*;
 use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent};
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, ScheduledTask};
-use ethexe_runtime_common::state::ValueWithExpiry;
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb};
+use ethexe_runtime_common::ScheduleRestorer;
 use gear_core::ids::{prelude::CodeIdExt, ProgramId};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
-use std::collections::{BTreeMap, BTreeSet};
 use utils::*;
 
 fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
@@ -553,31 +552,17 @@ fn many_waits() {
 
     // Reproducibility test.
     {
-        let mut expected_schedule = BTreeMap::<_, BTreeSet<_>>::new();
+        let mut expected_schedule = ScheduleRestorer::new(0);
 
-        for (pid, state_hash) in &states {
-            let state = processor.db.read_state(*state_hash).unwrap();
-            let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
+        for (pid, state_hash) in states {
+            let state = processor.db.read_state(state_hash).unwrap();
+            let waitlist_hash = state.waitlist_hash.to_option().unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
-
-            for (
-                mid,
-                ValueWithExpiry {
-                    value: dispatch,
-                    expiry,
-                },
-            ) in waitlist.into_inner()
-            {
-                assert_eq!(mid, dispatch.id);
-                expected_schedule
-                    .entry(expiry)
-                    .or_default()
-                    .insert(ScheduledTask::WakeMessage(*pid, mid));
-            }
+            expected_schedule.waitlist(pid, &waitlist);
         }
 
         // This could fail in case of handling more scheduled ops: please, update test than.
-        assert_eq!(schedule, expected_schedule);
+        assert_eq!(schedule, expected_schedule.build());
     }
 
     let mut handler = processor.handler(ch11).unwrap();

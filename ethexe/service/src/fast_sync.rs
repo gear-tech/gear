@@ -23,7 +23,7 @@ use alloy::{
 };
 use anyhow::{Context, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage},
+    db::{BlockMetaStorage, CodesStorage, Schedule, ScheduledTask},
     events::{BlockRequestEvent, RouterRequestEvent},
 };
 use ethexe_db::Database;
@@ -33,23 +33,38 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_network::{db_sync, db_sync::RequestId, NetworkEvent, NetworkService};
-use ethexe_runtime_common::state::{
-    ActiveProgram, HashOf, MaybeHashOf, MemoryPages, MemoryPagesRegion, Program, ProgramState,
-    Storage,
+use ethexe_runtime_common::{
+    state::{
+        ActiveProgram, DispatchStash, Mailbox, MaybeHashOf, MemoryPages, MemoryPagesRegion,
+        Program, ProgramState, Storage, ValueWithExpiry, Waitlist,
+    },
+    ScheduleRestorer,
 };
 use futures::StreamExt;
+use gear_core::ids::ProgramId;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     mem,
 };
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-enum RequestKind {
-    ProgramState,
+enum Request {
+    ProgramState {
+        program_id: ProgramId,
+    },
     MemoryPages,
     MemoryPagesRegions,
+    Waitlist {
+        program_id: ProgramId,
+    },
+    Mailbox {
+        program_id: ProgramId,
+    },
+    DispatchStash {
+        program_id: ProgramId,
+    },
     /// We don't care about an actual type of the request
     /// because we will just insert data into the database
     Data,
@@ -64,43 +79,39 @@ struct BufRequests {
 
     /// Buffered requests we convert into one network request, and after that
     /// we convert into `pending_requests` because `RequestId` is known
-    buffered_requests: HashSet<(RequestKind, H256)>,
+    buffered_requests: HashMap<H256, HashSet<Request>>,
     /// Pending requests, we remove one by one on each hash from response
-    pending_requests: HashMap<(RequestId, H256), RequestKind>,
+    pending_requests: HashMap<(RequestId, H256), HashSet<Request>>,
 }
 
 impl BufRequests {
-    fn add(&mut self, request: RequestKind, hashes: impl IntoIterator<Item = H256>) {
-        for hash in hashes {
-            self.buffered_requests.insert((request, hash));
-        }
+    fn add(&mut self, hash: H256, request: Request) {
+        self.buffered_requests
+            .entry(hash)
+            .or_default()
+            .insert(request);
     }
 
     /// Returns `true` if there are pending requests
     fn request(&mut self, network: &mut NetworkService) -> bool {
         let buffered_requests = mem::take(&mut self.buffered_requests);
         if !buffered_requests.is_empty() {
-            let request = buffered_requests
-                .iter()
-                .map(|(_kind, hash)| hash)
-                .copied()
-                .collect();
+            let request = buffered_requests.keys().copied().collect();
             let request_id = network.request_db_data(db_sync::Request::DataForHashes(request));
 
-            self.total_pending_requests += buffered_requests.len() as u64;
-
-            for (request, hash) in buffered_requests {
-                self.pending_requests.insert((request_id, hash), request);
+            for (hash, requests) in buffered_requests {
+                self.total_pending_requests += requests.len() as u64;
+                self.pending_requests.insert((request_id, hash), requests);
             }
         }
 
         !self.pending_requests.is_empty()
     }
 
-    fn complete(&mut self, request_id: RequestId, hash: H256) -> Option<RequestKind> {
-        let kind = self.pending_requests.remove(&(request_id, hash))?;
-        self.total_completed_requests += 1;
-        Some(kind)
+    fn complete(&mut self, request_id: RequestId, hash: H256) -> Option<HashSet<Request>> {
+        let requests = self.pending_requests.remove(&(request_id, hash))?;
+        self.total_completed_requests += requests.len() as u64;
+        Some(requests)
     }
 
     /// (total completed request, total pending requests)
@@ -128,8 +139,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let latest_block = router_query.latest_committed_block_hash().await?;
     debug_assert_ne!(latest_block, H256::zero(), "router is not deployed");
-    let chain = query.get_last_committed_chain(latest_block).await?;
+    let latest_block_header = query.get_block_header_meta(latest_block).await?;
 
+    let chain = query.get_last_committed_chain(latest_block).await?;
     let programs_states =
         collect_programs_states(&chain, db, observer.provider().root().clone()).await?;
 
@@ -143,17 +155,24 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         // or waits for a chance to get the rest of data
         db.set_block_end_state_is_valid(block_hash, true);
 
-        if states.is_empty() {
-            continue;
-        }
+        // TODO: this is valid when `state_hash_at` is works
+        db.set_block_end_program_states(
+            block_hash,
+            states
+                .iter()
+                .map(|&(program_id, _code_id, state)| (program_id, state))
+                .collect(),
+        );
 
         for (program_id, code_id, state) in states {
             db.set_program_code_id(program_id, code_id);
-            requests.add(RequestKind::Data, Some(code_id.into_bytes().into()));
-            requests.add(RequestKind::ProgramState, Some(state));
+            requests.add(code_id.into_bytes().into(), Request::Data);
+            requests.add(state, Request::ProgramState { program_id });
         }
     }
     requests.request(network);
+
+    let mut schedule_builder = ScheduleRestorer::new(latest_block_header.height);
 
     while let Some(event) = network.next().await {
         let (completed, pending) = requests.stats();
@@ -163,97 +182,116 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             NetworkEvent::DbResponse { request_id, result } => match result {
                 Ok(db_sync::Response::DataForHashes(data)) => {
                     for (hash, data) in data {
-                        let request = requests
+                        let completed_requests = requests
                             .complete(request_id, hash)
                             .expect("unknown `db-sync` response");
 
-                        match request {
-                            RequestKind::ProgramState => {
-                                let state: ProgramState = Decode::decode(&mut &data[..])
-                                    .expect("`db-sync` must validate data");
-
-                                log::error!("Program state {state:?}");
-
-                                let ProgramState {
-                                    program,
-                                    queue_hash,
-                                    waitlist_hash,
-                                    stash_hash,
-                                    mailbox_hash,
-                                    balance: _,
-                                    executable_balance: _,
-                                } = &state;
-
-                                if let Program::Active(ActiveProgram {
-                                    allocations_hash,
-                                    pages_hash,
-                                    memory_infix: _,
-                                    initialized: _,
-                                }) = program
-                                {
-                                    requests.add(
-                                        RequestKind::Data,
-                                        allocations_hash.hash().map(HashOf::hash),
-                                    );
-
-                                    requests.add(
-                                        RequestKind::MemoryPages,
-                                        pages_hash.hash().map(HashOf::hash),
-                                    );
-                                }
-
-                                requests.add(
-                                    RequestKind::Data,
-                                    [
-                                        queue_hash.hash().map(HashOf::hash),
-                                        waitlist_hash.hash().map(HashOf::hash),
-                                        stash_hash.hash().map(HashOf::hash),
-                                        mailbox_hash.hash().map(HashOf::hash),
-                                    ]
-                                    .into_iter()
-                                    .flatten(),
-                                );
-
-                                db.write_state(state);
-                            }
-                            RequestKind::MemoryPages => {
-                                let memory_pages: MemoryPages = Decode::decode(&mut &data[..])
-                                    .expect("`db-sync` must validate data");
-
-                                log::error!("Memory pages: {memory_pages:?}");
-
-                                requests.add(
-                                    RequestKind::MemoryPagesRegions,
-                                    memory_pages
-                                        .to_inner()
-                                        .map(MaybeHashOf::hash)
-                                        .into_iter()
-                                        .flatten()
-                                        .map(HashOf::hash),
-                                );
-
-                                db.write_pages(memory_pages);
-                            }
-                            RequestKind::MemoryPagesRegions => {
-                                let pages_region: MemoryPagesRegion =
-                                    Decode::decode(&mut &data[..])
+                        for request in completed_requests {
+                            match request {
+                                Request::ProgramState { program_id } => {
+                                    let state: ProgramState = Decode::decode(&mut &data[..])
                                         .expect("`db-sync` must validate data");
 
-                                log::error!("Memory pages region: {pages_region:?}");
+                                    log::error!("Program state {state:?}");
 
-                                requests.add(
-                                    RequestKind::Data,
-                                    pages_region
+                                    let ProgramState {
+                                        program,
+                                        queue_hash,
+                                        waitlist_hash,
+                                        stash_hash,
+                                        mailbox_hash,
+                                        balance: _,
+                                        executable_balance: _,
+                                    } = &state;
+
+                                    if let Program::Active(ActiveProgram {
+                                        allocations_hash,
+                                        pages_hash,
+                                        memory_infix: _,
+                                        initialized: _,
+                                    }) = program
+                                    {
+                                        if let Some(allocations_hash) = allocations_hash.hash() {
+                                            requests.add(allocations_hash, Request::Data);
+                                        }
+                                        if let Some(pages_hash) = pages_hash.hash() {
+                                            requests.add(pages_hash, Request::MemoryPages);
+                                        }
+                                    }
+
+                                    if let Some(queue_hash) = queue_hash.hash() {
+                                        requests.add(queue_hash, Request::Data);
+                                    }
+                                    if let Some(waitlist_hash) = waitlist_hash.hash() {
+                                        requests
+                                            .add(waitlist_hash, Request::Waitlist { program_id });
+                                    }
+                                    if let Some(mailbox_hash) = mailbox_hash.hash() {
+                                        requests.add(mailbox_hash, Request::Mailbox { program_id });
+                                    }
+                                    if let Some(stash_hash) = stash_hash.hash() {
+                                        requests
+                                            .add(stash_hash, Request::DispatchStash { program_id });
+                                    }
+
+                                    db.write_state(state);
+                                }
+                                Request::MemoryPages => {
+                                    let memory_pages: MemoryPages = Decode::decode(&mut &data[..])
+                                        .expect("`db-sync` must validate data");
+
+                                    log::error!("Memory pages: {memory_pages:?}");
+
+                                    for pages_region_hash in memory_pages
+                                        .to_inner()
+                                        .into_iter()
+                                        .flat_map(MaybeHashOf::hash)
+                                    {
+                                        requests
+                                            .add(pages_region_hash, Request::MemoryPagesRegions);
+                                    }
+
+                                    db.write_pages(memory_pages);
+                                }
+                                Request::MemoryPagesRegions => {
+                                    let pages_region: MemoryPagesRegion =
+                                        Decode::decode(&mut &data[..])
+                                            .expect("`db-sync` must validate data");
+
+                                    log::error!("Memory pages region: {pages_region:?}");
+
+                                    for page_buf_hash in pages_region
                                         .as_inner()
                                         .iter()
-                                        .map(|(_page, hash)| hash.hash()),
-                                );
+                                        .map(|(_page, hash)| hash.hash())
+                                    {
+                                        requests.add(page_buf_hash, Request::Data);
+                                    }
 
-                                db.write_pages_region(pages_region);
-                            }
-                            RequestKind::Data => {
-                                log::error!("New data: {} bytes", data.len());
-                                db.write(&data);
+                                    db.write_pages_region(pages_region);
+                                }
+                                Request::Waitlist { program_id } => {
+                                    let waitlist: Waitlist = Decode::decode(&mut &data[..])
+                                        .expect("`db-sync` must validate data");
+                                    schedule_builder.waitlist(program_id, &waitlist);
+                                    db.write_waitlist(waitlist);
+                                }
+                                Request::Mailbox { program_id } => {
+                                    let mailbox: Mailbox = Decode::decode(&mut &data[..])
+                                        .expect("`db-sync` must validate data");
+                                    schedule_builder.mailbox(program_id, &mailbox);
+                                    db.write_mailbox(mailbox);
+                                }
+                                Request::DispatchStash { program_id } => {
+                                    let stash: DispatchStash = Decode::decode(&mut &data[..])
+                                        .expect("`db-sync` must validate data");
+                                    schedule_builder.stash(program_id, &stash);
+                                    db.write_stash(stash);
+                                }
+                                Request::Data => {
+                                    log::error!("New data: {} bytes", data.len());
+                                    db.write(&data);
+                                }
                             }
                         }
                     }
@@ -278,8 +316,15 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
     }
 
+    db.set_latest_valid_block(latest_block, latest_block_header);
+    db.set_block_commitment_queue(latest_block, VecDeque::new());
+    db.set_block_end_schedule(latest_block, schedule_builder.build());
+    db.set_block_is_empty(latest_block, true);
+    db.set_previous_committed_block(latest_block, H256::zero());
+
     let (completed, pending) = requests.stats();
     log::info!("[{completed:>05} / {pending:>05}] Fast synchronization done");
+    debug_assert_eq!(completed, pending);
 
     Ok(())
 }

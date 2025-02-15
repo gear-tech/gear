@@ -494,7 +494,7 @@ async fn mailbox() {
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
     assert_eq!(mailbox.into_inner(), expected_mailbox);
 
@@ -517,7 +517,7 @@ async fn mailbox() {
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
