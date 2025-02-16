@@ -4546,7 +4546,6 @@ name = "ethexe-common"
 version = "1.7.1"
 dependencies = [
  "anyhow",
- "derive_more 0.99.18",
  "gear-core",
  "gprimitives",
  "hex",
@@ -4732,6 +4731,7 @@ dependencies = [
 name = "ethexe-runtime"
 version = "1.7.1"
 dependencies = [
+ "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
  "gear-core-processor",
