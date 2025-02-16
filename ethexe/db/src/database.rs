@@ -60,7 +60,7 @@ enum KeyPrefix {
     CodeValid = 10,
     BlockStartSchedule = 11,
     BlockEndSchedule = 12,
-    Transaction = 13,
+    SignedTransaction = 13,
 }
 
 impl KeyPrefix {
@@ -449,7 +449,7 @@ impl Database {
 
     pub fn get_offchain_transaction(&self, tx_hash: H256) -> Option<SignedOffchainTransaction> {
         self.kv
-            .get(&KeyPrefix::Transaction.one(tx_hash))
+            .get(&KeyPrefix::SignedTransaction.one(tx_hash))
             .map(|data| {
                 Decode::decode(&mut data.as_slice())
                     .expect("failed to data into `SignedTransaction`")
@@ -459,12 +459,10 @@ impl Database {
     pub fn set_offchain_transaction(&self, tx: SignedOffchainTransaction) {
         let tx_hash = tx.tx_hash();
         self.kv
-            .put(&KeyPrefix::Transaction.one(tx_hash), tx.encode());
+            .put(&KeyPrefix::SignedTransaction.one(tx_hash), tx.encode());
     }
 
-    pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> Result<()> {
-        const ERR_MSG: &str = "Reference block isn't within recent blocks window";
-
+    pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> Result<bool> {
         let Some((latest_valid_block_hash, latest_valid_block_header)) = self.latest_valid_block()
         else {
             bail!("No latest valid block found");
@@ -482,23 +480,25 @@ impl Database {
         };
 
         if actual_window > OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
-            bail!(ERR_MSG);
+            return Ok(false);
         }
 
         // Check against reorgs.
         let mut block_hash = latest_valid_block_hash;
         for _ in 0..OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
             if block_hash == reference_block_hash {
-                return Ok(());
+                return Ok(true);
             }
 
             let Some(block_header) = self.block_header(block_hash) else {
-                bail!("{ERR_MSG}, after possible reorg reference block hash is not actual");
+                bail!(
+                    "Block with {block_hash} hash not found in the window. Possibly reorg happened"
+                );
             };
             block_hash = block_header.parent_hash;
         }
 
-        bail!(ERR_MSG);
+        Ok(false)
     }
 
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {

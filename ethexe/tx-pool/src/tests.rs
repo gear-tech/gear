@@ -25,21 +25,13 @@ use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb};
-use ethexe_signer::{PrivateKey, Signer, ToDigest};
+use ethexe_signer::{Signer, ToDigest};
 use gprimitives::{H160, H256};
 use parity_scale_codec::Encode;
-use std::str::FromStr;
 
 pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOffchainTransaction {
     let signer = Signer::tmp();
-    let public_key = signer
-        .add_key(
-            PrivateKey::from_str(
-                "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f",
-            )
-            .expect("invalid private key"),
-        )
-        .expect("key addition failed");
+    let public_key = signer.generate_key().expect("failed to generate key");
 
     let transaction = OffchainTransaction {
         raw: RawOffchainTransaction::SendMessage {
@@ -58,15 +50,54 @@ pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOff
     }
 }
 
-pub(crate) fn new_block(parent_hash: Option<H256>) -> (H256, BlockHeader) {
-    let block_hash = H256::random();
-    let header = BlockHeader {
-        height: 0,
-        timestamp: 0,
-        parent_hash: parent_hash.unwrap_or(H256::random()),
-    };
+pub(crate) struct BlocksManager {
+    db: Database,
+}
 
-    (block_hash, header)
+impl BlocksManager {
+    pub(crate) fn new(db: Database) -> Self {
+        Self { db }
+    }
+
+    pub(crate) fn add_block(&self) -> (H256, BlockHeader) {
+        let block_hash = H256::random();
+
+        match self.db.latest_valid_block() {
+            Some((parent_hash, parent_header)) => {
+                let header = BlockHeader {
+                    height: parent_header.height + 1,
+                    timestamp: now(),
+                    parent_hash,
+                };
+
+                self.db.set_block_header(block_hash, header.clone());
+                self.db.set_latest_valid_block(block_hash, header.clone());
+
+                (block_hash, header)
+            }
+            None => {
+                let header = BlockHeader {
+                    height: 0,
+                    timestamp: now(),
+                    parent_hash: H256::zero(),
+                };
+
+                self.db.set_block_header(block_hash, header.clone());
+                self.db.set_latest_valid_block(block_hash, header.clone());
+
+                (block_hash, header)
+            }
+        }
+    }
+}
+
+fn now() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time went backwards")
+        .as_millis() as u64
 }
 
 #[tokio::test]
@@ -74,18 +105,15 @@ async fn test_add_transaction() {
     gear_utils::init_default_logger();
 
     let db = Database::from_one(&MemDb::default(), Default::default());
+    let bm = BlocksManager::new(db.clone());
 
-    let tx_pool = TxPoolService::new(db.clone());
+    let tx_pool = TxPoolService::new(db);
 
     // -------------- Test adding a valid transaction --------------
 
     // Prepare the database by populating it with blocks
-    let block_data = new_block(None);
-    db.set_block_header(block_data.0, block_data.1.clone());
-    db.set_latest_valid_block(block_data.0, block_data.1);
-    let (tx_reference_block_hash, block_header) = new_block(Some(block_data.0));
-    db.set_block_header(tx_reference_block_hash, block_header.clone());
-    db.set_latest_valid_block(tx_reference_block_hash, block_header);
+    bm.add_block();
+    let (tx_reference_block_hash, _) = bm.add_block();
 
     // Add the transaction to the service
     let signed_ethexe_tx = generate_signed_ethexe_tx(tx_reference_block_hash);
@@ -94,13 +122,9 @@ async fn test_add_transaction() {
     // -------------- Test adding invalid transaction --------------
 
     // Populate more blocks in db
-    let mut block_hash = tx_reference_block_hash;
-    for _ in 0..32 {
-        let block_data = new_block(Some(block_hash));
-        db.set_block_header(block_data.0, block_data.1.clone());
-        db.set_latest_valid_block(block_data.0, block_data.1);
-        block_hash = block_data.0;
-    }
+    (0..32).for_each(|_| {
+        bm.add_block();
+    });
 
     // Rotten block hash
     let invalid_tx = generate_signed_ethexe_tx(tx_reference_block_hash);
@@ -108,5 +132,5 @@ async fn test_add_transaction() {
     assert!(res.is_err());
     let err_string = format!("{:?}", res.expect_err("checked"));
     println!("{}", err_string);
-    assert!(err_string.contains("Reference block isn't within recent blocks window"));
+    assert!(err_string.contains("Transaction reference block hash is out of recent blocks window"));
 }

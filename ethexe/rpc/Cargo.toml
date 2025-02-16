@@ -29,3 +29,8 @@ sp-core = { workspace = true, features = ["serde"] }
 gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
 ethexe-observer.workspace = true
+reqwest = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[features]
+test-utils = ["reqwest", "serde_json"]

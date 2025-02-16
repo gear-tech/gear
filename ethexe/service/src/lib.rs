@@ -55,6 +55,7 @@ pub struct Service {
     tx_pool: TxPoolService,
 
     // Optional services
+    // TODO: consider network to be always enabled
     network: Option<NetworkService>,
     sequencer: Option<SequencerService>,
     validator: Option<ethexe_validator::Validator>,
@@ -570,7 +571,9 @@ impl Service {
                                 network.as_mut(),
                             ).context("Failed to process offchain transaction received from RPC");
 
-
+                            let Some(response_sender) = response_sender else {
+                                unreachable!("Response sender isn't set for the `RpcEvent::OffchainTransaction` event");
+                            };
                             if let Err(e) = response_sender.send(res) {
                                 // No panic case as a responsibility of the service is fulfilled.
                                 // The dropped receiver signalizes that the rpc service has crashed

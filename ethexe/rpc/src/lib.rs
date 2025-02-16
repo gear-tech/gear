@@ -49,6 +49,7 @@ mod apis;
 mod common;
 mod errors;
 
+pub mod test_utils;
 pub(crate) mod util;
 
 #[derive(Clone)]
@@ -206,6 +207,17 @@ impl FusedStream for RpcReceiver {
 pub enum RpcEvent {
     OffchainTransaction {
         transaction: SignedOffchainTransaction,
-        response_sender: oneshot::Sender<Result<H256>>,
+        response_sender: Option<oneshot::Sender<Result<H256>>>,
     },
+}
+
+impl Clone for RpcEvent {
+    fn clone(&self) -> Self {
+        match self {
+            Self::OffchainTransaction { transaction, .. } => Self::OffchainTransaction {
+                transaction: transaction.clone(),
+                response_sender: None,
+            },
+        }
+    }
 }

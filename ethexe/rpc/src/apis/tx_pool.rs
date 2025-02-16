@@ -65,7 +65,7 @@ impl TransactionPoolServer for TransactionPoolApi {
         self.rpc_sender
             .send(RpcEvent::OffchainTransaction {
                 transaction: signed_ethexe_tx,
-                response_sender,
+                response_sender: Some(response_sender),
             })
             .map_err(|e| {
                 // That could be a panic case, as rpc_receiver must not be dropped,

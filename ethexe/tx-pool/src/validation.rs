@@ -19,7 +19,7 @@
 //! Transactions validation.
 
 use crate::SignedOffchainTransaction;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use ethexe_db::Database;
 use ethexe_signer::ToDigest;
 use parity_scale_codec::Encode;
@@ -78,8 +78,8 @@ impl TxValidator {
             self.check_signature()?;
         }
 
-        if self.mortality_check {
-            self.check_mortality()?;
+        if self.mortality_check && !self.check_mortality()? {
+            bail!("Transaction reference block hash is out of recent blocks window");
         }
 
         if self.uniqueness_check {
@@ -100,12 +100,12 @@ impl TxValidator {
     /// Validates transaction mortality.
     ///
     /// Basically checks that transaction reference block hash is within the recent blocks window.
-    fn check_mortality(&self) -> Result<()> {
+    fn check_mortality(&self) -> Result<bool> {
         let block_hash = self.transaction.reference_block();
 
         self.db
             .check_within_recent_blocks(block_hash)
-            .context("Transaction mortality check failed")
+            .context("Failed to perform mortality check")
     }
 
     /// Validates transaction uniqueness.
@@ -126,8 +126,8 @@ impl TxValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests;
-    use ethexe_db::{BlockMetaStorage, Database, MemDb};
+    use crate::tests::{self, BlocksManager};
+    use ethexe_db::{Database, MemDb};
     use gprimitives::H256;
 
     macro_rules! assert_ok {
@@ -153,25 +153,17 @@ mod tests {
     #[test]
     fn test_valid_mortality() {
         let db = Database::from_one(&MemDb::default(), Default::default());
+        let bm = BlocksManager::new(db.clone());
 
         // Test valid mortality
-        let block_data = tests::new_block(None);
-        db.set_block_header(block_data.0, block_data.1.clone());
-        db.set_latest_valid_block(block_data.0, block_data.1);
-
-        let (block_hash, header) = tests::new_block(Some(block_data.0));
-        db.set_block_header(block_hash, header.clone());
-        db.set_latest_valid_block(block_hash, header);
+        bm.add_block();
+        let (block_hash, _) = bm.add_block();
 
         let signed_tx = tests::generate_signed_ethexe_tx(block_hash);
 
-        let block_data = tests::new_block(Some(block_hash));
-        db.set_block_header(block_data.0, block_data.1.clone());
-        db.set_latest_valid_block(block_data.0, block_data.1);
+        bm.add_block();
 
         let tx_validator = TxValidator::new(signed_tx, db).with_mortality_check();
-
-        // println!("{:?}", tx_validator.validate());
         assert_ok!(tx_validator.validate());
     }
 
@@ -189,22 +181,15 @@ mod tests {
     #[test]
     fn test_invalid_mortality_rotten_tx() {
         let db = Database::from_one(&MemDb::default(), Default::default());
+        let bm = BlocksManager::new(db.clone());
 
-        let (first_block_hash, first_block_header) = tests::new_block(None);
-        db.set_block_header(first_block_hash, first_block_header.clone());
-        db.set_latest_valid_block(first_block_hash, first_block_header);
-        let (second_block_hash, second_block_header) = tests::new_block(Some(first_block_hash));
-        db.set_block_header(second_block_hash, second_block_header.clone());
-        db.set_latest_valid_block(second_block_hash, second_block_header);
+        let first_block_hash = bm.add_block().0;
+        let second_block_hash = bm.add_block().0;
 
         // Add more 30 blocks
-        let mut block_hash = second_block_hash;
-        for _ in 0..30 {
-            let block_data = tests::new_block(Some(block_hash));
-            db.set_block_header(block_data.0, block_data.1.clone());
-            db.set_latest_valid_block(block_data.0, block_data.1);
-            block_hash = block_data.0;
-        }
+        (0..30).for_each(|_| {
+            bm.add_block();
+        });
 
         let transaction1 = TxValidator::new(
             tests::generate_signed_ethexe_tx(first_block_hash),
@@ -223,9 +208,7 @@ mod tests {
         .expect("internal error: transaction2 validation failed");
 
         // Adding a new block to the db, which should remove the first block from window
-        let block_data = tests::new_block(Some(block_hash));
-        db.set_block_header(block_data.0, block_data.1.clone());
-        db.set_latest_valid_block(block_data.0, block_data.1);
+        bm.add_block();
 
         // `db` is `Arc`, so no need to instantiate a new validator.
         assert_err!(TxValidator::new(transaction1, db.clone())

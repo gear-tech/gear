@@ -37,7 +37,7 @@ use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{EthereumConfig, MockBlobReader, Query};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::RpcConfig;
+use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
@@ -1084,20 +1084,14 @@ async fn tx_pool_gossip() {
 
     // Send request
     log::info!("Sending tx pool request to node-1");
-    let resp = send_json_request(node0.service_rpc_url().expect("rpc server is set"), || {
-        serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": "transactionPool_sendMessage",
-            "params": {
-                "ethexe_tx": signed_ethexe_tx.transaction,
-                "signature": signed_ethexe_tx.signature,
-            },
-            "id": 1,
-        })
-    })
-    .await
-    .expect("failed sending request");
-
+    let rpc_client = RpcClient::new(node0.service_rpc_url().expect("rpc server is set"));
+    let resp = rpc_client
+        .send_message(
+            signed_ethexe_tx.transaction.clone(),
+            signed_ethexe_tx.signature.clone(),
+        )
+        .await
+        .expect("failed sending request");
     assert!(resp.status().is_success());
 
     // This way the response from RPC server is checked to be `Ok`.
@@ -1119,16 +1113,6 @@ async fn tx_pool_gossip() {
         .get_offchain_transaction(tx_hash)
         .expect("tx not found");
     assert_eq!(node1_db_tx, signed_ethexe_tx);
-}
-
-async fn send_json_request(
-    rpc_server_url: String,
-    create_request: impl Fn() -> serde_json::Value,
-) -> Result<reqwest::Response, reqwest::Error> {
-    let client = reqwest::Client::new();
-    let req_body = create_request();
-
-    client.post(rpc_server_url).json(&req_body).send().await
 }
 
 mod utils {
@@ -1387,7 +1371,7 @@ mod utils {
                 validator_public_key,
                 validator_session_public_key,
                 network,
-                service_rpc_config,
+                rpc: service_rpc_config,
             } = config;
 
             let db =
@@ -1611,7 +1595,7 @@ mod utils {
         /// Network configuration, if provided then new node starts with network.
         pub network: Option<NodeNetworkConfig>,
         /// RPC configuration, if provided then new node starts with RPC service.
-        pub service_rpc_config: Option<RpcConfig>,
+        pub rpc: Option<RpcConfig>,
     }
 
     impl NodeConfig {
@@ -1653,7 +1637,7 @@ mod utils {
                 cors: None,
                 dev: false,
             };
-            self.service_rpc_config = Some(service_rpc_config);
+            self.rpc = Some(service_rpc_config);
 
             self
         }

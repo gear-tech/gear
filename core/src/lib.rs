@@ -43,8 +43,11 @@ pub mod program;
 pub mod reservation;
 pub mod str;
 pub mod tasks;
+pub mod utils {
+    //! Utility functions.
 
-pub use ids::{hash, hash_of_array};
+    pub use super::ids::{hash, hash_of_array};
+}
 
 // This allows all casts from u32 into usize be safe.
 const _: () = assert!(size_of::<u32>() <= size_of::<usize>());
