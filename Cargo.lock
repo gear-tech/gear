@@ -3473,15 +3473,15 @@ dependencies = [
 name = "demo-fungible-token"
 version = "0.1.4"
 dependencies = [
- "ft-io",
  "futures",
  "gclient",
  "gear-core",
  "gear-wasm-builder",
- "gmeta",
  "gstd",
  "hashbrown 0.14.5",
+ "parity-scale-codec",
  "rand",
+ "scale-info",
  "statrs",
  "tokio",
 ]
@@ -3549,46 +3549,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-meta-io"
-version = "0.1.0"
-dependencies = [
- "gmeta",
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "demo-meta-state-v1"
-version = "0.1.0"
-dependencies = [
- "demo-meta-io",
- "gear-wasm-builder",
- "gmeta",
- "gstd",
-]
-
-[[package]]
-name = "demo-meta-state-v2"
-version = "0.1.0"
-dependencies = [
- "demo-meta-io",
- "gear-wasm-builder",
- "gmeta",
- "gstd",
-]
-
-[[package]]
-name = "demo-meta-state-v3"
-version = "0.1.0"
-dependencies = [
- "demo-meta-io",
- "gear-wasm-builder",
- "gmeta",
- "gstd",
-]
-
-[[package]]
 name = "demo-mul-by-const"
 version = "0.1.0"
 dependencies = [
@@ -3604,20 +3564,6 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hex",
-]
-
-[[package]]
-name = "demo-new-meta"
-version = "0.1.0"
-dependencies = [
- "demo-meta-io",
- "demo-meta-state-v1",
- "demo-meta-state-v2",
- "demo-meta-state-v3",
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -5654,14 +5600,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ft-io"
-version = "0.1.4"
-dependencies = [
- "gmeta",
- "gstd",
-]
-
-[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5914,8 +5852,8 @@ dependencies = [
  "clap 4.5.23",
  "color-eyre",
  "colored",
+ "demo-fungible-token",
  "demo-messenger",
- "demo-new-meta",
  "demo-waiter",
  "dirs",
  "env_logger",
@@ -5925,7 +5863,6 @@ dependencies = [
  "gear-core-errors",
  "gear-node-wrapper",
  "gear-runtime-primitives",
- "gmeta",
  "gring",
  "gsdk",
  "hex",
@@ -5940,8 +5877,6 @@ dependencies = [
  "tokio",
  "toml 0.8.14",
  "url",
- "wasmer",
- "wasmer-types",
  "which",
  "whoami",
 ]
@@ -5965,9 +5900,8 @@ dependencies = [
  "demo-constructor",
  "demo-custom",
  "demo-distributor",
- "demo-meta-io",
+ "demo-fungible-token",
  "demo-mul-by-const",
- "demo-new-meta",
  "demo-node",
  "demo-program-factory",
  "demo-proxy",
@@ -5980,7 +5914,6 @@ dependencies = [
  "gear-core-errors",
  "gear-node-wrapper",
  "gear-utils",
- "gmeta",
  "gsdk",
  "gstd",
  "hex",
@@ -6664,7 +6597,6 @@ dependencies = [
  "gear-core",
  "gear-wasm-instrument",
  "gear-wasm-optimizer",
- "gmeta",
  "itertools 0.13.0",
  "log",
  "pathdiff",
@@ -6926,33 +6858,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
-name = "gmeta"
-version = "1.7.1"
-dependencies = [
- "blake2 0.10.6",
- "derive_more 0.99.18",
- "gear-wasm-builder",
- "gmeta-codegen",
- "gstd",
- "hex",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "gmeta-codegen"
-version = "1.7.1"
-dependencies = [
- "gmeta",
- "gstd",
- "parity-scale-codec",
- "proc-macro2",
- "quote",
- "scale-info",
- "syn 2.0.87",
-]
-
-[[package]]
 name = "governor"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7025,8 +6930,8 @@ dependencies = [
  "anyhow",
  "base64 0.21.7",
  "colored",
+ "demo-fungible-token",
  "demo-messenger",
- "demo-new-meta",
  "demo-vec",
  "demo-waiter",
  "futures",
@@ -11065,13 +10970,13 @@ dependencies = [
  "demo-delayed-reservation-sender",
  "demo-delayed-sender",
  "demo-distributor",
+ "demo-fungible-token",
  "demo-futures-unordered",
  "demo-gas-burned",
  "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
  "demo-mul-by-const",
- "demo-new-meta",
  "demo-out-of-memory",
  "demo-ping",
  "demo-program-factory",
@@ -11108,7 +11013,6 @@ dependencies = [
  "gear-runtime-interface",
  "gear-sandbox",
  "gear-wasm-instrument",
- "gmeta",
  "gstd",
  "gsys",
  "hex",
