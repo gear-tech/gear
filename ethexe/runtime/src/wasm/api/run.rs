@@ -22,6 +22,7 @@ use crate::wasm::{
 };
 use alloc::vec::Vec;
 use core_processor::{common::JournalNote, configs::BlockInfo};
+use ethexe_common::gear::Origin;
 use ethexe_runtime_common::{process_next_message, state::Storage, RuntimeInterface};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
@@ -34,7 +35,7 @@ pub fn run(
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
-) -> Vec<JournalNote> {
+) -> (Vec<JournalNote>, Option<Origin>) {
     log::debug!("You're calling 'run(..)'");
 
     let block_info = BlockInfo {
@@ -49,7 +50,7 @@ pub fn run(
 
     let program_state = ri.storage().read_state(state_root).unwrap();
 
-    let journal = process_next_message(
+    let (journal, origin) = process_next_message(
         program_id,
         program_state,
         maybe_instrumented_code,
@@ -57,11 +58,14 @@ pub fn run(
         &ri,
     );
 
-    log::debug!("Done creating journal: {} notes", journal.len());
+    log::debug!(
+        "Done creating journal: {} notes, origin {origin:?}",
+        journal.len()
+    );
 
     for note in &journal {
         log::debug!("{note:?}");
     }
 
-    journal
+    (journal, origin)
 }
