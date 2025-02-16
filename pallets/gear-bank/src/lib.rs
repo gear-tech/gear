@@ -103,7 +103,7 @@ pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use core::ops::Add;
+    use core::ops::{Add, Mul};
     use frame_support::{
         ensure,
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
@@ -274,28 +274,8 @@ pub mod pallet {
             while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
                 total = total.saturating_add(value);
 
-                if let Some((gas_split, split_dest)) = T::SplitGasFeeRatio::get() {
-                    // split value by `SplitGasFeeRatio`.
-                    let to_split = gas_split.mul_floor(value);
-                    let to_user = value - to_split;
-
-                    // Withdraw value to user.
-                    if let Err(e) = Self::withdraw(&account_id, to_user) {
-                        log::error!(
-                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                        );
-                    }
-
-                    // Withdraw value to `SplitGasFeeRatio` destination.
-                    if let Err(e) = Self::withdraw(&split_dest, to_split) {
-                        log::error!(
-                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                        );
-                    }
-                } else {
-                    let _ = Self::withdraw(&account_id, value).map_err(|e| log::error!(
-                                "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                            ));
+                if let Err(e) = Self::withdraw(&account_id, value) {
+                    log::error!("Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}");
                 }
             }
 
@@ -528,13 +508,32 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
+            let treasury = T::TreasuryAddress::get();
+            let treasury_share = T::TreasuryGasFeeShare::get().mul(value);
+
+            Self::withdraw_on_finalize(&treasury, treasury_share).unwrap_or_else(|e| {
+                let treasury_balance = Self::reducible_balance(&treasury);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::spend_gas_to: withdraw to TREASURY on finalize failed. \
+                    Spending gas from - {account_id:?}, value - {treasury_share:?}, TREASURY reducible balance {treasury_balance:?} \
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
+
+            let value = value - treasury_share;
             Self::withdraw_on_finalize(to, value).unwrap_or_else(|e| {
                 let to_balance = Self::reducible_balance(to);
                 let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
 
                 let err_msg = format!(
                     "pallet_gear_bank::spend_gas_to: withdraw on finalize failed. \
-                    Spending gas from - {account_id:?}, to - {to:?}, amount - {amount}, receiver reducible balance {to_balance:?} \
+                    Spending gas from - {account_id:?}, to - {to:?}, value - {value:?}, receiver reducible balance {to_balance:?} \
                     bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
                     Got error - {e:?}"
                 );
