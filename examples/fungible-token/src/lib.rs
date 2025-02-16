@@ -18,6 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
+
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -31,3 +34,82 @@ pub const WASM_BINARY: &[u8] = &[];
 
 #[cfg(not(feature = "std"))]
 pub mod wasm;
+
+use core::ops::Range;
+use gstd::{prelude::*, ActorId};
+
+#[derive(Debug, Decode, Encode, TypeInfo)]
+pub struct InitConfig {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+    pub initial_capacity: Option<u32>,
+}
+
+#[derive(Debug, Decode, Encode, TypeInfo)]
+pub enum FTAction {
+    TestSet(Range<u64>, u128),
+    Mint(u128),
+    Burn(u128),
+    Transfer {
+        from: ActorId,
+        to: ActorId,
+        amount: u128,
+    },
+    Approve {
+        to: ActorId,
+        amount: u128,
+    },
+    TotalSupply,
+    BalanceOf(ActorId),
+}
+
+#[derive(Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+pub enum FTEvent {
+    Transfer {
+        from: ActorId,
+        to: ActorId,
+        amount: u128,
+    },
+    Approve {
+        from: ActorId,
+        to: ActorId,
+        amount: u128,
+    },
+    TotalSupply(u128),
+    Balance(u128),
+}
+
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo)]
+pub struct IoFungibleToken {
+    pub name: String,
+    pub symbol: String,
+    pub total_supply: u128,
+    pub balances: Vec<(ActorId, u128)>,
+    pub allowances: Vec<(ActorId, Vec<(ActorId, u128)>)>,
+    pub decimals: u8,
+}
+
+impl InitConfig {
+    pub fn test_sequence() -> Self {
+        InitConfig {
+            name: "MyToken".to_string(),
+            symbol: "MTK".to_string(),
+            decimals: 18,
+            initial_capacity: None,
+        }
+    }
+}
+
+impl IoFungibleToken {
+    pub fn test_sequence() -> Self {
+        IoFungibleToken {
+            name: "MyToken".to_string(),
+            symbol: "MTK".to_string(),
+            total_supply: 0,
+            balances: vec![],
+            allowances: vec![],
+            decimals: 18,
+        }
+    }
+}
