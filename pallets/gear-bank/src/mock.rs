@@ -21,13 +21,12 @@ use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstU32, FindAuthor},
     weights::constants::RocksDbWeight,
-    PalletId,
 };
 use primitive_types::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
-    traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
-    BuildStorage, Perbill, Percent,
+    traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage, Percent,
 };
 
 pub type AccountId = u8;
@@ -68,7 +67,6 @@ parameter_types! {
     pub const TreasuryGasFeeShare: Percent = Percent::from_percent(50);
     pub const TreasuryTxFeeShare: Percent = Percent::zero();
     // TODO: Issue #4058
-    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = Some((Perbill::from_percent(50), PalletId(*b"py/trsry").into_account_truncating()));
     pub SplitTxFeeRatio: Option<u32> = None;
 }
 

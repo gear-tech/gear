@@ -64,7 +64,6 @@ macro_rules! impl_config_inner {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
-            type SplitGasFeeRatio = SplitGasFeeRatio;
             type SplitTxFeeRatio = SplitTxFeeRatio;
             type TreasuryAddress = GearBankConfigTreasuryAddress;
             type TreasuryGasFeeShare = GearBankConfigTreasuryGasFeeShare;
@@ -119,7 +118,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::{traits::Zero, Perbill, Percent};
+    use sp_runtime::{traits::Zero, Percent};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -151,8 +150,6 @@ pub mod pallet {
 
         #[pallet::constant]
         type TreasuryTxFeeShare: Get<Percent>;
-
-        type SplitGasFeeRatio: Get<Option<(Perbill, AccountIdOf<Self>)>>;
 
         /// The ratio of how much of the tx fees goes to the treasury
         type SplitTxFeeRatio: Get<Option<u32>>;

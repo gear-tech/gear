@@ -36,7 +36,7 @@ use primitive_types::H256;
 use sp_runtime::{
     testing::TestXt,
     traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
-    BuildStorage, Perbill,
+    BuildStorage,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -121,7 +121,6 @@ parameter_types! {
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
-    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
     pub SplitTxFeeRatio: Option<u32> = None;
 }
 
