@@ -102,7 +102,7 @@ pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use core::ops::{Add, Mul};
+    use core::ops::Add;
     use frame_support::{
         ensure,
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
@@ -506,7 +506,7 @@ pub mod pallet {
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
             let treasury = T::TreasuryAddress::get();
-            let treasury_share = T::TreasuryGasFeeShare::get().mul(value);
+            let treasury_share = T::TreasuryGasFeeShare::get() * value;
 
             Self::withdraw_on_finalize(&treasury, treasury_share).unwrap_or_else(|e| {
                 let treasury_balance = Self::reducible_balance(&treasury);
