@@ -27,7 +27,7 @@ use primitive_types::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
     traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
-    BuildStorage, Perbill,
+    BuildStorage, Perbill, Percent,
 };
 
 pub type AccountId = u8;
@@ -65,6 +65,8 @@ parameter_types! {
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
+    pub const TreasuryGasFeeShare: Percent = Percent::from_percent(50);
+    pub const TreasuryTxFeeShare: Percent = Percent::zero();
     // TODO: Issue #4058
     pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = Some((Perbill::from_percent(50), PalletId(*b"py/trsry").into_account_truncating()));
     pub SplitTxFeeRatio: Option<u32> = None;

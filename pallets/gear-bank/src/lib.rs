@@ -41,14 +41,53 @@ use frame_support::traits::{
 
 #[macro_export]
 macro_rules! impl_config {
-    ($runtime:ty) => {
+    ($( $tokens:tt )*) => {
+        #[allow(dead_code)]
+        type GearBankConfigTreasuryAddress = ();
+        #[allow(dead_code)]
+        type GearBankConfigTreasuryGasFeeShare = ();
+        #[allow(dead_code)]
+        type GearBankConfigTreasuryTxFeeShare = ();
+
+        mod pallet_tests_gear_bank_config_impl {
+            use super::*;
+
+            $crate::impl_config_inner!($( $tokens )*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_config_inner {
+    ($runtime:ty$(,)?) => {
         impl pallet_gear_bank::Config for $runtime {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
             type SplitGasFeeRatio = SplitGasFeeRatio;
             type SplitTxFeeRatio = SplitTxFeeRatio;
+            type TreasuryAddress = GearBankConfigTreasuryAddress;
+            type TreasuryGasFeeShare = GearBankConfigTreasuryGasFeeShare;
+            type TreasuryTxFeeShare = GearBankConfigTreasuryTxFeeShare;
         }
+    };
+
+    ($runtime:ty, TreasuryAddress = $treasury_address:ty $(, $( $rest:tt )*)?) => {
+        type GearBankConfigTreasuryAddress = $treasury_address;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, TreasuryGasFeeShare = $treasury_gas_fee_share:ty $(, $( $rest:tt )*)?) => {
+        type GearBankConfigTreasuryGasFeeShare = $treasury_gas_fee_share;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, TreasuryTxFeeShare = $treasury_tx_fee_share:ty $(, $( $rest:tt )*)?) => {
+        type GearBankConfigTreasuryTxFeeShare = $treasury_tx_fee_share;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
 }
 
@@ -80,7 +119,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::{traits::Zero, Perbill};
+    use sp_runtime::{traits::Zero, Perbill, Percent};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -95,13 +134,23 @@ pub mod pallet {
             + LockableCurrency<AccountIdOf<Self>>
             + fungible::Unbalanced<AccountIdOf<Self>, Balance = BalanceOf<Self>>;
 
-        #[pallet::constant]
         /// Bank account address, that will keep all reserved funds.
+        #[pallet::constant]
         type BankAddress: Get<AccountIdOf<Self>>;
 
-        #[pallet::constant]
         /// Gas price converter.
+        #[pallet::constant]
         type GasMultiplier: Get<GasMultiplier<Self>>;
+
+        // TODO: consider making treasury related constant as storage items to support onchain updates #4058.
+        #[pallet::constant]
+        type TreasuryAddress: Get<AccountIdOf<Self>>;
+
+        #[pallet::constant]
+        type TreasuryGasFeeShare: Get<Percent>;
+
+        #[pallet::constant]
+        type TreasuryTxFeeShare: Get<Percent>;
 
         type SplitGasFeeRatio: Get<Option<(Perbill, AccountIdOf<Self>)>>;
 
