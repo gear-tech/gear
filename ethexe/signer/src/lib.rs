@@ -115,13 +115,21 @@ impl PublicKey {
         hex::encode(self.0)
     }
 
-    pub fn to_address(&self) -> Address {
+    pub fn to_uncompressed(&self) -> [u8; 64] {
         let public_key_uncompressed = secp256k1::PublicKey::from_slice(&self.0)
             .expect("Invalid public key")
             .serialize_uncompressed();
 
+        public_key_uncompressed[1..]
+            .try_into()
+            .expect("Slice should be exactly 64 bytes")
+    }
+
+    pub fn to_address(&self) -> Address {
+        let public_key_uncompressed = self.to_uncompressed();
+
         let mut address = Address::default();
-        let hash = sha3::Keccak256::digest(&public_key_uncompressed[1..]);
+        let hash = sha3::Keccak256::digest(public_key_uncompressed);
         address.0[..20].copy_from_slice(&hash[12..]);
 
         address

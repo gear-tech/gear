@@ -63,6 +63,8 @@ pub(crate) mod utils {
     use alloy::primitives::{FixedBytes, Uint};
     use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
 
+    pub use alloy::primitives::Bytes;
+
     pub type Bytes32 = FixedBytes<32>;
     pub type Uint256 = Uint<256, 4>;
     pub type Uint48 = Uint<48, 1>;

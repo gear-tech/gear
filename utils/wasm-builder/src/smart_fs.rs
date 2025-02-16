@@ -21,7 +21,6 @@
 //! because cargo looks for `mtime` metadata file parameter
 
 use anyhow::Result;
-use gmeta::MetadataRepr;
 use std::{fs, io::ErrorKind, path::Path};
 
 pub(crate) fn copy_if_newer(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<bool> {
@@ -68,29 +67,6 @@ pub(crate) fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Res
 
     if check_changed(path, contents)? {
         fs::write(path, contents)?;
-    }
-
-    Ok(())
-}
-
-fn check_metadata_changed(path: &Path, metadata: &MetadataRepr) -> Result<bool> {
-    if !path.exists() {
-        return Ok(true);
-    }
-
-    let old_metadata = fs::read(path)?;
-    let Ok(old_metadata) = MetadataRepr::from_hex(old_metadata) else {
-        return Ok(true);
-    };
-
-    Ok(old_metadata != *metadata)
-}
-
-pub(crate) fn write_metadata<P: AsRef<Path>>(path: P, metadata: &MetadataRepr) -> Result<()> {
-    let path = path.as_ref();
-
-    if check_metadata_changed(path, metadata)? {
-        fs::write(path, metadata.hex())?;
     }
 
     Ok(())

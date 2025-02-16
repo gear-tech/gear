@@ -29,7 +29,7 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType, VerifyingShare};
+use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
@@ -295,20 +295,12 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn validators_verifying_shares(&self) -> Result<Vec<VerifyingShare>> {
+    pub async fn validators_verifiable_secret_sharing_commitment(&self) -> Result<Vec<u8>> {
         self.instance
-            .validatorsVerifyingShares()
+            .validatorsVerifiableSecretSharingCommitment()
             .call()
             .await
-            .map(|res| {
-                res._0
-                    .into_iter()
-                    .map(|v| VerifyingShare {
-                        x: uint256_to_u256(v.x),
-                        y: uint256_to_u256(v.y),
-                    })
-                    .collect()
-            })
+            .map(|res| res._0.into())
             .map_err(Into::into)
     }
 
