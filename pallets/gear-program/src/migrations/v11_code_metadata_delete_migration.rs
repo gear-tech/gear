@@ -144,10 +144,7 @@ mod v10 {
     }
 
     use crate::{Config, Pallet};
-    use frame_support::{
-        storage::types::StorageValue,
-        traits::{PalletInfo, StorageInstance},
-    };
+    use frame_support::traits::{PalletInfo, StorageInstance};
 
     use sp_std::marker::PhantomData;
 

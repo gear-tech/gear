@@ -176,7 +176,7 @@ mod v12 {
 
     use crate::{Config, Pallet};
     use frame_support::{
-        storage::types::{StorageMap, StorageValue},
+        storage::types::StorageMap,
         traits::{PalletInfo, StorageInstance},
         Identity,
     };
