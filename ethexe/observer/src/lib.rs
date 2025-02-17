@@ -81,6 +81,7 @@ pub enum ObserverEvent {
 pub struct ObserverService {
     provider: Provider,
     database: Box<dyn BlocksOnChainData>,
+    // TODO (gsobol): consider to make BlobRead: Sync + Send, in order to avoid Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
     subscription: Subscription<Header>,
 

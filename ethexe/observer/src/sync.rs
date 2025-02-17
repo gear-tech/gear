@@ -20,7 +20,7 @@
 
 use crate::{BlobReader, Provider};
 use alloy::rpc::types::eth::Header;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{
     db::BlocksOnChainData,
     events::{BlockEvent, RouterEvent},
@@ -42,7 +42,6 @@ use std::{
 pub(crate) struct ChainSync {
     pub provider: Provider,
     pub database: Box<dyn BlocksOnChainData>,
-    // TODO (gsobol): consider to make BlobRead: Sync + Send, in order to avoid Arc usage.
     pub blobs_reader: Arc<dyn BlobReader>,
     pub router_address: Address,
     pub wvara_address: Address,
@@ -52,56 +51,78 @@ pub(crate) struct ChainSync {
 
 impl ChainSync {
     pub async fn sync(self, chain_head: Header) -> Result<(H256, Vec<(CodeId, CodeInfo)>)> {
-        let latest_synced_block_height =
-            self.database
-                .latest_synced_block_height()
-                .unwrap_or_else(|| {
-                    unreachable!("latest_synced_block_height must be set in ObserverService::new")
-                });
-
+        let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
             height: chain_head.number as u32,
             timestamp: chain_head.timestamp,
             parent_hash: H256(chain_head.parent_hash.0),
         };
 
-        let mut blocks_data = if header.height <= latest_synced_block_height {
+        let blocks_data = self.pre_load_data(&header).await?;
+
+        let (chain, codes_to_load_now, codes_to_load_later) =
+            self.load_chain(block, header, blocks_data).await?;
+
+        self.load_codes(codes_to_load_now.into_iter()).await?;
+
+        // NOTE: reverse order is important here, because by default chain was loaded in order from head to past.
+        self.mark_chain_as_synced(chain.into_iter().rev()).await;
+
+        Ok((block, codes_to_load_later))
+    }
+
+    async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
+        let Some(latest_synced_block_height) = self.database.latest_synced_block_height() else {
+            log::warn!("latest_synced_block_height is not set in the database");
+            return Ok(Default::default());
+        };
+
+        if header.height <= latest_synced_block_height {
             log::warn!(
                 "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
                 latest_synced_block_height
             );
-            Default::default()
-        } else {
-            if (header.height - latest_synced_block_height) >= self.max_sync_depth {
-                // TODO (gsobol): return an event to notify about too deep chain.
-                return Err(anyhow!(
+            // Suppose here that all data is already in db.
+            return Ok(Default::default());
+        }
+
+        if (header.height - latest_synced_block_height) >= self.max_sync_depth {
+            // TODO (gsobol): return an event to notify about too deep chain.
+            return Err(anyhow!(
                     "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
                     header.height,
                     latest_synced_block_height,
                     self.max_sync_depth
                 ));
-            }
+        }
 
-            if header.height - latest_synced_block_height > self.batched_sync_depth {
-                crate::load_blocks_data_batched(
-                    self.provider.clone(),
-                    latest_synced_block_height as u64,
-                    header.height as u64,
-                    self.router_address,
-                    self.wvara_address,
-                )
-                .await?
-            } else {
-                Default::default()
-            }
-        };
+        if header.height - latest_synced_block_height < self.batched_sync_depth {
+            // No need to pre load data because amount of blocks is small enough.
+            return Ok(Default::default());
+        }
 
+        crate::load_blocks_data_batched(
+            self.provider.clone(),
+            latest_synced_block_height as u64,
+            header.height as u64,
+            self.router_address,
+            self.wvara_address,
+        )
+        .await
+    }
+
+    async fn load_chain(
+        &self,
+        block: H256,
+        header: BlockHeader,
+        mut blocks_data: HashMap<H256, BlockData>,
+    ) -> Result<(Vec<H256>, HashSet<CodeId>, Vec<(CodeId, CodeInfo)>)> {
+        let mut chain = Vec::new();
         let mut codes_to_load_now = HashSet::new();
         let mut codes_to_load_later = HashMap::new();
-        let mut chain = Vec::new();
 
-        let mut hash = H256(chain_head.hash.0);
+        let mut hash = block;
         while !self.database.block_is_synced(hash) {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
@@ -111,7 +132,7 @@ impl ChainSync {
                         hash,
                         self.router_address,
                         self.wvara_address,
-                        (hash == H256(chain_head.hash.0)).then_some(header.clone()),
+                        (hash == block).then_some(header.clone()),
                     )
                     .await?
                 }
@@ -164,11 +185,19 @@ impl ChainSync {
             hash = block_data.header.parent_hash;
         }
 
+        Ok((
+            chain,
+            codes_to_load_now,
+            codes_to_load_later.into_iter().collect(),
+        ))
+    }
+
+    async fn load_codes(&self, codes: impl Iterator<Item = CodeId>) -> Result<()> {
         // TODO (gsobol): consider to change this behaviour of loading already validated codes.
         // Must be done with ObserverService::codes_futures together.
         // May be we should use futures_bounded::FuturesMap for this.
         let codes_futures = FuturesUnordered::new();
-        for code_id in codes_to_load_now {
+        for code_id in codes {
             let code_info = self
                 .database
                 .code_info(code_id)
@@ -191,63 +220,20 @@ impl ChainSync {
             self.database.set_original_code(code_id, code.as_slice());
         }
 
-        for hash in chain.iter().rev() {
+        Ok(())
+    }
+
+    async fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
+        for hash in chain {
             let block_header = self
                 .database
-                .block_header(*hash)
+                .block_header(hash)
                 .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
 
-            // Setting block as synced means: all on-chain data for this block is loaded and at least all positive validated codes are loaded.
-            self.database.set_block_is_synced(*hash);
+            self.database.set_block_is_synced(hash);
 
             self.database
                 .set_latest_synced_block_height(block_header.height);
         }
-
-        Ok((
-            chain_head.hash.0.into(),
-            codes_to_load_later.into_iter().collect(),
-        ))
-    }
-
-    async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let Some(latest_synced_block_height) = self.database.latest_synced_block_height() else {
-            log::warn!("latest_synced_block_height is not set in the database");
-            return Ok(Default::default());
-        };
-
-        if header.height <= latest_synced_block_height {
-            log::warn!(
-                "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
-                header.height,
-                latest_synced_block_height
-            );
-            // Suppose here that all data is already loaded.
-            return Ok(Default::default());
-        }
-
-        if (header.height - latest_synced_block_height) >= self.max_sync_depth {
-            // TODO (gsobol): return an event to notify about too deep chain.
-            return Err(anyhow!(
-                    "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
-                    header.height,
-                    latest_synced_block_height,
-                    self.max_sync_depth
-                ));
-        }
-
-        if header.height - latest_synced_block_height < self.batched_sync_depth {
-            // No need to pre load data because amount of blocks is small enough.
-            return Ok(Default::default());
-        }
-
-        crate::load_blocks_data_batched(
-            self.provider.clone(),
-            latest_synced_block_height as u64,
-            header.height as u64,
-            self.router_address,
-            self.wvara_address,
-        )
-        .await
     }
 }
