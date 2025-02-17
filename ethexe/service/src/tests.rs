@@ -1084,7 +1084,7 @@ async fn tx_pool_gossip() {
 
     // Send request
     log::info!("Sending tx pool request to node-1");
-    let rpc_client = RpcClient::new(node0.service_rpc_url().expect("rpc server is set"));
+    let rpc_client = node0.rpc_client().expect("rpc server is set");
     let resp = rpc_client
         .send_message(
             signed_ethexe_tx.transaction.clone(),
@@ -1897,10 +1897,10 @@ mod utils {
             self.multiaddr = None;
         }
 
-        pub fn service_rpc_url(&self) -> Option<String> {
+        pub fn rpc_client(&self) -> Option<RpcClient> {
             self.service_rpc_config
                 .as_ref()
-                .map(|rpc| format!("http://{}", rpc.listen_addr))
+                .map(|rpc| RpcClient::new(format!("http://{}", rpc.listen_addr)))
         }
     }
 

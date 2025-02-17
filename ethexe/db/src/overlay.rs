@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{CASDatabase, KVDatabase, MemDb};
-use gear_core::ids::hash;
+use gear_core::utils;
 use gprimitives::H256;
 use std::collections::HashSet;
 
@@ -98,7 +98,7 @@ impl KVDatabase for KVOverlay {
         let mut known_keys = HashSet::new();
 
         let filtered_iter =
-            full_iter.filter_map(move |(k, v)| known_keys.insert(hash(&k)).then_some((k, v)));
+            full_iter.filter_map(move |(k, v)| known_keys.insert(utils::hash(&k)).then_some((k, v)));
 
         Box::new(filtered_iter)
     }

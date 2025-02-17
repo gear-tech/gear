@@ -63,7 +63,8 @@ use core_processor::{
 use frame_support::dispatch::extract_actual_weight;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{hash, ProgramId},
+    utils::hash,
+    ids::ProgramId,
     message::{
         ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
     },
