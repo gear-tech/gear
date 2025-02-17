@@ -20,7 +20,7 @@ use crate::metadata::Metadata;
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use colored::Colorize;
-use gear_wasm_optimizer::{self as optimize, CargoCommand, OptType, Optimizer};
+use gear_wasm_optimizer::{self as optimize, CargoCommand, Optimizer};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -56,11 +56,9 @@ impl Artifacts {
         env::set_current_dir(&metadata.workspace_root);
 
         // Collect all possible packages from metadata
-        let mut artifacts: Vec<Artifact> =
-            collect_crates(&cwd, &metadata.gbuild.programs, OptType::Opt)?
-                .into_iter()
-                .chain(collect_crates(&cwd, &metadata.gbuild.metas, OptType::Meta)?)
-                .collect();
+        let mut artifacts: Vec<Artifact> = collect_crates(&cwd, &metadata.gbuild.programs)?
+            .into_iter()
+            .collect();
 
         // If not using workspace build, filter out the matched package
         // from metas and programs.
@@ -76,7 +74,6 @@ impl Artifacts {
                 if manifest.package.is_some() {
                     artifacts = vec![Artifact {
                         manifest: metadata.manifest,
-                        opt: OptType::Opt,
                         name: manifest.package().name.clone(),
                     }];
                 }
@@ -127,8 +124,6 @@ impl Artifacts {
 pub struct Artifact {
     /// The original manifest path.
     pub manifest: PathBuf,
-    /// Optimization type
-    pub opt: OptType,
     /// Program name of this artifact.
     pub name: String,
 }
@@ -138,11 +133,7 @@ impl Artifact {
     fn names(&self) -> (String, String) {
         let name = self.name.replace('-', "_");
         let input = name.clone() + ".wasm";
-        let output = if self.opt.is_meta() {
-            name + ".meta.wasm"
-        } else {
-            input.clone()
-        };
+        let output = input.clone();
         (input, output)
     }
 
@@ -152,13 +143,11 @@ impl Artifact {
         let output = root.join(output);
 
         let mut optimizer = Optimizer::new(&src.join(input))?;
-        if !self.opt.is_meta() {
-            optimizer
-                .insert_stack_end_export()
-                .map_err(|e| anyhow!("{e}"));
-            optimizer.strip_custom_sections();
-            optimizer.strip_exports(OptType::Opt);
-        }
+        optimizer
+            .insert_stack_end_export()
+            .map_err(|e| anyhow!("{e}"));
+        optimizer.strip_custom_sections();
+        optimizer.strip_exports();
         optimizer.flush_to_file(&output);
 
         optimize::optimize_wasm(&output, &output, "4", true)?;
@@ -168,7 +157,7 @@ impl Artifact {
 }
 
 /// Collection crate manifests from the provided glob patterns.
-fn collect_crates(cwd: &Path, patterns: &[String], opt: OptType) -> Result<Vec<Artifact>> {
+fn collect_crates(cwd: &Path, patterns: &[String]) -> Result<Vec<Artifact>> {
     let cwd = env::current_dir()?;
     let mut crates: Vec<PathBuf> = Default::default();
     for p in patterns {
@@ -220,7 +209,6 @@ fn collect_crates(cwd: &Path, patterns: &[String], opt: OptType) -> Result<Vec<A
 
             Ok(Artifact {
                 name: toml.package().name().into(),
-                opt,
                 manifest,
             })
         })
