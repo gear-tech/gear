@@ -617,6 +617,7 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
             gas_amount: gas_counter.to_amount(),
             gas_reserver,
             system_reservation_context,
+            // `allocations_changed` can be some times `true` event if final state of allocations is the same as before execution
             allocations: allocations_changed.then_some(allocations),
             pages_data,
             generated_dispatches,

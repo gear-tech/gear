@@ -236,6 +236,7 @@ pub trait Memory<Context> {
 pub struct AllocationsContext {
     /// Pages which has been in storage before execution
     allocations: IntervalsTree<WasmPage>,
+    /// Shows that `allocations` was modified at least once per execution
     allocations_changed: bool,
     heap: Option<Interval<WasmPage>>,
     static_pages: WasmPagesAmount,
@@ -478,11 +479,12 @@ impl AllocationsContext {
     /// Currently running program should own this pages.
     pub fn free_range(&mut self, interval: Interval<WasmPage>) -> Result<(), AllocError> {
         if let Some(heap) = self.heap {
+            // `free_range` allows do not modify the allocations so we do not check the `remove` result here
             if interval.start() >= heap.start() && interval.end() <= heap.end() {
-                // Ignoring the result because `free_range` allows do not modify the allocations
-                self.allocations.remove(interval);
+                if self.allocations.remove(interval) {
+                    self.allocations_changed = true;
+                }
 
-                self.allocations_changed = true;
                 return Ok(());
             }
         }
