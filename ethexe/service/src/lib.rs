@@ -19,7 +19,11 @@
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
-use ethexe_common::{events::BlockEvent, gear::{BlockCommitment, CodeCommitment}, SimpleBlockData};
+use ethexe_common::{
+    events::BlockEvent,
+    gear::{BlockCommitment, CodeCommitment},
+    SimpleBlockData,
+};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -36,10 +40,7 @@ use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
 use parity_scale_codec::{Decode, Encode};
 use std::sync::Arc;
-use tokio::sync::{
-    broadcast::{self, Receiver, Sender},
-    Mutex,
-};
+use tokio::sync::broadcast::{Receiver, Sender};
 
 pub mod config;
 
@@ -52,21 +53,22 @@ pub enum ServiceEvent {
     Sequencer(SequencerEvent),
     Network(NetworkEvent),
     Prometheus(PrometheusEvent),
+    Compute(ComputeEvent),
     ServiceStarted,
 }
 
 pub struct EventsPublisher {
-    broadcaster: Arc<Mutex<Sender<ServiceEvent>>>,
+    broadcaster: Sender<ServiceEvent>,
 }
 
 impl EventsPublisher {
     pub async fn subscribe(&self) -> EventsListener {
         EventsListener {
-            receiver: self.broadcaster.lock().await.subscribe(),
+            receiver: self.broadcaster.subscribe(),
         }
     }
 
-    pub fn from_broadcaster(broadcaster: Arc<Mutex<Sender<ServiceEvent>>>) -> Self {
+    pub fn from_broadcaster(broadcaster: Sender<ServiceEvent>) -> Self {
         Self { broadcaster }
     }
 }
@@ -153,7 +155,7 @@ pub struct Service {
     rpc: Option<ethexe_rpc::RpcService>,
 
     // Event broadcasting
-    event_sender: Arc<Mutex<Sender<ServiceEvent>>>,
+    sender: Sender<ServiceEvent>,
 }
 
 // TODO: consider to move this to another module #4176
@@ -173,16 +175,8 @@ pub enum NetworkMessage {
 }
 
 impl Service {
-    pub fn events(&self) -> EventsPublisher {
-        EventsPublisher {
-            broadcaster: self.event_sender.clone(),
-        }
-    }
-
     pub async fn new(config: &Config) -> Result<Self> {
-        let (sender, _) = broadcast::channel(2048); // Buffer size of 2048 events
-        let event_sender = Arc::new(Mutex::new(sender));
-
+        let (sender, _) = tokio::sync::broadcast::channel(2048); // Buffer size of 2048 events
         let mock_blob_reader: Option<Arc<MockBlobReader>> = if config.node.dev {
             Some(Arc::new(MockBlobReader::new(config.ethereum.block_time)))
         } else {
@@ -349,7 +343,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
-            event_sender,
+            sender,
         })
     }
 
@@ -375,7 +369,7 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         prometheus: Option<PrometheusService>,
         rpc: Option<ethexe_rpc::RpcService>,
-        event_sender: Arc<Mutex<Sender<ServiceEvent>>>,
+        sender: Sender<ServiceEvent>,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
 
@@ -390,7 +384,7 @@ impl Service {
             validator,
             prometheus,
             rpc,
-            event_sender,
+            sender,
         }
     }
 
@@ -413,11 +407,8 @@ impl Service {
             mut validator,
             mut prometheus,
             rpc,
-            event_sender,
+            sender,
         } = self;
-
-        // Broadcast service started event
-        let _ = event_sender.lock().await.send(ServiceEvent::ServiceStarted);
 
         let (mut rpc_handle, mut rpc_receiver) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
@@ -437,12 +428,14 @@ impl Service {
             roles.push_str(&format!(", Validator ({})", val.address()));
         }
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
+        // Broadcast service started event
+        let _ = sender.send(ServiceEvent::ServiceStarted);
 
         loop {
             tokio::select! {
                 event = observer.select_next_some() => {
                     let event = event?;
-                    let _ = event_sender.lock().await.send(ServiceEvent::Observer(event.clone()));
+                    let _ = sender.send(ServiceEvent::Observer(event.clone()));
 
                     match event {
                         ObserverEvent::Blob { code_id, timestamp, code } => compute.receive_code(code_id, timestamp, code),
@@ -450,7 +443,9 @@ impl Service {
                     }
                 },
                 event = compute.select_next_some() => {
-                    match event? {
+                    let event = event?;
+                    let _ = sender.send(ServiceEvent::Compute(event.clone()));
+                    match event {
                         ComputeEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
                             // TODO (gsobol): must be done in observer event handling
                             if let Some(s) = sequencer.as_mut() {
@@ -514,7 +509,7 @@ impl Service {
                     }
                 },
                 event = sequencer.maybe_next_some() => {
-                    let _ = event_sender.lock().await.send(ServiceEvent::Sequencer(event.clone()));
+                    let _ = sender.send(ServiceEvent::Sequencer(event.clone()));
 
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
@@ -573,7 +568,7 @@ impl Service {
                     }
                 },
                 event = network.maybe_next_some() => {
-                    let _ = event_sender.lock().await.send(ServiceEvent::Network(event.clone()));
+                    let _ = sender.send(ServiceEvent::Network(event.clone()));
 
                     match event {
                         NetworkEvent::Message { source, data } => {
@@ -641,7 +636,7 @@ impl Service {
                     }
                 },
                 event = prometheus.maybe_next_some() => {
-                    let _ = event_sender.lock().await.send(ServiceEvent::Prometheus(event.clone()));
+                    let _ = sender.send(ServiceEvent::Prometheus(event.clone()));
 
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");

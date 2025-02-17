@@ -994,13 +994,18 @@ async fn multiple_validators() {
             .network(None, sequencer.multiaddr.clone())
             .db(validator2.db),
     );
-    validator2.start_service().await;
 
+    validator2.start_service().await;
+    // wait for new block
+    tokio::time::sleep(env.block_time).await;
     // IMPORTANT: mine one block to sent a new block event.
     env.force_new_block().await;
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
     assert_eq!(res.payload, res.message_id.encode().as_slice());
+    drop(validator2);
+    drop(validator1);
+    drop(validator0);
 }
 
 mod utils {
@@ -1272,11 +1277,12 @@ mod utils {
             });
 
             let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
-            let (broadcaster, _receiver) = tokio::sync::broadcast::channel(2048);
+
             Node {
                 db,
                 multiaddr: None,
-                broadcaster: Arc::new(Mutex::new(broadcaster)),
+                broadcaster: None,
+                receiver: None,
                 rpc_url: self.rpc_url.clone(),
                 genesis_block_hash: self.genesis_block_hash,
                 blob_reader: self.blob_reader.clone(),
@@ -1639,7 +1645,8 @@ mod utils {
         pub db: Database,
         pub multiaddr: Option<String>,
 
-        broadcaster: Arc<Mutex<Sender<ServiceEvent>>>,
+        broadcaster: Option<Sender<ServiceEvent>>,
+        receiver: Option<broadcast::Receiver<ServiceEvent>>,
         rpc_url: String,
         genesis_block_hash: H256,
         blob_reader: Arc<MockBlobReader>,
@@ -1732,7 +1739,10 @@ mod utils {
                         self.signer.clone(),
                     )
                 });
+            let (sender, receiver) = broadcast::channel(2048);
 
+            self.receiver = Some(receiver);
+            self.broadcaster = Some(sender.clone());
             let service = Service::new_from_parts(
                 self.db.clone(),
                 self.observer.clone(),
@@ -1745,7 +1755,7 @@ mod utils {
                 validator,
                 None,
                 None,
-                self.broadcaster.clone(),
+                sender,
             );
 
             let handle = task::spawn(service.run());
@@ -1762,6 +1772,8 @@ mod utils {
                 .take()
                 .expect("Service is not running");
             handle.abort();
+            self.broadcaster = None;
+            self.receiver = None;
             let _ = handle.await;
             self.multiaddr = None;
         }
@@ -1771,7 +1783,7 @@ mod utils {
             &mut self,
             f: impl FnMut(ServiceEvent) -> Result<bool>,
         ) -> Result<()> {
-            EventsPublisher::from_broadcaster(self.broadcaster.clone())
+            EventsPublisher::from_broadcaster(self.broadcaster.clone().unwrap())
                 .subscribe()
                 .await
                 .wait_for(f)
