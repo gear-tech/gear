@@ -1755,7 +1755,7 @@ mod utils {
                 validator,
                 None,
                 None,
-                sender,
+                Some(sender),
             );
 
             let handle = task::spawn(service.run());
