@@ -35,7 +35,6 @@ use futures::{
     FutureExt, Stream, StreamExt,
 };
 use gprimitives::{CodeId, H256};
-use observer::*;
 use std::{
     collections::VecDeque,
     pin::Pin,
@@ -44,12 +43,13 @@ use std::{
     time::Duration,
 };
 use sync::ChainSync;
+use utils::*;
 
 pub type Provider = RootProvider<BoxTransport>;
 
 mod blobs;
-mod observer;
 mod sync;
+mod utils;
 
 #[cfg(test)]
 mod tests;
@@ -248,7 +248,7 @@ impl ObserverService {
 
     fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
         self.codes_futures
-            .push(Box::pin(observer::read_code_from_tx_hash(
+            .push(Box::pin(utils::read_code_from_tx_hash(
                 self.blobs_reader.clone(),
                 code_id,
                 timestamp,
