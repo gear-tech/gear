@@ -47,22 +47,31 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     let (program_id, original_code_id, state_root, maybe_instrumented_code) =
         Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
 
-    let journal = run::run(
+    let program_journals = run::run(
         program_id,
         original_code_id,
         state_root,
         maybe_instrumented_code,
     );
 
-    let res: Vec<_> = journal.into_iter().map(return_val).collect();
+    // Split to chunks to prevent alloc limit (32MiB)
+    let res: Vec<_> = program_journals
+        .into_iter()
+        .flat_map(|(journal, origin)| {
+            let chunks = journal.encoded_size() / 32 * 1024 * 1024 + 1; // never zero
+            let chunk_size = (journal.len() / chunks).max(1); // never zero
+
+            let chunked_journal: Vec<_> = journal
+                .chunks(chunk_size)
+                .map(|chunk| (chunk, origin))
+                .map(return_val)
+                .collect();
+
+            chunked_journal
+        })
+        .collect();
+
     return_val(res)
-
-    //let chunks = journal.encoded_size() / 32 * 1024 * 1024 + 1; // never zero
-    //let chunk_size = (journal.len() / chunks).max(1); // never zero
-
-    //let chunked_journal: Vec<_> = journal.chunks(chunk_size).map(return_val).collect();
-
-    //return_val((chunked_journal, origin))
 }
 
 fn get_vec(ptr: i32, len: i32) -> Vec<u8> {
