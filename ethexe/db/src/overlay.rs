@@ -97,8 +97,8 @@ impl KVDatabase for KVOverlay {
 
         let mut known_keys = HashSet::new();
 
-        let filtered_iter =
-            full_iter.filter_map(move |(k, v)| known_keys.insert(utils::hash(&k)).then_some((k, v)));
+        let filtered_iter = full_iter
+            .filter_map(move |(k, v)| known_keys.insert(utils::hash(&k)).then_some((k, v)));
 
         Box::new(filtered_iter)
     }

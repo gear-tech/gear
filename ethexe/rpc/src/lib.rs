@@ -216,10 +216,10 @@ pub enum RpcEvent {
 /// That is done for a future compatibility with centralized
 /// events broadcasting system, which requires events to be clonable.
 ///
-/// 
+///
 /// The response sender of `oneshot::Sender` type can't be cloned, so `Option`
 /// wraps the type and the field will be set to `None` in case the event is cloned.
-/// 
+///
 /// The event receiver expects response sender to be `Some` and will panic otherwise.  
 impl Clone for RpcEvent {
     fn clone(&self) -> Self {

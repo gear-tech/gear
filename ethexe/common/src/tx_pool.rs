@@ -22,10 +22,10 @@ use alloc::vec::Vec;
 use core::fmt;
 use gprimitives::{H160, H256};
 use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
 
 /// Ethexe transaction with a signature.
-#[derive(Clone, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct SignedOffchainTransaction {
     pub signature: Vec<u8>,
     pub transaction: OffchainTransaction,
@@ -66,7 +66,8 @@ impl fmt::Display for SignedOffchainTransaction {
 }
 
 /// Ethexe offchain transaction with a reference block for mortality.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct OffchainTransaction {
     pub raw: RawOffchainTransaction,
     pub reference_block: H256,
@@ -95,7 +96,8 @@ impl fmt::Display for OffchainTransaction {
 /// Raw ethexe offchain transaction.
 ///
 /// A particular job to be processed without external specifics.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RawOffchainTransaction {
     SendMessage { program_id: H160, payload: Vec<u8> },
 }
