@@ -576,11 +576,20 @@ impl Service {
                                         }
                                     }
                                 },
-                                NetworkMessage::RequestStartSession { signers: _, signing_package: _ } => {
-                                    if let Some(_v) = validator.as_mut() {
-                                        //TODO: check signers.contains(validator.address())
-                                        //TODO: check signers (all) are validators
-                                        //TODO: check signing_package.message == hash of the batch commitment
+                                NetworkMessage::RequestStartSession { signers, signing_package } => {
+                                    if let Some(v) = validator.as_mut() {
+                                        match v.handle_session_start(signers, signing_package) {
+                                            Ok((roast_data, signature)) => {
+                                                if let Some(n) = network.as_mut() {
+                                                    let message = NetworkMessage::ApproveCommitments {
+                                                        roast_data: Box::new(roast_data),
+                                                        signature,
+                                                    };
+                                                    n.publish_message(message.encode());
+                                                }
+                                            },
+                                            Err(e) => log::warn!("failed to handle session start: {e}"),
+                                        }
                                     }
                                 },
                             };
