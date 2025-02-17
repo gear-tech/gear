@@ -18,10 +18,9 @@
 
 //! ethexe common db types and traits.
 
-use crate::{
-    events::{BlockEvent, BlockRequestEvent},
-    gear::StateTransition,
-};
+// TODO (gsobol): move types to another module(s)
+
+use crate::{events::BlockEvent, gear::StateTransition};
 use alloc::{
     boxed::Box,
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -97,9 +96,6 @@ pub trait BlockMetaStorage: Send + Sync {
 
     fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
     fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
-
-    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockRequestEvent>>;
-    fn set_block_events(&self, block_hash: H256, events: Vec<BlockRequestEvent>);
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);

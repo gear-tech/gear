@@ -24,7 +24,7 @@ use crate::{
 };
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, BlocksOnChainData, CodeInfo, CodesStorage, Schedule},
-    events::{BlockEvent, BlockRequestEvent},
+    events::BlockEvent,
     gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
@@ -229,22 +229,6 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockRequestEvent>> {
-        self.kv
-            .get(&KeyPrefix::BlockEvents.two(self.router_address, block_hash))
-            .map(|data| {
-                Vec::<BlockRequestEvent>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<BlockEvent>`")
-            })
-    }
-
-    fn set_block_events(&self, block_hash: H256, events: Vec<BlockRequestEvent>) {
-        self.kv.put(
-            &KeyPrefix::BlockEvents.two(self.router_address, block_hash),
-            events.encode(),
-        );
-    }
-
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
         self.kv
             .get(&KeyPrefix::BlockOutcome.two(self.router_address, block_hash))
@@ -324,7 +308,7 @@ impl CodesStorage for Database {
 
     fn program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
         self.kv
-            .get(&KeyPrefix::ProgramToCodeId.one(program_id))
+            .get(&KeyPrefix::ProgramToCodeId.two(self.router_address, program_id))
             .map(|data| {
                 CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`")
             })
@@ -332,13 +316,15 @@ impl CodesStorage for Database {
 
     fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
         self.kv.put(
-            &KeyPrefix::ProgramToCodeId.one(program_id),
+            &KeyPrefix::ProgramToCodeId.two(self.router_address, program_id),
             code_id.into_bytes().to_vec(),
         );
     }
 
+    // TODO (gsobol): consider to move to another place
+    // TODO (gsobol): test this method
     fn program_ids(&self) -> BTreeSet<ProgramId> {
-        let key_prefix = KeyPrefix::ProgramToCodeId.prefix();
+        let key_prefix = KeyPrefix::ProgramToCodeId.one(self.router_address);
 
         self.kv
             .iter_prefix(&key_prefix)
@@ -382,26 +368,32 @@ impl CodesStorage for Database {
 
     fn code_info(&self, code_id: CodeId) -> Option<CodeInfo> {
         self.kv
-            .get(&KeyPrefix::CodeUpload.one(code_id))
+            .get(&KeyPrefix::CodeUpload.two(self.router_address, code_id))
             .map(|data| {
                 Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `CodeInfo`")
             })
     }
 
     fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo) {
-        self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), code_info.encode());
+        self.kv.put(
+            &KeyPrefix::CodeUpload.two(self.router_address, code_id),
+            code_info.encode(),
+        );
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
-        self.kv.get(&KeyPrefix::CodeValid.one(code_id)).map(|data| {
-            bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
-        })
+        self.kv
+            .get(&KeyPrefix::CodeValid.two(self.router_address, code_id))
+            .map(|data| {
+                bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
+            })
     }
 
-    fn set_code_valid(&self, code_id: CodeId, approved: bool) {
-        self.kv
-            .put(&KeyPrefix::CodeValid.one(code_id), approved.encode());
+    fn set_code_valid(&self, code_id: CodeId, valid: bool) {
+        self.kv.put(
+            &KeyPrefix::CodeValid.two(self.router_address, code_id),
+            valid.encode(),
+        );
     }
 }
 
@@ -627,23 +619,25 @@ impl BlocksOnChainData for Database {
         self.cas.write_by_hash(&hash, code);
     }
 
-    fn block_is_synced(&self, block_hash: H256) -> bool {
-        self.kv
-            .get(&KeyPrefix::BlockIsSynced.one(block_hash))
-            .is_some()
-    }
-
-    fn set_block_is_synced(&self, block_hash: H256) {
-        self.kv
-            .put(&KeyPrefix::BlockIsSynced.one(block_hash), vec![]);
-    }
-
     fn code_info(&self, code_id: CodeId) -> Option<CodeInfo> {
         CodesStorage::code_info(self, code_id)
     }
 
     fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo) {
         CodesStorage::set_code_info(self, code_id, code_info);
+    }
+
+    fn block_is_synced(&self, block_hash: H256) -> bool {
+        self.kv
+            .get(&KeyPrefix::BlockIsSynced.two(self.router_address, block_hash))
+            .is_some()
+    }
+
+    fn set_block_is_synced(&self, block_hash: H256) {
+        self.kv.put(
+            &KeyPrefix::BlockIsSynced.two(self.router_address, block_hash),
+            vec![],
+        );
     }
 
     fn latest_synced_block_height(&self) -> Option<u32> {

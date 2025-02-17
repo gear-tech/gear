@@ -1,13 +1,25 @@
-use crate::{BlobReader, Provider, MAX_QUERY_BLOCK_RANGE};
-use alloy::{
-    network::{Ethereum, Network},
-    primitives::Address as AlloyAddress,
-    providers::Provider as _,
-    rpc::{
-        client::BatchRequest,
-        types::{eth::Header, Filter},
-    },
-};
+// This file is part of Gear.
+//
+// Copyright (C) 2024-2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Implementation of the on-chain data synchronization.
+
+use crate::{BlobReader, Provider};
+use alloy::rpc::types::eth::Header;
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::BlocksOnChainData,
@@ -15,6 +27,7 @@ use ethexe_common::{
     BlockData,
 };
 use ethexe_db::{BlockHeader, CodeInfo};
+use ethexe_signer::Address;
 use futures::{
     future::{self},
     stream::FuturesUnordered,
@@ -29,181 +42,16 @@ use std::{
 pub(crate) struct ChainSync {
     pub provider: Provider,
     pub database: Box<dyn BlocksOnChainData>,
+    // TODO (gsobol): consider to make BlobRead: Sync + Send, in order to avoid Arc usage.
     pub blobs_reader: Arc<dyn BlobReader>,
-    pub router_address: AlloyAddress,
-    pub wvara_address: AlloyAddress,
+    pub router_address: Address,
+    pub wvara_address: Address,
     pub max_sync_depth: u32,
-    pub heuristic_sync_depth: u32,
+    pub batched_sync_depth: u32,
 }
 
 impl ChainSync {
-    async fn load_blocks_batch_data(
-        provider: Provider,
-        router_address: AlloyAddress,
-        wvara_address: AlloyAddress,
-        from_block: u64,
-        to_block: u64,
-    ) -> Result<Vec<BlockData>> {
-        log::trace!("Querying blocks from {from_block} to {to_block}");
-
-        let mut batch = BatchRequest::new(provider.client());
-
-        let headers_request: FuturesUnordered<_> = (from_block..=to_block)
-            .map(|bn| {
-                batch
-                    .add_call::<_, Option<<Ethereum as Network>::BlockResponse>>(
-                        "eth_getBlockByNumber",
-                        &(format!("0x{bn:x}"), false),
-                    )
-                    .expect("infallible")
-                    .boxed()
-            })
-            .collect();
-
-        batch.send().await?;
-
-        let filter = Filter::new().from_block(from_block).to_block(to_block);
-
-        let mirrors_filter = crate::mirrors_filter(filter.clone());
-        let router_and_wvara_filter =
-            crate::router_and_wvara_filter(filter, router_address, wvara_address);
-
-        let logs_request = future::try_join(
-            provider.get_logs(&router_and_wvara_filter),
-            provider.get_logs(&mirrors_filter),
-        );
-
-        let (blocks, logs) = future::join(future::join_all(headers_request), logs_request).await;
-        let (router_and_wvara_logs, mirrors_logs) = logs?;
-
-        let mut blocks_data = Vec::new();
-
-        for response in blocks {
-            let block = response?.ok_or_else(|| anyhow!("Block not found"))?;
-            let block_hash = H256(block.header.hash.0);
-
-            let header = BlockHeader {
-                height: block.header.number as u32,
-                timestamp: block.header.timestamp,
-                parent_hash: H256(block.header.parent_hash.0),
-            };
-
-            blocks_data.push(BlockData {
-                hash: block_hash,
-                header,
-                events: Vec::new(),
-            });
-        }
-
-        let mut events = crate::logs_to_events(
-            router_and_wvara_logs,
-            mirrors_logs,
-            router_address,
-            wvara_address,
-        )?;
-        for block_data in blocks_data.iter_mut() {
-            block_data.events = events.remove(&block_data.hash).unwrap_or_default();
-        }
-
-        Ok(blocks_data)
-    }
-
-    async fn load_block_data(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
-        log::trace!("Querying data for one block {block:?}");
-
-        let filter = Filter::new().at_block_hash(block.0);
-        let mirrors_filter = crate::mirrors_filter(filter.clone());
-        let router_and_wvara_filter =
-            crate::router_and_wvara_filter(filter, self.router_address, self.wvara_address);
-
-        let logs_request = future::try_join(
-            self.provider.get_logs(&router_and_wvara_filter),
-            self.provider.get_logs(&mirrors_filter),
-        );
-
-        let ((block_hash, header), (router_and_wvara_logs, mirrors_logs)) =
-            if let Some(header) = header {
-                ((block, header), logs_request.await?)
-            } else {
-                let block_request = self.provider.get_block_by_hash(
-                    block.0.into(),
-                    alloy::rpc::types::BlockTransactionsKind::Hashes,
-                );
-
-                match future::try_join(block_request, logs_request).await {
-                    Ok((response, logs)) => (crate::block_response_to_data(response)?, logs),
-                    Err(err) => Err(err)?,
-                }
-            };
-
-        if block_hash != block {
-            return Err(anyhow!("Expected block hash {block}, got {block_hash}"));
-        }
-
-        let events = crate::logs_to_events(
-            router_and_wvara_logs,
-            mirrors_logs,
-            self.router_address,
-            self.wvara_address,
-        )?;
-
-        if events.len() > 1 {
-            return Err(anyhow!(
-                "Expected events for at most 1 block, but got for {}",
-                events.len()
-            ));
-        }
-
-        let (block_hash, events) = events
-            .into_iter()
-            .next()
-            .unwrap_or_else(|| (block_hash, Vec::new()));
-
-        if block_hash != block {
-            return Err(anyhow!("Expected block hash {block}, got {block_hash}"));
-        }
-
-        Ok(BlockData {
-            hash: block,
-            header,
-            events,
-        })
-    }
-
-    async fn load_blocks_data(
-        &self,
-        from_block: u64,
-        to_block: u64,
-    ) -> Result<HashMap<H256, BlockData>> {
-        let batch_futures: FuturesUnordered<_> = (from_block..=to_block)
-            .step_by(MAX_QUERY_BLOCK_RANGE)
-            .map(|start| {
-                let end = (start + MAX_QUERY_BLOCK_RANGE as u64 - 1).min(to_block);
-
-                Self::load_blocks_batch_data(
-                    self.provider.clone(),
-                    self.router_address,
-                    self.wvara_address,
-                    start,
-                    end,
-                )
-                .boxed()
-            })
-            .collect();
-
-        future::try_join_all(batch_futures).await.map(|batches| {
-            batches
-                .into_iter()
-                .flat_map(|batch| {
-                    batch
-                        .into_iter()
-                        .map(|block_data| (block_data.hash, block_data))
-                })
-                .collect()
-        })
-    }
-
-    pub(crate) async fn sync(self, chain_head: Header) -> Result<(H256, Vec<(CodeId, CodeInfo)>)> {
+    pub async fn sync(self, chain_head: Header) -> Result<(H256, Vec<(CodeId, CodeInfo)>)> {
         let latest_synced_block_height =
             self.database
                 .latest_synced_block_height()
@@ -235,9 +83,15 @@ impl ChainSync {
                 ));
             }
 
-            if header.height - latest_synced_block_height > self.heuristic_sync_depth {
-                self.load_blocks_data(latest_synced_block_height as u64, header.height as u64)
-                    .await?
+            if header.height - latest_synced_block_height > self.batched_sync_depth {
+                crate::load_blocks_data_batched(
+                    self.provider.clone(),
+                    latest_synced_block_height as u64,
+                    header.height as u64,
+                    self.router_address,
+                    self.wvara_address,
+                )
+                .await?
             } else {
                 Default::default()
             }
@@ -252,8 +106,11 @@ impl ChainSync {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
                 None => {
-                    self.load_block_data(
+                    crate::load_block_data(
+                        self.provider.clone(),
                         hash,
+                        self.router_address,
+                        self.wvara_address,
                         (hash == H256(chain_head.hash.0)).then_some(header.clone()),
                     )
                     .await?
@@ -351,5 +208,46 @@ impl ChainSync {
             chain_head.hash.0.into(),
             codes_to_load_later.into_iter().collect(),
         ))
+    }
+
+    async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
+        let Some(latest_synced_block_height) = self.database.latest_synced_block_height() else {
+            log::warn!("latest_synced_block_height is not set in the database");
+            return Ok(Default::default());
+        };
+
+        if header.height <= latest_synced_block_height {
+            log::warn!(
+                "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
+                header.height,
+                latest_synced_block_height
+            );
+            // Suppose here that all data is already loaded.
+            return Ok(Default::default());
+        }
+
+        if (header.height - latest_synced_block_height) >= self.max_sync_depth {
+            // TODO (gsobol): return an event to notify about too deep chain.
+            return Err(anyhow!(
+                    "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
+                    header.height,
+                    latest_synced_block_height,
+                    self.max_sync_depth
+                ));
+        }
+
+        if header.height - latest_synced_block_height < self.batched_sync_depth {
+            // No need to pre load data because amount of blocks is small enough.
+            return Ok(Default::default());
+        }
+
+        crate::load_blocks_data_batched(
+            self.provider.clone(),
+            latest_synced_block_height as u64,
+            header.height as u64,
+            self.router_address,
+            self.wvara_address,
+        )
+        .await
     }
 }

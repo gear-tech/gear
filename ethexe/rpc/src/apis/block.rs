@@ -18,7 +18,7 @@
 
 use crate::{common::block_header_at_or_latest, errors};
 use ethexe_common::{events::BlockRequestEvent, gear::StateTransition};
-use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
+use ethexe_db::{BlockHeader, BlockMetaStorage, BlocksOnChainData, Database};
 use gprimitives::H256;
 use jsonrpsee::{
     core::{async_trait, RpcResult},
@@ -71,6 +71,12 @@ impl BlockServer for BlockApi {
 
         self.db
             .block_events(block_hash)
+            .map(|events| {
+                events
+                    .into_iter()
+                    .filter_map(|event| event.to_request())
+                    .collect()
+            })
             .ok_or_else(|| errors::db("Block events weren't found"))
     }
 

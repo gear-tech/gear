@@ -84,7 +84,7 @@ pub struct ObserverService {
     blobs_reader: Arc<dyn BlobReader>,
     subscription: Subscription<Header>,
 
-    router: Address,
+    router_address: Address,
     wvara_address: Address,
 
     last_block_number: u32,
@@ -131,10 +131,10 @@ impl Stream for ObserverService {
                     provider: self.provider.clone(),
                     database: self.database.clone_boxed(),
                     blobs_reader: self.blobs_reader.clone(),
-                    router_address: self.router.0.into(),
+                    router_address: self.router_address.0.into(),
                     wvara_address: self.wvara_address.0.into(),
                     max_sync_depth: 10_000,
-                    heuristic_sync_depth: 2,
+                    batched_sync_depth: 2,
                 };
                 self.sync_future = Some(Box::pin(sync.sync(header)));
             }
@@ -224,7 +224,7 @@ impl ObserverService {
             database: BlocksOnChainData::clone_boxed(db),
             blobs_reader,
             subscription,
-            router: *router_address,
+            router_address: *router_address,
             wvara_address,
             last_block_number: 0,
             headers_stream,
