@@ -982,7 +982,7 @@ async fn multiple_validators() {
         .await
         .unwrap();
 
-    let _ = tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
+    tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
         .await
         .expect_err("Timeout expected");
 
@@ -996,23 +996,19 @@ async fn multiple_validators() {
     );
 
     validator2.start_service().await;
-    // wait for new block
-    tokio::time::sleep(env.block_time).await;
+
     // IMPORTANT: mine one block to sent a new block event.
     env.force_new_block().await;
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
     assert_eq!(res.payload, res.message_id.encode().as_slice());
-    drop(validator2);
-    drop(validator1);
-    drop(validator0);
 }
 
 mod utils {
     use super::*;
     use crate::Event;
     use ethexe_common::SimpleBlockData;
-    use ethexe_network::export::Multiaddr;
+    use ethexe_network::{export::Multiaddr, NetworkEvent};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_sequencer::{SequencerConfig, SequencerService};
     use ethexe_signer::PrivateKey;
@@ -1687,6 +1683,8 @@ mod utils {
                 .await
                 .unwrap();
 
+            let wait_for_network = self.network_bootstrap_address.is_some();
+
             let network = self.network_address.as_ref().map(|addr| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
                 let multiaddr: Multiaddr = addr.parse().unwrap();
@@ -1761,6 +1759,13 @@ mod utils {
             self.running_service_handle = Some(handle);
 
             self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
+
+            if wait_for_network {
+                self.wait_for(|e| {
+                    matches!(e, Event::Network(NetworkEvent::ConnectionEstablished(_)))
+                })
+                .await;
+            }
         }
 
         pub async fn stop_service(&mut self) {
@@ -1768,11 +1773,14 @@ mod utils {
                 .running_service_handle
                 .take()
                 .expect("Service is not running");
+
             handle.abort();
+
+            assert!(handle.await.unwrap_err().is_cancelled());
+
             self.broadcaster = None;
-            self.receiver = None;
-            let _ = handle.await;
             self.multiaddr = None;
+            self.receiver = None;
         }
 
         pub fn listener(&self) -> ServiceEventsListener {
