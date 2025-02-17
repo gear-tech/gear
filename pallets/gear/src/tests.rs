@@ -23,7 +23,7 @@ use crate::{
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
-        RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
+        RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, BLOCK_AUTHOR,
         LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
     pallet,
@@ -186,7 +186,7 @@ fn calculate_gas_results_in_finite_wait() {
 
 #[test]
 fn state_rpc_calls_trigger_reinstrumentation() {
-    use demo_new_meta::{MessageInitIn, META_WASM_V1, WASM_BINARY};
+    use demo_fungible_token::{InitConfig, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -195,7 +195,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             RuntimeOrigin::signed(USER_2),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            <MessageInitIn as Default>::default().encode(),
+            InitConfig::test_sequence().encode(),
             DEFAULT_GAS_LIMIT * 100,
             10_000,
             false,
@@ -243,16 +243,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
         <Test as Config>::CodeStorage::update_code(code_and_id);
         /* ends here */
 
-        assert_ok!(Gear::read_metahash_impl(program_id, None));
         assert_ok!(Gear::read_state_impl(program_id, Default::default(), None));
-        assert_ok!(Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            "last_wallet",
-            META_WASM_V1.to_vec(),
-            None,
-            None,
-        ));
     });
 }
 
@@ -2589,7 +2580,7 @@ fn unstoppable_block_execution_works() {
 
 #[test]
 fn read_state_works() {
-    use demo_new_meta::{MessageInitIn, Wallet, WASM_BINARY};
+    use demo_fungible_token::{InitConfig, IoFungibleToken, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2597,7 +2588,7 @@ fn read_state_works() {
             RuntimeOrigin::signed(USER_2),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            <MessageInitIn as Default>::default().encode(),
+            InitConfig::test_sequence().encode(),
             DEFAULT_GAS_LIMIT * 100,
             10_000,
             false,
@@ -2609,274 +2600,12 @@ fn read_state_works() {
 
         assert!(Gear::is_initialized(program_id));
 
-        let expected = Wallet::test_sequence().encode();
+        let expected = IoFungibleToken::test_sequence().encode();
 
         let res = Gear::read_state_impl(program_id, Default::default(), None)
             .expect("Failed to read state");
 
         assert_eq!(res, expected);
-    });
-}
-
-#[test]
-fn read_state_using_wasm_works() {
-    use demo_new_meta::{
-        Id, MessageInitIn, Wallet, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2,
-        WASM_BINARY,
-    };
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            <MessageInitIn as Default>::default().encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-            false,
-        ));
-
-        let program_id = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(program_id));
-
-        let expected = Wallet::test_sequence().into_iter().last().encode();
-
-        let func1 = "last_wallet";
-        assert!(META_EXPORTS_V1.contains(&func1));
-
-        let res = Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            func1,
-            META_WASM_V1.to_vec(),
-            None,
-            None,
-        )
-        .expect("Failed to read state");
-
-        assert_eq!(res, expected);
-
-        let id = Id {
-            decimal: 1,
-            hex: vec![1],
-        };
-
-        let expected = Wallet::test_sequence()
-            .into_iter()
-            .find(|w| w.id == id)
-            .encode();
-
-        let func2 = "wallet_by_id";
-        assert!(META_EXPORTS_V2.contains(&func2));
-        assert!(!META_EXPORTS_V2.contains(&func1));
-
-        let res = Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            func2,
-            META_WASM_V2.to_vec(),
-            Some(id.encode()),
-            None,
-        )
-        .expect("Failed to read state");
-
-        assert_eq!(res, expected);
-    });
-}
-
-#[test]
-fn read_state_bn_and_timestamp_works() {
-    use demo_new_meta::{MessageInitIn, META_WASM_V3, WASM_BINARY};
-
-    let check = |program_id: ProgramId| {
-        let expected: u32 = Gear::block_number().unique_saturated_into();
-
-        let res = Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            "block_number",
-            META_WASM_V3.to_vec(),
-            None,
-            None,
-        )
-        .expect("Failed to read state");
-        let res = u32::decode(&mut res.as_ref()).unwrap();
-
-        assert_eq!(res, expected);
-
-        let expected: u64 = Timestamp::get().unique_saturated_into();
-
-        let res = Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            "block_timestamp",
-            META_WASM_V3.to_vec(),
-            None,
-            None,
-        )
-        .expect("Failed to read state");
-        let res = u64::decode(&mut res.as_ref()).unwrap();
-
-        assert_eq!(res, expected);
-    };
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            <MessageInitIn as Default>::default().encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-            false,
-        ));
-
-        let program_id = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_initialized(program_id));
-        check(program_id);
-
-        run_to_block(10, None);
-        check(program_id);
-
-        run_to_block(20, None);
-        check(program_id);
-    });
-}
-
-#[test]
-fn wasm_metadata_generation_works() {
-    use demo_new_meta::{
-        MessageInitIn, META_EXPORTS_V1, META_EXPORTS_V2, META_WASM_V1, META_WASM_V2, WASM_BINARY,
-    };
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            <MessageInitIn as Default>::default().encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-            false,
-        ));
-
-        let program_id = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(program_id));
-
-        let m1 = Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            "metadata",
-            META_WASM_V1.to_vec(),
-            None,
-            None,
-        )
-        .expect("Failed to read state");
-
-        let metadata1 =
-            gmeta::MetawasmData::decode(&mut m1.as_ref()).expect("Failed to decode metadata");
-        let mut exports1 = metadata1.funcs.keys().cloned().collect::<Vec<_>>();
-        exports1.push("metadata".into());
-        exports1.sort();
-        let mut expected_exports_1 = META_EXPORTS_V1.to_vec();
-        expected_exports_1.sort();
-        assert_eq!(exports1, expected_exports_1);
-
-        let m2 = Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            "metadata",
-            META_WASM_V2.to_vec(),
-            None,
-            None,
-        )
-        .expect("Failed to read state");
-
-        let metadata2 =
-            gmeta::MetawasmData::decode(&mut m2.as_ref()).expect("Failed to decode metadata");
-        let mut exports2 = metadata2.funcs.keys().cloned().collect::<Vec<_>>();
-        exports2.push("metadata".into());
-        exports2.sort();
-        let mut expected_exports_2 = META_EXPORTS_V2.to_vec();
-        expected_exports_2.sort();
-        assert_eq!(exports2, expected_exports_2);
-    });
-}
-
-#[test]
-fn read_state_using_wasm_errors() {
-    use demo_new_meta::{MessageInitIn, WASM_BINARY};
-
-    let wat = r#"
-    (module
-        (export "loop" (func $loop))
-        (export "empty" (func $empty))
-        (func $empty)
-        (func $loop
-            (loop)
-        )
-    )"#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let meta_wasm = ProgramCodeKind::Custom(wat).to_bytes().to_vec();
-
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            <MessageInitIn as Default>::default().encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-            false,
-        ));
-
-        let program_id = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_initialized(program_id));
-
-        // Inexistent function
-        assert!(Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            "inexistent",
-            meta_wasm.clone(),
-            None,
-            None,
-        )
-        .is_err());
-        // Empty function
-        assert!(Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            "empty",
-            meta_wasm.clone(),
-            None,
-            None,
-        )
-        .is_err());
-        // Greed function
-        assert!(Gear::read_state_using_wasm_impl(
-            program_id,
-            Default::default(),
-            "loop",
-            meta_wasm,
-            None,
-            None,
-        )
-        .is_err());
     });
 }
 

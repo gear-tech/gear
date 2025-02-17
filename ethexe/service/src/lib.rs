@@ -18,18 +18,21 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
-use anyhow::{anyhow, bail, Context, Result};
-use ethexe_common::{
-    events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
-    gear::{BlockCommitment, CodeCommitment, StateTransition},
-};
-use ethexe_db::{BlockMetaStorage, CodeInfo, CodesStorage, Database};
+use anyhow::{bail, Context, Result};
+use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
+use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
+<<<<<<< HEAD
 use ethexe_observer::{
     MockBlobReader, ObserverEvent, ObserverService, RequestBlockData, SimpleBlockData,
 };
 use ethexe_processor::{LocalOutcome, ProcessorConfig};
+=======
+use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
+use ethexe_processor::ProcessorConfig;
+>>>>>>> origin
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
@@ -38,7 +41,6 @@ use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
-use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::sync::Arc;
 use tokio::sync::{
@@ -146,9 +148,8 @@ impl EventsListener {
 pub struct Service {
     db: Database,
     observer: ObserverService,
-    query: ethexe_observer::Query,
     router_query: RouterQuery,
-    processor: ethexe_processor::Processor,
+    compute: ComputeService,
     signer: ethexe_signer::Signer,
 
     // Optional services
@@ -304,17 +305,24 @@ impl Service {
             None
         };
 
-        let validator = Self::get_config_public_key(config.node.validator, &signer)
-            .with_context(|| "failed to get validator private key")?
-            .map(|key| {
-                ethexe_validator::Validator::new(
-                    &ethexe_validator::Config {
-                        pub_key: key,
-                        router_address: config.ethereum.router_address,
-                    },
-                    signer.clone(),
-                )
-            });
+        let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
+            .with_context(|| "failed to get validator private key")?;
+        let validator_pub_key_session =
+            Self::get_config_public_key(config.node.validator_session, &signer)
+                .with_context(|| "failed to get validator session private key")?;
+        let validator =
+            validator_pub_key
+                .zip(validator_pub_key_session)
+                .map(|(pub_key, pub_key_session)| {
+                    ethexe_validator::Validator::new(
+                        &ethexe_validator::Config {
+                            pub_key,
+                            pub_key_session,
+                            router_address: config.ethereum.router_address,
+                        },
+                        signer.clone(),
+                    )
+                });
 
         let prometheus = if let Some(config) = config.prometheus.clone() {
             Some(PrometheusService::new(config)?)
@@ -335,13 +343,14 @@ impl Service {
             ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
         });
 
+        let compute = ComputeService::new(db.clone(), processor, query);
+
         Ok(Self {
             db,
             network,
             observer,
-            query,
             router_query,
-            processor,
+            compute,
             sequencer,
             signer,
             validator,
@@ -375,12 +384,13 @@ impl Service {
         rpc: Option<ethexe_rpc::RpcService>,
         event_sender: Arc<Mutex<Sender<ServiceEvent>>>,
     ) -> Self {
+        let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
+
         Self {
             db,
             observer,
-            query,
             router_query,
-            processor,
+            compute,
             signer,
             network,
             sequencer,
@@ -389,139 +399,6 @@ impl Service {
             rpc,
             event_sender,
         }
-    }
-
-    // TODO: remove this function.
-    // This is a temporary solution to download absent codes from already processed blocks.
-    async fn process_upload_codes(
-        db: &Database,
-        query: &mut ethexe_observer::Query,
-        processor: &mut ethexe_processor::Processor,
-        block_hash: H256,
-    ) -> Result<()> {
-        let events = query.get_block_request_events(block_hash).await?;
-
-        for event in events {
-            match event {
-                BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
-                    code_id,
-                    timestamp,
-                    tx_hash,
-                }) => {
-                    db.set_code_info(code_id, CodeInfo { timestamp, tx_hash });
-                }
-                BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
-                    code_id, ..
-                }) => {
-                    if db.original_code(code_id).is_some() {
-                        continue;
-                    }
-
-                    log::debug!("📥 downloading absent code: {code_id}");
-
-                    let CodeInfo { timestamp, tx_hash } = db
-                        .code_info(code_id)
-                        .ok_or_else(|| anyhow!("Code info not found for code {code_id}"))?;
-
-                    let code = query.download_code(code_id, timestamp, tx_hash).await?;
-
-                    processor.process_upload_code(code_id, code.as_slice())?;
-                }
-                _ => continue,
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn process_one_block(
-        db: &Database,
-        query: &mut ethexe_observer::Query,
-        processor: &mut ethexe_processor::Processor,
-        block_hash: H256,
-    ) -> Result<Vec<StateTransition>> {
-        if let Some(transitions) = db.block_outcome(block_hash) {
-            return Ok(transitions);
-        }
-
-        query.propagate_meta_for_block(block_hash).await?;
-
-        Self::process_upload_codes(db, query, processor, block_hash).await?;
-
-        let block_request_events = query.get_block_request_events(block_hash).await?;
-
-        let block_outcomes = processor.process_block_events(block_hash, block_request_events)?;
-
-        let transition_outcomes: Vec<_> = block_outcomes
-            .into_iter()
-            .map(|outcome| {
-                if let LocalOutcome::Transition(transition) = outcome {
-                    transition
-                } else {
-                    unreachable!("Only transitions are expected here")
-                }
-            })
-            .collect();
-
-        db.set_block_is_empty(block_hash, transition_outcomes.is_empty());
-        if !transition_outcomes.is_empty() {
-            // Not empty blocks must be committed,
-            // so append it to the `wait for commitment` queue.
-            let mut queue = db
-                .block_commitment_queue(block_hash)
-                .ok_or_else(|| anyhow!("Commitment queue is not found for block"))?;
-            queue.push_back(block_hash);
-            db.set_block_commitment_queue(block_hash, queue);
-        }
-
-        db.set_block_outcome(block_hash, transition_outcomes.clone());
-
-        // Set block as valid - means state db has all states for the end of the block
-        db.set_block_end_state_is_valid(block_hash, true);
-
-        let header = db.block_header(block_hash).expect("must be set; qed");
-        db.set_latest_valid_block(block_hash, header);
-
-        Ok(transition_outcomes)
-    }
-
-    async fn process_block_event(
-        db: &Database,
-        query: &mut ethexe_observer::Query,
-        processor: &mut ethexe_processor::Processor,
-        block_data: RequestBlockData,
-    ) -> Result<Vec<BlockCommitment>> {
-        db.set_block_events(block_data.hash, block_data.events);
-        db.set_block_header(block_data.hash, block_data.header);
-
-        let mut commitments = vec![];
-
-        let last_committed_chain = query.get_last_committed_chain(block_data.hash).await?;
-
-        for block_hash in last_committed_chain.into_iter().rev() {
-            let transitions = Self::process_one_block(db, query, processor, block_hash).await?;
-
-            if transitions.is_empty() {
-                // Skip empty blocks
-                continue;
-            }
-
-            let header = db
-                .block_header(block_hash)
-                .ok_or_else(|| anyhow!("header not found, but most exist"))?;
-
-            commitments.push(BlockCommitment {
-                hash: block_hash,
-                timestamp: header.timestamp,
-                previous_committed_block: db
-                    .previous_committed_block(block_hash)
-                    .ok_or_else(|| anyhow!("Prev commitment not found"))?,
-                predecessor_block: block_data.hash,
-                transitions,
-            });
-        }
-
-        Ok(commitments)
     }
 
     pub async fn run(self) -> Result<()> {
@@ -536,9 +413,8 @@ impl Service {
             db,
             mut network,
             mut observer,
-            mut query,
             mut router_query,
-            mut processor,
+            mut compute,
             mut sequencer,
             signer: _signer,
             mut validator,
@@ -572,6 +448,7 @@ impl Service {
         loop {
             tokio::select! {
                 event = observer.select_next_some() => {
+<<<<<<< HEAD
                     let event = event?;
                     let _ = event_sender.lock().await.send(ServiceEvent::Observer(event.clone()));
                     match event {
@@ -623,16 +500,27 @@ impl Service {
                             let block_commitments =
                                 Self::process_block_event(&db, &mut query, &mut processor, block).await?;
 
+=======
+                    match event? {
+                        ObserverEvent::Blob { code_id, timestamp, code } => compute.receive_code(code_id, timestamp, code),
+                        ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
+                    }
+                },
+                event = compute.select_next_some() => {
+                    match event? {
+                        ComputeEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
+                            // TODO (gsobol): must be done in observer event handling
+>>>>>>> origin
                             if let Some(s) = sequencer.as_mut() {
-                                s.on_new_head(hash)?
+                                s.on_new_head(chain_head)?
                             }
 
-                            if block_commitments.is_empty() {
+                            if commitments.is_empty() {
                                 continue;
                             }
 
                             if let Some(v) = validator.as_mut() {
-                                let aggregated_block_commitments = v.aggregate(block_commitments)?;
+                                let aggregated_block_commitments = v.aggregate(commitments)?;
 
                                 if let Some(n) = network.as_mut() {
                                     log::debug!("Publishing block commitments to network...");
@@ -655,7 +543,32 @@ impl Service {
                                     s.receive_block_commitments(aggregated_block_commitments)?;
                                 }
                             };
-                        }
+
+                        },
+                        ComputeEvent::CodeProcessed(commitment) => {
+                            if let Some(v) = validator.as_mut() {
+                                let aggregated_code_commitments = v.aggregate(vec![commitment])?;
+
+                                if let Some(n) = network.as_mut() {
+                                    log::debug!("Publishing code commitments to network...");
+                                    n.publish_message(
+                                        NetworkMessage::PublishCommitments {
+                                            codes: Some(aggregated_code_commitments.clone()),
+                                            blocks: None,
+                                        }
+                                        .encode(),
+                                    );
+                                };
+
+                                if let Some(s) = sequencer.as_mut() {
+                                    log::debug!(
+                                        "Received ({}) signed code commitments from local validator...",
+                                        aggregated_code_commitments.len()
+                                    );
+                                    s.receive_code_commitments(aggregated_code_commitments)?;
+                                }
+                            }
+                        },
                     }
                 },
                 event = sequencer.maybe_next_some() => {
