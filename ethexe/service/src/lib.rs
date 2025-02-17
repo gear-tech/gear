@@ -139,6 +139,31 @@ impl EventsListener {
     }
 }
 
+
+/// Event sender trait for [`Service`]. 
+pub trait EventSender: Send {
+    fn send(&self, event: ServiceEvent);
+}
+
+
+/// Default event sender that logs all events.
+pub struct LogEventSender;
+
+impl EventSender for LogEventSender {
+    fn send(&self, event: ServiceEvent) {
+        log::trace!("service received event: {event:?}");
+    }
+}
+
+// Implement for broadcast sender in order to capture
+// events in tests.
+impl EventSender for Sender<ServiceEvent> {
+    fn send(&self, event: ServiceEvent) {
+        let _ = self.send(event);
+    }
+}
+
+
 /// ethexe service.
 pub struct Service {
     db: Database,
@@ -155,7 +180,7 @@ pub struct Service {
     rpc: Option<ethexe_rpc::RpcService>,
 
     // Event broadcasting
-    sender: Sender<ServiceEvent>,
+    sender: Box<dyn EventSender>,
 }
 
 // TODO: consider to move this to another module #4176
@@ -176,7 +201,7 @@ pub enum NetworkMessage {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let (sender, _) = tokio::sync::broadcast::channel(2048); // Buffer size of 2048 events
+        let sender = Box::new(LogEventSender);
         let mock_blob_reader: Option<Arc<MockBlobReader>> = if config.node.dev {
             Some(Arc::new(MockBlobReader::new(config.ethereum.block_time)))
         } else {
@@ -369,7 +394,7 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         prometheus: Option<PrometheusService>,
         rpc: Option<ethexe_rpc::RpcService>,
-        sender: Sender<ServiceEvent>,
+        sender: Box<dyn EventSender>,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
 
@@ -429,13 +454,13 @@ impl Service {
         }
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
         // Broadcast service started event
-        let _ = sender.send(ServiceEvent::ServiceStarted);
+        sender.send(ServiceEvent::ServiceStarted);
 
         loop {
             tokio::select! {
                 event = observer.select_next_some() => {
                     let event = event?;
-                    let _ = sender.send(ServiceEvent::Observer(event.clone()));
+                    sender.send(ServiceEvent::Observer(event.clone()));
 
                     match event {
                         ObserverEvent::Blob { code_id, timestamp, code } => compute.receive_code(code_id, timestamp, code),
@@ -444,7 +469,7 @@ impl Service {
                 },
                 event = compute.select_next_some() => {
                     let event = event?;
-                    let _ = sender.send(ServiceEvent::Compute(event.clone()));
+                    sender.send(ServiceEvent::Compute(event.clone()));
                     match event {
                         ComputeEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
                             // TODO (gsobol): must be done in observer event handling
@@ -509,7 +534,7 @@ impl Service {
                     }
                 },
                 event = sequencer.maybe_next_some() => {
-                    let _ = sender.send(ServiceEvent::Sequencer(event.clone()));
+                    sender.send(ServiceEvent::Sequencer(event.clone()));
 
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
@@ -568,7 +593,7 @@ impl Service {
                     }
                 },
                 event = network.maybe_next_some() => {
-                    let _ = sender.send(ServiceEvent::Network(event.clone()));
+                    sender.send(ServiceEvent::Network(event.clone()));
 
                     match event {
                         NetworkEvent::Message { source, data } => {
@@ -636,7 +661,7 @@ impl Service {
                     }
                 },
                 event = prometheus.maybe_next_some() => {
-                    let _ = sender.send(ServiceEvent::Prometheus(event.clone()));
+                    sender.send(ServiceEvent::Prometheus(event.clone()));
 
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");

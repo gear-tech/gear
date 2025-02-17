@@ -997,7 +997,7 @@ async fn multiple_validators() {
 
     validator2.start_service().await;
     // wait for new block
-    tokio::time::sleep(env.block_time).await;
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     // IMPORTANT: mine one block to sent a new block event.
     env.force_new_block().await;
 
@@ -1755,7 +1755,7 @@ mod utils {
                 validator,
                 None,
                 None,
-                sender,
+                Box::new(sender),
             );
 
             let handle = task::spawn(service.run());
