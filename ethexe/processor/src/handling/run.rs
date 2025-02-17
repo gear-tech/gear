@@ -83,15 +83,13 @@ fn run_runtime(
 struct DeterministicJournalHandler {
     mega_journal: Vec<Option<(ActorId, ProgramJournals)>>,
     current_idx: usize,
-    bucket_size: usize,
 }
 
 impl DeterministicJournalHandler {
     fn new(bucket_size: usize) -> Self {
         Self {
             mega_journal: Vec::from_iter(std::iter::repeat_n(None, bucket_size)),
-            current_idx: 0,
-            bucket_size,
+            current_idx: bucket_size - 1,
         }
     }
 
@@ -104,7 +102,6 @@ impl DeterministicJournalHandler {
         self.mega_journal[idx] = Some((program_id, program_journals));
     }
 
-    // TODO: traverse mega_journal in reverse order
     fn try_handle_journal_part(
         &mut self,
         db: &Database,
@@ -113,7 +110,8 @@ impl DeterministicJournalHandler {
     ) {
         let start_idx = self.current_idx;
 
-        for idx in start_idx..self.bucket_size {
+        // Traverse mega_journal in reverse order, because smaller buckets likely to finish first
+        for idx in (0..=start_idx).rev() {
             let Some((program_id, program_journals)) = self.mega_journal[idx].take() else {
                 // Can't proceed journal processing, need to wait till `idx` part of journal is ready
                 self.current_idx = idx;
