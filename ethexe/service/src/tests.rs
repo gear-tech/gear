@@ -982,7 +982,7 @@ async fn multiple_validators() {
         .await
         .unwrap();
 
-    let _ = tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
+    tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
         .await
         .expect_err("Timeout expected");
 
@@ -996,24 +996,19 @@ async fn multiple_validators() {
     );
 
     validator2.start_service().await;
-    // wait for new block
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
     // IMPORTANT: mine one block to sent a new block event.
     env.force_new_block().await;
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
     assert_eq!(res.payload, res.message_id.encode().as_slice());
-    drop(validator2);
-    drop(validator1);
-    drop(validator0);
 }
 
 mod utils {
-    use crate::{EventsPublisher, ServiceEvent};
-
     use super::*;
+    use crate::Event;
     use ethexe_common::SimpleBlockData;
-    use ethexe_network::export::Multiaddr;
+    use ethexe_network::{export::Multiaddr, NetworkEvent};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_sequencer::{SequencerConfig, SequencerService};
     use ethexe_signer::PrivateKey;
@@ -1030,7 +1025,7 @@ mod utils {
         sync::atomic::{AtomicUsize, Ordering},
     };
     use tokio::sync::{
-        broadcast::{self, Sender},
+        broadcast::{self, Receiver, Sender},
         Mutex,
     };
 
@@ -1657,8 +1652,8 @@ mod utils {
         pub db: Database,
         pub multiaddr: Option<String>,
 
-        broadcaster: Option<Sender<ServiceEvent>>,
-        receiver: Option<broadcast::Receiver<ServiceEvent>>,
+        broadcaster: Option<Sender<Event>>,
+        receiver: Option<Receiver<Event>>,
         rpc_url: String,
         genesis_block_hash: H256,
         blob_reader: Arc<MockBlobReader>,
@@ -1703,6 +1698,8 @@ mod utils {
             let router_query = RouterQuery::new(&self.rpc_url, self.router_address)
                 .await
                 .unwrap();
+
+            let wait_for_network = self.network_bootstrap_address.is_some();
 
             let network = self.network_address.as_ref().map(|addr| {
                 let config_path = tempfile::tempdir().unwrap().into_path();
@@ -1776,15 +1773,18 @@ mod utils {
                 validator,
                 None,
                 None,
-                Box::new(sender),
+                Some(sender),
             );
 
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);
 
-            self.wait_for(|event| Ok(matches!(event, ServiceEvent::ServiceStarted)))
-                .await
-                .unwrap();
+            self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
+
+            if wait_for_network {
+                self.wait_for(|e| matches!(e, Event::Network(NetworkEvent::PeerConnected(_))))
+                    .await;
+            }
         }
 
         pub async fn stop_service(&mut self) {
@@ -1792,23 +1792,67 @@ mod utils {
                 .running_service_handle
                 .take()
                 .expect("Service is not running");
+
             handle.abort();
+
+            assert!(handle.await.unwrap_err().is_cancelled());
+
             self.broadcaster = None;
-            self.receiver = None;
-            let _ = handle.await;
             self.multiaddr = None;
+            self.receiver = None;
         }
 
-        // TODO(playX18): Tests that actually use ServiceEvent broadcast channel extensively
-        pub async fn wait_for(
+        pub fn listener(&self) -> ServiceEventsListener {
+            ServiceEventsListener {
+                receiver: self
+                    .broadcaster
+                    .as_ref()
+                    .expect("channel isn't created")
+                    .subscribe(),
+            }
+        }
+
+        // TODO(playX18): Tests that actually use Event broadcast channel extensively
+        pub async fn wait_for(&self, f: impl Fn(Event) -> bool) {
+            self.listener()
+                .wait_for(|e| Ok(f(e)))
+                .await
+                .expect("infallible; always ok")
+        }
+    }
+
+    pub struct ServiceEventsListener {
+        receiver: Receiver<Event>,
+    }
+
+    impl Clone for ServiceEventsListener {
+        fn clone(&self) -> Self {
+            Self {
+                receiver: self.receiver.resubscribe(),
+            }
+        }
+    }
+
+    impl ServiceEventsListener {
+        pub async fn next_event(&mut self) -> Result<Event> {
+            self.receiver.recv().await.map_err(Into::into)
+        }
+
+        pub async fn wait_for(&mut self, f: impl Fn(Event) -> Result<bool>) -> Result<()> {
+            self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
+                .await
+        }
+
+        pub async fn apply_until<R: Sized>(
             &mut self,
-            f: impl FnMut(ServiceEvent) -> Result<bool>,
-        ) -> Result<()> {
-            EventsPublisher::from_broadcaster(self.broadcaster.clone().unwrap())
-                .subscribe()
-                .await
-                .wait_for(f)
-                .await
+            f: impl Fn(Event) -> Result<Option<R>>,
+        ) -> Result<R> {
+            loop {
+                let event = self.next_event().await?;
+                if let Some(res) = f(event)? {
+                    return Ok(res);
+                }
+            }
         }
     }
 
