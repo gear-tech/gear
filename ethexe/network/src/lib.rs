@@ -67,13 +67,14 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NetworkEvent {
-    Message {
-        source: Option<PeerId>,
-        data: Vec<u8>,
-    },
     DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
-    PeerBlocked(PeerId),
     ExternalValidation(db_sync::ValidatingResponse),
+    Message {
+        data: Vec<u8>,
+        source: Option<PeerId>,
+    },
+    PeerBlocked(PeerId),
+    PeerConnected(PeerId),
 }
 
 #[derive(Default, Debug, Clone)]
@@ -267,9 +268,11 @@ impl NetworkService {
     fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) -> Option<NetworkEvent> {
         log::trace!("new swarm event: {event:?}");
 
-        #[allow(clippy::single_match)]
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
+            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                Some(NetworkEvent::PeerConnected(peer_id))
+            }
             _ => None,
         }
     }
