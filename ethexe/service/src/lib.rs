@@ -139,10 +139,12 @@ impl EventsListener {
     }
 }
 
-/// Event sender trait for [`Service`].
+
+/// Event sender trait for [`Service`]. 
 pub trait EventSender: Send {
     fn send(&self, event: ServiceEvent);
 }
+
 
 /// Default event sender that logs all events.
 pub struct LogEventSender;
@@ -160,6 +162,7 @@ impl EventSender for Sender<ServiceEvent> {
         let _ = self.send(event);
     }
 }
+
 
 /// ethexe service.
 pub struct Service {
