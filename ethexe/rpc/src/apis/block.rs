@@ -18,7 +18,7 @@
 
 use crate::{common::block_header_at_or_latest, errors};
 use ethexe_common::{events::BlockRequestEvent, gear::StateTransition};
-use ethexe_db::{BlockHeader, BlockMetaStorage, OnChainStorage, Database};
+use ethexe_db::{BlockHeader, BlockMetaStorage, Database, OnChainStorage};
 use gprimitives::H256;
 use jsonrpsee::{
     core::{async_trait, RpcResult},

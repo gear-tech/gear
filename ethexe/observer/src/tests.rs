@@ -96,6 +96,7 @@ async fn test_deployment() -> Result<()> {
             block_time: Duration::from_secs(1),
             beacon_rpc: Default::default(),
         },
+        u32::MAX,
         &database,
         Some(blobs_reader.clone()),
     )

@@ -88,6 +88,8 @@ pub struct ObserverService {
 
     router_address: Address,
     wvara_address: Address,
+    max_sync_depth: u32,
+    batched_sync_depth: u32,
 
     last_block_number: u32,
 
@@ -135,8 +137,8 @@ impl Stream for ObserverService {
                     blobs_reader: self.blobs_reader.clone(),
                     router_address: self.router_address.0.into(),
                     wvara_address: self.wvara_address.0.into(),
-                    max_sync_depth: 10_000,
-                    batched_sync_depth: 2,
+                    max_sync_depth: self.max_sync_depth,
+                    batched_sync_depth: self.batched_sync_depth,
                 };
                 self.sync_future = Some(Box::pin(sync.sync(header)));
             }
@@ -181,6 +183,7 @@ impl FusedStream for ObserverService {
 impl ObserverService {
     pub async fn new<DB>(
         eth_cfg: &EthereumConfig,
+        max_sync_depth: u32,
         db: &DB,
         blobs_reader: Option<Arc<dyn BlobReader>>,
     ) -> Result<Self>
@@ -228,6 +231,9 @@ impl ObserverService {
             subscription,
             router_address: *router_address,
             wvara_address,
+            max_sync_depth,
+            // TODO (gsobol): make this configurable. Important: must be greater than 1.
+            batched_sync_depth: 2,
             last_block_number: 0,
             headers_stream,
             codes_futures: Default::default(),

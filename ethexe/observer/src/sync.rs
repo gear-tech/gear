@@ -99,7 +99,7 @@ impl ChainSync {
         }
 
         if header.height - latest_synced_block_height < self.batched_sync_depth {
-            // No need to pre load data because amount of blocks is small enough.
+            // No need to pre load data, because amount of blocks is small enough.
             return Ok(Default::default());
         }
 

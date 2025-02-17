@@ -111,6 +111,7 @@ impl Validator {
         self.pub_key.to_address()
     }
 
+    // TODO (gsobol): make test for this method
     pub fn aggregate_commitments_for_block(
         &self,
         block: H256,

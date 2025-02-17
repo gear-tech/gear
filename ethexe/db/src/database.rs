@@ -23,7 +23,7 @@ use crate::{
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, OnChainStorage, CodeInfo, CodesStorage, Schedule},
+    db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, OnChainStorage, Schedule},
     events::BlockEvent,
     gear::StateTransition,
 };

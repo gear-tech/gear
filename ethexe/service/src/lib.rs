@@ -86,9 +86,10 @@ impl Service {
             .with_context(|| "failed to open database")?;
         let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
 
-        let observer = ObserverService::new(&config.ethereum, &db, None)
-            .await
-            .context("failed to create observer service")?;
+        let observer =
+            ObserverService::new(&config.ethereum, config.node.max_eth_sync_depth, &db, None)
+                .await
+                .context("failed to create observer service")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await

@@ -74,7 +74,7 @@ async fn basics() {
         sequencer: Default::default(),
         validator: Default::default(),
         validator_session: Default::default(),
-        max_commitment_depth: 1_000,
+        max_eth_sync_depth: 1_000,
         worker_threads_override: None,
         virtual_threads: 16,
         dev: true,
@@ -1190,9 +1190,10 @@ mod utils {
                 router_address,
                 block_time: config.block_time,
             };
-            let mut observer = ObserverService::new(&eth_cfg, &db, Some(blob_reader.clone()))
-                .await
-                .unwrap();
+            let mut observer =
+                ObserverService::new(&eth_cfg, u32::MAX, &db, Some(blob_reader.clone()))
+                    .await
+                    .unwrap();
 
             let provider = observer.provider().clone();
 
@@ -1588,10 +1589,10 @@ mod utils {
                     continue;
                 };
 
-                let header = OnChainStorage::block_header(&self.db, block)
-                    .expect("Block header not found");
-                let events = OnChainStorage::block_events(&self.db, block)
-                    .expect("Block events not found");
+                let header =
+                    OnChainStorage::block_header(&self.db, block).expect("Block header not found");
+                let events =
+                    OnChainStorage::block_events(&self.db, block).expect("Block events not found");
 
                 let block_data = SimpleBlockData {
                     hash: block,
@@ -1729,10 +1730,14 @@ mod utils {
                     )
                 });
 
-            let observer =
-                ObserverService::new(&self.eth_cfg, &self.db, Some(self.blob_reader.clone()))
-                    .await
-                    .unwrap();
+            let observer = ObserverService::new(
+                &self.eth_cfg,
+                u32::MAX,
+                &self.db,
+                Some(self.blob_reader.clone()),
+            )
+            .await
+            .unwrap();
 
             let service = Service::new_from_parts(
                 self.db.clone(),

@@ -250,7 +250,7 @@ async fn load_blocks_batch_data(
     from_block: u64,
     to_block: u64,
 ) -> Result<Vec<BlockData>> {
-    log::trace!("Querying blocks from {from_block} to {to_block}");
+    log::trace!("Querying blocks batch from {from_block} to {to_block}");
 
     let mut batch = BatchRequest::new(provider.client());
 
