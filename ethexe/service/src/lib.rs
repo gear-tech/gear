@@ -19,7 +19,10 @@
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use ethexe_common::{
+    gear::{BlockCommitment, CodeCommitment},
+    RoastData,
+};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -31,11 +34,19 @@ use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_signer::{Digest, PublicKey, Signature, Signer};
+use ethexe_signer::{PublicKey, Signature, Signer};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
+use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
-use std::sync::Arc;
+use roast_secp256k1_evm::{
+    frost::{
+        keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
+        Group, Identifier, Secp256K1Group, SigningPackage,
+    },
+    SessionStatus,
+};
+use std::{collections::BTreeSet, sync::Arc};
 
 pub mod config;
 
@@ -70,7 +81,12 @@ pub enum NetworkMessage {
         blocks: Vec<BlockCommitmentValidationRequest>,
     },
     ApproveCommitments {
-        batch_commitment: (Digest, Signature),
+        roast_data: Box<RoastData>,
+        signature: Signature,
+    },
+    RequestStartSession {
+        signers: BTreeSet<Identifier>,
+        signing_package: SigningPackage,
     },
 }
 
@@ -129,11 +145,44 @@ impl Service {
             .with_context(|| "failed to query validators")?;
         log::info!("👥 Validators set: {validators:?}");
 
+        let maybe_validator_identifiers: Result<Vec<_>, _> = validators
+            .iter()
+            .map(|address| Identifier::deserialize(&ActorId::from(*address).into_bytes()))
+            .collect();
+        let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
+        let identifiers = validator_identifiers.into_iter().collect();
+
+        let validators_verifiable_secret_sharing_commitment = router_query
+            .validators_verifiable_secret_sharing_commitment()
+            .await
+            .with_context(|| "failed to query validators verifiable secret sharing commitment")?;
+
+        // TODO: make PR to ZcashFoundation (https://github.com/ZcashFoundation/frost/issues/870)
+        let generator = Secp256K1Group::generator();
+        let serialization =
+            Secp256K1Group::serialize(&generator).expect("serializing the generator always works");
+        let serialization_len = serialization.as_ref().len();
+
+        let chunks_exact =
+            validators_verifiable_secret_sharing_commitment.chunks_exact(serialization_len);
+        let serialized_coefficient_commitments: Vec<_> = chunks_exact.map(Vec::from).collect();
+
+        let verifiable_secret_sharing_commitment =
+            VerifiableSecretSharingCommitment::deserialize(serialized_coefficient_commitments)
+                .with_context(|| "failed to decode VerifiableSecretSharingCommitment")?;
+
+        let public_key_package =
+            PublicKeyPackage::from_commitment(&identifiers, &verifiable_secret_sharing_commitment)
+                .with_context(|| "failed to create PublicKeyPackage")?;
+
         let threshold = router_query
             .threshold()
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
+
+        let max_signers: u16 = validators.len().try_into().expect("conversion failed");
+        let min_signers = threshold as u16;
 
         let query = ethexe_observer::Query::new(
             Arc::new(db.clone()),
@@ -180,6 +229,9 @@ impl Service {
                         validators,
                         threshold,
                         block_time: config.ethereum.block_time,
+                        max_signers,
+                        min_signers,
+                        public_key_package,
                     },
                     signer.clone(),
                     Box::new(db.clone()),
@@ -204,6 +256,8 @@ impl Service {
                         &ethexe_validator::Config {
                             pub_key,
                             pub_key_session,
+                            block_time: config.ethereum.block_time,
+                            commitment: verifiable_secret_sharing_commitment,
                             router_address: config.ethereum.router_address,
                         },
                         signer.clone(),
@@ -422,7 +476,6 @@ impl Service {
                                 log::debug!("Request validation of aggregated commitments: {message:?}");
 
                                 n.publish_message(message.encode());
-
                             };
 
                             if let Some(v) = validator.as_mut() {
@@ -438,8 +491,17 @@ impl Service {
 
                                 if !code_requests.is_empty() || !block_requests.is_empty() {
                                     match v.validate_batch_commitment(&db, code_requests, block_requests) {
-                                        Ok((digest, signature)) => {
-                                            s.receive_batch_commitment_signature(digest, signature)?;
+                                        Ok((roast_data, signature)) => match s.receive_batch_commitment_data(roast_data, signature) {
+                                            Ok(SessionStatus::Started { signers, signing_package }) => match v.handle_session_start(signers, signing_package) {
+                                                Ok((roast_data, signature)) => match s.receive_batch_commitment_data(roast_data, signature) {
+                                                    Ok(SessionStatus::Finished { .. }) => log::debug!("successfully finished FROST session!"),
+                                                    Err(e) => log::warn!("failed to receive batch commitment from network: {e}"),
+                                                    _ => {},
+                                                },
+                                                Err(e) => log::warn!("failed to handle session start: {e}"),
+                                            },
+                                            Err(e) => log::warn!("failed to receive batch commitment from network: {e}"),
+                                            _ => {},
                                         }
                                         Err(err) => {
                                             log::warn!("Collected batch commitments validation failed: {err}");
@@ -487,17 +549,38 @@ impl Service {
                                             .flatten();
 
                                         if let Some(n) = network.as_mut() {
-                                            if let Some(batch_commitment) = maybe_batch_commitment {
-                                                let message = NetworkMessage::ApproveCommitments { batch_commitment };
+                                            if let Some((roast_data, signature)) = maybe_batch_commitment {
+                                                let message = NetworkMessage::ApproveCommitments {
+                                                    roast_data: Box::new(roast_data),
+                                                    signature,
+                                                };
                                                 n.publish_message(message.encode());
                                             }
                                         }
                                     }
                                 },
-                                NetworkMessage::ApproveCommitments { batch_commitment: (digest, signature) } => {
+                                NetworkMessage::ApproveCommitments { roast_data, signature } => {
                                     if let Some(s) = sequencer.as_mut() {
-                                        let _ = s.receive_batch_commitment_signature(digest, signature)
-                                            .inspect_err(|e| log::warn!("failed to receive batch commitment signature from network: {e}"));
+                                        match s.receive_batch_commitment_data(*roast_data, signature) {
+                                            Ok(SessionStatus::Started { signers, signing_package }) => {
+                                                if let Some(n) = network.as_mut() {
+                                                    let message = NetworkMessage::RequestStartSession {
+                                                        signers,
+                                                        signing_package,
+                                                    };
+                                                    n.publish_message(message.encode());
+                                                }
+                                            },
+                                            Err(e) => log::warn!("failed to receive batch commitment from network: {e}"),
+                                            _ => {},
+                                        }
+                                    }
+                                },
+                                NetworkMessage::RequestStartSession { signers: _, signing_package: _ } => {
+                                    if let Some(_v) = validator.as_mut() {
+                                        //TODO: check signers.contains(validator.address())
+                                        //TODO: check signers (all) are validators
+                                        //TODO: check signing_package.message == hash of the batch commitment
                                     }
                                 },
                             };

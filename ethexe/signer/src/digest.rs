@@ -19,8 +19,11 @@
 //! Keccak256 digest type. Implements AsDigest hashing for ethexe common types.
 
 use core::fmt;
-use ethexe_common::gear::{
-    BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+use ethexe_common::{
+    gear::{
+        BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+    },
+    RoastData,
 };
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
@@ -212,6 +215,29 @@ impl ToDigest for BatchCommitment {
 
         hasher.update(code_commitments.to_digest().as_ref());
         hasher.update(block_commitments.to_digest().as_ref());
+    }
+}
+
+impl ToDigest for RoastData {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            signature_share,
+            signing_commitments,
+        } = self;
+
+        hasher.update(
+            signature_share
+                .map(|signature_share| signature_share.serialize())
+                .unwrap_or_default()
+                .as_slice(),
+        );
+        hasher.update(
+            signing_commitments
+                .serialize()
+                .expect("infallible")
+                .as_slice(),
+        );
     }
 }
 

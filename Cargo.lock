@@ -4779,6 +4779,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand",
+ "roast-secp256k1-evm",
  "tokio",
 ]
 
@@ -4850,6 +4851,7 @@ dependencies = [
  "hex",
  "log",
  "parity-scale-codec",
+ "roast-secp256k1-evm",
  "secp256k1 0.30.0",
  "sha3",
  "tempfile",
@@ -4869,6 +4871,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand",
+ "roast-secp256k1-evm",
  "static_init",
 ]
 

@@ -18,11 +18,12 @@
 
 //! Sequencer for ethexe.
 
-use agro::{AggregatedCommitments, MultisignedCommitmentDigests, Signatures};
+use agro::{AggregatedCommitments, MultisignedCommitmentDigests};
 use anyhow::{anyhow, bail, Result};
 use ethexe_common::{
     db::BlockMetaStorage,
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
+    RoastData,
 };
 use ethexe_ethereum::{router::Router, Ethereum};
 use ethexe_service_utils::Timer;
@@ -32,8 +33,12 @@ use futures::{
     stream::{FusedStream, FuturesUnordered},
     FutureExt, Stream, StreamExt,
 };
-use gprimitives::H256;
+use gprimitives::{ActorId, H256};
 use indexmap::IndexSet;
+use roast_secp256k1_evm::{
+    frost::{keys::PublicKeyPackage, Identifier, Signature as FrostSignature},
+    Coordinator, SessionStatus,
+};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     iter,
@@ -59,6 +64,9 @@ pub struct SequencerConfig {
     pub validators: Vec<Address>,
     pub threshold: u64,
     pub block_time: Duration,
+    pub max_signers: u16,
+    pub min_signers: u16,
+    pub public_key_package: PublicKeyPackage,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -76,6 +84,11 @@ pub struct SequencerService {
 
     threshold: u64,
     validators: HashSet<Address>,
+
+    max_signers: u16,
+    min_signers: u16,
+    public_key_package: PublicKeyPackage,
+
     waiting_for_commitments: BTreeSet<H256>,
 
     block_commitments: CommitmentsMap<BlockCommitment>,
@@ -84,7 +97,8 @@ pub struct SequencerService {
     codes_candidate: Option<MultisignedCommitmentDigests>,
     blocks_candidate: Option<MultisignedCommitmentDigests>,
 
-    signatures: Signatures,
+    signature: Option<FrostSignature>,
+    coordinator: Option<Coordinator>,
 
     status: SequencerStatus,
 
@@ -155,6 +169,11 @@ impl SequencerService {
 
             threshold: config.threshold,
             validators: config.validators.iter().cloned().collect(),
+
+            max_signers: config.max_signers,
+            min_signers: config.min_signers,
+            public_key_package: config.public_key_package.clone(),
+
             waiting_for_commitments: Default::default(),
 
             block_commitments: Default::default(),
@@ -163,7 +182,8 @@ impl SequencerService {
             codes_candidate: None,
             blocks_candidate: None,
 
-            signatures: Default::default(),
+            signature: None,
+            coordinator: None,
 
             status: Default::default(),
 
@@ -206,7 +226,8 @@ impl SequencerService {
         self.codes_candidate.take();
         self.blocks_candidate.take();
 
-        self.signatures = Default::default();
+        self.signature.take();
+        self.coordinator.take();
 
         log::debug!("Collection round for {hash} started");
         self.collection_round.start(hash);
@@ -256,24 +277,47 @@ impl SequencerService {
         )
     }
 
-    pub fn receive_batch_commitment_signature(
+    pub fn receive_batch_commitment_data(
         &mut self,
-        digest: Digest,
+        roast_data: RoastData,
         signature: Signature,
-    ) -> Result<()> {
-        log::debug!("Received batch commitment signature: {digest:?} {signature:?}");
+    ) -> Result<SessionStatus> {
+        log::debug!("Received batch commitment data: {roast_data:?} {signature:?}");
 
-        Self::receive_signature(
-            digest,
-            signature,
-            &self.validators,
+        let roast_data_digest = roast_data.to_digest();
+
+        let origin = agro::recover_from_roast_data_digest(
+            roast_data_digest,
+            &signature,
             self.ethereum.router().address(),
-            &[
-                self.codes_candidate.as_ref(),
-                self.blocks_candidate.as_ref(),
-            ],
-            &mut self.signatures,
-        )
+        )?;
+        let identifier = Identifier::deserialize(&ActorId::from(origin).into_bytes())
+            .expect("conversion failed");
+
+        self.validators
+            .contains(&origin)
+            .then_some(())
+            .ok_or_else(|| anyhow!("Unknown validator {origin} or invalid signature"))?;
+
+        let coordinator = self
+            .coordinator
+            .as_mut()
+            .ok_or_else(|| anyhow!("Coordinator is not initialized"))?;
+
+        let RoastData {
+            signature_share,
+            signing_commitments,
+        } = roast_data;
+
+        let session_status =
+            coordinator.receive(identifier, signature_share, signing_commitments)?;
+        log::debug!("FROST session status: {session_status:?}");
+
+        if let SessionStatus::Finished { signature } = session_status {
+            self.signature = Some(signature);
+        }
+
+        Ok(session_status)
     }
 
     pub fn submit_multisigned_commitments(&mut self) {
@@ -301,7 +345,7 @@ impl SequencerService {
                     code_commitments,
                     block_commitments,
                 },
-                self.signatures.clone(),
+                self.signature.expect("signature is not present"),
             )
             .map(|tx_hash| tx_hash),
         ));
@@ -310,13 +354,11 @@ impl SequencerService {
     async fn submit_batch_commitment(
         router: Router,
         commitment: BatchCommitment,
-        signatures: Signatures,
+        signature: FrostSignature,
     ) -> Result<H256> {
-        let (origins, signatures): (Vec<_>, Vec<_>) = signatures.into_inner().into_iter().unzip();
+        log::debug!("Batch commitment to submit: {commitment:?}, signature: {signature:?}");
 
-        log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
-
-        router.commit_batch(commitment, signatures).await
+        router.commit_batch(commitment, signature).await
     }
 
     fn handle_collection_round_end(&mut self, block_hash: H256) -> SequencerEvent {
@@ -345,7 +387,24 @@ impl SequencerService {
             self.threshold,
         );
 
-        self.signatures = Default::default();
+        let candidate_digest = agro::to_router_digest(
+            Self::compute_candidate_digest(&[
+                self.codes_candidate.as_ref(),
+                self.blocks_candidate.as_ref(),
+            ]),
+            self.ethereum.router().address(),
+        );
+
+        self.signature.take();
+        self.coordinator = Some(
+            Coordinator::new(
+                self.max_signers,
+                self.min_signers,
+                self.public_key_package.clone(),
+                candidate_digest.as_ref().into(),
+            )
+            .expect("failed to create coordinator"),
+        );
 
         let to_start_validation = self.codes_candidate.is_some() || self.blocks_candidate.is_some();
 
@@ -363,7 +422,7 @@ impl SequencerService {
         let mut submitted = false;
 
         if (self.codes_candidate.is_some() || self.blocks_candidate.is_some())
-            && self.signatures.len() as u64 >= self.threshold
+            && self.signature.is_some()
         {
             log::debug!("Submitting commitments");
             self.submit_multisigned_commitments();
@@ -487,35 +546,14 @@ impl SequencerService {
         Ok(())
     }
 
-    fn receive_signature(
-        commitments_digest: Digest,
-        signature: Signature,
-        validators: &HashSet<Address>,
-        router_address: Address,
-        candidates: &[Option<&MultisignedCommitmentDigests>],
-        signatures: &mut Signatures,
-    ) -> Result<()> {
-        let candidate_digests = candidates.iter().map(|candidate| match candidate {
-            Some(candidate) => candidate.digest(),
-            None => iter::empty::<Digest>().collect(),
-        });
-        let candidate_digest = candidate_digests.collect();
-
-        if commitments_digest != candidate_digest {
-            return Err(anyhow!("Aggregated commitments digest mismatch"));
-        }
-
-        signatures.append_signature_with_check(
-            commitments_digest,
-            signature,
-            router_address,
-            |origin| {
-                validators
-                    .contains(&origin)
-                    .then_some(())
-                    .ok_or_else(|| anyhow!("Unknown validator {origin} or invalid signature"))
-            },
-        )
+    fn compute_candidate_digest(candidates: &[Option<&MultisignedCommitmentDigests>]) -> Digest {
+        candidates
+            .iter()
+            .map(|candidate| match candidate {
+                Some(candidate) => candidate.digest(),
+                None => iter::empty::<Digest>().collect(),
+            })
+            .collect()
     }
 
     fn process_multisigned_candidate<C: ToDigest>(

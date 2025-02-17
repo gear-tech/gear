@@ -16,6 +16,7 @@ ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["codec"] }
+roast-secp256k1-evm.workspace = true
 
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 log.workspace = true
