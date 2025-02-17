@@ -28,6 +28,7 @@ use core_processor::{
     configs::{BlockConfig, SyscallName},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
+use ethexe_common::gear::Origin;
 use gear_core::{
     code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     ids::ProgramId,
@@ -53,6 +54,8 @@ mod transitions;
 pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
 
 pub const RUNTIME_ID: u32 = 0;
+
+pub type ProgramJournals = Vec<(Vec<JournalNote>, Origin)>;
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
@@ -95,11 +98,113 @@ impl<S: Storage> TransitionController<'_, S> {
     }
 }
 
+pub fn process_queue<S, RI>(
+    program_id: ProgramId,
+    mut program_state: ProgramState,
+    instrumented_code: Option<InstrumentedCode>,
+    code_id: CodeId,
+    ri: &RI,
+) -> ProgramJournals
+where
+    S: Storage,
+    RI: RuntimeInterface<S>,
+    <RI as RuntimeInterface<S>>::LazyPages: Send,
+{
+    let block_info = ri.block_info();
+
+    log::trace!("Processing queue for program {program_id}");
+
+    if program_state.queue_hash.is_empty() {
+        // Queue is empty, nothing to process.
+        return Vec::new();
+    }
+
+    let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
+        ri.storage()
+            .read_queue(hash)
+            .expect("Cannot get message queue")
+    });
+
+    // TODO: must be set by some runtime configuration
+    let block_config = BlockConfig {
+        block_info,
+        forbidden_funcs: [
+            // Deprecated
+            SyscallName::CreateProgramWGas,
+            SyscallName::ReplyCommitWGas,
+            SyscallName::ReplyDeposit,
+            SyscallName::ReplyInputWGas,
+            SyscallName::ReplyWGas,
+            SyscallName::ReservationReplyCommit,
+            SyscallName::ReservationReply,
+            SyscallName::ReservationSendCommit,
+            SyscallName::ReservationSend,
+            SyscallName::ReserveGas,
+            SyscallName::SendCommitWGas,
+            SyscallName::SendInputWGas,
+            SyscallName::SendWGas,
+            SyscallName::SystemReserveGas,
+            SyscallName::UnreserveGas,
+            // TBD about deprecation
+            SyscallName::SignalCode,
+            SyscallName::SignalFrom,
+            // Temporary forbidden (unimplemented)
+            SyscallName::CreateProgram,
+            SyscallName::Random,
+        ]
+        .into(),
+        gas_multiplier: GasMultiplier::one(),
+        costs: Default::default(),
+        max_pages: MAX_WASM_PAGES_AMOUNT.into(),
+        outgoing_limit: 1024,
+        outgoing_bytes_limit: 64 * 1024 * 1024,
+        // TBD about deprecation
+        performance_multiplier: Percent::new(100),
+        // Deprecated
+        existential_deposit: 0,
+        mailbox_threshold: 0,
+        max_reservations: 0,
+        reserve_for: 0,
+    };
+
+    let mut mega_journal = Vec::new();
+
+    ri.init_lazy_pages();
+
+    for _ in 0..queue.len() {
+        let dispatch = queue.dequeue().expect("Should be non-empty");
+        let origin = dispatch.origin;
+
+        let journal = process_dispatch(
+            dispatch,
+            &block_config,
+            program_id,
+            &program_state,
+            &instrumented_code,
+            code_id,
+            ri,
+        );
+        let mut handler = RuntimeJournalHandler {
+            storage: ri.storage(),
+            program_state: &mut program_state,
+        };
+        let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
+        mega_journal.push((unhandled_journal_notes, origin));
+
+        // Update state hash if it was changed.
+        if let Some(new_state_hash) = new_state_hash {
+            ri.update_state_hash(&new_state_hash);
+        }
+    }
+
+    mega_journal
+}
+
 fn process_dispatch<S, RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
     program_id: ProgramId,
-    program_state: &mut ProgramState,
+    program_state: &ProgramState,
     instrumented_code: &Option<InstrumentedCode>,
     code_id: CodeId,
     ri: &RI,
@@ -109,8 +214,6 @@ where
     RI: RuntimeInterface<S>,
     <RI as RuntimeInterface<S>>::LazyPages: Send,
 {
-    log::trace!("Processing next message for program {program_id}");
-
     let Dispatch {
         id: dispatch_id,
         kind,
@@ -119,6 +222,7 @@ where
         value,
         details,
         context,
+        ..
     } = dispatch;
 
     let payload = payload.query(ri.storage()).expect("failed to get payload");
@@ -143,7 +247,7 @@ where
         Err(journal) => return journal,
     };
 
-    let active_state = match &mut program_state.program {
+    let active_state = match &program_state.program {
         state::Program::Active(state) => state,
         state::Program::Exited(program_id) | state::Program::Terminated(program_id) => {
             log::trace!("Program {program_id} is not active");
@@ -220,107 +324,6 @@ where
 
     core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))
-}
-
-pub fn process_queue<S, RI>(
-    program_id: ProgramId,
-    mut program_state: ProgramState,
-    instrumented_code: Option<InstrumentedCode>,
-    code_id: CodeId,
-    ri: &RI,
-) -> Vec<Vec<JournalNote>>
-where
-    S: Storage,
-    RI: RuntimeInterface<S>,
-    <RI as RuntimeInterface<S>>::LazyPages: Send,
-{
-    let block_info = ri.block_info();
-
-    log::trace!("Processing queue for program {program_id}");
-
-    if program_state.queue_hash.is_empty() {
-        // Queue is empty, nothing to process.
-        return Vec::new();
-    }
-
-    let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
-        ri.storage()
-            .read_queue(hash)
-            .expect("Cannot get message queue")
-    });
-
-    // TODO: must be set by some runtime configuration
-    let block_config = BlockConfig {
-        block_info,
-        forbidden_funcs: [
-            // Deprecated
-            SyscallName::CreateProgramWGas,
-            SyscallName::ReplyCommitWGas,
-            SyscallName::ReplyDeposit,
-            SyscallName::ReplyInputWGas,
-            SyscallName::ReplyWGas,
-            SyscallName::ReservationReplyCommit,
-            SyscallName::ReservationReply,
-            SyscallName::ReservationSendCommit,
-            SyscallName::ReservationSend,
-            SyscallName::ReserveGas,
-            SyscallName::SendCommitWGas,
-            SyscallName::SendInputWGas,
-            SyscallName::SendWGas,
-            SyscallName::SystemReserveGas,
-            SyscallName::UnreserveGas,
-            // TBD about deprecation
-            SyscallName::SignalCode,
-            SyscallName::SignalFrom,
-            // Temporary forbidden (unimplemented)
-            SyscallName::CreateProgram,
-            SyscallName::Random,
-        ]
-        .into(),
-        gas_multiplier: GasMultiplier::one(),
-        costs: Default::default(),
-        max_pages: MAX_WASM_PAGES_AMOUNT.into(),
-        outgoing_limit: 1024,
-        outgoing_bytes_limit: 64 * 1024 * 1024,
-        // TBD about deprecation
-        performance_multiplier: Percent::new(100),
-        // Deprecated
-        existential_deposit: 0,
-        mailbox_threshold: 0,
-        max_reservations: 0,
-        reserve_for: 0,
-    };
-
-    ri.init_lazy_pages();
-
-    let mut mega_journal = Vec::new();
-
-    for _ in 0..queue.len() {
-        let dispatch = queue.dequeue().expect("Should be non-empty");
-
-        let journal_notes = process_dispatch(
-            dispatch,
-            &block_config,
-            program_id,
-            &mut program_state,
-            &instrumented_code,
-            code_id,
-            ri,
-        );
-        let mut handler = RuntimeJournalHandler {
-            storage: ri.storage(),
-            program_state: &mut program_state,
-        };
-        let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal_notes);
-        mega_journal.push(unhandled_journal_notes);
-
-        // Update state hash if it was changed.
-        if let Some(new_state_hash) = new_state_hash {
-            ri.update_state_hash(&new_state_hash);
-        }
-    }
-
-    mega_journal
 }
 
 pub const fn pack_u32_to_i64(low: u32, high: u32) -> i64 {

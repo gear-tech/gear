@@ -57,14 +57,12 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     let res: Vec<_> = journal.into_iter().map(return_val).collect();
     return_val(res)
 
-    // TODO: chunk the journal additionally
-
     //let chunks = journal.encoded_size() / 32 * 1024 * 1024 + 1; // never zero
     //let chunk_size = (journal.len() / chunks).max(1); // never zero
 
-    //let res: Vec<_> = journal.chunks(chunk_size).map(return_val).collect();
+    //let chunked_journal: Vec<_> = journal.chunks(chunk_size).map(return_val).collect();
 
-    //return_val(res)
+    //return_val((chunked_journal, origin))
 }
 
 fn get_vec(ptr: i32, len: i32) -> Vec<u8> {

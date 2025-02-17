@@ -20,9 +20,8 @@ use crate::wasm::{
     interface::database_ri,
     storage::{NativeRuntimeInterface, RuntimeInterfaceStorage},
 };
-use alloc::vec::Vec;
-use core_processor::{common::JournalNote, configs::BlockInfo};
-use ethexe_runtime_common::{process_queue, state::Storage, RuntimeInterface};
+use core_processor::configs::BlockInfo;
+use ethexe_runtime_common::{process_queue, state::Storage, ProgramJournals, RuntimeInterface};
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
 
@@ -31,7 +30,7 @@ pub fn run(
     original_code_id: CodeId,
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,
-) -> Vec<Vec<JournalNote>> {
+) -> ProgramJournals {
     log::debug!("You're calling 'run(..)'");
 
     let block_info = BlockInfo {

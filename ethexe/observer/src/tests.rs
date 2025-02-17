@@ -21,6 +21,11 @@ use crate::MockBlobReader;
 use alloy::node_bindings::Anvil;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
+use gprimitives::ActorId;
+use roast_secp256k1_evm::frost::{
+    keys::{self, IdentifierList},
+    Identifier,
+};
 use std::time::Duration;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
@@ -50,7 +55,31 @@ async fn test_deployment() -> Result<()> {
     let sender_address = sender_public_key.to_address();
     let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
-    let ethereum = Ethereum::deploy(&ethereum_rpc, validators, signer, sender_address).await?;
+    let (secret_shares, _) = keys::generate_with_dealer(
+        1,
+        1,
+        IdentifierList::Custom(&[Identifier::deserialize(
+            &ActorId::from(validators[0]).into_bytes(),
+        )
+        .unwrap()]),
+        rand::thread_rng(),
+    )
+    .unwrap();
+
+    let verifiable_secret_sharing_commitment = secret_shares
+        .values()
+        .map(|secret_share| secret_share.commitment().clone())
+        .next()
+        .expect("conversion failed");
+
+    let ethereum = Ethereum::deploy(
+        &ethereum_rpc,
+        validators,
+        signer,
+        sender_address,
+        verifiable_secret_sharing_commitment,
+    )
+    .await?;
     let blob_reader = Arc::new(MockBlobReader::new(Duration::from_secs(1)));
 
     let router_address = ethereum.router().address();

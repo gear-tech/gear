@@ -63,10 +63,7 @@ contract RouterTest is Base {
         Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
 
         Gear.ValidatorsCommitment memory commitment = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifyingShares(_validators.length),
-            _validators,
-            1
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
         );
 
         // Election is not yet started
@@ -82,10 +79,7 @@ contract RouterTest is Base {
 
         // Started but wrong era index
         Gear.ValidatorsCommitment memory commitment2 = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifyingShares(_validators.length),
-            _validators,
-            2
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 2
         );
         vm.expectRevert();
         commitValidators(commitment2);
@@ -150,10 +144,7 @@ contract RouterTest is Base {
         Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
 
         Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifyingShares(_validators.length),
-            _validators,
-            1
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
         );
 
         vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
@@ -216,10 +207,7 @@ contract RouterTest is Base {
         Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
 
         Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifyingShares(_validators.length),
-            _validators,
-            1
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
         );
 
         vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
@@ -263,10 +251,7 @@ contract RouterTest is Base {
         Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
 
         Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-            Gear.dummyVerifyingShares(_validators.length),
-            _validators,
-            1
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), new bytes(5000), _validators, 1
         );
 
         vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);

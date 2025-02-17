@@ -20,10 +20,9 @@ use crate::{
     host::{InstanceCreator, InstanceWrapper},
     ProcessorConfig,
 };
-use core_processor::common::JournalNote;
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::{
-    state::Storage, InBlockTransitions, JournalHandler, TransitionController,
+    state::Storage, InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
 use gprimitives::{ActorId, H256};
 use std::iter;
@@ -45,15 +44,12 @@ pub fn run(
 
         let rt = rt_builder.build().unwrap();
 
-        rt.block_on(async {
-            run_in_async(
-                config.virtual_threads,
-                db,
-                instance_creator,
-                in_block_transitions,
-            )
-            .await
-        })
+        rt.block_on(run_in_async(
+            config.virtual_threads,
+            db,
+            instance_creator,
+            in_block_transitions,
+        ))
     })
 }
 
@@ -86,7 +82,7 @@ fn run_runtime(
     executor: &mut InstanceWrapper,
     program_id: ActorId,
     state_hash: H256,
-) -> (Vec<JournalNote>, H256) {
+) -> (ProgramJournals, H256) {
     let code_id = db.program_code_id(program_id).expect("Code ID must be set");
 
     let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
@@ -97,7 +93,7 @@ fn run_runtime(
 }
 
 struct DeterministicJournalHandler {
-    mega_journal: Vec<Option<(ActorId, Vec<JournalNote>)>>,
+    mega_journal: Vec<Option<(ActorId, ProgramJournals)>>,
     current_idx: usize,
     backet_size: usize,
 }
@@ -115,9 +111,9 @@ impl DeterministicJournalHandler {
         &mut self,
         idx: usize,
         program_id: ActorId,
-        journal_notes: Vec<JournalNote>,
+        program_journals: ProgramJournals,
     ) {
-        self.mega_journal[idx] = Some((program_id, journal_notes));
+        self.mega_journal[idx] = Some((program_id, program_journals));
     }
 
     // TODO: traverse mega_journal in reverse order
@@ -130,23 +126,26 @@ impl DeterministicJournalHandler {
         let start_idx = self.current_idx;
 
         for idx in start_idx..self.backet_size {
-            let Some((program_id, journal_notes)) = self.mega_journal[idx].take() else {
+            let Some((program_id, program_journals)) = self.mega_journal[idx].take() else {
                 // Can't proceed journal processing, need to wait till `idx` part of journal is ready
                 self.current_idx = idx;
                 return;
             };
 
-            if !journal_notes.is_empty() {
+            if !program_journals.is_empty() {
                 *no_message_processed = false;
 
-                let mut journal_handler = JournalHandler {
-                    program_id,
-                    controller: TransitionController {
-                        transitions: in_block_transitions,
-                        storage: db,
-                    },
-                };
-                core_processor::handle_journal(journal_notes, &mut journal_handler);
+                for (journal, dispatch_origin) in program_journals {
+                    let mut journal_handler = JournalHandler {
+                        program_id,
+                        dispatch_origin,
+                        controller: TransitionController {
+                            transitions: in_block_transitions,
+                            storage: db,
+                        },
+                    };
+                    core_processor::handle_journal(journal, &mut journal_handler);
+                }
             }
         }
     }
@@ -217,7 +216,7 @@ async fn run_in_async(
             let bucket_size = bucket.len();
             let mut handler = DeterministicJournalHandler::new(bucket_size);
 
-            while let Some((task_num, program_id, new_state_hash, journal_notes)) = join_set
+            while let Some((task_num, program_id, new_state_hash, program_journals)) = join_set
                 .join_next()
                 .await
                 .transpose()
@@ -226,7 +225,7 @@ async fn run_in_async(
                 // State was updated during journal handling inside the runtime
                 in_block_transitions.modify_state(program_id, new_state_hash);
 
-                handler.set_journal_part(task_num, program_id, journal_notes);
+                handler.set_journal_part(task_num, program_id, program_journals);
                 handler.try_handle_journal_part(
                     &db,
                     in_block_transitions,
