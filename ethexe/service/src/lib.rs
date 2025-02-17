@@ -530,6 +530,10 @@ impl Service {
                     }
                 },
                 ServiceEvent::Network(event) => {
+                    let Some(n) = network.as_mut() else {
+                        unreachable!("couldn't produce event without network");
+                    };
+
                     match event {
                         NetworkEvent::Message { source, data } => {
                             log::trace!("Received a network message from peer {source:?}");
@@ -565,13 +569,11 @@ impl Service {
                                         .ok()
                                         .flatten();
 
-                                        if let Some(n) = network.as_mut() {
-                                            if let Some(batch_commitment) = maybe_batch_commitment {
-                                                let message = NetworkMessage::ApproveCommitments {
-                                                    batch_commitment,
-                                                };
-                                                n.publish_message(message.encode());
-                                            }
+                                        if let Some(batch_commitment) = maybe_batch_commitment {
+                                            let message = NetworkMessage::ApproveCommitments {
+                                                batch_commitment,
+                                            };
+                                            n.publish_message(message.encode());
                                         }
                                     }
                                 }
@@ -591,16 +593,14 @@ impl Service {
                                 &mut router_query,
                             )
                             .await?;
+
                             let res = if validated {
                                 Ok(validating_response)
                             } else {
                                 Err(validating_response)
                             };
 
-                            network
-                                .as_mut()
-                                .expect("if network receiver is `Some()` so does sender")
-                                .request_validated(res);
+                            n.request_validated(res);
                         }
                         _ => {}
                     }
