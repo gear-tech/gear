@@ -20,8 +20,9 @@ use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
 use ethexe_common::{
+    events::BlockEvent,
     gear::{BlockCommitment, CodeCommitment},
-    RoastData,
+    RoastData, SimpleBlockData,
 };
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -47,11 +48,126 @@ use roast_secp256k1_evm::{
     SessionStatus,
 };
 use std::{collections::BTreeSet, sync::Arc};
+use tokio::sync::broadcast::{Receiver, Sender};
 
 pub mod config;
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Clone)]
+pub enum ServiceEvent {
+    Observer(ObserverEvent),
+    Sequencer(SequencerEvent),
+    Network(NetworkEvent),
+    Prometheus(PrometheusEvent),
+    Compute(ComputeEvent),
+    ServiceStarted,
+}
+
+pub struct EventsPublisher {
+    broadcaster: Sender<ServiceEvent>,
+}
+
+impl EventsPublisher {
+    pub async fn subscribe(&self) -> EventsListener {
+        EventsListener {
+            receiver: self.broadcaster.subscribe(),
+        }
+    }
+
+    pub fn from_broadcaster(broadcaster: Sender<ServiceEvent>) -> Self {
+        Self { broadcaster }
+    }
+}
+
+pub struct EventsListener {
+    receiver: Receiver<ServiceEvent>,
+}
+
+impl Clone for EventsListener {
+    fn clone(&self) -> Self {
+        Self {
+            receiver: self.receiver.resubscribe(),
+        }
+    }
+}
+
+impl EventsListener {
+    pub async fn next_event(&mut self) -> Result<ServiceEvent> {
+        self.receiver.recv().await.map_err(Into::into)
+    }
+
+    pub async fn wait_for(
+        &mut self,
+        mut f: impl FnMut(ServiceEvent) -> Result<bool>,
+    ) -> Result<()> {
+        self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
+            .await
+    }
+
+    pub async fn apply_until<R: Sized>(
+        &mut self,
+        mut f: impl FnMut(ServiceEvent) -> Result<Option<R>>,
+    ) -> Result<R> {
+        loop {
+            let event = self.next_event().await?;
+            if let Some(res) = f(event)? {
+                return Ok(res);
+            }
+        }
+    }
+
+    pub async fn apply_until_block_event<R: Sized>(
+        &mut self,
+        mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
+    ) -> Result<R> {
+        self.apply_until_block_event_with_header(|e, _h| f(e)).await
+    }
+
+    pub async fn apply_until_block_event_with_header<R: Sized>(
+        &mut self,
+        mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
+    ) -> Result<R> {
+        loop {
+            let event = self.next_event().await?;
+
+            let ServiceEvent::Observer(ObserverEvent::Block(block)) = event else {
+                continue;
+            };
+
+            let block_data = block.to_simple();
+
+            for event in block.events {
+                if let Some(res) = f(event, &block_data)? {
+                    return Ok(res);
+                }
+            }
+        }
+    }
+}
+
+/// Event sender trait for [`Service`].
+pub trait EventSender: Send {
+    fn send(&self, event: ServiceEvent);
+}
+
+/// Default event sender that logs all events.
+pub struct LogEventSender;
+
+impl EventSender for LogEventSender {
+    fn send(&self, event: ServiceEvent) {
+        log::trace!("service received event: {event:?}");
+    }
+}
+
+// Implement for broadcast sender in order to capture
+// events in tests.
+impl EventSender for Sender<ServiceEvent> {
+    fn send(&self, event: ServiceEvent) {
+        let _ = self.send(event);
+    }
+}
 
 /// ethexe service.
 pub struct Service {
@@ -67,6 +183,9 @@ pub struct Service {
     validator: Option<ethexe_validator::Validator>,
     prometheus: Option<PrometheusService>,
     rpc: Option<ethexe_rpc::RpcService>,
+
+    // Event broadcasting
+    sender: Box<dyn EventSender>,
 }
 
 // TODO: consider to move this to another module #4176
@@ -92,6 +211,7 @@ pub enum NetworkMessage {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
+        let sender = Box::new(LogEventSender);
         let mock_blob_reader: Option<Arc<MockBlobReader>> = if config.node.dev {
             Some(Arc::new(MockBlobReader::new(config.ethereum.block_time)))
         } else {
@@ -289,13 +409,14 @@ impl Service {
             db,
             network,
             observer,
-            router_query,
             compute,
+            router_query,
             sequencer,
             signer,
             validator,
             prometheus,
             rpc,
+            sender,
         })
     }
 
@@ -321,20 +442,22 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         prometheus: Option<PrometheusService>,
         rpc: Option<ethexe_rpc::RpcService>,
+        sender: Box<dyn EventSender>,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
 
         Self {
             db,
             observer,
-            router_query,
             compute,
+            router_query,
             signer,
             network,
             sequencer,
             validator,
             prometheus,
             rpc,
+            sender,
         }
     }
 
@@ -357,7 +480,9 @@ impl Service {
             mut validator,
             mut prometheus,
             rpc,
+            sender,
         } = self;
+
         let (mut rpc_handle, mut rpc_receiver) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
 
@@ -376,17 +501,24 @@ impl Service {
             roles.push_str(&format!(", Validator ({})", val.address()));
         }
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
+        // Broadcast service started event
+        sender.send(ServiceEvent::ServiceStarted);
 
         loop {
             tokio::select! {
                 event = observer.select_next_some() => {
-                    match event? {
+                    let event = event?;
+                    sender.send(ServiceEvent::Observer(event.clone()));
+
+                    match event {
                         ObserverEvent::Blob { code_id, timestamp, code } => compute.receive_code(code_id, timestamp, code),
                         ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
                     }
                 },
                 event = compute.select_next_some() => {
-                    match event? {
+                    let event = event?;
+                    sender.send(ServiceEvent::Compute(event.clone()));
+                    match event {
                         ComputeEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
                             // TODO (gsobol): must be done in observer event handling
                             if let Some(s) = sequencer.as_mut() {
@@ -450,6 +582,8 @@ impl Service {
                     }
                 },
                 event = sequencer.maybe_next_some() => {
+                    sender.send(ServiceEvent::Sequencer(event.clone()));
+
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
                     };
@@ -515,6 +649,8 @@ impl Service {
                     }
                 },
                 event = network.maybe_next_some() => {
+                    sender.send(ServiceEvent::Network(event.clone()));
+
                     match event {
                         NetworkEvent::Message { source, data } => {
                             log::trace!("Received a network message from peer {source:?}");
@@ -608,8 +744,11 @@ impl Service {
                                 .request_validated(res);
                         }
                         _ => {}
-                    }},
+                    }
+                },
                 event = prometheus.maybe_next_some() => {
+                    sender.send(ServiceEvent::Prometheus(event.clone()));
+
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
                     };
@@ -633,10 +772,10 @@ impl Service {
                             };
                         }
                     }
-                }
+                },
                 event = rpc_receiver.maybe_next_some() => {
-                    log::info!("Received RPC event {event:#?}");
-                }
+                    log::info!("Received RPC event: {event:#?}");
+                },
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                 }
