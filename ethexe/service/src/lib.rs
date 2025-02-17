@@ -18,7 +18,7 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -348,10 +348,11 @@ impl Service {
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
 
         // Broadcast service started event.
+        // Never supposed to be Some in production code.
         if let Some(sender) = sender.as_ref() {
             sender
                 .send(Event::ServiceStarted)
-                .map_err(|e| anyhow!("failed to broadcast service STARTED event: {e}"))?;
+                .expect("failed to broadcast service STARTED event");
         }
 
         loop {
@@ -371,10 +372,11 @@ impl Service {
             log::trace!("Primary service produced event, start handling: {event:?}");
 
             // Broadcast event.
+            // Never supposed to be Some in production.
             if let Some(sender) = sender.as_ref() {
                 sender
                     .send(event.clone())
-                    .map_err(|e| anyhow!("failed to broadcast service event: {e}"))?;
+                    .expect("failed to broadcast service event");
             }
 
             match event {
@@ -516,9 +518,9 @@ impl Service {
 
                             n.request_validated(res);
                         }
-                        NetworkEvent::ConnectionEstablished(_)
-                        | NetworkEvent::DbResponse(_)
-                        | NetworkEvent::PeerBlocked(_) => (),
+                        NetworkEvent::DbResponse(_)
+                        | NetworkEvent::PeerBlocked(_)
+                        | NetworkEvent::PeerConnected(_) => (),
                     }
                 }
                 Event::Observer(event) => match event {

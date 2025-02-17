@@ -67,7 +67,6 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NetworkEvent {
-    ConnectionEstablished(PeerId),
     DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
     ExternalValidation(db_sync::ValidatingResponse),
     Message {
@@ -75,6 +74,7 @@ pub enum NetworkEvent {
         source: Option<PeerId>,
     },
     PeerBlocked(PeerId),
+    PeerConnected(PeerId),
 }
 
 #[derive(Default, Debug, Clone)]
@@ -271,7 +271,7 @@ impl NetworkService {
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                Some(NetworkEvent::ConnectionEstablished(peer_id))
+                Some(NetworkEvent::PeerConnected(peer_id))
             }
             _ => None,
         }

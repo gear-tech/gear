@@ -1761,10 +1761,8 @@ mod utils {
             self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
 
             if wait_for_network {
-                self.wait_for(|e| {
-                    matches!(e, Event::Network(NetworkEvent::ConnectionEstablished(_)))
-                })
-                .await;
+                self.wait_for(|e| matches!(e, Event::Network(NetworkEvent::PeerConnected(_))))
+                    .await;
             }
         }
 
