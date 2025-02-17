@@ -19,20 +19,13 @@
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use ethexe_common::{events::BlockEvent, gear::{BlockCommitment, CodeCommitment}, SimpleBlockData};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-<<<<<<< HEAD
-use ethexe_observer::{
-    MockBlobReader, ObserverEvent, ObserverService, RequestBlockData, SimpleBlockData,
-};
-use ethexe_processor::{LocalOutcome, ProcessorConfig};
-=======
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
 use ethexe_processor::ProcessorConfig;
->>>>>>> origin
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
@@ -349,8 +342,8 @@ impl Service {
             db,
             network,
             observer,
-            router_query,
             compute,
+            router_query,
             sequencer,
             signer,
             validator,
@@ -389,8 +382,8 @@ impl Service {
         Self {
             db,
             observer,
-            router_query,
             compute,
+            router_query,
             signer,
             network,
             sequencer,
@@ -448,60 +441,10 @@ impl Service {
         loop {
             tokio::select! {
                 event = observer.select_next_some() => {
-<<<<<<< HEAD
                     let event = event?;
                     let _ = event_sender.lock().await.send(ServiceEvent::Observer(event.clone()));
+
                     match event {
-                        ObserverEvent::Blob { code_id, timestamp, code } => {
-                            // TODO: spawn blocking here?
-                            let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
-
-                            let code_commitments = vec![CodeCommitment { id: code_id, timestamp, valid }];
-
-                            if let Some(v) = validator.as_mut() {
-                                let aggregated_code_commitments = v.aggregate(code_commitments)?;
-
-                                if let Some(n) = network.as_mut() {
-                                    log::debug!("Publishing code commitments to network...");
-                                    n.publish_message(
-                                        NetworkMessage::PublishCommitments {
-                                            codes: Some(aggregated_code_commitments.clone()),
-                                            blocks: None,
-                                        }
-                                        .encode(),
-                                    );
-                                };
-
-                                if let Some(s) = sequencer.as_mut() {
-                                    log::debug!(
-                                        "Received ({}) signed code commitments from local validator...",
-                                        aggregated_code_commitments.len()
-                                    );
-                                    s.receive_code_commitments(aggregated_code_commitments)?;
-                                }
-                            }
-                        },
-                        ObserverEvent::Block(block) => {
-                            let hash = block.hash;
-
-                            log::info!(
-                                "📦 receive a new block {}, hash {hash}, parent hash {}",
-                                block.header.height,
-                                block.header.parent_hash
-                            );
-
-                            let block = RequestBlockData {
-                                hash,
-                                header: block.header,
-                                events: block.events.into_iter().flat_map(BlockEvent::to_request).collect(),
-                            };
-
-                            // TODO: spawn blocking here?
-                            let block_commitments =
-                                Self::process_block_event(&db, &mut query, &mut processor, block).await?;
-
-=======
-                    match event? {
                         ObserverEvent::Blob { code_id, timestamp, code } => compute.receive_code(code_id, timestamp, code),
                         ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
                     }
@@ -510,7 +453,6 @@ impl Service {
                     match event? {
                         ComputeEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
                             // TODO (gsobol): must be done in observer event handling
->>>>>>> origin
                             if let Some(s) = sequencer.as_mut() {
                                 s.on_new_head(chain_head)?
                             }
