@@ -171,7 +171,7 @@ where
         program_id,
         program_state,
         instrumented_code,
-        code_id,
+        code_metadata,
         ri,
     );
 
@@ -184,7 +184,7 @@ fn process_dispatch<S, RI>(
     program_id: ProgramId,
     program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
-    code_id: CodeId,
+    code_metadata: Option<CodeMetadata>,
     ri: &RI,
 ) -> Vec<JournalNote>
 where
@@ -217,7 +217,7 @@ where
 
     let context = ContextCharged::new(program_id, dispatch, 1_000_000_000_000);
 
-    let context = match context.charge_for_program(&block_config) {
+    let context = match context.charge_for_program(block_config) {
         Ok(context) => context,
         Err(journal) => return journal,
     };
@@ -246,7 +246,7 @@ where
         return core_processor::process_non_executable(context);
     }
 
-    let context = match context.charge_for_code_metadata(&block_config) {
+    let context = match context.charge_for_code_metadata(block_config) {
         Ok(context) => context,
         Err(journal) => return journal,
     };
@@ -255,7 +255,7 @@ where
     let code_metadata = code_metadata.expect("Code metadata must be provided if program is active");
 
     let context =
-        match context.charge_for_instrumented_code(&block_config, code.bytes().len() as u32) {
+        match context.charge_for_instrumented_code(block_config, code.bytes().len() as u32) {
             Ok(context) => context,
             Err(journal) => return journal,
         };
@@ -267,7 +267,7 @@ where
             .expect("Cannot get allocations")
     });
 
-    let context = match context.charge_for_allocations(&block_config, allocations.tree_len()) {
+    let context = match context.charge_for_allocations(block_config, allocations.tree_len()) {
         Ok(context) => context,
         Err(journal) => return journal,
     };
@@ -279,7 +279,7 @@ where
     };
 
     let context = match context.charge_for_module_instantiation(
-        &block_config,
+        block_config,
         actor_data,
         code.instantiated_section_sizes(),
         &code_metadata,
