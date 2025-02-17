@@ -27,30 +27,19 @@ use ethexe_runtime_common::{
 use gprimitives::{ActorId, H256};
 use std::iter;
 
-pub fn run(
+pub async fn run(
     config: &ProcessorConfig,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
-    tokio::task::block_in_place(|| {
-        let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
-
-        if let Some(worker_threads) = config.worker_threads_override {
-            rt_builder.worker_threads(worker_threads);
-        };
-
-        rt_builder.enable_all();
-
-        let rt = rt_builder.build().unwrap();
-
-        rt.block_on(run_in_async(
-            config.virtual_threads,
-            db,
-            instance_creator,
-            in_block_transitions,
-        ))
-    })
+    run_in_async(
+        config.virtual_threads,
+        db,
+        instance_creator,
+        in_block_transitions,
+    )
+    .await
 }
 
 // Splits to backets by queue size

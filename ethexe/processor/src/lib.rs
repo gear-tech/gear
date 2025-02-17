@@ -109,13 +109,14 @@ impl Processor {
         Ok(valid)
     }
 
-    pub fn process_block_events(
+    pub async fn process_block_events(
         &mut self,
         block_hash: H256,
         events: Vec<BlockRequestEvent>,
     ) -> Result<Vec<LocalOutcome>> {
         let outcomes = self
-            .process_block_events_raw(block_hash, events)?
+            .process_block_events_raw(block_hash, events)
+            .await?
             .into_iter()
             .map(LocalOutcome::Transition)
             .collect();
@@ -123,7 +124,7 @@ impl Processor {
         Ok(outcomes)
     }
 
-    pub fn process_block_events_raw(
+    pub async fn process_block_events_raw(
         &mut self,
         block_hash: H256,
         events: Vec<BlockRequestEvent>,
@@ -147,7 +148,7 @@ impl Processor {
         }
 
         handler.run_schedule();
-        self.process_queue(&mut handler);
+        self.process_queue(&mut handler).await;
 
         let (transitions, states, schedule) = handler.transitions.finalize();
 
@@ -157,7 +158,7 @@ impl Processor {
         Ok(transitions)
     }
 
-    pub fn process_queue(&mut self, handler: &mut ProcessingHandler) {
+    pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
         self.creator.set_chain_head(handler.block_hash);
 
         run::run(
@@ -165,7 +166,8 @@ impl Processor {
             self.db.clone(),
             self.creator.clone(),
             &mut handler.transitions,
-        );
+        )
+        .await;
     }
 }
 
@@ -174,7 +176,7 @@ pub struct OverlaidProcessor(Processor);
 
 impl OverlaidProcessor {
     // TODO (breathx): optimize for one single program.
-    pub fn execute_for_reply(
+    pub async fn execute_for_reply(
         &mut self,
         block_hash: H256,
         source: ActorId,
@@ -211,7 +213,7 @@ impl OverlaidProcessor {
             },
         )?;
 
-        self.0.process_queue(&mut handler);
+        self.0.process_queue(&mut handler).await;
 
         let res = handler
             .transitions

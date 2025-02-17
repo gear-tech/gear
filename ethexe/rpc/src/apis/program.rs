@@ -139,6 +139,7 @@ impl ProgramServer for ProgramApi {
                 payload.0,
                 value,
             )
+            .await
             .map_err(errors::runtime)
     }
 
