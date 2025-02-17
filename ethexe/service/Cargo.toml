@@ -22,6 +22,7 @@ ethexe-common.workspace = true
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
+ethexe-tx-pool.workspace = true
 gprimitives.workspace = true
 roast-secp256k1-evm.workspace = true
 
@@ -68,8 +69,10 @@ ntest = "0.9.3"
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-utils.workspace = true
+serde_json.workspace = true
 ethexe-network.workspace = true
 roast-secp256k1-evm.workspace = true
+ethexe-rpc = { workspace = true, features = ["test-utils"] }
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }

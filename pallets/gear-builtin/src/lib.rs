@@ -63,11 +63,12 @@ use core_processor::{
 use frame_support::dispatch::extract_actual_weight;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{hash, ProgramId},
+    ids::ProgramId,
     message::{
         ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
     },
     str::LimitedStr,
+    utils::hash,
 };
 use impl_trait_for_tuples::impl_for_tuples;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};

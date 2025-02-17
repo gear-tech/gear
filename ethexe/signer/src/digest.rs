@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Keccak256 digest type. Implements AsDigest hashing for ethexe common types.
+//! Keccak256 digest type.
+//!
+//! Implements `ToDigest` hashing for ethexe common types.
 
 use core::fmt;
 use ethexe_common::{
@@ -28,6 +30,7 @@ use ethexe_common::{
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
+/// Common digest type for the ethexe.
 #[derive(
     Clone,
     Copy,
@@ -42,7 +45,7 @@ use sha3::Digest as _;
     derive_more::Into,
     derive_more::AsRef,
 )]
-pub struct Digest([u8; 32]);
+pub struct Digest(pub(crate) [u8; 32]);
 
 impl fmt::Debug for Digest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
