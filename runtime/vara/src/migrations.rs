@@ -265,8 +265,6 @@ impl<T: pallet_bags_list::Config<pallet_bags_list::Instance1>>
             17_156_657_785_341_708_288,
         ];
 
-        // let affected_accounts =
-        // BagsList::List::migrate(&old_thresholds);
         let affected_accounts =
             pallet_bags_list::List::<Runtime, pallet_bags_list::Instance1>::migrate(
                 &old_thresholds,
