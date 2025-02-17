@@ -58,8 +58,8 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     let res: Vec<_> = program_journals
         .into_iter()
         .flat_map(|(journal, origin)| {
-            let chunks = journal.encoded_size() / 32 * 1024 * 1024 + 1; // never zero
-            let chunk_size = (journal.len() / chunks).max(1); // never zero
+            let chunks = journal.encoded_size().div_ceil(32 * 1024 * 1024);
+            let chunk_size = journal.len().div_ceil(chunks);
 
             let chunked_journal: Vec<_> = journal
                 .chunks(chunk_size)

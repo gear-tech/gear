@@ -42,28 +42,27 @@ pub async fn run(
     .await
 }
 
-// Splits to backets by queue size
+// Splits to buckets by queue size
 fn split_to_buckets(
     virtual_threads: usize,
     states: &Vec<(ActorId, H256, u8)>,
 ) -> Vec<(ActorId, H256, u8)> {
-    fn backet_idx(queue_size: usize, number_of_backets: usize) -> usize {
-        // Simplest implementation of backet partitioning '..1| 2 | 3 | 4 ..'
-        queue_size.clamp(1, number_of_backets) - 1
+    fn bucket_idx(queue_size: usize, number_of_buckets: usize) -> usize {
+        // Simplest implementation of bucket partitioning '..1| 2 | 3 | 4 ..'
+        queue_size.clamp(1, number_of_buckets) - 1
     }
 
-    let max_size_of_backet = virtual_threads;
-    // FIXME:
-    let number_of_backets = (states.len() / max_size_of_backet) + 1;
+    let max_size_of_bucket = virtual_threads;
+    let number_of_buckets = states.len().div_ceil(max_size_of_bucket);
 
-    let mut backets = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_backets));
+    let mut buckets = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_buckets));
 
     for (actor_id, state_hash, queue_size) in states {
-        let backet_idx = backet_idx(*queue_size as usize, number_of_backets);
-        backets[backet_idx].push((*actor_id, *state_hash, *queue_size));
+        let bucket_idx = bucket_idx(*queue_size as usize, number_of_buckets);
+        buckets[bucket_idx].push((*actor_id, *state_hash, *queue_size));
     }
 
-    backets.into_iter().flatten().rev().collect()
+    buckets.into_iter().flatten().rev().collect()
 }
 
 fn run_runtime(
@@ -84,15 +83,15 @@ fn run_runtime(
 struct DeterministicJournalHandler {
     mega_journal: Vec<Option<(ActorId, ProgramJournals)>>,
     current_idx: usize,
-    backet_size: usize,
+    bucket_size: usize,
 }
 
 impl DeterministicJournalHandler {
-    fn new(backet_size: usize) -> Self {
+    fn new(bucket_size: usize) -> Self {
         Self {
-            mega_journal: Vec::from_iter(std::iter::repeat_n(None, backet_size)),
+            mega_journal: Vec::from_iter(std::iter::repeat_n(None, bucket_size)),
             current_idx: 0,
-            backet_size,
+            bucket_size,
         }
     }
 
@@ -114,7 +113,7 @@ impl DeterministicJournalHandler {
     ) {
         let start_idx = self.current_idx;
 
-        for idx in start_idx..self.backet_size {
+        for idx in start_idx..self.bucket_size {
             let Some((program_id, program_journals)) = self.mega_journal[idx].take() else {
                 // Can't proceed journal processing, need to wait till `idx` part of journal is ready
                 self.current_idx = idx;
@@ -237,7 +236,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_test_backet_partitioning() {
+    fn it_test_bucket_partitioning() {
         const STATE_SIZE: usize = 1_000;
         const VIRT_THREADS_NUM: usize = 16;
         const MAX_QUEUE_SIZE: u8 = 20;
@@ -253,25 +252,25 @@ mod tests {
             .take(STATE_SIZE),
         );
 
-        let backets = split_to_buckets(VIRT_THREADS_NUM, &states);
+        let buckets = split_to_buckets(VIRT_THREADS_NUM, &states);
 
         //println!();
-        //for (_, _, queue_size) in &backets {
+        //for (_, _, queue_size) in &buckets {
         //    print!("{queue_size}, ");
         //}
         //println!();
 
-        // Checking backets partitioning
-        let accum_backets = backets
+        // Checking buckets partitioning
+        let accum_buckets = buckets
             .iter()
             .chunks(VIRT_THREADS_NUM)
             .into_iter()
-            .map(|backet| backet.fold(0, |acc, (_, _, queue_size)| acc + *queue_size as usize))
+            .map(|bucket| bucket.fold(0, |acc, (_, _, queue_size)| acc + *queue_size as usize))
             .collect::<Vec<_>>();
 
-        for i in 0..accum_backets.len() - 1 {
+        for i in 0..accum_buckets.len() - 1 {
             assert!(
-                accum_backets[i] >= accum_backets[i + 1],
+                accum_buckets[i] >= accum_buckets[i + 1],
                 "Backets are not sorted"
             );
         }
