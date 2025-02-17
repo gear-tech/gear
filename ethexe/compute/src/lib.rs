@@ -37,14 +37,14 @@ use std::{
 };
 use tokio::task::JoinSet;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockProcessed {
     pub chain_head: H256,
     // TODO (gsobol): remove commitments, this must be handled by validator if needed
     pub commitments: Vec<BlockCommitment>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ComputeEvent {
     BlockProcessed(BlockProcessed),
     CodeProcessed(CodeCommitment),
