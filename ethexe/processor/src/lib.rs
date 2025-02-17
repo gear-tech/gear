@@ -162,7 +162,7 @@ impl Processor {
         self.creator.set_chain_head(handler.block_hash);
 
         run::run(
-            self.config(),
+            self.config().virtual_threads,
             self.db.clone(),
             self.creator.clone(),
             &mut handler.transitions,

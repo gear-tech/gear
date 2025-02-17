@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    host::{InstanceCreator, InstanceWrapper},
-    ProcessorConfig,
-};
+use crate::host::{InstanceCreator, InstanceWrapper};
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::{
     state::Storage, InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
@@ -28,21 +25,78 @@ use gprimitives::{ActorId, H256};
 use std::iter;
 
 pub async fn run(
-    config: &ProcessorConfig,
+    virtual_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
-    run_in_async(
-        config.virtual_threads,
-        db,
-        instance_creator,
-        in_block_transitions,
-    )
-    .await
+    let mut join_set = tokio::task::JoinSet::new();
+    let max_bucket_size = virtual_threads;
+
+    loop {
+        let mut no_message_processed = true;
+
+        let buckets = split_to_buckets(
+            virtual_threads,
+            &in_block_transitions
+                .states_iter()
+                .filter_map(|(actor_id, state_hash)| {
+                    let program_state = db.read_state(*state_hash).unwrap();
+
+                    if program_state.queue_hash.is_empty() {
+                        return None;
+                    }
+
+                    let queue_size = program_state.queue_hash.query(&db).unwrap().len();
+
+                    Some((*actor_id, *state_hash, queue_size as u8))
+                })
+                .collect(),
+        );
+
+        for bucket in buckets.chunks(max_bucket_size) {
+            for (task_num, (program_id, state_hash, _)) in bucket.iter().enumerate() {
+                let db = db.clone();
+                let mut executor = instance_creator
+                    .instantiate()
+                    .expect("Failed to instantiate executor");
+                let program_id = *program_id;
+                let state_hash = *state_hash;
+
+                let _ = join_set.spawn_blocking(move || {
+                    let (jn, new_state_hash) =
+                        run_runtime(db, &mut executor, program_id, state_hash);
+                    (task_num, program_id, new_state_hash, jn)
+                });
+            }
+
+            let bucket_size = bucket.len();
+            let mut handler = DeterministicJournalHandler::new(bucket_size);
+
+            while let Some((task_num, program_id, new_state_hash, program_journals)) = join_set
+                .join_next()
+                .await
+                .transpose()
+                .expect("Failed to join task")
+            {
+                // State was updated during journal handling inside the runtime
+                in_block_transitions.modify_state(program_id, new_state_hash);
+
+                handler.set_journal_part(task_num, program_id, program_journals);
+                handler.try_handle_journal_part(
+                    &db,
+                    in_block_transitions,
+                    &mut no_message_processed,
+                );
+            }
+        }
+
+        if no_message_processed {
+            break;
+        }
+    }
 }
 
-// Splits to buckets by queue size
 fn split_to_buckets(
     virtual_threads: usize,
     states: &Vec<(ActorId, H256, u8)>,
@@ -153,79 +207,6 @@ impl Drop for DeterministicJournalHandler {
     }
 }
 
-async fn run_in_async(
-    virtual_threads: usize,
-    db: Database,
-    instance_creator: InstanceCreator,
-    in_block_transitions: &mut InBlockTransitions,
-) {
-    let mut join_set = tokio::task::JoinSet::new();
-    let max_bucket_size = virtual_threads;
-
-    loop {
-        let mut no_message_processed = true;
-
-        let buckets = split_to_buckets(
-            virtual_threads,
-            &in_block_transitions
-                .states_iter()
-                .filter_map(|(actor_id, state_hash)| {
-                    let program_state = db.read_state(*state_hash).unwrap();
-
-                    if program_state.queue_hash.is_empty() {
-                        return None;
-                    }
-
-                    let queue_size = program_state.queue_hash.query(&db).unwrap().len();
-
-                    Some((*actor_id, *state_hash, queue_size as u8))
-                })
-                .collect(),
-        );
-
-        for bucket in buckets.chunks(max_bucket_size) {
-            for (task_num, (program_id, state_hash, _)) in bucket.iter().enumerate() {
-                let db = db.clone();
-                let mut executor = instance_creator
-                    .instantiate()
-                    .expect("Failed to instantiate executor");
-                let program_id = *program_id;
-                let state_hash = *state_hash;
-
-                let _ = join_set.spawn_blocking(move || {
-                    let (jn, new_state_hash) =
-                        run_runtime(db, &mut executor, program_id, state_hash);
-                    (task_num, program_id, new_state_hash, jn)
-                });
-            }
-
-            let bucket_size = bucket.len();
-            let mut handler = DeterministicJournalHandler::new(bucket_size);
-
-            while let Some((task_num, program_id, new_state_hash, program_journals)) = join_set
-                .join_next()
-                .await
-                .transpose()
-                .expect("Failed to join task")
-            {
-                // State was updated during journal handling inside the runtime
-                in_block_transitions.modify_state(program_id, new_state_hash);
-
-                handler.set_journal_part(task_num, program_id, program_journals);
-                handler.try_handle_journal_part(
-                    &db,
-                    in_block_transitions,
-                    &mut no_message_processed,
-                );
-            }
-        }
-
-        if no_message_processed {
-            break;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use gprimitives::ActorId;
@@ -251,12 +232,6 @@ mod tests {
         );
 
         let buckets = split_to_buckets(VIRT_THREADS_NUM, &states);
-
-        //println!();
-        //for (_, _, queue_size) in &buckets {
-        //    print!("{queue_size}, ");
-        //}
-        //println!();
 
         // Checking buckets partitioning
         let accum_buckets = buckets
