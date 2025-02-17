@@ -58,17 +58,34 @@ impl<T: Config> OnRuntimeUpgrade for MigrateRemoveCodeMetadata<T> {
 
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-            v10::MetadataStorageNonce::<T>::kill();
+            let mut counter = 0;
 
-            // killing a storage: one write
-            weight = weight.saturating_add(T::DbWeight::get().writes(1));
+            let mut removal_result = v10::MetadataStorage::<T>::clear(u32::MAX, None);
+            // MultiRemovalResults contains two fields on which we calculate weight:
+            // - loops: how many iterations of loop were performed, each requiring read
+            // - backend: number of elements removed from database, corresponds to write.
+
+            weight = weight.saturating_add(
+                T::DbWeight::get()
+                    .reads_writes(removal_result.loops as u64, removal_result.backend as u64),
+            );
+            counter += removal_result.backend;
+
+            while let Some(cursor) = removal_result.maybe_cursor.take() {
+                removal_result = v10::MetadataStorage::<T>::clear(u32::MAX, Some(&cursor));
+                weight = weight.saturating_add(
+                    T::DbWeight::get()
+                        .reads_writes(removal_result.loops as u64, removal_result.backend as u64),
+                );
+                counter += removal_result.backend;
+            }
 
             // Put new storage version
             weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
             update_to.put::<Pallet<T>>();
 
-            log::info!("✅ Successfully migrated storage.");
+            log::info!("✅ Successfully migrated storage. {counter} entries were cleared");
         } else {
             log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
@@ -97,6 +114,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateRemoveCodeMetadata<T> {
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
+        ensure!(
+            v10::MetadataStorage::<T>::iter().count() == 0,
+            "Metadata storage is not empty after upgrade"
+        );
+
         Option::<u64>::decode(&mut state.as_ref())
             .map_err(|_| "`pre_upgrade` provided an invalid state")?;
 
@@ -134,8 +156,6 @@ mod v10 {
         frame_support::{storage::types::StorageMap, Identity},
         gear_core::ids::CodeId,
     };
-
-    pub type MetadataStorageNonce<T> = StorageValue<MetadataStoragePrefix<T>, u32>;
 
     pub struct MetadataStoragePrefix<T>(PhantomData<T>);
 

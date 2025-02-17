@@ -85,13 +85,20 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
                 counter += 1;
             });
 
-            v12::CodeStorageNonce::<T>::kill();
-            // killing a storage: one write
-            weight = weight.saturating_add(T::DbWeight::get().writes(1));
+            let mut removal_result = v12::CodeLenStorage::<T>::clear(u32::MAX, None);
 
-            v12::CodeLenStorageNonce::<T>::kill();
-            // killing a storage: one write
-            weight = weight.saturating_add(T::DbWeight::get().writes(1));
+            weight = weight.saturating_add(
+                T::DbWeight::get()
+                    .reads_writes(removal_result.loops as u64, removal_result.backend as u64),
+            );
+
+            while let Some(cursor) = removal_result.maybe_cursor.take() {
+                removal_result = v12::CodeLenStorage::<T>::clear(u32::MAX, Some(&cursor));
+                weight = weight.saturating_add(
+                    T::DbWeight::get()
+                        .reads_writes(removal_result.loops as u64, removal_result.backend as u64),
+                );
+            }
 
             // Put new storage version
             weight = weight.saturating_add(T::DbWeight::get().writes(1));
@@ -176,8 +183,6 @@ mod v12 {
     use gear_core::ids::CodeId;
     use sp_std::marker::PhantomData;
 
-    pub type CodeStorageNonce<T> = StorageValue<CodeStorageStoragePrefix<T>, u32>;
-
     pub struct CodeStorageStoragePrefix<T>(PhantomData<T>);
 
     impl<T: Config> StorageInstance for CodeStorageStoragePrefix<T> {
@@ -192,8 +197,6 @@ mod v12 {
     pub type CodeStorage<T> =
         StorageMap<CodeStorageStoragePrefix<T>, Identity, CodeId, InstrumentedCode>;
 
-    pub type CodeLenStorageNonce<T> = StorageValue<CodeLenStoragePrefix<T>, u32>;
-
     pub struct CodeLenStoragePrefix<T>(PhantomData<T>);
 
     impl<T: Config> StorageInstance for CodeLenStoragePrefix<T> {
@@ -204,6 +207,8 @@ mod v12 {
 
         const STORAGE_PREFIX: &'static str = "CodeLenStorage";
     }
+
+    pub type CodeLenStorage<T> = StorageMap<CodeLenStoragePrefix<T>, Identity, CodeId, u32>;
 }
 
 #[cfg(test)]
