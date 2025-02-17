@@ -1,10 +1,10 @@
 use crate::{
-    state::{Dispatch, PayloadLookup, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{Dispatch, MailboxMessage, PayloadLookup, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
     TransitionController,
 };
 use ethexe_common::{
     db::{Rfm, ScheduledTask, Sd, Sum},
-    gear::{Origin, ValueClaim},
+    gear::ValueClaim,
 };
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;
@@ -22,12 +22,15 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     ) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, transitions| {
-                let ValueWithExpiry { value, .. } =
-                    state.mailbox_hash.modify_mailbox(storage, |mailbox| {
-                        mailbox
-                            .remove_and_store_user_mailbox(storage, user_id, message_id)
-                            .expect("failed to find message in mailbox")
-                    });
+                let MailboxMessage {
+                    value: ValueWithExpiry { value, .. },
+                    origin,
+                    ..
+                } = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    mailbox
+                        .remove_and_store_user_mailbox(storage, user_id, message_id)
+                        .expect("failed to find message in mailbox")
+                });
 
                 transitions.modify_transition(program_id, |transition| {
                     transition.claims.push(ValueClaim {
@@ -43,8 +46,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                     PayloadLookup::empty(),
                     0,
                     SuccessReplyReason::Auto,
-                    // TODO(rmasl): use the actual origin (https://github.com/gear-tech/gear/pull/4460)
-                    Origin::Ethereum,
+                    origin,
                 );
 
                 state
@@ -87,8 +89,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                         storage,
                         user_id,
                         stashed_message_id,
-                        dispatch.value,
-                        expiry,
+                        (&dispatch, expiry).into(),
                     );
                 });
 

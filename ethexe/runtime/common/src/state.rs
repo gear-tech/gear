@@ -47,6 +47,8 @@ use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
 
+use crate::transitions::Expiry;
+
 /// 3h validity in mailbox for 12s blocks.
 pub const MAILBOX_VALIDITY: u32 = 54_000;
 
@@ -786,17 +788,61 @@ impl DispatchStash {
     }
 }
 
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct MailboxMessage {
+    pub value: ValueWithExpiry<Value>,
+    pub payload: PayloadLookup,
+    pub origin: Origin,
+}
+
+impl MailboxMessage {
+    pub fn new(value: Value, expiry: u32, payload: PayloadLookup, origin: Origin) -> Self {
+        Self {
+            value: ValueWithExpiry { value, expiry },
+            payload,
+            origin,
+        }
+    }
+}
+
+impl From<(&StoredDispatch, Origin, Expiry)> for MailboxMessage {
+    fn from((stored_dispatch, origin, expiry): (&StoredDispatch, Origin, Expiry)) -> Self {
+        let value = stored_dispatch.message().value();
+        let payload_bytes = stored_dispatch.message().payload_bytes();
+
+        Self {
+            value: ValueWithExpiry { value, expiry },
+            payload: PayloadLookup::Direct(Payload::try_from(payload_bytes).unwrap()),
+            origin,
+        }
+    }
+}
+
+impl From<(&Dispatch, Expiry)> for MailboxMessage {
+    fn from((dispatch, expiry): (&Dispatch, Expiry)) -> Self {
+        Self {
+            value: ValueWithExpiry {
+                value: dispatch.value,
+                expiry,
+            },
+            payload: dispatch.payload.clone(),
+            origin: dispatch.origin,
+        }
+    }
+}
+
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct UserMailbox(BTreeMap<MessageId, ValueWithExpiry<Value>>);
+pub struct UserMailbox(BTreeMap<MessageId, MailboxMessage>);
 
 impl UserMailbox {
-    fn add(&mut self, message_id: MessageId, value: Value, expiry: u32) {
-        let r = self.0.insert(message_id, ValueWithExpiry { value, expiry });
+    fn add(&mut self, message_id: MessageId, mailbox_message: MailboxMessage) {
+        let r = self.0.insert(message_id, mailbox_message);
         debug_assert!(r.is_none())
     }
 
-    fn remove(&mut self, message_id: MessageId) -> Option<ValueWithExpiry<u128>> {
+    fn remove(&mut self, message_id: MessageId) -> Option<MailboxMessage> {
         self.0.remove(&message_id)
     }
 
@@ -824,26 +870,22 @@ impl Mailbox {
         storage: &S,
         user_id: ActorId,
         message_id: MessageId,
-        value: Value,
-        expiry: u32,
+        mailbox_message: MailboxMessage,
     ) {
         self.changed = true;
 
-        let user_mailbox = self.inner.get(&user_id).map_or_else(
-            || {
-                let mut user_mailbox = UserMailbox::default();
-                user_mailbox.add(message_id, value, expiry);
-                user_mailbox
-            },
-            |hash| {
-                let mut user_mailbox = storage
-                    .read_user_mailbox(*hash)
-                    .expect("failed to read user mailbox from storage");
+        let user_mailbox = if let Some(hash) = self.inner.get(&user_id) {
+            let mut user_mailbox = storage
+                .read_user_mailbox(*hash)
+                .expect("failed to read user mailbox from storage");
 
-                user_mailbox.add(message_id, value, expiry);
-                user_mailbox
-            },
-        );
+            user_mailbox.add(message_id, mailbox_message);
+            user_mailbox
+        } else {
+            let mut user_mailbox = UserMailbox::default();
+            user_mailbox.add(message_id, mailbox_message.clone());
+            user_mailbox
+        };
 
         let hash = storage.write_user_mailbox(user_mailbox);
 
@@ -855,7 +897,7 @@ impl Mailbox {
         storage: &S,
         user_id: ActorId,
         message_id: MessageId,
-    ) -> Option<ValueWithExpiry<u128>> {
+    ) -> Option<MailboxMessage> {
         self.changed = true;
 
         let user_mailbox_hash = self.inner.get(&user_id)?;
@@ -863,7 +905,7 @@ impl Mailbox {
             .read_user_mailbox(*user_mailbox_hash)
             .expect("failed to read user mailbox from storage");
 
-        let claimed_value = user_mailbox.remove(message_id);
+        let mailbox_message = user_mailbox.remove(message_id);
 
         if user_mailbox.is_empty() {
             self.inner.remove(&user_id);
@@ -875,7 +917,7 @@ impl Mailbox {
             self.inner.insert(user_id, hash);
         }
 
-        claimed_value
+        mailbox_message
     }
 
     pub fn store<S: Storage>(self, storage: &S) -> Option<MaybeHashOf<Self>> {
@@ -883,7 +925,7 @@ impl Mailbox {
             .then(|| MaybeHashOf((!self.inner.is_empty()).then(|| storage.write_mailbox(self))))
     }
 
-    pub fn into_inner<S: Storage>(
+    pub fn into_values<S: Storage>(
         self,
         storage: &S,
     ) -> BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>> {
@@ -895,7 +937,10 @@ impl Mailbox {
                     storage
                         .read_user_mailbox(v)
                         .expect("failed to read user mailbox from store")
-                        .0,
+                        .0
+                        .into_iter()
+                        .map(|(k, v)| (k, v.value))
+                        .collect(),
                 )
             })
             .collect()

@@ -99,8 +99,7 @@ impl<S: Storage> Handler<'_, S> {
                             storage,
                             dispatch.destination(),
                             dispatch.id(),
-                            dispatch.value(),
-                            expiry,
+                            (&dispatch, dispatch_origin, expiry).into(),
                         )
                     });
 
