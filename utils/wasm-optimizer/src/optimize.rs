@@ -31,7 +31,6 @@ use std::{
     fs::{self, metadata},
     path::{Path, PathBuf},
 };
-use wasmparser::ExternalKind;
 
 pub const FUNC_EXPORTS: [&str; 4] = ["init", "handle", "handle_reply", "handle_signal"];
 
@@ -44,20 +43,6 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
     "metahash",
     STACK_END_EXPORT_NAME,
 ];
-
-/// Type of the output wasm.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptType {
-    Meta,
-    Opt,
-}
-
-impl OptType {
-    /// If the optimization type if meta
-    pub fn is_meta(&self) -> bool {
-        self.eq(&OptType::Meta)
-    }
-}
 
 pub struct Optimizer {
     module: Module,
@@ -95,23 +80,9 @@ impl Optimizer {
     }
 
     /// Keeps only allowlisted exports.
-    pub fn strip_exports(&mut self, ty: OptType) {
+    pub fn strip_exports(&mut self) {
         if let Some(export_section) = self.module.export_section.as_mut() {
-            let exports = if ty == OptType::Opt {
-                OPTIMIZED_EXPORTS.map(str::to_string).to_vec()
-            } else {
-                export_section
-                    .iter()
-                    .flat_map(|entry| {
-                        if let ExternalKind::Func = entry.kind {
-                            (!OPTIMIZED_EXPORTS.contains(&&*entry.name))
-                                .then_some(entry.name.to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            };
+            let exports = OPTIMIZED_EXPORTS.map(str::to_string).to_vec();
 
             export_section.retain(|export| exports.contains(&export.name.to_string()));
         }
