@@ -1009,9 +1009,8 @@ async fn multiple_validators() {
 }
 
 mod utils {
-    use crate::{EventsPublisher, ServiceEvent};
-
     use super::*;
+    use crate::ServiceEvent;
     use ethexe_common::SimpleBlockData;
     use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverEvent, ObserverService};
@@ -1030,7 +1029,7 @@ mod utils {
         sync::atomic::{AtomicUsize, Ordering},
     };
     use tokio::sync::{
-        broadcast::{self, Sender},
+        broadcast::{self, Receiver, Sender},
         Mutex,
     };
 
@@ -1761,9 +1760,8 @@ mod utils {
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);
 
-            self.wait_for(|event| Ok(matches!(event, ServiceEvent::ServiceStarted)))
-                .await
-                .unwrap();
+            self.wait_for(|e| matches!(e, ServiceEvent::ServiceStarted))
+                .await;
         }
 
         pub async fn stop_service(&mut self) {
@@ -1778,16 +1776,57 @@ mod utils {
             self.multiaddr = None;
         }
 
+        pub fn listener(&self) -> ServiceEventsListener {
+            ServiceEventsListener {
+                receiver: self
+                    .broadcaster
+                    .as_ref()
+                    .expect("channel isn't created")
+                    .subscribe(),
+            }
+        }
+
         // TODO(playX18): Tests that actually use ServiceEvent broadcast channel extensively
-        pub async fn wait_for(
+        pub async fn wait_for(&mut self, f: impl Fn(ServiceEvent) -> bool) {
+            self.listener()
+                .wait_for(|e| Ok(f(e)))
+                .await
+                .expect("infallible; always ok")
+        }
+    }
+
+    pub struct ServiceEventsListener {
+        receiver: Receiver<ServiceEvent>,
+    }
+
+    impl Clone for ServiceEventsListener {
+        fn clone(&self) -> Self {
+            Self {
+                receiver: self.receiver.resubscribe(),
+            }
+        }
+    }
+
+    impl ServiceEventsListener {
+        pub async fn next_event(&mut self) -> Result<ServiceEvent> {
+            self.receiver.recv().await.map_err(Into::into)
+        }
+
+        pub async fn wait_for(&mut self, f: impl Fn(ServiceEvent) -> Result<bool>) -> Result<()> {
+            self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
+                .await
+        }
+
+        pub async fn apply_until<R: Sized>(
             &mut self,
-            f: impl FnMut(ServiceEvent) -> Result<bool>,
-        ) -> Result<()> {
-            EventsPublisher::from_broadcaster(self.broadcaster.clone().unwrap())
-                .subscribe()
-                .await
-                .wait_for(f)
-                .await
+            f: impl Fn(ServiceEvent) -> Result<Option<R>>,
+        ) -> Result<R> {
+            loop {
+                let event = self.next_event().await?;
+                if let Some(res) = f(event)? {
+                    return Ok(res);
+                }
+            }
         }
     }
 

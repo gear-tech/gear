@@ -19,11 +19,7 @@
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{anyhow, bail, Context, Result};
-use ethexe_common::{
-    events::BlockEvent,
-    gear::{BlockCommitment, CodeCommitment},
-    SimpleBlockData,
-};
+use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -41,7 +37,7 @@ use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
 use parity_scale_codec::{Decode, Encode};
 use std::sync::Arc;
-use tokio::sync::broadcast::{Receiver, Sender};
+use tokio::sync::broadcast::Sender;
 
 pub mod config;
 
@@ -59,88 +55,6 @@ pub enum ServiceEvent {
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
     Sequencer(SequencerEvent),
-}
-
-pub struct EventsPublisher {
-    broadcaster: Sender<ServiceEvent>,
-}
-
-impl EventsPublisher {
-    pub async fn subscribe(&self) -> EventsListener {
-        EventsListener {
-            receiver: self.broadcaster.subscribe(),
-        }
-    }
-
-    pub fn from_broadcaster(broadcaster: Sender<ServiceEvent>) -> Self {
-        Self { broadcaster }
-    }
-}
-
-pub struct EventsListener {
-    receiver: Receiver<ServiceEvent>,
-}
-
-impl Clone for EventsListener {
-    fn clone(&self) -> Self {
-        Self {
-            receiver: self.receiver.resubscribe(),
-        }
-    }
-}
-
-impl EventsListener {
-    pub async fn next_event(&mut self) -> Result<ServiceEvent> {
-        self.receiver.recv().await.map_err(Into::into)
-    }
-
-    pub async fn wait_for(
-        &mut self,
-        mut f: impl FnMut(ServiceEvent) -> Result<bool>,
-    ) -> Result<()> {
-        self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
-            .await
-    }
-
-    pub async fn apply_until<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(ServiceEvent) -> Result<Option<R>>,
-    ) -> Result<R> {
-        loop {
-            let event = self.next_event().await?;
-            if let Some(res) = f(event)? {
-                return Ok(res);
-            }
-        }
-    }
-
-    pub async fn apply_until_block_event<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
-    ) -> Result<R> {
-        self.apply_until_block_event_with_header(|e, _h| f(e)).await
-    }
-
-    pub async fn apply_until_block_event_with_header<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
-    ) -> Result<R> {
-        loop {
-            let event = self.next_event().await?;
-
-            let ServiceEvent::Observer(ObserverEvent::Block(block)) = event else {
-                continue;
-            };
-
-            let block_data = block.to_simple();
-
-            for event in block.events {
-                if let Some(res) = f(event, &block_data)? {
-                    return Ok(res);
-                }
-            }
-        }
-    }
 }
 
 /// ethexe service.
