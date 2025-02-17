@@ -1010,7 +1010,7 @@ async fn multiple_validators() {
 
 mod utils {
     use super::*;
-    use crate::ServiceEvent;
+    use crate::Event;
     use ethexe_common::SimpleBlockData;
     use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverEvent, ObserverService};
@@ -1644,8 +1644,8 @@ mod utils {
         pub db: Database,
         pub multiaddr: Option<String>,
 
-        broadcaster: Option<Sender<ServiceEvent>>,
-        receiver: Option<broadcast::Receiver<ServiceEvent>>,
+        broadcaster: Option<Sender<Event>>,
+        receiver: Option<Receiver<Event>>,
         rpc_url: String,
         genesis_block_hash: H256,
         blob_reader: Arc<MockBlobReader>,
@@ -1760,8 +1760,7 @@ mod utils {
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);
 
-            self.wait_for(|e| matches!(e, ServiceEvent::ServiceStarted))
-                .await;
+            self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
         }
 
         pub async fn stop_service(&mut self) {
@@ -1786,8 +1785,8 @@ mod utils {
             }
         }
 
-        // TODO(playX18): Tests that actually use ServiceEvent broadcast channel extensively
-        pub async fn wait_for(&mut self, f: impl Fn(ServiceEvent) -> bool) {
+        // TODO(playX18): Tests that actually use Event broadcast channel extensively
+        pub async fn wait_for(&self, f: impl Fn(Event) -> bool) {
             self.listener()
                 .wait_for(|e| Ok(f(e)))
                 .await
@@ -1796,7 +1795,7 @@ mod utils {
     }
 
     pub struct ServiceEventsListener {
-        receiver: Receiver<ServiceEvent>,
+        receiver: Receiver<Event>,
     }
 
     impl Clone for ServiceEventsListener {
@@ -1808,18 +1807,18 @@ mod utils {
     }
 
     impl ServiceEventsListener {
-        pub async fn next_event(&mut self) -> Result<ServiceEvent> {
+        pub async fn next_event(&mut self) -> Result<Event> {
             self.receiver.recv().await.map_err(Into::into)
         }
 
-        pub async fn wait_for(&mut self, f: impl Fn(ServiceEvent) -> Result<bool>) -> Result<()> {
+        pub async fn wait_for(&mut self, f: impl Fn(Event) -> Result<bool>) -> Result<()> {
             self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
                 .await
         }
 
         pub async fn apply_until<R: Sized>(
             &mut self,
-            f: impl Fn(ServiceEvent) -> Result<Option<R>>,
+            f: impl Fn(Event) -> Result<Option<R>>,
         ) -> Result<R> {
             loop {
                 let event = self.next_event().await?;

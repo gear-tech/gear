@@ -45,7 +45,7 @@ pub mod config;
 mod tests;
 
 #[derive(Debug, Clone, derive_more::From)]
-pub enum ServiceEvent {
+pub enum Event {
     // Basic event to notify that service has started. Sent just once.
     ServiceStarted,
     // Services events.
@@ -73,7 +73,7 @@ pub struct Service {
     rpc: Option<ethexe_rpc::RpcService>,
 
     // Optional global event broadcaster.
-    sender: Option<Sender<ServiceEvent>>,
+    sender: Option<Sender<Event>>,
 }
 
 // TODO: consider to move this to another module #4176
@@ -286,7 +286,7 @@ impl Service {
         validator: Option<ethexe_validator::Validator>,
         prometheus: Option<PrometheusService>,
         rpc: Option<ethexe_rpc::RpcService>,
-        sender: Option<Sender<ServiceEvent>>,
+        sender: Option<Sender<Event>>,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
 
@@ -350,12 +350,12 @@ impl Service {
         // Broadcast service started event.
         if let Some(sender) = sender.as_ref() {
             sender
-                .send(ServiceEvent::ServiceStarted)
+                .send(Event::ServiceStarted)
                 .map_err(|e| anyhow!("failed to broadcast service STARTED event: {e}"))?;
         }
 
         loop {
-            let event: ServiceEvent = tokio::select! {
+            let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
@@ -378,8 +378,8 @@ impl Service {
             }
 
             match event {
-                ServiceEvent::ServiceStarted => unreachable!("never handled here"),
-                ServiceEvent::Compute(event) => match event {
+                Event::ServiceStarted => unreachable!("never handled here"),
+                Event::Compute(event) => match event {
                     ComputeEvent::BlockProcessed(BlockProcessed {
                         chain_head,
                         commitments,
@@ -443,7 +443,7 @@ impl Service {
                         }
                     }
                 },
-                ServiceEvent::Network(event) => {
+                Event::Network(event) => {
                     let Some(n) = network.as_mut() else {
                         unreachable!("couldn't produce event without network");
                     };
@@ -519,7 +519,7 @@ impl Service {
                         _ => {}
                     }
                 }
-                ServiceEvent::Observer(event) => match event {
+                Event::Observer(event) => match event {
                     ObserverEvent::Blob {
                         code_id,
                         timestamp,
@@ -527,7 +527,7 @@ impl Service {
                     } => compute.receive_code(code_id, timestamp, code),
                     ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
                 },
-                ServiceEvent::Prometheus(event) => {
+                Event::Prometheus(event) => {
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
                     };
@@ -549,8 +549,8 @@ impl Service {
                         }
                     }
                 }
-                ServiceEvent::Rpc(event) => log::info!("Received RPC event: {event:#?}"),
-                ServiceEvent::Sequencer(event) => {
+                Event::Rpc(event) => log::info!("Received RPC event: {event:#?}"),
+                Event::Sequencer(event) => {
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
                     };
