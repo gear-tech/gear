@@ -55,10 +55,7 @@ use std::{
     time::Duration,
 };
 use tempfile::tempdir;
-use tokio::{
-    sync::oneshot,
-    task::{self, JoinHandle},
-};
+use tokio::task::{self, JoinHandle};
 use utils::{NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
 
 #[tokio::test]
@@ -132,7 +129,6 @@ async fn ping() {
             .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
-
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
         .await
@@ -155,7 +151,6 @@ async fn ping() {
         .db
         .instrumented_code(1, code_id)
         .expect("After approval, instrumented code is guaranteed to be in the database");
-
     let res = env
         .create_program(code_id, 500_000_000_000_000)
         .await
@@ -999,16 +994,23 @@ async fn multiple_validators() {
             .network(None, sequencer.multiaddr.clone())
             .db(validator2.db),
     );
-    validator2.start_service().await;
 
+    validator2.start_service().await;
+    // wait for new block
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     // IMPORTANT: mine one block to sent a new block event.
     env.force_new_block().await;
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
     assert_eq!(res.payload, res.message_id.encode().as_slice());
+    drop(validator2);
+    drop(validator1);
+    drop(validator0);
 }
 
 mod utils {
+    use crate::{EventsPublisher, ServiceEvent};
+
     use super::*;
     use ethexe_common::SimpleBlockData;
     use ethexe_network::export::Multiaddr;
@@ -1201,7 +1203,7 @@ mod utils {
                 let cloned_sender = sender.clone();
 
                 let (send_subscription_created, receive_subscription_created) =
-                    oneshot::channel::<()>();
+                    tokio::sync::oneshot::channel::<()>();
                 let handle = task::spawn(async move {
                     send_subscription_created.send(()).unwrap();
 
@@ -1229,7 +1231,6 @@ mod utils {
 
                 (sender, handle)
             };
-
             let genesis_block_hash = router_query.genesis_block_hash().await?;
             let threshold = router_query.threshold().await?;
 
@@ -1280,6 +1281,8 @@ mod utils {
             Node {
                 db,
                 multiaddr: None,
+                broadcaster: None,
+                receiver: None,
                 rpc_url: self.rpc_url.clone(),
                 genesis_block_hash: self.genesis_block_hash,
                 blob_reader: self.blob_reader.clone(),
@@ -1392,8 +1395,8 @@ mod utils {
                 .unwrap();
         }
 
-        pub fn events_publisher(&self) -> EventsPublisher {
-            EventsPublisher {
+        pub fn events_publisher(&self) -> ObserverEventsPublisher {
+            ObserverEventsPublisher {
                 broadcaster: self.broadcaster.clone(),
             }
         }
@@ -1429,6 +1432,76 @@ mod utils {
                 .add_blob_transaction(tx_hash, code.to_vec())
                 .await;
             code_id
+        }
+    }
+
+    pub struct ObserverEventsPublisher {
+        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+    }
+
+    impl ObserverEventsPublisher {
+        pub async fn subscribe(&self) -> ObserverEventsListener {
+            ObserverEventsListener {
+                receiver: self.broadcaster.lock().await.subscribe(),
+            }
+        }
+    }
+
+    pub struct ObserverEventsListener {
+        receiver: broadcast::Receiver<ObserverEvent>,
+    }
+
+    impl Clone for ObserverEventsListener {
+        fn clone(&self) -> Self {
+            Self {
+                receiver: self.receiver.resubscribe(),
+            }
+        }
+    }
+
+    impl ObserverEventsListener {
+        pub async fn next_event(&mut self) -> Result<ObserverEvent> {
+            self.receiver.recv().await.map_err(Into::into)
+        }
+
+        pub async fn apply_until<R: Sized>(
+            &mut self,
+            mut f: impl FnMut(ObserverEvent) -> Result<Option<R>>,
+        ) -> Result<R> {
+            loop {
+                let event = self.next_event().await?;
+                if let Some(res) = f(event)? {
+                    return Ok(res);
+                }
+            }
+        }
+
+        pub async fn apply_until_block_event<R: Sized>(
+            &mut self,
+            mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
+        ) -> Result<R> {
+            self.apply_until_block_event_with_header(|e, _h| f(e)).await
+        }
+
+        pub async fn apply_until_block_event_with_header<R: Sized>(
+            &mut self,
+            mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
+        ) -> Result<R> {
+            loop {
+                let event = self.next_event().await?;
+
+                let ObserverEvent::Block(block) = event else {
+                    continue;
+                };
+
+                let block_data = block.to_simple();
+
+                for event in block.events {
+                    if let Some(res) = f(event, &block_data)? {
+                        return Ok(res);
+                    }
+                }
+            }
         }
     }
 
@@ -1527,76 +1600,6 @@ mod utils {
         pub bootstrap_address: Option<String>,
     }
 
-    pub struct EventsPublisher {
-        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
-    }
-
-    impl EventsPublisher {
-        pub async fn subscribe(&self) -> EventsListener {
-            EventsListener {
-                receiver: self.broadcaster.lock().await.subscribe(),
-            }
-        }
-    }
-
-    pub struct EventsListener {
-        receiver: broadcast::Receiver<ObserverEvent>,
-    }
-
-    impl Clone for EventsListener {
-        fn clone(&self) -> Self {
-            Self {
-                receiver: self.receiver.resubscribe(),
-            }
-        }
-    }
-
-    impl EventsListener {
-        pub async fn next_event(&mut self) -> Result<ObserverEvent> {
-            self.receiver.recv().await.map_err(Into::into)
-        }
-
-        pub async fn apply_until<R: Sized>(
-            &mut self,
-            mut f: impl FnMut(ObserverEvent) -> Result<Option<R>>,
-        ) -> Result<R> {
-            loop {
-                let event = self.next_event().await?;
-                if let Some(res) = f(event)? {
-                    return Ok(res);
-                }
-            }
-        }
-
-        pub async fn apply_until_block_event<R: Sized>(
-            &mut self,
-            mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
-        ) -> Result<R> {
-            self.apply_until_block_event_with_header(|e, _h| f(e)).await
-        }
-
-        pub async fn apply_until_block_event_with_header<R: Sized>(
-            &mut self,
-            mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
-        ) -> Result<R> {
-            loop {
-                let event = self.next_event().await?;
-
-                let ObserverEvent::Block(block) = event else {
-                    continue;
-                };
-
-                let block_data = block.to_simple();
-
-                for event in block.events {
-                    if let Some(res) = f(event, &block_data)? {
-                        return Ok(res);
-                    }
-                }
-            }
-        }
-    }
-
     /// Provides access to hardcoded anvil wallets or custom set wallets.
     pub struct Wallets {
         wallets: Vec<ethexe_signer::PublicKey>,
@@ -1642,6 +1645,8 @@ mod utils {
         pub db: Database,
         pub multiaddr: Option<String>,
 
+        broadcaster: Option<Sender<ServiceEvent>>,
+        receiver: Option<broadcast::Receiver<ServiceEvent>>,
         rpc_url: String,
         genesis_block_hash: H256,
         blob_reader: Arc<MockBlobReader>,
@@ -1734,7 +1739,10 @@ mod utils {
                         self.signer.clone(),
                     )
                 });
+            let (sender, receiver) = broadcast::channel(2048);
 
+            self.receiver = Some(receiver);
+            self.broadcaster = Some(sender.clone());
             let service = Service::new_from_parts(
                 self.db.clone(),
                 self.observer.clone(),
@@ -1747,12 +1755,15 @@ mod utils {
                 validator,
                 None,
                 None,
+                Box::new(sender),
             );
+
             let handle = task::spawn(service.run());
             self.running_service_handle = Some(handle);
 
-            // Sleep to wait for the new service to start
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            self.wait_for(|event| Ok(matches!(event, ServiceEvent::ServiceStarted)))
+                .await
+                .unwrap();
         }
 
         pub async fn stop_service(&mut self) {
@@ -1761,14 +1772,28 @@ mod utils {
                 .take()
                 .expect("Service is not running");
             handle.abort();
+            self.broadcaster = None;
+            self.receiver = None;
             let _ = handle.await;
             self.multiaddr = None;
+        }
+
+        // TODO(playX18): Tests that actually use ServiceEvent broadcast channel extensively
+        pub async fn wait_for(
+            &mut self,
+            f: impl FnMut(ServiceEvent) -> Result<bool>,
+        ) -> Result<()> {
+            EventsPublisher::from_broadcaster(self.broadcaster.clone().unwrap())
+                .subscribe()
+                .await
+                .wait_for(f)
+                .await
         }
     }
 
     #[derive(Clone)]
     pub struct WaitForUploadCode {
-        listener: EventsListener,
+        listener: ObserverEventsListener,
         pub code_id: CodeId,
     }
 
@@ -1822,7 +1847,7 @@ mod utils {
 
     #[derive(Clone)]
     pub struct WaitForProgramCreation {
-        listener: EventsListener,
+        listener: ObserverEventsListener,
         pub program_id: ActorId,
     }
 
@@ -1863,7 +1888,7 @@ mod utils {
 
     #[derive(Clone)]
     pub struct WaitForReplyTo {
-        listener: EventsListener,
+        listener: ObserverEventsListener,
         pub message_id: MessageId,
     }
 
