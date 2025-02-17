@@ -516,7 +516,9 @@ impl Service {
 
                             n.request_validated(res);
                         }
-                        _ => {}
+                        NetworkEvent::ConnectionEstablished(_)
+                        | NetworkEvent::DbResponse(_)
+                        | NetworkEvent::PeerBlocked(_) => (),
                     }
                 }
                 Event::Observer(event) => match event {
