@@ -144,15 +144,13 @@ mod v10 {
     }
 
     use crate::{Config, Pallet};
-    use frame_support::traits::{PalletInfo, StorageInstance};
-
-    use sp_std::marker::PhantomData;
-
-    #[cfg(feature = "try-runtime")]
-    use {
-        frame_support::{storage::types::StorageMap, Identity},
-        gear_core::ids::CodeId,
+    use frame_support::{
+        storage::types::StorageMap,
+        traits::{PalletInfo, StorageInstance},
+        Identity,
     };
+    use gear_core::ids::CodeId;
+    use sp_std::marker::PhantomData;
 
     pub struct MetadataStoragePrefix<T>(PhantomData<T>);
 
@@ -165,7 +163,6 @@ mod v10 {
         const STORAGE_PREFIX: &'static str = "MetadataStorage";
     }
 
-    #[cfg(feature = "try-runtime")]
     pub type MetadataStorage<T> =
         StorageMap<MetadataStoragePrefix<T>, Identity, CodeId, CodeMetadata>;
 }
