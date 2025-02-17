@@ -31,7 +31,7 @@ use core::{
     mem,
     ops::{Index, IndexMut},
 };
-use ethexe_common::gear::Message;
+use ethexe_common::gear::{Message, Origin};
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
     ids::{prelude::MessageIdExt as _, ProgramId},
@@ -520,6 +520,8 @@ pub struct Dispatch {
     pub details: Option<MessageDetails>,
     /// Message previous executions context.
     pub context: Option<ContextStore>,
+    /// Origin of the message.
+    pub origin: Origin,
 }
 
 impl Dispatch {
@@ -530,6 +532,7 @@ impl Dispatch {
         payload: Vec<u8>,
         value: u128,
         is_init: bool,
+        origin: Origin,
     ) -> Result<Self> {
         let payload = storage.write_payload_raw(payload)?;
 
@@ -547,6 +550,7 @@ impl Dispatch {
             value,
             details: None,
             context: None,
+            origin,
         })
     }
 
@@ -556,6 +560,7 @@ impl Dispatch {
         source: ActorId,
         payload: Vec<u8>,
         value: u128,
+        origin: Origin,
     ) -> Result<Self> {
         let payload_hash = storage.write_payload_raw(payload)?;
 
@@ -565,6 +570,7 @@ impl Dispatch {
             payload_hash,
             value,
             SuccessReplyReason::Manual,
+            origin,
         ))
     }
 
@@ -574,6 +580,7 @@ impl Dispatch {
         payload: PayloadLookup,
         value: u128,
         reply_code: impl Into<ReplyCode>,
+        origin: Origin,
     ) -> Self {
         Self {
             id: MessageId::generate_reply(reply_to),
@@ -583,10 +590,15 @@ impl Dispatch {
             value,
             details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
             context: None,
+            origin,
         }
     }
 
-    pub fn from_stored<S: Storage>(storage: &S, value: StoredDispatch) -> Self {
+    pub fn from_core_stored<S: Storage>(
+        storage: &S,
+        value: StoredDispatch,
+        origin: Origin,
+    ) -> Self {
         let (kind, message, context) = value.into_parts();
         let (id, source, _destination, payload, value, details) = message.into_parts();
 
@@ -602,6 +614,7 @@ impl Dispatch {
             value,
             details,
             context,
+            origin,
         }
     }
 
@@ -654,6 +667,10 @@ impl MessageQueue {
 
     pub fn dequeue(&mut self) -> Option<Dispatch> {
         self.0.pop_front()
+    }
+
+    pub fn peek(&self) -> Option<&Dispatch> {
+        self.0.front()
     }
 
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {

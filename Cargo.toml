@@ -54,7 +54,6 @@ members = [
     "examples/messenger",
     "examples/mul-by-const",
     "examples/ncompose",
-    "examples/new-meta",
     "examples/node",
     "examples/out-of-memory",
     "examples/piggy-bank",
@@ -88,8 +87,6 @@ members = [
     "gcli",
     "gclient",
     "gcore",
-    "gmeta",
-    "gmeta/codegen",
     "gprimitives",
     "gsdk",
     "gsdk/codegen",
@@ -115,6 +112,8 @@ members = [
 
 [workspace.dependencies]
 alloy = "0.9.1"
+alloy-primitives = { version = "0.8", default-features = false }
+alloy-sol-types = { version = "0.8", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"
@@ -229,8 +228,6 @@ gstd-codegen = { path = "gstd/codegen" }
 gring = { path = "utils/gring" }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
-gmeta = { path = "gmeta" }
-gmeta-codegen = { path = "gmeta/codegen" }
 gprimitives = { path = "gprimitives", default-features = false }
 gear-authorship = { path = "node/authorship" }
 gear-core-backend = { path = "core-backend", default-features = false }
@@ -468,9 +465,7 @@ demo-init-fail-sender = { path = "examples/init-fail-sender" }
 demo-init-wait = { path = "examples/init-wait", default-features = false }
 demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
 demo-messenger = { path = "examples/messenger" }
-demo-meta-io = { path = "examples/new-meta/io" }
 demo-mul-by-const = { path = "examples/mul-by-const" }
-demo-new-meta = { path = "examples/new-meta" }
 demo-node = { path = "examples/node" }
 demo-out-of-memory = { path = "examples/out-of-memory" }
 demo-piggy-bank = { path = "examples/piggy-bank", features = ["debug"] }

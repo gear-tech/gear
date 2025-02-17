@@ -4,13 +4,12 @@ use crate::{
 };
 use ethexe_common::{
     db::{Rfm, ScheduledTask, Sd, Sum},
-    gear::ValueClaim,
+    gear::{Origin, ValueClaim},
 };
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
 
-#[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct Handler<'a, S: Storage> {
     pub controller: TransitionController<'a, S>,
 }
@@ -21,79 +20,84 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
         (program_id, user_id): (ProgramId, ActorId),
         message_id: MessageId,
     ) -> u64 {
-        self.update_state(program_id, |state, storage, transitions| {
-            let ValueWithExpiry { value, .. } =
-                state.mailbox_hash.modify_mailbox(storage, |mailbox| {
-                    mailbox
-                        .remove_and_store_user_mailbox(storage, user_id, message_id)
-                        .expect("failed to find message in mailbox")
+        self.controller
+            .update_state(program_id, |state, storage, transitions| {
+                let ValueWithExpiry { value, .. } =
+                    state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                        mailbox
+                            .remove_and_store_user_mailbox(storage, user_id, message_id)
+                            .expect("failed to find message in mailbox")
+                    });
+
+                transitions.modify_transition(program_id, |transition| {
+                    transition.claims.push(ValueClaim {
+                        message_id,
+                        destination: user_id,
+                        value,
+                    })
                 });
 
-            transitions.modify_transition(program_id, |transition| {
-                transition.claims.push(ValueClaim {
+                let reply = Dispatch::reply(
                     message_id,
-                    destination: user_id,
-                    value,
-                })
+                    user_id,
+                    PayloadLookup::empty(),
+                    0,
+                    SuccessReplyReason::Auto,
+                    // TODO(rmasl): use the actual origin (https://github.com/gear-tech/gear/pull/4460)
+                    Origin::Ethereum,
+                );
+
+                state
+                    .queue_hash
+                    .modify_queue(storage, |queue| queue.queue(reply));
             });
-
-            let reply = Dispatch::reply(
-                message_id,
-                user_id,
-                PayloadLookup::empty(),
-                0,
-                SuccessReplyReason::Auto,
-            );
-
-            state
-                .queue_hash
-                .modify_queue(storage, |queue| queue.queue(reply));
-        });
 
         0
     }
 
     fn send_dispatch(&mut self, (program_id, message_id): (ProgramId, MessageId)) -> u64 {
-        self.update_state(program_id, |state, storage, _| {
-            state.queue_hash.modify_queue(storage, |queue| {
-                let dispatch = state
-                    .stash_hash
-                    .modify_stash(storage, |stash| stash.remove_to_program(&message_id));
+        self.controller
+            .update_state(program_id, |state, storage, _| {
+                state.queue_hash.modify_queue(storage, |queue| {
+                    let dispatch = state
+                        .stash_hash
+                        .modify_stash(storage, |stash| stash.remove_to_program(&message_id));
 
-                queue.queue(dispatch);
+                    queue.queue(dispatch);
+                });
             });
-        });
 
         0
     }
 
     fn send_user_message(&mut self, stashed_message_id: MessageId, program_id: ProgramId) -> u64 {
-        self.update_state(program_id, |state, storage, transitions| {
-            let (dispatch, user_id) = state
-                .stash_hash
-                .modify_stash(storage, |stash| stash.remove_to_user(&stashed_message_id));
+        self.controller
+            .update_state(program_id, |state, storage, transitions| {
+                let (dispatch, user_id) = state
+                    .stash_hash
+                    .modify_stash(storage, |stash| stash.remove_to_user(&stashed_message_id));
 
-            let expiry = transitions.schedule_task(
-                MAILBOX_VALIDITY.try_into().expect("infallible"),
-                ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
-            );
-
-            state.mailbox_hash.modify_mailbox(storage, |mailbox| {
-                mailbox.add_and_store_user_mailbox(
-                    storage,
-                    user_id,
-                    stashed_message_id,
-                    dispatch.value,
-                    expiry,
+                let expiry = transitions.schedule_task(
+                    MAILBOX_VALIDITY.try_into().expect("infallible"),
+                    ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
                 );
-            });
 
-            transitions.modify_transition(program_id, |transition| {
-                transition
-                    .messages
-                    .push(dispatch.into_message(storage, user_id))
-            })
-        });
+                state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    mailbox.add_and_store_user_mailbox(
+                        storage,
+                        user_id,
+                        stashed_message_id,
+                        dispatch.value,
+                        expiry,
+                    );
+                });
+
+                transitions.modify_transition(program_id, |transition| {
+                    transition
+                        .messages
+                        .push(dispatch.into_message(storage, user_id))
+                })
+            });
 
         0
     }
@@ -102,19 +106,20 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> u64 {
         log::trace!("Running scheduled task wake message {message_id} to {program_id}");
 
-        self.update_state(program_id, |state, storage, _| {
-            let ValueWithExpiry {
-                value: dispatch, ..
-            } = state.waitlist_hash.modify_waitlist(storage, |waitlist| {
-                waitlist
-                    .wake(&message_id)
-                    .expect("failed to find message in waitlist")
-            });
+        self.controller
+            .update_state(program_id, |state, storage, _| {
+                let ValueWithExpiry {
+                    value: dispatch, ..
+                } = state.waitlist_hash.modify_waitlist(storage, |waitlist| {
+                    waitlist
+                        .wake(&message_id)
+                        .expect("failed to find message in waitlist")
+                });
 
-            state.queue_hash.modify_queue(storage, |queue| {
-                queue.queue(dispatch);
-            })
-        });
+                state.queue_hash.modify_queue(storage, |queue| {
+                    queue.queue(dispatch);
+                })
+            });
 
         0
     }
