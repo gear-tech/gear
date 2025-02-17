@@ -272,6 +272,6 @@ impl<T: pallet_bags_list::Config<pallet_bags_list::Instance1>>
                 &old_thresholds,
             );
 
-        T::DbWeight::get().reads_writes(affected_accounts, affected_accounts)
+        T::DbWeight::get().reads_writes(affected_accounts.into(), affected_accounts.into())
     }
 }
