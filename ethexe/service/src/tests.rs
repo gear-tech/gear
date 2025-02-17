@@ -1010,7 +1010,7 @@ async fn multiple_validators() {
 mod utils {
     use super::*;
     use ethexe_common::SimpleBlockData;
-    use ethexe_db::BlocksOnChainData;
+    use ethexe_db::OnChainStorage;
     use ethexe_network::export::Multiaddr;
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_sequencer::{SequencerConfig, SequencerService};
@@ -1588,9 +1588,9 @@ mod utils {
                     continue;
                 };
 
-                let header = BlocksOnChainData::block_header(&self.db, block)
+                let header = OnChainStorage::block_header(&self.db, block)
                     .expect("Block header not found");
-                let events = BlocksOnChainData::block_events(&self.db, block)
+                let events = OnChainStorage::block_events(&self.db, block)
                     .expect("Block events not found");
 
                 let block_data = SimpleBlockData {

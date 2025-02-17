@@ -23,7 +23,7 @@ use crate::{
     CASDatabase, KVDatabase,
 };
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, BlocksOnChainData, CodeInfo, CodesStorage, Schedule},
+    db::{BlockHeader, BlockMetaStorage, OnChainStorage, CodeInfo, CodesStorage, Schedule},
     events::BlockEvent,
     gear::StateTransition,
 };
@@ -63,8 +63,8 @@ enum KeyPrefix {
 }
 
 impl KeyPrefix {
-    fn prefix(self) -> [u8; 1] {
-        (self as u8).to_le_bytes()
+    fn prefix(self) -> [u8; 32] {
+        H256::from_low_u64_be(self as u64).0
     }
 
     fn one(self, key: impl AsRef<[u8]>) -> Vec<u8> {
@@ -571,8 +571,8 @@ impl Storage for Database {
     }
 }
 
-impl BlocksOnChainData for Database {
-    fn clone_boxed(&self) -> Box<dyn BlocksOnChainData> {
+impl OnChainStorage for Database {
+    fn clone_boxed(&self) -> Box<dyn OnChainStorage> {
         Box::new(self.clone())
     }
 

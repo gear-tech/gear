@@ -129,7 +129,7 @@ impl Validator {
         let predecessor_block = block;
 
         for block in commitments_queue {
-            // If there is not computed blocks in the queue, then we should skip aggregation this time.
+            // If there are not computed blocks in the queue, then we should skip aggregation this time.
             // This can happen when validator syncs from p2p network and skips some old blocks.
             if !self.db.block_end_state_is_valid(block).unwrap_or(false) {
                 log::warn!(

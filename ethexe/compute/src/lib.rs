@@ -20,7 +20,7 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, BlocksOnChainData},
+    db::{BlockMetaStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,
@@ -136,78 +136,15 @@ struct ChainHeadProcessContext {
 }
 
 impl ChainHeadProcessContext {
-    fn propagate_data_from_parent<'a>(
-        db: &Database,
-        block: H256,
-        parent: H256,
-        events: impl Iterator<Item = &'a BlockEvent>,
-    ) -> Result<VecDeque<H256>> {
-        // Propagate program state hashes
-        let state_hashes = db
-            .block_end_program_states(parent)
-            .ok_or_else(|| anyhow!("program states not found for computed block {parent}"))?;
-        db.set_block_start_program_states(block, state_hashes);
+    async fn process(mut self, head: H256) -> Result<BlockProcessed> {
+        let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
-        // Propagate scheduled tasks
-        let schedule = db
-            .block_end_schedule(parent)
-            .ok_or_else(|| anyhow!("scheduled tasks not found for computed block {parent}"))?;
-        db.set_block_start_schedule(block, schedule);
-
-        // Propagate prev commitment (prev not empty block hash or zero for genesis).
-        if db
-            .block_is_empty(parent)
-            .ok_or_else(|| anyhow!("emptiness not found for computed block {parent}"))?
-        {
-            let parent_prev_commitment = db
-                .previous_committed_block(parent)
-                .ok_or_else(|| anyhow!("prev commitment not found for computed block {parent}"))?;
-            db.set_previous_committed_block(block, parent_prev_commitment);
-        } else {
-            db.set_previous_committed_block(block, parent);
+        // Bypass the chain in reverse order (from the oldest to the newest) and compute each block.
+        for block_data in chain.into_iter().rev() {
+            self.process_one_block(block_data).await?;
         }
 
-        // Propagate `wait for commitment` blocks queue
-        let mut queue = db
-            .block_commitment_queue(parent)
-            .ok_or_else(|| anyhow!("commitment queue not found for computed block {parent}"))?;
-        let committed_blocks_in_current: BTreeSet<_> = events
-            .filter_map(|event| match event {
-                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => Some(*hash),
-                _ => None,
-            })
-            .collect();
-        queue.retain(|hash| !committed_blocks_in_current.contains(hash));
-
-        Ok(queue)
-    }
-
-    /// Collect a chain of blocks from the head to the last not computed block.
-    fn collect_not_computed_blocks_chain(
-        db: &Database,
-        head: H256,
-    ) -> Result<Vec<SimpleBlockData>> {
-        let mut block = head;
-        let mut chain = vec![];
-        while !db.block_end_state_is_valid(block).unwrap_or(false) {
-            if !db.block_is_synced(block) {
-                return Err(anyhow!("Block {block} is not synced, but must be"));
-            }
-
-            let header = BlocksOnChainData::block_header(db, block)
-                .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
-
-            let parent = header.parent_hash;
-
-            chain.push(SimpleBlockData {
-                hash: block,
-                header,
-            });
-
-            block = parent;
-        }
-
-        Ok(chain)
+        Ok(BlockProcessed { block_hash: head })
     }
 
     async fn process_one_block(&mut self, block_data: SimpleBlockData) -> Result<()> {
@@ -216,7 +153,7 @@ impl ChainHeadProcessContext {
             header,
         } = block_data;
 
-        let events = BlocksOnChainData::block_events(&self.db, block)
+        let events = OnChainStorage::block_events(&self.db, block)
             .ok_or_else(|| anyhow!("events not found for synced block {block}"))?;
 
         for event in &events {
@@ -282,14 +219,77 @@ impl ChainHeadProcessContext {
         Ok(())
     }
 
-    async fn process(mut self, head: H256) -> Result<BlockProcessed> {
-        let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
+    fn propagate_data_from_parent<'a>(
+        db: &Database,
+        block: H256,
+        parent: H256,
+        events: impl Iterator<Item = &'a BlockEvent>,
+    ) -> Result<VecDeque<H256>> {
+        // Propagate program state hashes
+        let state_hashes = db
+            .block_end_program_states(parent)
+            .ok_or_else(|| anyhow!("program states not found for computed block {parent}"))?;
+        db.set_block_start_program_states(block, state_hashes);
 
-        // Bypass the chain in reverse order (from the oldest to the newest) and compute each block.
-        for block_data in chain.into_iter().rev() {
-            self.process_one_block(block_data).await?;
+        // Propagate scheduled tasks
+        let schedule = db
+            .block_end_schedule(parent)
+            .ok_or_else(|| anyhow!("scheduled tasks not found for computed block {parent}"))?;
+        db.set_block_start_schedule(block, schedule);
+
+        // Propagate prev commitment (prev not empty block hash or zero for genesis).
+        if db
+            .block_is_empty(parent)
+            .ok_or_else(|| anyhow!("emptiness not found for computed block {parent}"))?
+        {
+            let parent_prev_commitment = db
+                .previous_committed_block(parent)
+                .ok_or_else(|| anyhow!("prev commitment not found for computed block {parent}"))?;
+            db.set_previous_committed_block(block, parent_prev_commitment);
+        } else {
+            db.set_previous_committed_block(block, parent);
         }
 
-        Ok(BlockProcessed { block_hash: head })
+        // Propagate `wait for commitment` blocks queue
+        let mut queue = db
+            .block_commitment_queue(parent)
+            .ok_or_else(|| anyhow!("commitment queue not found for computed block {parent}"))?;
+        let committed_blocks_in_current: BTreeSet<_> = events
+            .filter_map(|event| match event {
+                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => Some(*hash),
+                _ => None,
+            })
+            .collect();
+        queue.retain(|hash| !committed_blocks_in_current.contains(hash));
+
+        Ok(queue)
+    }
+
+    /// Collect a chain of blocks from the head to the last not computed block.
+    fn collect_not_computed_blocks_chain(
+        db: &Database,
+        head: H256,
+    ) -> Result<Vec<SimpleBlockData>> {
+        let mut block = head;
+        let mut chain = vec![];
+        while !db.block_end_state_is_valid(block).unwrap_or(false) {
+            if !db.block_is_synced(block) {
+                return Err(anyhow!("Block {block} is not synced, but must be"));
+            }
+
+            let header = OnChainStorage::block_header(db, block)
+                .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
+
+            let parent = header.parent_hash;
+
+            chain.push(SimpleBlockData {
+                hash: block,
+                header,
+            });
+
+            block = parent;
+        }
+
+        Ok(chain)
     }
 }

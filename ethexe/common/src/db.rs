@@ -75,22 +75,26 @@ pub struct CodeInfo {
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
 pub trait BlockMetaStorage: Send + Sync {
+    // TODO (gsobol): remove header info (already in BlocksOnChainData)
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
 
+    // TODO (gsobol): rename to block_computed or block_completed
     fn block_end_state_is_valid(&self, block_hash: H256) -> Option<bool>;
     fn set_block_end_state_is_valid(&self, block_hash: H256, is_valid: bool);
 
+    // TODO (gsobol): consider to remove, because emptiness can be identified by the absence of outcomes
     fn block_is_empty(&self, block_hash: H256) -> Option<bool>;
     fn set_block_is_empty(&self, block_hash: H256, is_empty: bool);
 
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
 
+    // TODO (gsobol): consider to rename to previous_commitment_block
     fn previous_committed_block(&self, block_hash: H256) -> Option<H256>;
     fn set_previous_committed_block(&self, block_hash: H256, prev_commitment: H256);
 
-    // TODO (gsobol): remove this method
+    // TODO (gsobol): start states and schedule should be removed
     fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
     fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
 
@@ -128,8 +132,8 @@ pub trait CodesStorage: Send + Sync {
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
 
-pub trait BlocksOnChainData: Send + Sync {
-    fn clone_boxed(&self) -> Box<dyn BlocksOnChainData>;
+pub trait OnChainStorage: Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn OnChainStorage>;
 
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn set_block_header(&self, block_hash: H256, header: &BlockHeader);

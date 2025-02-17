@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use crate::{BlobReader, Provider};
 use alloy::rpc::types::eth::Header;
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{
-    db::BlocksOnChainData,
+    db::OnChainStorage,
     events::{BlockEvent, RouterEvent},
     BlockData,
 };
@@ -39,9 +39,10 @@ use std::{
     sync::Arc,
 };
 
+// TODO (gsobol): make tests for ChainSync
 pub(crate) struct ChainSync {
     pub provider: Provider,
-    pub database: Box<dyn BlocksOnChainData>,
+    pub database: Box<dyn OnChainStorage>,
     pub blobs_reader: Arc<dyn BlobReader>,
     pub router_address: Address,
     pub wvara_address: Address,

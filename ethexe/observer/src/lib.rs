@@ -25,7 +25,7 @@ use alloy::{
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{db::BlocksOnChainData, SimpleBlockData};
+use ethexe_common::{db::OnChainStorage, SimpleBlockData};
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_signer::Address;
@@ -78,10 +78,11 @@ pub enum ObserverEvent {
     BlockSynced(H256),
 }
 
+// TODO (gsobol): make tests for observer service
 pub struct ObserverService {
     provider: Provider,
-    database: Box<dyn BlocksOnChainData>,
-    // TODO (gsobol): consider to make BlobRead: Sync + Send, in order to avoid Arc usage.
+    database: Box<dyn OnChainStorage>,
+    // TODO (gsobol): consider to make clone boxed for BlobRead, in order to avoid Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
     subscription: Subscription<Header>,
 
@@ -184,7 +185,7 @@ impl ObserverService {
         blobs_reader: Option<Arc<dyn BlobReader>>,
     ) -> Result<Self>
     where
-        DB: BlocksOnChainData + BlockMetaStorage,
+        DB: OnChainStorage + BlockMetaStorage,
     {
         let EthereumConfig {
             rpc,
@@ -222,7 +223,7 @@ impl ObserverService {
 
         Ok(Self {
             provider,
-            database: BlocksOnChainData::clone_boxed(db),
+            database: OnChainStorage::clone_boxed(db),
             blobs_reader,
             subscription,
             router_address: *router_address,
@@ -266,7 +267,7 @@ impl ObserverService {
         router_query: &RouterQuery,
     ) -> Result<()>
     where
-        DB: BlocksOnChainData + BlockMetaStorage,
+        DB: OnChainStorage + BlockMetaStorage,
     {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
@@ -287,8 +288,8 @@ impl ObserverService {
             parent_hash: H256(genesis_block.header.parent_hash.0),
         };
 
-        BlocksOnChainData::set_block_header(db, genesis_block_hash, &genesis_header);
-        BlocksOnChainData::set_block_events(db, genesis_block_hash, &[]);
+        OnChainStorage::set_block_header(db, genesis_block_hash, &genesis_header);
+        OnChainStorage::set_block_events(db, genesis_block_hash, &[]);
 
         db.set_latest_synced_block_height(genesis_header.height);
         db.set_block_is_synced(genesis_block_hash);
