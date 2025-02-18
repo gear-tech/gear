@@ -1004,9 +1004,9 @@
 <span class="kw">use </span>codec::{Decode, DecodeAll, MaxEncodedLen};
 <span class="kw">use </span>core::{<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">marker::PhantomData</a>, <a href="https://doc.rust-lang.org/nightly/core/mem/maybe_uninit/union.MaybeUninit.html">mem::MaybeUninit</a>, <a href="https://doc.rust-lang.org/nightly/core/slice/index.html">slice</a>};
 <span class="kw">use </span>gear_core::{
-    buffer::{<a href="../../gear_core/buffer/type.RuntimeBuffer.html">RuntimeBuffer</a>, <a href="../../gear_core/buffer/struct.RuntimeBufferSizeError.html">RuntimeBufferSizeError</a>},
-    memory::{<a href="../../gear_core/memory/type.HostPointer.html">HostPointer</a>, <a href="../../gear_core/memory/trait.Memory.html">Memory</a>, <a href="../../gear_core/memory/enum.MemoryError.html">MemoryError</a>, <a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a>},
-    <a href="../../gear_core/pages/type.WasmPagesAmount.html">pages::WasmPagesAmount</a>,
+    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
+    memory::{HostPointer, Memory, MemoryError, MemoryInterval},
+    pages::WasmPagesAmount,
 };
 <span class="kw">use </span>gear_core_errors::MemoryError <span class="kw">as </span>FallibleMemoryError;
 <span class="kw">use </span>gear_lazy_pages_common::ProcessAccessError;
@@ -1025,18 +1025,18 @@
     }
 }
 
-<span class="kw">impl</span>&lt;Caller, Ext, Mem&gt; <a href="../../gear_core/memory/trait.Memory.html">Memory</a>&lt;Caller&gt; <span class="kw">for </span><a href="#45-47">BackendMemory</a>&lt;Mem&gt;
+<span class="kw">impl</span>&lt;Caller, Ext, Mem&gt; Memory&lt;Caller&gt; <span class="kw">for </span><a href="#45-47">BackendMemory</a>&lt;Mem&gt;
 <span class="kw">where
     </span>Caller: AsContextExt&lt;State = <a href="state.rs.html#27">HostState</a>&lt;Ext, <a href="#45-47">BackendMemory</a>&lt;Mem&gt;&gt;&gt;,
     Mem: SandboxMemory&lt;<a href="state.rs.html#27">HostState</a>&lt;Ext, <a href="#45-47">BackendMemory</a>&lt;Mem&gt;&gt;&gt;,
 {
     <span class="kw">type </span>GrowError = gear_sandbox::Error;
 
-    <span class="kw">fn </span>grow(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;mut </span>Caller, pages: <a href="../../gear_core/pages/type.WasmPagesAmount.html">WasmPagesAmount</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <span class="self">Self</span>::GrowError&gt; {
+    <span class="kw">fn </span>grow(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;mut </span>Caller, pages: WasmPagesAmount) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <span class="self">Self</span>::GrowError&gt; {
         <a class="self" href="#62">self</a>.inner.grow(<a href="#62">ctx</a>, <a href="#62">pages</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|<span class="kw">_</span>| ())
     }
 
-    <span class="kw">fn </span>size(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;</span>Caller) -&gt; <a href="../../gear_core/pages/type.WasmPagesAmount.html">WasmPagesAmount</a> {
+    <span class="kw">fn </span>size(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;</span>Caller) -&gt; WasmPagesAmount {
         <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from">WasmPagesAmount::try_from</a>(<a class="self" href="#66">self</a>.inner.size(<a href="#66">ctx</a>)).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|err| {
             <span class="kw">let </span>err_msg = <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(
                 <span class="string">"BackendMemory::size: wasm size is bigger than possible in 32-bits address space. \
@@ -1048,28 +1048,28 @@
         })
     }
 
-    <span class="kw">fn </span>write(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;mut </span>Caller, offset: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, buffer: <span class="kw-2">&amp;</span>[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>]) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <a href="../../gear_core/memory/enum.MemoryError.html">MemoryError</a>&gt; {
+    <span class="kw">fn </span>write(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;mut </span>Caller, offset: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, buffer: <span class="kw-2">&amp;</span>[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>]) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), MemoryError&gt; {
         <a class="self" href="#78">self</a>.inner
             .write(<a href="#78">ctx</a>, <a href="#78">offset</a>, <a href="#78">buffer</a>)
-            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| <a href="../../gear_core/memory/enum.MemoryError.html#variant.AccessOutOfBounds">MemoryError::AccessOutOfBounds</a>)
+            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| MemoryError::AccessOutOfBounds)
     }
 
-    <span class="kw">fn </span>read(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;</span>Caller, offset: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, buffer: <span class="kw-2">&amp;mut </span>[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>]) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <a href="../../gear_core/memory/enum.MemoryError.html">MemoryError</a>&gt; {
+    <span class="kw">fn </span>read(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;</span>Caller, offset: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, buffer: <span class="kw-2">&amp;mut </span>[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>]) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), MemoryError&gt; {
         <a class="self" href="#84">self</a>.inner
             .read(<a href="#84">ctx</a>, <a href="#84">offset</a>, <a href="#84">buffer</a>)
-            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| <a href="../../gear_core/memory/enum.MemoryError.html#variant.AccessOutOfBounds">MemoryError::AccessOutOfBounds</a>)
+            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| MemoryError::AccessOutOfBounds)
     }
 
-    <span class="kw">unsafe fn </span>get_buffer_host_addr_unsafe(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;</span>Caller) -&gt; <a href="../../gear_core/memory/type.HostPointer.html">HostPointer</a> {
-        <span class="kw">unsafe </span>{ <a class="self" href="#90">self</a>.inner.get_buff(<a href="#90">ctx</a>) <span class="kw">as </span><a href="../../gear_core/memory/type.HostPointer.html">HostPointer</a> }
+    <span class="kw">unsafe fn </span>get_buffer_host_addr_unsafe(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;</span>Caller) -&gt; HostPointer {
+        <span class="kw">unsafe </span>{ <a class="self" href="#90">self</a>.inner.get_buff(<a href="#90">ctx</a>) <span class="kw">as </span>HostPointer }
     }
 }
 
 <span class="attr">#[derive(Debug, Clone, derive_more::From)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span><a href="#96-102">MemoryAccessError</a> {
-    Memory(<a href="../../gear_core/memory/enum.MemoryError.html">MemoryError</a>),
+    Memory(MemoryError),
     ProcessAccess(ProcessAccessError),
-    RuntimeBuffer(<a href="../../gear_core/buffer/struct.RuntimeBufferSizeError.html">RuntimeBufferSizeError</a>),
+    RuntimeBuffer(RuntimeBufferSizeError),
     <span class="comment">// TODO: remove #2164
     </span>Decode,
 }
@@ -1078,13 +1078,13 @@
     <span class="kw">fn </span>into_termination_reason(<span class="self">self</span>) -&gt; <a href="error.rs.html#34-39">UndefinedTerminationReason</a> {
         <span class="kw">match </span><span class="self"><a href="#105">self</a> </span>{
             <a href="#98">MemoryAccessError::ProcessAccess</a>(ProcessAccessError::OutOfBounds)
-            | <a href="#97">MemoryAccessError::Memory</a>(<a href="../../gear_core/memory/enum.MemoryError.html#variant.AccessOutOfBounds">MemoryError::AccessOutOfBounds</a>) =&gt; {
+            | <a href="#97">MemoryAccessError::Memory</a>(MemoryError::AccessOutOfBounds) =&gt; {
                 <a href="error.rs.html#227">TrapExplanation::UnrecoverableExt</a>(
                     <a href="error.rs.html#151">UnrecoverableMemoryError::AccessOutOfBounds</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                 )
                 .<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
             }
-            <a href="#99">MemoryAccessError::RuntimeBuffer</a>(<a href="../../gear_core/buffer/struct.RuntimeBufferSizeError.html">RuntimeBufferSizeError</a>) =&gt; {
+            <a href="#99">MemoryAccessError::RuntimeBuffer</a>(RuntimeBufferSizeError) =&gt; {
                 <a href="error.rs.html#227">TrapExplanation::UnrecoverableExt</a>(
                     <a href="error.rs.html#154">UnrecoverableMemoryError::RuntimeAllocOutOfBounds</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                 )
@@ -1111,11 +1111,11 @@
 
     <span class="kw">fn </span>into_run_fallible_error(<span class="self">self</span>) -&gt; <a href="error.rs.html#238-241">RunFallibleError</a> {
         <span class="kw">match </span><span class="self"><a href="#139">self</a> </span>{
-            <a href="#97">MemoryAccessError::Memory</a>(<a href="../../gear_core/memory/enum.MemoryError.html#variant.AccessOutOfBounds">MemoryError::AccessOutOfBounds</a>)
+            <a href="#97">MemoryAccessError::Memory</a>(MemoryError::AccessOutOfBounds)
             | <a href="#98">MemoryAccessError::ProcessAccess</a>(ProcessAccessError::OutOfBounds) =&gt; {
                 <a href="error.rs.html#240">RunFallibleError::FallibleExt</a>(FallibleMemoryError::AccessOutOfBounds.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
             }
-            <a href="#99">MemoryAccessError::RuntimeBuffer</a>(<a href="../../gear_core/buffer/struct.RuntimeBufferSizeError.html">RuntimeBufferSizeError</a>) =&gt; {
+            <a href="#99">MemoryAccessError::RuntimeBuffer</a>(RuntimeBufferSizeError) =&gt; {
                 <a href="error.rs.html#240">RunFallibleError::FallibleExt</a>(FallibleMemoryError::RuntimeAllocOutOfBounds.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
             }
             e =&gt; <a href="error.rs.html#239">RunFallibleError::UndefinedTerminationReason</a>(<a href="#148">e</a>.<a href="error.rs.html#255">into_termination_reason</a>()),
@@ -1146,8 +1146,8 @@
 /// ```
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>MemoryAccessRegistry&lt;Caller&gt; {
-    reads: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a>&gt;,
-    writes: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a>&gt;,
+    reads: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;MemoryInterval&gt;,
+    writes: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;MemoryInterval&gt;,
     _phantom: <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;Caller&gt;,
 }
 
@@ -1166,11 +1166,11 @@
 <span class="kw">where
     </span>Caller: AsContextExt&lt;State = <a href="state.rs.html#27">HostState</a>&lt;Ext, Mem&gt;&gt;,
     Ext: <a href="lib.rs.html#43-53">BackendExternalities</a> + <span class="lifetime">'static</span>,
-    Mem: <a href="../../gear_core/memory/trait.Memory.html">Memory</a>&lt;Caller&gt; + <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a> + <span class="lifetime">'static</span>,
+    Mem: Memory&lt;Caller&gt; + <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html">Clone</a> + <span class="lifetime">'static</span>,
 {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>register_read(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, size: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a href="#414-417">WasmMemoryRead</a> {
         <span class="kw">if </span>size &gt; <span class="number">0 </span>{
-            <a class="self" href="#198">self</a>.reads.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a> { offset: <a href="#198">ptr</a>, <a href="#198">size</a> });
+            <a class="self" href="#198">self</a>.reads.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(MemoryInterval { offset: <a href="#198">ptr</a>, <a href="#198">size</a> });
         }
         <a href="#414-417">WasmMemoryRead</a> { <a href="#198">ptr</a>, <a href="#198">size</a> }
     }
@@ -1178,7 +1178,7 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>register_read_as&lt;T: <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html">Sized</a>&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a href="#400-403">WasmMemoryReadAs</a>&lt;T&gt; {
         <span class="kw">let </span>size = <a href="https://doc.rust-lang.org/nightly/core/mem/fn.size_of.html">size_of</a>::&lt;T&gt;() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;
         <span class="kw">if </span>size &gt; <span class="number">0 </span>{
-            <a class="self" href="#205">self</a>.reads.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a> { offset: <a href="#205">ptr</a>, <a href="#206">size</a> });
+            <a class="self" href="#205">self</a>.reads.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(MemoryInterval { offset: <a href="#205">ptr</a>, <a href="#206">size</a> });
         }
         <a href="#400-403">WasmMemoryReadAs</a> {
             <a href="#205">ptr</a>,
@@ -1192,7 +1192,7 @@
     ) -&gt; <a href="#407-410">WasmMemoryReadDecoded</a>&lt;T&gt; {
         <span class="kw">let </span>size = T::max_encoded_len() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;
         <span class="kw">if </span>size &gt; <span class="number">0 </span>{
-            <a class="self" href="#217">self</a>.reads.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a> { offset: <a href="#218">ptr</a>, <a href="#220">size</a> });
+            <a class="self" href="#217">self</a>.reads.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(MemoryInterval { offset: <a href="#218">ptr</a>, <a href="#220">size</a> });
         }
         <a href="#407-410">WasmMemoryReadDecoded</a> {
             <a href="#218">ptr</a>,
@@ -1202,7 +1202,7 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>register_write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, size: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a href="#428-431">WasmMemoryWrite</a> {
         <span class="kw">if </span>size &gt; <span class="number">0 </span>{
-            <a class="self" href="#230">self</a>.writes.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a> { offset: <a href="#230">ptr</a>, <a href="#230">size</a> });
+            <a class="self" href="#230">self</a>.writes.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(MemoryInterval { offset: <a href="#230">ptr</a>, <a href="#230">size</a> });
         }
         <a href="#428-431">WasmMemoryWrite</a> { <a href="#230">ptr</a>, <a href="#230">size</a> }
     }
@@ -1210,7 +1210,7 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>register_write_as&lt;T: <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html">Sized</a>&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a href="#421-424">WasmMemoryWriteAs</a>&lt;T&gt; {
         <span class="kw">let </span>size = <a href="https://doc.rust-lang.org/nightly/core/mem/fn.size_of.html">size_of</a>::&lt;T&gt;() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;
         <span class="kw">if </span>size &gt; <span class="number">0 </span>{
-            <a class="self" href="#237">self</a>.writes.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(<a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a> { offset: <a href="#237">ptr</a>, <a href="#238">size</a> });
+            <a class="self" href="#237">self</a>.writes.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.push">push</a>(MemoryInterval { offset: <a href="#237">ptr</a>, <a href="#238">size</a> });
         }
         <a href="#421-424">WasmMemoryWriteAs</a> {
             <a href="#237">ptr</a>,
@@ -1224,11 +1224,11 @@
         ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;,
     ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="#273-276">MemoryAccessIo</a>&lt;Caller, Mem&gt;, <a href="#96-102">MemoryAccessError</a>&gt; {
         <span class="kw">let </span>ext = <a href="#251">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>();
-        <span class="kw">let </span><span class="kw-2">mut </span>gas_counter = <a href="#253">ext</a>.<a href="../../gear_core/gas/trait.CountersOwner.html#tymethod.define_current_counter">define_current_counter</a>();
+        <span class="kw">let </span><span class="kw-2">mut </span>gas_counter = <a href="#253">ext</a>.define_current_counter();
 
         <span class="kw">let </span>res = <a href="#253">ext</a>.<a href="lib.rs.html#47-52">pre_process_memory_accesses</a>(<span class="kw-2">&amp;</span><a class="self" href="#250">self</a>.reads, <span class="kw-2">&amp;</span><a class="self" href="#250">self</a>.writes, <span class="kw-2">&amp;mut </span><a href="#254">gas_counter</a>);
 
-        <a href="#253">ext</a>.<a href="../../gear_core/gas/trait.CountersOwner.html#tymethod.decrease_current_counter_to">decrease_current_counter_to</a>(<a href="#254">gas_counter</a>);
+        <a href="#253">ext</a>.decrease_current_counter_to(<a href="#254">gas_counter</a>);
 
         <a href="#256">res</a><span class="question-mark">?</span>;
 
@@ -1250,7 +1250,7 @@
 
 <span class="kw">impl</span>&lt;Context, Mem&gt; <a href="#273-276">MemoryAccessIo</a>&lt;Context, Mem&gt;
 <span class="kw">where
-    </span>Mem: <a href="../../gear_core/memory/trait.Memory.html">Memory</a>&lt;Context&gt;,
+    </span>Mem: Memory&lt;Context&gt;,
 {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>read(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -1260,8 +1260,8 @@
         <span class="kw">let </span>buff = <span class="kw">if </span>read.size == <span class="number">0 </span>{
             <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.new">Vec::new</a>()
         } <span class="kw">else </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>buff = <a href="../../gear_core/buffer/struct.LimitedVec.html#method.try_new_default">RuntimeBuffer::try_new_default</a>(<a href="#285">read</a>.size <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>)<span class="question-mark">?</span>.<a href="../../gear_core/buffer/struct.LimitedVec.html#method.into_vec">into_vec</a>();
-            <a class="self" href="#283">self</a>.memory.<a href="../../gear_core/memory/trait.Memory.html#tymethod.read">read</a>(<a href="#284">ctx</a>.caller, <a href="#285">read</a>.ptr, <span class="kw-2">&amp;mut </span><a href="#290">buff</a>)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>buff = RuntimeBuffer::try_new_default(<a href="#285">read</a>.size <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>)<span class="question-mark">?</span>.into_vec();
+            <a class="self" href="#283">self</a>.memory.read(<a href="#284">ctx</a>.caller, <a href="#285">read</a>.ptr, <span class="kw-2">&amp;mut </span><a href="#290">buff</a>)<span class="question-mark">?</span>;
             <a href="#290">buff</a>
         };
         <span class="prelude-val">Ok</span>(<a href="#287">buff</a>)
@@ -1289,7 +1289,7 @@
             // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
             </span><span class="kw">let </span>mut_slice = <span class="kw">unsafe </span>{ <a href="https://doc.rust-lang.org/nightly/core/slice/raw/fn.from_raw_parts_mut.html">slice::from_raw_parts_mut</a>(<a href="#302">buf</a>.<a href="https://doc.rust-lang.org/nightly/core/mem/maybe_uninit/union.MaybeUninit.html#method.as_mut_ptr">as_mut_ptr</a>() <span class="kw">as </span><span class="kw-2">*mut </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>, <a href="#304">size</a>) };
 
-            <a class="self" href="#298">self</a>.memory.<a href="../../gear_core/memory/trait.Memory.html#tymethod.read">read</a>(<a href="#299">ctx</a>.caller, <a href="#300">read</a>.ptr, <a href="#317">mut_slice</a>)<span class="question-mark">?</span>;
+            <a class="self" href="#298">self</a>.memory.read(<a href="#299">ctx</a>.caller, <a href="#300">read</a>.ptr, <a href="#317">mut_slice</a>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(<span class="kw">unsafe </span>{ <a href="#302">buf</a>.<a href="https://doc.rust-lang.org/nightly/core/mem/maybe_uninit/union.MaybeUninit.html#method.assume_init">assume_init</a>() })
     }
@@ -1303,8 +1303,8 @@
         <span class="kw">let </span>buff = <span class="kw">if </span>size == <span class="number">0 </span>{
             <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.new">Vec::new</a>()
         } <span class="kw">else </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>buff = <a href="../../gear_core/buffer/struct.LimitedVec.html#method.try_new_default">RuntimeBuffer::try_new_default</a>(<a href="#329">size</a>)<span class="question-mark">?</span>.<a href="../../gear_core/buffer/struct.LimitedVec.html#method.into_vec">into_vec</a>();
-            <a class="self" href="#325">self</a>.memory.<a href="../../gear_core/memory/trait.Memory.html#tymethod.read">read</a>(<a href="#326">ctx</a>.caller, <a href="#327">read</a>.ptr, <span class="kw-2">&amp;mut </span><a href="#333">buff</a>)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>buff = RuntimeBuffer::try_new_default(<a href="#329">size</a>)<span class="question-mark">?</span>.into_vec();
+            <a class="self" href="#325">self</a>.memory.read(<a href="#326">ctx</a>.caller, <a href="#327">read</a>.ptr, <span class="kw-2">&amp;mut </span><a href="#333">buff</a>)<span class="question-mark">?</span>;
             <a href="#333">buff</a>
         };
         <span class="kw">let </span>decoded = T::decode_all(<span class="kw-2">&amp;mut &amp;</span><a href="#330">buff</a>[..]).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| <a href="#101">MemoryAccessError::Decode</a>)<span class="question-mark">?</span>;
@@ -1334,7 +1334,7 @@
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
             <a class="self" href="#342">self</a>.memory
-                .<a href="../../gear_core/memory/trait.Memory.html#tymethod.write">write</a>(<a href="#343">ctx</a>.caller, <a href="#344">write</a>.ptr, <a href="#345">buff</a>)
+                .write(<a href="#343">ctx</a>.caller, <a href="#344">write</a>.ptr, <a href="#345">buff</a>)
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
         }
     }
@@ -1360,7 +1360,7 @@
             </span><span class="kw">let </span>slice = <span class="kw">unsafe </span>{ <a href="https://doc.rust-lang.org/nightly/core/slice/raw/fn.from_raw_parts.html">slice::from_raw_parts</a>(<span class="kw-2">&amp;</span><a href="#373">obj</a> <span class="kw">as </span><span class="kw-2">*const </span>T <span class="kw">as </span><span class="kw-2">*const </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>, <a href="#375">size</a>) };
 
             <a class="self" href="#370">self</a>.memory
-                .<a href="../../gear_core/memory/trait.Memory.html#tymethod.write">write</a>(<a href="#371">ctx</a>.caller, <a href="#372">write</a>.ptr, <a href="#387">slice</a>)
+                .write(<a href="#371">ctx</a>.caller, <a href="#372">write</a>.ptr, <a href="#387">slice</a>)
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(())

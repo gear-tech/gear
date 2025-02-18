@@ -207,7 +207,7 @@
     state::{<a href="state.rs.html#27">HostState</a>, <a href="state.rs.html#29-33">State</a>},
     <a href="lib.rs.html#43-53">BackendExternalities</a>,
 };
-<span class="kw">use </span>gear_core::{<a href="../../gear_core/costs/enum.CostToken.html">costs::CostToken</a>, <a href="../../gear_core/pages/type.WasmPage.html">pages::WasmPage</a>};
+<span class="kw">use </span>gear_core::{costs::CostToken, pages::WasmPage};
 <span class="kw">use </span>gear_sandbox::{AsContextExt, HostError};
 <span class="kw">use </span>gear_wasm_instrument::SyscallName;
 
@@ -259,14 +259,14 @@
     Ext: <a href="lib.rs.html#43-53">BackendExternalities</a> + <span class="lifetime">'static</span>,
 {
     <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>run_any&lt;U, F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, gas: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, token: <a href="../../gear_core/costs/enum.CostToken.html">CostToken</a>, f: F) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, U), HostError&gt;
+    </span><span class="kw">pub fn </span>run_any&lt;U, F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, gas: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, token: CostToken, f: F) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, U), HostError&gt;
     <span class="kw">where
         </span>F: <a href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html">FnOnce</a>(<span class="kw-2">&amp;mut </span><span class="self">Self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;U, <a href="error.rs.html#34-39">UndefinedTerminationReason</a>&gt;,
     {
-        <a class="self" href="#82">self</a>.<a href="#48-55">state_mut</a>().ext.<a href="../../gear_core/gas/trait.CountersOwner.html#tymethod.decrease_current_counter_to">decrease_current_counter_to</a>(<a href="#82">gas</a>);
+        <a class="self" href="#82">self</a>.<a href="#48-55">state_mut</a>().ext.decrease_current_counter_to(<a href="#82">gas</a>);
 
         <span class="kw">let </span>run = || {
-            <a class="self" href="#82">self</a>.<a href="#48-55">state_mut</a>().ext.<a href="../../gear_core/gas/trait.CountersOwner.html#tymethod.charge_gas_for_token">charge_gas_for_token</a>(<a href="#82">token</a>)<span class="question-mark">?</span>;
+            <a class="self" href="#82">self</a>.<a href="#48-55">state_mut</a>().ext.charge_gas_for_token(<a href="#82">token</a>)<span class="question-mark">?</span>;
             <a href="#82">f</a>(<a class="self" href="#82">self</a>)
         };
 
@@ -275,7 +275,7 @@
                 <a class="self" href="#82">self</a>.<a href="#67-69">set_termination_reason</a>(<a href="#94">err</a>);
                 HostError
             })
-            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|r| (<a class="self" href="#82">self</a>.<a href="#48-55">state_mut</a>().ext.<a href="../../gear_core/gas/trait.CountersOwner.html#tymethod.define_current_counter">define_current_counter</a>(), <a href="#98">r</a>))
+            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|r| (<a class="self" href="#82">self</a>.<a href="#48-55">state_mut</a>().ext.define_current_counter(), <a href="#98">r</a>))
     }
 
     <span class="attr">#[track_caller]
@@ -283,7 +283,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         gas: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
         res_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
-        token: <a href="../../gear_core/costs/enum.CostToken.html">CostToken</a>,
+        token: CostToken,
         f: F,
     ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, ()), HostError&gt;
     <span class="kw">where
@@ -307,10 +307,10 @@
         )
     }
 
-    <span class="kw">pub fn </span>alloc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pages: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>, &lt;Ext&gt;::AllocError&gt; {
+    <span class="kw">pub fn </span>alloc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pages: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;WasmPage, &lt;Ext&gt;::AllocError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>state = <a class="self" href="#130">self</a>.<a href="#58-65">take_state</a>();
         <span class="kw">let </span><span class="kw-2">mut </span>memory = <a href="#131">state</a>.memory.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>();
-        <span class="kw">let </span>res = <a href="#131">state</a>.ext.<a href="../../gear_core/env/trait.Externalities.html#tymethod.alloc">alloc</a>(<a class="self" href="#130">self</a>.caller, <span class="kw-2">&amp;mut </span><a href="#132">memory</a>, <a href="#130">pages</a>);
+        <span class="kw">let </span>res = <a href="#131">state</a>.ext.alloc(<a class="self" href="#130">self</a>.caller, <span class="kw-2">&amp;mut </span><a href="#132">memory</a>, <a href="#130">pages</a>);
         <a class="self" href="#130">self</a>.caller.data_mut().<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.replace">replace</a>(<a href="#131">state</a>);
         <a href="#133">res</a>
     }

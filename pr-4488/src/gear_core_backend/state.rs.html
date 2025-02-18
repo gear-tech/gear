@@ -164,9 +164,9 @@
         <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Execution result = {res:?}"</span>);
 
         <span class="kw">let </span>(<span class="kw-2">mut </span>ext, termination_reason) = <a class="self" href="#63">self</a>.<a href="#38-45">into_parts</a>();
-        <span class="kw">let </span>termination_reason = <a href="#69">termination_reason</a>.<a href="error.rs.html#42-50">define</a>(<a href="#69">ext</a>.<a href="../../gear_core/gas/trait.CountersOwner.html#tymethod.current_counter_type">current_counter_type</a>());
+        <span class="kw">let </span>termination_reason = <a href="#69">termination_reason</a>.<a href="error.rs.html#42-50">define</a>(<a href="#69">ext</a>.current_counter_type());
 
-        <a href="#69">ext</a>.<a href="../../gear_core/gas/trait.CountersOwner.html#tymethod.decrease_current_counter_to">decrease_current_counter_to</a>(<a href="#65">gas</a>);
+        <a href="#69">ext</a>.decrease_current_counter_to(<a href="#65">gas</a>);
 
         <span class="kw">let </span>termination_reason = <span class="kw">if </span>res.is_err() {
             <span class="kw">if </span><a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.matches.html">matches!</a>(

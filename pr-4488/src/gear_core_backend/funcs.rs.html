@@ -1472,15 +1472,15 @@
 <span class="kw">use </span>blake2::{<a href="https://docs.rs/typenum/1.16.0/typenum/generated/consts/type.U32.html">digest::typenum::U32</a>, Blake2b, Digest};
 <span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">core::marker::PhantomData</a>;
 <span class="kw">use </span>gear_core::{
-    buffer::{<a href="../../gear_core/buffer/type.RuntimeBuffer.html">RuntimeBuffer</a>, <a href="../../gear_core/buffer/struct.RuntimeBufferSizeError.html">RuntimeBufferSizeError</a>},
-    <a href="../../gear_core/costs/enum.CostToken.html">costs::CostToken</a>,
-    <a href="../../gear_core/env/struct.DropPayloadLockBound.html">env::DropPayloadLockBound</a>,
-    <a href="../../gear_core/gas/enum.CounterType.html">gas::CounterType</a>,
-    ids::{MessageId, <a href="../../gear_core/ids/type.ProgramId.html">ProgramId</a>},
+    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
+    costs::CostToken,
+    env::DropPayloadLockBound,
+    gas::CounterType,
+    ids::{MessageId, ProgramId},
     message::{
-        <a href="../../gear_core/message/handle/struct.HandlePacket.html">HandlePacket</a>, <a href="../../gear_core/message/init/struct.InitPacket.html">InitPacket</a>, <a href="../../gear_core/message/enum.MessageWaitedType.html">MessageWaitedType</a>, <a href="../../gear_core/message/type.Payload.html">Payload</a>, <a href="../../gear_core/message/struct.PayloadSizeError.html">PayloadSizeError</a>, <a href="../../gear_core/message/reply/struct.ReplyPacket.html">ReplyPacket</a>,
+        HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
     },
-    <a href="../../gear_core/pages/type.WasmPage.html">pages::WasmPage</a>,
+    pages::WasmPage,
 };
 <span class="kw">use </span>gear_core_errors::{MessageError, ReplyCode, SignalCode};
 <span class="kw">use </span>gear_sandbox::{AsContextExt, ReturnValue, Value};
@@ -1696,13 +1696,13 @@
 
 <span class="doccomment">/// Fallible syscall that calls [`CallerWrap::run_fallible`] underneath.
 </span><span class="kw">struct </span>FallibleSyscall&lt;E, F&gt; {
-    token: <a href="../../gear_core/costs/enum.CostToken.html">CostToken</a>,
+    token: CostToken,
     error: <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;E&gt;,
     f: F,
 }
 
 <span class="kw">impl</span>&lt;F&gt; <a href="#265-269">FallibleSyscall</a>&lt;(), F&gt; {
-    <span class="kw">fn </span>new&lt;E&gt;(token: <a href="../../gear_core/costs/enum.CostToken.html">CostToken</a>, f: F) -&gt; <a href="#265-269">FallibleSyscall</a>&lt;E, F&gt; {
+    <span class="kw">fn </span>new&lt;E&gt;(token: CostToken, f: F) -&gt; <a href="#265-269">FallibleSyscall</a>&lt;E, F&gt; {
         <a href="#265-269">FallibleSyscall</a> {
             <a href="#272">token</a>,
             error: <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>,
@@ -1748,12 +1748,12 @@
 
 <span class="doccomment">/// Infallible syscall that calls [`CallerWrap::run_any`] underneath
 </span><span class="kw">struct </span>InfallibleSyscall&lt;F&gt; {
-    token: <a href="../../gear_core/costs/enum.CostToken.html">CostToken</a>,
+    token: CostToken,
     f: F,
 }
 
 <span class="kw">impl</span>&lt;F&gt; <a href="#317-320">InfallibleSyscall</a>&lt;F&gt; {
-    <span class="kw">fn </span>new(token: <a href="../../gear_core/costs/enum.CostToken.html">CostToken</a>, f: F) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(token: CostToken, f: F) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ <a href="#323">token</a>, <a href="#323">f</a> }
     }
 }
@@ -1839,10 +1839,10 @@
         ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;,
         io: <span class="kw-2">&amp;</span><a href="memory.rs.html#273-276">MemoryAccessIo</a>&lt;Caller, <a href="memory.rs.html#45-47">BackendMemory</a>&lt;<a href="memory.rs.html#42">ExecutorMemory</a>&gt;&gt;,
         read_payload: <a href="memory.rs.html#414-417">WasmMemoryRead</a>,
-    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="../../gear_core/message/type.Payload.html">Payload</a>, <a href="error.rs.html#238-241">RunFallibleError</a>&gt; {
+    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;Payload, <a href="error.rs.html#238-241">RunFallibleError</a>&gt; {
         <a href="#407">io</a>.<a href="memory.rs.html#282-295">read</a>(<a href="#406">ctx</a>, <a href="#408">read_payload</a>)<span class="question-mark">?
             </span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
-            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<a href="../../gear_core/message/struct.PayloadSizeError.html">PayloadSizeError</a>| MessageError::MaxMessageSizeExceed.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
+            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|PayloadSizeError| MessageError::MaxMessageSizeExceed.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
             .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="error.rs.html#240">RunFallibleError::FallibleExt</a>)
     }
 
@@ -1865,8 +1865,8 @@
         <span class="kw">let </span>payload = <a href="#405-414"><span class="self">Self</span>::read_message_payload</a>(<a href="#417">ctx</a>, <span class="kw-2">&amp;</span><a href="#427">io</a>, <a href="#426">read_payload</a>)<span class="question-mark">?</span>;
 
         <a href="#417">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-            .<a href="../../gear_core/env/trait.Externalities.html#tymethod.send">send</a>(
-                <a href="../../gear_core/message/handle/struct.HandlePacket.html#method.maybe_with_gas">HandlePacket::maybe_with_gas</a>(<a href="#429">destination</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#432">payload</a>, <a href="#421">gas_limit</a>, <a href="#430">value</a>),
+            .send(
+                HandlePacket::maybe_with_gas(<a href="#429">destination</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#432">payload</a>, <a href="#421">gas_limit</a>, <a href="#430">value</a>),
                 <a href="#422">delay</a>,
             )
             .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
@@ -1879,7 +1879,7 @@
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.Send">CostToken::Send</a>(<a href="#445">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::Send(<a href="#445">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#416-440"><span class="self">Self</span>::send_inner</a>(<a href="#450">ctx</a>, <a href="#443">pid_value_ptr</a>, <a href="#444">payload_ptr</a>, <a href="#445">len</a>, <span class="prelude-val">None</span>, <a href="#446">delay</a>)
             },
@@ -1894,7 +1894,7 @@
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SendWGas">CostToken::SendWGas</a>(<a href="#459">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::SendWGas(<a href="#459">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#416-440"><span class="self">Self</span>::send_inner</a>(<a href="#465">ctx</a>, <a href="#457">pid_value_ptr</a>, <a href="#458">payload_ptr</a>, <a href="#459">len</a>, <span class="prelude-val">Some</span>(<a href="#460">gas_limit</a>), <a href="#461">delay</a>)
             },
@@ -1917,9 +1917,9 @@
         } = <a href="#480">io</a>.<a href="memory.rs.html#297-322">read_as</a>(<a href="#472">ctx</a>, <a href="#479">read_pid_value</a>)<span class="question-mark">?</span>;
 
         <a href="#472">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-            .<a href="../../gear_core/env/trait.Externalities.html#tymethod.send_commit">send_commit</a>(
+            .send_commit(
                 <a href="#473">handle</a>,
-                <a href="../../gear_core/message/handle/struct.HandlePacket.html#method.maybe_with_gas">HandlePacket::maybe_with_gas</a>(
+                HandlePacket::maybe_with_gas(
                     <a href="#482">destination</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                     <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
                     <a href="#475">gas_limit</a>,
@@ -1932,7 +1932,7 @@
 
     <span class="kw">pub fn </span>send_commit(handle: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, pid_value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SendCommit">CostToken::SendCommit</a>,
+            CostToken::SendCommit,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#471-498"><span class="self">Self</span>::send_commit_inner</a>(<a href="#503">ctx</a>, <a href="#500">handle</a>, <a href="#500">pid_value_ptr</a>, <span class="prelude-val">None</span>, <a href="#500">delay</a>)
             },
@@ -1946,7 +1946,7 @@
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SendCommitWGas">CostToken::SendCommitWGas</a>,
+            CostToken::SendCommitWGas,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#471-498"><span class="self">Self</span>::send_commit_inner</a>(<a href="#517">ctx</a>, <a href="#510">handle</a>, <a href="#511">pid_value_ptr</a>, <span class="prelude-val">Some</span>(<a href="#512">gas_limit</a>), <a href="#513">delay</a>)
             },
@@ -1955,14 +1955,14 @@
 
     <span class="kw">pub fn </span>send_init() -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHandle&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SendInit">CostToken::SendInit</a>,
-            <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| <a href="#526">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.send_init">send_init</a>().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>),
+            CostToken::SendInit,
+            <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| <a href="#526">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().send_init().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>),
         )
     }
 
     <span class="kw">pub fn </span>send_push(handle: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, payload_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorBytes&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SendPush">CostToken::SendPush</a>(<a href="#530">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::SendPush(<a href="#530">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>read_payload = <a href="#534">registry</a>.<a href="memory.rs.html#198-203">register_read</a>(<a href="#530">payload_ptr</a>, <a href="#530">len</a>);
@@ -1970,7 +1970,7 @@
                 <span class="kw">let </span>payload = <a href="#536">io</a>.<a href="memory.rs.html#282-295">read</a>(<a href="#533">ctx</a>, <a href="#535">read_payload</a>)<span class="question-mark">?</span>;
 
                 <a href="#533">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.send_push">send_push</a>(<a href="#530">handle</a>, <span class="kw-2">&amp;</span><a href="#537">payload</a>)
+                    .send_push(<a href="#530">handle</a>, <span class="kw-2">&amp;</span><a href="#537">payload</a>)
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
         )
@@ -1983,7 +1983,7 @@
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReservationSend">CostToken::ReservationSend</a>(<a href="#549">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::ReservationSend(<a href="#549">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>read_rid_pid_value = <a href="#555">registry</a>.<a href="memory.rs.html#205-214">register_read_as</a>(<a href="#547">rid_pid_value_ptr</a>);
@@ -1997,9 +1997,9 @@
                 <span class="kw">let </span>payload = <a href="#405-414"><span class="self">Self</span>::read_message_payload</a>(<a href="#554">ctx</a>, <span class="kw-2">&amp;</span><a href="#558">io</a>, <a href="#557">read_payload</a>)<span class="question-mark">?</span>;
 
                 <a href="#554">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reservation_send">reservation_send</a>(
+                    .reservation_send(
                         <a href="#560">reservation_id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
-                        <a href="../../gear_core/message/handle/struct.HandlePacket.html#method.new">HandlePacket::new</a>(<a href="#561">destination</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#564">payload</a>, <a href="#562">value</a>),
+                        HandlePacket::new(<a href="#561">destination</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#564">payload</a>, <a href="#562">value</a>),
                         <a href="#550">delay</a>,
                     )
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
@@ -2013,7 +2013,7 @@
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReservationSendCommit">CostToken::ReservationSendCommit</a>,
+            CostToken::ReservationSendCommit,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>read_rid_pid_value = <a href="#585">registry</a>.<a href="memory.rs.html#205-214">register_read_as</a>(<a href="#579">rid_pid_value_ptr</a>);
@@ -2025,10 +2025,10 @@
                 } = <a href="#587">io</a>.<a href="memory.rs.html#297-322">read_as</a>(<a href="#584">ctx</a>, <a href="#586">read_rid_pid_value</a>)<span class="question-mark">?</span>;
 
                 <a href="#584">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reservation_send_commit">reservation_send_commit</a>(
+                    .reservation_send_commit(
                         <a href="#589">reservation_id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                         <a href="#578">handle</a>,
-                        <a href="../../gear_core/message/handle/struct.HandlePacket.html#method.new">HandlePacket::new</a>(<a href="#590">destination</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(), <a href="#591">value</a>),
+                        HandlePacket::new(<a href="#590">destination</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(), <a href="#591">value</a>),
                         <a href="#580">delay</a>,
                     )
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
@@ -2037,30 +2037,30 @@
     }
 
     <span class="kw">pub fn </span>read(at: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, buffer_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        FallibleSyscall::new::&lt;ErrorBytes&gt;(<a href="../../gear_core/costs/enum.CostToken.html#variant.Read">CostToken::Read</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-            <span class="kw">let </span>payload_lock = <a href="#607">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.lock_payload">lock_payload</a>(<a href="#606">at</a>, <a href="#606">len</a>)<span class="question-mark">?</span>;
+        FallibleSyscall::new::&lt;ErrorBytes&gt;(CostToken::Read, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+            <span class="kw">let </span>payload_lock = <a href="#607">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().lock_payload(<a href="#606">at</a>, <a href="#606">len</a>)<span class="question-mark">?</span>;
             <a href="#608">payload_lock</a>
-                .<a href="../../gear_core/env/struct.PayloadSliceLock.html#method.drop_with">drop_with</a>::&lt;<a href="memory.rs.html#96-102">MemoryAccessError</a>, <span class="kw">_</span>&gt;(|payload_access| {
+                .drop_with::&lt;<a href="memory.rs.html#96-102">MemoryAccessError</a>, <span class="kw">_</span>&gt;(|payload_access| {
                     <span class="kw">let </span><span class="kw-2">mut </span>f = || {
                         <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                         <span class="kw">let </span>write_buffer = <a href="#612">registry</a>.<a href="memory.rs.html#230-235">register_write</a>(<a href="#606">buffer_ptr</a>, <a href="#606">len</a>);
                         <span class="kw">let </span><span class="kw-2">mut </span>io = <a href="#612">registry</a>.<a href="memory.rs.html#249-267">pre_process</a>(<a href="#607">ctx</a>)<span class="question-mark">?</span>;
-                        <a href="#614">io</a>.<a href="memory.rs.html#341-367">write</a>(<a href="#607">ctx</a>, <a href="#613">write_buffer</a>, <a href="#610">payload_access</a>.<a href="../../gear_core/env/struct.PayloadSliceAccess.html#method.as_slice">as_slice</a>())<span class="question-mark">?</span>;
+                        <a href="#614">io</a>.<a href="memory.rs.html#341-367">write</a>(<a href="#607">ctx</a>, <a href="#613">write_buffer</a>, <a href="#610">payload_access</a>.as_slice())<span class="question-mark">?</span>;
                         <span class="prelude-val">Ok</span>(())
                     };
                     <span class="kw">let </span>res = <a href="#611">f</a>();
-                    <span class="kw">let </span>unlock_bound = <a href="#607">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.unlock_payload">unlock_payload</a>(<a href="#610">payload_access</a>.<a href="../../gear_core/env/struct.PayloadSliceAccess.html#method.into_lock">into_lock</a>());
+                    <span class="kw">let </span>unlock_bound = <a href="#607">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().unlock_payload(<a href="#610">payload_access</a>.into_lock());
 
                     <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">DropPayloadLockBound::from</a>((<a href="#619">unlock_bound</a>, <a href="#618">res</a>))
                 })
-                .<a href="../../gear_core/env/struct.DropPayloadLockBound.html#method.into_inner">into_inner</a>()
+                .into_inner()
                 .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
         })
     }
 
     <span class="kw">pub fn </span>size(size_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Size">CostToken::Size</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-            <span class="kw">let </span>size = <a href="#629">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.size">size</a>()<span class="question-mark">? </span><span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Size, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+            <span class="kw">let </span>size = <a href="#629">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().size()<span class="question-mark">? </span><span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;
 
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>write_size = <a href="#632">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#628">size_ptr</a>);
@@ -2071,7 +2071,7 @@
     }
 
     <span class="kw">pub fn </span>exit(inheritor_id_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Exit">CostToken::Exit</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Exit, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>read_inheritor_id = <a href="#642">registry</a>.<a href="memory.rs.html#216-228">register_read_decoded</a>(<a href="#640">inheritor_id_ptr</a>);
             <span class="kw">let </span>io = <a href="#642">registry</a>.<a href="memory.rs.html#249-267">pre_process</a>(<a href="#641">ctx</a>)<span class="question-mark">?</span>;
@@ -2082,10 +2082,10 @@
 
     <span class="kw">pub fn </span>reply_code() -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithReplyCode&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyCode">CostToken::ReplyCode</a>,
+            CostToken::ReplyCode,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#653">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reply_code">reply_code</a>()
+                    .reply_code()
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(ReplyCode::to_bytes)
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
@@ -2094,10 +2094,10 @@
 
     <span class="kw">pub fn </span>signal_code() -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithSignalCode&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SignalCode">CostToken::SignalCode</a>,
+            CostToken::SignalCode,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#665">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.signal_code">signal_code</a>()
+                    .signal_code()
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(SignalCode::to_u32)
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
@@ -2105,7 +2105,7 @@
     }
 
     <span class="kw">pub fn </span>alloc(pages: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller, <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Alloc">CostToken::Alloc</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Alloc, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="kw">let </span>res = <a href="#675">ctx</a>.<a href="runtime.rs.html#130-136">alloc</a>(<a href="#674">pages</a>);
             <span class="kw">let </span>res = <a href="#675">ctx</a>.<a href="runtime.rs.html#155-166">process_alloc_func_result</a>(<a href="#676">res</a>)<span class="question-mark">?</span>;
 
@@ -2124,14 +2124,14 @@
     }
 
     <span class="kw">pub fn </span>free(page_no: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller, <a href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a>&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Free">CostToken::Free</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Free, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="kw">let </span>page = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from">WasmPage::try_from</a>(<a href="#693">page_no</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| {
                 <a href="error.rs.html#35">UndefinedTerminationReason::Actor</a>(<a href="error.rs.html#87">ActorTerminationReason::Trap</a>(
                     <a href="error.rs.html#233">TrapExplanation::Unknown</a>,
                 ))
             })<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>res = <a href="#694">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.free">free</a>(<a href="#695">page</a>);
+            <span class="kw">let </span>res = <a href="#694">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().free(<a href="#695">page</a>);
             <span class="kw">let </span>res = <a href="#694">ctx</a>.<a href="runtime.rs.html#155-166">process_alloc_func_result</a>(<a href="#701">res</a>)<span class="question-mark">?</span>;
 
             <span class="kw">match </span><span class="kw-2">&amp;</span><a href="#702">res</a> {
@@ -2148,7 +2148,7 @@
     }
 
     <span class="kw">pub fn </span>free_range(start: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, end: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller, <a href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a>&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.FreeRange">CostToken::FreeRange</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::FreeRange, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="kw">let </span>page_err = |<span class="kw">_</span>| {
                 <a href="error.rs.html#35">UndefinedTerminationReason::Actor</a>(<a href="error.rs.html#87">ActorTerminationReason::Trap</a>(
                     <a href="error.rs.html#233">TrapExplanation::Unknown</a>,
@@ -2158,7 +2158,7 @@
             <span class="kw">let </span>start = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from">WasmPage::try_from</a>(<a href="#717">start</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="#719">page_err</a>)<span class="question-mark">?</span>;
             <span class="kw">let </span>end = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from">WasmPage::try_from</a>(<a href="#717">end</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="#719">page_err</a>)<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>result = <a href="#718">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.free_range">free_range</a>(<a href="#725">start</a>, <a href="#726">end</a>);
+            <span class="kw">let </span>result = <a href="#718">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().free_range(<a href="#725">start</a>, <a href="#726">end</a>);
 
             <span class="kw">match </span><a href="#718">ctx</a>.<a href="runtime.rs.html#155-166">process_alloc_func_result</a>(<a href="#728">result</a>)<span class="question-mark">? </span>{
                 <span class="prelude-val">Ok</span>(()) =&gt; {
@@ -2174,9 +2174,9 @@
     }
 
     <span class="kw">pub fn </span>env_vars(vars_ver: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, vars_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.EnvVars">CostToken::EnvVars</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-            <span class="kw">let </span>vars = <a href="#744">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.env_vars">env_vars</a>(<a href="#743">vars_ver</a>)<span class="question-mark">?</span>;
-            <span class="kw">let </span>vars_bytes = <a href="#745">vars</a>.<a href="../../gear_core/env_vars/enum.EnvVars.html#method.to_bytes">to_bytes</a>();
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::EnvVars, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+            <span class="kw">let </span>vars = <a href="#744">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().env_vars(<a href="#743">vars_ver</a>)<span class="question-mark">?</span>;
+            <span class="kw">let </span>vars_bytes = <a href="#745">vars</a>.to_bytes();
 
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>vars_write = <a href="#748">registry</a>.<a href="memory.rs.html#230-235">register_write</a>(<a href="#743">vars_ptr</a>, <a href="#746">vars_bytes</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.len">len</a>() <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>);
@@ -2187,9 +2187,9 @@
 
     <span class="kw">pub fn </span>block_height(height_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         <a href="#323-325">InfallibleSyscall::new</a>(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.BlockHeight">CostToken::BlockHeight</a>,
+            CostToken::BlockHeight,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-                <span class="kw">let </span>height = <a href="#758">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.block_height">block_height</a>()<span class="question-mark">?</span>;
+                <span class="kw">let </span>height = <a href="#758">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().block_height()<span class="question-mark">?</span>;
 
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>write_height = <a href="#761">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#755">height_ptr</a>);
@@ -2202,9 +2202,9 @@
 
     <span class="kw">pub fn </span>block_timestamp(timestamp_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         <a href="#323-325">InfallibleSyscall::new</a>(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.BlockTimestamp">CostToken::BlockTimestamp</a>,
+            CostToken::BlockTimestamp,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-                <span class="kw">let </span>timestamp = <a href="#773">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.block_timestamp">block_timestamp</a>()<span class="question-mark">?</span>;
+                <span class="kw">let </span>timestamp = <a href="#773">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().block_timestamp()<span class="question-mark">?</span>;
 
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>write_timestamp = <a href="#776">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#770">timestamp_ptr</a>);
@@ -2216,14 +2216,14 @@
     }
 
     <span class="kw">pub fn </span>random(subject_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, bn_random_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Random">CostToken::Random</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Random, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>read_subject = <a href="#787">registry</a>.<a href="memory.rs.html#216-228">register_read_decoded</a>(<a href="#785">subject_ptr</a>);
             <span class="kw">let </span>write_bn_random = <a href="#787">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#785">bn_random_ptr</a>);
             <span class="kw">let </span><span class="kw-2">mut </span>io = <a href="#787">registry</a>.<a href="memory.rs.html#249-267">pre_process</a>(<a href="#786">ctx</a>)<span class="question-mark">?</span>;
 
             <span class="kw">let </span>raw_subject: Hash = <a href="#790">io</a>.<a href="memory.rs.html#324-339">read_decoded</a>(<a href="#786">ctx</a>, <a href="#788">read_subject</a>)<span class="question-mark">?</span>;
-            <span class="kw">let </span>(random, bn) = <a href="#786">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.random">random</a>()<span class="question-mark">?</span>;
+            <span class="kw">let </span>(random, bn) = <a href="#786">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().random()<span class="question-mark">?</span>;
             <span class="kw">let </span>subject = [<span class="kw-2">&amp;</span><a href="#792">raw_subject</a>, <a href="#793">random</a>].<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.concat">concat</a>();
 
             <span class="kw">let </span><span class="kw-2">mut </span>blake2_ctx = Blake2b256::new();
@@ -2248,13 +2248,13 @@
         <span class="kw">let </span>payload = <a href="#405-414"><span class="self">Self</span>::read_message_payload</a>(<a href="#806">ctx</a>, <span class="kw-2">&amp;</span><a href="#814">io</a>, <a href="#813">read_payload</a>)<span class="question-mark">?</span>;
 
         <a href="#806">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-            .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reply">reply</a>(<a href="../../gear_core/message/reply/struct.ReplyPacket.html#method.maybe_with_gas">ReplyPacket::maybe_with_gas</a>(<a href="#815">payload</a>, <a href="#809">gas_limit</a>, <a href="#814">value</a>))
+            .reply(ReplyPacket::maybe_with_gas(<a href="#815">payload</a>, <a href="#809">gas_limit</a>, <a href="#814">value</a>))
             .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
     }
 
     <span class="kw">pub fn </span>reply(payload_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.Reply">CostToken::Reply</a>(<a href="#822">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::Reply(<a href="#822">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#805-820"><span class="self">Self</span>::reply_inner</a>(<a href="#825">ctx</a>, <a href="#822">payload_ptr</a>, <a href="#822">len</a>, <span class="prelude-val">None</span>, <a href="#822">value_ptr</a>)
             },
@@ -2268,7 +2268,7 @@
         value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyWGas">CostToken::ReplyWGas</a>(<a href="#833">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::ReplyWGas(<a href="#833">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#805-820"><span class="self">Self</span>::reply_inner</a>(<a href="#839">ctx</a>, <a href="#832">payload_ptr</a>, <a href="#833">len</a>, <span class="prelude-val">Some</span>(<a href="#834">gas_limit</a>), <a href="#835">value_ptr</a>)
             },
@@ -2284,7 +2284,7 @@
         <span class="kw">let </span>(_io, value) = <a href="#388-403"><span class="self">Self</span>::register_and_read_value</a>(<a href="#846">ctx</a>, <a href="#850">registry</a>, <a href="#848">value_ptr</a>)<span class="question-mark">?</span>;
 
         <a href="#846">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-            .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reply_commit">reply_commit</a>(<a href="../../gear_core/message/reply/struct.ReplyPacket.html#method.maybe_with_gas">ReplyPacket::maybe_with_gas</a>(
+            .reply_commit(ReplyPacket::maybe_with_gas(
                 <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
                 <a href="#847">gas_limit</a>,
                 <a href="#851">value</a>,
@@ -2294,14 +2294,14 @@
 
     <span class="kw">pub fn </span>reply_commit(value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyCommit">CostToken::ReplyCommit</a>,
+            CostToken::ReplyCommit,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| <a href="#845-860"><span class="self">Self</span>::reply_commit_inner</a>(<a href="#865">ctx</a>, <span class="prelude-val">None</span>, <a href="#862">value_ptr</a>),
         )
     }
 
     <span class="kw">pub fn </span>reply_commit_wgas(gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyCommitWGas">CostToken::ReplyCommitWGas</a>,
+            CostToken::ReplyCommitWGas,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#845-860"><span class="self">Self</span>::reply_commit_inner</a>(<a href="#872">ctx</a>, <span class="prelude-val">Some</span>(<a href="#869">gas_limit</a>), <a href="#869">value_ptr</a>)
             },
@@ -2314,7 +2314,7 @@
         len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReservationReply">CostToken::ReservationReply</a>(<a href="#881">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::ReservationReply(<a href="#881">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>read_rid_value = <a href="#886">registry</a>.<a href="memory.rs.html#205-214">register_read_as</a>(<a href="#879">rid_value_ptr</a>);
@@ -2327,7 +2327,7 @@
                 <span class="kw">let </span>payload = <a href="#405-414"><span class="self">Self</span>::read_message_payload</a>(<a href="#885">ctx</a>, <span class="kw-2">&amp;</span><a href="#889">io</a>, <a href="#888">read_payload</a>)<span class="question-mark">?</span>;
 
                 <a href="#885">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reservation_reply">reservation_reply</a>(<a href="#891">reservation_id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="../../gear_core/message/reply/struct.ReplyPacket.html#method.new">ReplyPacket::new</a>(<a href="#894">payload</a>, <a href="#892">value</a>))
+                    .reservation_reply(<a href="#891">reservation_id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), ReplyPacket::new(<a href="#894">payload</a>, <a href="#892">value</a>))
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
         )
@@ -2335,7 +2335,7 @@
 
     <span class="kw">pub fn </span>reservation_reply_commit(rid_value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReservationReplyCommit">CostToken::ReservationReplyCommit</a>,
+            CostToken::ReservationReplyCommit,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>read_rid_value = <a href="#907">registry</a>.<a href="memory.rs.html#205-214">register_read_as</a>(<a href="#903">rid_value_ptr</a>);
@@ -2346,9 +2346,9 @@
                 } = <a href="#909">io</a>.<a href="memory.rs.html#297-322">read_as</a>(<a href="#906">ctx</a>, <a href="#908">read_rid_value</a>)<span class="question-mark">?</span>;
 
                 <a href="#906">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reservation_reply_commit">reservation_reply_commit</a>(
+                    .reservation_reply_commit(
                         <a href="#911">reservation_id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
-                        <a href="../../gear_core/message/reply/struct.ReplyPacket.html#method.new">ReplyPacket::new</a>(<a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(), <a href="#912">value</a>),
+                        ReplyPacket::new(<a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(), <a href="#912">value</a>),
                     )
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
@@ -2357,28 +2357,28 @@
 
     <span class="kw">pub fn </span>reply_to() -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyTo">CostToken::ReplyTo</a>,
-            <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| <a href="#928">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.reply_to">reply_to</a>().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>),
+            CostToken::ReplyTo,
+            <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| <a href="#928">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().reply_to().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>),
         )
     }
 
     <span class="kw">pub fn </span>signal_from() -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SignalFrom">CostToken::SignalFrom</a>,
-            <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| <a href="#935">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.signal_from">signal_from</a>().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>),
+            CostToken::SignalFrom,
+            <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| <a href="#935">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().signal_from().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>),
         )
     }
 
     <span class="kw">pub fn </span>reply_push(payload_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorBytes&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyPush">CostToken::ReplyPush</a>(<a href="#939">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::ReplyPush(<a href="#939">len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>read_payload = <a href="#943">registry</a>.<a href="memory.rs.html#198-203">register_read</a>(<a href="#939">payload_ptr</a>, <a href="#939">len</a>);
                 <span class="kw">let </span>io = <a href="#943">registry</a>.<a href="memory.rs.html#249-267">pre_process</a>(<a href="#942">ctx</a>)<span class="question-mark">?</span>;
                 <span class="kw">let </span>payload = <a href="#945">io</a>.<a href="memory.rs.html#282-295">read</a>(<a href="#942">ctx</a>, <a href="#944">read_payload</a>)<span class="question-mark">?</span>;
 
-                <a href="#942">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.reply_push">reply_push</a>(<span class="kw-2">&amp;</span><a href="#946">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
+                <a href="#942">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().reply_push(<span class="kw-2">&amp;</span><a href="#946">payload</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
         )
     }
@@ -2394,10 +2394,10 @@
         <span class="kw">let </span>(_io, value) = <a href="#388-403"><span class="self">Self</span>::register_and_read_value</a>(<a href="#954">ctx</a>, <a href="#960">registry</a>, <a href="#958">value_ptr</a>)<span class="question-mark">?</span>;
 
         <span class="comment">// Charge for `len` is inside `reply_push_input`
-        </span><a href="#954">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.reply_push_input">reply_push_input</a>(<a href="#955">offset</a>, <a href="#956">len</a>)<span class="question-mark">?</span>;
+        </span><a href="#954">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().reply_push_input(<a href="#955">offset</a>, <a href="#956">len</a>)<span class="question-mark">?</span>;
 
         <a href="#954">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-            .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reply_commit">reply_commit</a>(<a href="../../gear_core/message/reply/struct.ReplyPacket.html#method.maybe_with_gas">ReplyPacket::maybe_with_gas</a>(
+            .reply_commit(ReplyPacket::maybe_with_gas(
                 <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
                 <a href="#957">gas_limit</a>,
                 <a href="#961">value</a>,
@@ -2407,7 +2407,7 @@
 
     <span class="kw">pub fn </span>reply_input(offset: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyInput">CostToken::ReplyInput</a>,
+            CostToken::ReplyInput,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#953-973"><span class="self">Self</span>::reply_input_inner</a>(<a href="#978">ctx</a>, <a href="#975">offset</a>, <a href="#975">len</a>, <span class="prelude-val">None</span>, <a href="#975">value_ptr</a>)
             },
@@ -2421,7 +2421,7 @@
         value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyInputWGas">CostToken::ReplyInputWGas</a>,
+            CostToken::ReplyInputWGas,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#953-973"><span class="self">Self</span>::reply_input_inner</a>(<a href="#992">ctx</a>, <a href="#985">offset</a>, <a href="#986">len</a>, <span class="prelude-val">Some</span>(<a href="#987">gas_limit</a>), <a href="#988">value_ptr</a>)
             },
@@ -2430,10 +2430,10 @@
 
     <span class="kw">pub fn </span>reply_push_input(offset: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorBytes&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyPushInput">CostToken::ReplyPushInput</a>,
+            CostToken::ReplyPushInput,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#1001">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reply_push_input">reply_push_input</a>(<a href="#998">offset</a>, <a href="#998">len</a>)
+                    .reply_push_input(<a href="#998">offset</a>, <a href="#998">len</a>)
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
         )
@@ -2455,14 +2455,14 @@
             value,
         } = <a href="#1019">io</a>.<a href="memory.rs.html#297-322">read_as</a>(<a href="#1010">ctx</a>, <a href="#1018">read_pid_value</a>)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>handle = <a href="#1010">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.send_init">send_init</a>()<span class="question-mark">?</span>;
+        <span class="kw">let </span>handle = <a href="#1010">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().send_init()<span class="question-mark">?</span>;
         <span class="comment">// Charge for `len` inside `send_push_input`
-        </span><a href="#1010">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.send_push_input">send_push_input</a>(<a href="#1025">handle</a>, <a href="#1012">offset</a>, <a href="#1013">len</a>)<span class="question-mark">?</span>;
+        </span><a href="#1010">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().send_push_input(<a href="#1025">handle</a>, <a href="#1012">offset</a>, <a href="#1013">len</a>)<span class="question-mark">?</span>;
 
         <a href="#1010">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-            .<a href="../../gear_core/env/trait.Externalities.html#tymethod.send_commit">send_commit</a>(
+            .send_commit(
                 <a href="#1025">handle</a>,
-                <a href="../../gear_core/message/handle/struct.HandlePacket.html#method.maybe_with_gas">HandlePacket::maybe_with_gas</a>(
+                HandlePacket::maybe_with_gas(
                     <a href="#1021">destination</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                     <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
                     <a href="#1014">gas_limit</a>,
@@ -2480,7 +2480,7 @@
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SendInput">CostToken::SendInput</a>,
+            CostToken::SendInput,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#1009-1041"><span class="self">Self</span>::send_input_inner</a>(<a href="#1051">ctx</a>, <a href="#1044">pid_value_ptr</a>, <a href="#1045">offset</a>, <a href="#1046">len</a>, <span class="prelude-val">None</span>, <a href="#1047">delay</a>)
             },
@@ -2495,7 +2495,7 @@
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SendInputWGas">CostToken::SendInputWGas</a>,
+            CostToken::SendInputWGas,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#1009-1041"><span class="self">Self</span>::send_input_inner</a>(<a href="#1066">ctx</a>, <a href="#1058">pid_value_ptr</a>, <a href="#1059">offset</a>, <a href="#1060">len</a>, <span class="prelude-val">Some</span>(<a href="#1061">gas_limit</a>), <a href="#1062">delay</a>)
             },
@@ -2504,10 +2504,10 @@
 
     <span class="kw">pub fn </span>send_push_input(handle: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, offset: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorBytes&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SendPushInput">CostToken::SendPushInput</a>,
+            CostToken::SendPushInput,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#1075">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.send_push_input">send_push_input</a>(<a href="#1072">handle</a>, <a href="#1072">offset</a>, <a href="#1072">len</a>)
+                    .send_push_input(<a href="#1072">handle</a>, <a href="#1072">offset</a>, <a href="#1072">len</a>)
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
         )
@@ -2515,23 +2515,23 @@
 
     <span class="kw">pub fn </span>debug(data_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, data_len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         <a href="#323-325">InfallibleSyscall::new</a>(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.Debug">CostToken::Debug</a>(<a href="#1083">data_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::Debug(<a href="#1083">data_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>read_data = <a href="#1087">registry</a>.<a href="memory.rs.html#198-203">register_read</a>(<a href="#1083">data_ptr</a>, <a href="#1083">data_len</a>);
                 <span class="kw">let </span>io = <a href="#1087">registry</a>.<a href="memory.rs.html#249-267">pre_process</a>(<a href="#1086">ctx</a>)<span class="question-mark">?</span>;
-                <span class="kw">let </span>data: <a href="../../gear_core/buffer/type.RuntimeBuffer.html">RuntimeBuffer</a> = <a href="#1089">io</a>
+                <span class="kw">let </span>data: RuntimeBuffer = <a href="#1089">io</a>
                     .<a href="memory.rs.html#282-295">read</a>(<a href="#1086">ctx</a>, <a href="#1088">read_data</a>)<span class="question-mark">?
                     </span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
-                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<a href="../../gear_core/buffer/struct.RuntimeBufferSizeError.html">RuntimeBufferSizeError</a>| {
+                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|RuntimeBufferSizeError| {
                         <a href="error.rs.html#154">UnrecoverableMemoryError::RuntimeAllocOutOfBounds</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
                     })
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="error.rs.html#227">TrapExplanation::UnrecoverableExt</a>)<span class="question-mark">?</span>;
 
-                <span class="kw">let </span>s = <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.from_utf8">String::from_utf8</a>(<a href="#1090">data</a>.<a href="../../gear_core/buffer/struct.LimitedVec.html#method.into_vec">into_vec</a>())
+                <span class="kw">let </span>s = <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html#method.from_utf8">String::from_utf8</a>(<a href="#1090">data</a>.into_vec())
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|_err| <a href="error.rs.html#123">UnrecoverableExecutionError::InvalidDebugString</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="error.rs.html#227">TrapExplanation::UnrecoverableExt</a>)<span class="question-mark">?</span>;
-                <a href="#1086">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.debug">debug</a>(<span class="kw-2">&amp;</span><a href="#1098">s</a>)<span class="question-mark">?</span>;
+                <a href="#1086">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().debug(<span class="kw-2">&amp;</span><a href="#1098">s</a>)<span class="question-mark">?</span>;
 
                 <span class="prelude-val">Ok</span>(())
             },
@@ -2539,7 +2539,7 @@
     }
 
     <span class="kw">pub fn </span>panic(data_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, data_len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Null">CostToken::Null</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Null, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>read_data = <a href="#1110">registry</a>.<a href="memory.rs.html#198-203">register_read</a>(<a href="#1108">data_ptr</a>, <a href="#1108">data_len</a>);
             <span class="kw">let </span>io = <a href="#1110">registry</a>.<a href="memory.rs.html#249-267">pre_process</a>(<a href="#1109">ctx</a>)<span class="question-mark">?</span>;
@@ -2552,17 +2552,17 @@
     }
 
     <span class="kw">pub fn </span>oom_panic() -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Null">CostToken::Null</a>, |_ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Null, |_ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="prelude-val">Err</span>(<a href="error.rs.html#87">ActorTerminationReason::Trap</a>(<a href="error.rs.html#225">TrapExplanation::ProgramAllocOutOfBounds</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
         })
     }
 
     <span class="kw">pub fn </span>reserve_gas(gas_value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, duration: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithHash&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReserveGas">CostToken::ReserveGas</a>,
+            CostToken::ReserveGas,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#1130">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reserve_gas">reserve_gas</a>(<a href="#1127">gas_value</a>, <a href="#1127">duration</a>)
+                    .reserve_gas(<a href="#1127">gas_value</a>, <a href="#1127">duration</a>)
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
         )
@@ -2570,7 +2570,7 @@
 
     <span class="kw">pub fn </span>reply_deposit(message_id_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, gas_value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorBytes&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ReplyDeposit">CostToken::ReplyDeposit</a>,
+            CostToken::ReplyDeposit,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>read_message_id = <a href="#1142">registry</a>.<a href="memory.rs.html#216-228">register_read_decoded</a>(<a href="#1138">message_id_ptr</a>);
@@ -2578,7 +2578,7 @@
                 <span class="kw">let </span>message_id = <a href="#1144">io</a>.<a href="memory.rs.html#324-339">read_decoded</a>(<a href="#1141">ctx</a>, <a href="#1143">read_message_id</a>)<span class="question-mark">?</span>;
 
                 <a href="#1141">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.reply_deposit">reply_deposit</a>(<a href="#1145">message_id</a>, <a href="#1138">gas_value</a>)
+                    .reply_deposit(<a href="#1145">message_id</a>, <a href="#1138">gas_value</a>)
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
         )
@@ -2586,7 +2586,7 @@
 
     <span class="kw">pub fn </span>unreserve_gas(reservation_id_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithGas&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.UnreserveGas">CostToken::UnreserveGas</a>,
+            CostToken::UnreserveGas,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>read_reservation_id = <a href="#1158">registry</a>.<a href="memory.rs.html#216-228">register_read_decoded</a>(<a href="#1154">reservation_id_ptr</a>);
@@ -2594,7 +2594,7 @@
                 <span class="kw">let </span>reservation_id = <a href="#1160">io</a>.<a href="memory.rs.html#324-339">read_decoded</a>(<a href="#1157">ctx</a>, <a href="#1159">read_reservation_id</a>)<span class="question-mark">?</span>;
 
                 <a href="#1157">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.unreserve_gas">unreserve_gas</a>(<a href="#1161">reservation_id</a>)
+                    .unreserve_gas(<a href="#1161">reservation_id</a>)
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
         )
@@ -2602,10 +2602,10 @@
 
     <span class="kw">pub fn </span>system_reserve_gas(gas_value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorBytes&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.SystemReserveGas">CostToken::SystemReserveGas</a>,
+            CostToken::SystemReserveGas,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#1173">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-                    .<a href="../../gear_core/env/trait.Externalities.html#tymethod.system_reserve_gas">system_reserve_gas</a>(<a href="#1170">gas_value</a>)
+                    .system_reserve_gas(<a href="#1170">gas_value</a>)
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             },
         )
@@ -2613,9 +2613,9 @@
 
     <span class="kw">pub fn </span>gas_available(gas_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         <a href="#323-325">InfallibleSyscall::new</a>(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.GasAvailable">CostToken::GasAvailable</a>,
+            CostToken::GasAvailable,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-                <span class="kw">let </span>gas_available = <a href="#1184">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.gas_available">gas_available</a>()<span class="question-mark">?</span>;
+                <span class="kw">let </span>gas_available = <a href="#1184">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().gas_available()<span class="question-mark">?</span>;
 
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>write_gas = <a href="#1187">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#1181">gas_ptr</a>);
@@ -2627,8 +2627,8 @@
     }
 
     <span class="kw">pub fn </span>message_id(message_id_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.MsgId">CostToken::MsgId</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-            <span class="kw">let </span>message_id = <a href="#1197">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.message_id">message_id</a>()<span class="question-mark">?</span>;
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::MsgId, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+            <span class="kw">let </span>message_id = <a href="#1197">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().message_id()<span class="question-mark">?</span>;
 
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>write_message_id = <a href="#1200">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#1196">message_id_ptr</a>);
@@ -2639,8 +2639,8 @@
     }
 
     <span class="kw">pub fn </span>program_id(program_id_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.ProgramId">CostToken::ProgramId</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-            <span class="kw">let </span>program_id = <a href="#1209">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.program_id">program_id</a>()<span class="question-mark">?</span>;
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::ProgramId, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+            <span class="kw">let </span>program_id = <a href="#1209">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().program_id()<span class="question-mark">?</span>;
 
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>write_program_id = <a href="#1212">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#1208">program_id_ptr</a>);
@@ -2651,8 +2651,8 @@
     }
 
     <span class="kw">pub fn </span>source(source_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Source">CostToken::Source</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-            <span class="kw">let </span>source = <a href="#1221">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.source">source</a>()<span class="question-mark">?</span>;
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Source, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+            <span class="kw">let </span>source = <a href="#1221">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().source()<span class="question-mark">?</span>;
 
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>write_source = <a href="#1224">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#1220">source_ptr</a>);
@@ -2663,8 +2663,8 @@
     }
 
     <span class="kw">pub fn </span>value(value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Value">CostToken::Value</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-            <span class="kw">let </span>value = <a href="#1233">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.value">value</a>()<span class="question-mark">?</span>;
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Value, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+            <span class="kw">let </span>value = <a href="#1233">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().value()<span class="question-mark">?</span>;
 
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>write_value = <a href="#1236">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#1232">value_ptr</a>);
@@ -2676,9 +2676,9 @@
 
     <span class="kw">pub fn </span>value_available(value_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         <a href="#323-325">InfallibleSyscall::new</a>(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.ValueAvailable">CostToken::ValueAvailable</a>,
+            CostToken::ValueAvailable,
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-                <span class="kw">let </span>value_available = <a href="#1247">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.value_available">value_available</a>()<span class="question-mark">?</span>;
+                <span class="kw">let </span>value_available = <a href="#1247">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().value_available()<span class="question-mark">?</span>;
 
                 <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
                 <span class="kw">let </span>write_value = <a href="#1250">registry</a>.<a href="memory.rs.html#237-246">register_write_as</a>(<a href="#1244">value_ptr</a>);
@@ -2690,44 +2690,44 @@
     }
 
     <span class="kw">pub fn </span>leave() -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Leave">CostToken::Leave</a>, <span class="kw">move </span>|_ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Leave, <span class="kw">move </span>|_ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="prelude-val">Err</span>(<a href="error.rs.html#82">ActorTerminationReason::Leave</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
         })
     }
 
     <span class="kw">pub fn </span>wait() -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.Wait">CostToken::Wait</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-            <a href="#1266">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.wait">wait</a>()<span class="question-mark">?</span>;
-            <span class="prelude-val">Err</span>(<a href="error.rs.html#84">ActorTerminationReason::Wait</a>(<span class="prelude-val">None</span>, <a href="../../gear_core/message/enum.MessageWaitedType.html#variant.Wait">MessageWaitedType::Wait</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::Wait, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+            <a href="#1266">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().wait()<span class="question-mark">?</span>;
+            <span class="prelude-val">Err</span>(<a href="error.rs.html#84">ActorTerminationReason::Wait</a>(<span class="prelude-val">None</span>, MessageWaitedType::Wait).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
         })
     }
 
     <span class="kw">pub fn </span>wait_for(duration: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.WaitFor">CostToken::WaitFor</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
-            <a href="#1273">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.wait_for">wait_for</a>(<a href="#1272">duration</a>)<span class="question-mark">?</span>;
-            <span class="prelude-val">Err</span>(<a href="error.rs.html#84">ActorTerminationReason::Wait</a>(<span class="prelude-val">Some</span>(<a href="#1272">duration</a>), <a href="../../gear_core/message/enum.MessageWaitedType.html#variant.WaitFor">MessageWaitedType::WaitFor</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::WaitFor, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+            <a href="#1273">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().wait_for(<a href="#1272">duration</a>)<span class="question-mark">?</span>;
+            <span class="prelude-val">Err</span>(<a href="error.rs.html#84">ActorTerminationReason::Wait</a>(<span class="prelude-val">Some</span>(<a href="#1272">duration</a>), MessageWaitedType::WaitFor).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
         })
     }
 
     <span class="kw">pub fn </span>wait_up_to(duration: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        <a href="#323-325">InfallibleSyscall::new</a>(<a href="../../gear_core/costs/enum.CostToken.html#variant.WaitUpTo">CostToken::WaitUpTo</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        <a href="#323-325">InfallibleSyscall::new</a>(CostToken::WaitUpTo, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="kw">let </span>waited_type = <span class="kw">if </span>ctx.ext_mut().wait_up_to(duration)<span class="question-mark">? </span>{
-                <a href="../../gear_core/message/enum.MessageWaitedType.html#variant.WaitUpToFull">MessageWaitedType::WaitUpToFull</a>
+                MessageWaitedType::WaitUpToFull
             } <span class="kw">else </span>{
-                <a href="../../gear_core/message/enum.MessageWaitedType.html#variant.WaitUpTo">MessageWaitedType::WaitUpTo</a>
+                MessageWaitedType::WaitUpTo
             };
             <span class="prelude-val">Err</span>(<a href="error.rs.html#84">ActorTerminationReason::Wait</a>(<span class="prelude-val">Some</span>(<a href="#1279">duration</a>), <a href="#1281">waited_type</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
         })
     }
 
     <span class="kw">pub fn </span>wake(message_id_ptr: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
-        FallibleSyscall::new::&lt;ErrorBytes&gt;(<a href="../../gear_core/costs/enum.CostToken.html#variant.Wake">CostToken::Wake</a>, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
+        FallibleSyscall::new::&lt;ErrorBytes&gt;(CostToken::Wake, <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
             <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
             <span class="kw">let </span>read_message_id = <a href="#1292">registry</a>.<a href="memory.rs.html#216-228">register_read_decoded</a>(<a href="#1290">message_id_ptr</a>);
             <span class="kw">let </span>io = <a href="#1292">registry</a>.<a href="memory.rs.html#249-267">pre_process</a>(<a href="#1291">ctx</a>)<span class="question-mark">?</span>;
             <span class="kw">let </span>message_id = <a href="#1294">io</a>.<a href="memory.rs.html#324-339">read_decoded</a>(<a href="#1291">ctx</a>, <a href="#1293">read_message_id</a>)<span class="question-mark">?</span>;
 
-            <a href="#1291">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.wake">wake</a>(<a href="#1295">message_id</a>, <a href="#1290">delay</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
+            <a href="#1291">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().wake(<a href="#1295">message_id</a>, <a href="#1290">delay</a>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
         })
     }
 
@@ -2741,7 +2741,7 @@
         payload_len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
         gas_limit: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;,
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
-    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(MessageId, <a href="../../gear_core/ids/type.ProgramId.html">ProgramId</a>), <a href="error.rs.html#238-241">RunFallibleError</a>&gt; {
+    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(MessageId, ProgramId), <a href="error.rs.html#238-241">RunFallibleError</a>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>registry = <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">MemoryAccessRegistry::default</a>();
         <span class="kw">let </span>read_cid_value = <a href="#1312">registry</a>.<a href="memory.rs.html#205-214">register_read_as</a>(<a href="#1304">cid_value_ptr</a>);
         <span class="kw">let </span>read_salt = <a href="#1312">registry</a>.<a href="memory.rs.html#198-203">register_read</a>(<a href="#1305">salt_ptr</a>, <a href="#1306">salt_len</a>);
@@ -2754,11 +2754,11 @@
         <span class="kw">let </span>salt = <a href="#405-414"><span class="self">Self</span>::read_message_payload</a>(<a href="#1303">ctx</a>, <span class="kw-2">&amp;</span><a href="#1316">io</a>, <a href="#1314">read_salt</a>)<span class="question-mark">?</span>;
         <span class="kw">let </span>payload = <a href="#405-414"><span class="self">Self</span>::read_message_payload</a>(<a href="#1303">ctx</a>, <span class="kw-2">&amp;</span><a href="#1316">io</a>, <a href="#1315">read_payload</a>)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>message_id = <a href="#1303">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().<a href="../../gear_core/env/trait.Externalities.html#tymethod.message_id">message_id</a>()<span class="question-mark">?</span>;
+        <span class="kw">let </span>message_id = <a href="#1303">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>().message_id()<span class="question-mark">?</span>;
 
         <a href="#1303">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>()
-            .<a href="../../gear_core/env/trait.Externalities.html#tymethod.create_program">create_program</a>(
-                <a href="../../gear_core/message/init/struct.InitPacket.html#method.new_from_program">InitPacket::new_from_program</a>(
+            .create_program(
+                InitPacket::new_from_program(
                     <a href="#1318">code_id</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
                     <a href="#1321">salt</a>,
                     <a href="#1322">payload</a>,
@@ -2780,7 +2780,7 @@
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithTwoHashes&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.CreateProgram">CostToken::CreateProgram</a>(<a href="#1346">payload_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#1344">salt_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::CreateProgram(<a href="#1346">payload_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#1344">salt_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<span class="kw">_</span>, <a href="error.rs.html#238-241">RunFallibleError</a>&gt; {
                 <a href="#1302-1339"><span class="self">Self</span>::create_program_inner</a>(
                     <a href="#1351">ctx</a>,
@@ -2806,7 +2806,7 @@
         delay: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
     ) -&gt; <span class="kw">impl </span><a href="#144-153">Syscall</a>&lt;Caller&gt; {
         FallibleSyscall::new::&lt;ErrorWithTwoHashes&gt;(
-            <a href="../../gear_core/costs/enum.CostToken.html#variant.CreateProgramWGas">CostToken::CreateProgramWGas</a>(<a href="#1371">payload_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#1369">salt_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
+            CostToken::CreateProgramWGas(<a href="#1371">payload_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(), <a href="#1369">salt_len</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
             <span class="kw">move </span>|ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;| {
                 <a href="#1302-1339"><span class="self">Self</span>::create_program_inner</a>(
                     <a href="#1377">ctx</a>,
@@ -2824,13 +2824,13 @@
 
     <span class="kw">fn </span>out_of_gas(ctx: <span class="kw-2">&amp;mut </span><a href="runtime.rs.html#34-36">CallerWrap</a>&lt;Caller&gt;) -&gt; <a href="error.rs.html#34-39">UndefinedTerminationReason</a> {
         <span class="kw">let </span>ext = <a href="#1392">ctx</a>.<a href="runtime.rs.html#71-73">ext_mut</a>();
-        <span class="kw">let </span>current_counter = <a href="#1393">ext</a>.<a href="../../gear_core/gas/trait.CountersOwner.html#tymethod.current_counter_type">current_counter_type</a>();
+        <span class="kw">let </span>current_counter = <a href="#1393">ext</a>.current_counter_type();
         <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(target: <span class="string">"syscalls"</span>, <span class="string">"system_break(OutOfGas): Current counter in global represents {current_counter:?}"</span>);
 
         <span class="kw">if </span>current_counter == CounterType::GasAllowance {
             <span class="comment">// We manually decrease it to 0 because global won't be affected
             // since it didn't pass comparison to argument of `gas_charge()`
-            </span><a href="#1393">ext</a>.<a href="../../gear_core/gas/trait.CountersOwner.html#tymethod.decrease_current_counter_to">decrease_current_counter_to</a>(<span class="number">0</span>);
+            </span><a href="#1393">ext</a>.decrease_current_counter_to(<span class="number">0</span>);
         }
 
         <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">ActorTerminationReason::from</a>(<a href="#1394">current_counter</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
