@@ -192,12 +192,16 @@ pub fn precharge_for_program(
     );
 
     match charger.charge_gas_for_program_data() {
-        Ok(()) => Ok(ContextChargedForProgram {
-            dispatch,
-            destination_id,
-            gas_counter,
-            gas_allowance_counter,
-        }),
+        Ok(()) => {
+            log::trace!("Gas precharge_for_program: {:?}", gas_counter.burned());
+
+            Ok(ContextChargedForProgram {
+                dispatch,
+                destination_id,
+                gas_counter,
+                gas_allowance_counter,
+            })
+        }
         Err(PrechargeError::BlockGasExceeded) => {
             let gas_burned = gas_counter.burned();
             Err(process_allowance_exceed(
@@ -226,6 +230,8 @@ pub fn precharge_for_allocations(
     mut context: ContextChargedForProgram,
     allocations_tree_len: u32,
 ) -> PrechargeResult<ContextChargedForAllocations> {
+    let start_gas = context.gas_counter.burned();
+
     let mut charger = GasPrecharger::new(
         &mut context.gas_counter,
         &mut context.gas_allowance_counter,
@@ -243,7 +249,14 @@ pub fn precharge_for_allocations(
         .saturating_add(block_config.costs.read.cost_for_one());
 
     match charger.charge_gas(PreChargeGasOperation::Allocations, amount) {
-        Ok(()) => Ok(ContextChargedForAllocations(context)),
+        Ok(()) => {
+            log::trace!(
+                "Gas precharge_for_allocations: {:?}",
+                charger.counter.burned() - start_gas
+            );
+
+            Ok(ContextChargedForAllocations(context))
+        }
         Err(PrechargeError::BlockGasExceeded) => {
             let gas_burned = context.gas_counter.burned();
             Err(process_allowance_exceed(
@@ -279,6 +292,8 @@ pub fn precharge_for_code_length(
     context: ContextChargedForAllocations,
     actor_data: ExecutableActorData,
 ) -> PrechargeResult<ContextChargedForCodeLength> {
+    let start_gas = context.0.gas_counter.burned();
+
     let ContextChargedForProgram {
         dispatch,
         destination_id,
@@ -299,15 +314,22 @@ pub fn precharge_for_code_length(
         &block_config.costs,
     );
     match charger.charge_gas_for_program_code_len() {
-        Ok(()) => Ok(ContextChargedForCodeLength {
-            data: ContextData {
-                gas_counter,
-                gas_allowance_counter,
-                dispatch,
-                destination_id,
-                actor_data,
-            },
-        }),
+        Ok(()) => {
+            log::trace!(
+                "Gas precharge_code_len: {:?}",
+                charger.counter.burned() - start_gas
+            );
+
+            Ok(ContextChargedForCodeLength {
+                data: ContextData {
+                    gas_counter,
+                    gas_allowance_counter,
+                    dispatch,
+                    destination_id,
+                    actor_data,
+                },
+            })
+        }
         Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             dispatch,
             destination_id,
@@ -332,6 +354,7 @@ pub fn precharge_for_code(
     mut context: ContextChargedForCodeLength,
     code_len_bytes: u32,
 ) -> PrechargeResult<ContextChargedForCode> {
+    let start_gas = context.data.gas_counter.burned();
     let mut charger = GasPrecharger::new(
         &mut context.data.gas_counter,
         &mut context.data.gas_allowance_counter,
@@ -339,7 +362,13 @@ pub fn precharge_for_code(
     );
 
     match charger.charge_gas_for_program_code(code_len_bytes.into()) {
-        Ok(()) => Ok(context.into()),
+        Ok(()) => {
+            log::trace!(
+                "Gas precharge_for_program_code: {:?}",
+                charger.counter.burned() - start_gas
+            );
+            Ok(context.into())
+        }
         Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             context.data.dispatch,
             context.data.destination_id,
@@ -365,6 +394,7 @@ pub fn precharge_for_instrumentation(
     mut context: ContextChargedForCode,
     original_code_len_bytes: u32,
 ) -> PrechargeResult<ContextChargedForInstrumentation> {
+    let start_gas = context.data.gas_counter.burned();
     let mut charger = GasPrecharger::new(
         &mut context.data.gas_counter,
         &mut context.data.gas_allowance_counter,
@@ -372,7 +402,13 @@ pub fn precharge_for_instrumentation(
     );
 
     match charger.charge_gas_for_instrumentation(original_code_len_bytes.into()) {
-        Ok(()) => Ok(context.into()),
+        Ok(()) => {
+            log::trace!(
+                "Gas precharge_for_instrumentation: {:?}",
+                charger.counter.burned() - start_gas
+            );
+            Ok(context.into())
+        }
         Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             context.data.dispatch,
             context.data.destination_id,
@@ -398,6 +434,7 @@ pub fn precharge_for_module_instantiation(
     mut context: ContextChargedForInstrumentation,
     section_sizes: &InstantiatedSectionSizes,
 ) -> PrechargeResult<ContextChargedForMemory> {
+    let mut start_gas = context.data.gas_counter.burned();
     let ContextChargedForInstrumentation {
         data:
             ContextData {
@@ -424,26 +461,60 @@ pub fn precharge_for_module_instantiation(
             SectionName::Function,
             section_sizes.code_section.into(),
         )?;
+        log::trace!(
+            "Gas precharge_for_section_instantiation (Function): {:?}",
+            charger.counter.burned() - start_gas
+        );
+        start_gas = charger.counter.burned();
+
         charger.charge_gas_for_section_instantiation(
             SectionName::Data,
             section_sizes.data_section.into(),
         )?;
+        log::trace!(
+            "Gas precharge_for_section_instantiation (Data): {:?}",
+            charger.counter.burned() - start_gas
+        );
+        start_gas = charger.counter.burned();
+
         charger.charge_gas_for_section_instantiation(
             SectionName::Global,
             section_sizes.global_section.into(),
         )?;
+        log::trace!(
+            "Gas precharge_for_section_instantiation (Global): {:?}",
+            charger.counter.burned() - start_gas
+        );
+        start_gas = charger.counter.burned();
+
         charger.charge_gas_for_section_instantiation(
             SectionName::Table,
             section_sizes.table_section.into(),
         )?;
+        log::trace!(
+            "Gas precharge_for_section_instantiation (Table): {:?}",
+            charger.counter.burned() - start_gas
+        );
+        start_gas = charger.counter.burned();
+
         charger.charge_gas_for_section_instantiation(
             SectionName::Element,
             section_sizes.element_section.into(),
         )?;
+        log::trace!(
+            "Gas precharge_for_section_instantiation (Element): {:?}",
+            charger.counter.burned() - start_gas
+        );
+        start_gas = charger.counter.burned();
+
         charger.charge_gas_for_section_instantiation(
             SectionName::Type,
             section_sizes.type_section.into(),
         )?;
+        log::trace!(
+            "Gas precharge_for_section_instantiation (Type): {:?}",
+            charger.counter.burned() - start_gas
+        );
 
         Ok(memory_size)
     };
