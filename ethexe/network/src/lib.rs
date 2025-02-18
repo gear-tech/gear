@@ -71,7 +71,6 @@ pub enum NetworkEvent {
         request_id: db_sync::RequestId,
         result: Result<db_sync::Response, db_sync::RequestFailure>,
     },
-    ExternalValidation(db_sync::ValidatingResponse),
     Message {
         data: Vec<u8>,
         source: Option<PeerId>,

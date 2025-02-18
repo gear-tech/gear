@@ -1128,7 +1128,7 @@ async fn fast_sync() {
     let mut sequencer = env.new_node(
         NodeConfig::default()
             .sequencer(sequencer_pub_key)
-            .validator(env.validators[0])
+            .validator(env.validators[0], env.validator_session_public_keys[0])
             .network(None, None),
     );
     sequencer.start_service().await;
@@ -1136,7 +1136,7 @@ async fn fast_sync() {
     log::info!("Starting Alice");
     let mut alice = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[1])
+            .validator(env.validators[1], env.validator_session_public_keys[1])
             .network(None, sequencer.multiaddr.clone()),
     );
     alice.start_service().await;
@@ -1180,7 +1180,7 @@ async fn fast_sync() {
     log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[2])
+            .validator(env.validators[2], env.validator_session_public_keys[2])
             .network_with_config(NodeNetworkConfig {
                 address: None,
                 bootstrap_address: sequencer.multiaddr,
@@ -1805,8 +1805,7 @@ mod utils {
                 address,
                 bootstrap_address,
                 fast_sync: false,
-            });
-            self
+            })
         }
 
         pub fn service_rpc(mut self, rpc_port: u16) -> Self {
