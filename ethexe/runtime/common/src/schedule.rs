@@ -48,7 +48,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 );
 
                 state
-                    .queue_hash
+                    .queue
                     .modify_queue(storage, |queue| queue.queue(reply));
             });
 
@@ -58,7 +58,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn send_dispatch(&mut self, (program_id, message_id): (ProgramId, MessageId)) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.queue_hash.modify_queue(storage, |queue| {
+                state.queue.modify_queue(storage, |queue| {
                     let dispatch = state
                         .stash_hash
                         .modify_stash(storage, |stash| stash.remove_to_program(&message_id));
@@ -110,7 +110,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                         .expect("failed to find message in waitlist")
                 });
 
-                state.queue_hash.modify_queue(storage, |queue| {
+                state.queue.modify_queue(storage, |queue| {
                     queue.queue(dispatch);
                 })
             });

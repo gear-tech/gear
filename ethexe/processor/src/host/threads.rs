@@ -120,6 +120,16 @@ pub fn set(db: Database, chain_head: H256, state_hash: H256) {
     }))
 }
 
+pub fn update_state_hash(state_hash: H256) {
+    PARAMS.with_borrow_mut(|v| {
+        let params = v.as_mut().expect(UNSET_PANIC);
+
+        params.state_hash = state_hash;
+        params.pages_registry_cache = None;
+        params.pages_regions_cache = None;
+    })
+}
+
 pub fn with_db<T>(f: impl FnOnce(&Database) -> T) -> T {
     PARAMS.with_borrow(|v| {
         let params = v.as_ref().expect(UNSET_PANIC);

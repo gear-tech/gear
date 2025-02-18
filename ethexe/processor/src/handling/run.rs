@@ -16,178 +16,234 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    host::{InstanceCreator, InstanceWrapper},
-    ProcessorConfig,
-};
-use core_processor::common::JournalNote;
-use ethexe_common::gear::Origin;
+use crate::host::{InstanceCreator, InstanceWrapper};
 use ethexe_db::{CodesStorage, Database};
-use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
-use gear_core::ids::ProgramId;
-use gprimitives::H256;
-use std::collections::BTreeMap;
-use tokio::sync::{mpsc, oneshot};
+use ethexe_runtime_common::{
+    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
+};
+use gprimitives::{ActorId, H256};
+use std::iter;
 
-enum Task {
-    Run {
-        program_id: ProgramId,
-        state_hash: H256,
-        result_sender: oneshot::Sender<(Vec<JournalNote>, Option<Origin>)>,
-    },
-}
-
-pub fn run(
-    config: &ProcessorConfig,
-    db: Database,
-    instance_creator: InstanceCreator,
-    in_block_transitions: &mut InBlockTransitions,
-) {
-    tokio::task::block_in_place(|| {
-        let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
-
-        if let Some(worker_threads) = config.worker_threads_override {
-            rt_builder.worker_threads(worker_threads);
-        };
-
-        rt_builder.enable_all();
-
-        let rt = rt_builder.build().unwrap();
-
-        rt.block_on(run_in_async(
-            config.virtual_threads,
-            db,
-            instance_creator,
-            in_block_transitions,
-        ))
-    })
-}
-
-async fn run_in_async(
+pub async fn run(
     virtual_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
-    let mut task_senders = vec![];
-    let mut handles = vec![];
-
-    // create workers
-    for id in 0..virtual_threads {
-        let (task_sender, task_receiver) = mpsc::channel(100);
-        task_senders.push(task_sender);
-        let handle = tokio::spawn(worker(
-            id,
-            db.clone(),
-            instance_creator.clone(),
-            task_receiver,
-        ));
-        handles.push(handle);
-    }
+    let mut join_set = tokio::task::JoinSet::new();
+    let max_bucket_size = virtual_threads;
 
     loop {
-        // Send tasks to process programs in workers, until all queues are empty.
+        let mut no_message_processed = true;
 
-        let mut no_more_to_do = true;
-        for index in (0..in_block_transitions.states_amount()).step_by(virtual_threads) {
-            let result_receivers = one_batch(index, &task_senders, in_block_transitions).await;
+        let buckets = split_to_buckets(
+            virtual_threads,
+            &in_block_transitions
+                .states_iter()
+                .filter_map(|(actor_id, state)| {
+                    if state.cached_queue_size == 0 {
+                        return None;
+                    }
 
-            let mut super_journal = vec![];
-            for (program_id, receiver) in result_receivers.into_iter() {
-                let (journal, dispatch_origin) = receiver.await.unwrap();
-                if !journal.is_empty() {
-                    super_journal.push((
-                        program_id,
-                        dispatch_origin.expect("origin should be set for non-empty journal"),
-                        journal,
-                    ));
-                    no_more_to_do = false;
-                }
+                    Some((*actor_id, state.hash, state.cached_queue_size as usize))
+                })
+                .collect(),
+        );
+
+        for bucket in buckets.chunks(max_bucket_size) {
+            for (task_num, (program_id, state_hash, _)) in bucket.iter().enumerate() {
+                let db = db.clone();
+                let mut executor = instance_creator
+                    .instantiate()
+                    .expect("Failed to instantiate executor");
+                let program_id = *program_id;
+                let state_hash = *state_hash;
+
+                let _ = join_set.spawn_blocking(move || {
+                    let (jn, new_state_hash) =
+                        run_runtime(db, &mut executor, program_id, state_hash);
+                    (task_num, program_id, new_state_hash, jn)
+                });
             }
 
-            for (program_id, dispatch_origin, journal) in super_journal {
-                let mut handler = JournalHandler {
-                    program_id,
-                    controller: TransitionController {
-                        transitions: in_block_transitions,
-                        storage: &db,
-                    },
-                    dispatch_origin,
-                };
-                core_processor::handle_journal(journal, &mut handler);
+            let bucket_size = bucket.len();
+            let mut handler = DeterministicJournalHandler::new(bucket_size);
+
+            while let Some((task_num, program_id, new_state_hash, program_journals)) = join_set
+                .join_next()
+                .await
+                .transpose()
+                .expect("Failed to join task")
+            {
+                // State was updated during journal handling inside the runtime (allocations, pages)
+                in_block_transitions.modify(program_id, |state, _| {
+                    state.hash = new_state_hash;
+                });
+
+                handler.set_journal_part(task_num, program_id, program_journals);
+                handler.try_handle_journal_part(
+                    &db,
+                    in_block_transitions,
+                    &mut no_message_processed,
+                );
             }
         }
 
-        if no_more_to_do {
+        if no_message_processed {
             break;
         }
     }
-
-    for handle in handles {
-        handle.abort();
-    }
 }
 
-async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
-    match task {
-        Task::Run {
-            program_id,
-            state_hash,
-            result_sender,
-        } => {
-            let code_id = db.program_code_id(program_id).expect("Code ID must be set");
+fn split_to_buckets(
+    virtual_threads: usize,
+    states: &Vec<(ActorId, H256, usize)>,
+) -> Vec<(ActorId, H256, usize)> {
+    fn bucket_idx(queue_size: usize, number_of_buckets: usize) -> usize {
+        // Simplest implementation of bucket partitioning '..1| 2 | 3 | 4 ..'
+        queue_size.clamp(1, number_of_buckets) - 1
+    }
 
-            let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
+    let max_size_of_bucket = virtual_threads;
+    let number_of_buckets = states.len().div_ceil(max_size_of_bucket);
 
-            let journal = executor
-                .run(db, program_id, code_id, state_hash, instrumented_code)
-                .expect("Some error occurs while running program in instance");
+    let mut buckets = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_buckets));
 
-            result_sender.send(journal).unwrap();
+    for (actor_id, state_hash, queue_size) in states {
+        let bucket_idx = bucket_idx(*queue_size, number_of_buckets);
+        buckets[bucket_idx].push((*actor_id, *state_hash, *queue_size));
+    }
+
+    buckets.into_iter().flatten().rev().collect()
+}
+
+fn run_runtime(
+    db: Database,
+    executor: &mut InstanceWrapper,
+    program_id: ActorId,
+    state_hash: H256,
+) -> (ProgramJournals, H256) {
+    let code_id = db.program_code_id(program_id).expect("Code ID must be set");
+
+    let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
+
+    executor
+        .run(db, program_id, code_id, state_hash, instrumented_code)
+        .expect("Some error occurs while running program in instance")
+}
+
+struct DeterministicJournalHandler {
+    mega_journal: Vec<Option<(ActorId, ProgramJournals)>>,
+    current_idx: usize,
+}
+
+impl DeterministicJournalHandler {
+    fn new(bucket_size: usize) -> Self {
+        Self {
+            mega_journal: Vec::from_iter(std::iter::repeat_n(None, bucket_size)),
+            current_idx: bucket_size - 1,
+        }
+    }
+
+    fn set_journal_part(
+        &mut self,
+        idx: usize,
+        program_id: ActorId,
+        program_journals: ProgramJournals,
+    ) {
+        self.mega_journal[idx] = Some((program_id, program_journals));
+    }
+
+    fn try_handle_journal_part(
+        &mut self,
+        db: &Database,
+        in_block_transitions: &mut InBlockTransitions,
+        no_message_processed: &mut bool,
+    ) {
+        let start_idx = self.current_idx;
+
+        // Traverse mega_journal in reverse order, because smaller buckets likely to finish first
+        for idx in (0..=start_idx).rev() {
+            let Some((program_id, program_journals)) = self.mega_journal[idx].take() else {
+                // Can't proceed journal processing, need to wait till `idx` part of journal is ready
+                self.current_idx = idx;
+                return;
+            };
+
+            if !program_journals.is_empty() {
+                *no_message_processed = false;
+
+                for (journal, dispatch_origin) in program_journals {
+                    let mut journal_handler = JournalHandler {
+                        program_id,
+                        dispatch_origin,
+                        controller: TransitionController {
+                            transitions: in_block_transitions,
+                            storage: db,
+                        },
+                    };
+                    core_processor::handle_journal(journal, &mut journal_handler);
+                }
+            }
         }
     }
 }
 
-async fn worker(
-    id: usize,
-    db: Database,
-    instance_creator: InstanceCreator,
-    mut task_receiver: mpsc::Receiver<Task>,
-) {
-    log::trace!("Worker {} started", id);
+impl Drop for DeterministicJournalHandler {
+    fn drop(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            let cnt = self.mega_journal.iter().fold(0usize, |accum, j| {
+                if let Some(j) = j {
+                    return accum + j.1.len();
+                }
+                accum
+            });
 
-    let mut executor = instance_creator
-        .instantiate()
-        .expect("Failed to instantiate executor");
-
-    while let Some(task) = task_receiver.recv().await {
-        run_task(db.clone(), &mut executor, task).await;
+            assert_eq!(cnt, 0, "Not all journal notes were processed");
+        }
     }
 }
 
-async fn one_batch(
-    from_index: usize,
-    task_senders: &[mpsc::Sender<Task>],
-    in_block_transitions: &mut InBlockTransitions,
-) -> BTreeMap<ProgramId, oneshot::Receiver<(Vec<JournalNote>, Option<Origin>)>> {
-    let mut result_receivers = BTreeMap::new();
+#[cfg(test)]
+mod tests {
+    use gprimitives::ActorId;
+    use itertools::Itertools;
 
-    for (sender, (program_id, state_hash)) in task_senders
-        .iter()
-        .zip(in_block_transitions.states_iter().skip(from_index))
-    {
-        let (result_sender, result_receiver) = oneshot::channel();
+    use super::*;
 
-        let task = Task::Run {
-            program_id: *program_id,
-            state_hash: *state_hash,
-            result_sender,
-        };
+    #[test]
+    fn it_test_bucket_partitioning() {
+        const STATE_SIZE: usize = 1_000;
+        const VIRT_THREADS_NUM: usize = 16;
+        const MAX_QUEUE_SIZE: u8 = 20;
 
-        sender.send(task).await.unwrap();
+        let states = Vec::from_iter(
+            std::iter::repeat_with(|| {
+                (
+                    ActorId::from(0),
+                    H256::zero(),
+                    (rand::random::<u8>() % MAX_QUEUE_SIZE + 1) as usize,
+                )
+            })
+            .take(STATE_SIZE),
+        );
 
-        result_receivers.insert(*program_id, result_receiver);
+        let buckets = split_to_buckets(VIRT_THREADS_NUM, &states);
+
+        // Checking buckets partitioning
+        let accum_buckets = buckets
+            .iter()
+            .chunks(VIRT_THREADS_NUM)
+            .into_iter()
+            .map(|bucket| bucket.fold(0, |acc, (_, _, queue_size)| acc + *queue_size))
+            .collect::<Vec<_>>();
+
+        for i in 0..accum_buckets.len() - 1 {
+            assert!(
+                accum_buckets[i] >= accum_buckets[i + 1],
+                "Backets are not sorted"
+            );
+        }
     }
-
-    result_receivers
 }
