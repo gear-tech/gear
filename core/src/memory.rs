@@ -801,17 +801,21 @@ mod tests {
         assert!(!ctx.allocations_changed);
 
         // correct `free`
-        assert!(ctx.free(15.into()).is_ok());
+        assert!(ctx.free(10.into()).is_ok());
         assert!(ctx.allocations_changed);
 
         let (_, allocations, allocations_changed) = ctx.into_parts();
         assert!(allocations_changed);
 
         // correct `free_range`
+        // allocations: [0..9] ∪ [11..15]
         let mut ctx = new_ctx(allocations);
-        let interval = Interval::<WasmPage>::try_from(0u16..16).unwrap();
+        let interval = Interval::<WasmPage>::try_from(10u16..12).unwrap();
         assert!(ctx.free_range(interval).is_ok());
-        assert!(ctx.allocations_changed);
+        assert!(
+            ctx.allocations_changed,
+            "Expected value is `true` because the 11th page was freed from allocations."
+        );
 
         let (_, allocations, allocations_changed) = ctx.into_parts();
         assert!(allocations_changed);
@@ -823,6 +827,7 @@ mod tests {
         assert!(!ctx.allocations_changed);
         assert!(!ctx.into_parts().2);
     }
+
     mod property_tests {
         use super::*;
         use proptest::{
