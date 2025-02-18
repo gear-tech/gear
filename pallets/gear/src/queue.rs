@@ -122,6 +122,7 @@ where
             unreachable!("{err_msg}");
         });
 
+        // TODO: This is an early check, it should be moved after re-instrumentation, in case re-instrumentation will change/add exports
         if !code_metadata.exports().contains(&dispatch_kind) {
             let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
