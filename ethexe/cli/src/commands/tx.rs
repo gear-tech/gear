@@ -218,6 +218,7 @@ impl TxCommand {
 }
 
 // TODO (breathx): impl reply, value claim and exec balance top up with watch.
+// TODO (breathx) submit offchain txs
 /// Available transaction to submit.
 #[derive(Debug, Subcommand)]
 pub enum TxSubcommand {
