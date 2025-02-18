@@ -5963,6 +5963,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-ark"
+version = "1.7.0"
+dependencies = [
+ "num",
+ "rand",
+ "unroll",
+]
+
+[[package]]
 name = "gear-authorship"
 version = "1.7.1"
 dependencies = [
@@ -6397,6 +6406,7 @@ dependencies = [
  "ark-ff 0.4.2",
  "ark-scale",
  "byteorder",
+ "gear-ark",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
@@ -18234,6 +18244,16 @@ checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
 dependencies = [
  "crypto-common",
  "subtle 2.6.1",
+]
+
+[[package]]
+name = "unroll"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ad948c1cb799b1a70f836077721a92a35ac177d4daddf4c20a633786d4cf618"
+dependencies = [
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
