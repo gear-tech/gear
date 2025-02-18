@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BlobReader, Provider};
+use crate::BlobReader;
 use alloy::{
     primitives::Address as AlloyAddress,
-    providers::Provider as _,
+    providers::{Provider as _, RootProvider},
     rpc::types::eth::{Filter, Topic},
 };
 use anyhow::{anyhow, Result};
@@ -58,7 +58,7 @@ pub(crate) async fn read_code_from_tx_hash(
 
 pub async fn read_block_events(
     block_hash: H256,
-    provider: &Provider,
+    provider: &RootProvider,
     router_address: AlloyAddress,
 ) -> Result<Vec<BlockEvent>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
@@ -74,7 +74,7 @@ pub async fn read_block_events(
 pub async fn read_block_events_batch(
     from_block: u32,
     to_block: u32,
-    provider: &Provider,
+    provider: &RootProvider,
     router_address: AlloyAddress,
 ) -> Result<HashMap<H256, Vec<BlockEvent>>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
@@ -103,7 +103,7 @@ pub async fn read_block_events_batch(
 async fn read_events_impl(
     router_address: AlloyAddress,
     wvara_address: AlloyAddress,
-    provider: &Provider,
+    provider: &RootProvider,
     filter: Filter,
 ) -> Result<HashMap<H256, Vec<BlockEvent>>> {
     let router_and_wvara_topic = Topic::from_iter(
@@ -169,7 +169,7 @@ async fn read_events_impl(
 
 pub(crate) async fn read_block_request_events(
     block_hash: H256,
-    provider: &Provider,
+    provider: &RootProvider,
     router_address: AlloyAddress,
 ) -> Result<Vec<BlockRequestEvent>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
@@ -185,7 +185,7 @@ pub(crate) async fn read_block_request_events(
 pub(crate) async fn read_block_request_events_batch(
     from_block: u32,
     to_block: u32,
-    provider: &Provider,
+    provider: &RootProvider,
     router_address: AlloyAddress,
 ) -> Result<HashMap<H256, Vec<BlockRequestEvent>>> {
     let router_query = RouterQuery::from_provider(router_address, Arc::new(provider.clone()));
@@ -216,7 +216,7 @@ pub(crate) async fn read_block_request_events_batch(
 async fn read_request_events_impl(
     router_address: AlloyAddress,
     wvara_address: AlloyAddress,
-    provider: &Provider,
+    provider: &RootProvider,
     filter: Filter,
 ) -> Result<HashMap<H256, Vec<BlockRequestEvent>>> {
     let router_and_wvara_topic = Topic::from_iter(
@@ -291,7 +291,7 @@ async fn read_request_events_impl(
 pub(crate) async fn read_committed_blocks_batch(
     from_block: u32,
     to_block: u32,
-    provider: &Provider,
+    provider: &RootProvider,
     router_address: AlloyAddress,
 ) -> Result<Vec<H256>> {
     let mut start_block = from_block as u64;
@@ -316,7 +316,7 @@ pub(crate) async fn read_committed_blocks_batch(
 
 async fn read_committed_blocks_impl(
     router_address: AlloyAddress,
-    provider: &Provider,
+    provider: &RootProvider,
     filter: Filter,
 ) -> Result<Vec<H256>> {
     let filter = filter

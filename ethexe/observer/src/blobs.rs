@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Provider;
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
     eips::eip4844::kzg_to_versioned_hash,
-    providers::{Provider as _, ProviderBuilder},
+    providers::{Provider as _, ProviderBuilder, RootProvider},
     rpc::types::{beacon::sidecar::BeaconBlobBundle, eth::BlockTransactionsKind},
 };
 use anyhow::{anyhow, Result};
@@ -44,7 +43,7 @@ pub trait BlobReader: Send + Sync {
 
 #[derive(Clone)]
 pub struct ConsensusLayerBlobReader {
-    provider: Provider,
+    provider: RootProvider,
     http_client: Client,
     ethereum_beacon_rpc: String,
     beacon_block_time: Duration,
@@ -57,7 +56,7 @@ impl ConsensusLayerBlobReader {
         beacon_block_time: Duration,
     ) -> Result<Self> {
         Ok(Self {
-            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
+            provider: ProviderBuilder::default().on_builtin(ethereum_rpc).await?,
             http_client: Client::new(),
             ethereum_beacon_rpc: ethereum_beacon_rpc.into(),
             beacon_block_time,

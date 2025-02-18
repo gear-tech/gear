@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BlobReader, Provider, MAX_QUERY_BLOCK_RANGE};
+use crate::{BlobReader, MAX_QUERY_BLOCK_RANGE};
 use alloy::{
     network::{Ethereum, Network},
     primitives::Address as AlloyAddress,
-    providers::{Provider as _, ProviderBuilder},
+    providers::{Provider as _, ProviderBuilder, RootProvider},
     rpc::{client::BatchRequest, types::eth::BlockTransactionsKind},
 };
 use anyhow::{anyhow, Result};
@@ -42,7 +42,7 @@ const DEEP_SYNC: u32 = 10;
 #[derive(Clone)]
 pub struct Query {
     database: Arc<dyn BlockMetaStorage>,
-    provider: Provider,
+    provider: RootProvider,
     router_address: AlloyAddress,
     genesis_block_hash: H256,
     blob_reader: Arc<dyn BlobReader>,
@@ -60,7 +60,7 @@ impl Query {
     ) -> Result<Self> {
         let mut query = Self {
             database,
-            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
+            provider: ProviderBuilder::default().on_builtin(ethereum_rpc).await?,
             router_address: AlloyAddress::new(router_address.0),
             genesis_block_hash,
             blob_reader,
@@ -108,7 +108,7 @@ impl Query {
     }
 
     async fn batch_get_block_headers(
-        provider: Provider,
+        provider: RootProvider,
         database: Arc<dyn BlockMetaStorage>,
         from_block: u64,
         to_block: u64,

@@ -22,7 +22,6 @@ use alloy::{
     providers::{Provider as _, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
-    transports::BoxTransport,
 };
 use anyhow::{Context as _, Result};
 use ethexe_common::{
@@ -43,8 +42,6 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
-
-pub(crate) type Provider = RootProvider<BoxTransport>;
 
 mod blobs;
 mod observer;
@@ -80,7 +77,7 @@ pub enum ObserverEvent {
 
 pub struct ObserverService {
     blobs: Arc<dyn BlobReader>,
-    provider: Provider,
+    provider: RootProvider,
     subscription: Subscription<Header>,
 
     router: Address,
@@ -161,7 +158,7 @@ impl ObserverService {
         config: &EthereumConfig,
         blobs: Arc<dyn BlobReader>,
     ) -> Result<Self> {
-        let provider = ProviderBuilder::new()
+        let provider = ProviderBuilder::default()
             .on_builtin(&config.rpc)
             .await
             .context("failed to create ethereum provider")?;
@@ -185,7 +182,7 @@ impl ObserverService {
         })
     }
 
-    pub fn provider(&self) -> &Provider {
+    pub fn provider(&self) -> &RootProvider {
         &self.provider
     }
 
@@ -208,7 +205,7 @@ impl ObserverService {
 
     async fn get_block(
         header: Header,
-        provider: Provider,
+        provider: RootProvider,
         router: Address,
     ) -> Result<(H256, BlockHeader, Vec<BlockEvent>)> {
         let hash = (*header.hash).into();
