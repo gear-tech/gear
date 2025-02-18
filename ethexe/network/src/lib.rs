@@ -370,7 +370,7 @@ impl NetworkService {
                         topic,
                     },
                 ..
-            }) if gpu_commitments_topic().hash() == topic => {
+            }) if commitments_topic().hash() == topic || offchain_tx_topic().hash() == topic => {
                 return Some(NetworkEvent::Message { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
@@ -417,9 +417,20 @@ impl NetworkService {
             .swarm
             .behaviour_mut()
             .gossipsub
-            .publish(gpu_commitments_topic(), data)
+            .publish(commitments_topic(), data)
         {
-            log::debug!("gossipsub publishing failed: {e}")
+            log::error!("gossipsub publishing failed: {e}")
+        }
+    }
+
+    pub fn publish_offchain_transaction(&mut self, data: Vec<u8>) {
+        if let Err(e) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(offchain_tx_topic(), data)
+        {
+            log::error!("gossipsub publishing failed: {e}")
         }
     }
 
@@ -535,7 +546,8 @@ impl Behaviour {
             )
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
 
-        gossipsub.subscribe(&gpu_commitments_topic())?;
+        gossipsub.subscribe(&commitments_topic())?;
+        gossipsub.subscribe(&offchain_tx_topic())?;
 
         let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), peer_score_handle, db);
 
@@ -553,9 +565,13 @@ impl Behaviour {
     }
 }
 
-fn gpu_commitments_topic() -> gossipsub::IdentTopic {
+fn commitments_topic() -> gossipsub::IdentTopic {
     // TODO: use router address in topic name to avoid obsolete router
-    gossipsub::IdentTopic::new("gpu-commitments")
+    gossipsub::IdentTopic::new("ethexe-commitments")
+}
+
+fn offchain_tx_topic() -> gossipsub::IdentTopic {
+    gossipsub::IdentTopic::new("ethexe-tx-pool")
 }
 
 #[cfg(test)]

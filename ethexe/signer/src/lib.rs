@@ -17,150 +17,139 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Signer library for ethexe.
+//!
+//! The crate defines types and related logic for private keys, public keys types,
+//! cryptographic signatures and ethereum address.
+//!
+//! Cryptographic instrumentary of the crate is based on secp256k1 standard
+//! using [secp256k1](https://crates.io/crates/secp256k1) crate, but all the
+//! machinery used is wrapped in the crate's types.
 
+mod address;
 mod digest;
 mod signature;
 
+// Exports
+pub use address::Address;
 pub use digest::{Digest, ToDigest};
-use secp256k1::hashes::hex::{Case, DisplayHex};
 pub use sha3;
 pub use signature::Signature;
 
-use anyhow::{anyhow, bail, Result};
-use gprimitives::{ActorId, H160};
+use anyhow::{anyhow, bail, Error, Result};
 use parity_scale_codec::{Decode, Encode};
-use sha3::Digest as _;
+use secp256k1::{
+    hashes::hex::{Case, DisplayHex},
+    PublicKey as Secp256k1PublicKey, SecretKey as Secp256k1SecretKey,
+};
 use signature::RawSignature;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct PublicKey(pub [u8; 33]);
-
+/// Private key.
+///
+/// Private key type used for elliptic curves maths for secp256k1 standard
+/// is a 256 bits unsigned integer, which the type stores as a 32 bytes array.
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PrivateKey(pub [u8; 32]);
 
-impl From<PrivateKey> for PublicKey {
+impl From<PrivateKey> for Secp256k1SecretKey {
     fn from(key: PrivateKey) -> Self {
-        let secret_key =
-            secp256k1::SecretKey::from_slice(&key.0[..]).expect("32 bytes, within curve order");
-        let public_key = secp256k1::PublicKey::from_secret_key_global(&secret_key);
-
-        PublicKey::from_bytes(public_key.serialize())
+        Secp256k1SecretKey::from_byte_array(&key.0).expect("32 bytes; within curve order")
     }
-}
-
-#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Address(pub [u8; 20]);
-
-impl From<[u8; 20]> for Address {
-    fn from(value: [u8; 20]) -> Self {
-        Self(value)
-    }
-}
-
-impl From<H160> for Address {
-    fn from(value: H160) -> Self {
-        Self(value.into())
-    }
-}
-
-impl TryFrom<ActorId> for Address {
-    type Error = anyhow::Error;
-
-    fn try_from(id: ActorId) -> std::result::Result<Self, Self::Error> {
-        id.as_ref()
-            .iter()
-            .take(12)
-            .all(|&byte| byte == 0)
-            .then_some(Address(id.to_address_lossy().0))
-            .ok_or_else(|| anyhow!("First 12 bytes are not 0, it is not ethereum address"))
-    }
-}
-
-impl From<Address> for ActorId {
-    fn from(value: Address) -> Self {
-        H160(value.0).into()
-    }
-}
-
-fn strip_prefix(s: &str) -> &str {
-    if let Some(s) = s.strip_prefix("0x") {
-        s
-    } else {
-        s
-    }
-}
-
-fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N]> {
-    let mut buf = [0; N];
-    hex::decode_to_slice(strip_prefix(s), &mut buf)
-        .map_err(|_| anyhow!("invalid hex format for {s:?}"))?;
-    Ok(buf)
 }
 
 impl FromStr for PrivateKey {
-    type Err = anyhow::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(decode_to_array(s)?))
     }
 }
 
+/// Public key.
+///
+/// Basically, public key is a point on the elliptic curve, which should have
+/// two coordinates - `x` and `y`, both 256 bits unsigned integers. But it's possible
+/// to store only `x` coordinate, as `y` can be calculated.
+///
+/// As the secp256k1 elliptic curve is symmetric, the y can be either positive or
+/// negative. To stress the exact position of the `y` the prefix byte is used, so
+/// the public key becomes 33 bytes, not 32.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct PublicKey(pub [u8; 33]);
+
 impl PublicKey {
+    /// Create public key from the private key.
+    ///
+    /// Only `ethexe-signer` types are used.
+    pub fn from_private(private_key: PrivateKey) -> Self {
+        let secret_key = private_key.into();
+        let public_key = Secp256k1PublicKey::from_secret_key_global(&secret_key);
+
+        public_key.into()
+    }
+
+    pub fn try_from_slice(slice: &[u8]) -> Result<Self> {
+        let bytes = <[u8; 33]>::try_from(slice)?;
+
+        Ok(Self::from_bytes(bytes))
+    }
+
+    /// Create public key from compressed public key bytes.
     pub fn from_bytes(bytes: [u8; 33]) -> Self {
         Self(bytes)
     }
 
+    /// Public key hex string.
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
     }
 
+    /// Convert public key to ethereum address.
+    pub fn to_address(&self) -> Address {
+        (*self).into()
+    }
+
+    /// Convert public key to uncompressed public key bytes.
     pub fn to_uncompressed(&self) -> [u8; 64] {
-        let public_key_uncompressed = secp256k1::PublicKey::from_slice(&self.0)
-            .expect("Invalid public key")
-            .serialize_uncompressed();
+        let public_key_uncompressed = Secp256k1PublicKey::from(*self).serialize_uncompressed();
 
         public_key_uncompressed[1..]
             .try_into()
-            .expect("Slice should be exactly 64 bytes")
+            .expect("Slice is exactly 64 bytes; qed.")
     }
+}
 
-    pub fn to_address(&self) -> Address {
-        let public_key_uncompressed = self.to_uncompressed();
+impl From<PrivateKey> for PublicKey {
+    fn from(key: PrivateKey) -> Self {
+        Self::from_private(key)
+    }
+}
 
-        let mut address = Address::default();
-        let hash = sha3::Keccak256::digest(public_key_uncompressed);
-        address.0[..20].copy_from_slice(&hash[12..]);
+impl From<Secp256k1PublicKey> for PublicKey {
+    fn from(key: Secp256k1PublicKey) -> Self {
+        Self(key.serialize())
+    }
+}
 
-        address
+impl From<PublicKey> for Secp256k1PublicKey {
+    fn from(key: PublicKey) -> Self {
+        Secp256k1PublicKey::from_byte_array_compressed(&key.0).expect("invalid public key")
     }
 }
 
 impl FromStr for PublicKey {
-    type Err = anyhow::Error;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         Ok(Self(decode_to_array(s)?))
     }
 }
 
-impl Address {
-    pub fn to_hex(&self) -> String {
-        hex::encode(self.0)
-    }
-}
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = Error;
 
-impl FromStr for Address {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(decode_to_array(s)?))
-    }
-}
-
-impl fmt::Debug for Address {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", self.to_hex())
+    fn try_from(data: &[u8]) -> Result<Self> {
+        Self::try_from_slice(data)
     }
 }
 
@@ -170,24 +159,21 @@ impl fmt::Display for PublicKey {
     }
 }
 
-impl fmt::Display for Address {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", self.to_hex())
-    }
-}
-
+/// Signer which signs data using owned key store.
 #[derive(Debug, Clone)]
 pub struct Signer {
     key_store: PathBuf,
 }
 
 impl Signer {
+    /// Create a new signer with a key store location.
     pub fn new(key_store: PathBuf) -> Result<Self> {
         fs::create_dir_all(key_store.as_path())?;
 
         Ok(Self { key_store })
     }
 
+    /// Create a new signer with a key temporary key store location.
     pub fn tmp() -> Self {
         let temp_dir = tempfile::tempdir().expect("Cannot create temp dir for keys");
         Self {
@@ -195,34 +181,40 @@ impl Signer {
         }
     }
 
+    /// Create a ECDSA recoverable signature with `Electrum` notation for the `v` value.
+    ///
+    /// For more info about `v` value read [`RawSignature`] docs.
     pub fn raw_sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<RawSignature> {
         let private_key = self.get_private_key(public_key)?;
 
         RawSignature::create_for_digest(private_key, digest)
     }
 
+    /// Create a ECDSA recoverable signature.
+    // TODO #4365
     pub fn sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<Signature> {
         let private_key = self.get_private_key(public_key)?;
 
         Signature::create_for_digest(private_key, digest)
     }
 
+    /// Create a ECDSA recoverable signature for the raw bytes data.
     pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
         self.sign_digest(public_key, data.to_digest())
     }
 
+    /// Create a ECDSA recoverable signature for the raw bytes data with
+    /// an ethereum address provided instead of the public key.
+    ///
+    /// If the private key for the ethereum address is stored, the signature will be returned.
     pub fn sign_with_addr(&self, address: Address, data: &[u8]) -> Result<Signature> {
-        let keys = self.list_keys()?;
-
-        for key in keys {
-            if key.to_address() == address {
-                return self.sign(key, data);
-            }
+        match self.get_key_by_addr(address)? {
+            Some(public_key) => self.sign(public_key, data),
+            None => bail!("Address not found: {}", address),
         }
-
-        bail!("Address not found: {}", address);
     }
 
+    /// Get a public key for the provided ethereum address. If no key found a `None` is returned.
     pub fn get_key_by_addr(&self, address: Address) -> Result<Option<PublicKey>> {
         let keys = self.list_keys()?;
 
@@ -235,50 +227,55 @@ impl Signer {
         Ok(None)
     }
 
+    /// Check if key exists for the ethereum address.
     pub fn has_addr(&self, address: Address) -> Result<bool> {
         Ok(self.get_key_by_addr(address)?.is_some())
     }
 
+    /// Check if key exists in the key store.
     pub fn has_key(&self, key: PublicKey) -> Result<bool> {
         let key_path = self.key_store.join(key.to_hex());
         let has_key = fs::metadata(key_path).is_ok();
         Ok(has_key)
     }
 
+    /// Add a private key to the key store.
     pub fn add_key(&self, key: PrivateKey) -> Result<PublicKey> {
-        let secret_key =
-            secp256k1::SecretKey::from_slice(&key.0[..]).expect("32 bytes, within curve order");
-        let public_key = secp256k1::PublicKey::from_secret_key_global(&secret_key);
+        let public_key: PublicKey = key.into();
 
-        let local_public = PublicKey::from_bytes(public_key.serialize());
+        let key_file = self.key_store.join(public_key.to_hex());
+        fs::write(key_file, key.0)?;
 
-        let key_file = self.key_store.join(local_public.to_hex());
-        fs::write(key_file, secret_key.secret_bytes())?;
-        Ok(local_public)
+        Ok(public_key)
     }
 
+    /// Generate a new private key and return a public key for it.
     pub fn generate_key(&self) -> Result<PublicKey> {
-        let (secret_key, public_key) =
+        let (secp256k1_secret_key, secp256k1_public_key) =
             secp256k1::generate_keypair(&mut secp256k1::rand::thread_rng());
 
-        let local_public = PublicKey::from_bytes(public_key.serialize());
+        let public_key: PublicKey = secp256k1_public_key.into();
 
         log::debug!(
             "Secret key generated: {}",
-            secret_key.secret_bytes().to_hex_string(Case::Lower)
+            secp256k1_secret_key
+                .secret_bytes()
+                .to_hex_string(Case::Lower)
         );
 
-        let key_file = self.key_store.join(local_public.to_hex());
-        fs::write(key_file, secret_key.secret_bytes())?;
-        Ok(local_public)
+        let key_file = self.key_store.join(public_key.to_hex());
+        fs::write(key_file, secp256k1_secret_key.secret_bytes())?;
+        Ok(public_key)
     }
 
+    /// Remove all the keys from the key store.
     pub fn clear_keys(&self) -> Result<()> {
         fs::remove_dir_all(&self.key_store)?;
 
         Ok(())
     }
 
+    /// Get a list of the stored public keys.
     pub fn list_keys(&self) -> Result<Vec<PublicKey>> {
         let mut keys = vec![];
 
@@ -292,6 +289,7 @@ impl Signer {
         Ok(keys)
     }
 
+    /// Get a private key for the public one from the key store.
     pub fn get_private_key(&self, key: PublicKey) -> Result<PrivateKey> {
         let mut buf = [0u8; 32];
 
@@ -308,10 +306,25 @@ impl Signer {
     }
 }
 
+// Decodes hexed string to a byte array.
+pub(crate) fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N]> {
+    let mut buf = [0; N];
+
+    // Strip the "0x" prefix if it exists.
+    let stripped = s.strip_prefix("0x").unwrap_or(s);
+
+    // Decode
+    hex::decode_to_slice(stripped, &mut buf)
+        .map_err(|_| anyhow!("invalid hex format for {stripped:?}"))?;
+
+    Ok(buf)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{keccak256, PrimitiveSignature as Signature};
+    use alloy::primitives::{keccak256, PrimitiveSignature as AlloySignature};
+    use gprimitives::ActorId;
     use std::env::temp_dir;
 
     #[test]
@@ -341,7 +354,7 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        let alloy_sig = Signature::try_from(signature.as_ref()).expect("failed to parse sig");
+        let alloy_sig = AlloySignature::try_from(signature.as_ref()).expect("failed to parse sig");
 
         let recovered_address = alloy_sig
             .recover_address_from_prehash(&hash)
@@ -379,7 +392,7 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        let alloy_sig = Signature::try_from(signature.as_ref()).expect("failed to parse sig");
+        let alloy_sig = AlloySignature::try_from(signature.as_ref()).expect("failed to parse sig");
 
         let recovered_address = alloy_sig
             .recover_address_from_prehash(&hash)
