@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Service;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage},
+    db::{BlockMetaStorage, CodeInfo, CodesStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
 use ethexe_network::{db_sync, db_sync::RequestId, NetworkEvent, NetworkService};
@@ -38,9 +38,11 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     mem,
 };
+use tokio::task::JoinSet;
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 enum Request {
+    OriginalCode,
     ProgramState {
         program_id: ActorId,
     },
@@ -114,6 +116,7 @@ impl BufRequests {
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
         network,
+        processor,
         router_query,
         query,
         db,
@@ -131,10 +134,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let latest_block_header = query.get_block_header_meta(latest_block).await?;
 
     let chain = query.get_last_committed_chain(latest_block).await?;
-    let (program_states, program_code_ids) = collect_event_data(query, &chain).await?;
+    let (program_states, program_code_ids, code_infos) = collect_event_data(query, &chain).await?;
     log::info!("Processing {} blocks", chain.len());
 
     let mut requests = BufRequests::default();
+    let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
+    let mut instrumentation = JoinSet::new();
     // initially fill `BufRequests` and database
     {
         for (&program_id, &state) in &program_states {
@@ -145,16 +150,18 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
         for (program_id, code_id) in program_code_ids {
             db.set_program_code_id(program_id, code_id);
-            requests.add(code_id.into_bytes().into(), Request::Data);
+        }
+
+        for (code_id, code_info) in code_infos {
+            db.set_code_info(code_id, code_info);
+            requests.add(code_id.into_bytes().into(), Request::OriginalCode);
         }
     }
     requests.request(network);
 
-    let mut schedule_builder = ScheduleRestorer::new(latest_block_header.height);
-
     while let Some(event) = network.next().await {
         let (completed, pending) = requests.stats();
-        log::error!("[{completed:>05} / {pending:>05}] Processing synchronization");
+        log::info!("[{completed:>05} / {pending:>05}] Processing synchronization");
 
         let NetworkEvent::DbResponse { request_id, result } = event else {
             continue;
@@ -169,11 +176,17 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
                     for request in completed_requests {
                         match request {
+                            Request::OriginalCode => {
+                                let code_id: CodeId = CodeId::from(hash.0);
+                                let mut processor = processor.clone();
+                                let data = data.clone();
+                                instrumentation.spawn_blocking(move || {
+                                    processor.process_upload_code_raw(code_id, &data)
+                                });
+                            }
                             Request::ProgramState { program_id } => {
                                 let state: ProgramState = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
-
-                                log::error!("Program state {state:?}");
 
                                 let ProgramState {
                                     program,
@@ -219,8 +232,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                                 let memory_pages: MemoryPages = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
 
-                                log::error!("Memory pages: {memory_pages:?}");
-
                                 for pages_region_hash in memory_pages
                                     .to_inner()
                                     .into_iter()
@@ -236,8 +247,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                                     Decode::decode(&mut &data[..])
                                         .expect("`db-sync` must validate data");
 
-                                log::error!("Memory pages region: {pages_region:?}");
-
                                 for page_buf_hash in pages_region
                                     .as_inner()
                                     .iter()
@@ -251,23 +260,22 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                             Request::Waitlist { program_id } => {
                                 let waitlist: Waitlist = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
-                                schedule_builder.waitlist(program_id, &waitlist);
+                                schedule_restorer.waitlist(program_id, &waitlist);
                                 db.write_waitlist(waitlist);
                             }
                             Request::Mailbox { program_id } => {
                                 let mailbox: Mailbox = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
-                                schedule_builder.mailbox(program_id, &mailbox);
+                                schedule_restorer.mailbox(program_id, &mailbox);
                                 db.write_mailbox(mailbox);
                             }
                             Request::DispatchStash { program_id } => {
                                 let stash: DispatchStash = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
-                                schedule_builder.stash(program_id, &stash);
+                                schedule_restorer.stash(program_id, &stash);
                                 db.write_stash(stash);
                             }
                             Request::Data => {
-                                log::error!("New data: {} bytes", data.len());
                                 db.write(&data);
                             }
                         }
@@ -287,10 +295,15 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
     }
 
+    while let Some(res) = instrumentation.join_next().await {
+        let res = res.context("processor panicked")?;
+        let _valid = res.context("instrumentation failed")?;
+    }
+
     db.set_block_end_state_is_valid(latest_block, true);
     db.set_latest_valid_block(latest_block, latest_block_header);
     db.set_block_commitment_queue(latest_block, VecDeque::new());
-    db.set_block_end_schedule(latest_block, schedule_builder.build());
+    db.set_block_end_schedule(latest_block, schedule_restorer.build());
     db.set_block_is_empty(latest_block, true);
     db.set_previous_committed_block(latest_block, H256::zero());
 
@@ -304,9 +317,14 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 async fn collect_event_data(
     query: &mut Query,
     blocks: &[H256],
-) -> Result<(BTreeMap<ActorId, H256>, Vec<(ActorId, CodeId)>)> {
+) -> Result<(
+    BTreeMap<ActorId, H256>,
+    Vec<(ActorId, CodeId)>,
+    Vec<(CodeId, CodeInfo)>,
+)> {
     let mut states = BTreeMap::new();
     let mut program_code_ids = Vec::new();
+    let mut code_infos = Vec::new();
 
     for &block in blocks.iter().rev() {
         let events = query.get_block_events(block).await?;
@@ -322,10 +340,17 @@ async fn collect_event_data(
                 BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
                     program_code_ids.push((actor_id, code_id));
                 }
+                BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                    code_id,
+                    timestamp,
+                    tx_hash,
+                }) => {
+                    code_infos.push((code_id, CodeInfo { timestamp, tx_hash }));
+                }
                 _ => {}
             }
         }
     }
 
-    Ok((states, program_code_ids))
+    Ok((states, program_code_ids, code_infos))
 }

@@ -24,7 +24,7 @@ use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
-use ethexe_processor::ProcessorConfig;
+use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
@@ -49,6 +49,7 @@ pub struct Service {
     query: ethexe_observer::Query,
     router_query: RouterQuery,
     compute: ComputeService,
+    processor: Processor,
     signer: ethexe_signer::Signer,
 
     // Optional services
@@ -225,7 +226,7 @@ impl Service {
             ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
         });
 
-        let compute = ComputeService::new(db.clone(), processor, query.clone());
+        let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
 
         Ok(Self {
             db,
@@ -234,6 +235,7 @@ impl Service {
             query,
             router_query,
             compute,
+            processor,
             sequencer,
             signer,
             validator,
@@ -275,6 +277,7 @@ impl Service {
             query,
             router_query,
             compute,
+            processor,
             signer,
             network,
             sequencer,
@@ -304,6 +307,7 @@ impl Service {
             query: _,
             router_query: _,
             mut compute,
+            processor: _,
             mut sequencer,
             signer: _signer,
             mut validator,
@@ -333,12 +337,14 @@ impl Service {
         loop {
             tokio::select! {
                 event = observer.select_next_some() => {
+                    log::error!("observer");
                     match event? {
                         ObserverEvent::Blob { code_id, timestamp, code } => compute.receive_code(code_id, timestamp, code),
                         ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
                     }
                 },
                 event = compute.select_next_some() => {
+                    log::error!("compute");
                     match event? {
                         ComputeEvent::BlockProcessed(BlockProcessed { chain_head, commitments }) => {
                             // TODO (gsobol): must be done in observer event handling
@@ -407,6 +413,8 @@ impl Service {
                         unreachable!("couldn't produce event without sequencer");
                     };
 
+                    log::error!("sequencer");
+
                     match event {
                         SequencerEvent::CollectionRoundEnded { block_hash: _ } => {
                             let code_requests: Vec<_> = s
@@ -460,6 +468,7 @@ impl Service {
                     }
                 },
                 event = network.maybe_next_some() => {
+                    log::error!("network");
                     if let NetworkEvent::Message { source, data } = event {
                         log::trace!("Received a network message from peer {source:?}");
 
@@ -510,6 +519,7 @@ impl Service {
                     }
                 },
                 event = prometheus.maybe_next_some() => {
+                    log::error!("prometheus");
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
                     };
@@ -535,9 +545,11 @@ impl Service {
                     }
                 }
                 event = rpc_receiver.maybe_next_some() => {
+                    log::error!("rpc");
                     log::info!("Received RPC event {event:#?}");
                 }
                 _ = rpc_handle.as_mut().maybe() => {
+                    log::error!("rpc_handle");
                     log::info!("`RPCWorker` has terminated, shutting down...");
                 }
             }

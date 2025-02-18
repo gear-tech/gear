@@ -1009,6 +1009,7 @@ async fn multiple_validators() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(120_000)]
 async fn fast_sync() {
     gear_utils::init_default_logger();
 
@@ -1019,10 +1020,10 @@ async fn fast_sync() {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("Starting sequencer");
-    let sequencer_key = env.wallets.next();
+    let sequencer_pub_key = env.wallets.next();
     let mut sequencer = env.new_node(
         NodeConfig::default()
-            .sequencer(sequencer_key)
+            .sequencer(sequencer_pub_key)
             .validator(env.validators[0])
             .network(None, None),
     );
@@ -1047,8 +1048,9 @@ async fn fast_sync() {
         .unwrap();
 
     let code_id = code_info.code_id;
+    let mut program_ids = [(ActorId::zero(), ActorId::zero()); 5];
 
-    for i in 0..5 {
+    for (i, (program_id, destination)) in program_ids.iter_mut().enumerate() {
         let program_info = env
             .create_program(code_id, 500_000_000_000_000)
             .await
@@ -1057,10 +1059,11 @@ async fn fast_sync() {
             .await
             .unwrap();
 
-        let destination = ActorId::from(i % 3).into_bytes();
+        *program_id = program_info.program_id;
+        *destination = ActorId::from(i as u64 % 3);
 
         let _reply_info = env
-            .send_message(program_info.program_id, &destination, 0)
+            .send_message(program_info.program_id, destination.as_ref(), 0)
             .await
             .unwrap()
             .wait_for()
@@ -1069,9 +1072,6 @@ async fn fast_sync() {
     }
 
     tokio::time::sleep(Duration::from_secs(3)).await;
-
-    log::info!("Stopping Alice");
-    alice.stop_service().await;
 
     log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(
@@ -1085,7 +1085,17 @@ async fn fast_sync() {
     );
     bob.start_service().await;
 
-    env.skip_blocks(100).await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    for (program_id, destination) in program_ids {
+        let _reply_info = env
+            .send_message(program_id, destination.as_ref(), 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+    }
 
     tokio::time::sleep(Duration::from_secs(15)).await;
 
