@@ -34,7 +34,7 @@ use ethexe_runtime_common::state::{
     ProgramState, Storage, Waitlist,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId, ProgramId},
     memory::PageBuf,
     message::Payload,
@@ -61,6 +61,7 @@ enum KeyPrefix {
     BlockStartSchedule = 11,
     BlockEndSchedule = 12,
     SignedTransaction = 13,
+    CodeMetadata = 14,
 }
 
 impl KeyPrefix {
@@ -378,6 +379,22 @@ impl CodesStorage for Database {
                 code_id,
             ),
             code.encode(),
+        );
+    }
+
+    fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata> {
+        self.kv
+            .get(&KeyPrefix::CodeMetadata.one(code_id))
+            .map(|data| {
+                CodeMetadata::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `CodeMetadata`")
+            })
+    }
+
+    fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata) {
+        self.kv.put(
+            &KeyPrefix::CodeMetadata.one(code_id),
+            code_metadata.encode(),
         );
     }
 

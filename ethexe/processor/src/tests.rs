@@ -177,6 +177,8 @@ fn handle_new_code_valid() {
         .instrumented_code(ethexe_runtime::VERSION, code_id)
         .is_none());
 
+    assert!(processor.db.code_metadata(code_id).is_none());
+
     let calculated_id = processor
         .handle_new_code(original_code.clone())
         .expect("failed to call runtime api")
@@ -191,14 +193,24 @@ fn handle_new_code_valid() {
             .expect("failed to read original code"),
         original_code
     );
+
     assert!(
         processor
             .db
             .instrumented_code(ethexe_runtime::VERSION, code_id)
             .expect("failed to read original code")
-            .code()
+            .bytes()
             .len()
             > original_code_len
+    );
+
+    assert_eq!(
+        processor
+            .db
+            .code_metadata(code_id)
+            .expect("failed to read code metadata")
+            .original_code_len(),
+        original_code_len as u32
     );
 }
 
@@ -220,6 +232,8 @@ fn handle_new_code_invalid() {
         .instrumented_code(ethexe_runtime::VERSION, code_id)
         .is_none());
 
+    assert!(processor.db.code_metadata(code_id).is_none());
+
     assert!(processor
         .handle_new_code(original_code.clone())
         .expect("failed to call runtime api")
@@ -230,6 +244,8 @@ fn handle_new_code_invalid() {
         .db
         .instrumented_code(ethexe_runtime::VERSION, code_id)
         .is_none());
+
+    assert!(processor.db.code_metadata(code_id).is_none());
 }
 
 #[test]

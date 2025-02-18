@@ -24,7 +24,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId, ProgramId},
 };
 use gprimitives::{MessageId, H256};
@@ -122,6 +122,9 @@ pub trait CodesStorage: Send + Sync {
 
     fn code_info(&self, code_id: CodeId) -> Option<CodeInfo>;
     fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo);
+
+    fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
+    fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
