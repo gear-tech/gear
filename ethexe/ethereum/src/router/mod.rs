@@ -23,13 +23,13 @@ use crate::{
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{fixed_bytes, Address, Bytes, U256},
+    primitives::{fixed_bytes, Address, U256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{eth::state::AccountOverride, Filter},
     transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
+use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment};
 use ethexe_signer::{Address as LocalAddress, PublicKey};
 use events::signatures;
 use futures::StreamExt;
@@ -185,15 +185,11 @@ impl Router {
         let point_r_uncompressed = PublicKey(point_r_compressed).to_uncompressed();
         let (point_r_x_bytes, point_r_y_bytes) = point_r_uncompressed.split_at(32);
 
-        let mut buffer = Vec::new();
-        buffer.extend_from_slice(point_r_x_bytes);
-        buffer.extend_from_slice(point_r_y_bytes);
-        buffer.extend_from_slice(&signature_serialized[33..]);
-
         let builder = self.instance.commitBatch(
             commitment.into(),
-            SignatureType::FROST as u8,
-            vec![Bytes::copy_from_slice(&buffer)],
+            U256::from_be_slice(point_r_x_bytes),
+            U256::from_be_slice(point_r_y_bytes),
+            U256::from_be_slice(&signature_serialized[33..]),
         );
 
         let mut state_diff = HashMap::default();

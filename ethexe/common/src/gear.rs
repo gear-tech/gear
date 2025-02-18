@@ -35,13 +35,6 @@ pub struct AggregatedPublicKey {
     pub y: U256,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-#[repr(u8)]
-pub enum SignatureType {
-    FROST,
-    ECDSA,
-}
-
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AddressBook {
     pub mirror: ActorId,

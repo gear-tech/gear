@@ -185,7 +185,8 @@ contract Base is POCBaseTest {
 
     function commitValidators(uint256[] memory _privateKeys, Gear.ValidatorsCommitment memory commitment) internal {
         bytes memory message = bytes.concat(Gear.validatorsCommitmentHash(commitment));
-        router.commitValidators(commitment, Gear.SignatureType.FROST, signBytes(_privateKeys, message));
+        (uint256 signatureRX, uint256 signatureRY, uint256 signatureZ) = signBytes(_privateKeys, message);
+        router.commitValidators(commitment, signatureRX, signatureRY, signatureZ);
     }
 
     function commitCode(uint256[] memory _privateKeys, Gear.CodeCommitment memory _commitment) internal {
@@ -202,10 +203,13 @@ contract Base is POCBaseTest {
             _codesBytes = bytes.concat(_codesBytes, Gear.codeCommitmentHash(_commitment));
         }
 
+        (uint256 signatureRX, uint256 signatureRY, uint256 signatureZ) =
+            signBytes(_privateKeys, abi.encodePacked(keccak256(_codesBytes), keccak256("")));
         router.commitBatch(
             Gear.BatchCommitment({codeCommitments: _commitments, blockCommitments: new Gear.BlockCommitment[](0)}),
-            Gear.SignatureType.FROST,
-            signBytes(_privateKeys, abi.encodePacked(keccak256(_codesBytes), keccak256("")))
+            signatureRX,
+            signatureRY,
+            signatureZ
         );
     }
 
@@ -223,10 +227,13 @@ contract Base is POCBaseTest {
             _message = bytes.concat(_message, blockCommitmentHash(_commitment));
         }
 
+        (uint256 signatureRX, uint256 signatureRY, uint256 signatureZ) =
+            signBytes(_privateKeys, abi.encodePacked(keccak256(""), keccak256(_message)));
         router.commitBatch(
             Gear.BatchCommitment({codeCommitments: new Gear.CodeCommitment[](0), blockCommitments: _commitments}),
-            Gear.SignatureType.FROST,
-            signBytes(_privateKeys, abi.encodePacked(keccak256(""), keccak256(_message)))
+            signatureRX,
+            signatureRY,
+            signatureZ
         );
     }
 
@@ -268,16 +275,13 @@ contract Base is POCBaseTest {
         );
     }
 
-    // TODO: add SignatureType as param here
     function signBytes(uint256[] memory _privateKeys, bytes memory _message)
         internal
-        returns (bytes[] memory signatures)
+        returns (uint256 signatureRX, uint256 signatureRY, uint256 signatureZ)
     {
-        signatures = new bytes[](1);
         bytes32 _messageHash = address(router).toDataWithIntendedValidatorHash(abi.encodePacked(keccak256(_message)));
         SigningKey signingKey = FROSTOffchain.signingKeyFromScalar(_privateKeys[0]);
-        (uint256 signatureRX, uint256 signatureRY, uint256 signatureZ) = signingKey.createSignature(_messageHash);
-        signatures[0] = abi.encodePacked(signatureRX, signatureRY, signatureZ);
+        return signingKey.createSignature(_messageHash);
     }
 
     function createOperator(address _operator) internal {

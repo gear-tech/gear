@@ -272,8 +272,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function commitBatch(
         Gear.BatchCommitment calldata _batchCommitment,
-        Gear.SignatureType _signatureType,
-        bytes[] calldata _signatures
+        uint256 _signatureRX,
+        uint256 _signatureRY,
+        uint256 _signatureZ
     ) external nonReentrant {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
@@ -332,8 +333,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             Gear.validateSignaturesAt(
                 router,
                 keccak256(abi.encodePacked(keccak256(codeCommitmentsHashes), keccak256(blockCommitmentsHashes))),
-                _signatureType,
-                _signatures,
+                _signatureRX,
+                _signatureRY,
+                _signatureZ,
                 maxTimestamp
             ),
             "signatures verification failed"
@@ -343,8 +345,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     /// @dev Set validators for the next era.
     function commitValidators(
         Gear.ValidatorsCommitment memory _validatorsCommitment,
-        Gear.SignatureType _signatureType,
-        bytes[] calldata _signatures
+        uint256 _signatureRX,
+        uint256 _signatureRY,
+        uint256 _signatureZ
     ) external {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
@@ -362,7 +365,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         bytes32 commitmentHash = Gear.validatorsCommitmentHash(_validatorsCommitment);
         require(
-            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures),
+            Gear.validateSignatures(
+                router, keccak256(abi.encodePacked(commitmentHash)), _signatureRX, _signatureRY, _signatureZ
+            ),
             "next era validators signatures verification failed"
         );
 
