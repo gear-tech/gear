@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -37,10 +37,7 @@ use crate::{
     EntryPointName, InvocableSyscall, SyscallsConfig, WasmModule,
 };
 use arbitrary::Unstructured;
-use gear_wasm_instrument::{
-    parity_wasm::{builder, elements::Instruction},
-    syscalls::SyscallName,
-};
+use gear_wasm_instrument::{syscalls::SyscallName, Data, Instruction, ModuleBuilder};
 use std::{collections::BTreeMap, num::NonZero};
 
 /// Additional data injector.
@@ -153,21 +150,17 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
 
             self.last_offset = log_info_offset + log_bytes_len;
 
-            let mut module = builder::from_module(module)
-                .data()
-                .offset(Instruction::I32Const(log_info_offset as i32))
-                .value(log_bytes)
-                .build()
-                .build();
+            let mut builder = ModuleBuilder::from_module(module);
+            builder.push_data(Data::with_offset(log_bytes, log_info_offset));
 
+            let mut module = builder.build();
             module
-                .code_section_mut()
+                .code_section
+                .as_mut()
                 .expect("has at least one export")
-                .bodies_mut()
                 .get_mut(export_idx as usize)
                 .expect("index of existing export")
-                .code_mut()
-                .elements_mut()
+                .instructions
                 .splice(
                     0..0,
                     [

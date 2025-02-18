@@ -17,3 +17,8 @@ threads-required = "num-test-threads"
 filter = 'package(ethexe-observer)'
 retries = 5
 threads-required = "num-test-threads"
+
+[[profile.ci.overrides]]
+filter = 'package(gclient)'
+retries = 5
+threads-required = "num-test-threads"

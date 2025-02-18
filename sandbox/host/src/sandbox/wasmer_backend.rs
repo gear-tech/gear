@@ -176,6 +176,7 @@ pub fn instantiate(
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
     #[cfg(feature = "gear-wasmer-cache")]
     let module = gear_wasmer_cache::get(context.store().borrow().engine(), wasm, cache_base_path())
+        .inspect_err(|e| log::trace!("Failed to create module: {e}"))
         .map_err(|_| InstantiationError::ModuleDecoding)?;
 
     #[cfg(not(feature = "gear-wasmer-cache"))]

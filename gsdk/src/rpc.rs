@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -145,31 +145,6 @@ impl Api {
             .request(
                 "gear_readState",
                 rpc_params![H256(pid.into()), hex::encode(payload), at],
-            )
-            .await
-    }
-
-    /// gear_readStateUsingWasm
-    pub async fn read_state_using_wasm(
-        &self,
-        pid: H256,
-        payload: Vec<u8>,
-        method: &str,
-        wasm: Vec<u8>,
-        args: Option<Vec<u8>>,
-        at: Option<H256>,
-    ) -> Result<String> {
-        self.rpc()
-            .request(
-                "gear_readStateUsingWasm",
-                rpc_params![
-                    pid,
-                    hex::encode(payload),
-                    hex::encode(method),
-                    hex::encode(wasm),
-                    args.map(hex::encode),
-                    at
-                ],
             )
             .await
     }

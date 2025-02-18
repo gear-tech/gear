@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -55,7 +55,7 @@ use gear_core::{
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{AsContextExt, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
-use gear_wasm_instrument::SystemBreakCode;
+use gear_wasm_instrument::{SyscallName, SystemBreakCode};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithGas, ErrorWithHandle, ErrorWithHash,
     ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash, HashWithValue,
@@ -112,6 +112,7 @@ pub(crate) trait Syscall<Caller, T = ()> {
         caller: &mut CallerWrap<Caller>,
         io: MemoryAccessIoWrapper<Caller>,
         ctx: Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError>;
 }
 
@@ -214,9 +215,11 @@ impl<F> RawSyscall<F> {
     }
 }
 
-impl<T, F, Caller> Syscall<Caller, T> for RawSyscall<F>
+impl<T, F, Caller, Ext> Syscall<Caller, T> for RawSyscall<F>
 where
     F: FnOnce(&mut CallerWrap<Caller>) -> Result<(Gas, T), HostError>,
+    Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
+    Ext: BackendExternalities + 'static,
 {
     type Context = ();
 
@@ -225,7 +228,10 @@ where
         caller: &mut CallerWrap<Caller>,
         _io: MemoryAccessIoWrapper<Caller>,
         (): Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
+        caller.check_func_forbiddenness(syscall_name)?;
+
         (self.0)(caller)
     }
 }
@@ -282,9 +288,11 @@ where
         caller: &mut CallerWrap<Caller>,
         io: MemoryAccessIoWrapper<Caller>,
         context: Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, ()), HostError> {
         let Self { token, f, .. } = self;
         let FallibleSyscallContext { gas, res_ptr } = context;
+        caller.check_func_forbiddenness(syscall_name)?;
         caller.run_fallible::<T, _, E>(io, gas, res_ptr, token, f)
     }
 }
@@ -332,9 +340,11 @@ where
         caller: &mut CallerWrap<Caller>,
         io: MemoryAccessIoWrapper<Caller>,
         ctx: Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
         let Self { token, f } = self;
         let InfallibleSyscallContext { gas } = ctx;
+        caller.check_func_forbiddenness(syscall_name)?;
         caller.run_any::<T, _>(io, gas, token, f)
     }
 }
@@ -355,6 +365,7 @@ where
         caller: &mut Caller,
         args: &[Value],
         builder: Builder,
+        syscall_name: SyscallName,
     ) -> Result<WasmReturnValue, HostError>
     where
         Builder: SyscallBuilder<Caller, Args, Res, Call>,
@@ -372,7 +383,7 @@ where
 
         let io = MemoryAccessIoWrapper::new(io);
 
-        let (gas, value) = syscall.execute(&mut caller, io, ctx)?;
+        let (gas, value) = syscall.execute(&mut caller, io, ctx, syscall_name)?;
         let value = value.into();
 
         Ok(WasmReturnValue {
@@ -1381,15 +1392,6 @@ where
                     Some(gas_limit),
                     delay,
                 )
-            },
-        )
-    }
-
-    pub fn forbidden(_args: &[Value]) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(
-            CostToken::Null,
-            |_ctx: &mut CallerWrap<Caller>, _io: &mut MemoryAccessIoWrapper<Caller>| {
-                Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into())
             },
         )
     }

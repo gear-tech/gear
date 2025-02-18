@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod block;
+mod code;
+mod dev;
 mod program;
+mod tx_pool;
 
 pub use block::{BlockApi, BlockServer};
+pub use code::{CodeApi, CodeServer};
+pub use dev::{DevApi, DevServer};
 pub use program::{ProgramApi, ProgramServer};
+pub use tx_pool::{TransactionPoolApi, TransactionPoolServer};

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -22,11 +22,25 @@ use alloc::vec::Vec;
 use gear_core::message::{ReplyDetails, StoredMessage};
 use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
+use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
 
 // TODO: support query from router.
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
 pub const SIGNING_THRESHOLD_PERCENTAGE: u16 = 6666;
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct AggregatedPublicKey {
+    pub x: U256,
+    pub y: U256,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[repr(u8)]
+pub enum SignatureType {
+    FROST,
+    ECDSA,
+}
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AddressBook {
@@ -48,11 +62,21 @@ pub struct BlockCommitment {
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct CodeCommitment {
     pub id: CodeId,
+    /// represented as u48 in router contract.
+    pub timestamp: u64,
     pub valid: bool,
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct BatchCommitment {
+    pub code_commitments: Vec<CodeCommitment>,
+    pub block_commitments: Vec<BlockCommitment>,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ValidatorsCommitment {
+    pub aggregated_public_key: AggregatedPublicKey,
+    pub verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
     pub validators: Vec<ActorId>,
     pub era_index: u64,
 }
@@ -79,6 +103,7 @@ pub struct ComputationSettings {
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Message {
     pub id: MessageId,
     pub destination: ActorId,
@@ -109,6 +134,7 @@ pub struct ProtocolData {
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub new_state_hash: H256,
@@ -126,8 +152,17 @@ pub struct ValidationSettings {
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaim {
     pub message_id: MessageId,
     pub destination: ActorId,
     pub value: u128,
+}
+
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub enum Origin {
+    #[default]
+    Ethereum,
+    OffChain,
 }

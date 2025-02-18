@@ -33,13 +33,15 @@ cargo test
 cargo test --release
 ```
 
-4. Find the built WASM binaries in `target/wasm32-unknown-unknown/<profile>` directory:
+4. Find the built WASM binaries in `target/wasm32-gear/<profile>` directory:
 
 - `.wasm` — original WASM built from the source files
 - `.opt.wasm` — optimised WASM binary to be submitted to the blockchain
-- `.meta.wasm` — metadata providing WASM binary for auxiliary purposes
 
-5. Also, you can include a generated `wasm_binary.rs` source file to use the WASM code while e.g. writing tests. When doing this, you need to use some feature which will be excluded from passing it down to the build process triggered by the build script. By default, this is the `std` feature. If you want to use a custom feature for that, use one of the the `build_XXX_custom` functions in your `build.rs`
+5. Also, you can include a generated `wasm_binary.rs` source file to use the WASM code while e.g. writing tests. When
+   doing this, you need to use some feature which will be excluded from passing it down to the build process triggered
+   by the build script. By default, this is the `std` feature. If you want to use a custom feature for that, use one of
+   the the `build_XXX_custom` functions in your `build.rs`
 
 ```rust
 #[cfg(feature = "std")]
@@ -50,16 +52,12 @@ mod code {
 #[test]
 fn debug_wasm() {
     assert_eq!(
-        std::fs::read("target/wasm32-unknown-unknown/debug/test_program.wasm").unwrap(),
+        std::fs::read("target/wasm32-gear/debug/test_program.wasm").unwrap(),
         code::WASM_BINARY,
     );
     assert_eq!(
-        std::fs::read("target/wasm32-unknown-unknown/debug/test_program.opt.wasm").unwrap(),
+        std::fs::read("target/wasm32-gear/debug/test_program.opt.wasm").unwrap(),
         code::WASM_BINARY_OPT,
-    );
-    assert_eq!(
-        std::fs::read("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").unwrap(),
-        code::WASM_BINARY_META,
     );
 }
 ```

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -105,6 +105,7 @@ impl Publisher {
             }
 
             let mut is_published = false;
+            let mut is_actualized = false;
 
             if verify {
                 match crate::verify_owners(name).await? {
@@ -116,10 +117,11 @@ impl Publisher {
 
             if verify && crate::verify(name, &version, self.simulator.as_ref()).await? {
                 println!("Package {name}@{version} already published!");
-                continue;
+                is_actualized = true;
             }
 
-            self.graph.push(handler::patch(pkg, is_published)?);
+            self.graph
+                .push(handler::patch(pkg, is_published, is_actualized)?);
         }
 
         workspace.complete(self.index.clone(), self.simulator.is_some())?;
@@ -188,7 +190,7 @@ impl Publisher {
             path,
             is_published,
             ..
-        } in self.graph.iter()
+        } in self.graph.iter().filter(|m| !m.is_actualized)
         {
             println!("Publishing {path:?}");
             let status = crate::publish(&path.to_string_lossy())?;

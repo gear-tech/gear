@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,8 +18,7 @@
 
 #![cfg(test)]
 
-use demo_fungible_token::WASM_BINARY;
-use ft_io::*;
+use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
 use gclient::{EventProcessor, GearApi, Result};
 use gear_core::ids::{MessageId, ProgramId};
 use gstd::{vec, ActorId, Encode, Vec};

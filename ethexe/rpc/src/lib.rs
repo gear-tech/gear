@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, Result};
-use apis::{BlockApi, BlockServer, ProgramApi, ProgramServer};
+use apis::{
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
+    TransactionPoolApi, TransactionPoolServer,
+};
+use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
-use futures::FutureExt;
+use ethexe_observer::MockBlobReader;
+use futures::{stream::FusedStream, FutureExt, Stream};
+use gprimitives::H256;
 use jsonrpsee::{
     server::{
         serve_with_graceful_shutdown, stop_channel, Server, ServerHandle, StopHandle,
@@ -27,14 +33,24 @@ use jsonrpsee::{
     },
     Methods, RpcModule as JsonrpcModule,
 };
-use std::net::SocketAddr;
-use tokio::net::TcpListener;
+use std::{
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
+use tokio::{
+    net::TcpListener,
+    sync::{mpsc, oneshot},
+};
 use tower::Service;
 
 mod apis;
 mod common;
 mod errors;
 
+#[cfg(feature = "test-utils")]
+pub mod test_utils;
 pub(crate) mod util;
 
 #[derive(Clone)]
@@ -51,23 +67,32 @@ pub struct RpcConfig {
     pub listen_addr: SocketAddr,
     /// CORS.
     pub cors: Option<Vec<String>>,
+    /// Dev mode.
+    pub dev: bool,
 }
 
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
+    blob_reader: Option<Arc<MockBlobReader>>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database) -> Self {
-        Self { config, db }
+    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<Arc<MockBlobReader>>) -> Self {
+        Self {
+            config,
+            db,
+            blob_reader,
+        }
     }
 
     pub const fn port(&self) -> u16 {
         self.config.listen_addr.port()
     }
 
-    pub async fn run_server(self) -> Result<ServerHandle> {
+    pub async fn run_server(self) -> Result<(ServerHandle, RpcReceiver)> {
+        let (rpc_sender, rpc_receiver) = mpsc::unbounded_channel();
+
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
         let cors = util::try_into_cors(self.config.cors)?;
@@ -81,6 +106,16 @@ impl RpcService {
         let mut module = JsonrpcModule::new(());
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
+        module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
+        module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
+            rpc_sender,
+        )))?;
+
+        if self.config.dev {
+            module.merge(DevServer::into_rpc(DevApi::new(
+                self.blob_reader.unwrap().clone(),
+            )))?;
+        }
 
         let (stop_handle, server_handle) = stop_channel();
 
@@ -149,6 +184,50 @@ impl RpcService {
             }
         });
 
-        Ok(server_handle)
+        Ok((server_handle, RpcReceiver(rpc_receiver)))
+    }
+}
+
+pub struct RpcReceiver(mpsc::UnboundedReceiver<RpcEvent>);
+
+impl Stream for RpcReceiver {
+    type Item = RpcEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.0.poll_recv(cx)
+    }
+}
+
+impl FusedStream for RpcReceiver {
+    fn is_terminated(&self) -> bool {
+        self.0.is_closed()
+    }
+}
+
+#[derive(Debug)]
+pub enum RpcEvent {
+    OffchainTransaction {
+        transaction: SignedOffchainTransaction,
+        response_sender: Option<oneshot::Sender<Result<H256>>>,
+    },
+}
+
+/// `Clone` impl is a mechanical (blanket) implementation.
+/// That is done for a future compatibility with centralized
+/// events broadcasting system, which requires events to be clonable.
+///
+///
+/// The response sender of `oneshot::Sender` type can't be cloned, so `Option`
+/// wraps the type and the field will be set to `None` in case the event is cloned.
+///
+/// The event receiver expects response sender to be `Some` and will panic otherwise.  
+impl Clone for RpcEvent {
+    fn clone(&self) -> Self {
+        match self {
+            Self::OffchainTransaction { transaction, .. } => Self::OffchainTransaction {
+                transaction: transaction.clone(),
+                response_sender: None,
+            },
+        }
     }
 }

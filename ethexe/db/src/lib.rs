@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! Database library for ethexe.
 
-use gear_core::ids;
+use gear_core::utils;
 use gprimitives::H256;
 
 mod database;
@@ -32,7 +32,7 @@ pub use mem::MemDb;
 pub use rocks::RocksDatabase;
 
 pub fn hash(data: &[u8]) -> H256 {
-    ids::hash(data).into()
+    utils::hash(data).into()
 }
 
 /// Content-addressable storage database.

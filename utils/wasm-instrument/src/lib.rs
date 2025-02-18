@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,28 +16,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![recursion_limit = "4096"]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::items_after_test_module)]
 
 extern crate alloc;
 
-use alloc::vec;
-use gwasm_instrument::{
-    parity_wasm::{
-        builder,
-        elements::{
-            self, BlockType, ImportCountType, Instruction, Instructions, Local, Module, ValueType,
-        },
-    },
-    InjectionConfig,
+pub use crate::{gas_metering::Rules, syscalls::SyscallName};
+pub use module::{
+    BrTable, ConstExpr, Data, Element, ElementItems, Export, Function, Global, Import, Instruction,
+    MemArg, Module, ModuleBuilder, ModuleError, Name, Table, GEAR_SUPPORTED_FEATURES,
+};
+pub use wasmparser::{
+    BlockType, ExternalKind, FuncType, GlobalType, MemoryType, RefType, TableType, TypeRef, ValType,
 };
 
-pub use crate::{gas_metering::Rules, syscalls::SyscallName};
-pub use gwasm_instrument::{self as wasm_instrument, gas_metering, parity_wasm, utils};
+use crate::stack_limiter::InjectionConfig;
+use alloc::{string::ToString, vec};
 
+mod module;
 #[cfg(test)]
 mod tests;
 
+pub mod gas_metering;
+pub mod stack_limiter;
 pub mod syscalls;
 
 // TODO #3057
@@ -47,7 +49,7 @@ pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 /// `__gear_stack_end` export is inserted by wasm-proc or wasm-builder,
 /// it indicates the end of program stack memory.
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
-/// `__gear_stack_height` export is inserted by gwasm-instrument,
+/// `__gear_stack_height` export is inserted by gear-wasm-instrument,
 /// it points to stack height global that is used by
 /// [`gwasm_instrument::stack_limiter`].
 pub const STACK_HEIGHT_EXPORT_NAME: &str = "__gear_stack_height";
@@ -107,10 +109,9 @@ pub enum InstrumentationError {
     InstructionCostNotFound,
     /// Error occurred during injecting gas metering instructions.
     ///
-    /// This might be due to program contained unsupported/non-deterministic
-    /// instructions (floats, memory grow, etc.).
+    /// This might be due to program contained unsupported instructions (memory grow, etc.).
     #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
-        program contains unsupported instructions (floats, memory grow, etc.)")]
+        program contains unsupported instructions (memory grow, etc.)")]
     GasInjection,
 }
 
@@ -177,7 +178,7 @@ where
                 stack_height_export_name: export_stack_height.then_some(STACK_HEIGHT_EXPORT_NAME),
             };
 
-            module = wasm_instrument::inject_stack_limiter_with_config(module, injection_config)
+            module = stack_limiter::inject_with_config(module, injection_config)
                 .map_err(|_| InstrumentationError::StackLimitInjection)?;
         }
 
@@ -191,15 +192,15 @@ where
 }
 
 fn inject_system_break_import(
-    module: elements::Module,
+    module: Module,
     break_module_name: &str,
-) -> Result<(u32, elements::Module), InstrumentationError> {
+) -> Result<(u32, Module), InstrumentationError> {
     if module
-        .import_section()
+        .import_section
+        .as_ref()
         .map(|section| {
-            section.entries().iter().any(|entry| {
-                entry.module() == break_module_name
-                    && entry.field() == SyscallName::SystemBreak.to_str()
+            section.iter().any(|entry| {
+                entry.module == break_module_name && entry.name == SyscallName::SystemBreak.to_str()
             })
         })
         .unwrap_or(false)
@@ -207,27 +208,23 @@ fn inject_system_break_import(
         return Err(InstrumentationError::SystemBreakImportAlreadyExists);
     }
 
-    let mut mbuilder = builder::from_module(module);
+    let inserted_index = module.import_count(|ty| matches!(ty, TypeRef::Func(_))) as u32;
 
+    let mut mbuilder = ModuleBuilder::from_module(module);
     // fn gr_system_break(code: u32) -> !;
-    let import_sig =
-        mbuilder.push_signature(builder::signature().with_param(ValueType::I32).build_sig());
+    let import_idx = mbuilder.push_type(FuncType::new([ValType::I32], []));
 
     // back to plain module
+    mbuilder.push_import(Import::func(
+        break_module_name.to_string(),
+        SyscallName::SystemBreak.to_str(),
+        import_idx,
+    ));
+
     let module = mbuilder
-        .import()
-        .module(break_module_name)
-        .field(SyscallName::SystemBreak.to_str())
-        .external()
-        .func(import_sig)
-        .build()
+        .shift_func_index(inserted_index)
+        .shift_all()
         .build();
-
-    let import_count = module.import_count(ImportCountType::Function);
-    let inserted_index = import_count as u32 - 1;
-
-    let module = utils::rewrite_sections_after_insertion(module, inserted_index, 1)
-        .expect("Failed to rewrite sections");
 
     Ok((inserted_index, module))
 }
@@ -238,13 +235,9 @@ fn inject_gas_limiter<R: Rules>(
     gr_system_break_index: u32,
 ) -> Result<Module, InstrumentationError> {
     if module
-        .export_section()
-        .map(|section| {
-            section
-                .entries()
-                .iter()
-                .any(|entry| entry.field() == GLOBAL_NAME_GAS)
-        })
+        .export_section
+        .as_ref()
+        .map(|section| section.iter().any(|entry| entry.name == GLOBAL_NAME_GAS))
         .unwrap_or(false)
     {
         return Err(InstrumentationError::GasGlobalAlreadyExists);
@@ -253,24 +246,10 @@ fn inject_gas_limiter<R: Rules>(
     let gas_charge_index = module.functions_space();
     let gas_index = module.globals_space() as u32;
 
-    let mut mbuilder = builder::from_module(module);
+    let mut mbuilder = ModuleBuilder::from_module(module);
 
-    mbuilder.push_global(
-        builder::global()
-            .value_type()
-            .i64()
-            .init_expr(Instruction::I64Const(0))
-            .mutable()
-            .build(),
-    );
-
-    mbuilder.push_export(
-        builder::export()
-            .field(GLOBAL_NAME_GAS)
-            .internal()
-            .global(gas_index)
-            .build(),
-    );
+    mbuilder.push_global(Global::i64_value_mut(0));
+    mbuilder.push_export(Export::global(GLOBAL_NAME_GAS, gas_index));
 
     // This const is introduced to avoid future errors in code if some other
     // `I64Const` instructions appear in gas charge function body.
@@ -278,33 +257,33 @@ fn inject_gas_limiter<R: Rules>(
 
     let mut elements = vec![
         // I. Put global with value of current gas counter of any type.
-        Instruction::GetGlobal(gas_index),
+        Instruction::GlobalGet(gas_index),
         // II. Calculating total gas to charge as sum of:
         //  - `gas_charge(..)` argument;
         //  - `gas_charge(..)` call cost.
         //
         // Setting the sum into local with index 1 with keeping it on stack.
-        Instruction::GetLocal(0),
-        Instruction::I64ExtendUI32,
+        Instruction::LocalGet(0),
+        Instruction::I64ExtendI32U,
         Instruction::I64Const(GAS_CHARGE_COST_PLACEHOLDER),
         Instruction::I64Add,
-        Instruction::TeeLocal(1),
+        Instruction::LocalTee(1),
         // III. Validating left amount of gas.
         //
         // In case of requested value is bigger than actual gas counter value,
         // than we call `out_of_gas()` that will terminate execution.
         Instruction::I64LtU,
-        Instruction::If(BlockType::NoResult),
+        Instruction::If(BlockType::Empty),
         Instruction::I32Const(SystemBreakCode::OutOfGas as i32),
         Instruction::Call(gr_system_break_index),
         Instruction::End,
         // IV. Calculating new global value by subtraction.
         //
         // Result is stored back into global.
-        Instruction::GetGlobal(gas_index),
-        Instruction::GetLocal(1),
+        Instruction::GlobalGet(gas_index),
+        Instruction::LocalGet(1),
         Instruction::I64Sub,
-        Instruction::SetGlobal(gas_index),
+        Instruction::GlobalSet(gas_index),
         // V. Ending `gas_charge()` function.
         Instruction::End,
     ];
@@ -315,7 +294,7 @@ fn inject_gas_limiter<R: Rules>(
     let cost_blocks = elements
         .iter()
         .filter(|instruction| match instruction {
-            Instruction::If(_) => {
+            Instruction::If { .. } => {
                 block_of_code = true;
                 true
             }
@@ -361,21 +340,20 @@ fn inject_gas_limiter<R: Rules>(
     *cost_instr = Instruction::I64Const(cost as i64);
 
     // gas_charge function
-    mbuilder.push_function(
-        builder::function()
-            .signature()
-            .with_param(ValueType::I32)
-            .build()
-            .body()
-            .with_locals(vec![Local::new(1, ValueType::I64)])
-            .with_instructions(Instructions::new(elements))
-            .build()
-            .build(),
+    mbuilder.add_func(
+        FuncType::new([ValType::I32], []),
+        Function {
+            locals: vec![(1, ValType::I64)],
+            instructions: elements,
+        },
     );
 
     // back to plain module
     let module = mbuilder.build();
 
     gas_metering::post_injection_handler(module, rules, gas_charge_index)
+        .inspect_err(|err| {
+            log::debug!("post_injection_handler failed: {err:?}");
+        })
         .map_err(|_| InstrumentationError::GasInjection)
 }

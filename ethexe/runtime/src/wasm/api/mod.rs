@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{boxed::Box, vec::Vec};
+use ethexe_runtime_common::pack_u32_to_i64;
 use parity_scale_codec::{Decode, Encode};
 
 mod instrument;
@@ -46,7 +47,7 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     let (program_id, original_code_id, state_root, maybe_instrumented_code) =
         Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
 
-    let journal = run::run(
+    let (journal, origin) = run::run(
         program_id,
         original_code_id,
         state_root,
@@ -56,9 +57,9 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     let chunks = journal.encoded_size() / 32 * 1024 * 1024 + 1; // never zero
     let chunk_size = (journal.len() / chunks).max(1); // never zero
 
-    let res: Vec<_> = journal.chunks(chunk_size).map(return_val).collect();
+    let chunked_journal: Vec<_> = journal.chunks(chunk_size).map(return_val).collect();
 
-    return_val(res)
+    return_val((chunked_journal, origin))
 }
 
 fn get_vec(ptr: i32, len: i32) -> Vec<u8> {
@@ -74,5 +75,5 @@ fn return_val(val: impl Encode) -> i64 {
     let len = encoded.len() as i32;
     let ptr = Box::leak(Box::new(encoded)).as_ptr() as i32;
 
-    unsafe { core::mem::transmute([ptr, len]) }
+    pack_u32_to_i64(ptr as u32, len as u32)
 }

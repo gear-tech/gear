@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -61,7 +61,9 @@ sol!(
 
 pub(crate) mod utils {
     use alloy::primitives::{FixedBytes, Uint};
-    use gprimitives::{ActorId, CodeId, MessageId, H256};
+    use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
+
+    pub use alloy::primitives::Bytes;
 
     pub type Bytes32 = FixedBytes<32>;
     pub type Uint256 = Uint<256, 4>;
@@ -107,6 +109,17 @@ pub(crate) mod utils {
         let [low, high, ..] = value.into_limbs();
 
         ((high as u128) << 64) | (low as u128)
+    }
+
+    pub fn u256_to_uint256(value: U256) -> Uint256 {
+        let mut bytes = [0u8; Uint256::BYTES];
+        value.to_little_endian(&mut bytes);
+        Uint256::from_le_bytes(bytes)
+    }
+
+    pub fn uint256_to_u256(value: Uint256) -> U256 {
+        let bytes: [u8; Uint256::BYTES] = value.to_le_bytes();
+        U256::from_little_endian(&bytes)
     }
 
     #[test]

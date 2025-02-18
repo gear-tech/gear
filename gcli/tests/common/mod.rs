@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,6 @@
 
 //! Common utils for integration tests
 pub use self::{args::Args, node::NodeExec, result::Result};
-use gear_core::ids::{prelude::*, CodeId, ProgramId};
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::{
@@ -73,11 +72,6 @@ pub fn login_as_alice() -> Result<()> {
     let _ = gcli(["wallet", "dev"])?;
 
     Ok(())
-}
-
-/// Generate program id from code id and salt
-pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
-    ProgramId::generate_from_user(CodeId::generate(bin), salt)
 }
 
 /// AccountId32 of `addr`

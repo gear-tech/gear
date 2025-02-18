@@ -72,8 +72,9 @@ demo-signal-entry = { workspace = true, optional = true }
 
 # Some of tests require `debug` feature enabled
 [dev-dependencies]
-wabt.workspace = true
 hex.workspace = true
+wat.workspace = true
+wasmparser.workspace = true
 blake2.workspace = true
 gstd.workspace = true
 demo-async.workspace = true
@@ -85,7 +86,7 @@ demo-distributor.workspace = true
 demo-init-fail-sender.workspace = true
 demo-init-wait.workspace = true
 demo-init-wait-reply-exit.workspace = true
-demo-new-meta.workspace = true
+demo-fungible-token.workspace = true
 demo-futures-unordered.workspace = true
 demo-program-factory.workspace = true
 demo-program-generator.workspace = true
@@ -93,7 +94,6 @@ demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
 demo-read-big-state.workspace = true
-demo-incomplete-async-payloads.workspace = true
 demo-gas-burned.workspace = true
 demo-waiting-proxy.workspace = true
 demo-calc-hash.workspace = true
@@ -105,7 +105,6 @@ demo-mul-by-const.workspace = true
 demo-wait.workspace = true
 demo-waiter = { workspace = true, features = ["debug"] }
 demo-wait-timeout.workspace = true
-demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
 demo-rwlock.workspace = true
 demo-reservation-manager.workspace = true
@@ -132,7 +131,6 @@ pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
-gmeta.workspace = true
 rand.workspace = true
 
 [features]

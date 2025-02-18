@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -48,9 +48,6 @@ const OUT_SUFFIX_LENGTH: usize = 17;
 pub struct Artifact {
     /// The optitmized WASM binary.
     pub opt: Vec<u8>,
-
-    /// The metadata WASM binary if any.
-    pub meta: Vec<u8>,
 }
 
 impl Artifact {
@@ -74,12 +71,11 @@ impl Artifact {
             ancestors.next()?.to_str()?,
         ];
 
-        let bin = PathBuf::from(format!("{target}/wasm32-unknown-unknown/{profile}"));
+        let bin = PathBuf::from(format!("{target}/wasm32-gear/{profile}"));
         let stem = PathBuf::from(name.replace('-', "_"));
 
         Some(Self {
             opt: fs::read(bin.join(stem.with_extension("wasm"))).ok()?,
-            meta: fs::read(bin.join(stem.with_extension("meta.wasm"))).unwrap_or_default(),
         })
     }
 }

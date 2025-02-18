@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -32,15 +32,6 @@ impl From<IRouter::CodeGotValidated> for RouterEvent {
         Self::CodeGotValidated {
             code_id: bytes32_to_code_id(value.codeId),
             valid: value.valid,
-        }
-    }
-}
-
-impl From<IRouter::CodeValidationRequested> for RouterEvent {
-    fn from(value: IRouter::CodeValidationRequested) -> Self {
-        Self::CodeValidationRequested {
-            code_id: bytes32_to_code_id(value.codeId),
-            blob_tx_hash: bytes32_to_h256(value.blobTxHash),
         }
     }
 }

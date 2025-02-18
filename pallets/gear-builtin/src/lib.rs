@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -63,11 +63,12 @@ use core_processor::{
 use frame_support::dispatch::extract_actual_weight;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{hash, ProgramId},
+    ids::ProgramId,
     message::{
         ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
     },
     str::LimitedStr,
+    utils::hash,
 };
 use impl_trait_for_tuples::impl_for_tuples;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
@@ -407,14 +408,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
                 let mut message_context =
-                    MessageContext::new(dispatch, actor_id, Default::default()).unwrap_or_else(
-                        || {
-                            unreachable!(
-                                "BuiltinRegistry::run: Builtin actor can't have context stored,
-                                 so must be always possible to create a new message context"
-                            );
-                        },
-                    );
+                    MessageContext::new(dispatch, actor_id, Default::default());
                 let packet = ReplyPacket::new(response_payload, 0);
 
                 // Mark reply as sent
@@ -437,8 +431,8 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
             }
             Err(BuiltinActorError::GasAllowanceExceeded) => {
                 // Ideally, this should never happen, as we should have checked the gas allowance
-                // before even entring the `handle` method. However, if this error does occur,
-                // we should handle it by discarding the gas burned and requeueing the message.
+                // before even entering the `handle` method. However, if this error does occur,
+                // we should handle it by discarding the gas burned and requeuing the message.
                 // N.B.: if `gas_amount.burned` is not zero, the cost is borne by the validator.
                 process_allowance_exceed(dispatch, actor_id, 0)
             }

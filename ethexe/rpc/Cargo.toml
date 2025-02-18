@@ -10,10 +10,10 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 anyhow.workspace = true
 futures.workspace = true
-gprimitives = { workspace = true, features = ["serde"] }
+gprimitives = { workspace = true, features = ["serde", "ethexe"] }
 ethexe-db.workspace = true
 ethexe-processor.workspace = true
 tower = { workspace = true, features = ["util"] }
@@ -23,8 +23,14 @@ hyper = { workspace = true, features = ["server"] }
 log.workspace = true
 parity-scale-codec.workspace = true
 hex.workspace = true
-ethexe-common.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 sp-core = { workspace = true, features = ["serde"] }
 gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
+ethexe-observer.workspace = true
+reqwest = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[features]
+test-utils = ["reqwest", "serde_json"]

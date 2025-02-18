@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,10 @@
 //! sp-sandbox runtime (here it's program execution state) realization.
 
 use crate::{
-    error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
+    error::{
+        ActorTerminationReason, BackendAllocSyscallError, RunFallibleError, TrapExplanation,
+        UndefinedTerminationReason,
+    },
     memory::{
         BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessIo, MemoryAccessRegistry,
     },
@@ -28,6 +31,7 @@ use crate::{
 };
 use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{AsContextExt, HostError};
+use gear_wasm_instrument::SyscallName;
 
 pub(crate) type MemoryAccessIoOption<Caller> =
     Option<Result<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError>>;
@@ -199,5 +203,18 @@ where
                 Err(alloc_err) => Ok(Err(alloc_err)),
             },
         }
+    }
+
+    pub fn check_func_forbiddenness(&mut self, syscall_name: SyscallName) -> Result<(), HostError> {
+        if self.ext_mut().forbidden_funcs().contains(&syscall_name)
+            || self.ext_mut().msg_ctx().kind().forbids(syscall_name)
+        {
+            self.set_termination_reason(
+                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into(),
+            );
+            return Err(HostError);
+        }
+
+        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -46,11 +46,6 @@
 //! State machine named `(syscalls-module-state-machine)` can be started only with having proof of work from `MemoryGenerator` and `EntryPointsGenerator`.
 //! For more info about this state machine read docs of the [`syscalls`] mod.
 
-use crate::{utils, GearWasmGeneratorConfig, WasmModule};
-use arbitrary::{Result, Unstructured};
-use gear_wasm_instrument::parity_wasm::elements::Module;
-use std::{collections::HashSet, ops::RangeInclusive};
-
 mod entry_points;
 mod memory;
 pub mod syscalls;
@@ -58,6 +53,11 @@ pub mod syscalls;
 pub use entry_points::*;
 pub use memory::*;
 pub use syscalls::*;
+
+use crate::{utils, GearWasmGeneratorConfig, WasmModule};
+use arbitrary::{Result, Unstructured};
+use gear_wasm_instrument::Module;
+use std::{collections::HashSet, ops::RangeInclusive};
 
 /// Module and it's call indexes carrier.
 ///
