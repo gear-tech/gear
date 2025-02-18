@@ -365,11 +365,13 @@ where
     ) -> (Vec<JournalNote>, Option<H256>) {
         let mut page_updates = BTreeMap::new();
         let mut allocations_update = BTreeMap::new();
+        let mut notes_cnt = 0;
 
-        let filtered = journal
+        let filtered: Vec<_> = journal
             .into_iter()
             .filter_map(|note| {
                 let mut not_processed = None;
+                notes_cnt += 1;
 
                 match note {
                     JournalNote::MessageDispatched {
@@ -406,10 +408,11 @@ where
             self.update_allocations(allocations);
         }
 
-        let state_hash = self.storage.write_state(self.program_state.clone());
+        // Some notes were processed, thus state changed
+        let maybe_state_hash = (notes_cnt != filtered.len())
+            .then(|| self.storage.write_state(self.program_state.clone()));
 
-        // TODO: return state hash only if it's changed
-        (filtered, Some(state_hash))
+        (filtered, maybe_state_hash)
     }
 
     fn message_dispatched(
