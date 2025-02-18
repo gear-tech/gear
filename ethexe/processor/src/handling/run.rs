@@ -19,7 +19,7 @@
 use crate::host::{InstanceCreator, InstanceWrapper};
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::{
-    state::Storage, InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
+    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
 use gprimitives::{ActorId, H256};
 use std::iter;
@@ -40,16 +40,12 @@ pub async fn run(
             virtual_threads,
             &in_block_transitions
                 .states_iter()
-                .filter_map(|(actor_id, state_hash)| {
-                    let program_state = db.read_state(*state_hash).unwrap();
-
-                    if program_state.queue_hash.is_empty() {
+                .filter_map(|(actor_id, state)| {
+                    if state.cached_queue_size == 0 {
                         return None;
                     }
 
-                    let queue_size = program_state.queue_hash.query(&db).unwrap().len();
-
-                    Some((*actor_id, *state_hash, queue_size as u8))
+                    Some((*actor_id, state.hash, state.cached_queue_size as usize))
                 })
                 .collect(),
         );
@@ -79,8 +75,10 @@ pub async fn run(
                 .transpose()
                 .expect("Failed to join task")
             {
-                // State was updated during journal handling inside the runtime
-                in_block_transitions.modify_state(program_id, new_state_hash);
+                // State was updated during journal handling inside the runtime (allocations, pages)
+                in_block_transitions.modify(program_id, |state, _| {
+                    state.hash = new_state_hash;
+                });
 
                 handler.set_journal_part(task_num, program_id, program_journals);
                 handler.try_handle_journal_part(
@@ -99,8 +97,8 @@ pub async fn run(
 
 fn split_to_buckets(
     virtual_threads: usize,
-    states: &Vec<(ActorId, H256, u8)>,
-) -> Vec<(ActorId, H256, u8)> {
+    states: &Vec<(ActorId, H256, usize)>,
+) -> Vec<(ActorId, H256, usize)> {
     fn bucket_idx(queue_size: usize, number_of_buckets: usize) -> usize {
         // Simplest implementation of bucket partitioning '..1| 2 | 3 | 4 ..'
         queue_size.clamp(1, number_of_buckets) - 1
@@ -112,7 +110,7 @@ fn split_to_buckets(
     let mut buckets = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_buckets));
 
     for (actor_id, state_hash, queue_size) in states {
-        let bucket_idx = bucket_idx(*queue_size as usize, number_of_buckets);
+        let bucket_idx = bucket_idx(*queue_size, number_of_buckets);
         buckets[bucket_idx].push((*actor_id, *state_hash, *queue_size));
     }
 
@@ -225,7 +223,7 @@ mod tests {
                 (
                     ActorId::from(0),
                     H256::zero(),
-                    (rand::random::<u8>() % MAX_QUEUE_SIZE + 1),
+                    (rand::random::<u8>() % MAX_QUEUE_SIZE + 1) as usize,
                 )
             })
             .take(STATE_SIZE),
@@ -238,7 +236,7 @@ mod tests {
             .iter()
             .chunks(VIRT_THREADS_NUM)
             .into_iter()
-            .map(|bucket| bucket.fold(0, |acc, (_, _, queue_size)| acc + *queue_size as usize))
+            .map(|bucket| bucket.fold(0, |acc, (_, _, queue_size)| acc + *queue_size))
             .collect::<Vec<_>>();
 
         for i in 0..accum_buckets.len() - 1 {

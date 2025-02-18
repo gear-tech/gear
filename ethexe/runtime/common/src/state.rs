@@ -348,9 +348,17 @@ impl MaybeHashOf<MemoryPages> {
     }
 }
 
-impl MaybeHashOf<MessageQueue> {
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct MessageQueueHashWithSize {
+    pub hash: MaybeHashOf<MessageQueue>,
+    // NOTE: only here to propagate queue size to the parent state (`ProgramStateHashAndSize`).
+    pub cached_queue_size: u64,
+}
+
+impl MessageQueueHashWithSize {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.hash.with_hash_or_default_fallible(|hash| {
             storage.read_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
             ))
@@ -366,9 +374,14 @@ impl MaybeHashOf<MessageQueue> {
 
         let r = f(&mut queue);
 
-        *self = queue.store(storage);
+        self.cached_queue_size = queue.len() as u64;
+        self.hash = queue.store(storage);
 
         r
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.hash.is_empty()
     }
 }
 
@@ -451,8 +464,8 @@ impl Program {
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
-    /// Hash of incoming message queue, see [`MessageQueue`].
-    pub queue_hash: MaybeHashOf<MessageQueue>,
+    /// Hash of incoming message queue with it cached size, see [`MessageQueueHashWithSize`].
+    pub queue: MessageQueueHashWithSize,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHashOf<Waitlist>,
     /// Hash of dispatch stash, see [`DispatchStash`].
@@ -474,7 +487,10 @@ impl ProgramState {
                 memory_infix: MemoryInfix::new(0),
                 initialized: false,
             }),
-            queue_hash: MaybeHashOf::empty(),
+            queue: MessageQueueHashWithSize {
+                hash: MaybeHashOf::empty(),
+                cached_queue_size: 0,
+            },
             waitlist_hash: MaybeHashOf::empty(),
             stash_hash: MaybeHashOf::empty(),
             mailbox_hash: MaybeHashOf::empty(),
@@ -498,7 +514,7 @@ impl ProgramState {
             return false;
         }
 
-        self.queue_hash.is_empty() && self.waitlist_hash.is_empty()
+        self.queue.hash.is_empty() && self.waitlist_hash.is_empty()
     }
 }
 

@@ -90,9 +90,11 @@ impl<S: Storage> TransitionController<'_, S> {
 
         let res = f(&mut state, self.storage, self.transitions);
 
+        let queue_size = state.queue.cached_queue_size;
         let new_state_hash = self.storage.write_state(state);
 
-        self.transitions.modify_state(program_id, new_state_hash);
+        self.transitions
+            .modify_state(program_id, new_state_hash, queue_size);
 
         res
     }
@@ -114,12 +116,12 @@ where
 
     log::trace!("Processing queue for program {program_id}");
 
-    if program_state.queue_hash.is_empty() {
+    if program_state.queue.hash.is_empty() {
         // Queue is empty, nothing to process.
         return Vec::new();
     }
 
-    let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
+    let mut queue = program_state.queue.hash.with_hash_or_default(|hash| {
         ri.storage()
             .read_queue(hash)
             .expect("Cannot get message queue")

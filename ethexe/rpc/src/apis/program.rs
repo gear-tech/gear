@@ -188,7 +188,7 @@ impl ProgramServer for ProgramApi {
     async fn read_full_state(&self, hash: H256) -> RpcResult<FullProgramState> {
         let Some(ProgramState {
             program,
-            queue_hash,
+            queue,
             waitlist_hash,
             stash_hash,
             mailbox_hash,
@@ -199,7 +199,7 @@ impl ProgramServer for ProgramApi {
             return Err(errors::db("Failed to read state by hash"));
         };
 
-        let queue = queue_hash.query(&self.db).ok();
+        let queue = queue.query(&self.db).ok();
         let waitlist = waitlist_hash.query(&self.db).ok();
         let stash = stash_hash.query(&self.db).ok();
         let mailbox = mailbox_hash.query(&self.db).ok();

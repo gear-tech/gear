@@ -45,7 +45,7 @@ impl<S: Storage> Handler<'_, S> {
                     })
                 } else {
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(dispatch));
                 }
             })
@@ -154,7 +154,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.queue_hash.modify_queue(storage, |queue| {
+                state.queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to consume message from empty queue");
@@ -216,7 +216,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
                 let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
 
-                state.queue_hash.modify_queue(storage, |queue| {
+                state.queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to wait message from empty queue");
@@ -260,7 +260,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 };
 
                 state
-                    .queue_hash
+                    .queue
                     .modify_queue(storage, |queue| queue.queue(dispatch));
 
                 transitions
