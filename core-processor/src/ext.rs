@@ -60,6 +60,7 @@ use gear_core_errors::{
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInterface, ProcessAccessError, Status};
 use gear_wasm_instrument::syscalls::SyscallName;
+use hashbrown::HashMap;
 
 /// Processor context.
 pub struct ProcessorContext {
@@ -193,6 +194,9 @@ pub trait ProcessorExternalities {
 
     /// Returns lazy pages status
     fn lazy_pages_status() -> Status;
+
+    ///
+    fn syscalls_gas_statistics(&self) -> HashMap<CostToken, u64>;
 }
 
 /// Infallible API error.
@@ -542,6 +546,8 @@ pub struct Ext<LP: LazyPagesInterface> {
     //
     // It's temporary field, used to solve `core-audit/issue#22`.
     outgoing_gasless: u64,
+
+    syscalls_gas_statistics: HashMap<CostToken, u64>,
     _phantom: PhantomData<LP>,
 }
 
@@ -559,6 +565,7 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
             context,
             current_counter,
             outgoing_gasless: 0,
+            syscalls_gas_statistics: HashMap::new(),
             _phantom: PhantomData,
         }
     }
@@ -658,6 +665,10 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
 
     fn lazy_pages_status() -> Status {
         LP::get_status()
+    }
+
+    fn syscalls_gas_statistics(&self) -> HashMap<CostToken, u64> {
+        self.syscalls_gas_statistics.clone()
     }
 }
 
@@ -760,6 +771,12 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
         let amount = self.context.costs.syscalls.cost_for_token(token);
         let common_charge = self.context.gas_counter.charge(amount);
         let allowance_charge = self.context.gas_allowance_counter.charge(amount);
+
+        self.syscalls_gas_statistics
+            .entry(token)
+            .and_modify(|v| *v += amount)
+            .or_insert(amount);
+
         match (common_charge, allowance_charge) {
             (ChargeResult::NotEnough, _) => Err(ChargeError::GasLimitExceeded),
             (ChargeResult::Enough, ChargeResult::NotEnough) => {
