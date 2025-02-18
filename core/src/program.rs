@@ -94,7 +94,7 @@ pub struct ActiveProgram<BlockNumber: Copy> {
     pub memory_infix: MemoryInfix,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
-    /// Code hash of the program.
+    /// Code id of the program.
     pub code_id: CodeId,
     /// Initialization state of the program.
     pub state: ProgramState,
