@@ -95,6 +95,7 @@ impl PrometheusConfig {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum PrometheusEvent {
     CollectMetrics,
 }

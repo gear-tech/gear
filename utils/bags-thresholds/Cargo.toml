@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 vara-runtime.workspace = true
+vara-runtime.features = ["std"]
 generate-bags.workspace = true
 
 # third-party

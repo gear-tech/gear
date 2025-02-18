@@ -22,6 +22,7 @@ use alloc::vec::Vec;
 use gear_core::message::{ReplyDetails, StoredMessage};
 use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
+use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
 
 // TODO: support query from router.
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
@@ -30,12 +31,6 @@ pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
-    pub x: U256,
-    pub y: U256,
-}
-
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
-pub struct VerifyingShare {
     pub x: U256,
     pub y: U256,
 }
@@ -78,10 +73,10 @@ pub struct BatchCommitment {
     pub block_commitments: Vec<BlockCommitment>,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ValidatorsCommitment {
     pub aggregated_public_key: AggregatedPublicKey,
-    pub verifying_shares: Vec<VerifyingShare>,
+    pub verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
     pub validators: Vec<ActorId>,
     pub era_index: u64,
 }
@@ -162,4 +157,12 @@ pub struct ValueClaim {
     pub message_id: MessageId,
     pub destination: ActorId,
     pub value: u128,
+}
+
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub enum Origin {
+    #[default]
+    Ethereum,
+    OffChain,
 }

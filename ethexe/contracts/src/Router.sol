@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Gear} from "./libraries/Gear.sol";
+import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {Secp256k1} from "frost-secp256k1-evm/utils/cryptography/Secp256k1.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
@@ -32,7 +33,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         uint256 _electionDuration,
         uint256 _validationDelay,
         Gear.AggregatedPublicKey calldata _aggregatedPublicKey,
-        Gear.VerifyingShare[] calldata _verifyingShares,
+        bytes calldata _verifiableSecretSharingCommitment,
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
@@ -56,7 +57,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         // Set validators for the era 0.
         _resetValidators(
-            router.validationSettings.validators0, _aggregatedPublicKey, _verifyingShares, _validators, block.timestamp
+            router.validationSettings.validators0,
+            _aggregatedPublicKey,
+            _verifiableSecretSharingCommitment,
+            _validators,
+            block.timestamp
         );
     }
 
@@ -85,7 +90,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         _resetValidators(
             oldRouter.validationSettings.validators0,
             Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
-            Gear.currentEraValidators(oldRouter).verifyingShares,
+            SSTORE2.read(Gear.currentEraValidators(oldRouter).verifiableSecretSharingCommitmentPointer),
             Gear.currentEraValidators(oldRouter).list,
             block.timestamp
         );
@@ -128,8 +133,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return Gear.currentEraValidators(_router()).aggregatedPublicKey;
     }
 
-    function validatorsVerifyingShares() public view returns (Gear.VerifyingShare[] memory) {
-        return Gear.currentEraValidators(_router()).verifyingShares;
+    function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory) {
+        return SSTORE2.read(Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer);
     }
 
     function areValidators(address[] calldata _validators) public view returns (bool) {
@@ -337,7 +342,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     /// @dev Set validators for the next era.
     function commitValidators(
-        Gear.ValidatorsCommitment calldata _validatorsCommitment,
+        Gear.ValidatorsCommitment memory _validatorsCommitment,
         Gear.SignatureType _signatureType,
         bytes[] calldata _signatures
     ) external {
@@ -364,7 +369,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         _resetValidators(
             _validators,
             _validatorsCommitment.aggregatedPublicKey,
-            _validatorsCommitment.verifyingShares,
+            _validatorsCommitment.verifiableSecretSharingCommitment,
             _validatorsCommitment.validators,
             nextEraStart
         );
@@ -467,7 +472,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function _resetValidators(
         Gear.Validators storage _validators,
         Gear.AggregatedPublicKey memory _newAggregatedPublicKey,
-        Gear.VerifyingShare[] memory _verifyingShares,
+        bytes memory _verifiableSecretSharingCommitment,
         address[] memory _newValidators,
         uint256 _useFromTimestamp
     ) private {
@@ -481,15 +486,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             "FROST aggregated public key is invalid"
         );
         _validators.aggregatedPublicKey = _newAggregatedPublicKey;
-        // NOTE: we do not checked that aggregated public key is equal to the sum of verifying shares right now
-        require(
-            _verifyingShares.length == _newValidators.length, "verifying shares count must be equal to validators count"
-        );
-        for (uint256 i = 0; i < _verifyingShares.length; i++) {
-            Gear.VerifyingShare memory verifyingShare = _verifyingShares[i];
-            require(Secp256k1.isOnCurve(verifyingShare.x, verifyingShare.y), "verifying share is not on curve");
-        }
-        _validators.verifyingShares = _verifyingShares;
+        _validators.verifiableSecretSharingCommitmentPointer = SSTORE2.write(_verifiableSecretSharingCommitment);
         for (uint256 i = 0; i < _validators.list.length; i++) {
             address _validator = _validators.list[i];
             _validators.map[_validator] = false;
