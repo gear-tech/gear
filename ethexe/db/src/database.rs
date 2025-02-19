@@ -461,7 +461,8 @@ impl Database {
         else {
             bail!("No latest valid block found");
         };
-        let Some(reference_block_header) = self.block_header(reference_block_hash) else {
+        let Some(reference_block_header) = OnChainStorage::block_header(self, reference_block_hash)
+        else {
             bail!("No reference block found");
         };
 
@@ -484,7 +485,7 @@ impl Database {
                 return Ok(true);
             }
 
-            let Some(block_header) = self.block_header(block_hash) else {
+            let Some(block_header) = OnChainStorage::block_header(self, block_hash) else {
                 bail!(
                     "Block with {block_hash} hash not found in the window. Possibly reorg happened"
                 );

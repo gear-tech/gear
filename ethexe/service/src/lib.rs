@@ -344,6 +344,29 @@ impl Service {
         }
 
         loop {
+            let event: Event = tokio::select! {
+                event = compute.select_next_some() => event?.into(),
+                event = network.maybe_next_some() => event.into(),
+                event = observer.select_next_some() => event?.into(),
+                event = prometheus.maybe_next_some() => event.into(),
+                event = rpc.maybe_next_some() => event.into(),
+                event = sequencer.maybe_next_some() => event.into(),
+                _ = rpc_handle.as_mut().maybe() => {
+                    log::info!("`RPCWorker` has terminated, shutting down...");
+                    continue;
+                }
+            };
+
+            log::trace!("Primary service produced event, start handling: {event:?}");
+
+            // Broadcast event.
+            // Never supposed to be Some in production.
+            if let Some(sender) = sender.as_ref() {
+                sender
+                    .send(event.clone())
+                    .expect("failed to broadcast service event");
+            }
+
             match event {
                 Event::ServiceStarted => unreachable!("never handled here"),
                 Event::Observer(event) => match event {
@@ -375,11 +398,7 @@ impl Service {
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
                         // TODO (gsobol): must be done in observer event handling
                         if let Some(s) = sequencer.as_mut() {
-                            s.on_new_head(chain_head)?
-                        }
-
-                        if commitments.is_empty() {
-                            continue;
+                            s.on_new_head(block_hash)?
                         }
 
                         if let Some(v) = validator.as_mut() {

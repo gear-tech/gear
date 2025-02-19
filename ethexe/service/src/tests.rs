@@ -1036,16 +1036,8 @@ async fn tx_pool_gossip() {
 
     log::info!("Populate node-0 and node-1 with 2 valid blocks");
 
-    env.observer
-        .provider()
-        .evm_mine(None)
-        .await
-        .expect("failed mining a new block");
-    env.observer
-        .provider()
-        .evm_mine(None)
-        .await
-        .expect("failed mining a new block");
+    env.force_new_block().await;
+    env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
     tokio::time::sleep(Duration::from_secs(2)).await;
