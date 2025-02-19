@@ -51,9 +51,11 @@ use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
+    io::Write,
     net::{Ipv4Addr, SocketAddr},
-    sync::Arc,
+    sync::{Arc, LazyLock},
+    thread,
     time::Duration,
 };
 use tempfile::tempdir;
@@ -1115,7 +1117,7 @@ async fn tx_pool_gossip() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn fast_sync() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let config = TestEnvConfig {
         validators: ValidatorsConfig::Generated(3),
@@ -1126,7 +1128,7 @@ async fn fast_sync() {
     log::info!("Starting sequencer");
     let sequencer_pub_key = env.wallets.next();
     let mut sequencer = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("sequencer")
             .sequencer(sequencer_pub_key)
             .validator(env.validators[0], env.validator_session_public_keys[0])
             .network(None, None),
@@ -1135,7 +1137,7 @@ async fn fast_sync() {
 
     log::info!("Starting Alice");
     let mut alice = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("Alice")
             .validator(env.validators[1], env.validator_session_public_keys[1])
             .network(None, sequencer.multiaddr.clone()),
     );
@@ -1175,12 +1177,9 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    log::info!("Stopping Alice");
-    alice.stop_service().await;
-
     log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("Bob")
             .validator(env.validators[2], env.validator_session_public_keys[2])
             .network_with_config(NodeNetworkConfig {
                 address: None,
@@ -1225,12 +1224,49 @@ mod utils {
     use std::{
         ops::Mul,
         str::FromStr,
-        sync::atomic::{AtomicUsize, Ordering},
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            RwLock,
+        },
     };
     use tokio::sync::{
         broadcast::{self, Receiver, Sender},
         Mutex,
     };
+
+    static TASK_NAMES: LazyLock<RwLock<HashMap<task::Id, &'static str>>> =
+        LazyLock::new(Default::default);
+
+    fn get_task_name(id: task::Id) -> String {
+        if let Some(task_name) = TASK_NAMES.read().unwrap().get(&id) {
+            task_name.to_string()
+        } else {
+            id.to_string()
+        }
+    }
+
+    fn get_current_thread_name() -> String {
+        let current = thread::current();
+        if let Some(name) = current.name() {
+            name.to_string()
+        } else {
+            format!("{:?}", current.id())
+        }
+    }
+
+    pub fn init_logger() {
+        let _ = env_logger::Builder::from_default_env()
+            .format(|f, record| {
+                let task_name = task::try_id()
+                    .map(get_task_name)
+                    .unwrap_or_else(get_current_thread_name);
+                let level = f.default_styled_level(record.level());
+                let target = record.target();
+                let args = record.args();
+                writeln!(f, "[{task_name:^11} {level:<5} {target}] {args}")
+            })
+            .try_init();
+    }
 
     pub struct TestEnv {
         pub rpc_url: String,
@@ -1252,8 +1288,8 @@ mod utils {
 
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+        events_stream: JoinHandle<()>,
         _anvil: Option<AnvilInstance>,
-        _events_stream: JoinHandle<()>,
     }
 
     impl TestEnv {
@@ -1403,7 +1439,7 @@ mod utils {
                 .await
                 .unwrap();
 
-            let (broadcaster, _events_stream) = {
+            let (broadcaster, events_stream) = {
                 let mut observer = observer.clone();
                 let (sender, mut receiver) = tokio::sync::broadcast::channel(2048);
                 let sender = Arc::new(Mutex::new(sender));
@@ -1434,6 +1470,10 @@ mod utils {
 
                     panic!("📗 Observer stream ended");
                 });
+                TASK_NAMES
+                    .write()
+                    .unwrap()
+                    .insert(handle.id(), "observer-stream");
                 receive_subscription_created.await.unwrap();
 
                 (sender, handle)
@@ -1459,12 +1499,13 @@ mod utils {
                 continuous_block_generation,
                 broadcaster,
                 _anvil: anvil,
-                _events_stream,
+                events_stream,
             })
         }
 
         pub fn new_node(&mut self, config: NodeConfig) -> Node {
             let NodeConfig {
+                name,
                 db,
                 sequencer_public_key,
                 validator_public_key,
@@ -1490,6 +1531,7 @@ mod utils {
             let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
 
             Node {
+                name,
                 db,
                 multiaddr: None,
                 broadcaster: None,
@@ -1648,6 +1690,14 @@ mod utils {
         }
     }
 
+    impl Drop for TestEnv {
+        fn drop(&mut self) {
+            let id = self.events_stream.id();
+            self.events_stream.abort();
+            TASK_NAMES.write().unwrap().remove(&id);
+        }
+    }
+
     pub struct ObserverEventsPublisher {
         broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
     }
@@ -1759,6 +1809,8 @@ mod utils {
     // TODO (breathx): consider to remove me in favor of crate::config::NodeConfig.
     #[derive(Default)]
     pub struct NodeConfig {
+        /// Node name.
+        pub name: Option<&'static str>,
         /// Database, if not provided, will be created with MemDb.
         pub db: Option<Database>,
         /// Sequencer public key, if provided then new node starts as sequencer.
@@ -1774,6 +1826,13 @@ mod utils {
     }
 
     impl NodeConfig {
+        pub fn named(name: &'static str) -> Self {
+            Self {
+                name: Some(name),
+                ..Default::default()
+            }
+        }
+
         pub fn db(mut self, db: Database) -> Self {
             self.db = Some(db);
             self
@@ -1871,6 +1930,7 @@ mod utils {
     }
 
     pub struct Node {
+        pub name: Option<&'static str>,
         pub db: Database,
         pub multiaddr: Option<String>,
 
@@ -2000,6 +2060,9 @@ mod utils {
             );
 
             let handle = task::spawn(service.run());
+            if let Some(name) = self.name {
+                TASK_NAMES.write().unwrap().insert(handle.id(), name);
+            }
             self.running_service_handle = Some(handle);
 
             self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
@@ -2016,10 +2079,12 @@ mod utils {
                 .running_service_handle
                 .take()
                 .expect("Service is not running");
-
+            let id = handle.id();
             handle.abort();
 
             assert!(handle.await.unwrap_err().is_cancelled());
+
+            TASK_NAMES.write().unwrap().remove(&id);
 
             self.broadcaster = None;
             self.multiaddr = None;
