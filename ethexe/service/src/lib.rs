@@ -107,27 +107,14 @@ impl Service {
             None
         };
 
-        let blob_reader: Arc<dyn ethexe_observer::BlobReader> = if config.node.dev {
-            mock_blob_reader.clone().unwrap()
-        } else {
-            Arc::new(
-                ethexe_observer::ConsensusLayerBlobReader::new(
-                    &config.ethereum.rpc,
-                    &config.ethereum.beacon_rpc,
-                    config.ethereum.block_time,
-                )
-                .await
-                .with_context(|| "failed to create blob reader")?,
-            )
-        };
-
         let rocks_db = ethexe_db::RocksDatabase::open(config.node.database_path.clone())
             .with_context(|| "failed to open database")?;
         let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
 
-        let observer = ObserverService::new(&config.ethereum)
-            .await
-            .context("failed to create observer service")?;
+        let observer =
+            ObserverService::new(&config.ethereum, config.node.max_eth_sync_depth, &db, None)
+                .await
+                .context("failed to create observer service")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -159,17 +146,6 @@ impl Service {
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
-
-        let query = ethexe_observer::Query::new(
-            Arc::new(db.clone()),
-            &config.ethereum.rpc,
-            config.ethereum.router_address,
-            genesis_block_hash,
-            blob_reader,
-            config.node.max_commitment_depth,
-        )
-        .await
-        .with_context(|| "failed to create observer query")?;
 
         let processor = ethexe_processor::Processor::with_config(
             ProcessorConfig {
@@ -231,6 +207,7 @@ impl Service {
                             pub_key_session,
                             router_address: config.ethereum.router_address,
                         },
+                        Box::new(db.clone()),
                         signer.clone(),
                     )
                 });
@@ -255,7 +232,8 @@ impl Service {
         });
 
         let tx_pool = TxPoolService::new(db.clone());
-        let compute = ComputeService::new(db.clone(), processor, query);
+
+        let compute = ComputeService::new(db.clone(), processor);
 
         Ok(Self {
             db,
@@ -286,7 +264,6 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
-        query: ethexe_observer::Query,
         router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
@@ -298,7 +275,7 @@ impl Service {
         rpc: Option<ethexe_rpc::RpcService>,
         sender: Option<Sender<Event>>,
     ) -> Self {
-        let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
+        let compute = ComputeService::new(db.clone(), processor);
 
         Self {
             db,
@@ -392,22 +369,44 @@ impl Service {
 
             match event {
                 Event::ServiceStarted => unreachable!("never handled here"),
+                Event::Observer(event) => match event {
+                    ObserverEvent::Blob {
+                        code_id,
+                        timestamp,
+                        code,
+                    } => {
+                        log::info!(
+                            "🔢 receive a code blob, code_id {code_id}, code size {}",
+                            code.len()
+                        );
+
+                        compute.receive_code(code_id, timestamp, code)
+                    }
+                    ObserverEvent::Block(block_data) => {
+                        log::info!(
+                            "📦 receive a chain head, height {}, hash {}, parent hash {}",
+                            block_data.header.height,
+                            block_data.hash,
+                            block_data.header.parent_hash,
+                        );
+                    }
+                    ObserverEvent::BlockSynced(block_hash) => {
+                        compute.receive_synced_head(block_hash);
+                    }
+                },
                 Event::Compute(event) => match event {
-                    ComputeEvent::BlockProcessed(BlockProcessed {
-                        chain_head,
-                        commitments,
-                    }) => {
+                    ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
                         // TODO (gsobol): must be done in observer event handling
                         if let Some(s) = sequencer.as_mut() {
-                            s.on_new_head(chain_head)?
-                        }
-
-                        if commitments.is_empty() {
-                            continue;
+                            s.on_new_head(block_hash)?
                         }
 
                         if let Some(v) = validator.as_mut() {
-                            let aggregated_block_commitments = v.aggregate(commitments)?;
+                            let Some(aggregated_block_commitments) =
+                                v.aggregate_commitments_for_block(block_hash)?
+                            else {
+                                continue;
+                            };
 
                             if let Some(n) = network.as_mut() {
                                 log::debug!("Publishing block commitments to network...");
@@ -544,14 +543,6 @@ impl Service {
                         | NetworkEvent::PeerConnected(_) => (),
                     }
                 }
-                Event::Observer(event) => match event {
-                    ObserverEvent::Blob {
-                        code_id,
-                        timestamp,
-                        code,
-                    } => compute.receive_code(code_id, timestamp, code),
-                    ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
-                },
                 Event::Prometheus(event) => {
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
