@@ -27,20 +27,37 @@ use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
 use ethexe_processor::ProcessorConfig;
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
+use ethexe_rpc::RpcEvent;
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
+use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};
 use ethexe_validator::BlockCommitmentValidationRequest;
 use futures::StreamExt;
+use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::sync::Arc;
+use tokio::sync::broadcast::Sender;
 
 pub mod config;
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Clone, derive_more::From)]
+pub enum Event {
+    // Basic event to notify that service has started. Sent just once.
+    ServiceStarted,
+    // Services events.
+    Compute(ComputeEvent),
+    Network(NetworkEvent),
+    Observer(ObserverEvent),
+    Prometheus(PrometheusEvent),
+    Rpc(RpcEvent),
+    Sequencer(SequencerEvent),
+}
 
 /// ethexe service.
 pub struct Service {
@@ -49,13 +66,18 @@ pub struct Service {
     router_query: RouterQuery,
     compute: ComputeService,
     signer: ethexe_signer::Signer,
+    tx_pool: TxPoolService,
 
     // Optional services
+    // TODO: consider network to be always enabled
     network: Option<NetworkService>,
     sequencer: Option<SequencerService>,
     validator: Option<ethexe_validator::Validator>,
     prometheus: Option<PrometheusService>,
     rpc: Option<ethexe_rpc::RpcService>,
+
+    // Optional global event broadcaster.
+    sender: Option<Sender<Event>>,
 }
 
 // TODO: consider to move this to another module #4176
@@ -71,6 +93,9 @@ pub enum NetworkMessage {
     },
     ApproveCommitments {
         batch_commitment: (Digest, Signature),
+    },
+    OffchainTransaction {
+        transaction: SignedOffchainTransaction,
     },
 }
 
@@ -206,19 +231,23 @@ impl Service {
             ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
         });
 
+        let tx_pool = TxPoolService::new(db.clone());
+
         let compute = ComputeService::new(db.clone(), processor);
 
         Ok(Self {
             db,
             network,
             observer,
-            router_query,
             compute,
+            router_query,
             sequencer,
             signer,
             validator,
             prometheus,
             rpc,
+            tx_pool,
+            sender: None,
         })
     }
 
@@ -238,32 +267,35 @@ impl Service {
         router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
+        tx_pool: TxPoolService,
         network: Option<NetworkService>,
         sequencer: Option<SequencerService>,
         validator: Option<ethexe_validator::Validator>,
         prometheus: Option<PrometheusService>,
         rpc: Option<ethexe_rpc::RpcService>,
+        sender: Option<Sender<Event>>,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor);
 
         Self {
             db,
             observer,
-            router_query,
             compute,
+            router_query,
             signer,
             network,
             sequencer,
             validator,
             prometheus,
             rpc,
+            tx_pool,
+            sender,
         }
     }
 
     pub async fn run(self) -> Result<()> {
-        self.run_inner().await.map_err(|err| {
+        self.run_inner().await.inspect_err(|err| {
             log::error!("Service finished work with error: {err:?}");
-            err
         })
     }
 
@@ -276,11 +308,14 @@ impl Service {
             mut compute,
             mut sequencer,
             signer: _signer,
+            tx_pool,
             mut validator,
             mut prometheus,
             rpc,
+            sender,
         } = self;
-        let (mut rpc_handle, mut rpc_receiver) = if let Some(rpc) = rpc {
+
+        let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
 
             let (rpc_run, rpc_receiver) = rpc.run_server().await?;
@@ -297,106 +332,257 @@ impl Service {
         if let Some(val) = validator.as_ref() {
             roles.push_str(&format!(", Validator ({})", val.address()));
         }
+
         log::info!("⚙️ Node service starting, roles: [{}]", roles);
 
-        loop {
-            tokio::select! {
-                event = observer.select_next_some() => {
-                    match event? {
-                        ObserverEvent::Blob { code_id, timestamp, code } => {
-                            log::info!(
-                                "🔢 receive a code blob, code_id {code_id}, code size {}",
-                                code.len()
-                            );
+        // Broadcast service started event.
+        // Never supposed to be Some in production code.
+        if let Some(sender) = sender.as_ref() {
+            sender
+                .send(Event::ServiceStarted)
+                .expect("failed to broadcast service STARTED event");
+        }
 
-                            compute.receive_code(code_id, timestamp, code)
-                        }
-                        ObserverEvent::Block(block_data) => {
-                            log::info!(
-                                "📦 receive a chain head, height {}, hash {}, parent hash {}",
-                                block_data.header.height,
-                                block_data.hash,
-                                block_data.header.parent_hash,
-                            );
-                        },
-                        ObserverEvent::BlockSynced(block_hash) => {
-                            compute.receive_synced_head(block_hash);
-                        },
+        loop {
+            match event {
+                Event::ServiceStarted => unreachable!("never handled here"),
+                Event::Observer(event) => match event {
+                    ObserverEvent::Blob {
+                        code_id,
+                        timestamp,
+                        code,
+                    } => {
+                        log::info!(
+                            "🔢 receive a code blob, code_id {code_id}, code size {}",
+                            code.len()
+                        );
+
+                        compute.receive_code(code_id, timestamp, code)
+                    }
+                    ObserverEvent::Block(block_data) => {
+                        log::info!(
+                            "📦 receive a chain head, height {}, hash {}, parent hash {}",
+                            block_data.header.height,
+                            block_data.hash,
+                            block_data.header.parent_hash,
+                        );
+                    }
+                    ObserverEvent::BlockSynced(block_hash) => {
+                        compute.receive_synced_head(block_hash);
                     }
                 },
-                event = compute.select_next_some() => {
-                    match event? {
-                        ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
-                            // TODO (gsobol): must be done in observer event handling
-                            if let Some(s) = sequencer.as_mut() {
-                                s.on_new_head(block_hash)?
-                            }
+                Event::Compute(event) => match event {
+                    ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
+                        // TODO (gsobol): must be done in observer event handling
+                        if let Some(s) = sequencer.as_mut() {
+                            s.on_new_head(chain_head)?
+                        }
 
-                            if let Some(v) = validator.as_mut() {
-                                let Some(aggregated_block_commitments) = v.aggregate_commitments_for_block(block_hash)? else {
-                                    continue;
-                                };
+                        if commitments.is_empty() {
+                            continue;
+                        }
 
-                                if let Some(n) = network.as_mut() {
-                                    log::debug!("Publishing block commitments to network...");
-
-                                    n.publish_message(
-                                        NetworkMessage::PublishCommitments {
-                                            codes: None,
-                                            blocks: Some(aggregated_block_commitments.clone()),
-                                        }
-                                        .encode(),
-                                    );
-                                };
-
-                                if let Some(s) = sequencer.as_mut() {
-                                    log::debug!(
-                                        "Received ({}) signed block commitments from local validator...",
-                                        aggregated_block_commitments.len()
-                                    );
-
-                                    s.receive_block_commitments(aggregated_block_commitments)?;
-                                }
+                        if let Some(v) = validator.as_mut() {
+                            let Some(aggregated_block_commitments) =
+                                v.aggregate_commitments_for_block(block_hash)?
+                            else {
+                                continue;
                             };
 
-                        },
-                        ComputeEvent::CodeProcessed(commitment) => {
-                            if let Some(v) = validator.as_mut() {
-                                let aggregated_code_commitments = v.aggregate(vec![commitment])?;
+                            if let Some(n) = network.as_mut() {
+                                log::debug!("Publishing block commitments to network...");
 
-                                if let Some(n) = network.as_mut() {
-                                    log::debug!("Publishing code commitments to network...");
-                                    n.publish_message(
-                                        NetworkMessage::PublishCommitments {
-                                            codes: Some(aggregated_code_commitments.clone()),
-                                            blocks: None,
-                                        }
-                                        .encode(),
-                                    );
-                                };
+                                n.publish_message(
+                                    NetworkMessage::PublishCommitments {
+                                        codes: None,
+                                        blocks: Some(aggregated_block_commitments.clone()),
+                                    }
+                                    .encode(),
+                                );
+                            };
 
-                                if let Some(s) = sequencer.as_mut() {
-                                    log::debug!(
-                                        "Received ({}) signed code commitments from local validator...",
-                                        aggregated_code_commitments.len()
-                                    );
-                                    s.receive_code_commitments(aggregated_code_commitments)?;
-                                }
+                            if let Some(s) = sequencer.as_mut() {
+                                log::debug!(
+                                    "Received ({}) signed block commitments from local validator...",
+                                    aggregated_block_commitments.len()
+                                );
+
+                                s.receive_block_commitments(aggregated_block_commitments)?;
                             }
-                        },
+                        };
+                    }
+                    ComputeEvent::CodeProcessed(commitment) => {
+                        if let Some(v) = validator.as_mut() {
+                            let aggregated_code_commitments = v.aggregate(vec![commitment])?;
+
+                            if let Some(n) = network.as_mut() {
+                                log::debug!("Publishing code commitments to network...");
+                                n.publish_message(
+                                    NetworkMessage::PublishCommitments {
+                                        codes: Some(aggregated_code_commitments.clone()),
+                                        blocks: None,
+                                    }
+                                    .encode(),
+                                );
+                            };
+
+                            if let Some(s) = sequencer.as_mut() {
+                                log::debug!(
+                                    "Received ({}) signed code commitments from local validator...",
+                                    aggregated_code_commitments.len()
+                                );
+                                s.receive_code_commitments(aggregated_code_commitments)?;
+                            }
+                        }
                     }
                 },
-                event = sequencer.maybe_next_some() => {
+                Event::Network(event) => {
+                    let Some(n) = network.as_mut() else {
+                        unreachable!("couldn't produce event without network");
+                    };
+
+                    match event {
+                        NetworkEvent::Message { source, data } => {
+                            log::trace!("Received a network message from peer {source:?}");
+
+                            let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
+                                .inspect_err(|e| {
+                                    log::warn!("Failed to decode network message: {e}")
+                                })
+                            else {
+                                continue;
+                            };
+
+                            match message {
+                                NetworkMessage::PublishCommitments { codes, blocks } => {
+                                    if let Some(s) = sequencer.as_mut() {
+                                        if let Some(aggregated) = codes {
+                                            let _ = s.receive_code_commitments(aggregated)
+                                            .inspect_err(|e| log::warn!("failed to receive code commitments from network: {e}"));
+                                        }
+
+                                        if let Some(aggregated) = blocks {
+                                            let _ = s.receive_block_commitments(aggregated)
+                                            .inspect_err(|e| log::warn!("failed to receive block commitments from network: {e}"));
+                                        }
+                                    }
+                                }
+                                NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
+                                    if let Some(v) = validator.as_mut() {
+                                        let maybe_batch_commitment = (!codes.is_empty() || !blocks.is_empty())
+                                        .then(|| v.validate_batch_commitment(&db, codes, blocks))
+                                        .transpose()
+                                        .inspect_err(|e| log::warn!("failed to validate batch commitment from network: {e}"))
+                                        .ok()
+                                        .flatten();
+
+                                        if let Some(batch_commitment) = maybe_batch_commitment {
+                                            let message = NetworkMessage::ApproveCommitments {
+                                                batch_commitment,
+                                            };
+                                            n.publish_message(message.encode());
+                                        }
+                                    }
+                                }
+                                NetworkMessage::ApproveCommitments {
+                                    batch_commitment: (digest, signature),
+                                } => {
+                                    if let Some(s) = sequencer.as_mut() {
+                                        let _ = s.receive_batch_commitment_signature(digest, signature)
+                                        .inspect_err(|e| log::warn!("failed to receive batch commitment signature from network: {e}"));
+                                    }
+                                }
+                                NetworkMessage::OffchainTransaction { transaction } => {
+                                    if let Err(e) = Self::process_offchain_transaction(
+                                        transaction,
+                                        &tx_pool,
+                                        &db,
+                                        network.as_mut(),
+                                    ) {
+                                        log::warn!("Failed to process offchain transaction received by p2p: {e}");
+                                    }
+                                }
+                            };
+                        }
+                        NetworkEvent::ExternalValidation(validating_response) => {
+                            let validated = Self::process_response_validation(
+                                &validating_response,
+                                &mut router_query,
+                            )
+                            .await?;
+
+                            let res = if validated {
+                                Ok(validating_response)
+                            } else {
+                                Err(validating_response)
+                            };
+
+                            n.request_validated(res);
+                        }
+                        NetworkEvent::DbResponse(_)
+                        | NetworkEvent::PeerBlocked(_)
+                        | NetworkEvent::PeerConnected(_) => (),
+                    }
+                }
+                Event::Prometheus(event) => {
+                    let Some(p) = prometheus.as_mut() else {
+                        unreachable!("couldn't produce event without prometheus");
+                    };
+
+                    match event {
+                        PrometheusEvent::CollectMetrics => {
+                            let status = observer.status();
+
+                            p.update_observer_metrics(status.eth_best_height, status.pending_codes);
+
+                            if let Some(s) = sequencer.as_ref() {
+                                let status = s.status();
+
+                                p.update_sequencer_metrics(
+                                    status.submitted_code_commitments,
+                                    status.submitted_block_commitments,
+                                );
+                            };
+                        }
+                    }
+                }
+                Event::Rpc(event) => {
+                    log::info!("Received RPC event: {event:#?}");
+
+                    match event {
+                        RpcEvent::OffchainTransaction {
+                            transaction,
+                            response_sender,
+                        } => {
+                            let res = Self::process_offchain_transaction(
+                                transaction,
+                                &tx_pool,
+                                &db,
+                                network.as_mut(),
+                            )
+                            .context("Failed to process offchain transaction received from RPC");
+
+                            let Some(response_sender) = response_sender else {
+                                unreachable!("Response sender isn't set for the `RpcEvent::OffchainTransaction` event");
+                            };
+                            if let Err(e) = response_sender.send(res) {
+                                // No panic case as a responsibility of the service is fulfilled.
+                                // The dropped receiver signalizes that the rpc service has crashed
+                                // or is malformed, so problems should be handled there.
+                                log::error!("Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}");
+                            }
+                        }
+                    }
+                }
+                Event::Sequencer(event) => {
                     let Some(s) = sequencer.as_mut() else {
                         unreachable!("couldn't produce event without sequencer");
                     };
 
                     match event {
                         SequencerEvent::CollectionRoundEnded { block_hash: _ } => {
-                            let code_requests: Vec<_> = s
-                                .get_candidate_code_commitments()
-                                .cloned()
-                                .collect();
+                            let code_requests: Vec<_> =
+                                s.get_candidate_code_commitments().cloned().collect();
 
                             let block_requests: Vec<_> = s
                                 .get_candidate_block_commitments()
@@ -410,10 +596,11 @@ impl Service {
                                     blocks: block_requests.clone(),
                                 };
 
-                                log::debug!("Request validation of aggregated commitments: {message:?}");
+                                log::debug!(
+                                    "Request validation of aggregated commitments: {message:?}"
+                                );
 
                                 n.publish_message(message.encode());
-
                             };
 
                             if let Some(v) = validator.as_mut() {
@@ -428,9 +615,15 @@ impl Service {
                                 // on local validator. So we just print warning in this case.
 
                                 if !code_requests.is_empty() || !block_requests.is_empty() {
-                                    match v.validate_batch_commitment(&db, code_requests, block_requests) {
+                                    match v.validate_batch_commitment(
+                                        &db,
+                                        code_requests,
+                                        block_requests,
+                                    ) {
                                         Ok((digest, signature)) => {
-                                            s.receive_batch_commitment_signature(digest, signature)?;
+                                            s.receive_batch_commitment_signature(
+                                                digest, signature,
+                                            )?;
                                         }
                                         Err(err) => {
                                             log::warn!("Collected batch commitments validation failed: {err}");
@@ -438,106 +631,10 @@ impl Service {
                                     }
                                 }
                             };
-                        },
-                        SequencerEvent::ValidationRoundEnded { .. } => {},
-                        SequencerEvent::CommitmentSubmitted { .. } => {},
+                        }
+                        SequencerEvent::ValidationRoundEnded { .. } => {}
+                        SequencerEvent::CommitmentSubmitted { .. } => {}
                     }
-                },
-                event = network.maybe_next_some() => {
-                    match event {
-                        NetworkEvent::Message { source, data } => {
-                            log::trace!("Received a network message from peer {source:?}");
-
-                            let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
-                                .inspect_err(|e| log::warn!("Failed to decode network message: {e}"))
-                            else {
-                                continue;
-                            };
-
-                            match message {
-                                NetworkMessage::PublishCommitments { codes, blocks } => {
-                                    if let Some(s) = sequencer.as_mut() {
-                                        if let Some(aggregated) = codes {
-                                            let _ = s.receive_code_commitments(aggregated)
-                                                .inspect_err(|e| log::warn!("failed to receive code commitments from network: {e}"));
-                                        }
-
-                                        if let Some(aggregated) = blocks {
-                                            let _ = s.receive_block_commitments(aggregated)
-                                                .inspect_err(|e| log::warn!("failed to receive block commitments from network: {e}"));
-                                        }
-                                    }
-                                },
-                                NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
-                                    if let Some(v) = validator.as_mut() {
-                                        let maybe_batch_commitment = (!codes.is_empty() || !blocks.is_empty())
-                                            .then(|| v.validate_batch_commitment(&db, codes, blocks))
-                                            .transpose()
-                                            .inspect_err(|e| log::warn!("failed to validate batch commitment from network: {e}"))
-                                            .ok()
-                                            .flatten();
-
-                                        if let Some(n) = network.as_mut() {
-                                            if let Some(batch_commitment) = maybe_batch_commitment {
-                                                let message = NetworkMessage::ApproveCommitments { batch_commitment };
-                                                n.publish_message(message.encode());
-                                            }
-                                        }
-                                    }
-                                },
-                                NetworkMessage::ApproveCommitments { batch_commitment: (digest, signature) } => {
-                                    if let Some(s) = sequencer.as_mut() {
-                                        let _ = s.receive_batch_commitment_signature(digest, signature)
-                                            .inspect_err(|e| log::warn!("failed to receive batch commitment signature from network: {e}"));
-                                    }
-                                },
-                            };
-                        }
-                        NetworkEvent::ExternalValidation(validating_response) => {
-                            let validated = Self::process_response_validation(&validating_response, &mut router_query).await?;
-                            let res = if validated {
-                                Ok(validating_response)
-                            } else {
-                                Err(validating_response)
-                            };
-
-                            network
-                                .as_mut()
-                                .expect("if network receiver is `Some()` so does sender")
-                                .request_validated(res);
-                        }
-                        _ => {}
-                    }},
-                event = prometheus.maybe_next_some() => {
-                    let Some(p) = prometheus.as_mut() else {
-                        unreachable!("couldn't produce event without prometheus");
-                    };
-
-                    match event {
-                        PrometheusEvent::CollectMetrics => {
-                            let status = observer.status();
-
-                            p.update_observer_metrics(
-                                status.eth_best_height,
-                                status.pending_codes,
-                            );
-
-                            if let Some(s) = sequencer.as_ref() {
-                                let status = s.status();
-
-                                p.update_sequencer_metrics(
-                                    status.submitted_code_commitments,
-                                    status.submitted_block_commitments,
-                                );
-                            };
-                        }
-                    }
-                }
-                event = rpc_receiver.maybe_next_some() => {
-                    log::info!("Received RPC event {event:#?}");
-                }
-                _ = rpc_handle.as_mut().maybe() => {
-                    log::info!("`RPCWorker` has terminated, shutting down...");
                 }
             }
         }
@@ -565,5 +662,39 @@ impl Service {
         }
 
         Ok(true)
+    }
+
+    fn process_offchain_transaction(
+        transaction: SignedOffchainTransaction,
+        tx_pool: &TxPoolService,
+        db: &Database,
+        network: Option<&mut NetworkService>,
+    ) -> Result<H256> {
+        let validated_tx = tx_pool
+            .validate(transaction)
+            .context("Failed to validate offchain transaction")?;
+        let tx_hash = validated_tx.tx_hash();
+
+        // Set valid transaction
+        db.set_offchain_transaction(validated_tx.clone());
+
+        // Try propagate transaction
+        if let Some(n) = network {
+            n.publish_offchain_transaction(
+                NetworkMessage::OffchainTransaction {
+                    transaction: validated_tx,
+                }
+                .encode(),
+            );
+        } else {
+            log::debug!(
+                "Validated offchain transaction won't be propagated, network service isn't defined"
+            );
+        }
+
+        // TODO (breathx) Execute transaction
+        log::info!("Unimplemented tx execution");
+
+        Ok(tx_hash)
     }
 }
