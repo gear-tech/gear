@@ -1175,7 +1175,8 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    tokio::time::sleep(Duration::from_secs(3)).await;
+    log::info!("Stopping Alice");
+    alice.stop_service().await;
 
     log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(
@@ -1188,8 +1189,6 @@ async fn fast_sync() {
             }),
     );
     bob.start_service().await;
-
-    tokio::time::sleep(Duration::from_secs(3)).await;
 
     for (program_id, destination) in program_ids {
         let _reply_info = env
@@ -2005,7 +2004,8 @@ mod utils {
 
             self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
 
-            if wait_for_network {
+            // fast sync implies network has connections
+            if wait_for_network && !self.fast_sync {
                 self.wait_for(|e| matches!(e, Event::Network(NetworkEvent::PeerConnected(_))))
                     .await;
             }
