@@ -26,7 +26,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Context as _, Result};
 use ethexe_common::{db::OnChainStorage, SimpleBlockData};
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo};
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_signer::Address;
 use futures::{
@@ -78,10 +78,13 @@ pub enum ObserverEvent {
     BlockSynced(H256),
 }
 
+pub trait ObserverDB: OnChainStorage + CodesStorage + Unpin + Clone + 'static {}
+impl<T: OnChainStorage + CodesStorage + Unpin + Clone + 'static> ObserverDB for T {}
+
 // TODO (gsobol): make tests for observer service
-pub struct ObserverService {
+pub struct ObserverService<DB: ObserverDB> {
     provider: Provider,
-    database: Box<dyn OnChainStorage>,
+    database: DB,
     // TODO (gsobol): consider to make clone boxed for BlobRead, in order to avoid Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
     subscription: Subscription<Header>,
@@ -100,7 +103,7 @@ pub struct ObserverService {
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
 
-impl Stream for ObserverService {
+impl<DB: ObserverDB> Stream for ObserverService<DB> {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -133,7 +136,7 @@ impl Stream for ObserverService {
             if let Some(header) = self.block_sync_queue.pop_front() {
                 let sync = ChainSync {
                     provider: self.provider.clone(),
-                    database: self.database.clone_boxed(),
+                    database: self.database.clone(),
                     blobs_reader: self.blobs_reader.clone(),
                     router_address: self.router_address.0.into(),
                     wvara_address: self.wvara_address.0.into(),
@@ -174,23 +177,20 @@ impl Stream for ObserverService {
     }
 }
 
-impl FusedStream for ObserverService {
+impl<DB: ObserverDB> FusedStream for ObserverService<DB> {
     fn is_terminated(&self) -> bool {
         false
     }
 }
 
-impl ObserverService {
-    pub async fn new<DB>(
+impl<DB: ObserverDB + BlockMetaStorage> ObserverService<DB> {
+    pub async fn new(
         eth_cfg: &EthereumConfig,
         max_sync_depth: u32,
-        db: &DB,
+        db: DB,
         // TODO (gsobol): blobs reader should be provided by the caller always.
         blobs_reader: Option<Arc<dyn BlobReader>>,
-    ) -> Result<Self>
-    where
-        DB: OnChainStorage + BlockMetaStorage,
-    {
+    ) -> Result<Self> {
         let EthereumConfig {
             rpc,
             beacon_rpc,
@@ -221,13 +221,13 @@ impl ObserverService {
             .await
             .context("failed to subscribe blocks")?;
 
-        Self::pre_process_genesis_for_db(db, &provider, &router_query).await?;
+        Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
 
         let headers_stream = subscription.resubscribe().into_stream();
 
         Ok(Self {
             provider,
-            database: OnChainStorage::clone_boxed(db),
+            database: db,
             blobs_reader,
             subscription,
             router_address: *router_address,
@@ -243,6 +243,54 @@ impl ObserverService {
         })
     }
 
+    // TODO (gsobol): this is a temporary solution.
+    // Choose a better place for this, out of ObserverService.
+    /// If genesis block is not yet fully setup in the database, we need to do it
+    async fn pre_process_genesis_for_db(
+        db: &DB,
+        provider: &Provider,
+        router_query: &RouterQuery,
+    ) -> Result<()> {
+        let genesis_block_hash = router_query.genesis_block_hash().await?;
+
+        if db.block_computed(genesis_block_hash) {
+            return Ok(());
+        }
+
+        let genesis_block = provider
+            .get_block_by_hash(genesis_block_hash.0.into(), Default::default())
+            .await?
+            .ok_or_else(|| {
+                anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
+            })?;
+
+        let genesis_header = BlockHeader {
+            height: genesis_block.header.number as u32,
+            timestamp: genesis_block.header.timestamp,
+            parent_hash: H256(genesis_block.header.parent_hash.0),
+        };
+
+        db.set_block_header(genesis_block_hash, genesis_header.clone());
+        db.set_block_events(genesis_block_hash, &[]);
+
+        db.set_latest_synced_block_height(genesis_header.height);
+        db.set_block_is_synced(genesis_block_hash);
+
+        db.set_block_commitment_queue(genesis_block_hash, Default::default());
+        db.set_previous_not_empty_block(genesis_block_hash, H256::zero());
+        db.set_block_program_states(genesis_block_hash, Default::default());
+        db.set_block_schedule(genesis_block_hash, Default::default());
+        db.set_block_outcome(genesis_block_hash, Default::default());
+
+        db.set_latest_valid_block(genesis_block_hash, genesis_header);
+
+        db.set_block_computed(genesis_block_hash);
+
+        Ok(())
+    }
+}
+
+impl<DB: ObserverDB> ObserverService<DB> {
     pub fn provider(&self) -> &Provider {
         &self.provider
     }
@@ -263,55 +311,6 @@ impl ObserverService {
                 tx_hash,
                 Some(3),
             )));
-    }
-
-    // TODO (gsobol): this is a temporary solution.
-    // Choose a better place for this, out of ObserverService.
-    /// If genesis block is not yet fully setup in the database, we need to do it
-    async fn pre_process_genesis_for_db<DB>(
-        db: &DB,
-        provider: &Provider,
-        router_query: &RouterQuery,
-    ) -> Result<()>
-    where
-        DB: OnChainStorage + BlockMetaStorage,
-    {
-        let genesis_block_hash = router_query.genesis_block_hash().await?;
-
-        if BlockMetaStorage::block_end_state_is_valid(db, genesis_block_hash).unwrap_or(false) {
-            return Ok(());
-        }
-
-        let genesis_block = provider
-            .get_block_by_hash(genesis_block_hash.0.into(), Default::default())
-            .await?
-            .ok_or_else(|| {
-                anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
-            })?;
-
-        let genesis_header = BlockHeader {
-            height: genesis_block.header.number as u32,
-            timestamp: genesis_block.header.timestamp,
-            parent_hash: H256(genesis_block.header.parent_hash.0),
-        };
-
-        OnChainStorage::set_block_header(db, genesis_block_hash, &genesis_header);
-        OnChainStorage::set_block_events(db, genesis_block_hash, &[]);
-
-        db.set_latest_synced_block_height(genesis_header.height);
-        db.set_block_is_synced(genesis_block_hash);
-
-        db.set_block_commitment_queue(genesis_block_hash, Default::default());
-        db.set_previous_committed_block(genesis_block_hash, H256::zero());
-        db.set_block_is_empty(genesis_block_hash, true);
-        db.set_block_end_program_states(genesis_block_hash, Default::default());
-        db.set_block_end_schedule(genesis_block_hash, Default::default());
-
-        db.set_latest_valid_block(genesis_block_hash, genesis_header);
-
-        db.set_block_end_state_is_valid(genesis_block_hash, true);
-
-        Ok(())
     }
 }
 

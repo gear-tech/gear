@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::errors;
-use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
+use ethexe_db::{BlockHeader, BlockMetaStorage, Database, OnChainStorage};
 use gprimitives::H256;
 use jsonrpsee::core::RpcResult;
 

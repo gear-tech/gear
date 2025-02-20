@@ -18,7 +18,7 @@
 
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     gear::{BlockCommitment, CodeCommitment},
 };
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
@@ -29,8 +29,12 @@ use ethexe_signer::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-pub struct Validator {
-    db: Box<dyn BlockMetaStorage>,
+pub trait ValidatorDB: BlockMetaStorage + OnChainStorage + CodesStorage {}
+
+impl<T: BlockMetaStorage + OnChainStorage + CodesStorage> ValidatorDB for T {}
+
+pub struct Validator<DB: ValidatorDB> {
+    db: DB,
     pub_key: PublicKey,
     pub_key_session: PublicKey,
     signer: Signer,
@@ -92,8 +96,8 @@ impl ToDigest for BlockCommitmentValidationRequest {
     }
 }
 
-impl Validator {
-    pub fn new(config: &Config, db: Box<dyn BlockMetaStorage>, signer: Signer) -> Self {
+impl<DB: ValidatorDB> Validator<DB> {
+    pub fn new(config: &Config, db: DB, signer: Signer) -> Self {
         Self {
             db,
             signer,
@@ -132,7 +136,7 @@ impl Validator {
         for block in commitments_queue {
             // If there are not computed blocks in the queue, then we should skip aggregation this time.
             // This can happen when validator syncs from p2p network and skips some old blocks.
-            if !self.db.block_end_state_is_valid(block).unwrap_or(false) {
+            if !self.db.block_computed(block) {
                 log::warn!(
                     "Block {block} is not computed by some reasons, so skip the aggregation"
                 );
@@ -145,7 +149,7 @@ impl Validator {
                 .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block}"))?;
 
             let previous_committed_block =
-                self.db.previous_committed_block(block).ok_or_else(|| {
+                self.db.previous_not_empty_block(block).ok_or_else(|| {
                     anyhow!(
                         "Cannot get from db previous committed block for computed block {block}"
                     )
@@ -183,7 +187,6 @@ impl Validator {
 
     pub fn validate_batch_commitment(
         &mut self,
-        db: &(impl CodesStorage + BlockMetaStorage),
         codes_requests: impl IntoIterator<Item = CodeCommitment>,
         blocks_requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
     ) -> Result<(Digest, Signature)> {
@@ -192,7 +195,7 @@ impl Validator {
         for code_request in codes_requests {
             log::debug!("Receive code commitment for validation: {code_request:?}");
             code_commitment_digests.push(code_request.to_digest());
-            Self::validate_code_commitment(db, code_request)?;
+            Self::validate_code_commitment(&self.db, code_request)?;
         }
 
         let code_commitments_digest: Digest = code_commitment_digests.iter().collect();
@@ -202,7 +205,7 @@ impl Validator {
         for block_request in blocks_requests.into_iter() {
             log::debug!("Receive block commitment for validation: {block_request:?}");
             block_commitment_digests.push(block_request.to_digest());
-            Self::validate_block_commitment(db, block_request)?;
+            Self::validate_block_commitment(&self.db, block_request)?;
         }
 
         let block_commitments_digest: Digest = block_commitment_digests.iter().collect();
@@ -220,31 +223,40 @@ impl Validator {
         .map(|signature| (batch_commitment_digest, signature))
     }
 
-    fn validate_code_commitment(db: &impl CodesStorage, request: CodeCommitment) -> Result<()> {
+    fn validate_code_commitment<DB1: OnChainStorage + CodesStorage>(
+        db: &DB1,
+        request: CodeCommitment,
+    ) -> Result<()> {
         let CodeCommitment {
-            id: code_id,
-            timestamp: expected_timestamp,
+            id,
+            timestamp,
             valid,
         } = request;
-        if !(db
-            .code_info(code_id)
-            .ok_or_else(|| anyhow!("Code {code_id} is not in storage"))?
-            .timestamp
-            .eq(&expected_timestamp)
-            && db
-                .code_valid(code_id)
-                .ok_or_else(|| anyhow!("Code {code_id} is not validated by this node"))?
-                .eq(&valid))
-        {
+
+        let local_timestamp = db
+            .code_blob_info(id)
+            .ok_or_else(|| anyhow!("Code {id} blob info is not in storage"))?
+            .timestamp;
+
+        if local_timestamp != timestamp {
+            return Err(anyhow!("Requested and local code timestamps mismatch"));
+        }
+
+        let local_valid = db
+            .code_valid(id)
+            .ok_or_else(|| anyhow!("Code {id} is not validated by this node"))?;
+
+        if local_valid != valid {
             return Err(anyhow!(
                 "Requested and local code validation results mismatch"
             ));
         }
+
         Ok(())
     }
 
-    fn validate_block_commitment(
-        db: &impl BlockMetaStorage,
+    fn validate_block_commitment<DB1: BlockMetaStorage + OnChainStorage>(
+        db: &DB1,
         request: BlockCommitmentValidationRequest,
     ) -> Result<()> {
         let BlockCommitmentValidationRequest {
@@ -255,7 +267,7 @@ impl Validator {
             transitions_digest,
         } = request;
 
-        if !db.block_end_state_is_valid(block_hash).unwrap_or(false) {
+        if !db.block_computed(block_hash) {
             return Err(anyhow!(
                 "Requested block {block_hash} is not processed by this node"
             ));
@@ -277,8 +289,8 @@ impl Validator {
             return Err(anyhow!("Requested and local transitions digest mismatch"));
         }
 
-        if db.previous_committed_block(block_hash).ok_or_else(|| {
-            anyhow!("Cannot get from db previous commitment for block {block_hash}")
+        if db.previous_not_empty_block(block_hash).ok_or_else(|| {
+            anyhow!("Cannot get from db previous not empty for block {block_hash}")
         })? != allowed_previous_committed_block
         {
             return Err(anyhow!(
@@ -297,7 +309,7 @@ impl Validator {
 
     /// Verify whether `pred_hash` is a predecessor of `block_hash` in the chain.
     fn verify_is_predecessor(
-        db: &impl BlockMetaStorage,
+        db: &impl OnChainStorage,
         block_hash: H256,
         pred_hash: H256,
         max_distance: Option<u32>,
@@ -343,7 +355,7 @@ impl Validator {
 mod tests {
     use super::*;
     use ethexe_common::gear::StateTransition;
-    use ethexe_db::{BlockHeader, CodeInfo};
+    use ethexe_db::{BlockHeader, CodeInfo, Database};
     use gprimitives::CodeId;
 
     #[test]
@@ -373,11 +385,11 @@ mod tests {
 
     #[test]
     fn test_validate_code_commitments() {
-        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
+        let db = Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
 
         let code_id = CodeId::from(H256::random());
 
-        Validator::validate_code_commitment(
+        Validator::<Database>::validate_code_commitment(
             &db,
             CodeCommitment {
                 id: code_id,
@@ -388,7 +400,7 @@ mod tests {
         .expect_err("Code is not in db");
 
         db.set_code_valid(code_id, true);
-        db.set_code_info(
+        db.set_code_blob_info(
             code_id,
             CodeInfo {
                 timestamp: 42,
@@ -396,7 +408,7 @@ mod tests {
             },
         );
 
-        Validator::validate_code_commitment(
+        Validator::<Database>::validate_code_commitment(
             &db,
             CodeCommitment {
                 id: code_id,
@@ -406,7 +418,7 @@ mod tests {
         )
         .expect_err("Code validation result mismatch");
 
-        Validator::validate_code_commitment(
+        Validator::<Database>::validate_code_commitment(
             &db,
             CodeCommitment {
                 id: code_id,
@@ -419,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_validate_block_commitment() {
-        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
+        let db = Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
 
         let block_hash = H256::random();
         let block_timestamp = rand::random::<u32>() as u64;
@@ -428,9 +440,9 @@ mod tests {
         let transitions = vec![];
         let transitions_digest = transitions.to_digest();
 
-        db.set_block_end_state_is_valid(block_hash, true);
+        db.set_block_computed(block_hash);
         db.set_block_outcome(block_hash, transitions);
-        db.set_previous_committed_block(block_hash, previous_committed_block);
+        db.set_previous_not_empty_block(block_hash, previous_committed_block);
         db.set_block_header(
             block_hash,
             BlockHeader {
@@ -440,7 +452,7 @@ mod tests {
             },
         );
 
-        Validator::validate_block_commitment(
+        Validator::<Database>::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -452,7 +464,7 @@ mod tests {
         )
         .unwrap();
 
-        Validator::validate_block_commitment(
+        Validator::<Database>::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -464,7 +476,7 @@ mod tests {
         )
         .expect_err("Timestamps mismatch");
 
-        Validator::validate_block_commitment(
+        Validator::<Database>::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -476,7 +488,7 @@ mod tests {
         )
         .expect_err("Unknown pred block is provided");
 
-        Validator::validate_block_commitment(
+        Validator::<Database>::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -488,7 +500,7 @@ mod tests {
         )
         .expect_err("Unknown prev commitment is provided");
 
-        Validator::validate_block_commitment(
+        Validator::<Database>::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -500,7 +512,7 @@ mod tests {
         )
         .expect_err("Transitions digest mismatch");
 
-        Validator::validate_block_commitment(
+        Validator::<Database>::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash: H256::random(),
@@ -515,7 +527,7 @@ mod tests {
 
     #[test]
     fn test_verify_is_predecessor() {
-        let db = ethexe_db::Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
+        let db = Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
 
         let blocks = [H256::random(), H256::random(), H256::random()];
         db.set_block_header(
@@ -543,13 +555,13 @@ mod tests {
             },
         );
 
-        Validator::verify_is_predecessor(&db, blocks[1], H256::random(), None)
+        Validator::<Database>::verify_is_predecessor(&db, blocks[1], H256::random(), None)
             .expect_err("Unknown pred block is provided");
 
-        Validator::verify_is_predecessor(&db, H256::random(), blocks[0], None)
+        Validator::<Database>::verify_is_predecessor(&db, H256::random(), blocks[0], None)
             .expect_err("Unknown block is provided");
 
-        Validator::verify_is_predecessor(&db, blocks[2], blocks[0], Some(1))
+        Validator::<Database>::verify_is_predecessor(&db, blocks[2], blocks[0], Some(1))
             .expect_err("Distance is too large");
 
         // Another chain block
@@ -562,12 +574,22 @@ mod tests {
                 parent_hash: blocks[0],
             },
         );
-        Validator::verify_is_predecessor(&db, blocks[2], block3, None)
+        Validator::<Database>::verify_is_predecessor(&db, blocks[2], block3, None)
             .expect_err("Block is from other chain with incorrect height");
 
-        assert!(Validator::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap());
-        assert!(Validator::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2)).unwrap());
-        assert!(!Validator::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1)).unwrap());
-        assert!(Validator::verify_is_predecessor(&db, blocks[1], blocks[1], None).unwrap());
+        assert!(
+            Validator::<Database>::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap()
+        );
+        assert!(
+            Validator::<Database>::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2))
+                .unwrap()
+        );
+        assert!(
+            !Validator::<Database>::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1))
+                .unwrap()
+        );
+        assert!(
+            Validator::<Database>::verify_is_predecessor(&db, blocks[1], blocks[1], None).unwrap()
+        );
     }
 }

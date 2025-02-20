@@ -173,7 +173,7 @@ impl ChainHeadProcessContext {
 
         let parent = header.parent_hash;
 
-        if !self.db.block_end_state_is_valid(parent).unwrap_or(false) {
+        if !self.db.block_computed(parent) {
             unreachable!("Parent block {parent} must be computed before the current one {block}",);
         }
 
@@ -200,8 +200,6 @@ impl ChainHeadProcessContext {
             })
             .collect();
 
-        self.db.set_block_is_empty(block, outcomes.is_empty());
-
         if !outcomes.is_empty() {
             commitments_queue.push_back(block);
         }
@@ -212,7 +210,7 @@ impl ChainHeadProcessContext {
         // TODO (gsobol): move set_program_states here from processor
 
         // Set block as valid - means state db has all states for the end of the block
-        self.db.set_block_end_state_is_valid(block, true);
+        self.db.set_block_computed(block);
 
         self.db.set_latest_valid_block(block, header);
 
@@ -225,29 +223,17 @@ impl ChainHeadProcessContext {
         parent: H256,
         events: impl Iterator<Item = &'a BlockEvent>,
     ) -> Result<VecDeque<H256>> {
-        // Propagate program state hashes
-        let state_hashes = db
-            .block_end_program_states(parent)
-            .ok_or_else(|| anyhow!("program states not found for computed block {parent}"))?;
-        db.set_block_start_program_states(block, state_hashes);
-
-        // Propagate scheduled tasks
-        let schedule = db
-            .block_end_schedule(parent)
-            .ok_or_else(|| anyhow!("scheduled tasks not found for computed block {parent}"))?;
-        db.set_block_start_schedule(block, schedule);
-
         // Propagate prev commitment (prev not empty block hash or zero for genesis).
         if db
-            .block_is_empty(parent)
+            .block_outcome_is_empty(parent)
             .ok_or_else(|| anyhow!("emptiness not found for computed block {parent}"))?
         {
             let parent_prev_commitment = db
-                .previous_committed_block(parent)
+                .previous_not_empty_block(parent)
                 .ok_or_else(|| anyhow!("prev commitment not found for computed block {parent}"))?;
-            db.set_previous_committed_block(block, parent_prev_commitment);
+            db.set_previous_not_empty_block(block, parent_prev_commitment);
         } else {
-            db.set_previous_committed_block(block, parent);
+            db.set_previous_not_empty_block(block, parent);
         }
 
         // Propagate `wait for commitment` blocks queue
@@ -272,7 +258,7 @@ impl ChainHeadProcessContext {
     ) -> Result<Vec<SimpleBlockData>> {
         let mut block = head;
         let mut chain = vec![];
-        while !db.block_end_state_is_valid(block).unwrap_or(false) {
+        while !db.block_computed(block) {
             if !db.block_is_synced(block) {
                 return Err(anyhow!("Block {block} is not synced, but must be"));
             }

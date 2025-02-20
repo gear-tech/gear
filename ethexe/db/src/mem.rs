@@ -32,13 +32,13 @@ impl CASDatabase for MemDb {
         Box::new(self.clone())
     }
 
-    fn read(&self, hash: &H256) -> Option<Vec<u8>> {
+    fn read(&self, hash: H256) -> Option<Vec<u8>> {
         let key = hash.as_bytes().to_vec();
         self.inner.get(&key).map(|v| v.value().clone())
     }
 
-    fn write_by_hash(&self, hash: &H256, data: &[u8]) {
-        debug_assert_eq!(*hash, crate::hash(data));
+    fn write_by_hash(&self, hash: H256, data: &[u8]) {
+        debug_assert_eq!(hash, crate::hash(data));
         let key = hash.as_bytes().to_vec();
         self.inner.insert(key, data.to_vec());
     }
