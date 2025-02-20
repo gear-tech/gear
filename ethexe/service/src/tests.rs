@@ -470,7 +470,7 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(block_data.header.parent_hash)
+        .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
 
     assert_eq!(schedule, expected_schedule);
@@ -546,7 +546,7 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(block_data.header.parent_hash)
+        .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
     assert!(schedule.is_empty(), "{:?}", schedule);
 }
@@ -1289,7 +1289,7 @@ mod utils {
                 block_time: config.block_time,
             };
             let mut observer =
-                ObserverService::new(&eth_cfg, u32::MAX, &db, Some(blob_reader.clone()))
+                ObserverService::new(&eth_cfg, u32::MAX, db.clone(), Some(blob_reader.clone()))
                     .await
                     .unwrap();
 
@@ -1845,7 +1845,7 @@ mod utils {
                             pub_key_session,
                             router_address: self.eth_cfg.router_address,
                         },
-                        Box::new(self.db.clone()),
+                        self.db.clone(),
                         self.signer.clone(),
                     )
                 });
@@ -1854,7 +1854,7 @@ mod utils {
             let observer = ObserverService::new(
                 &self.eth_cfg,
                 u32::MAX,
-                &self.db,
+                self.db.clone(),
                 Some(self.blob_reader.clone()),
             )
             .await
