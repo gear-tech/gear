@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! Module that describes various code errors.
 
-pub use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationError};
+pub use gear_wasm_instrument::{InstrumentationError, ModuleError};
 pub use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
@@ -114,19 +114,6 @@ pub enum DataSectionError {
     },
 }
 
-/// Table section error in WASM module.
-#[derive(Debug, derive_more::Display)]
-pub enum TableSectionError {
-    /// Number of table exceeds the limit.
-    #[display(fmt = "Number of table limit exceeded: limit={limit}, actual={actual}")]
-    TableNumberLimit {
-        /// Limit on the number of tables.
-        limit: u32,
-        /// Actual number of tables.
-        actual: u32,
-    },
-}
-
 /// Export error in WASM module.
 #[derive(Debug, derive_more::Display)]
 pub enum ExportError {
@@ -175,26 +162,15 @@ pub enum ImportError {
     },
 }
 
-/// Module encode/decode error.
-#[derive(Debug, derive_more::Display)]
-pub enum CodecError {
-    /// The wasm bytecode is failed to be decoded
-    #[display(fmt = "The wasm bytecode is failed to be decoded: {_0}")]
-    Decode(SerializationError),
-    /// Failed to encode instrumented program
-    #[display(fmt = "Failed to encode instrumented program: {_0}")]
-    Encode(SerializationError),
-}
-
 /// Describes why the code is not valid Gear program.
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum CodeError {
     /// Validation by wasmparser failed.
-    #[display(fmt = "Wasmer validation error: {_0}")]
+    #[display(fmt = "wasmparser validation error: {_0}")]
     Validation(BinaryReaderError),
     /// Module encode/decode error.
     #[display(fmt = "Codec error: {_0}")]
-    Codec(CodecError),
+    Module(ModuleError),
     /// The provided code contains section error.
     #[display(fmt = "Section error: {_0}")]
     Section(SectionError),
@@ -207,9 +183,6 @@ pub enum CodeError {
     /// The provided code contains data section error.
     #[display(fmt = "Data section error: {_0}")]
     DataSection(DataSectionError),
-    /// The provided code contains table section error.
-    #[display(fmt = "Table section error: {_0}")]
-    TableSection(TableSectionError),
     /// The provided code contains export error.
     #[display(fmt = "Export error: {_0}")]
     Export(ExportError),
@@ -220,3 +193,5 @@ pub enum CodeError {
     #[display(fmt = "Instrumentation error: {_0}")]
     Instrumentation(InstrumentationError),
 }
+
+impl core::error::Error for CodeError {}

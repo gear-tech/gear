@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -25,7 +25,6 @@ use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use std::collections::{BTreeMap, BTreeSet};
 use utils::*;
-use wabt::wat2wasm;
 
 fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
     let chain_head = H256::random();
@@ -625,7 +624,7 @@ mod utils {
     }
 
     pub fn wat_to_wasm(wat: &str) -> (CodeId, Vec<u8>) {
-        let code = wat2wasm(wat).expect("failed to parse wat to bin");
+        let code = wat::parse_str(wat).expect("failed to parse wat to bin");
         let code_id = CodeId::generate(&code);
 
         (code_id, code)

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -20,9 +20,8 @@ use alloc::vec::Vec;
 use gear_core::message::ReplyCode;
 use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Event {
     ExecutableBalanceTopUpRequested {
         value: u128,
@@ -65,7 +64,7 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn as_request(self) -> Option<RequestEvent> {
+    pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
             Self::ExecutableBalanceTopUpRequested { value } => {
                 RequestEvent::ExecutableBalanceTopUpRequested { value }
@@ -103,7 +102,8 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
+#[derive(Clone, Debug, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
     ExecutableBalanceTopUpRequested {
         value: u128,
