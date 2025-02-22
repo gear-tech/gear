@@ -18,7 +18,3 @@ log.workspace = true
 env_logger.workspace = true
 gear-wasm-builder.workspace = true
 parity-wasm.workspace = true
-
-[features]
-default = ["wasm-opt"]
-wasm-opt = [ "gear-wasm-builder/wasm-opt" ]

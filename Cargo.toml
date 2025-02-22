@@ -541,7 +541,6 @@ tracing = "0.1.40"                                           # utils/node-loader
 tracing-appender = "0.2"                                     # utils/node-loader
 tracing-subscriber = "0.3.18"                                # utils/node-loader
 trybuild = "1"                                               # gstd/codegen
-wasm-opt = "0.116"                                           # utils/wasm-builder
 wasmprinter = "0.2"                                          # utils/wasm-gen
 whoami = "1.5.1"                                             # gcli
 fail = "0.5"                                                 # gear-common

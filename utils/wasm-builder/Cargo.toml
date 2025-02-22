@@ -36,4 +36,3 @@ parity-wasm.workspace = true
 
 [features]
 metawasm = ["gmeta/codegen"]
-wasm-opt = ["gear-wasm-optimizer/wasm-opt"]
