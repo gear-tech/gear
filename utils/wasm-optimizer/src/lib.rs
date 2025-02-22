@@ -18,7 +18,6 @@
 
 mod cargo_command;
 mod cargo_toolchain;
-mod data_section;
 mod optimize;
 mod stack_end;
 

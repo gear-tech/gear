@@ -42,7 +42,9 @@ impl DataAccess {
             2 => ARRAY_2[self.value_index],
             3 => ARRAY_3[self.value_index],
             4 => ARRAY_4[self.value_index],
-            5 => ARRAY_1[self.value_index],
+            5 => ARRAY_5[self.value_index],
+            6 => ARRAY_6[self.value_index],
+            7 => ARRAY_7[self.value_index],
             _ => CONSTANT,
         }
     }
