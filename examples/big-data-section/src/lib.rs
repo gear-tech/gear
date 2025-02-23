@@ -53,10 +53,7 @@ mod tests {
             let sys = System::new();
             sys.init_logger();
 
-            let prog = Program::from_file(
-                &sys,
-                "../../target/wasm32-unknown-unknown/debug/demo_big_data_section.opt.wasm",
-            );
+            let prog = Program::current_opt(&sys);
             sys.mint_to(gtest::constants::DEFAULT_USER_ALICE, 100000000000);
 
             let expected_value = DataAccess::from_payload(&payload).expect("").constant();

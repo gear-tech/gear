@@ -3366,7 +3366,7 @@ dependencies = [
 
 [[package]]
 name = "demo-big-data-section"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
@@ -6694,7 +6694,6 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "regex",
- "wasm-opt",
  "wasmer",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
