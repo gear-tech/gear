@@ -44,7 +44,7 @@ use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::{
     frost::{
         keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
-        Group, Identifier, Secp256K1Group, SigningPackage,
+        Identifier, SigningPackage,
     },
     SessionStatus,
 };
@@ -180,20 +180,11 @@ impl Service {
             .validators_verifiable_secret_sharing_commitment()
             .await
             .with_context(|| "failed to query validators verifiable secret sharing commitment")?;
-
-        // TODO: make PR to ZcashFoundation (https://github.com/ZcashFoundation/frost/issues/870)
-        let generator = Secp256K1Group::generator();
-        let serialization =
-            Secp256K1Group::serialize(&generator).expect("serializing the generator always works");
-        let serialization_len = serialization.as_ref().len();
-
-        let chunks_exact =
-            validators_verifiable_secret_sharing_commitment.chunks_exact(serialization_len);
-        let serialized_coefficient_commitments: Vec<_> = chunks_exact.map(Vec::from).collect();
-
         let verifiable_secret_sharing_commitment =
-            VerifiableSecretSharingCommitment::deserialize(serialized_coefficient_commitments)
-                .with_context(|| "failed to decode VerifiableSecretSharingCommitment")?;
+            VerifiableSecretSharingCommitment::deserialize_whole(
+                &validators_verifiable_secret_sharing_commitment,
+            )
+            .with_context(|| "failed to decode VerifiableSecretSharingCommitment")?;
 
         let public_key_package =
             PublicKeyPackage::from_commitment(&identifiers, &verifiable_secret_sharing_commitment)
