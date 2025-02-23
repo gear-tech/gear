@@ -62,7 +62,7 @@ pub enum Event {
 /// ethexe service.
 pub struct Service {
     db: Database,
-    observer: ObserverService<Database>,
+    observer: ObserverService,
     router_query: RouterQuery,
     compute: ComputeService,
     signer: Signer,
@@ -267,7 +267,7 @@ impl Service {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         db: Database,
-        observer: ObserverService<Database>,
+        observer: ObserverService,
         router_query: RouterQuery,
         processor: Processor,
         signer: Signer,

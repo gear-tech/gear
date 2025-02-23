@@ -26,7 +26,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Context as _, Result};
 use ethexe_common::{db::OnChainStorage, SimpleBlockData};
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage};
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_signer::Address;
 use futures::{
@@ -82,9 +82,9 @@ pub trait ObserverDB: OnChainStorage + CodesStorage + Unpin + Clone + 'static {}
 impl<T: OnChainStorage + CodesStorage + Unpin + Clone + 'static> ObserverDB for T {}
 
 // TODO (gsobol): make tests for observer service
-pub struct ObserverService<DB: ObserverDB> {
+pub struct ObserverService {
     provider: Provider,
-    database: DB,
+    database: Database,
     // TODO (gsobol): consider to make clone boxed for BlobRead, in order to avoid Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
     subscription: Subscription<Header>,
@@ -103,7 +103,7 @@ pub struct ObserverService<DB: ObserverDB> {
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
 
-impl<DB: ObserverDB> Stream for ObserverService<DB> {
+impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -177,17 +177,17 @@ impl<DB: ObserverDB> Stream for ObserverService<DB> {
     }
 }
 
-impl<DB: ObserverDB> FusedStream for ObserverService<DB> {
+impl FusedStream for ObserverService {
     fn is_terminated(&self) -> bool {
         false
     }
 }
 
-impl<DB: ObserverDB + BlockMetaStorage> ObserverService<DB> {
+impl ObserverService {
     pub async fn new(
         eth_cfg: &EthereumConfig,
         max_sync_depth: u32,
-        db: DB,
+        db: Database,
         // TODO (gsobol): blobs reader should be provided by the caller always.
         blobs_reader: Option<Arc<dyn BlobReader>>,
     ) -> Result<Self> {
@@ -247,7 +247,7 @@ impl<DB: ObserverDB + BlockMetaStorage> ObserverService<DB> {
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
     async fn pre_process_genesis_for_db(
-        db: &DB,
+        db: &Database,
         provider: &Provider,
         router_query: &RouterQuery,
     ) -> Result<()> {
@@ -288,9 +288,7 @@ impl<DB: ObserverDB + BlockMetaStorage> ObserverService<DB> {
 
         Ok(())
     }
-}
 
-impl<DB: ObserverDB> ObserverService<DB> {
     pub fn provider(&self) -> &Provider {
         &self.provider
     }
