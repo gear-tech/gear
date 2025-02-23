@@ -72,7 +72,7 @@ pub struct Service {
     // TODO: consider network to be always enabled
     network: Option<NetworkService>,
     sequencer: Option<SequencerService>,
-    validator: Option<Validator<Database>>,
+    validator: Option<Validator>,
     prometheus: Option<PrometheusService>,
     rpc: Option<RpcService>,
 
@@ -274,7 +274,7 @@ impl Service {
         tx_pool: TxPoolService,
         network: Option<NetworkService>,
         sequencer: Option<SequencerService>,
-        validator: Option<Validator<Database>>,
+        validator: Option<Validator>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
         sender: Option<Sender<Event>>,

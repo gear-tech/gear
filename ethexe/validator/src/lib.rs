@@ -21,6 +21,7 @@ use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     gear::{BlockCommitment, CodeCommitment},
 };
+use ethexe_db::Database;
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
 use ethexe_signer::{
     sha3::{self, Digest as _},
@@ -29,12 +30,8 @@ use ethexe_signer::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-pub trait ValidatorDB: BlockMetaStorage + OnChainStorage + CodesStorage {}
-
-impl<T: BlockMetaStorage + OnChainStorage + CodesStorage> ValidatorDB for T {}
-
-pub struct Validator<DB: ValidatorDB> {
-    db: DB,
+pub struct Validator {
+    db: Database,
     pub_key: PublicKey,
     pub_key_session: PublicKey,
     signer: Signer,
@@ -96,8 +93,8 @@ impl ToDigest for BlockCommitmentValidationRequest {
     }
 }
 
-impl<DB: ValidatorDB> Validator<DB> {
-    pub fn new(config: &Config, db: DB, signer: Signer) -> Self {
+impl Validator {
+    pub fn new(config: &Config, db: Database, signer: Signer) -> Self {
         Self {
             db,
             signer,
@@ -389,7 +386,7 @@ mod tests {
 
         let code_id = CodeId::from(H256::random());
 
-        Validator::<Database>::validate_code_commitment(
+        Validator::validate_code_commitment(
             &db,
             CodeCommitment {
                 id: code_id,
@@ -408,7 +405,7 @@ mod tests {
             },
         );
 
-        Validator::<Database>::validate_code_commitment(
+        Validator::validate_code_commitment(
             &db,
             CodeCommitment {
                 id: code_id,
@@ -418,7 +415,7 @@ mod tests {
         )
         .expect_err("Code validation result mismatch");
 
-        Validator::<Database>::validate_code_commitment(
+        Validator::validate_code_commitment(
             &db,
             CodeCommitment {
                 id: code_id,
@@ -452,7 +449,7 @@ mod tests {
             },
         );
 
-        Validator::<Database>::validate_block_commitment(
+        Validator::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -464,7 +461,7 @@ mod tests {
         )
         .unwrap();
 
-        Validator::<Database>::validate_block_commitment(
+        Validator::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -476,7 +473,7 @@ mod tests {
         )
         .expect_err("Timestamps mismatch");
 
-        Validator::<Database>::validate_block_commitment(
+        Validator::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -488,7 +485,7 @@ mod tests {
         )
         .expect_err("Unknown pred block is provided");
 
-        Validator::<Database>::validate_block_commitment(
+        Validator::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -500,7 +497,7 @@ mod tests {
         )
         .expect_err("Unknown prev commitment is provided");
 
-        Validator::<Database>::validate_block_commitment(
+        Validator::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash,
@@ -512,7 +509,7 @@ mod tests {
         )
         .expect_err("Transitions digest mismatch");
 
-        Validator::<Database>::validate_block_commitment(
+        Validator::validate_block_commitment(
             &db,
             BlockCommitmentValidationRequest {
                 block_hash: H256::random(),
@@ -555,13 +552,13 @@ mod tests {
             },
         );
 
-        Validator::<Database>::verify_is_predecessor(&db, blocks[1], H256::random(), None)
+        Validator::verify_is_predecessor(&db, blocks[1], H256::random(), None)
             .expect_err("Unknown pred block is provided");
 
-        Validator::<Database>::verify_is_predecessor(&db, H256::random(), blocks[0], None)
+        Validator::verify_is_predecessor(&db, H256::random(), blocks[0], None)
             .expect_err("Unknown block is provided");
 
-        Validator::<Database>::verify_is_predecessor(&db, blocks[2], blocks[0], Some(1))
+        Validator::verify_is_predecessor(&db, blocks[2], blocks[0], Some(1))
             .expect_err("Distance is too large");
 
         // Another chain block
@@ -574,22 +571,22 @@ mod tests {
                 parent_hash: blocks[0],
             },
         );
-        Validator::<Database>::verify_is_predecessor(&db, blocks[2], block3, None)
+        Validator::verify_is_predecessor(&db, blocks[2], block3, None)
             .expect_err("Block is from other chain with incorrect height");
 
         assert!(
-            Validator::<Database>::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap()
+            Validator::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap()
         );
         assert!(
-            Validator::<Database>::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2))
+            Validator::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2))
                 .unwrap()
         );
         assert!(
-            !Validator::<Database>::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1))
+            !Validator::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1))
                 .unwrap()
         );
         assert!(
-            Validator::<Database>::verify_is_predecessor(&db, blocks[1], blocks[1], None).unwrap()
+            Validator::verify_is_predecessor(&db, blocks[1], blocks[1], None).unwrap()
         );
     }
 }
