@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,16 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::Database;
 use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
+use ethexe_common::gear::Origin;
+use ethexe_runtime_common::unpack_i64_to_u32;
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
-use std::{mem, sync::Arc};
-
-use crate::Database;
+use std::sync::Arc;
 
 pub mod api;
 pub mod runtime;
@@ -130,7 +131,7 @@ impl InstanceWrapper {
         original_code_id: CodeId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
-    ) -> Result<Vec<JournalNote>> {
+    ) -> Result<(Vec<JournalNote>, Option<Origin>)> {
         let chain_head = self.chain_head.expect("chain head must be set before run");
         threads::set(db, chain_head, state_hash);
 
@@ -142,7 +143,7 @@ impl InstanceWrapper {
         );
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
-        let ptr_lens: Vec<i64> = self.call("run", arg.encode())?;
+        let (ptr_lens, origin): (Vec<i64>, Option<Origin>) = self.call("run", arg.encode())?;
 
         let mut journal = Vec::new();
 
@@ -151,7 +152,7 @@ impl InstanceWrapper {
             journal.extend(journal_chunk);
         }
 
-        Ok(journal)
+        Ok((journal, origin))
     }
 
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {
@@ -200,7 +201,7 @@ impl InstanceWrapper {
     }
 
     fn get_call_output<D: Decode>(&mut self, ptr_len: i64) -> Result<D> {
-        let [ptr, len]: [i32; 2] = unsafe { mem::transmute(ptr_len) };
+        let (ptr, len) = unpack_i64_to_u32(ptr_len);
 
         // TODO: check range.
         let memory = self.memory()?;

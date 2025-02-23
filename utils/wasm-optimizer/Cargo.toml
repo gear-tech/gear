@@ -14,9 +14,8 @@ rust-version.workspace = true
 [dependencies]
 anyhow = { workspace = true, features = ["std"] }
 gear-wasm-instrument.workspace = true
-pwasm-utils = { workspace = true, features = ["sign_ext"] }
+wasm-opt = { workspace = true, optional = true }
 regex.workspace = true
-rustc_version.workspace = true
 log.workspace = true
 wasmparser.workspace = true
 which.workspace = true
@@ -24,4 +23,4 @@ colored.workspace = true
 
 [dev-dependencies]
 wasmer.workspace = true
-wabt.workspace = true
+wat.workspace = true

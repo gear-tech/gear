@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,8 +18,8 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use gtest::{constants::DEFAULT_USER_ALICE, state_args, Program, System};
-use std::{fs, path::PathBuf, process::Command};
+use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
+use std::{path::PathBuf, process::Command};
 
 fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     // Get program from artifact
@@ -61,14 +61,8 @@ fn test_compile() -> Result<()> {
     gbuild = gbuild.workspace();
     let artifacts = gbuild.build()?;
     ping(&system, artifacts.root.join("gbuild_test_foo.wasm"));
-    let prog = ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
+    ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
 
-    // 3. Test meta build.
-    let metawasm = fs::read(artifacts.root.join("gbuild_test_meta.meta.wasm"))?;
-    let modified: bool = prog
-        .read_state_using_wasm(Vec::<u8>::default(), "modified", metawasm, state_args!())
-        .expect("Failed to read program state");
-    assert!(modified);
     Ok(())
 }
 
@@ -84,16 +78,14 @@ fn test_program_tests() {
             .expect("Failed to list rust toolchains")
             .stdout;
 
-        if !String::from_utf8_lossy(&targets).contains("wasm32-unknown-unknown (installed)") {
+        if !String::from_utf8_lossy(&targets).contains("wasm32v1-none (installed)") {
             assert!(Command::new("rustup")
                 .args([
                     "toolchain",
                     "install",
                     "stable",
-                    "--component",
-                    "llvm-tools",
                     "--target",
-                    "wasm32-unknown-unknown",
+                    "wasm32v1-none",
                 ])
                 .status()
                 .expect("Failed to install stable toolchain")

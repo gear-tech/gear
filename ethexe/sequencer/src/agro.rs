@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use anyhow::{anyhow, Result};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::Deref};
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedCommitments<D: ToDigest> {
@@ -66,7 +66,6 @@ impl<T: ToDigest> AggregatedCommitments<T> {
 pub(crate) struct MultisignedCommitmentDigests {
     digest: Digest,
     digests: IndexSet<Digest>,
-    signatures: BTreeMap<Address, Signature>,
 }
 
 impl MultisignedCommitmentDigests {
@@ -78,8 +77,38 @@ impl MultisignedCommitmentDigests {
         Ok(Self {
             digest: digests.iter().collect(),
             digests,
-            signatures: BTreeMap::new(),
         })
+    }
+
+    pub fn digest(&self) -> Digest {
+        self.digest
+    }
+
+    pub fn digests(&self) -> &IndexSet<Digest> {
+        &self.digests
+    }
+
+    pub fn into_digests(self) -> IndexSet<Digest> {
+        self.digests
+    }
+}
+
+#[derive(Default, Clone)]
+pub(crate) struct Signatures {
+    signatures: BTreeMap<Address, Signature>,
+}
+
+impl Deref for Signatures {
+    type Target = BTreeMap<Address, Signature>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.signatures
+    }
+}
+
+impl Signatures {
+    pub fn into_inner(self) -> BTreeMap<Address, Signature> {
+        self.signatures
     }
 
     pub fn append_signature_with_check(
@@ -89,55 +118,12 @@ impl MultisignedCommitmentDigests {
         router_address: Address,
         check_origin: impl FnOnce(Address) -> Result<()>,
     ) -> Result<()> {
-        if self.digest != digest {
-            return Err(anyhow!("Aggregated commitments digest mismatch"));
-        }
-
         let origin = recover_from_commitments_digest(digest, &signature, router_address)?;
         check_origin(origin)?;
 
         self.signatures.insert(origin, signature);
 
         Ok(())
-    }
-
-    pub fn digests(&self) -> &IndexSet<Digest> {
-        &self.digests
-    }
-
-    pub fn signatures(&self) -> &BTreeMap<Address, Signature> {
-        &self.signatures
-    }
-}
-
-pub(crate) struct MultisignedCommitments<C: ToDigest> {
-    commitments: Vec<C>,
-    signatures: BTreeMap<Address, Signature>,
-}
-
-impl<C: ToDigest> MultisignedCommitments<C> {
-    pub fn from_multisigned_digests(
-        multisigned: MultisignedCommitmentDigests,
-        get_commitment: impl FnMut(Digest) -> C,
-    ) -> Self {
-        let MultisignedCommitmentDigests {
-            digests,
-            signatures,
-            ..
-        } = multisigned;
-
-        Self {
-            commitments: digests.into_iter().map(get_commitment).collect(),
-            signatures,
-        }
-    }
-
-    pub fn commitments(&self) -> &[C] {
-        &self.commitments
-    }
-
-    pub fn into_parts(self) -> (Vec<C>, BTreeMap<Address, Signature>) {
-        (self.commitments, self.signatures)
     }
 }
 
@@ -249,19 +235,19 @@ mod tests {
         let commitments = [MyComm([1, 2]), MyComm([3, 4])];
         let digests: IndexSet<_> = commitments.map(|c| c.to_digest()).into_iter().collect();
 
-        let mut multisigned = MultisignedCommitmentDigests::new(digests.clone()).unwrap();
+        let multisigned = MultisignedCommitmentDigests::new(digests.clone()).unwrap();
         assert_eq!(multisigned.digests(), &digests);
-        assert_eq!(multisigned.signatures().len(), 0);
 
         let commitments_digest = commitments.to_digest();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
 
-        multisigned
+        let mut signatures = Signatures::default();
+        signatures
             .append_signature_with_check(commitments_digest, signature, router_address, |_| Ok(()))
             .unwrap();
         assert_eq!(multisigned.digests(), &digests);
-        assert_eq!(multisigned.signatures().len(), 1);
+        assert_eq!(signatures.len(), 1);
     }
 
     #[test]
@@ -273,35 +259,38 @@ mod tests {
 
         let router_address = Address([1; 20]);
         let commitments = [MyComm([1, 2]), MyComm([3, 4])];
-        let digests = commitments.map(|c| c.to_digest());
-        let mut commitments_map: BTreeMap<_, _> = commitments
-            .into_iter()
-            .map(|c| (c.to_digest(), c))
-            .collect();
+        //let digests = commitments.map(|c| c.to_digest());
+        /*let commitments_map: BTreeMap<_, _> = commitments
+        .into_iter()
+        .map(|c| (c.to_digest(), c))
+        .collect();*/
 
-        let mut multisigned =
-            MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
+        //let multisigned = MultisignedCommitmentDigests::new(digests.into_iter().collect()).unwrap();
         let commitments_digest = commitments.to_digest();
         let signature =
             sign_commitments_digest(commitments_digest, &signer, pub_key, router_address).unwrap();
 
-        multisigned
+        let mut signatures = Signatures::default();
+        signatures
             .append_signature_with_check(commitments_digest, signature, router_address, |_| Ok(()))
             .unwrap();
 
-        let multisigned_commitments =
-            MultisignedCommitments::from_multisigned_digests(multisigned, |d| {
-                commitments_map.remove(&d).unwrap()
-            });
+        // let multisigned_commitments =
+        //     MultisignedCommitments::from_multisigned_digests(multisigned, |digest| {
+        //         commitments_map.remove(&digest).unwrap()
+        //     });
 
-        assert_eq!(multisigned_commitments.commitments(), commitments);
+        // assert_eq!(multisigned_commitments.commitments(), commitments);
 
-        let parts = multisigned_commitments.into_parts();
-        assert_eq!(parts.0.as_slice(), commitments.as_slice());
+        // let parts = multisigned_commitments.into_parts();
+        /*assert_eq!(
+            multisigned_commitments.into_commitments().as_slice(),
+            commitments.as_slice()
+        );
         assert_eq!(parts.1.len(), 1);
         parts.1.into_iter().for_each(|(k, v)| {
             assert_eq!(k, pub_key.to_address());
             assert_eq!(v, signature);
-        });
+        });*/
     }
 }

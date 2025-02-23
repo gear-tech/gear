@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -22,10 +22,12 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase,
 };
+use anyhow::{bail, Result};
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage, Schedule},
+    db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Schedule},
     events::BlockRequestEvent,
     gear::StateTransition,
+    tx_pool::{OffchainTransaction, SignedOffchainTransaction},
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -58,6 +60,7 @@ enum KeyPrefix {
     CodeValid = 10,
     BlockStartSchedule = 11,
     BlockEndSchedule = 12,
+    SignedTransaction = 13,
 }
 
 impl KeyPrefix {
@@ -340,7 +343,7 @@ impl CodesStorage for Database {
 
         self.kv
             .iter_prefix(&key_prefix)
-            .map(|#[allow(unused_variables)] (key, code_id)| {
+            .map(|(key, code_id)| {
                 let (split_key_prefix, program_id) = key.split_at(key_prefix.len());
                 debug_assert_eq!(split_key_prefix, key_prefix);
                 let program_id =
@@ -378,17 +381,17 @@ impl CodesStorage for Database {
         );
     }
 
-    fn code_blob_tx(&self, code_id: CodeId) -> Option<H256> {
+    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo> {
         self.kv
             .get(&KeyPrefix::CodeUpload.one(code_id))
             .map(|data| {
-                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
+                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `CodeInfo`")
             })
     }
 
-    fn set_code_blob_tx(&self, code_id: CodeId, blob_tx_hash: H256) {
+    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo) {
         self.kv
-            .put(&KeyPrefix::CodeUpload.one(code_id), blob_tx_hash.encode());
+            .put(&KeyPrefix::CodeUpload.one(code_id), code_info.encode());
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
@@ -442,6 +445,60 @@ impl Database {
     // TODO: temporary solution for MVP runtime-interfaces db access.
     pub fn write(&self, data: &[u8]) -> H256 {
         self.cas.write(data)
+    }
+
+    pub fn get_offchain_transaction(&self, tx_hash: H256) -> Option<SignedOffchainTransaction> {
+        self.kv
+            .get(&KeyPrefix::SignedTransaction.one(tx_hash))
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("failed to data into `SignedTransaction`")
+            })
+    }
+
+    pub fn set_offchain_transaction(&self, tx: SignedOffchainTransaction) {
+        let tx_hash = tx.tx_hash();
+        self.kv
+            .put(&KeyPrefix::SignedTransaction.one(tx_hash), tx.encode());
+    }
+
+    pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> Result<bool> {
+        let Some((latest_valid_block_hash, latest_valid_block_header)) = self.latest_valid_block()
+        else {
+            bail!("No latest valid block found");
+        };
+        let Some(reference_block_header) = self.block_header(reference_block_hash) else {
+            bail!("No reference block found");
+        };
+
+        // If reference block is far away from the latest valid block, it's not in the window.
+        let Some(actual_window) = latest_valid_block_header
+            .height
+            .checked_sub(reference_block_header.height)
+        else {
+            bail!("Can't calculate actual window: reference block hash doesn't suit actual blocks state");
+        };
+
+        if actual_window > OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
+            return Ok(false);
+        }
+
+        // Check against reorgs.
+        let mut block_hash = latest_valid_block_hash;
+        for _ in 0..OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
+            if block_hash == reference_block_hash {
+                return Ok(true);
+            }
+
+            let Some(block_header) = self.block_header(block_hash) else {
+                bail!(
+                    "Block with {block_hash} hash not found in the window. Possibly reorg happened"
+                );
+            };
+            block_hash = block_header.parent_hash;
+        }
+
+        Ok(false)
     }
 
     fn block_small_meta(&self, block_hash: H256) -> Option<BlockSmallMetaInfo> {

@@ -13,17 +13,21 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-gwasm-instrument = { workspace = true, features = ["sign_ext"] }
 derive_more.workspace = true
 enum-iterator.workspace = true
+wasmparser.workspace = true
+wasm-encoder.workspace = true
+indexmap.workspace = true
+log.workspace = true
 
 [dev-dependencies]
-wasmparser.workspace = true
 wat.workspace = true
+wasmprinter.workspace = true
+wasm-smith.workspace = true
+arbitrary.workspace = true
+proptest.workspace = true
+diff = "0.1.13"
 
 [features]
 default = ["std"]
-std = [
-    "gwasm-instrument/std",
-    "wasmparser/std",
-]
+std = ["wasmparser/std", "wasm-encoder/std", "indexmap/std"]

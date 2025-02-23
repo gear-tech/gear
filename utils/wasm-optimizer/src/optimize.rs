@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,14 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(not(feature = "wasm-opt"))]
+use colored::Colorize;
+#[cfg(not(feature = "wasm-opt"))]
+use std::process::Command;
+
+#[cfg(feature = "wasm-opt")]
+use wasm_opt::{OptimizationOptions, Pass};
+
 use crate::stack_end;
 use anyhow::{anyhow, Context, Result};
-use colored::Colorize;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use pwasm_utils::{
-    parity_wasm,
-    parity_wasm::elements::{Internal, Module, Section, Serialize},
-};
+use gear_wasm_instrument::{Module, STACK_END_EXPORT_NAME};
 use std::{
     fs::{self, metadata},
     path::{Path, PathBuf},
@@ -42,31 +45,16 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
     STACK_END_EXPORT_NAME,
 ];
 
-/// Type of the output wasm.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OptType {
-    Meta,
-    Opt,
-}
-
-impl OptType {
-    /// If the optimization type if meta
-    pub fn is_meta(&self) -> bool {
-        self.eq(&OptType::Meta)
-    }
-}
-
 pub struct Optimizer {
     module: Module,
-    file: PathBuf,
 }
 
 impl Optimizer {
-    pub fn new(file: PathBuf) -> Result<Self> {
-        let contents = fs::read(&file).context("Failed to read file by optimizer")?;
-        let module = parity_wasm::deserialize_buffer(&contents)
-            .with_context(|| format!("File path: {file:?}"))?;
-        Ok(Self { module, file })
+    pub fn new(file: &PathBuf) -> Result<Self> {
+        let contents = fs::read(file)
+            .with_context(|| format!("Failed to read file by optimizer: {file:?}"))?;
+        let module = Module::new(&contents).with_context(|| format!("File path: {file:?}"))?;
+        Ok(Self { module })
     }
 
     pub fn insert_start_call_in_export_funcs(&mut self) -> Result<(), &'static str> {
@@ -86,51 +74,29 @@ impl Optimizer {
     /// Presently all custom sections are not required so they can be stripped
     /// safely. The name section is already stripped by `wasm-opt`.
     pub fn strip_custom_sections(&mut self) {
+        // we also should strip `reloc` section
+        // if it will be present in the module in the future
+        self.module.custom_section = None;
+        self.module.name_section = None;
+    }
+
+    /// Keeps only allowlisted exports.
+    pub fn strip_exports(&mut self) {
+        if let Some(export_section) = self.module.export_section.as_mut() {
+            let exports = OPTIMIZED_EXPORTS.map(str::to_string).to_vec();
+
+            export_section.retain(|export| exports.contains(&export.name.to_string()));
+        }
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>> {
         self.module
-            .sections_mut()
-            .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
+            .serialize()
+            .context("Failed to serialize module")
     }
 
     pub fn flush_to_file(self, path: &PathBuf) {
-        fs::write(path, self.module.into_bytes().unwrap()).unwrap();
-    }
-
-    /// Process optimization.
-    pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
-        let mut module = self.module.clone();
-
-        let exports = if ty == OptType::Opt {
-            OPTIMIZED_EXPORTS.to_vec()
-        } else {
-            self.module
-                .export_section()
-                .ok_or_else(|| anyhow!("Export section not found"))?
-                .entries()
-                .iter()
-                .flat_map(|entry| {
-                    if let Internal::Function(_) = entry.internal() {
-                        let entry = entry.field();
-                        (!OPTIMIZED_EXPORTS.contains(&entry)).then_some(entry)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        };
-
-        pwasm_utils::optimize(&mut module, exports)
-            .map_err(|e| anyhow!("{e:?}"))
-            .with_context(|| {
-                format!(
-                    "unable to optimize the WASM file `{0}`",
-                    self.file.display()
-                )
-            })?;
-
-        let mut code = vec![];
-        module.serialize(&mut code)?;
-
-        Ok(code)
+        fs::write(path, self.module.serialize().unwrap()).unwrap();
     }
 }
 
@@ -221,8 +187,7 @@ pub fn do_optimization<P: AsRef<Path>>(
         .arg(dest_optimized.as_ref())
         .arg("-mvp")
         .arg("--enable-sign-ext")
-        .arg("--limit-segments")
-        .arg("--pass-arg=limit-segments@1024")
+        .arg("--enable-mutable-globals")
         // the memory in our module is imported, `wasm-opt` needs to be told that
         // the memory is initialized to zeroes, otherwise it won't run the
         // memory-packing pre-pass.
@@ -244,5 +209,49 @@ pub fn do_optimization<P: AsRef<Path>>(
             The error which wasm-opt returned was: \n{err}"
         );
     }
+    Ok(())
+}
+
+#[cfg(feature = "wasm-opt")]
+/// Optimizes the Wasm supplied as `crate_metadata.dest_wasm` using
+/// `wasm-opt`.
+///
+/// The supplied `optimization_level` denotes the number of optimization passes,
+/// resulting in potentially a lot of time spent optimizing.
+///
+/// If successful, the optimized Wasm is written to `dest_optimized`.
+pub fn do_optimization<P: AsRef<Path>>(
+    dest_wasm: P,
+    dest_optimized: P,
+    optimization_level: &str,
+    keep_debug_symbols: bool,
+) -> Result<()> {
+    log::info!(
+        "Optimization level passed to wasm-opt: {}",
+        optimization_level
+    );
+    match optimization_level {
+        "0" => OptimizationOptions::new_opt_level_0(),
+        "1" => OptimizationOptions::new_opt_level_1(),
+        "2" => OptimizationOptions::new_opt_level_2(),
+        "3" => OptimizationOptions::new_opt_level_3(),
+        "4" => OptimizationOptions::new_opt_level_4(),
+        "s" => OptimizationOptions::new_optimize_for_size(),
+        "z" => OptimizationOptions::new_optimize_for_size_aggressively(),
+        _ => panic!("Invalid optimization level {}", optimization_level),
+    }
+    .mvp_features_only()
+    .enable_feature(wasm_opt::Feature::SignExt)
+    .enable_feature(wasm_opt::Feature::MutableGlobals)
+    .shrink_level(wasm_opt::ShrinkLevel::Level2)
+    .add_pass(Pass::Dae)
+    .add_pass(Pass::Vacuum)
+    // the memory in our module is imported, `wasm-opt` needs to be told that
+    // the memory is initialized to zeroes, otherwise it won't run the
+    // memory-packing pre-pass.
+    .zero_filled_memory(true)
+    .debug_info(keep_debug_symbols)
+    .run(dest_wasm, dest_optimized)?;
+
     Ok(())
 }

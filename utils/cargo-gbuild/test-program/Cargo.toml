@@ -18,8 +18,7 @@ default = []
 std = []
 
 [workspace]
-members = [ "foo", "bar" , "meta"]
+members = ["foo", "bar"]
 
 [workspace.metadata.gbuild]
-programs = [ "foo", "bar" ]
-metas = ["meta"]
+programs = ["foo", "bar"]

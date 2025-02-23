@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2024 Gear Technologies Inc.
+// Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,10 +24,8 @@ pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
 
 use crate::wasm_project::WasmProject;
 use anyhow::Result;
-use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
 use std::{env, path::PathBuf, process};
-use wasm_project::ProjectType;
 
 mod builder_error;
 pub mod code_validator;
@@ -48,17 +46,7 @@ pub struct WasmBuilder {
 impl WasmBuilder {
     /// Create a new `WasmBuilder`.
     pub fn new() -> Self {
-        WasmBuilder::create(WasmProject::new(ProjectType::Program(None)))
-    }
-
-    /// Create a new `WasmBuilder` for metawasm.
-    pub fn new_metawasm() -> Self {
-        WasmBuilder::create(WasmProject::new(ProjectType::Metawasm))
-    }
-
-    /// Create a new `WasmBuilder` with metadata.
-    pub fn with_meta(metadata: MetadataRepr) -> Self {
-        WasmBuilder::create(WasmProject::new(ProjectType::Program(Some(metadata))))
+        WasmBuilder::create(WasmProject::new())
     }
 
     fn create(wasm_project: WasmProject) -> Self {
@@ -232,46 +220,8 @@ pub fn build() -> Option<(PathBuf, PathBuf)> {
 /// Shorthand function to be used in `build.rs`.
 ///
 /// See [WasmBuilder::build()].
-pub fn build_with_metadata<T: Metadata>() -> Option<(PathBuf, PathBuf)> {
-    WasmBuilder::with_meta(T::repr())
-        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
-        .build()
-}
-
-/// Shorthand function to be used in `build.rs`.
-///
-/// See [WasmBuilder::build()].
-pub fn build_metawasm() -> Option<(PathBuf, PathBuf)> {
-    WasmBuilder::new_metawasm()
-        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
-        .build()
-}
-
-/// Shorthand function to be used in `build.rs`.
-///
-/// See [WasmBuilder::build()].
 pub fn recommended_nightly() -> Option<(PathBuf, PathBuf)> {
     WasmBuilder::new()
-        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
-        .with_recommended_toolchain()
-        .build()
-}
-
-/// Shorthand function to be used in `build.rs`.
-///
-/// See [WasmBuilder::build()].
-pub fn recommended_nightly_with_metadata<T: Metadata>() -> Option<(PathBuf, PathBuf)> {
-    WasmBuilder::with_meta(T::repr())
-        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
-        .with_recommended_toolchain()
-        .build()
-}
-
-/// Shorthand function to be used in `build.rs`.
-///
-/// See [WasmBuilder::build()].
-pub fn recommended_nightly_metawasm() -> Option<(PathBuf, PathBuf)> {
-    WasmBuilder::new_metawasm()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .with_recommended_toolchain()
         .build()

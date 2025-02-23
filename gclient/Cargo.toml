@@ -25,7 +25,6 @@ parity-scale-codec.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 url.workspace = true
-wabt.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
@@ -39,15 +38,13 @@ demo-calc-hash-in-one-block.workspace = true
 demo-custom.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-distributor.workspace = true
-demo-meta-io.workspace = true
-demo-new-meta.workspace = true
+demo-fungible-token.workspace = true
 demo-mul-by-const.workspace = true
 demo-node.workspace = true
 demo-program-factory.workspace = true
 demo-proxy = { workspace = true, features = ["std"] }
 demo-proxy-relay.workspace = true
 demo-reserve-gas = { workspace = true, features = ["std"] }
-gmeta = { workspace = true }
 gstd = { workspace = true, features = ["debug"] }
 demo-wat.workspace = true
 demo-bls381 = { workspace = true, features = ["std"] }

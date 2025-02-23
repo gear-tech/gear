@@ -28,6 +28,6 @@ format() {
 }
 
 doc_format() {
-  cargo fmt -p gstd -p gcore -p gclient -p gmeta -p gtest \
+  cargo fmt -p gstd -p gcore -p gclient -p gtest \
     -- "$@" --config wrap_comments=true,format_code_in_doc_comments=true
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -61,43 +61,31 @@ mod tests {
     };
     use gear_core::{gas_metering::CustomConstantCostRules, message::DispatchKind};
     use gear_wasm_instrument::{
-        parity_wasm::{self, builder},
-        InstrumentationBuilder, SyscallName,
+        FuncType, Function, Import, InstrumentationBuilder, ModuleBuilder, SyscallName,
     };
 
     /// Check that all syscalls are supported by backend.
     #[test]
     fn test_syscalls_table() {
+        env_logger::builder().is_test(true).init();
+
         // Make module with one empty function.
-        let mut module = builder::module()
-            .function()
-            .signature()
-            .build()
-            .build()
-            .build();
+        let mut module = ModuleBuilder::default();
+        module.add_func(FuncType::new([], []), Function::default());
 
         // Insert syscalls imports.
         for name in SyscallName::instrumentable() {
             let sign = name.signature();
-            let types = module.type_section_mut().unwrap().types_mut();
-            let type_no = types.len() as u32;
-            types.push(parity_wasm::elements::Type::Function(sign.func_type()));
+            let type_no = module.push_type(sign.func_type());
 
-            module = builder::from_module(module)
-                .import()
-                .module("env")
-                .external()
-                .func(type_no)
-                .field(name.to_str())
-                .build()
-                .build();
+            module.push_import(Import::func("env", name.to_str(), type_no));
         }
 
         let module = InstrumentationBuilder::new("env")
             .with_gas_limiter(|_| CustomConstantCostRules::default())
-            .instrument(module)
+            .instrument(module.build())
             .unwrap();
-        let code = module.into_bytes().unwrap();
+        let code = module.serialize().unwrap();
 
         // Execute wasm and check success.
         let ext = MockExt::default();

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -56,7 +56,6 @@ pub enum Command {
     Info(Info),
     New(New),
     Config(Config),
-    #[clap(subcommand)]
     Program(Program),
     Reply(Reply),
     Send(Send),
@@ -97,9 +96,6 @@ impl Command {
         let this = match self {
             Command::Upload(upload) => {
                 Command::Upload(upload.clone_with_code_overridden(artifact.opt))
-            }
-            Command::Program(program) => {
-                Command::Program(program.clone_with_meta_overridden(artifact.meta))
             }
             _ => self.clone(),
         };

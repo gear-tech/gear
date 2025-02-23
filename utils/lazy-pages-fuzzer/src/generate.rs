@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,7 @@ use std::fmt;
 use anyhow::{Context as _, Result};
 use arbitrary::{Arbitrary, Unstructured};
 use gear_wasm_gen::generate_gear_program_module;
-use gear_wasm_instrument::{parity_wasm::elements::Module, InstrumentationBuilder};
+use gear_wasm_instrument::{InstrumentationBuilder, Module};
 
 use crate::{
     config::{DummyCostRules, FuzzerConfigBundle},
@@ -86,13 +86,9 @@ impl GeneratedModule<'_> {
 
 impl fmt::Debug for GeneratedModule<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let module_str = wasmprinter::print_bytes(
-            self.module
-                .clone()
-                .into_bytes()
-                .expect("failed to serialize"),
-        )
-        .expect("failed to print module");
+        let module_str =
+            wasmprinter::print_bytes(self.module.serialize().expect("failed to serialize"))
+                .expect("failed to print module");
 
         write!(f, "{}", module_str)
     }

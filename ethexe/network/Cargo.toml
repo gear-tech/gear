@@ -10,6 +10,7 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ethexe-common.workspace = true
 ethexe-signer.workspace = true
 ethexe-db.workspace = true
 
@@ -35,5 +36,5 @@ features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "reques
 # newer versions are not supported on crates.io
 libp2p-swarm-test = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/v0.54.1-patches", default-features = false, features = ["tokio"] }
 tempfile.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["full", "test-util"] }
 env_logger.workspace = true

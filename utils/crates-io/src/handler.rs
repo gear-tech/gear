@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,6 @@
 use crate::Manifest;
 use anyhow::Result;
 use cargo_metadata::Package;
-use toml_edit::DocumentMut;
 
 /// The working version of sp-wasm-interface.
 pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
@@ -38,8 +37,8 @@ pub fn crates_io_name(pkg: &str) -> &str {
 }
 
 /// Patch specified manifest by provided name.
-pub fn patch(pkg: &Package, is_published: bool) -> Result<Manifest> {
-    let mut manifest = Manifest::new(pkg, is_published)?;
+pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<Manifest> {
+    let mut manifest = Manifest::new(pkg, is_published, is_actualized)?;
     let doc = &mut manifest.mutable_manifest;
 
     match manifest.name.as_str() {
@@ -47,8 +46,6 @@ pub fn patch(pkg: &Package, is_published: bool) -> Result<Manifest> {
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
         "gear-sandbox-interface" => sandbox_interface::patch(doc),
-        "gmeta" => gmeta::patch(doc),
-        "gmeta-codegen" => gmeta_codegen::patch(doc),
         _ => {}
     }
 
@@ -78,16 +75,6 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
     }
 }
 
-// Trim the version of dev dependency.
-//
-// issue: https://github.com/rust-lang/cargo/issues/4242
-fn trim_dev_dep(name: &str, manifest: &mut DocumentMut) {
-    if let Some(dep) = manifest["dev-dependencies"][name].as_table_like_mut() {
-        dep.remove("workspace");
-        dep.insert("version", toml_edit::value("~1"));
-    }
-}
-
 /// gear-core-processor handler.
 mod core_processor {
     use toml_edit::{DocumentMut, InlineTable};
@@ -113,30 +100,6 @@ mod core_processor {
     /// Patch the manifest of core-processor.
     pub fn patch(manifest: &mut DocumentMut) {
         manifest["package"]["name"] = toml_edit::value("core-processor");
-    }
-}
-
-/// gmeta handler
-mod gmeta {
-    use super::trim_dev_dep;
-    use toml_edit::DocumentMut;
-
-    /// Patch the manifest of gmetadata.
-    pub fn patch(manifest: &mut DocumentMut) {
-        trim_dev_dep("gstd", manifest);
-        trim_dev_dep("gear-wasm-builder", manifest);
-    }
-}
-
-/// gmeta handler
-mod gmeta_codegen {
-    use super::trim_dev_dep;
-    use toml_edit::DocumentMut;
-
-    /// Patch the manifest of gmeta.
-    pub fn patch(manifest: &mut DocumentMut) {
-        trim_dev_dep("gstd", manifest);
-        trim_dev_dep("gmeta", manifest);
     }
 }
 
