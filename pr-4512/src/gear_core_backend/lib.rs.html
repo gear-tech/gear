@@ -135,21 +135,21 @@
 <span class="kw">pub mod </span><a href="state.rs.html#19-97">state</a>;
 
 <span class="kw">use </span>gear_core::{
-    env::Externalities,
-    gas::{CountersOwner, GasAmount},
-    memory::MemoryInterval,
+    <a href="../../gear_core/env/trait.Externalities.html">env::Externalities</a>,
+    gas::{<a href="../../gear_core/gas/trait.CountersOwner.html">CountersOwner</a>, <a href="../../gear_core/gas/struct.GasAmount.html">GasAmount</a>},
+    <a href="../../gear_core/memory/struct.MemoryInterval.html">memory::MemoryInterval</a>,
 };
 <span class="kw">use </span>gear_lazy_pages_common::ProcessAccessError;
 
 <span class="doccomment">/// Extended externalities that can manage gas counters.
-</span><span class="kw">pub trait </span><a href="../../gear_core_backend/trait.BackendExternalities.html">BackendExternalities</a>: Externalities + CountersOwner {
-    <span class="kw">fn </span>gas_amount(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GasAmount;
+</span><span class="kw">pub trait </span><a href="../../gear_core_backend/trait.BackendExternalities.html">BackendExternalities</a>: <a href="../../gear_core/env/trait.Externalities.html">Externalities</a> + <a href="../../gear_core/gas/trait.CountersOwner.html">CountersOwner</a> {
+    <span class="kw">fn </span>gas_amount(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="../../gear_core/gas/struct.GasAmount.html">GasAmount</a>;
 
     <span class="doccomment">/// Pre-process memory access if needed.
     </span><span class="kw">fn </span>pre_process_memory_accesses(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        reads: <span class="kw-2">&amp;</span>[MemoryInterval],
-        writes: <span class="kw-2">&amp;</span>[MemoryInterval],
+        reads: <span class="kw-2">&amp;</span>[<a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a>],
+        writes: <span class="kw-2">&amp;</span>[<a href="../../gear_core/memory/struct.MemoryInterval.html">MemoryInterval</a>],
         gas_counter: <span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
     ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), ProcessAccessError&gt;;
 }

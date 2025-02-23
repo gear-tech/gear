@@ -287,10 +287,10 @@
 </span><span class="kw">use </span>actor_system_error::actor_system_error;
 <span class="kw">use </span>codec::{Decode, Encode};
 <span class="kw">use </span>gear_core::{
-    gas::{ChargeError, CounterType},
-    ids::ProgramId,
-    message::MessageWaitedType,
-    str::LimitedStr,
+    gas::{<a href="../../gear_core/gas/enum.ChargeError.html">ChargeError</a>, <a href="../../gear_core/gas/enum.CounterType.html">CounterType</a>},
+    <a href="../../gear_core/ids/type.ProgramId.html">ids::ProgramId</a>,
+    <a href="../../gear_core/message/enum.MessageWaitedType.html">message::MessageWaitedType</a>,
+    <a href="../../gear_core/str/struct.LimitedStr.html">str::LimitedStr</a>,
 };
 <span class="kw">use </span>gear_core_errors::ExtError <span class="kw">as </span>FallibleExtError;
 
@@ -307,7 +307,7 @@
 }
 
 <span class="kw">impl </span><a href="#34-39">UndefinedTerminationReason</a> {
-    <span class="kw">pub fn </span>define(<span class="self">self</span>, current_counter: CounterType) -&gt; <a href="#29-31">TerminationReason</a> {
+    <span class="kw">pub fn </span>define(<span class="self">self</span>, current_counter: <a href="../../gear_core/gas/enum.CounterType.html">CounterType</a>) -&gt; <a href="#29-31">TerminationReason</a> {
         <span class="kw">match </span><span class="self"><a href="#42">self</a> </span>{
             <span class="self">Self</span>::Actor(r) =&gt; <a href="#44">r</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
             <span class="self">Self</span>::System(r) =&gt; <a href="#45">r</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -318,13 +318,13 @@
     }
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;ChargeError&gt; <span class="kw">for </span><a href="#34-39">UndefinedTerminationReason</a> {
-    <span class="kw">fn </span>from(err: ChargeError) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="../../gear_core/gas/enum.ChargeError.html">ChargeError</a>&gt; <span class="kw">for </span><a href="#34-39">UndefinedTerminationReason</a> {
+    <span class="kw">fn </span>from(err: <a href="../../gear_core/gas/enum.ChargeError.html">ChargeError</a>) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span><a href="#54">err</a> {
-            ChargeError::GasLimitExceeded =&gt; {
+            <a href="../../gear_core/gas/enum.ChargeError.html#variant.GasLimitExceeded">ChargeError::GasLimitExceeded</a> =&gt; {
                 <a href="#87">ActorTerminationReason::Trap</a>(<a href="#218">TrapExplanation::GasLimitExceeded</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
             }
-            ChargeError::GasAllowanceExceeded =&gt; {
+            <a href="../../gear_core/gas/enum.ChargeError.html#variant.GasAllowanceExceeded">ChargeError::GasAllowanceExceeded</a> =&gt; {
                 <a href="#85">ActorTerminationReason::GasAllowanceExceeded</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
             }
         }
@@ -346,20 +346,20 @@
 <span class="attr">#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
 #[codec(<span class="kw">crate </span>= codec)]
 </span><span class="kw">pub enum </span><a href="#80-88">ActorTerminationReason</a> {
-    Exit(ProgramId),
+    Exit(<a href="../../gear_core/ids/type.ProgramId.html">ProgramId</a>),
     Leave,
     Success,
-    Wait(<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;, MessageWaitedType),
+    Wait(<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;, <a href="../../gear_core/message/enum.MessageWaitedType.html">MessageWaitedType</a>),
     GasAllowanceExceeded,
     <span class="attr">#[from]
     </span>Trap(<a href="#215-234">TrapExplanation</a>),
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;CounterType&gt; <span class="kw">for </span><a href="#80-88">ActorTerminationReason</a> {
-    <span class="kw">fn </span>from(counter_type: CounterType) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="../../gear_core/gas/enum.CounterType.html">CounterType</a>&gt; <span class="kw">for </span><a href="#80-88">ActorTerminationReason</a> {
+    <span class="kw">fn </span>from(counter_type: <a href="../../gear_core/gas/enum.CounterType.html">CounterType</a>) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span><a href="#91">counter_type</a> {
-            CounterType::GasLimit =&gt; <a href="#87"><span class="self">Self</span>::Trap</a>(<a href="#218">TrapExplanation::GasLimitExceeded</a>),
-            CounterType::GasAllowance =&gt; <span class="self">Self</span>::GasAllowanceExceeded,
+            <a href="../../gear_core/gas/enum.CounterType.html#variant.GasLimit">CounterType::GasLimit</a> =&gt; <a href="#87"><span class="self">Self</span>::Trap</a>(<a href="#218">TrapExplanation::GasLimitExceeded</a>),
+            <a href="../../gear_core/gas/enum.CounterType.html#variant.GasAllowance">CounterType::GasAllowance</a> =&gt; <span class="self">Self</span>::GasAllowanceExceeded,
         }
     }
 }
@@ -494,7 +494,7 @@
     <span class="attr">#[display(fmt = <span class="string">"Syscall unrecoverable error: {_0}"</span>)]
     </span>UnrecoverableExt(<a href="#193-200">UnrecoverableExtError</a>),
     <span class="attr">#[display(fmt = <span class="string">"Panic occurred: {_0}"</span>)]
-    </span>Panic(LimitedStr&lt;<span class="lifetime">'static</span>&gt;),
+    </span>Panic(<a href="../../gear_core/str/struct.LimitedStr.html">LimitedStr</a>&lt;<span class="lifetime">'static</span>&gt;),
     <span class="attr">#[display(fmt = <span class="string">"Stack limit exceeded"</span>)]
     </span>StackLimitExceeded,
     <span class="attr">#[display(fmt = <span class="string">"Reason is unknown. Possibly `unreachable` instruction is occurred"</span>)]
