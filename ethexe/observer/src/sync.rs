@@ -39,11 +39,8 @@ use std::{
     sync::Arc,
 };
 
-pub(crate) trait SyncDB: OnChainStorage + CodesStorage {}
-impl<T: OnChainStorage + CodesStorage> SyncDB for T {}
-
 // TODO (gsobol): make tests for ChainSync
-pub(crate) struct ChainSync<DB: SyncDB> {
+pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
     pub provider: Provider,
     pub database: DB,
     pub blobs_reader: Arc<dyn BlobReader>,
@@ -53,7 +50,7 @@ pub(crate) struct ChainSync<DB: SyncDB> {
     pub batched_sync_depth: u32,
 }
 
-impl<DB: SyncDB> ChainSync<DB> {
+impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
     pub async fn sync(self, chain_head: Header) -> Result<(H256, Vec<(CodeId, CodeInfo)>)> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
@@ -70,7 +67,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         self.load_codes(codes_to_load_now.into_iter()).await?;
 
         // NOTE: reverse order is important here, because by default chain was loaded in order from head to past.
-        self.mark_chain_as_synced(chain.into_iter().rev()).await;
+        self.mark_chain_as_synced(chain.into_iter().rev());
 
         Ok((block, codes_to_load_later))
     }
@@ -201,7 +198,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     async fn load_codes(&self, codes: impl Iterator<Item = CodeId>) -> Result<()> {
         // TODO (gsobol): consider to change this behaviour of loading already validated codes.
-        // Must be done with ObserverService::codes_futures together.
+        // Should be done with ObserverService::codes_futures together.
         // May be we should use futures_bounded::FuturesMap for this.
         let codes_futures = FuturesUnordered::new();
         for code_id in codes {
@@ -236,7 +233,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         Ok(())
     }
 
-    async fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
+    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
         for hash in chain {
             let block_header = self
                 .database
