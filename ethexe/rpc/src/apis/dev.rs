@@ -30,7 +30,7 @@ use sp_core::Bytes;
 #[rpc(server)]
 pub trait Dev {
     #[method(name = "dev_setBlob")]
-    async fn set_blob(&self, blob: Bytes) -> RpcResult<(H256, CodeId)>;
+    async fn set_blob(&self, tx_hash: H256, blob: Bytes) -> RpcResult<CodeId>;
 }
 
 #[derive(Clone)]
@@ -46,12 +46,11 @@ impl DevApi {
 
 #[async_trait]
 impl DevServer for DevApi {
-    async fn set_blob(&self, blob: Bytes) -> RpcResult<(H256, CodeId)> {
+    async fn set_blob(&self, tx_hash: H256, blob: Bytes) -> RpcResult<CodeId> {
         let code_id = CodeId::generate(&blob);
-        let blob_tx = H256::random();
 
-        self.blob_reader.add_blob_transaction(blob_tx, blob.0).await;
+        self.blob_reader.add_blob_transaction(tx_hash, blob.0).await;
 
-        Ok((blob_tx, code_id))
+        Ok(code_id)
     }
 }
