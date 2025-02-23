@@ -169,8 +169,8 @@ impl Service {
             processor.config().virtual_threads
         );
 
-        let signer = Signer::new(config.node.key_path.clone())
-            .with_context(|| "failed to create signer")?;
+        let signer =
+            Signer::new(config.node.key_path.clone()).with_context(|| "failed to create signer")?;
 
         let sequencer = if let Some(key) =
             Self::get_config_public_key(config.node.sequencer, &signer)
@@ -231,9 +231,10 @@ impl Service {
             None
         };
 
-        let rpc = config.rpc.as_ref().map(|config| {
-            RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
-        });
+        let rpc = config
+            .rpc
+            .as_ref()
+            .map(|config| RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone()));
 
         let tx_pool = TxPoolService::new(db.clone());
 
