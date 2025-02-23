@@ -574,19 +574,9 @@ mod tests {
         Validator::verify_is_predecessor(&db, blocks[2], block3, None)
             .expect_err("Block is from other chain with incorrect height");
 
-        assert!(
-            Validator::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap()
-        );
-        assert!(
-            Validator::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2))
-                .unwrap()
-        );
-        assert!(
-            !Validator::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1))
-                .unwrap()
-        );
-        assert!(
-            Validator::verify_is_predecessor(&db, blocks[1], blocks[1], None).unwrap()
-        );
+        assert!(Validator::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap());
+        assert!(Validator::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2)).unwrap());
+        assert!(!Validator::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1)).unwrap());
+        assert!(Validator::verify_is_predecessor(&db, blocks[1], blocks[1], None).unwrap());
     }
 }
