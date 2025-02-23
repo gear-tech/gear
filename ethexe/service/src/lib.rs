@@ -24,7 +24,7 @@ use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{BlobReader, MockBlobReader, ObserverEvent, ObserverService};
+use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
 use ethexe_processor::ProcessorConfig;
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::RpcEvent;
@@ -111,8 +111,7 @@ impl Service {
             .with_context(|| "failed to open database")?;
         let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
 
-        let blob_reader: Option<Arc<dyn BlobReader>> =
-            mock_blob_reader.clone().map(|r| r as Arc<dyn BlobReader>);
+        let blob_reader = mock_blob_reader.clone().map(|r| r as _);
 
         let observer = ObserverService::new(
             &config.ethereum,
