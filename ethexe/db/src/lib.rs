@@ -41,18 +41,18 @@ pub trait CASDatabase: Send + Sync {
     fn clone_boxed(&self) -> Box<dyn CASDatabase>;
 
     /// Read data by hash.
-    fn read(&self, hash: &H256) -> Option<Vec<u8>>;
+    fn read(&self, hash: H256) -> Option<Vec<u8>>;
 
     /// Write data, returns data hash.
     fn write(&self, data: &[u8]) -> H256 {
         let hash = hash(data);
-        self.write_by_hash(&hash, data);
+        self.write_by_hash(hash, data);
         hash
     }
 
     /// Write data when hash is known.
     /// Note: should have debug check for hash match.
-    fn write_by_hash(&self, hash: &H256, data: &[u8]);
+    fn write_by_hash(&self, hash: H256, data: &[u8]);
 }
 
 /// Key-value database.
@@ -98,7 +98,7 @@ mod tests {
     pub fn cas_read_write<DB: CASDatabase>(db: DB) {
         let data = b"Hello, world!";
         let hash = db.write(data);
-        assert_eq!(db.read(&hash), Some(data.to_vec()));
+        assert_eq!(db.read(hash), Some(data.to_vec()));
     }
 
     pub fn kv_read_write<DB: KVDatabase>(db: DB) {
@@ -159,7 +159,7 @@ mod tests {
 
         for x in 0u32..amount * 2 {
             let expected = to_big_vec(x);
-            let data = db.read(&crate::hash(expected.as_slice()));
+            let data = db.read(crate::hash(expected.as_slice()));
             assert_eq!(data, Some(expected));
         }
     }

@@ -20,7 +20,7 @@
 
 use crate::Database;
 use core::fmt;
-use ethexe_db::BlockMetaStorage;
+use ethexe_db::OnChainStorage;
 use ethexe_runtime_common::{
     state::{
         ActiveProgram, HashOf, MemoryPages, MemoryPagesRegionInner, Program, ProgramState,
