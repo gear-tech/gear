@@ -115,7 +115,7 @@ impl Service {
             &config.ethereum,
             config.node.eth_max_sync_depth,
             db.clone(),
-            blob_reader,
+            mock_blob_reader.clone().map(|r| r as _),
         )
         .await
         .context("failed to create observer service")?;

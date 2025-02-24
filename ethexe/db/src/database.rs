@@ -160,6 +160,7 @@ impl Database {
             .put(&KeyPrefix::SignedTransaction.one(tx_hash), tx.encode());
     }
 
+    // TODO (gsobol): test this method
     pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> Result<bool> {
         let Some((latest_valid_block_hash, latest_valid_block_header)) = self.latest_valid_block()
         else {
@@ -232,7 +233,7 @@ impl Database {
 }
 
 #[cfg_attr(test, derive(serde::Serialize))]
-#[derive(Debug, Clone, Default, Encode, Decode)]
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 struct BlockSmallData {
     block_header: Option<BlockHeader>,
     block_synced: bool,
@@ -614,16 +615,257 @@ impl OnChainStorage for Database {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::MemDb;
+    use ethexe_common::{events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage};
+    use gear_core::code::InstantiatedSectionSizes;
 
-//     #[test]
-//     fn test_database() {
-//         let db = crate::MemDb::default();
-//         let database = crate::Database::from_one(&db, Default::default());
+    #[test]
+    fn test_offchain_transaction() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
 
-//         let block_hash = H256::zero();
-//         let map: BTreeMap<ActorId, H256> = [(ActorId::zero(), H256::zero())].into();
-//     }
-// }
+        let tx = SignedOffchainTransaction {
+            signature: Default::default(),
+            transaction: OffchainTransaction {
+                raw: SendMessage {
+                    program_id: H256::random().into(),
+                    payload: H256::random().as_bytes().to_vec(),
+                },
+                reference_block: H256::random(),
+            },
+        };
+        let tx_hash = tx.tx_hash();
+        db.set_offchain_transaction(tx.clone());
+        assert_eq!(db.get_offchain_transaction(tx_hash), Some(tx));
+    }
+
+    #[test]
+    fn test_check_within_recent_blocks() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let block_hash = H256::random();
+        let block_header = BlockHeader::default();
+        db.set_block_header(block_hash, block_header.clone());
+        db.set_latest_valid_block(block_hash, block_header);
+
+        assert!(db.check_within_recent_blocks(block_hash).unwrap());
+    }
+
+    #[test]
+    fn test_block_small_data() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let block_hash = H256::random();
+        let block_small_data = BlockSmallData::default();
+        db.set_block_small_data(block_hash, block_small_data.clone());
+        assert_eq!(db.block_small_data(block_hash), Some(block_small_data));
+    }
+
+    #[test]
+    fn test_block_program_states() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let block_hash = H256::random();
+        let program_states = BTreeMap::new();
+        db.set_block_program_states(block_hash, program_states.clone());
+        assert_eq!(db.block_program_states(block_hash), Some(program_states));
+    }
+
+    #[test]
+    fn test_block_outcome() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let block_hash = H256::random();
+        let block_outcome = vec![StateTransition::default()];
+        db.set_block_outcome(block_hash, block_outcome.clone());
+        assert_eq!(db.block_outcome(block_hash), Some(block_outcome));
+    }
+
+    #[test]
+    fn test_block_schedule() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let block_hash = H256::random();
+        let schedule = Schedule::default();
+        db.set_block_schedule(block_hash, schedule.clone());
+        assert_eq!(db.block_schedule(block_hash), Some(schedule));
+    }
+
+    #[test]
+    fn test_latest_valid_block() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let block_hash = H256::random();
+        let block_header = BlockHeader::default();
+        db.set_latest_valid_block(block_hash, block_header.clone());
+        assert_eq!(db.latest_valid_block(), Some((block_hash, block_header)));
+    }
+
+    #[test]
+    fn test_block_events() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let block_hash = H256::random();
+        let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged)];
+        db.set_block_events(block_hash, &events);
+        assert_eq!(db.block_events(block_hash), Some(events));
+    }
+
+    #[test]
+    fn test_code_blob_info() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let code_id = CodeId::default();
+        let code_info = CodeInfo::default();
+        db.set_code_blob_info(code_id, code_info.clone());
+        assert_eq!(db.code_blob_info(code_id), Some(code_info));
+    }
+
+    #[test]
+    fn test_block_is_synced() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let block_hash = H256::random();
+        db.set_block_is_synced(block_hash);
+        assert!(db.block_is_synced(block_hash));
+    }
+
+    #[test]
+    fn test_latest_synced_block_height() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let height = 42;
+        db.set_latest_synced_block_height(height);
+        assert_eq!(db.latest_synced_block_height(), Some(height));
+    }
+
+    #[test]
+    fn test_original_code() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let code = vec![1, 2, 3];
+        let code_id = db.set_original_code(&code);
+        assert_eq!(db.original_code(code_id), Some(code));
+    }
+
+    #[test]
+    fn test_program_code_id() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let program_id = ProgramId::default();
+        let code_id = CodeId::default();
+        db.set_program_code_id(program_id, code_id);
+        assert_eq!(db.program_code_id(program_id), Some(code_id));
+    }
+
+    #[test]
+    fn test_instrumented_code() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let runtime_id = 1;
+        let code_id = CodeId::default();
+        let instrumented_code = unsafe {
+            InstrumentedCode::new_unchecked(
+                vec![1, 2, 3, 4],
+                2,
+                Default::default(),
+                0.into(),
+                None,
+                InstantiatedSectionSizes::EMPTY,
+                1,
+            )
+        };
+        db.set_instrumented_code(runtime_id, code_id, instrumented_code.clone());
+        assert_eq!(
+            db.instrumented_code(runtime_id, code_id)
+                .as_ref()
+                .map(|c| c.code()),
+            Some(instrumented_code.code())
+        );
+    }
+
+    #[test]
+    fn test_code_valid() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let code_id = CodeId::default();
+        db.set_code_valid(code_id, true);
+        assert_eq!(db.code_valid(code_id), Some(true));
+    }
+
+    #[test]
+    fn test_block_header() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let block_hash = H256::random();
+        let block_header = BlockHeader::default();
+        db.set_block_header(block_hash, block_header.clone());
+        assert_eq!(db.block_header(block_hash), Some(block_header));
+    }
+}

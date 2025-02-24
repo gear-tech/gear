@@ -26,7 +26,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Context as _, Result};
 use ethexe_common::{db::OnChainStorage, SimpleBlockData};
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Database};
+use ethexe_db::{BlockHeader, CodeInfo, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_signer::Address;
 use futures::{
@@ -77,9 +77,6 @@ pub enum ObserverEvent {
     Block(SimpleBlockData),
     BlockSynced(H256),
 }
-
-pub trait ObserverDB: OnChainStorage + CodesStorage + Unpin + Clone + 'static {}
-impl<T: OnChainStorage + CodesStorage + Unpin + Clone + 'static> ObserverDB for T {}
 
 // TODO (gsobol): make tests for observer service
 pub struct ObserverService {
@@ -251,6 +248,8 @@ impl ObserverService {
         provider: &Provider,
         router_query: &RouterQuery,
     ) -> Result<()> {
+        use ethexe_common::db::BlockMetaStorage;
+
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         if db.block_computed(genesis_block_hash) {
