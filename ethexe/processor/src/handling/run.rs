@@ -16,6 +16,87 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Bucketed parallel program execution
+//!
+//! ## Overview
+//!
+//! This approach speeds up the processing of multiple programs in parallel.
+//! The main idea is to split programs into buckets based on their queue sizes or, in the future, another computation weight metric.
+//!
+//! Bucket processing helps reduce waiting time, as it minimizes the delay caused by the slowest message among all concurrently executed messages.
+//! This works because, in sorted buckets, the computation time for each bucket element (queue messages) should be approximately equal.
+//!
+//! The second part of the approach is executing an entire program queue in one go within a single runtime instance.
+//! This reduces overhead by minimizing calls within the WASM runtime.
+//!
+//! Due to this approach, we must handle journals deterministically in two stages:
+//! - The first stage occurs in the runtime, where memory allocations, pages, and related resources are managed.
+//! - The second stage is the native part, where the remaining journal entries are processed.
+//!
+//! ---
+//!
+//! ## How It Works:
+//!
+//! For example, we have program states with the following queue sizes,
+//! where the "iter" column represents a computation step, and the "program" columns represent the queue sizes of each program:
+//!
+//! | iter | program 1 | program 2 | program 3 | ... | program N |
+//! |-----:|----------:|----------:|----------:|----:|----------:|
+//! |    0 |        10 |         1 |         5 | ... |         7 |
+//! |    1 |         3 |         0 |         0 | ... |         0 |
+//! |    2 |         3 |         1 |         1 | ... |         0 |
+//! |    3 |         0 |         0 |         0 | ... |         0 |
+//!
+//! Before executing the programs, we need to split them into buckets.
+//! The maximum bucket size is equal to the number of virtual threads.
+//! The number of buckets is calculated as the total number of programs divided by the maximum bucket size.
+//!
+//! For example, given M buckets (virtual threads) and N program states, a sorted bucket structure will look like this:
+//!
+//! | bucket 0 | bucket 1 | bucket 2 | bucket 3 | ... | bucket M |
+//! |---------:|---------:|---------:|---------:|----:|---------:|
+//! |        9 |        7 |        4 |        3 | ... |        1 |
+//! |        7 |        7 |        3 |        3 | ... |        1 |
+//! |        8 |        6 |        4 |        3 | ... |        1 |
+//! |       10 |        5 |        4 |        3 | ... |        1 |
+//!
+//! As you can see, the bucket contents are not strictly sorted, but this is not an issue.
+//! We only need buckets with approximately equal queue sizes to ensure efficient parallel execution.
+//! The entire queue is processed in a single runtime instance in one go, so prioritizing larger queues improves efficiency.
+//!
+//! Once all program queues have been processed, we deterministically merge journals and handle them.
+//! After that, we repeat the process until no more messages remain
+//! or we run out of processing time/gas allowance (to be implemented).
+//!
+//! **High-level overview of the algorithm:**
+//!
+//!   1. Split programs into buckets based on their queue sizes.
+//!   2. Execute program queues in parallel using runtime instances per program.
+//!   3. Merge journals and handle them deterministically.
+//!   4. Repeat steps 1-3 until no messages are processed, or we run out of processing time/gas allowance.
+//!
+//! ---
+//!
+//! ## Simplest Bucket Splitting Algorithm
+//!
+//! A basic bucket-splitting algorithm is implemented as follows:
+//!
+//!   1. First, calculate a temporary bucket index based on the program queue size.
+//!   2. Next, store the required data in a temporary bucket list.
+//!   3. Repeat this process for all programs.
+//!   4. Since the number of elements in each temporary bucket is random, they need to be redistributed
+//!      to ensure all final buckets contain an equal number of elements.
+//!      To achieve this, we first merge all temporary bucket lists sequentially
+//!      and then redistribute the data according to the expected bucket size.
+//!
+//! ---
+//!
+//! ## Future Improvements
+//!
+//! Currently, the bucket partitioning algorithm is simple and does not consider a program’s execution time.
+//! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
+//! This weight multiplier could be calculated based on program execution time statistics.
+
 use crate::host::{InstanceCreator, InstanceWrapper};
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::{
