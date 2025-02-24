@@ -159,7 +159,7 @@ impl ObserverService {
         blobs: Arc<dyn BlobReader>,
     ) -> Result<Self> {
         let provider = ProviderBuilder::default()
-            .on_builtin(&config.rpc)
+            .connect(&config.rpc)
             .await
             .context("failed to create ethereum provider")?;
 

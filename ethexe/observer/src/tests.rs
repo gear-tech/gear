@@ -26,7 +26,7 @@ use roast_secp256k1_evm::frost::{
     keys::{self, IdentifierList},
     Identifier,
 };
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
     let code = wat::parse_str(s).unwrap();
@@ -96,50 +96,62 @@ async fn test_deployment() -> Result<()> {
         .await
         .expect("failed to create observer");
 
-    let wat = r#"
-            (module
-                (import "env" "memory" (memory 0))
-                (export "init" (func $init))
-                (func $init)
+    let new_temp_wasm = |num| {
+        let wat = format!(
+            r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "init" (func $init))
+            (export "wat_{}" (func $wat_{}))
+            (func $init)
+            (func $wat_{} (result i32)
+                i32.const 1
             )
-        "#;
-    let wasm = wat2wasm(wat);
+        ) 
+        "#,
+            num, num, num
+        );
+        return wat2wasm(&wat);
+    };
 
-    let pending_builder = ethereum
-        .router()
-        .request_code_validation_with_sidecar(&wasm)
-        .await?;
+    let mut tx_codes = BTreeMap::new();
+    let iterations = 10;
+    for i in 0..iterations {
+        let wasm = new_temp_wasm(i);
+        let pending_builder = ethereum
+            .router()
+            .request_code_validation_with_sidecar(&wasm)
+            .await?;
 
-    let request_code_id = pending_builder.code_id();
-    let request_tx_hash = pending_builder.tx_hash();
+        let request_code_id = pending_builder.code_id();
+        tx_codes.insert(request_code_id, wasm.clone());
 
-    blob_reader
-        .add_blob_transaction(request_tx_hash, wasm.clone())
-        .await;
+        let request_tx_hash = pending_builder.tx_hash();
+        blob_reader
+            .add_blob_transaction(request_tx_hash, wasm)
+            .await;
+    }
 
-    let event = observer
-        .next()
-        .await
-        .expect("observer did not receive event")
-        .expect("received error instead of event");
+    while !tx_codes.is_empty() {
+        let event = observer
+            .next()
+            .await
+            .expect("observer did not receive event")
+            .expect("received error instead of event");
 
-    assert!(matches!(event, ObserverEvent::Block(..)));
-
-    let event = observer
-        .next()
-        .await
-        .expect("observer did not receive event")
-        .expect("received error instead of event");
-
-    assert!(matches!(
-        event,
-        ObserverEvent::Blob {
-            code_id,
-            code,
-            ..
+        match event {
+            ObserverEvent::Blob {
+                code_id,
+                timestamp: _,
+                code: blob_code,
+            } => {
+                let code = tx_codes.remove(&code_id).expect("Expect right tx");
+                assert!(code == blob_code);
+                println!("ObserverEvent::Blob")
+            }
+            ObserverEvent::Block(..) => println!("ObserverEvent::Block"),
         }
-        if code_id == request_code_id && code == wasm
-    ));
+    }
 
     Ok(())
 }

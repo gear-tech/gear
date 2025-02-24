@@ -56,7 +56,7 @@ impl ConsensusLayerBlobReader {
         beacon_block_time: Duration,
     ) -> Result<Self> {
         Ok(Self {
-            provider: ProviderBuilder::default().on_builtin(ethereum_rpc).await?,
+            provider: ProviderBuilder::default().connect(ethereum_rpc).await?,
             http_client: Client::new(),
             ethereum_beacon_rpc: ethereum_beacon_rpc.into(),
             beacon_block_time,

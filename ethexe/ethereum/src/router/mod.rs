@@ -221,7 +221,7 @@ pub struct RouterQuery {
 
 impl RouterQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = Arc::new(ProviderBuilder::default().on_builtin(rpc_url).await?);
+        let provider = Arc::new(ProviderBuilder::default().connect(rpc_url).await?);
 
         Ok(Self {
             instance: QueryInstance::new(Address::new(router_address.0), provider),

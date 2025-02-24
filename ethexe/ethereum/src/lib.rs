@@ -257,7 +257,7 @@ async fn create_provider(
     Ok(Arc::new(
         ProviderBuilder::new()
             .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
-            .on_builtin(rpc_url)
+            .connect(rpc_url)
             .await?,
     ))
 }
