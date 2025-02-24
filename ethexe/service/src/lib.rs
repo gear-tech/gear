@@ -400,6 +400,11 @@ impl Service {
                         // TODO (gsobol): must be done in observer event handling
                         if let Some(s) = sequencer.as_mut() {
                             s.on_new_head(chain_head)?
+                        } else {
+                            // HACK: Force validators to wait for some time, ensuring that the sequencer processes the block first.
+                            // This fixes a deadlock in tests.
+                            #[cfg(test)]
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         }
 
                         if commitments.is_empty() {
