@@ -135,12 +135,10 @@ impl Database {
         }
     }
 
-    // TODO: temporary solution for MVP runtime-interfaces db access.
     pub fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
         self.cas.read(hash)
     }
 
-    // TODO: temporary solution for MVP runtime-interfaces db access.
     pub fn write(&self, data: &[u8]) -> H256 {
         self.cas.write(data)
     }
@@ -662,20 +660,6 @@ mod tests {
     }
 
     #[test]
-    fn test_block_small_data() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
-
-        let block_hash = H256::random();
-        let block_small_data = BlockSmallData::default();
-        db.set_block_small_data(block_hash, block_small_data.clone());
-        assert_eq!(db.block_small_data(block_hash), Some(block_small_data));
-    }
-
-    #[test]
     fn test_block_program_states() {
         let db = Database::new(
             Box::new(MemDb::default()),
@@ -867,5 +851,136 @@ mod tests {
         let block_header = BlockHeader::default();
         db.set_block_header(block_hash, block_header.clone());
         assert_eq!(db.block_header(block_hash), Some(block_header));
+    }
+
+    #[test]
+    fn test_state() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let state = ProgramState::zero();
+        let hash = db.write_state(state.clone());
+        assert_eq!(db.read_state(hash), Some(state));
+    }
+
+    #[test]
+    fn test_queue() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let queue = MessageQueue::default();
+        let hash = db.write_queue(queue.clone());
+        assert_eq!(db.read_queue(hash), Some(queue));
+    }
+
+    #[test]
+    fn test_waitlist() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let waitlist = Waitlist::default();
+        let hash = db.write_waitlist(waitlist.clone());
+        assert_eq!(db.read_waitlist(hash), Some(waitlist));
+    }
+
+    #[test]
+    fn test_stash() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let stash = DispatchStash::default();
+        let hash = db.write_stash(stash.clone());
+        assert_eq!(db.read_stash(hash), Some(stash));
+    }
+
+    #[test]
+    fn test_mailbox() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let mailbox = Mailbox::default();
+        let hash = db.write_mailbox(mailbox.clone());
+        assert_eq!(db.read_mailbox(hash), Some(mailbox));
+    }
+
+    #[test]
+    fn test_pages() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let pages = MemoryPages::default();
+        let hash = db.write_pages(pages.clone());
+        assert_eq!(db.read_pages(hash), Some(pages));
+    }
+
+    #[test]
+    fn test_pages_region() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let pages_region = MemoryPagesRegion::default();
+        let hash = db.write_pages_region(pages_region.clone());
+        assert_eq!(db.read_pages_region(hash), Some(pages_region));
+    }
+
+    #[test]
+    fn test_allocations() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let allocations = Allocations::default();
+        let hash = db.write_allocations(allocations.clone());
+        assert_eq!(db.read_allocations(hash), Some(allocations));
+    }
+
+    #[test]
+    fn test_payload() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let payload: Payload = vec![1, 2, 3].try_into().unwrap();
+        let hash = db.write_payload(payload.clone());
+        assert_eq!(db.read_payload(hash), Some(payload));
+    }
+
+    #[test]
+    fn test_page_data() {
+        let db = Database::new(
+            Box::new(MemDb::default()),
+            Box::new(MemDb::default()),
+            [0; 20],
+        );
+
+        let mut page_data = PageBuf::new_zeroed();
+        page_data[42] = 42;
+        let hash = db.write_page_data(page_data.clone());
+        assert_eq!(db.read_page_data(hash), Some(page_data));
     }
 }
