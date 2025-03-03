@@ -19,10 +19,6 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
-    env::{
-        EnvironmentError::{Actor, System},
-        SystemEnvironmentError::CreateEnvMemory,
-    },
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
@@ -46,7 +42,7 @@ use gear_lazy_pages_common::{
     GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor,
 };
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
+    default_executor::{EnvironmentDefinitionBuilder, Instance, ModuleWrapper, Store},
     AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, SandboxStore, TryFromValue, Value,
 };
@@ -78,10 +74,16 @@ fn store_host_state_mut<Ext: Send + 'static>(
     })
 }
 
-pub type EnvironmentExecutionOk<Ext> = (Environment<Ext, SuccessExecution>, BackendReport<Ext>);
-pub type EnvironmentExecutionErr<Ext> = (Environment<Ext, FailedExecution>, EnvironmentError);
-pub type EnvironmentExecutionResult<Ext> =
-    Result<EnvironmentExecutionOk<Ext>, EnvironmentExecutionErr<Ext>>;
+pub type EnvironmentExecutionOk<Ext, EntryPoint> = (
+    Environment<Ext, EntryPoint, SuccessExecution>,
+    BackendReport<Ext>,
+);
+pub type EnvironmentExecutionErr<Ext, EntryPoint> = (
+    Environment<Ext, EntryPoint, FailedExecution>,
+    EnvironmentError,
+);
+pub type EnvironmentExecutionResult<Ext, EntryPoint> =
+    Result<EnvironmentExecutionOk<Ext, EntryPoint>, EnvironmentExecutionErr<Ext, EntryPoint>>;
 
 #[derive(Debug, derive_more::Display)]
 pub enum EnvironmentError {
@@ -114,6 +116,7 @@ where
     entry_point: EntryPoint,
     store: Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     memory: BackendMemory<ExecutorMemory>,
+    module_wrapper: ModuleWrapper,
     _phantom: PhantomData<State>,
 }
 
@@ -317,7 +320,14 @@ where
             termination_reason: ActorTerminationReason::Success.into(),
         });
 
-        let instance = Instance::new(&mut store, binary, &env_builder).map_err(|e| {
+        let module_wrapper = ModuleWrapper::new(store.engine(), binary).map_err(|e| {
+            Actor(
+                store_host_state_mut(&mut store).ext.gas_amount(),
+                format!("{e:?}"),
+            )
+        })?;
+
+        let instance = Instance::new(&mut store, &module_wrapper, &env_builder).map_err(|e| {
             Actor(
                 store_host_state_mut(&mut store).ext.gas_amount(),
                 format!("{e:?}"),
@@ -330,6 +340,7 @@ where
             entry_point,
             store,
             memory,
+            module_wrapper,
             _phantom: PhantomData,
         })
     }
@@ -350,7 +361,7 @@ where
             &mut BackendMemory<ExecutorMemory>,
             GlobalsAccessConfig,
         ),
-    ) -> EnvironmentExecutionResult<EnvExt> {
+    ) -> EnvironmentExecutionResult<EnvExt, EntryPoint> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
 
@@ -360,6 +371,7 @@ where
             entry_point,
             mut store,
             mut memory,
+            mut module_wrapper,
             ..
         } = self;
 
@@ -471,6 +483,7 @@ where
                 entry_point,
                 store,
                 memory,
+                module_wrapper,
                 _phantom: PhantomData,
             },
             BackendReport {
@@ -521,6 +534,13 @@ where
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
 
+        let Self {
+            entries,
+            entry_point,
+            mut module_wrapper,
+            ..
+        } = self;
+
         let mut store = Store::new(None);
 
         let mut builder = EnvBuilder::<EnvExt> {
@@ -555,7 +575,7 @@ where
             termination_reason: ActorTerminationReason::Success.into(),
         });
 
-        let instance = Instance::new(&mut store, binary, &env_builder).map_err(|e| {
+        let instance = Instance::new(&mut store, &module_wrapper, &env_builder).map_err(|e| {
             Actor(
                 store_host_state_mut(&mut store).ext.gas_amount(),
                 format!("{e:?}"),
@@ -568,6 +588,7 @@ where
             entry_point,
             store,
             memory,
+            module_wrapper,
             _phantom: PhantomData,
         })
     }

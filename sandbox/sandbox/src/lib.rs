@@ -59,6 +59,7 @@ pub use gear_sandbox_env::HostError;
 
 pub use sp_wasm_interface_common::{IntoValue, ReturnValue, TryFromValue, Value};
 
+use crate::default_executor::ModuleWrapper;
 use alloc::string::String;
 use sp_core::RuntimeDebug;
 use sp_std::prelude::*;
@@ -227,7 +228,7 @@ pub trait SandboxInstance<State>: Sized {
     /// [`EnvironmentDefinitionBuilder`]: struct.EnvironmentDefinitionBuilder.html
     fn new(
         store: &mut default_executor::Store<State>,
-        code: &[u8],
+        module_wrapper: &ModuleWrapper,
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Self, Error>;
 

@@ -206,7 +206,8 @@ pub struct Store<T> {
 }
 
 impl<T> Store<T> {
-    fn engine(&self) -> &Engine {
+    /// Get the engine.
+    pub fn engine(&self) -> &Engine {
         self.inner.engine()
     }
 }
@@ -414,6 +415,23 @@ impl<T> super::SandboxEnvironmentBuilder<T, Memory> for EnvironmentDefinitionBui
     }
 }
 
+/// A wrapper for a WASM module.
+pub struct ModuleWrapper {
+    /// The WASM module.
+    pub module: wasmer::Module,
+}
+
+impl ModuleWrapper {
+    /// Create a new module wrapper.
+    pub fn new(engine: &Engine, code: &[u8]) -> Result<Self, Error> {
+        let module = gear_wasmer_cache::get(engine, code, cache_base_path())
+            .inspect_err(|e| log::trace!(target: TARGET, "Failed to create module: {e}"))
+            .map_err(|_e| Error::Module)?;
+
+        Ok(Self { module })
+    }
+}
+
 /// Sandboxed instance of a WASM module.
 pub struct Instance<State> {
     instance: wasmer::Instance,
@@ -435,15 +453,12 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
 
     fn new(
         store: &mut Store<State>,
-        code: &[u8],
+        module_wrapper: &ModuleWrapper,
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
-        let module = gear_wasmer_cache::get(store.engine(), code, cache_base_path())
-            .inspect_err(|e| log::trace!(target: TARGET, "Failed to create module: {e}"))
-            .map_err(|_e| Error::Module)?;
         let mut imports = Imports::new();
 
-        for import in module.imports() {
+        for import in module_wrapper.module.imports() {
             let module = import.module().to_string();
             let name = import.name().to_string();
             let key = (module.clone(), name.clone());
@@ -546,10 +561,11 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
             }
         }
 
-        let instance = wasmer::Instance::new(store, &module, &imports).map_err(|e| {
-            log::trace!(target: TARGET, "Error instantiating module: {:?}", e);
-            Error::Module
-        })?;
+        let instance =
+            wasmer::Instance::new(store, &module_wrapper.module, &imports).map_err(|e| {
+                log::trace!(target: TARGET, "Error instantiating module: {:?}", e);
+                Error::Module
+            })?;
 
         store.state.as_mut(&mut store.inner).gas_global = instance
             .exports
@@ -724,7 +740,8 @@ mod tests {
         env_builder.add_host_func("env", "polymorphic_id", env_polymorphic_id);
 
         let mut store = Store::new(state);
-        let mut instance = Instance::new(&mut store, code, &env_builder)?;
+        let module_wrapper = super::ModuleWrapper::new(&store.engine(), code)?;
+        let mut instance = Instance::new(&mut store, &module_wrapper, &env_builder)?;
         instance.invoke(&mut store, "call", args)
     }
 
@@ -822,8 +839,9 @@ mod tests {
         .unwrap();
 
         let mut store = Store::new(());
+        let module_wrapper = super::ModuleWrapper::new(&store.engine(), &code).unwrap();
         // It succeeds since we are able to import functions with types we want.
-        let mut instance = Instance::new(&mut store, &code, &env_builder).unwrap();
+        let mut instance = Instance::new(&mut store, &module_wrapper, &env_builder).unwrap();
 
         // But this fails since we imported a function that returns i32 as if it returned i64.
         assert_matches!(
