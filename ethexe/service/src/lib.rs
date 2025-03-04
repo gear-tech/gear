@@ -173,7 +173,7 @@ impl Service {
 
         let processor = ethexe_processor::Processor::with_config(
             ProcessorConfig {
-                virtual_threads: config.node.virtual_threads,
+                queues_processing_threads: config.node.virtual_threads,
             },
             db.clone(),
         )
@@ -181,7 +181,7 @@ impl Service {
 
         log::info!(
             "🔧 Amount of virtual threads for programs processing: {}",
-            processor.config().virtual_threads
+            processor.config().queues_processing_threads
         );
 
         let signer = ethexe_signer::Signer::new(config.node.key_path.clone())

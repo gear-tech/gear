@@ -108,19 +108,19 @@ use gprimitives::{ActorId, H256};
 use crate::host::{InstanceCreator, InstanceWrapper};
 
 pub async fn run(
-    virtual_threads: usize,
+    queues_processing_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
     let mut join_set = tokio::task::JoinSet::new();
-    let max_bucket_size = virtual_threads;
+    let max_bucket_size = queues_processing_threads;
 
     loop {
         let mut no_message_processed = true;
 
         let buckets: Vec<_> = split_to_buckets(
-            virtual_threads,
+            queues_processing_threads,
             &in_block_transitions
                 .states_iter()
                 .filter_map(|(actor_id, state)| {
@@ -194,7 +194,7 @@ pub async fn run(
 // `split_to_buckets` is not exactly sorting (sorting usually `n*log(n)`` this one is `O(n)``),
 // but rather partitioning into subsets (buckets) of programs with approximately similar queue sizes.
 fn split_to_buckets(
-    virtual_threads: usize,
+    queues_processing_threads: usize,
     states: &[(ActorId, H256, usize)],
 ) -> impl IntoIterator<Item = (ActorId, H256, usize)> {
     fn bucket_idx(queue_size: usize, number_of_buckets: usize) -> usize {
@@ -202,7 +202,7 @@ fn split_to_buckets(
         queue_size.clamp(1, number_of_buckets) - 1
     }
 
-    let max_size_of_bucket = virtual_threads;
+    let max_size_of_bucket = queues_processing_threads;
     let number_of_buckets = states.len().div_ceil(max_size_of_bucket);
 
     let mut buckets = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_buckets));
