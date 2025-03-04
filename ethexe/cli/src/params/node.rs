@@ -99,7 +99,6 @@ impl NodeParams {
             validator_session: ConfigPublicKey::new(&self.validator_session)
                 .with_context(|| "invalid `validator-session` key")?,
             max_commitment_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
-            worker_threads_override: self.physical_threads.map(|v| v.get() as usize),
             virtual_threads: self
                 .virtual_threads
                 .unwrap_or(Self::DEFAULT_VIRTUAL_THREADS)

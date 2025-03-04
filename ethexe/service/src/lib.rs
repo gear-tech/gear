@@ -173,16 +173,11 @@ impl Service {
 
         let processor = ethexe_processor::Processor::with_config(
             ProcessorConfig {
-                worker_threads_override: config.node.worker_threads_override,
                 virtual_threads: config.node.virtual_threads,
             },
             db.clone(),
         )
         .with_context(|| "failed to create processor")?;
-
-        if let Some(worker_threads) = processor.config().worker_threads_override {
-            log::info!("🔧 Overriding amount of physical threads for runtime: {worker_threads}");
-        }
 
         log::info!(
             "🔧 Amount of virtual threads for programs processing: {}",

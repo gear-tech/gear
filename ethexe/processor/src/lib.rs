@@ -42,14 +42,12 @@ mod tests;
 
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
-    pub worker_threads_override: Option<usize>,
     pub virtual_threads: usize,
 }
 
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
-            worker_threads_override: None,
             virtual_threads: 16,
         }
     }

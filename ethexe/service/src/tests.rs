@@ -73,7 +73,6 @@ async fn basics() {
         validator: Default::default(),
         validator_session: Default::default(),
         max_commitment_depth: 1_000,
-        worker_threads_override: None,
         virtual_threads: 16,
         dev: true,
     };
