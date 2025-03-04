@@ -97,13 +97,15 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
-use crate::host::{InstanceCreator, InstanceWrapper};
+use std::iter;
+
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
 use gprimitives::{ActorId, H256};
-use std::iter;
+
+use crate::host::{InstanceCreator, InstanceWrapper};
 
 pub async fn run(
     virtual_threads: usize,
@@ -117,7 +119,7 @@ pub async fn run(
     loop {
         let mut no_message_processed = true;
 
-        let buckets = split_to_buckets(
+        let buckets: Vec<_> = split_to_buckets(
             virtual_threads,
             &in_block_transitions
                 .states_iter()
@@ -128,8 +130,10 @@ pub async fn run(
 
                     Some((*actor_id, state.hash, state.cached_queue_size as usize))
                 })
-                .collect(),
-        );
+                .collect::<Vec<_>>(),
+        )
+        .into_iter()
+        .collect();
 
         for bucket in buckets.chunks(max_bucket_size) {
             for (task_num, (program_id, state_hash, _)) in bucket.iter().enumerate() {
@@ -180,8 +184,8 @@ pub async fn run(
 // but rather partitioning into subsets (buckets) of programs with approximately similar queue sizes.
 fn split_to_buckets(
     virtual_threads: usize,
-    states: &Vec<(ActorId, H256, usize)>,
-) -> Vec<(ActorId, H256, usize)> {
+    states: &[(ActorId, H256, usize)],
+) -> impl IntoIterator<Item = (ActorId, H256, usize)> {
     fn bucket_idx(queue_size: usize, number_of_buckets: usize) -> usize {
         // Simplest implementation of bucket partitioning '..1| 2 | 3 | 4 ..'
         queue_size.clamp(1, number_of_buckets) - 1
@@ -197,7 +201,7 @@ fn split_to_buckets(
         buckets[bucket_idx].push((*actor_id, *state_hash, *queue_size));
     }
 
-    buckets.into_iter().flatten().rev().collect()
+    buckets.into_iter().flatten().rev()
 }
 
 fn run_runtime(
@@ -327,10 +331,10 @@ mod tests {
 
         // Checking buckets partitioning
         let accum_buckets = buckets
-            .iter()
+            .into_iter()
             .chunks(VIRT_THREADS_NUM)
             .into_iter()
-            .map(|bucket| bucket.fold(0, |acc, (_, _, queue_size)| acc + *queue_size))
+            .map(|bucket| bucket.fold(0, |acc, (_, _, queue_size)| acc + queue_size))
             .collect::<Vec<_>>();
 
         for i in 0..accum_buckets.len() - 1 {
