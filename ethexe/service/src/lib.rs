@@ -401,6 +401,7 @@ impl Service {
                         if let Some(s) = sequencer.as_mut() {
                             s.on_new_head(chain_head)?
                         } else {
+                            // TODO: remove, this must be fixed in future when sequencer will be part of BP
                             // HACK: Force validators to wait for some time, ensuring that the sequencer processes the block first.
                             // This fixes a deadlock in tests.
                             #[cfg(test)]

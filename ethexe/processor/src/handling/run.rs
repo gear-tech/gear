@@ -176,6 +176,8 @@ pub async fn run(
     }
 }
 
+// `split_to_buckets` is not exactly sorting (sorting usually `n*log(n)`` this one is `O(n)``),
+// but rather partitioning into subsets (buckets) of programs with approximately similar queue sizes.
 fn split_to_buckets(
     virtual_threads: usize,
     states: &Vec<(ActorId, H256, usize)>,
@@ -334,7 +336,7 @@ mod tests {
         for i in 0..accum_buckets.len() - 1 {
             assert!(
                 accum_buckets[i] >= accum_buckets[i + 1],
-                "Backets are not sorted"
+                "Buckets are not sorted"
             );
         }
     }
