@@ -136,7 +136,7 @@ pub async fn run(
         .collect();
 
         for bucket in buckets.chunks(max_bucket_size) {
-            for (task_num, (program_id, state_hash, _)) in bucket.iter().enumerate() {
+            for (program_id, state_hash, _) in bucket.iter() {
                 let db = db.clone();
                 let mut executor = instance_creator
                     .instantiate()
@@ -147,30 +147,41 @@ pub async fn run(
                 let _ = join_set.spawn_blocking(move || {
                     let (jn, new_state_hash) =
                         run_runtime(db, &mut executor, program_id, state_hash);
-                    (task_num, program_id, new_state_hash, jn)
+                    (program_id, new_state_hash, jn)
                 });
             }
 
-            let bucket_size = bucket.len();
-            let mut handler = DeterministicJournalHandler::new(bucket_size);
-
-            while let Some((task_num, program_id, new_state_hash, program_journals)) = join_set
+            let mut super_journal = Vec::new();
+            while let Some(result) = join_set
                 .join_next()
                 .await
                 .transpose()
                 .expect("Failed to join task")
             {
+                super_journal.push(result);
+            }
+
+            for (program_id, new_state_hash, program_journals) in super_journal {
                 // State was updated during journal handling inside the runtime (allocations, pages)
                 in_block_transitions.modify(program_id, |state, _| {
                     state.hash = new_state_hash;
                 });
 
-                handler.set_journal_part(task_num, program_id, program_journals);
-                handler.try_handle_journal_part(
-                    &db,
-                    in_block_transitions,
-                    &mut no_message_processed,
-                );
+                if !program_journals.is_empty() {
+                    no_message_processed = false;
+
+                    for (journal, dispatch_origin) in program_journals {
+                        let mut journal_handler = JournalHandler {
+                            program_id,
+                            dispatch_origin,
+                            controller: TransitionController {
+                                transitions: in_block_transitions,
+                                storage: &db,
+                            },
+                        };
+                        core_processor::handle_journal(journal, &mut journal_handler);
+                    }
+                }
             }
         }
 
@@ -217,90 +228,6 @@ fn run_runtime(
     executor
         .run(db, program_id, code_id, state_hash, instrumented_code)
         .expect("Some error occurs while running program in instance")
-}
-
-//  DeterministicJournalHandler is a helper structure that allows us to handle journals deterministically.
-//
-// The main idea is that we don't have to wait for all journals to be received before starting processing,
-// we can begin processing while some journals are still being received.
-//
-// We already have an order in which the journals should be applied, so, for example, if out of 4 journals we receive journals 1, 2, and 3,
-// we can process them while waiting for journal 4. Once journal 4 arrives, we apply it, and the processing is complete.
-//
-// In the worst case, if we haven't received journal 1 but have received journals 2, 3, and 4,
-// we must wait for journal 1 before applying all the others.
-//
-struct DeterministicJournalHandler {
-    mega_journal: Vec<Option<(ActorId, ProgramJournals)>>,
-    current_idx: usize,
-}
-
-impl DeterministicJournalHandler {
-    fn new(bucket_size: usize) -> Self {
-        Self {
-            mega_journal: Vec::from_iter(std::iter::repeat_n(None, bucket_size)),
-            current_idx: bucket_size - 1,
-        }
-    }
-
-    fn set_journal_part(
-        &mut self,
-        idx: usize,
-        program_id: ActorId,
-        program_journals: ProgramJournals,
-    ) {
-        self.mega_journal[idx] = Some((program_id, program_journals));
-    }
-
-    fn try_handle_journal_part(
-        &mut self,
-        db: &Database,
-        in_block_transitions: &mut InBlockTransitions,
-        no_message_processed: &mut bool,
-    ) {
-        let start_idx = self.current_idx;
-
-        // Traverse mega_journal in reverse order, because smaller buckets likely to finish first
-        for idx in (0..=start_idx).rev() {
-            let Some((program_id, program_journals)) = self.mega_journal[idx].take() else {
-                // Can't proceed journal processing, need to wait till `idx` part of journal is ready
-                self.current_idx = idx;
-                return;
-            };
-
-            if !program_journals.is_empty() {
-                *no_message_processed = false;
-
-                for (journal, dispatch_origin) in program_journals {
-                    let mut journal_handler = JournalHandler {
-                        program_id,
-                        dispatch_origin,
-                        controller: TransitionController {
-                            transitions: in_block_transitions,
-                            storage: db,
-                        },
-                    };
-                    core_processor::handle_journal(journal, &mut journal_handler);
-                }
-            }
-        }
-    }
-}
-
-impl Drop for DeterministicJournalHandler {
-    fn drop(&mut self) {
-        #[cfg(debug_assertions)]
-        {
-            let cnt = self.mega_journal.iter().fold(0usize, |accum, j| {
-                if let Some(j) = j {
-                    return accum + j.1.len();
-                }
-                accum
-            });
-
-            assert_eq!(cnt, 0, "Not all journal notes were processed");
-        }
-    }
 }
 
 #[cfg(test)]
