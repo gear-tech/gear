@@ -213,6 +213,17 @@ fn run_runtime(
         .expect("Some error occurs while running program in instance")
 }
 
+//  DeterministicJournalHandler is a helper structure that allows us to handle journals deterministically.
+//
+// The main idea is that we don't have to wait for all journals to be received before starting processing,
+// we can begin processing while some journals are still being received.
+//
+// We already have an order in which the journals should be applied, so, for example, if out of 4 journals we receive journals 1, 2, and 3,
+// we can process them while waiting for journal 4. Once journal 4 arrives, we apply it, and the processing is complete.
+//
+// In the worst case, if we haven't received journal 1 but have received journals 2, 3, and 4,
+// we must wait for journal 1 before applying all the others.
+//
 struct DeterministicJournalHandler {
     mega_journal: Vec<Option<(ActorId, ProgramJournals)>>,
     current_idx: usize,
