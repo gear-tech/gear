@@ -160,7 +160,7 @@ impl WasmProject {
         let mut package = Table::new();
         package.insert("name".into(), format!("{}-wasm", &crate_info.name).into());
         package.insert("version".into(), crate_info.version.into());
-        package.insert("edition".into(), "2021".into());
+        package.insert("edition".into(), "2024".into());
 
         let mut lib = Table::new();
         lib.insert("name".into(), crate_info.snake_case_name.into());
