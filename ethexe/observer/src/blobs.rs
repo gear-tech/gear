@@ -141,15 +141,12 @@ impl BlobReader for ConsensusLayerBlobReader {
 #[derive(Clone)]
 pub struct MockBlobReader {
     transactions: Arc<RwLock<HashMap<H256, Vec<u8>>>>,
-    // TODO (gsobol): remove block_time here, because it's useless for mock
-    block_time: Duration,
 }
 
 impl MockBlobReader {
-    pub fn new(block_time: Duration) -> Self {
+    pub fn new() -> Self {
         Self {
             transactions: Arc::new(RwLock::new(HashMap::new())),
-            block_time,
         }
     }
 
@@ -170,7 +167,6 @@ impl BlobReader for MockBlobReader {
                     if maybe_blob_data.is_some() || count >= attempts {
                         break maybe_blob_data;
                     } else {
-                        time::sleep(self.block_time).await;
                         count += 1;
                     }
                 }

@@ -18,7 +18,14 @@
 
 use super::*;
 use crate::MockBlobReader;
-use alloy::node_bindings::Anvil;
+use alloy::{
+    network::TransactionBuilder,
+    node_bindings::Anvil,
+    primitives::U256,
+    providers::WsConnect,
+    rpc::types::TransactionRequest,
+    transports::{RpcError, TransportErrorKind},
+};
 use ethexe_db::{Database, MemDb};
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
@@ -27,7 +34,7 @@ use roast_secp256k1_evm::frost::{
     keys::{self, IdentifierList},
     Identifier,
 };
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
     let code = wat::parse_str(s).unwrap();
@@ -82,7 +89,7 @@ async fn test_deployment() -> Result<()> {
     )
     .await?;
 
-    let blobs_reader = Arc::new(MockBlobReader::new(Duration::from_secs(1)));
+    let blobs_reader = Arc::new(MockBlobReader::new());
 
     let router_address = ethereum.router().address();
 
@@ -128,53 +135,148 @@ async fn test_deployment() -> Result<()> {
             .expect("received error instead of event")
     };
 
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 0))
-            (export "init" (func $init))
-            (func $init)
-        )
-    "#;
-    let wasm = wat2wasm(wat);
-    let request_code_id = request_wasm_validation(wasm.clone()).await;
+    let mut expected_events = HashMap::new();
+    let blobs_amount = 20;
+    for i in 0..blobs_amount {
+        let wat = format!(
+            r#"(module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (export "ret_{0}" (func $ret_{0}))
+                (func $init (nop))
+                (func $ret_{0} (result i32)
+                    i32.const {0}
+                ))"#,
+            i
+        );
+        let wasm = wat2wasm(&wat);
+        let request_code_id = request_wasm_validation(wasm.clone()).await;
+        expected_events.insert(request_code_id, wasm);
+    }
 
-    let event = observer_next().await;
-    assert!(matches!(event, ObserverEvent::Block(..)));
-
-    let event = observer_next().await;
-    assert!(matches!(event, ObserverEvent::BlockSynced(..)));
-
-    let event = observer_next().await;
-    assert!(matches!(
-        event,
-        ObserverEvent::Blob {
-            code_id,
-            code,
-            ..
+    let result = tokio::time::timeout(tokio::time::Duration::from_secs(2), async move {
+        while !expected_events.is_empty() {
+            let event = observer_next().await;
+            if let ObserverEvent::Blob {
+                code_id,
+                timestamp: _,
+                code,
+            } = event
+            {
+                let expected_code = expected_events
+                    .remove(&code_id)
+                    .expect("Expect event exists");
+                assert_eq!(code, expected_code);
+            }
         }
-        if code_id == request_code_id && code == wasm
-    ));
+    })
+    .await;
 
-    let wat = "(module)";
-    let wasm = wat2wasm(wat);
-    let request_code_id = request_wasm_validation(wasm.clone()).await;
+    match result {
+        Ok(()) => Ok(()),
+        Err(_) => Err(anyhow!("Expected all events will be process for 2 seconds")),
+    }
+}
 
-    let event = observer_next().await;
-    assert!(matches!(event, ObserverEvent::Block(..)));
+#[tokio::test]
+async fn test_node_disconnect() -> Result<()> {
+    let port = 8454u16;
+    let anvil = Anvil::new().port(port).try_spawn()?;
+    let provider = ProviderBuilder::new()
+        .on_ws(WsConnect::new(anvil.ws_endpoint_url()))
+        .await?;
 
-    let event = observer_next().await;
-    assert!(matches!(event, ObserverEvent::BlockSynced(..)));
+    let block = provider.get_block_number().await?;
 
-    let event = observer_next().await;
-    assert!(matches!(
-        event,
-        ObserverEvent::Blob {
-            code_id,
-            code,
-            ..
-        }
-        if code_id == request_code_id && code == wasm
-    ));
+    // rerun node to test the reconnection
+    drop(anvil);
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let anvil = Anvil::new().port(port).try_spawn()?;
+
+    // assert that provider become invalide after node rerun
+    assert!(
+        matches!(
+            provider.get_block_number().await,
+            Err(RpcError::Transport(TransportErrorKind::BackendGone))
+        ),
+        "Expect `BackendGone` error after anvil rerun"
+    );
+
+    // create new provider
+    let provider = ProviderBuilder::new()
+        .on_ws(WsConnect::new(anvil.ws_endpoint_url()))
+        .await?;
+
+    let block_after_rerun = provider.get_block_number().await?;
+    assert_eq!(block, block_after_rerun);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_blocks_resubscribing() -> Result<()> {
+    gear_utils::init_default_logger();
+
+    let port = 8455u16;
+    let anvil = Anvil::new().port(port).try_spawn()?;
+    let provider = ProviderBuilder::new()
+        .on_ws(WsConnect::new(anvil.ws_endpoint_url()))
+        .await?;
+
+    let accounts = provider.get_accounts().await?;
+    assert!(accounts.len() >= 2);
+
+    let (alice, bob) = (accounts[0], accounts[1]);
+
+    let subscription = provider.subscribe_blocks().await?;
+    let mut stream = subscription.resubscribe().into_stream();
+
+    let tx = TransactionRequest::default()
+        .with_from(alice)
+        .with_to(bob)
+        .with_value(U256::from(1));
+    let _tx_hash = provider.send_transaction(tx).await?.watch().await?;
+
+    assert!(
+        stream.next().await.is_some(),
+        "Expect a block header after tx"
+    );
+
+    drop(anvil);
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let anvil = Anvil::new().port(port).try_spawn()?;
+
+    let provider = ProviderBuilder::new()
+        .on_ws(WsConnect::new(anvil.ws_endpoint_url()))
+        .await?;
+
+    assert_eq!(
+        stream.next().await,
+        None,
+        "Expect None, because stream is terminate"
+    );
+
+    // recreate subscription because previous one will return the terminated stream
+    let subscription = provider.subscribe_blocks().await?;
+    let mut stream = subscription.resubscribe().into_stream();
+
+    let tx = TransactionRequest::default()
+        .with_from(bob)
+        .with_to(alice)
+        .with_value(U256::from(1));
+
+    let _tx_hash = provider
+        .send_transaction(tx)
+        .await
+        .expect("Successfull send tx")
+        .watch()
+        .await
+        .expect("Successfull watch tx");
+
+    assert!(
+        stream.next().await.is_some(),
+        "Expect a block header after tx"
+    );
 
     Ok(())
 }
