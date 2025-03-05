@@ -185,6 +185,7 @@ impl ObserverService {
         eth_cfg: &EthereumConfig,
         max_sync_depth: u32,
         db: &DB,
+        // TODO (gsobol): blobs reader should be provided by the caller always.
         blobs_reader: Option<Arc<dyn BlobReader>>,
     ) -> Result<Self>
     where
