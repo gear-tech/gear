@@ -72,7 +72,7 @@ async fn basics() {
         sequencer: Default::default(),
         validator: Default::default(),
         validator_session: Default::default(),
-        max_eth_sync_depth: 1_000,
+        eth_max_sync_depth: 1_000,
         worker_threads_override: None,
         virtual_threads: 16,
         dev: true,

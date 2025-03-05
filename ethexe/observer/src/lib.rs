@@ -57,7 +57,7 @@ mod tests;
 pub use blobs::*;
 
 type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, u64, Vec<u8>)>>;
-type BlockFuture = BoxFuture<'static, Result<(H256, Vec<(CodeId, CodeInfo)>)>>;
+type SyncFuture = BoxFuture<'static, Result<(H256, Vec<(CodeId, CodeInfo)>)>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -95,7 +95,7 @@ pub struct ObserverService {
 
     headers_stream: SubscriptionStream<Header>,
     block_sync_queue: VecDeque<Header>,
-    sync_future: Option<BlockFuture>,
+    sync_future: Option<SyncFuture>,
 
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }

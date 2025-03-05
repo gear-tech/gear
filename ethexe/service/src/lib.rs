@@ -115,7 +115,7 @@ impl Service {
 
         let observer = ObserverService::new(
             &config.ethereum,
-            config.node.max_eth_sync_depth,
+            config.node.eth_max_sync_depth,
             &db,
             blob_reader,
         )
@@ -397,6 +397,10 @@ impl Service {
                         );
                     }
                     ObserverEvent::BlockSynced(block_hash) => {
+                        // NOTE: Observer guarantees that, if this event is emitted,
+                        // then from latest synced block and up to `block_hash`:
+                        // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
+                        // 2) all approved(at least) codes are loaded and available in database.
                         compute.receive_synced_head(block_hash);
                     }
                 },
