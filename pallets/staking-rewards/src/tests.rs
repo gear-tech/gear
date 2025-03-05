@@ -20,7 +20,7 @@
 
 use crate::{mock::*, *};
 use frame_support::{assert_noop, assert_ok, assert_storage_noop, traits::EstimateNextNewSession};
-use sp_runtime::{traits::Convert, DispatchError, PerThing, Perbill};
+use sp_runtime::{DispatchError, PerThing, Perbill, traits::Convert};
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{

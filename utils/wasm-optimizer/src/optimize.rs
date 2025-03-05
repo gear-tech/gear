@@ -25,7 +25,7 @@ use std::process::Command;
 use wasm_opt::{OptimizationOptions, Pass};
 
 use crate::stack_end;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use gear_wasm_instrument::{Module, STACK_END_EXPORT_NAME};
 use std::{
     fs::{self, metadata},

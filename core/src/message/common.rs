@@ -26,8 +26,8 @@ use crate::{
 use core::ops::Deref;
 use gear_core_errors::{ReplyCode, SignalCode};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// An entity that is used for interaction between actors.

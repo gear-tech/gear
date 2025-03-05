@@ -35,11 +35,11 @@ pub use digest::{Digest, ToDigest};
 pub use sha3;
 pub use signature::Signature;
 
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{Error, Result, anyhow, bail};
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::{
-    hashes::hex::{Case, DisplayHex},
     PublicKey as Secp256k1PublicKey, SecretKey as Secp256k1SecretKey,
+    hashes::hex::{Case, DisplayHex},
 };
 use signature::RawSignature;
 use std::{fmt, fs, path::PathBuf, str::FromStr};
@@ -323,7 +323,7 @@ pub(crate) fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{keccak256, PrimitiveSignature as AlloySignature};
+    use alloy::primitives::{PrimitiveSignature as AlloySignature, keccak256};
     use gprimitives::ActorId;
     use std::env::temp_dir;
 

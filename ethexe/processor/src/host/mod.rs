@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Database;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
 use ethexe_runtime_common::unpack_i64_to_u32;

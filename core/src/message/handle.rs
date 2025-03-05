@@ -24,8 +24,8 @@ use crate::{
     },
 };
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Message for Handle entry point.

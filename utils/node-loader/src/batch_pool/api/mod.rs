@@ -1,8 +1,8 @@
 #![allow(clippy::redundant_async_block)]
 
 use crate::utils;
-use anyhow::{anyhow, Result};
-use futures::{future::BoxFuture, Future};
+use anyhow::{Result, anyhow};
+use futures::{Future, future::BoxFuture};
 use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{
     ClaimValueArgs, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,

@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{ensure, Context};
+use anyhow::{Context, ensure};
 use gear_core::code::{Code, TryNewCodeConfig};
-use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
+use gear_wasm_instrument::{STACK_HEIGHT_EXPORT_NAME, SystemBreakCode};
 use std::{env, fs};
 use wasmer::{
     Exports, Extern, Function, FunctionEnv, Imports, Instance, Memory, MemoryType, Module,

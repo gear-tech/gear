@@ -24,7 +24,7 @@ use crate::Error;
 use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::UserStoredMessage};
 use gsdk::{
-    ext::sp_core::{crypto::Ss58Codec, H256},
+    ext::sp_core::{H256, crypto::Ss58Codec},
     metadata::runtime_types::{
         gear_common::storage::primitives::Interval, gear_core::message::user,
         pallet_balances::types::AccountData, pallet_gear_bank::pallet::BankAccount,

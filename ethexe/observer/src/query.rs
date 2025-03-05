@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BlobReader, Provider, MAX_QUERY_BLOCK_RANGE};
+use crate::{BlobReader, MAX_QUERY_BLOCK_RANGE, Provider};
 use alloy::{
     network::{Ethereum, Network},
     primitives::Address as AlloyAddress,
     providers::{Provider as _, ProviderBuilder},
     rpc::{client::BatchRequest, types::eth::BlockTransactionsKind},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage},
     events::{BlockEvent, BlockRequestEvent, RouterEvent},

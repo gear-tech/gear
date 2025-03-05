@@ -23,8 +23,8 @@ use frame_support::{
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use primitive_types::H256;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage,
+    traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 

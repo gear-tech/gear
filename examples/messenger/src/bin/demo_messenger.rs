@@ -18,10 +18,10 @@
 #![cfg(feature = "gcli")]
 
 use gcli::{
-    anyhow, async_trait,
+    App, anyhow, async_trait,
     clap::{self, Parser},
     cmd::Upload,
-    color_eyre, tokio, App,
+    color_eyre, tokio,
 };
 
 #[derive(Debug, Parser)]

@@ -21,10 +21,10 @@
 use alloc::format;
 use core::cmp::Ordering;
 use num_traits::bounds::{LowerBounded, UpperBounded};
-use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated};
+use numerated::{Bound, Numerated, interval::Interval, iterators::IntervalIterator};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 pub use numerated::{self, num_traits};
@@ -436,7 +436,7 @@ mod property_tests {
     use super::*;
     use numerated::mock::{self, IntervalAction};
     use proptest::{
-        prelude::{any, Arbitrary},
+        prelude::{Arbitrary, any},
         proptest,
         strategy::{BoxedStrategy, Strategy},
         test_runner::Config as ProptestConfig,

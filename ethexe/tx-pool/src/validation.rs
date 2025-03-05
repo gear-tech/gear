@@ -19,7 +19,7 @@
 //! Transactions validation.
 
 use crate::SignedOffchainTransaction;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use ethexe_db::Database;
 use ethexe_signer::ToDigest;
 use parity_scale_codec::Encode;
@@ -211,12 +211,16 @@ mod tests {
         bm.add_block();
 
         // `db` is `Arc`, so no need to instantiate a new validator.
-        assert_err!(TxValidator::new(transaction1, db.clone())
-            .with_mortality_check()
-            .validate());
-        assert_ok!(TxValidator::new(transaction2, db.clone())
-            .with_mortality_check()
-            .validate());
+        assert_err!(
+            TxValidator::new(transaction1, db.clone())
+                .with_mortality_check()
+                .validate()
+        );
+        assert_ok!(
+            TxValidator::new(transaction2, db.clone())
+                .with_mortality_check()
+                .validate()
+        );
     }
 
     #[test]
@@ -231,8 +235,10 @@ mod tests {
 
         db.set_offchain_transaction(transaction.clone());
 
-        assert_err!(TxValidator::new(transaction, db.clone())
-            .with_uniqueness_check()
-            .validate());
+        assert_err!(
+            TxValidator::new(transaction, db.clone())
+                .with_uniqueness_check()
+                .validate()
+        );
     }
 }

@@ -22,26 +22,26 @@ pub mod peer_score;
 mod utils;
 
 pub mod export {
-    pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
+    pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
-use futures::{future::Either, ready, stream::FusedStream, Stream};
+use futures::{Stream, future::Either, ready, stream::FusedStream};
 use libp2p::{
-    connection_limits,
+    Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, upgrade},
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
+        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
         behaviour::toggle::Toggle,
         dial_opts::{DialOpts, PeerCondition},
-        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
     },
-    yamux, Multiaddr, PeerId, Swarm, Transport,
+    yamux,
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
@@ -580,7 +580,7 @@ mod tests {
     use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
     use tempfile::TempDir;
-    use tokio::time::{timeout, Duration};
+    use tokio::time::{Duration, timeout};
 
     fn new_service_with_db(db: Database) -> (TempDir, NetworkService) {
         let tmp_dir = tempfile::tempdir().unwrap();

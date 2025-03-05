@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::access::AccessQueue;
-use crate::{exec, msg, MessageId};
+use crate::{MessageId, exec, msg};
 use core::{
     cell::{Cell, UnsafeCell},
     future::Future,

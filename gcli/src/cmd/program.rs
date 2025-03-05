@@ -18,7 +18,7 @@
 
 //! Command `program`.
 //!
-use crate::{result::Result, App};
+use crate::{App, result::Result};
 use clap::Parser;
 use gclient::ext::sp_core::H256;
 

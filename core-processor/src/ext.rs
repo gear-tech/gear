@@ -31,7 +31,7 @@ use gear_core::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, ValueCounter,
     },
-    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId, prelude::*},
     memory::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
@@ -40,19 +40,19 @@ use gear_core::{
         InitPacket, MessageContext, Packet, ReplyPacket,
     },
     pages::{
-        numerated::{interval::Interval, tree::IntervalsTree},
         GearPage, WasmPage, WasmPagesAmount,
+        numerated::{interval::Interval, tree::IntervalsTree},
     },
     program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_backend::{
+    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
     },
-    BackendExternalities,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
@@ -1432,7 +1432,7 @@ mod tests {
     use alloc::vec;
     use gear_core::{
         costs::{CostOf, RentCosts, SyscallCosts},
-        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
+        message::{ContextSettings, IncomingDispatch, MAX_PAYLOAD_SIZE, Payload},
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
 
@@ -2269,14 +2269,11 @@ mod tests {
             let mut m = BTreeMap::new();
             let id = ReservationId::generate(MessageId::new([5; 32]), 10);
 
-            m.insert(
-                id,
-                GasReservationSlot {
-                    amount: 1_000_000,
-                    start: 0,
-                    finish: 10,
-                },
-            );
+            m.insert(id, GasReservationSlot {
+                amount: 1_000_000,
+                start: 0,
+                finish: 10,
+            });
 
             (id, m)
         };
@@ -2291,12 +2288,13 @@ mod tests {
         );
 
         // Check all the reseravations are in "existing" state.
-        assert!(ext
-            .context
-            .gas_reserver
-            .states()
-            .iter()
-            .all(|(_, state)| matches!(state, GasReservationState::Exists { .. })));
+        assert!(
+            ext.context
+                .gas_reserver
+                .states()
+                .iter()
+                .all(|(_, state)| matches!(state, GasReservationState::Exists { .. }))
+        );
 
         // Unreserving existing and checking no gas reimbursed.
         let gas_before = ext.gas_amount();

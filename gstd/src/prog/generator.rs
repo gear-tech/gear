@@ -18,10 +18,10 @@
 
 //! Program generation module
 
-use crate::{prog, util::with_optimized_encode, ActorId, CodeId, MessageId};
+use crate::{ActorId, CodeId, MessageId, prog, util::with_optimized_encode};
 use gcore::errors::Result;
 use gstd_codegen::wait_create_program_for_reply;
-use scale_info::scale::{alloc::vec::Vec, Encode};
+use scale_info::scale::{Encode, alloc::vec::Vec};
 
 /// Helper to create programs without setting the salt manually.
 pub struct ProgramGenerator(u64);
@@ -75,7 +75,7 @@ impl ProgramGenerator {
     /// Create a new program from the provided code identifier:
     ///
     /// ```
-    /// use gstd::{msg, prog::ProgramGenerator, CodeId};
+    /// use gstd::{CodeId, msg, prog::ProgramGenerator};
     ///
     /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {

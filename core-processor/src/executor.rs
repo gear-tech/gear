@@ -35,17 +35,17 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
-    pages::{numerated::tree::IntervalsTree, WasmPage},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
     program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_backend::{
+    BackendExternalities,
     env::{BackendReport, Environment, EnvironmentError},
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
     },
-    BackendExternalities,
 };
 
 /// Execute wasm with dispatch and return dispatch result.

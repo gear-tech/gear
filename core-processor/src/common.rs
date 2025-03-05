@@ -33,7 +33,7 @@ use gear_core::{
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    pages::{GearPage, WasmPage, WasmPagesAmount, numerated::tree::IntervalsTree},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
 };

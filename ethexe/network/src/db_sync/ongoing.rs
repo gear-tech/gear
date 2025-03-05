@@ -25,7 +25,7 @@ use ethexe_db::{CodesStorage, Database};
 use libp2p::{
     request_response,
     request_response::OutboundRequestId,
-    swarm::{behaviour::ConnectionEstablished, ConnectionClosed, ConnectionId, FromSwarm},
+    swarm::{ConnectionClosed, ConnectionId, FromSwarm, behaviour::ConnectionEstablished},
 };
 use rand::seq::IteratorRandom;
 use std::{

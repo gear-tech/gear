@@ -18,18 +18,18 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{db_sync, NetworkEvent, NetworkService};
+use ethexe_network::{NetworkEvent, NetworkService, db_sync};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
 use ethexe_processor::ProcessorConfig;
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::RpcEvent;
 use ethexe_sequencer::{
-    agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
+    SequencerConfig, SequencerEvent, SequencerService, agro::AggregatedCommitments,
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
@@ -519,7 +519,9 @@ impl Service {
                                         &db,
                                         network.as_mut(),
                                     ) {
-                                        log::warn!("Failed to process offchain transaction received by p2p: {e}");
+                                        log::warn!(
+                                            "Failed to process offchain transaction received by p2p: {e}"
+                                        );
                                     }
                                 }
                             };
@@ -591,13 +593,17 @@ impl Service {
                             .context("Failed to process offchain transaction received from RPC");
 
                             let Some(response_sender) = response_sender else {
-                                unreachable!("Response sender isn't set for the `RpcEvent::OffchainTransaction` event");
+                                unreachable!(
+                                    "Response sender isn't set for the `RpcEvent::OffchainTransaction` event"
+                                );
                             };
                             if let Err(e) = response_sender.send(res) {
                                 // No panic case as a responsibility of the service is fulfilled.
                                 // The dropped receiver signalizes that the rpc service has crashed
                                 // or is malformed, so problems should be handled there.
-                                log::error!("Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}");
+                                log::error!(
+                                    "Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}"
+                                );
                             }
                         }
                     }
@@ -654,7 +660,9 @@ impl Service {
                                             )?;
                                         }
                                         Err(err) => {
-                                            log::warn!("Collected batch commitments validation failed: {err}");
+                                            log::warn!(
+                                                "Collected batch commitments validation failed: {err}"
+                                            );
                                         }
                                     }
                                 }

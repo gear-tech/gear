@@ -18,7 +18,7 @@
 
 use crate::{FTAction, FTEvent, InitConfig, IoFungibleToken};
 use core::ops::Range;
-use gstd::{msg, prelude::*, ActorId};
+use gstd::{ActorId, msg, prelude::*};
 use hashbrown::HashMap;
 
 const ZERO_ID: ActorId = ActorId::new([0u8; 32]);

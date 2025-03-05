@@ -22,7 +22,7 @@ use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, CodeId, ProgramId},
+    ids::{CodeId, ProgramId, prelude::*},
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
@@ -40,7 +40,7 @@ use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_utils::NonEmpty;
 use nonempty::nonempty;
 use proptest::prelude::*;
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng, rngs::SmallRng};
 use std::num::NonZero;
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
@@ -224,10 +224,8 @@ fn test_avoid_waits_works() {
         .with_waiting_probability(NonZero::<u32>::new(4).unwrap())
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, ExecuteParams {
             // This test supposed to check if waiting probability works correctly,
             // so we have to set `init_called flag` to make wait probability code reachable.
             // And the second, we have to set waiting probability counter to non-zero value,
@@ -235,8 +233,7 @@ fn test_avoid_waits_works() {
             initial_memory_write: nonempty![set_init_called_flag(), set_wait_called_counter(1)]
                 .into(),
             ..Default::default()
-        },
-    );
+        });
 
     assert_eq!(
         backend_report.termination_reason,
@@ -282,16 +279,12 @@ fn test_wait_stores_message_id() {
             store,
             memory,
             ..
-        } = execute_wasm_with_custom_configs(
-            &mut unstructured,
-            syscalls_config,
-            ExecuteParams {
-                initial_memory_write: nonempty![set_init_called_flag(), set_wait_called_counter(0)]
-                    .into(),
-                message_id: EXPECTED_MSG_ID,
-                ..Default::default()
-            },
-        );
+        } = execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, ExecuteParams {
+            initial_memory_write: nonempty![set_init_called_flag(), set_wait_called_counter(0)]
+                .into(),
+            message_id: EXPECTED_MSG_ID,
+            ..Default::default()
+        });
 
         // It's Ok, message id is 32 bytes in size, but we use u64 for testing purposes.
         let mut message_id = [0u8; 8];
@@ -335,14 +328,10 @@ fn test_wake_uses_stored_message_id() {
         mut store,
         memory,
         ext,
-    } = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
-            initial_memory_write: nonempty![set_waited_message_id(EXPECTED_MSG_ID)].into(),
-            ..Default::default()
-        },
-    );
+    } = execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, ExecuteParams {
+        initial_memory_write: nonempty![set_waited_message_id(EXPECTED_MSG_ID)].into(),
+        ..Default::default()
+    });
 
     let info = ext.into_ext_info(&mut store, &memory).unwrap();
     let msg_id = info.awakening.first().unwrap().0;
@@ -460,14 +449,11 @@ fn test_msg_value_ptr() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, ExecuteParams {
             value: INITIAL_BALANCE,
             ..Default::default()
-        },
-    );
+        });
 
     assert_eq!(
         backend_report.ext.context.value_counter.left(),
@@ -633,14 +619,11 @@ fn test_reservation_id_with_value_ptr() {
         .with_keeping_insertion_order(true)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, ExecuteParams {
             gas: 250_000_000_000,
             ..Default::default()
-        },
-    );
+        });
 
     assert_eq!(
         backend_report.termination_reason,
@@ -680,14 +663,11 @@ fn test_reservation_id_with_actor_id_and_value_ptr() {
         .with_keeping_insertion_order(true)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, ExecuteParams {
             gas: 250_000_000_000,
             ..Default::default()
-        },
-    );
+        });
 
     assert_eq!(
         backend_report.termination_reason,
@@ -717,14 +697,11 @@ fn test_reservation_id_ptr() {
         .with_keeping_insertion_order(true)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        ExecuteParams {
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, ExecuteParams {
             gas: 250_000_000_000,
             ..Default::default()
-        },
-    );
+        });
 
     assert_eq!(
         backend_report.termination_reason,
@@ -767,24 +744,23 @@ fn test_code_id_with_value_ptr() {
             .with_error_processing_config(ErrorProcessingConfig::All)
             .build();
 
-        let backend_report = execute_wasm_with_custom_configs(
-            &mut unstructured,
-            syscalls_config,
-            ExecuteParams {
+        let backend_report =
+            execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, ExecuteParams {
                 value: INITIAL_BALANCE,
                 ..Default::default()
-            },
-        );
+            });
 
         assert_eq!(
             backend_report.ext.context.value_counter.left(),
             INITIAL_BALANCE - REPLY_VALUE
         );
-        assert!(backend_report
-            .ext
-            .context
-            .program_candidates_data
-            .contains_key(&some_code_id));
+        assert!(
+            backend_report
+                .ext
+                .context
+                .program_candidates_data
+                .contains_key(&some_code_id)
+        );
         assert_eq!(
             backend_report.termination_reason,
             TerminationReason::Actor(ActorTerminationReason::Success)

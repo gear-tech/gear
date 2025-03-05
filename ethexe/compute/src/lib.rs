@@ -18,17 +18,17 @@
 
 //! Sequencer for ethexe.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::{
+    BlockData,
     db::{BlockMetaStorage, CodesStorage},
     events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
     gear::{BlockCommitment, CodeCommitment, StateTransition},
-    BlockData,
 };
 use ethexe_db::{CodeInfo, Database};
 use ethexe_observer::Query;
 use ethexe_processor::{LocalOutcome, Processor};
-use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
+use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
 use std::{
     collections::VecDeque,

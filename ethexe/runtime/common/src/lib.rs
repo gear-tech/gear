@@ -24,9 +24,9 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use core_processor::{
+    ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
-    ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
 use ethexe_common::gear::Origin;
 use gear_core::{
@@ -245,7 +245,9 @@ where
     // to process message, if it's a reply or init message.
     // Otherwise, we return error reply.
     if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
-        log::trace!("Program {program_id} is not yet finished initialization, so cannot process handle message");
+        log::trace!(
+            "Program {program_id} is not yet finished initialization, so cannot process handle message"
+        );
         return core_processor::process_non_executable(context);
     }
 

@@ -30,7 +30,7 @@ use gear_lazy_pages::{
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_wasm_instrument::GLOBAL_NAME_GAS;
 
-use crate::{globals::InstanceAccessGlobal, OS_PAGE_SIZE};
+use crate::{OS_PAGE_SIZE, globals::InstanceAccessGlobal};
 
 pub type HostPageAddr = usize;
 

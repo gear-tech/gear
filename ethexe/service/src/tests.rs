@@ -19,12 +19,12 @@
 //! Integration tests.
 
 use crate::{
-    config::{self, Config},
     Service,
+    config::{self, Config},
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
-    providers::{ext::AnvilApi, Provider},
+    providers::{Provider, ext::AnvilApi},
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Result;
@@ -33,11 +33,11 @@ use ethexe_common::{
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
-use ethexe_ethereum::{router::RouterQuery, Ethereum};
+use ethexe_ethereum::{Ethereum, router::RouterQuery};
 use ethexe_observer::{EthereumConfig, MockBlobReader, Query};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
+use ethexe_rpc::{RpcConfig, test_utils::RpcClient};
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
@@ -47,7 +47,7 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
-use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
+use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -1115,7 +1115,7 @@ mod utils {
     use super::*;
     use crate::Event;
     use ethexe_common::SimpleBlockData;
-    use ethexe_network::{export::Multiaddr, NetworkEvent};
+    use ethexe_network::{NetworkEvent, export::Multiaddr};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
     use ethexe_sequencer::{SequencerConfig, SequencerService};
@@ -1123,10 +1123,10 @@ mod utils {
     use ethexe_tx_pool::TxPoolService;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng};
     use roast_secp256k1_evm::frost::{
-        keys::{self, IdentifierList, PublicKeyPackage},
         Identifier, SigningKey,
+        keys::{self, IdentifierList, PublicKeyPackage},
     };
     use std::{
         ops::Mul,
@@ -1134,8 +1134,8 @@ mod utils {
         sync::atomic::{AtomicUsize, Ordering},
     };
     use tokio::sync::{
-        broadcast::{self, Receiver, Sender},
         Mutex,
+        broadcast::{self, Receiver, Sender},
     };
 
     pub struct TestEnv {

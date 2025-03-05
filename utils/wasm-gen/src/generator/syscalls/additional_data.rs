@@ -30,14 +30,14 @@
 //! executions.
 
 use crate::{
+    EntryPointName, InvocableSyscall, SyscallsConfig, WasmModule,
     generator::{
         CallIndexes, CallIndexesHandle, DisabledSyscallsImportsGenerator, ModuleWithCallIndexes,
         SyscallsImportsGenerationProof,
     },
-    EntryPointName, InvocableSyscall, SyscallsConfig, WasmModule,
 };
 use arbitrary::Unstructured;
-use gear_wasm_instrument::{syscalls::SyscallName, Data, Instruction, ModuleBuilder};
+use gear_wasm_instrument::{Data, Instruction, ModuleBuilder, syscalls::SyscallName};
 use std::{collections::BTreeMap, num::NonZero};
 
 /// Additional data injector.
@@ -161,14 +161,11 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
                 .get_mut(export_idx as usize)
                 .expect("index of existing export")
                 .instructions
-                .splice(
-                    0..0,
-                    [
-                        Instruction::I32Const(log_info_offset as i32),
-                        Instruction::I32Const(log_bytes_len as i32),
-                        Instruction::Call(debug_call_indexes_handle),
-                    ],
-                );
+                .splice(0..0, [
+                    Instruction::I32Const(log_info_offset as i32),
+                    Instruction::I32Const(log_bytes_len as i32),
+                    Instruction::Call(debug_call_indexes_handle),
+                ]);
 
             (module, ())
         });

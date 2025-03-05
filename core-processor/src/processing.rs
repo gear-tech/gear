@@ -34,13 +34,13 @@ use alloc::{
 };
 use gear_core::{
     env::Externalities,
-    ids::{prelude::*, MessageId, ProgramId},
+    ids::{MessageId, ProgramId, prelude::*},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
 use gear_core_backend::{
-    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
     BackendExternalities,
+    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 
@@ -157,11 +157,12 @@ where
                         system_reservation_ctx.previous_reservation
                             == res.system_reservation_context.previous_reservation
                     );
-                    debug_assert!(res
-                        .gas_reserver
-                        .as_ref()
-                        .map(|reserver| initial_reservations_amount <= reserver.states().len())
-                        .unwrap_or(true));
+                    debug_assert!(
+                        res.gas_reserver
+                            .as_ref()
+                            .map(|reserver| initial_reservations_amount <= reserver.states().len())
+                            .unwrap_or(true)
+                    );
                 }
                 // reservation does not change in case of failure
                 _ => (),

@@ -20,8 +20,8 @@
 //! Contains the code for the stack height limiter instrumentation.
 
 use crate::{
-    module::{ConstExpr, Export, Global, Instruction, ModuleBuilder},
     Module,
+    module::{ConstExpr, Export, Global, Instruction, ModuleBuilder},
 };
 use alloc::{string::ToString, vec::Vec};
 use core::mem;
@@ -105,14 +105,11 @@ impl Context {
 ///   frames.
 /// - upon entry into the function entire stack frame is allocated.
 pub fn inject(module: Module, stack_limit: u32) -> Result<Module, &'static str> {
-    inject_with_config(
-        module,
-        InjectionConfig {
-            stack_limit,
-            injection_fn: |_| [Instruction::Unreachable],
-            stack_height_export_name: None,
-        },
-    )
+    inject_with_config(module, InjectionConfig {
+        stack_limit,
+        injection_fn: |_| [Instruction::Unreachable],
+        stack_height_export_name: None,
+    })
 }
 
 /// Represents the injection configuration. See [`inject_with_config`] for more details.

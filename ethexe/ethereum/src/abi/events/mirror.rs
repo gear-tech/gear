@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::abi::{utils::*, IMirror};
+use crate::abi::{IMirror, utils::*};
 use ethexe_common::events::MirrorEvent;
 use gear_core_errors::ReplyCode;
 

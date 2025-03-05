@@ -24,7 +24,7 @@ use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use core::{
     any::Any,
     marker::PhantomData,
@@ -34,16 +34,16 @@ use core::{
 use ethexe_common::gear::{Message, Origin};
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
-    ids::{prelude::MessageIdExt as _, ProgramId},
+    ids::{ProgramId, prelude::MessageIdExt as _},
     memory::PageBuf,
     message::{
         ContextStore, DispatchKind, MessageDetails, Payload, ReplyDetails, StoredDispatch, Value,
     },
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
     program::MemoryInfix,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gprimitives::{ActorId, MessageId, H256};
+use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
 
@@ -690,13 +690,10 @@ impl Waitlist {
     pub fn wait(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
         self.changed = true;
 
-        let r = self.inner.insert(
-            message_id,
-            ValueWithExpiry {
-                value: dispatch,
-                expiry,
-            },
-        );
+        let r = self.inner.insert(message_id, ValueWithExpiry {
+            value: dispatch,
+            expiry,
+        });
         debug_assert!(r.is_none())
     }
 
@@ -722,13 +719,10 @@ pub struct DispatchStash(BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<A
 
 impl DispatchStash {
     pub fn add_to_program(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
-        let r = self.0.insert(
-            message_id,
-            ValueWithExpiry {
-                value: (dispatch, None),
-                expiry,
-            },
-        );
+        let r = self.0.insert(message_id, ValueWithExpiry {
+            value: (dispatch, None),
+            expiry,
+        });
         debug_assert!(r.is_none());
     }
 
@@ -739,13 +733,10 @@ impl DispatchStash {
         expiry: u32,
         user_id: ActorId,
     ) {
-        let r = self.0.insert(
-            message_id,
-            ValueWithExpiry {
-                value: (dispatch, Some(user_id)),
-                expiry,
-            },
-        );
+        let r = self.0.insert(message_id, ValueWithExpiry {
+            value: (dispatch, Some(user_id)),
+            expiry,
+        });
         debug_assert!(r.is_none());
     }
 

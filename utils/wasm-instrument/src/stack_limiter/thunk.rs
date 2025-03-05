@@ -18,13 +18,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    instrument_call,
+    Context, instrument_call,
     max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext},
-    resolve_func_type, Context,
+    resolve_func_type,
 };
 use crate::{
-    module::{ElementItems, Function, Instruction, ModuleBuilder},
     Module,
+    module::{ElementItems, Function, Instruction, ModuleBuilder},
 };
 use alloc::{collections::BTreeMap as Map, vec::Vec};
 use wasmparser::{ExternalKind, FuncType};
@@ -117,14 +117,11 @@ where
                     *instruction = Instruction::I32Const(callee_stack_cost as i32);
                 }
 
-                replacement_map.insert(
-                    func_idx,
-                    Thunk {
-                        signature,
-                        body: Some(thunk_body),
-                        idx: None,
-                    },
-                );
+                replacement_map.insert(func_idx, Thunk {
+                    signature,
+                    body: Some(thunk_body),
+                    idx: None,
+                });
             }
         }
 

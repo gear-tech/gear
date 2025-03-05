@@ -20,14 +20,13 @@
 
 use crate::{self as pallet_gear_voucher, VoucherId};
 use common::{
-    storage::{Interval, Mailbox},
     Origin,
+    storage::{Interval, Mailbox},
 };
 use frame_support::{
-    construct_runtime, parameter_types,
+    PalletId, construct_runtime, parameter_types,
     traits::ConstU32,
-    weights::{constants::RocksDbWeight, Weight},
-    PalletId,
+    weights::{Weight, constants::RocksDbWeight},
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::{
@@ -37,8 +36,8 @@ use gear_core::{
 use primitive_types::H256;
 use sp_core::ConstU8;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup, Zero},
     BuildStorage,
+    traits::{BlakeTwo256, IdentityLookup, Zero},
 };
 use sp_std::convert::{TryFrom, TryInto};
 

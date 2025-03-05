@@ -21,19 +21,19 @@
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use futures::FutureExt;
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
-use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
-use sc_network::{service::traits::NetworkService, NetworkBackend};
-use sc_network_sync::{strategy::warp::WarpSyncConfig, SyncingService};
+use sc_executor::{DEFAULT_HEAP_ALLOC_STRATEGY, HeapAllocStrategy, WasmExecutor};
+use sc_network::{NetworkBackend, service::traits::NetworkService};
+use sc_network_sync::{SyncingService, strategy::warp::WarpSyncConfig};
 use sc_service::{
-    error::Error as ServiceError, ChainSpec, Configuration, PartialComponents, RpcHandlers,
-    TaskManager,
+    ChainSpec, Configuration, PartialComponents, RpcHandlers, TaskManager,
+    error::Error as ServiceError,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::ConstructRuntimeApi;
 use sp_runtime::{
-    traits::{BlakeTwo256, Block as BlockT},
     OpaqueExtrinsic,
+    traits::{BlakeTwo256, Block as BlockT},
 };
 use sp_state_machine::Backend as StateBackend;
 use std::sync::Arc;
@@ -148,9 +148,9 @@ pub fn new_partial<RuntimeApi>(
         sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi>>,
         (
             impl Fn(
-                    sc_rpc::SubscriptionTaskExecutor,
-                ) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>
-                + use<RuntimeApi>,
+                sc_rpc::SubscriptionTaskExecutor,
+            ) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>
+            + use<RuntimeApi>,
             (
                 sc_consensus_babe::BabeBlockImport<
                     Block,

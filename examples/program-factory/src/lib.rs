@@ -59,9 +59,8 @@ mod tests {
 
     use super::*;
     use gtest::{
-        calculate_program_id,
+        Program, System, calculate_program_id,
         constants::{DEFAULT_USER_ALICE, UNITS},
-        Program, System,
     };
     use std::io::Write;
 

@@ -22,7 +22,7 @@
 
 use crate::state::blocks::GetBlockNumberImpl;
 use gear_common::{
-    auxiliary::{waitlist::*, BlockNumber},
+    auxiliary::{BlockNumber, waitlist::*},
     storage::{Interval, IterableByKeyMap, Waitlist, WaitlistCallbacks},
 };
 use gear_core::{

@@ -18,6 +18,7 @@
 
 //! Gear storage apis
 use crate::{
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
     metadata::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
@@ -37,13 +38,13 @@ use crate::{
         vara_runtime::RuntimeEvent,
     },
     result::{Error, Result},
-    utils, Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
+    utils,
 };
 use anyhow::anyhow;
 use gear_core::ids::*;
 use gsdk_codegen::storage_fetch;
 use hex::ToHex;
-use sp_core::{crypto::Ss58Codec, H256};
+use sp_core::{H256, crypto::Ss58Codec};
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
 use subxt::{
@@ -251,10 +252,9 @@ impl Api {
         code_id: CodeId,
         block_hash: Option<H256>,
     ) -> Result<Vec<u8>> {
-        let addr = Self::storage(
-            GearProgramStorage::OriginalCodeStorage,
-            vec![Value::from_bytes(code_id)],
-        );
+        let addr = Self::storage(GearProgramStorage::OriginalCodeStorage, vec![
+            Value::from_bytes(code_id),
+        ]);
         self.fetch_storage_at(&addr, block_hash).await
     }
 
@@ -265,10 +265,9 @@ impl Api {
         code_id: CodeId,
         block_hash: Option<H256>,
     ) -> Result<InstrumentedCode> {
-        let addr = Self::storage(
-            GearProgramStorage::CodeStorage,
-            vec![Value::from_bytes(code_id)],
-        );
+        let addr = Self::storage(GearProgramStorage::CodeStorage, vec![Value::from_bytes(
+            code_id,
+        )]);
         self.fetch_storage_at(&addr, block_hash).await
     }
 
@@ -279,10 +278,9 @@ impl Api {
         code_id: CodeId,
         block_hash: Option<H256>,
     ) -> Result<u32> {
-        let addr = Self::storage(
-            GearProgramStorage::CodeLenStorage,
-            vec![Value::from_bytes(code_id)],
-        );
+        let addr = Self::storage(GearProgramStorage::CodeLenStorage, vec![Value::from_bytes(
+            code_id,
+        )]);
         self.fetch_storage_at(&addr, block_hash).await
     }
 
@@ -293,10 +291,9 @@ impl Api {
         program_id: ProgramId,
         block_hash: Option<H256>,
     ) -> Result<ActiveProgram<BlockNumber>> {
-        let addr = Self::storage(
-            GearProgramStorage::ProgramStorage,
-            vec![Value::from_bytes(program_id)],
-        );
+        let addr = Self::storage(GearProgramStorage::ProgramStorage, vec![Value::from_bytes(
+            program_id,
+        )]);
 
         let program = self
             .fetch_storage_at::<_, Program<BlockNumber>>(&addr, block_hash)
@@ -323,13 +320,10 @@ impl Api {
             None => self.gprog_at(program_id, block_hash).await?.memory_infix.0,
         };
 
-        let pages_storage_address = Self::storage(
-            GearProgramStorage::MemoryPages,
-            vec![
-                Value::from_bytes(program_id),
-                Value::u128(memory_infix as u128),
-            ],
-        );
+        let pages_storage_address = Self::storage(GearProgramStorage::MemoryPages, vec![
+            Value::from_bytes(program_id),
+            Value::u128(memory_infix as u128),
+        ]);
 
         let mut pages_stream = self
             .get_storage(block_hash)
@@ -363,14 +357,12 @@ impl Api {
         };
 
         for page in page_numbers {
-            let addr: DynamicAddress<Vec<Value>> = Self::storage(
-                GearProgramStorage::MemoryPages,
-                vec![
+            let addr: DynamicAddress<Vec<Value>> =
+                Self::storage(GearProgramStorage::MemoryPages, vec![
                     Value::from_bytes(program_id),
                     Value::u128(memory_infix as u128),
                     Value::u128(page as u128),
-                ],
-            );
+                ]);
 
             let metadata = self.metadata();
             let lookup_bytes = utils::storage_address_bytes(&addr, &metadata)?;
@@ -397,13 +389,10 @@ impl Api {
         account_id: AccountId32,
         message_id: impl AsRef<[u8]>,
     ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
-        let addr = Self::storage(
-            GearMessengerStorage::Mailbox,
-            vec![
-                Value::from_bytes(account_id),
-                Value::from_bytes(message_id.as_ref()),
-            ],
-        );
+        let addr = Self::storage(GearMessengerStorage::Mailbox, vec![
+            Value::from_bytes(account_id),
+            Value::from_bytes(message_id.as_ref()),
+        ]);
 
         Ok(self.fetch_storage(&addr).await.ok())
     }

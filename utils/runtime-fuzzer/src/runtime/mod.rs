@@ -28,7 +28,7 @@ use vara_runtime::{
     AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
 };
 
-pub use account::{acc_max_balance_gas, account, BalanceManager, BalanceState};
+pub use account::{BalanceManager, BalanceState, acc_max_balance_gas, account};
 pub use block::{default_gas_limit, run_to_next_block};
 
 mod account;
@@ -73,16 +73,12 @@ pub fn new_test_ext() -> TestExternalities {
         keys: authorities
             .into_iter()
             .map(|(account, babe, grandpa, im_online, authority_discovery)| {
-                (
-                    account.clone(),
-                    account,
-                    SessionKeys {
-                        babe,
-                        grandpa,
-                        im_online,
-                        authority_discovery,
-                    },
-                )
+                (account.clone(), account, SessionKeys {
+                    babe,
+                    grandpa,
+                    im_online,
+                    authority_discovery,
+                })
             })
             .collect(),
         ..Default::default()

@@ -52,8 +52,8 @@ use crate::{
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
     pages::{
-        GearPagesAmount, GearSizeNo, PagesAmountTrait, SizeNumber, WasmPage, WasmPagesAmount,
-        WasmSizeNo, SIZES_AMOUNT,
+        GearPagesAmount, GearSizeNo, PagesAmountTrait, SIZES_AMOUNT, SizeNumber, WasmPage,
+        WasmPagesAmount, WasmSizeNo,
     },
     signal::DefaultUserSignalHandler,
 };

@@ -19,7 +19,7 @@
 //! Ethereum address.
 
 use crate::PublicKey;
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result, anyhow};
 use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;

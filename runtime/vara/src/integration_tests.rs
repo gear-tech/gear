@@ -20,19 +20,18 @@ use crate::*;
 use frame_support::{
     assert_noop, assert_ok,
     traits::{
-        fungible,
+        LockableCurrency, OnFinalize, OnInitialize, WithdrawReasons, fungible,
         tokens::{DepositConsequence, Fortitude, Preservation, Provenance},
-        LockableCurrency, OnFinalize, OnInitialize, WithdrawReasons,
     },
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::gas_metering::CustomConstantCostRules;
 use gear_wasm_instrument::{BlockType, Instruction, MemArg, Module, Rules};
 use sp_consensus_babe::{
+    BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
-    Slot, BABE_ENGINE_ID,
 };
-use sp_core::{ed25519, sr25519, Pair};
+use sp_core::{Pair, ed25519, sr25519};
 use sp_keyring::AccountKeyring;
 use sp_runtime::{BuildStorage, Digest, DigestItem};
 
@@ -41,20 +40,16 @@ const STASH: u128 = 1_000 * UNITS;
 
 pub(crate) fn initialize_block(new_blk: BlockNumberFor<Runtime>) {
     // All blocks are to be authored by validator at index 0
-    System::initialize(
-        &new_blk,
-        &System::parent_hash(),
-        &Digest {
-            logs: vec![DigestItem::PreRuntime(
-                BABE_ENGINE_ID,
-                PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
-                    slot: Slot::from(u64::from(new_blk)),
-                    authority_index: 0,
-                })
-                .encode(),
-            )],
-        },
-    );
+    System::initialize(&new_blk, &System::parent_hash(), &Digest {
+        logs: vec![DigestItem::PreRuntime(
+            BABE_ENGINE_ID,
+            PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+                slot: Slot::from(u64::from(new_blk)),
+                authority_index: 0,
+            })
+            .encode(),
+        )],
+    });
     System::set_block_number(new_blk);
 }
 
@@ -170,16 +165,12 @@ impl ExtBuilder {
                 .initial_authorities
                 .iter()
                 .map(|x| {
-                    (
-                        x.0.clone(),
-                        x.0.clone(),
-                        SessionKeys {
-                            babe: x.2.into(),
-                            grandpa: x.3.into(),
-                            im_online: x.4.into(),
-                            authority_discovery: x.5.into(),
-                        },
-                    )
+                    (x.0.clone(), x.0.clone(), SessionKeys {
+                        babe: x.2.into(),
+                        grandpa: x.3.into(),
+                        im_online: x.4.into(),
+                        authority_discovery: x.5.into(),
+                    })
                 })
                 .collect(),
             ..Default::default()
@@ -712,12 +703,14 @@ fn fungible_api_works() {
             );
 
             // Ok case
-            assert_ok!(<Balances as fungible::Inspect<AccountId>>::can_deposit(
-                &charlie.into(),
-                ok_value,
-                Provenance::Extant
-            )
-            .into_result());
+            assert_ok!(
+                <Balances as fungible::Inspect<AccountId>>::can_deposit(
+                    &charlie.into(),
+                    ok_value,
+                    Provenance::Extant
+                )
+                .into_result()
+            );
 
             // Trivial check of reducible balance
             Balances::make_free_balance_be(&charlie.into(), 5 * EXISTENTIAL_DEPOSIT);

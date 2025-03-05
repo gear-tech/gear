@@ -18,7 +18,7 @@
 
 //! Base identifiers for messaging primitives.
 
-use blake2::{digest::typenum::U32, Blake2b, Digest};
+use blake2::{Blake2b, Digest, digest::typenum::U32};
 pub use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
 
 /// BLAKE2b-256 hasher state.

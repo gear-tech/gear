@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    BlockCount, BlockNumber, Config, MessageId,
     collections::BTreeMap,
     config::WaitType,
     errors::{Error, Result, UsageError},
     exec,
     sync::MutexId,
-    BlockCount, BlockNumber, Config, MessageId,
 };
 use core::cmp::Ordering;
 use hashbrown::HashMap;
