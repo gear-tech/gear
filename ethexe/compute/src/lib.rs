@@ -212,7 +212,7 @@ impl ChainHeadProcessContext {
         // Set block as valid - means state db has all states for the end of the block
         self.db.set_block_computed(block);
 
-        self.db.set_latest_valid_block(block, header);
+        self.db.set_latest_computed_block(block, header);
 
         Ok(())
     }

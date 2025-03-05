@@ -93,8 +93,8 @@ pub trait BlockMetaStorage: Send + Sync {
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
     fn set_block_schedule(&self, block_hash: H256, map: Schedule);
 
-    fn latest_valid_block(&self) -> Option<(H256, BlockHeader)>;
-    fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader);
+    fn latest_computed_block(&self) -> Option<(H256, BlockHeader)>;
+    fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader);
 }
 
 pub trait CodesStorage: Send + Sync {

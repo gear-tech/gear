@@ -1043,7 +1043,7 @@ async fn tx_pool_gossip() {
     tokio::time::sleep(Duration::from_secs(2)).await;
     let reference_block = node0
         .db
-        .latest_valid_block()
+        .latest_computed_block()
         .expect("at least genesis block is latest valid")
         .0;
 

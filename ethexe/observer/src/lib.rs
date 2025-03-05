@@ -281,7 +281,7 @@ impl ObserverService {
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
 
-        db.set_latest_valid_block(genesis_block_hash, genesis_header);
+        db.set_latest_computed_block(genesis_block_hash, genesis_header);
 
         db.set_block_computed(genesis_block_hash);
 

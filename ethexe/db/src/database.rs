@@ -59,7 +59,7 @@ enum KeyPrefix {
 
     SignedTransaction = 9,
 
-    LatestValidBlock = 10,
+    LatestComputedBlock = 10,
     LatestSyncedBlockHeight = 11,
 }
 
@@ -160,7 +160,8 @@ impl Database {
 
     // TODO (gsobol): test this method
     pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> Result<bool> {
-        let Some((latest_valid_block_hash, latest_valid_block_header)) = self.latest_valid_block()
+        let Some((latest_computed_block_hash, latest_computed_block_header)) =
+            self.latest_computed_block()
         else {
             bail!("No latest valid block found");
         };
@@ -170,7 +171,7 @@ impl Database {
         };
 
         // If reference block is far away from the latest valid block, it's not in the window.
-        let Some(actual_window) = latest_valid_block_header
+        let Some(actual_window) = latest_computed_block_header
             .height
             .checked_sub(reference_block_header.height)
         else {
@@ -182,7 +183,7 @@ impl Database {
         }
 
         // Check against reorgs.
-        let mut block_hash = latest_valid_block_hash;
+        let mut block_hash = latest_computed_block_hash;
         for _ in 0..OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
             if block_hash == reference_block_hash {
                 return Ok(true);
@@ -325,19 +326,19 @@ impl BlockMetaStorage for Database {
         );
     }
 
-    fn latest_valid_block(&self) -> Option<(H256, BlockHeader)> {
+    fn latest_computed_block(&self) -> Option<(H256, BlockHeader)> {
         self.kv
-            .get(&KeyPrefix::LatestValidBlock.one(self.router_address))
+            .get(&KeyPrefix::LatestComputedBlock.one(self.router_address))
             .map(|data| {
                 <(H256, BlockHeader)>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `(H256, BlockHeader)`")
             })
     }
 
-    fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader) {
-        log::trace!("Set latest valid block: {block_hash} {header:?}");
+    fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader) {
+        log::trace!("Set latest computed block: {block_hash} {header:?}");
         self.kv.put(
-            &KeyPrefix::LatestValidBlock.one(self.router_address),
+            &KeyPrefix::LatestComputedBlock.one(self.router_address),
             (block_hash, header).encode(),
         );
     }
@@ -654,7 +655,7 @@ mod tests {
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
         db.set_block_header(block_hash, block_header.clone());
-        db.set_latest_valid_block(block_hash, block_header);
+        db.set_latest_computed_block(block_hash, block_header);
 
         assert!(db.check_within_recent_blocks(block_hash).unwrap());
     }
@@ -702,7 +703,7 @@ mod tests {
     }
 
     #[test]
-    fn test_latest_valid_block() {
+    fn test_latest_computed_block() {
         let db = Database::new(
             Box::new(MemDb::default()),
             Box::new(MemDb::default()),
@@ -711,8 +712,8 @@ mod tests {
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
-        db.set_latest_valid_block(block_hash, block_header.clone());
-        assert_eq!(db.latest_valid_block(), Some((block_hash, block_header)));
+        db.set_latest_computed_block(block_hash, block_header.clone());
+        assert_eq!(db.latest_computed_block(), Some((block_hash, block_header)));
     }
 
     #[test]
