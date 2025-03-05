@@ -97,10 +97,14 @@ async fn builtin_bls381() -> Result<()> {
     let mut gen_bytes = Vec::new();
     generator.serialize_uncompressed(&mut gen_bytes).unwrap();
 
-    let program_id = upload_program(&client, &mut listener, InitMessage {
-        g2_gen: gen_bytes,
-        pub_keys,
-    })
+    let program_id = upload_program(
+        &client,
+        &mut listener,
+        InitMessage {
+            g2_gen: gen_bytes,
+            pub_keys,
+        },
+    )
     .await?;
 
     let message: ArkScale<Vec<G1Affine>> = vec![message].into();

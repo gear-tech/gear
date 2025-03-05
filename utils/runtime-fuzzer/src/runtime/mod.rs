@@ -73,12 +73,16 @@ pub fn new_test_ext() -> TestExternalities {
         keys: authorities
             .into_iter()
             .map(|(account, babe, grandpa, im_online, authority_discovery)| {
-                (account.clone(), account, SessionKeys {
-                    babe,
-                    grandpa,
-                    im_online,
-                    authority_discovery,
-                })
+                (
+                    account.clone(),
+                    account,
+                    SessionKeys {
+                        babe,
+                        grandpa,
+                        im_online,
+                        authority_discovery,
+                    },
+                )
             })
             .collect(),
         ..Default::default()

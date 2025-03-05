@@ -117,11 +117,14 @@ where
                     *instruction = Instruction::I32Const(callee_stack_cost as i32);
                 }
 
-                replacement_map.insert(func_idx, Thunk {
-                    signature,
-                    body: Some(thunk_body),
-                    idx: None,
-                });
+                replacement_map.insert(
+                    func_idx,
+                    Thunk {
+                        signature,
+                        body: Some(thunk_body),
+                        idx: None,
+                    },
+                );
             }
         }
 

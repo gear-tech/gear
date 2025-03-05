@@ -690,10 +690,13 @@ impl Waitlist {
     pub fn wait(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
         self.changed = true;
 
-        let r = self.inner.insert(message_id, ValueWithExpiry {
-            value: dispatch,
-            expiry,
-        });
+        let r = self.inner.insert(
+            message_id,
+            ValueWithExpiry {
+                value: dispatch,
+                expiry,
+            },
+        );
         debug_assert!(r.is_none())
     }
 
@@ -719,10 +722,13 @@ pub struct DispatchStash(BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<A
 
 impl DispatchStash {
     pub fn add_to_program(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
-        let r = self.0.insert(message_id, ValueWithExpiry {
-            value: (dispatch, None),
-            expiry,
-        });
+        let r = self.0.insert(
+            message_id,
+            ValueWithExpiry {
+                value: (dispatch, None),
+                expiry,
+            },
+        );
         debug_assert!(r.is_none());
     }
 
@@ -733,10 +739,13 @@ impl DispatchStash {
         expiry: u32,
         user_id: ActorId,
     ) {
-        let r = self.0.insert(message_id, ValueWithExpiry {
-            value: (dispatch, Some(user_id)),
-            expiry,
-        });
+        let r = self.0.insert(
+            message_id,
+            ValueWithExpiry {
+                value: (dispatch, Some(user_id)),
+                expiry,
+            },
+        );
         debug_assert!(r.is_none());
     }
 

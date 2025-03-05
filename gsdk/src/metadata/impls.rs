@@ -190,14 +190,17 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
             gas_limit,
             value,
             keep_alive,
-        } => Value::named_variant("upload_program", [
-            ("code", Value::from_bytes(code)),
-            ("salt", Value::from_bytes(salt)),
-            ("init_payload", Value::from_bytes(init_payload)),
-            ("gas_limit", Value::u128(gas_limit as u128)),
-            ("value", Value::u128(value as u128)),
-            ("keep_alive", Value::bool(keep_alive)),
-        ]),
+        } => Value::named_variant(
+            "upload_program",
+            [
+                ("code", Value::from_bytes(code)),
+                ("salt", Value::from_bytes(salt)),
+                ("init_payload", Value::from_bytes(init_payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
+            ],
+        ),
         GearCall::create_program {
             code_id,
             salt,
@@ -205,44 +208,53 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
             gas_limit,
             value,
             keep_alive,
-        } => Value::named_variant("create_program", [
-            ("code_id", Value::from_bytes(code_id.0)),
-            ("salt", Value::from_bytes(salt)),
-            ("init_payload", Value::from_bytes(init_payload)),
-            ("gas_limit", Value::u128(gas_limit as u128)),
-            ("value", Value::u128(value as u128)),
-            ("keep_alive", Value::bool(keep_alive)),
-        ]),
+        } => Value::named_variant(
+            "create_program",
+            [
+                ("code_id", Value::from_bytes(code_id.0)),
+                ("salt", Value::from_bytes(salt)),
+                ("init_payload", Value::from_bytes(init_payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
+            ],
+        ),
         GearCall::send_message {
             destination,
             payload,
             gas_limit,
             value,
             keep_alive,
-        } => Value::named_variant("send_message", [
-            ("destination", Value::from_bytes(destination.0)),
-            ("payload", Value::from_bytes(payload)),
-            ("gas_limit", Value::u128(gas_limit as u128)),
-            ("value", Value::u128(value as u128)),
-            ("keep_alive", Value::bool(keep_alive)),
-        ]),
+        } => Value::named_variant(
+            "send_message",
+            [
+                ("destination", Value::from_bytes(destination.0)),
+                ("payload", Value::from_bytes(payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
+            ],
+        ),
         GearCall::send_reply {
             reply_to_id,
             payload,
             gas_limit,
             value,
             keep_alive,
-        } => Value::named_variant("send_reply", [
-            ("reply_to_id", Value::from_bytes(reply_to_id.0)),
-            ("payload", Value::from_bytes(payload)),
-            ("gas_limit", Value::u128(gas_limit as u128)),
-            ("value", Value::u128(value as u128)),
-            ("keep_alive", Value::bool(keep_alive)),
-        ]),
-        GearCall::claim_value { message_id } => Value::named_variant("claim_value", [(
-            "message_id",
-            Value::from_bytes(message_id.0),
-        )]),
+        } => Value::named_variant(
+            "send_reply",
+            [
+                ("reply_to_id", Value::from_bytes(reply_to_id.0)),
+                ("payload", Value::from_bytes(payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
+            ],
+        ),
+        GearCall::claim_value { message_id } => Value::named_variant(
+            "claim_value",
+            [("message_id", Value::from_bytes(message_id.0))],
+        ),
         _ => {
             unimplemented!("calls that won't be used in batch call");
         }
@@ -253,8 +265,9 @@ fn gear_call_to_scale_value(call: GearCall) -> Value {
 
 fn sudo_call_to_scale_value(call: SudoCall) -> Value {
     let variant = match call {
-        SudoCall::sudo_unchecked_weight { call, weight } => {
-            Value::named_variant("sudo_unchecked_weight", [
+        SudoCall::sudo_unchecked_weight { call, weight } => Value::named_variant(
+            "sudo_unchecked_weight",
+            [
                 ("call", (*call).into()),
                 (
                     "weight",
@@ -263,8 +276,8 @@ fn sudo_call_to_scale_value(call: SudoCall) -> Value {
                         ("proof_size", Value::u128(weight.proof_size as u128)),
                     ]),
                 ),
-            ])
-        }
+            ],
+        ),
         _ => unimplemented!("calls that won't be used in batch call"),
     };
 
@@ -278,10 +291,13 @@ fn balances_call_to_scale_value(call: BalancesCall) -> Value {
                 MultiAddress::Id(id) => id,
                 _ => unreachable!("internal error: unused multi-address variant occurred"),
             };
-            Value::named_variant("force_set_balance", [
-                ("who", Value::unnamed_variant("Id", [Value::from_bytes(id)])),
-                ("new_free", Value::u128(new_free)),
-            ])
+            Value::named_variant(
+                "force_set_balance",
+                [
+                    ("who", Value::unnamed_variant("Id", [Value::from_bytes(id)])),
+                    ("new_free", Value::u128(new_free)),
+                ],
+            )
         }
         _ => unreachable!("calls that won't be used in batch call"),
     };
@@ -298,10 +314,10 @@ fn system_call_to_scale_value(call: SystemCall) -> Value {
                     Value::unnamed_composite([Value::from_bytes(&i.0), Value::from_bytes(&i.1)])
                 })
                 .collect();
-            Value::named_variant("set_storage", [(
-                "items",
-                Value::unnamed_composite(items_as_values),
-            )])
+            Value::named_variant(
+                "set_storage",
+                [("items", Value::unnamed_composite(items_as_values))],
+            )
         }
         SystemCall::set_code { code } => {
             Value::named_variant("set_code", [("code", Value::from_bytes(code))])
@@ -356,26 +372,32 @@ fn prepaid_call_to_scale_value(call: PrepaidCall<u128>) -> Value {
             gas_limit,
             value,
             keep_alive,
-        } => Value::named_variant("SendMessage", [
-            ("destination", Value::from_bytes(destination.0)),
-            ("payload", Value::from_bytes(payload)),
-            ("gas_limit", Value::u128(gas_limit as u128)),
-            ("value", Value::u128(value as u128)),
-            ("keep_alive", Value::bool(keep_alive)),
-        ]),
+        } => Value::named_variant(
+            "SendMessage",
+            [
+                ("destination", Value::from_bytes(destination.0)),
+                ("payload", Value::from_bytes(payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
+            ],
+        ),
         PrepaidCall::SendReply {
             reply_to_id,
             payload,
             gas_limit,
             value,
             keep_alive,
-        } => Value::named_variant("SendReply", [
-            ("reply_to_id", Value::from_bytes(reply_to_id.0)),
-            ("payload", Value::from_bytes(payload)),
-            ("gas_limit", Value::u128(gas_limit as u128)),
-            ("value", Value::u128(value as u128)),
-            ("keep_alive", Value::bool(keep_alive)),
-        ]),
+        } => Value::named_variant(
+            "SendReply",
+            [
+                ("reply_to_id", Value::from_bytes(reply_to_id.0)),
+                ("payload", Value::from_bytes(payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+                ("keep_alive", Value::bool(keep_alive)),
+            ],
+        ),
         PrepaidCall::UploadCode { code } => {
             Value::named_variant("UploadCode", [("code", Value::from_bytes(code))])
         }

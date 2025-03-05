@@ -75,15 +75,18 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     mbuilder.push_export(Export::func("init", init_idx));
 
     // handle
-    let handle_idx = mbuilder.add_func(FuncType::new([], []), Function {
-        locals: vec![(1, ValType::I32)],
-        instructions: vec![
-            Instruction::I32Const(u32::from(num_pages) as i32),
-            Instruction::Call(0),
-            Instruction::LocalSet(0),
-            Instruction::End,
-        ],
-    });
+    let handle_idx = mbuilder.add_func(
+        FuncType::new([], []),
+        Function {
+            locals: vec![(1, ValType::I32)],
+            instructions: vec![
+                Instruction::I32Const(u32::from(num_pages) as i32),
+                Instruction::Call(0),
+                Instruction::LocalSet(0),
+                Instruction::End,
+            ],
+        },
+    );
     mbuilder.push_export(Export::func("handle", handle_idx));
 
     let code = mbuilder
@@ -102,15 +105,18 @@ pub fn set_program<ProgramStorage, BlockNumber>(
     ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
     BlockNumber: Zero + Copy + Saturating,
 {
-    ProgramStorage::add_program(program_id, ActiveProgram {
-        allocations_tree_len: 0,
-        code_hash: CodeId::generate(&code).into_origin(),
-        code_exports: Default::default(),
-        static_pages,
-        state: ProgramState::Initialized,
-        gas_reservation_map: GasReservationMap::default(),
-        expiration_block: Zero::zero(),
-        memory_infix: MemoryInfix::new(1u32),
-    })
+    ProgramStorage::add_program(
+        program_id,
+        ActiveProgram {
+            allocations_tree_len: 0,
+            code_hash: CodeId::generate(&code).into_origin(),
+            code_exports: Default::default(),
+            static_pages,
+            state: ProgramState::Initialized,
+            gas_reservation_map: GasReservationMap::default(),
+            expiration_block: Zero::zero(),
+            memory_infix: MemoryInfix::new(1u32),
+        },
+    )
     .expect("benchmarking; program duplicates should not exist");
 }

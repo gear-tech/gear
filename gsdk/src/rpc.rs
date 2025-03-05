@@ -38,14 +38,17 @@ impl Api {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.rpc()
-            .request("gear_calculateInitCreateGas", rpc_params![
-                origin,
-                H256(code_id.into()),
-                hex::encode(payload),
-                value,
-                allow_other_panics,
-                at
-            ])
+            .request(
+                "gear_calculateInitCreateGas",
+                rpc_params![
+                    origin,
+                    H256(code_id.into()),
+                    hex::encode(payload),
+                    value,
+                    allow_other_panics,
+                    at
+                ],
+            )
             .await
     }
 
@@ -60,14 +63,17 @@ impl Api {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.rpc()
-            .request("gear_calculateInitUploadGas", rpc_params![
-                origin,
-                hex::encode(code),
-                hex::encode(payload),
-                value,
-                allow_other_panics,
-                at
-            ])
+            .request(
+                "gear_calculateInitUploadGas",
+                rpc_params![
+                    origin,
+                    hex::encode(code),
+                    hex::encode(payload),
+                    value,
+                    allow_other_panics,
+                    at
+                ],
+            )
             .await
     }
 
@@ -82,14 +88,17 @@ impl Api {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.rpc()
-            .request("gear_calculateHandleGas", rpc_params![
-                origin,
-                H256(destination.into()),
-                hex::encode(payload),
-                value,
-                allow_other_panics,
-                at
-            ])
+            .request(
+                "gear_calculateHandleGas",
+                rpc_params![
+                    origin,
+                    H256(destination.into()),
+                    hex::encode(payload),
+                    value,
+                    allow_other_panics,
+                    at
+                ],
+            )
             .await
     }
 
@@ -104,14 +113,17 @@ impl Api {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.rpc()
-            .request("gear_calculateReplyGas", rpc_params![
-                origin,
-                H256(message_id.into()),
-                hex::encode(payload),
-                value,
-                allow_other_panics,
-                at
-            ])
+            .request(
+                "gear_calculateReplyGas",
+                rpc_params![
+                    origin,
+                    H256(message_id.into()),
+                    hex::encode(payload),
+                    value,
+                    allow_other_panics,
+                    at
+                ],
+            )
             .await
     }
 
@@ -130,11 +142,10 @@ impl Api {
         at: Option<H256>,
     ) -> Result<String> {
         self.rpc()
-            .request("gear_readState", rpc_params![
-                H256(pid.into()),
-                hex::encode(payload),
-                at
-            ])
+            .request(
+                "gear_readState",
+                rpc_params![H256(pid.into()), hex::encode(payload), at],
+            )
             .await
     }
 
@@ -156,14 +167,17 @@ impl Api {
         at: Option<H256>,
     ) -> Result<ReplyInfo> {
         self.rpc()
-            .request("gear_calculateReplyForHandle", rpc_params![
-                origin,
-                H256(destination.into()),
-                hex::encode(payload),
-                gas_limit,
-                value,
-                at
-            ])
+            .request(
+                "gear_calculateReplyForHandle",
+                rpc_params![
+                    origin,
+                    H256(destination.into()),
+                    hex::encode(payload),
+                    gas_limit,
+                    value,
+                    at
+                ],
+            )
             .await
     }
 }

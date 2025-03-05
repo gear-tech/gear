@@ -386,10 +386,13 @@ mod tests {
                     } = event
                     {
                         let exceeded = cause.downcast::<LimitExceeded>().unwrap();
-                        assert_eq!(exceeded, LimitExceeded {
-                            limit: 5,
-                            kind: LimitExceededKind::EstablishedIncomingPerPeer,
-                        });
+                        assert_eq!(
+                            exceeded,
+                            LimitExceeded {
+                                limit: 5,
+                                kind: LimitExceededKind::EstablishedIncomingPerPeer,
+                            }
+                        );
                     } else {
                         unreachable!("{event:?}");
                     }
@@ -450,10 +453,13 @@ mod tests {
                     } = event
                     {
                         let exceeded = cause.downcast::<LimitExceeded>().unwrap();
-                        assert_eq!(exceeded, LimitExceeded {
-                            limit: 5,
-                            kind: LimitExceededKind::EstablishedOutboundPerPeer,
-                        });
+                        assert_eq!(
+                            exceeded,
+                            LimitExceeded {
+                                limit: 5,
+                                kind: LimitExceededKind::EstablishedOutboundPerPeer,
+                            }
+                        );
                         assert_eq!(peer_id, unlimited_peer_id);
                     } else {
                         unreachable!("{event:?}");

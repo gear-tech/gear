@@ -462,10 +462,13 @@ impl Counter {
     fn finalize_metered_block(&mut self, cursor: usize) -> Result<(), CounterError> {
         let closing_metered_block = {
             let control_block = self.stack.last_mut().ok_or(CounterError::StackLast)?;
-            mem::replace(&mut control_block.active_metered_block, MeteredBlock {
-                start_pos: cursor + 1,
-                cost: BlockCostCounter::zero(),
-            })
+            mem::replace(
+                &mut control_block.active_metered_block,
+                MeteredBlock {
+                    start_pos: cursor + 1,
+                    cost: BlockCostCounter::zero(),
+                },
+            )
         };
 
         // If the block was opened with a `block`, then its start position will be set to that of
@@ -806,22 +809,22 @@ mod tests {
 
         let injected_module = inject(module, &ConstantCostRules::new(1, 10_000, 1), "env").unwrap();
 
-        assert_eq!(get_function_body(&injected_module, 0).unwrap(), [
-            I32Const(2),
-            Call(0),
-            GlobalGet(0),
-            Call(2),
-            End
-        ]);
-        assert_eq!(get_function_body(&injected_module, 1).unwrap(), [
-            LocalGet(0),
-            LocalGet(0),
-            I32Const(10000),
-            I32Mul,
-            Call(0),
-            MemoryGrow(0),
-            End,
-        ]);
+        assert_eq!(
+            get_function_body(&injected_module, 0).unwrap(),
+            [I32Const(2), Call(0), GlobalGet(0), Call(2), End]
+        );
+        assert_eq!(
+            get_function_body(&injected_module, 1).unwrap(),
+            [
+                LocalGet(0),
+                LocalGet(0),
+                I32Const(10000),
+                I32Mul,
+                Call(0),
+                MemoryGrow(0),
+                End,
+            ]
+        );
 
         let binary = injected_module.serialize().expect("serialization failed");
         wasmparser::validate(&binary).unwrap();
@@ -841,13 +844,10 @@ mod tests {
 
         let injected_module = inject(module, &ConstantCostRules::default(), "env").unwrap();
 
-        assert_eq!(get_function_body(&injected_module, 0).unwrap(), [
-            I32Const(2),
-            Call(0),
-            GlobalGet(0),
-            MemoryGrow(0),
-            End
-        ]);
+        assert_eq!(
+            get_function_body(&injected_module, 0).unwrap(),
+            [I32Const(2), Call(0), GlobalGet(0), MemoryGrow(0), End]
+        );
 
         assert_eq!(injected_module.functions_space(), 2);
 

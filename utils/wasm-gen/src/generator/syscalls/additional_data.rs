@@ -161,11 +161,14 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
                 .get_mut(export_idx as usize)
                 .expect("index of existing export")
                 .instructions
-                .splice(0..0, [
-                    Instruction::I32Const(log_info_offset as i32),
-                    Instruction::I32Const(log_bytes_len as i32),
-                    Instruction::Call(debug_call_indexes_handle),
-                ]);
+                .splice(
+                    0..0,
+                    [
+                        Instruction::I32Const(log_info_offset as i32),
+                        Instruction::I32Const(log_bytes_len as i32),
+                        Instruction::Call(debug_call_indexes_handle),
+                    ],
+                );
 
             (module, ())
         });

@@ -71,11 +71,13 @@ impl<S: Storage> Handler<'_, S> {
         self.controller
             .update_state(dispatch.source(), |state, storage, transitions| {
                 if let Ok(non_zero_delay) = delay.try_into() {
-                    let expiry =
-                        transitions.schedule_task(non_zero_delay, ScheduledTask::SendUserMessage {
+                    let expiry = transitions.schedule_task(
+                        non_zero_delay,
+                        ScheduledTask::SendUserMessage {
                             message_id: dispatch.id(),
                             to_mailbox: dispatch.source(),
-                        });
+                        },
+                    );
 
                     let user_id = dispatch.destination();
                     let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
