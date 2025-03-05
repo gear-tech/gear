@@ -38,19 +38,13 @@ impl CargoCommand {
     /// Initialize new cargo command.
     pub fn new() -> CargoCommand {
         let toolchain = Toolchain::try_from_rustup().expect("Failed to get toolchain from rustup");
-        let rustc_version = rustc_version::version().expect("Failed to get rustc version");
-        // Rust < 1.87 had bug with `-C linker-plugin-lto`: https://github.com/rust-lang/rust/issues/130604
-        let linker_plugin_lto = rustc_version.major == 1 && rustc_version.minor >= 87;
 
         CargoCommand {
             path: "rustup".to_string(),
             manifest_path: "Cargo.toml".into(),
             profile: "dev".to_string(),
-            rustc_flags: if linker_plugin_lto {
-                vec!["-C", "link-arg=--import-memory", "-C", "linker-plugin-lto"]
-            } else {
-                vec!["-C", "link-arg=--import-memory"]
-            },
+            // TODO: enable `-C linker-plugin-lto` (https://github.com/rust-lang/rust/issues/130604)
+            rustc_flags: vec!["-C", "link-arg=--import-memory"],
             target_dir: "target".into(),
             features: vec![],
             toolchain,
