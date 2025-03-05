@@ -6683,6 +6683,7 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "regex",
+ "rustc_version 0.4.0",
  "wasm-opt",
  "wasmer",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
