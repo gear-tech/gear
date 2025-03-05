@@ -41,16 +41,17 @@ impl StorageQueryBuilder {
         // reset block hash argument.
         //
         // - `value: Option<H256>` ->  `value: impl Into<Option<H256>>`
-        let ident =
-            if let Some(FnArg::Typed(PatType { ty, pat, .. })) = at.sig.inputs.iter_mut().last() {
-                *ty = parse_quote! {
-                    impl Into<Option<H256>>
-                };
-
-                Ident::new(&pat.to_token_stream().to_string(), Span::call_site())
-            } else {
-                unreachable!("Checked before in function validate");
+        let ident = if let Some(FnArg::Typed(PatType { ty, pat, .. })) =
+            at.sig.inputs.iter_mut().next_back()
+        {
+            *ty = parse_quote! {
+                impl Into<Option<H256>>
             };
+
+            Ident::new(&pat.to_token_stream().to_string(), Span::call_site())
+        } else {
+            unreachable!("Checked before in function validate");
+        };
 
         // reset function block.
         //
@@ -180,7 +181,7 @@ impl StorageQueryBuilder {
         }
 
         // validate the last argument.
-        if let Some(FnArg::Typed(PatType { ty, pat, .. })) = fun.sig.inputs.iter().last() {
+        if let Some(FnArg::Typed(PatType { ty, pat, .. })) = fun.sig.inputs.iter().next_back() {
             if !pat.to_token_stream().to_string().contains("block_hash") {
                 panic!("the last argument's name must be `block_hash`");
             }

@@ -178,7 +178,7 @@ impl fmt::Display for ActorId {
             let address_str = address.as_str();
 
             let len = address.as_str().len();
-            let median = (len + 1) / 2;
+            let median = len.div_ceil(2);
 
             let mut e1 = median;
             let mut s2 = median;

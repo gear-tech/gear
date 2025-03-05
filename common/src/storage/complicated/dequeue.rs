@@ -22,11 +22,11 @@
 //! This dequeue algorithm has main invariants:
 //! - If dequeue is empty, it's head and tail should be empty.
 //! - If dequeue contains the only one elements, is'ts head and tail
-//!    should equal this element's key.
+//!   should equal this element's key.
 //! - Based on above specified points, head and tail should
-//!    both be set or be empty.
+//!   both be set or be empty.
 //! - Inner map should contain values under keys, set in head and tail,
-//!    if they present.
+//!   if they present.
 
 use crate::storage::{Callback, Counted, EmptyCallback, IterableMap, MapStorage, ValueStorage};
 use core::marker::PhantomData;

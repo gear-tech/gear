@@ -33,7 +33,7 @@
 //! - Obtaining maximum gas amount available within one block of execution.
 //! - Managing number of remaining gas, i.e. gas allowance.
 //! - Managing gas tree: create, split, cut, etc new nodes determining
-//!    execution resources of messages.
+//!   execution resources of messages.
 //!
 //! ## Interface
 //!

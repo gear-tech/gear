@@ -38,15 +38,18 @@ pub struct ReplayCli {
 }
 
 impl ReplayCli {
+    #[allow(clippy::result_large_err)]
     fn log_filters(&self) -> sc_cli::Result<String> {
         Ok(self.shared.log.join(","))
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn init_logger(&self) -> sc_cli::Result<()> {
         let logger = LoggerBuilder::new(self.log_filters()?);
         Ok(logger.init()?)
     }
 
+    #[allow(clippy::result_large_err)]
     pub async fn run(&self) -> sc_cli::Result<()> {
         self.command.run(&self.shared).await
     }

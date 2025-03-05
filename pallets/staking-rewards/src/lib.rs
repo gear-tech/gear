@@ -407,10 +407,8 @@ pub mod pallet {
 
             let entropy =
                 (T::PalletId::get(), b"gear rent pool").using_encoded(sp_io::hashing::blake2_256);
-            let actor_id = Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
-                .expect("infinite length input; no invalid inputs for type; qed");
-
-            actor_id
+            Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+                .expect("infinite length input; no invalid inputs for type; qed")
         }
 
         /// Return the amount in the rent pool.

@@ -37,9 +37,9 @@ where
     ///     * Caller is eligible to use the voucher;
     ///     * The voucher is not expired;
     ///     * For messaging calls: The destination program of the given prepaid
-    ///                            call can be determined;
+    ///       call can be determined;
     ///     * For messaging calls: The voucher destinations limitations accept
-    ///                            determined destination;
+    ///       determined destination;
     ///     * For codes uploading: The voucher allows code uploading.
     ///
     /// Returns [`None`] for other cases.
