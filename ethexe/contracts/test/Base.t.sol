@@ -15,8 +15,9 @@ import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.s
 import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
 
 import {WrappedVara} from "../src/WrappedVara.sol";
-import {IMirror, Mirror} from "../src/Mirror.sol";
-import {MirrorProxy} from "../src/MirrorProxy.sol";
+import {MirrorAbi} from "../src/MirrorAbi.sol";
+import {IMirror} from "../src/IMirror.sol";
+import {MirrorImpl} from "../src/MirrorImpl.sol";
 import {IRouter, Router} from "../src/Router.sol";
 import {Middleware} from "../src/Middleware.sol";
 import {Gear} from "../src/libraries/Gear.sol";
@@ -36,8 +37,8 @@ contract Base is POCBaseTest {
     Middleware public middleware;
     WrappedVara public wrappedVara;
     Router public router;
-    Mirror public mirror;
-    MirrorProxy public mirrorProxy;
+    MirrorImpl public mirrorImpl;
+    MirrorAbi public mirrorAbi;
 
     function setUp() public virtual override {
         revert("Must not be called");
@@ -102,8 +103,8 @@ contract Base is POCBaseTest {
 
         address wrappedVaraAddress = address(wrappedVara);
 
-        address mirrorAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 2);
-        address mirrorProxyAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
+        address mirrorImplAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 2);
+        address mirrorAbiAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
 
         vm.startPrank(admin, admin);
         {
@@ -115,8 +116,8 @@ contract Base is POCBaseTest {
                         Router.initialize,
                         (
                             admin,
-                            mirrorAddress,
-                            mirrorProxyAddress,
+                            mirrorImplAddress,
+                            mirrorAbiAddress,
                             wrappedVaraAddress,
                             uint256(eraDuration),
                             uint256(electionDuration),
@@ -136,13 +137,13 @@ contract Base is POCBaseTest {
 
         vm.startPrank(admin, admin);
         {
-            mirror = new Mirror();
-            mirrorProxy = new MirrorProxy(address(router));
+            mirrorImpl = new MirrorImpl();
+            mirrorAbi = new MirrorAbi();
         }
         vm.stopPrank();
 
-        assertEq(router.mirrorImpl(), address(mirror));
-        assertEq(router.mirrorProxyImpl(), address(mirrorProxy));
+        assertEq(router.mirrorImpl(), address(mirrorImpl));
+        assertEq(router.mirrorAbi(), address(mirrorAbi));
         assertEq(router.validators(), _validators);
         assertEq(router.signingThresholdPercentage(), 6666);
         assertTrue(router.areValidators(_validators));

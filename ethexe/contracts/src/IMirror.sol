@@ -83,7 +83,7 @@ interface IMirror {
 
     function router() external view returns (address);
 
-    function decoder() external view returns (address);
+    function impl() external view returns (address);
 
     /* Primary Gear logic */
 
@@ -99,7 +99,7 @@ interface IMirror {
 
     /* Router-driven state and funds management */
 
-    function initialize(address initializer, address decoder) external;
+    function initialize(address initializer, address router, address impl, address _interface) external;
 
     function performStateTransition(Gear.StateTransition calldata transition) external returns (bytes32);
 }

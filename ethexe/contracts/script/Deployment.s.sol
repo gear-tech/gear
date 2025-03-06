@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import {Mirror} from "../src/Mirror.sol";
-import {MirrorProxy} from "../src/MirrorProxy.sol";
+import {MirrorImpl} from "../src/MirrorImpl.sol";
+import {MirrorAbi} from "../src/MirrorAbi.sol";
 import {Gear} from "../src/libraries/Gear.sol";
 import {Router} from "../src/Router.sol";
 import {Script, console} from "forge-std/Script.sol";
@@ -15,8 +15,8 @@ contract DeploymentScript is Script {
 
     WrappedVara public wrappedVara;
     Router public router;
-    Mirror public mirror;
-    MirrorProxy public mirrorProxy;
+    MirrorImpl public mirrorImpl;
+    MirrorAbi public mirrorAbi;
 
     function setUp() public {}
 
@@ -36,8 +36,8 @@ contract DeploymentScript is Script {
             )
         );
 
-        address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
-        address mirrorProxyAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
+        address mirrorImplAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
+        address mirrorAbiAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
 
         router = Router(
             Upgrades.deployTransparentProxy(
@@ -47,8 +47,8 @@ contract DeploymentScript is Script {
                     Router.initialize,
                     (
                         deployerAddress,
-                        mirrorAddress,
-                        mirrorProxyAddress,
+                        mirrorImplAddress,
+                        mirrorAbiAddress,
                         address(wrappedVara),
                         1 days,
                         2 hours,
@@ -60,24 +60,25 @@ contract DeploymentScript is Script {
                 )
             )
         );
-        mirror = new Mirror();
-        mirrorProxy = new MirrorProxy(address(router));
+        mirrorImpl = new MirrorImpl();
+        mirrorAbi = new MirrorAbi();
 
         wrappedVara.approve(address(router), type(uint256).max);
 
         vm.roll(vm.getBlockNumber() + 1);
         router.lookupGenesisHash();
 
-        vm.assertEq(router.mirrorImpl(), address(mirror));
-        vm.assertEq(router.mirrorProxyImpl(), address(mirrorProxy));
-        vm.assertEq(mirrorProxy.router(), address(router));
+        vm.assertEq(router.mirrorImpl(), address(mirrorImpl));
+        vm.assertEq(router.mirrorAbi(), address(mirrorAbi));
+
         vm.assertNotEq(router.genesisBlockHash(), bytes32(0));
 
         vm.stopBroadcast();
 
         printContractInfo("Router", address(router), Upgrades.getImplementationAddress(address(router)));
         printContractInfo("WVara", address(wrappedVara), Upgrades.getImplementationAddress(address(wrappedVara)));
-        printContractInfo("Mirror", mirrorProxyAddress, mirrorAddress);
+        printContractInfo("MirrorImpl", mirrorImplAddress, address(0));
+        printContractInfo("MirrorAbi", mirrorAbiAddress, address(0));
     }
 
     function printContractInfo(string memory contractName, address contractAddress, address expectedImplementation)
@@ -87,7 +88,9 @@ contract DeploymentScript is Script {
         console.log("================================================================================================");
         console.log("[ CONTRACT  ]", contractName);
         console.log("[ ADDRESS   ]", contractAddress);
-        console.log("[ IMPL ADDR ]", expectedImplementation);
+        if (expectedImplementation != address(0)) {
+            console.log("[ IMPL ADDR ]", expectedImplementation);
+        }
         console.log(
             "[ PROXY VERIFICATION ] Click \"Is this a proxy?\" on Etherscan to be able read and write as proxy."
         );

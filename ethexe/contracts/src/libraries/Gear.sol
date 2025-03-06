@@ -35,8 +35,8 @@ library Gear {
     }
 
     struct AddressBook {
-        address mirror;
-        address mirrorProxy;
+        address mirrorImpl;
+        address mirrorAbi;
         address wrappedVara;
     }
 

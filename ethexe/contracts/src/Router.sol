@@ -7,12 +7,12 @@ import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {Secp256k1} from "frost-secp256k1-evm/utils/cryptography/Secp256k1.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
-import {IMirrorDecoder} from "./IMirrorDecoder.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {MirrorAbi} from "./MirrorAbi.sol";
 
 // TODO (gsobol): append middleware for slashing support.
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
@@ -26,8 +26,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function initialize(
         address _owner,
-        address _mirror,
-        address _mirrorProxy,
+        address _mirrorImpl,
+        address _mirrorAbi,
         address _wrappedVara,
         uint256 _eraDuration,
         uint256 _electionDuration,
@@ -50,7 +50,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
 
         router.genesisBlock = Gear.newGenesis();
-        router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
+        router.implAddresses = Gear.AddressBook(_mirrorImpl, _mirrorAbi, _wrappedVara);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
@@ -118,11 +118,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     function mirrorImpl() public view returns (address) {
-        return _router().implAddresses.mirror;
+        return _router().implAddresses.mirrorImpl;
     }
 
-    function mirrorProxyImpl() public view returns (address) {
-        return _router().implAddresses.mirrorProxy;
+    function mirrorAbi() public view returns (address) {
+        return _router().implAddresses.mirrorAbi;
     }
 
     function wrappedVara() public view returns (address) {
@@ -217,8 +217,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     // Owner calls.
-    function setMirror(address newMirror) external onlyOwner {
-        _router().implAddresses.mirror = newMirror;
+    function setMirrorImpl(address newMirror) external onlyOwner {
+        _router().implAddresses.mirrorImpl = newMirror;
+    }
+
+    function setMirrorAbi(address _mirrorAbi) external onlyOwner {
+        _router().implAddresses.mirrorAbi = _mirrorAbi;
     }
 
     // # Calls.
@@ -250,24 +254,21 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         emit CodeValidationRequested(_codeId);
     }
 
-    function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {
-        address mirror = _createProgram(_codeId, _salt);
+    function createProgram(bytes32 _codeId) external returns (address mirror) {
+        Storage storage router = _router();
+        mirror = _createProgram(_codeId, router);
 
-        IMirror(mirror).initialize(msg.sender, address(0));
-
-        return mirror;
+        IMirror(mirror).initialize(msg.sender, address(this), router.implAddresses.mirrorImpl, address(0));
     }
 
-    function createProgramWithDecoder(address _decoderImpl, bytes32 _codeId, bytes32 _salt)
+    function createProgramWithInterface(bytes32 _codeId, address _abiInterface)
         external
-        returns (address)
+        returns (address mirror)
     {
-        address mirror = _createProgram(_codeId, _salt);
-        address decoder = _createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)), mirror);
+        Storage storage router = _router();
+        mirror = _createProgram(_codeId, router);
 
-        IMirror(mirror).initialize(msg.sender, decoder);
-
-        return mirror;
+        IMirror(mirror).initialize(msg.sender, address(this), router.implAddresses.mirrorImpl, _abiInterface);
     }
 
     function commitBatch(
@@ -379,8 +380,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     /* Helper private functions */
 
-    function _createProgram(bytes32 _codeId, bytes32 _salt) private returns (address) {
-        Storage storage router = _router();
+    function _createProgram(bytes32 _codeId, Storage storage router) private returns (address program) {
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
         require(
@@ -388,26 +388,50 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             "code must be validated before program creation"
         );
 
-        // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
-        // reverts execution in case of address is already taken.
-        address actorId =
-            Clones.cloneDeterministic(router.implAddresses.mirrorProxy, keccak256(abi.encodePacked(_codeId, _salt)));
+        address _mirrorAbi = router.implAddresses.mirrorAbi;
 
-        router.protocolData.programs[actorId] = _codeId;
+        assembly {
+            let contractSize := extcodesize(_mirrorAbi)
+
+            let ctr := mload(0x40)
+            mstore(ctr, shl(0xa8, 0x6080806040523460155761))
+            let offset := 0x0b
+            mstore8(add(ctr, offset), byte(0x1e, contractSize))
+            mstore8(add(ctr, add(offset, 0x01)), byte(0x1f, contractSize))
+            offset := add(offset, 0x02)
+            mstore(add(ctr, offset), shl(0xa0, 0x90816100198239f35b5f80fd))
+            offset := add(offset, 0x0c)
+            mstore(0x40, add(ctr, offset))
+
+            let prefixSize := offset
+            let bytecodeSize := extcodesize(_mirrorAbi)
+            let fullBytecodeSize := add(prefixSize, bytecodeSize)
+
+            let code := mload(0x40)
+
+            mstore(code, fullBytecodeSize)
+
+            let src := mload(ctr)
+            let dest := add(code, 0x20)
+            for { let i := 0 } lt (i, prefixSize) { i:= add(i, 1) } {
+                mstore8(add(dest, i), byte(i, src))
+            }
+
+            extcodecopy(_mirrorAbi, add(add(code, 0x20), prefixSize), 0, bytecodeSize)
+
+            program := create(0, add(code, 0x20), mload(code))
+
+            if iszero(program) {
+                revert(0, 0)
+            }
+        }
+
+        router.protocolData.programs[address(program)] = _codeId;
         router.protocolData.programsCount++;
 
-        emit ProgramCreated(actorId, _codeId);
-
-        return actorId;
+        emit ProgramCreated(address(program), _codeId);
     }
 
-    function _createDecoder(address _implementation, bytes32 _salt, address _mirror) private returns (address) {
-        address decoder = Clones.cloneDeterministic(_implementation, _salt);
-
-        IMirrorDecoder(decoder).initialize(_mirror);
-
-        return decoder;
-    }
 
     function _commitBlock(Storage storage router, Gear.BlockCommitment calldata _blockCommitment)
         private
