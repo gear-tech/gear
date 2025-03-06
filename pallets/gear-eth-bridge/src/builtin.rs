@@ -99,7 +99,7 @@ pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
         Error::QueueCapacityExceeded => "Send message: queue capacity exceeded",
         Error::InsufficientFee => "Send message: insufficient fee",
-        Error::FailedToTransferFee => "Send message: failed to transfer/refund fee",
+        Error::FailedToTransferValue => "Send message: failed to transfer value to builtin account",
         _ => unimplemented!(),
     }
 }

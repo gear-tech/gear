@@ -713,7 +713,6 @@ fn bridge_unused_fee_refunded() {
 }
 
 #[test]
-#[ignore]
 fn bridge_refund_value_smaller_ed() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -739,12 +738,12 @@ fn bridge_refund_value_smaller_ed() {
             fee_with_dust,
         ));
 
-        signer_balance -= gas_meter.spent();
+        signer_balance -= gas_meter.spent() + fee_with_dust;
 
         run_to_block(WHEN_RESETTED);
 
         assert_eq!(balance_of(&POOR_SIGNER), signer_balance);
-        assert_eq!(balance_of(&FeeTreasuryAddress::get()), 0);
+        assert_eq!(balance_of(&FeeTreasuryAddress::get()), fee_with_dust);
     })
 }
 

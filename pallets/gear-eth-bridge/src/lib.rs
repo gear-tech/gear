@@ -27,6 +27,10 @@
 #![allow(clippy::manual_inspect)]
 #![allow(clippy::useless_conversion)]
 
+extern crate alloc;
+
+use alloc::format;
+
 pub use builtin::Actor;
 pub use internal::{EthMessage, Proof};
 pub use pallet::*;
@@ -178,8 +182,8 @@ pub mod pallet {
         /// to cover the fee required for inclusion in the queue.
         InsufficientFee,
 
-        /// The error happens when for some reason fee transfer failed.
-        FailedToTransferFee,
+        /// The error happens when the message value transfer failed.
+        FailedToTransferValue,
     }
 
     /// Type containing info of amount of fee and refund for account.
@@ -391,7 +395,7 @@ pub mod pallet {
                     value,
                     ExistenceRequirement::AllowDeath,
                 )
-                .map_err(|_| Error::<T>::InsufficientFee)?;
+                .map_err(|_| Error::<T>::FailedToTransferValue)?;
             }
 
             Ok(())
@@ -399,7 +403,7 @@ pub mod pallet {
 
         fn transfer_fees() {
             AccountsFee::<T>::iter().for_each(|(account_id, account_fee)| {
-                let fee = account_fee.fee;
+                let mut fee = account_fee.fee;
                 let refund = account_fee.refund;
 
                 let treasury_id = <T as Config>::FeeTreasuryAddress::get();
@@ -407,27 +411,38 @@ pub mod pallet {
                     GearBuiltin::<T>::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into(),
                 );
 
-                // Transfer fee to treasury
-                if !fee.is_zero() {
-                    CurrencyOf::<T>::transfer(
-                        &builtin_id,
-                        &treasury_id,
-                        fee,
-                        ExistenceRequirement::AllowDeath,
-                    )
-                    .expect("Failed to transfer fee");
+                // Refund the remaining value.
+                // If the refund value is smaller than ED and the sender's account balance is less than ED,
+                // transfer it to the treasury.
+                if CurrencyOf::<T>::transfer(
+                    &builtin_id,
+                    &account_id,
+                    refund,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .is_err()
+                {
+                    fee = fee.saturating_add(refund);
                 }
 
-                // Refund the remaining value
-                if !refund.is_zero() {
-                    CurrencyOf::<T>::transfer(
-                        &builtin_id,
-                        &account_id,
-                        refund,
-                        ExistenceRequirement::AllowDeath,
-                    )
-                    .expect("Failed to transfer refund");
-                }
+                // Transfer fee to treasury
+                CurrencyOf::<T>::transfer(
+                    &builtin_id,
+                    &treasury_id,
+                    fee,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .unwrap_or_else(|err| {
+                    let err_msg = format!(
+                        "pallet_gear_eth_bridge::transfer_fees: Failed to transfer fee. \
+                        Account ID: {account_id:?}, Fee: {fee:?}, Refund: {refund:?}, \
+                        Treasury ID: {treasury_id:?}, Builtin ID: {builtin_id:?}. \
+                        Got error - {err:?}"
+                    );
+
+                    log::error!("{err_msg}");
+                    unreachable!("{err_msg}")
+                });
 
                 AccountsFee::<T>::remove(account_id);
             });
