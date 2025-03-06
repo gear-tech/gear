@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::errors;
-use ethexe_db::{BlockHeader, BlockMetaStorage, Database};
+use ethexe_db::{BlockHeader, BlockMetaStorage, Database, OnChainStorage};
 use gprimitives::H256;
 use jsonrpsee::core::RpcResult;
 
@@ -30,7 +30,7 @@ pub fn block_header_at_or_latest(
             .map(|header| (hash, header))
             .ok_or_else(|| errors::db("Block header for requested hash wasn't found"))
     } else {
-        db.latest_valid_block()
+        db.latest_computed_block()
             .ok_or_else(|| errors::db("Latest block header wasn't found"))
     }
 }
