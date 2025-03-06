@@ -300,37 +300,28 @@ mod tests {
         handle.excessive_data(chad_peer_id);
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::ScoreChanged {
-                peer_id: chad_peer_id,
-                reason: ScoreChangedReason::ExcessiveData,
-                score: u8::MAX - EXCESSIVE_DATA_ABS_DIFF,
-            }
-        );
+        assert_eq!(event, Event::ScoreChanged {
+            peer_id: chad_peer_id,
+            reason: ScoreChangedReason::ExcessiveData,
+            score: u8::MAX - EXCESSIVE_DATA_ABS_DIFF,
+        });
 
         handle.excessive_data(chad_peer_id);
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::ScoreChanged {
-                peer_id: chad_peer_id,
-                reason: ScoreChangedReason::ExcessiveData,
-                score: u8::MAX - 2 * EXCESSIVE_DATA_ABS_DIFF,
-            }
-        );
+        assert_eq!(event, Event::ScoreChanged {
+            peer_id: chad_peer_id,
+            reason: ScoreChangedReason::ExcessiveData,
+            score: u8::MAX - 2 * EXCESSIVE_DATA_ABS_DIFF,
+        });
 
         handle.excessive_data(chad_peer_id);
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::PeerBlocked {
-                peer_id: chad_peer_id,
-                last_reason: ScoreChangedReason::ExcessiveData
-            }
-        );
+        assert_eq!(event, Event::PeerBlocked {
+            peer_id: chad_peer_id,
+            last_reason: ScoreChangedReason::ExcessiveData
+        });
 
         let event = chad.next_swarm_event().await;
         assert!(

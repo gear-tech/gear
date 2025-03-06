@@ -2270,14 +2270,11 @@ mod tests {
             let mut m = BTreeMap::new();
             let id = ReservationId::generate(MessageId::new([5; 32]), 10);
 
-            m.insert(
-                id,
-                GasReservationSlot {
-                    amount: 1_000_000,
-                    start: 0,
-                    finish: 10,
-                },
-            );
+            m.insert(id, GasReservationSlot {
+                amount: 1_000_000,
+                start: 0,
+                finish: 10,
+            });
 
             (id, m)
         };

@@ -297,16 +297,12 @@ impl Code {
         R: Rules,
         GetRulesFn: FnMut(&Module) -> R,
     {
-        Self::try_new_internal(
-            original_code,
-            Some(get_gas_rules),
-            TryNewCodeConfig {
-                version,
-                stack_height,
-                data_segments_amount_limit,
-                ..Default::default()
-            },
-        )
+        Self::try_new_internal(original_code, Some(get_gas_rules), TryNewCodeConfig {
+            version,
+            stack_height,
+            data_segments_amount_limit,
+            ..Default::default()
+        })
     }
 
     /// Create new code for mock goals with const or no instrumentation rules.
@@ -463,16 +459,12 @@ mod tests {
         data_segments_amount_limit: Option<u32>,
         make_validation: bool,
     ) -> Result<Code, CodeError> {
-        Code::try_new_mock_const_or_no_rules(
-            wat2wasm(wat),
-            true,
-            TryNewCodeConfig {
-                stack_height,
-                data_segments_amount_limit,
-                make_validation,
-                ..Default::default()
-            },
-        )
+        Code::try_new_mock_const_or_no_rules(wat2wasm(wat), true, TryNewCodeConfig {
+            stack_height,
+            data_segments_amount_limit,
+            make_validation,
+            ..Default::default()
+        })
     }
 
     fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {

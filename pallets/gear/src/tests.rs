@@ -104,32 +104,26 @@ fn calculate_reply_for_handle_works() {
         )
         .expect("Failed to query reply");
 
-        assert_eq!(
-            res,
-            ReplyInfo {
-                payload: b"PONG".to_vec(),
-                value: 0,
-                code: ReplyCode::Success(SuccessReplyReason::Manual)
-            }
-        );
+        assert_eq!(res, ReplyInfo {
+            payload: b"PONG".to_vec(),
+            value: 0,
+            code: ReplyCode::Success(SuccessReplyReason::Manual)
+        });
 
         // Out of gas panic case.
         let res =
             Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 700_000_000, 0)
                 .expect("Failed to query reply");
 
-        assert_eq!(
-            res,
-            ReplyInfo {
-                payload: ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
-                    .to_string()
-                    .into_bytes(),
-                value: 0,
-                code: ReplyCode::Error(ErrorReplyReason::Execution(
-                    SimpleExecutionError::RanOutOfGas
-                ))
-            }
-        );
+        assert_eq!(res, ReplyInfo {
+            payload: ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
+                .to_string()
+                .into_bytes(),
+            value: 0,
+            code: ReplyCode::Error(ErrorReplyReason::Execution(
+                SimpleExecutionError::RanOutOfGas
+            ))
+        });
 
         // TODO: uncomment code below (issue #3804).
         // // Value returned in case of error.
@@ -7825,14 +7819,11 @@ fn gas_spent_precalculated() {
             .expect("failed to get cost of `gas_charge()` function");
 
         let handle_export_instructions = &handle_export_func_body.instructions;
-        assert!(matches!(
-            handle_export_instructions[..],
-            [
-                Instruction::I32Const { .. }, //stack check limit cost
-                Instruction::Call { .. },     //call to `gas_charge()`
-                ..
-            ]
-        ));
+        assert!(matches!(handle_export_instructions[..], [
+            Instruction::I32Const { .. }, //stack check limit cost
+            Instruction::Call { .. },     //call to `gas_charge()`
+            ..
+        ]));
 
         macro_rules! cost {
             ($name:ident) => {
@@ -12712,15 +12703,12 @@ fn async_init() {
 
         run_to_next_block(None);
 
-        assert_responses_to_user(
-            USER_1,
-            vec![
-                // `demo_async_init` sent error reply on "PING" message
-                Assertion::ReplyCode(ErrorReplyReason::InactiveActor.into()),
-                // `demo_async_init`'s `init` was successful
-                Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
-            ],
-        );
+        assert_responses_to_user(USER_1, vec![
+            // `demo_async_init` sent error reply on "PING" message
+            Assertion::ReplyCode(ErrorReplyReason::InactiveActor.into()),
+            // `demo_async_init`'s `init` was successful
+            Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
+        ]);
 
         print_gear_events();
 
@@ -12731,13 +12719,10 @@ fn async_init() {
 
         run_to_next_block(None);
 
-        assert_responses_to_user(
-            USER_1,
-            vec![
-                // `demo_async_init` sent amount of responses it got from `demo_ping`
-                Assertion::Payload(2u8.encode()),
-            ],
-        );
+        assert_responses_to_user(USER_1, vec![
+            // `demo_async_init` sent amount of responses it got from `demo_ping`
+            Assertion::Payload(2u8.encode()),
+        ]);
     });
 }
 
@@ -13210,14 +13195,10 @@ fn relay_messages() {
         test(call, payload, vec![expectation]);
     }
 
-    test(
-        RelayCall::Resend(USER_3.cast()),
-        payload,
-        vec![Expected {
-            user: USER_3,
-            payload: payload.to_vec(),
-        }],
-    );
+    test(RelayCall::Resend(USER_3.cast()), payload, vec![Expected {
+        user: USER_3,
+        payload: payload.to_vec(),
+    }]);
     test(
         RelayCall::ResendWithGas(USER_3.cast(), 50_000),
         payload,
@@ -13227,30 +13208,18 @@ fn relay_messages() {
         }],
     );
 
-    test(
-        RelayCall::Rereply,
-        payload,
-        vec![Expected {
-            user: source,
-            payload: payload.to_vec(),
-        }],
-    );
-    test(
-        RelayCall::RereplyPush,
-        payload,
-        vec![Expected {
-            user: source,
-            payload: payload.to_vec(),
-        }],
-    );
-    test(
-        RelayCall::RereplyWithGas(60_000),
-        payload,
-        vec![Expected {
-            user: source,
-            payload: payload.to_vec(),
-        }],
-    );
+    test(RelayCall::Rereply, payload, vec![Expected {
+        user: source,
+        payload: payload.to_vec(),
+    }]);
+    test(RelayCall::RereplyPush, payload, vec![Expected {
+        user: source,
+        payload: payload.to_vec(),
+    }]);
+    test(RelayCall::RereplyWithGas(60_000), payload, vec![Expected {
+        user: source,
+        payload: payload.to_vec(),
+    }]);
 }
 
 #[test]
@@ -13976,10 +13945,9 @@ fn double_read_works() {
 
         run_to_next_block(None);
 
-        assert_responses_to_user(
-            USER_1,
-            vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
-        );
+        assert_responses_to_user(USER_1, vec![Assertion::ReplyCode(
+            SuccessReplyReason::Auto.into(),
+        )]);
     });
 }
 
@@ -14966,18 +14934,15 @@ fn handle_reply_hook() {
             })
             .collect();
         // Hook executed after completed
-        assert_eq!(
-            vec,
-            [
-                "for_reply_1",
-                "for_reply_2",
-                "for_reply_3",
-                "for_reply_4",
-                "saw_reply_3",
-                "completed",
-                "saw_reply_4"
-            ]
-        );
+        assert_eq!(vec, [
+            "for_reply_1",
+            "for_reply_2",
+            "for_reply_3",
+            "for_reply_4",
+            "saw_reply_3",
+            "completed",
+            "saw_reply_4"
+        ]);
     });
 }
 
@@ -15528,14 +15493,11 @@ fn use_big_memory() {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(
-            pages_with_data,
-            vec![
-                GearPage::from_offset(0),
-                GearPage::from_offset(middle_4_bytes_offset),
-                GearPage::from_offset(last_4_bytes_offset)
-            ]
-        );
+        assert_eq!(pages_with_data, vec![
+            GearPage::from_offset(0),
+            GearPage::from_offset(middle_4_bytes_offset),
+            GearPage::from_offset(last_4_bytes_offset)
+        ]);
 
         Gear::send_message(
             RuntimeOrigin::signed(USER_1),

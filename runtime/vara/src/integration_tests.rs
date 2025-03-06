@@ -40,20 +40,16 @@ const STASH: u128 = 1_000 * UNITS;
 
 pub(crate) fn initialize_block(new_blk: BlockNumberFor<Runtime>) {
     // All blocks are to be authored by validator at index 0
-    System::initialize(
-        &new_blk,
-        &System::parent_hash(),
-        &Digest {
-            logs: vec![DigestItem::PreRuntime(
-                BABE_ENGINE_ID,
-                PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
-                    slot: Slot::from(u64::from(new_blk)),
-                    authority_index: 0,
-                })
-                .encode(),
-            )],
-        },
-    );
+    System::initialize(&new_blk, &System::parent_hash(), &Digest {
+        logs: vec![DigestItem::PreRuntime(
+            BABE_ENGINE_ID,
+            PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+                slot: Slot::from(u64::from(new_blk)),
+                authority_index: 0,
+            })
+            .encode(),
+        )],
+    });
     System::set_block_number(new_blk);
 }
 
@@ -169,16 +165,12 @@ impl ExtBuilder {
                 .initial_authorities
                 .iter()
                 .map(|x| {
-                    (
-                        x.0.clone(),
-                        x.0.clone(),
-                        SessionKeys {
-                            babe: x.2.into(),
-                            grandpa: x.3.into(),
-                            im_online: x.4.into(),
-                            authority_discovery: x.5.into(),
-                        },
-                    )
+                    (x.0.clone(), x.0.clone(), SessionKeys {
+                        babe: x.2.into(),
+                        grandpa: x.3.into(),
+                        im_online: x.4.into(),
+                        authority_discovery: x.5.into(),
+                    })
                 })
                 .collect(),
             ..Default::default()

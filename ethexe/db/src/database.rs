@@ -137,13 +137,10 @@ impl BlockMetaStorage for Database {
     fn set_block_end_state_is_valid(&self, block_hash: H256, is_valid: bool) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set end state valid: {is_valid}");
         let meta = self.block_small_meta(block_hash).unwrap_or_default();
-        self.set_block_small_meta(
-            block_hash,
-            BlockSmallMetaInfo {
-                block_end_state_is_valid: is_valid,
-                ..meta
-            },
-        );
+        self.set_block_small_meta(block_hash, BlockSmallMetaInfo {
+            block_end_state_is_valid: is_valid,
+            ..meta
+        });
     }
 
     fn block_is_empty(&self, block_hash: H256) -> Option<bool> {
@@ -154,13 +151,10 @@ impl BlockMetaStorage for Database {
     fn set_block_is_empty(&self, block_hash: H256, is_empty: bool) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set is empty: {is_empty}");
         let meta = self.block_small_meta(block_hash).unwrap_or_default();
-        self.set_block_small_meta(
-            block_hash,
-            BlockSmallMetaInfo {
-                is_empty: Some(is_empty),
-                ..meta
-            },
-        );
+        self.set_block_small_meta(block_hash, BlockSmallMetaInfo {
+            is_empty: Some(is_empty),
+            ..meta
+        });
     }
 
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
@@ -171,13 +165,10 @@ impl BlockMetaStorage for Database {
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set commitment queue: {queue:?}");
         let meta = self.block_small_meta(block_hash).unwrap_or_default();
-        self.set_block_small_meta(
-            block_hash,
-            BlockSmallMetaInfo {
-                commitment_queue: Some(queue),
-                ..meta
-            },
-        );
+        self.set_block_small_meta(block_hash, BlockSmallMetaInfo {
+            commitment_queue: Some(queue),
+            ..meta
+        });
     }
 
     fn previous_committed_block(&self, block_hash: H256) -> Option<H256> {
@@ -188,13 +179,10 @@ impl BlockMetaStorage for Database {
     fn set_previous_committed_block(&self, block_hash: H256, prev_commitment: H256) {
         log::trace!(target: LOG_TARGET, "For block {block_hash} set prev commitment: {prev_commitment}");
         let meta = self.block_small_meta(block_hash).unwrap_or_default();
-        self.set_block_small_meta(
-            block_hash,
-            BlockSmallMetaInfo {
-                prev_commitment: Some(prev_commitment),
-                ..meta
-            },
-        );
+        self.set_block_small_meta(block_hash, BlockSmallMetaInfo {
+            prev_commitment: Some(prev_commitment),
+            ..meta
+        });
     }
 
     fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {

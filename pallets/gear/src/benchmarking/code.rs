@@ -467,14 +467,11 @@ where
     fn unary_instr_for_bit_width(instr: Instruction, bit_width: BitWidth, repeat: u32) -> Self {
         use body::DynInstr::Regular;
         ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(
-                repeat,
-                vec![
-                    bit_width.random_repeated(1),
-                    Regular(instr),
-                    Regular(Instruction::Drop),
-                ],
-            )),
+            handle_body: Some(body::repeated_dyn(repeat, vec![
+                bit_width.random_repeated(1),
+                Regular(instr),
+                Regular(Instruction::Drop),
+            ])),
             ..Default::default()
         }
         .into()
@@ -491,14 +488,11 @@ where
     fn binary_instr_for_bit_width(instr: Instruction, bit_width: BitWidth, repeat: u32) -> Self {
         use body::DynInstr::Regular;
         ModuleDefinition {
-            handle_body: Some(body::repeated_dyn(
-                repeat,
-                vec![
-                    bit_width.random_repeated(2),
-                    Regular(instr),
-                    Regular(Instruction::Drop),
-                ],
-            )),
+            handle_body: Some(body::repeated_dyn(repeat, vec![
+                bit_width.random_repeated(2),
+                Regular(instr),
+                Regular(Instruction::Drop),
+            ])),
             ..Default::default()
         }
         .into()

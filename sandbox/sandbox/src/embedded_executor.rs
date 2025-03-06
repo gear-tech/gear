@@ -758,10 +758,10 @@ mod tests {
         ))
         .unwrap();
 
-        execute_sandboxed(
-            &code,
-            &[Value::I32(0x12345678), Value::I64(0x1234567887654321)],
-        )
+        execute_sandboxed(&code, &[
+            Value::I32(0x12345678),
+            Value::I64(0x1234567887654321),
+        ])
         .unwrap();
     }
 

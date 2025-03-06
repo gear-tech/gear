@@ -201,15 +201,12 @@ impl OverlaidProcessor {
             "program isn't yet initialized"
         );
 
-        handler.handle_mirror_event(
-            program_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: MessageId::zero(),
-                source,
-                payload,
-                value,
-            },
-        )?;
+        handler.handle_mirror_event(program_id, MirrorRequestEvent::MessageQueueingRequested {
+            id: MessageId::zero(),
+            source,
+            payload,
+            value,
+        })?;
 
         self.0.process_queue(&mut handler);
 

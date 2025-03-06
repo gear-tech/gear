@@ -193,13 +193,10 @@ impl Router {
         );
 
         let mut state = HashMap::default();
-        state.insert(
-            *self.instance.address(),
-            AccountOverride {
-                state_diff: Some(state_diff),
-                ..Default::default()
-            },
-        );
+        state.insert(*self.instance.address(), AccountOverride {
+            state_diff: Some(state_diff),
+            ..Default::default()
+        });
 
         let estimate_gas_builder = builder.clone().state(state);
         let gas_limit = Self::HUGE_GAS_LIMIT

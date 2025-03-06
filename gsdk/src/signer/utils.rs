@@ -113,13 +113,11 @@ impl Inner {
                 Validated | Broadcasted { .. } | NoLongerInBestBlock => (),
                 InBestBlock(b) => {
                     hash = Some(b.extrinsic_hash());
-                    self.backtrace.append(
-                        b.extrinsic_hash(),
-                        BacktraceStatus::InBestBlock {
+                    self.backtrace
+                        .append(b.extrinsic_hash(), BacktraceStatus::InBestBlock {
                             block_hash: b.block_hash(),
                             extrinsic_hash: b.extrinsic_hash(),
-                        },
-                    );
+                        });
                 }
                 InFinalizedBlock(b) => {
                     log::info!("Submitted {extrinsic} !");

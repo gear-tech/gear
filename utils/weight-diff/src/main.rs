@@ -426,13 +426,10 @@ fn main() -> Result<()> {
     match command {
         Commands::Dump { output_path, label } => {
             let writer = File::create(output_path)?;
-            serde_json::to_writer_pretty(
-                writer,
-                &SerializableDump {
-                    vara_schedule: Default::default(),
-                    label,
-                },
-            )?;
+            serde_json::to_writer_pretty(writer, &SerializableDump {
+                vara_schedule: Default::default(),
+                label,
+            })?;
         }
         Commands::Diff {
             display_units,

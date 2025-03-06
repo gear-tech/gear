@@ -865,22 +865,19 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         } = MemoryLayout::from(self.memory_size_bytes());
 
         // add instructions before calling wait syscall
-        instructions.splice(
-            0..0,
-            [
-                Instruction::I32Const(init_called_ptr),
-                Instruction::I32Load8U(MemArg::zero()),
-                // if *init_called_ptr { .. }
-                Instruction::If(BlockType::Empty),
-                Instruction::I32Const(wait_called_ptr),
-                Instruction::I32Load(MemArg::i32()),
-                Instruction::I32Const(waiting_probability as i32),
-                Instruction::I32RemU,
-                Instruction::I32Eqz,
-                // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
-                Instruction::If(BlockType::Empty),
-            ],
-        );
+        instructions.splice(0..0, [
+            Instruction::I32Const(init_called_ptr),
+            Instruction::I32Load8U(MemArg::zero()),
+            // if *init_called_ptr { .. }
+            Instruction::If(BlockType::Empty),
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Load(MemArg::i32()),
+            Instruction::I32Const(waiting_probability as i32),
+            Instruction::I32RemU,
+            Instruction::I32Eqz,
+            // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
+            Instruction::If(BlockType::Empty),
+        ]);
 
         // add instructions after calling wait syscall
         instructions.extend_from_slice(&[
