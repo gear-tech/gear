@@ -77,7 +77,6 @@ interface IRouter {
     function latestCommittedBlockHash() external view returns (bytes32);
 
     function mirrorImpl() external view returns (address);
-    function mirrorProxyImpl() external view returns (address);
     function wrappedVara() external view returns (address);
 
     function validatorsAggregatedPublicKey() external view returns (Gear.AggregatedPublicKey memory);
@@ -100,7 +99,7 @@ interface IRouter {
     function validatedCodesCount() external view returns (uint256);
 
     // # Owner calls.
-    function setMirror(address newMirror) external;
+    function setMirrorImpl(address newMirrorImpl) external;
 
     // # Calls.
     function lookupGenesisHash() external;
@@ -108,9 +107,9 @@ interface IRouter {
     /// @dev CodeValidationRequested Emitted on success.
     function requestCodeValidation(bytes32 codeId) external;
     /// @dev ProgramCreated Emitted on success.
-    function createProgram(bytes32 codeId, bytes32 salt) external returns (address);
+    function createProgram(bytes32 codeId) external returns (address);
     /// @dev ProgramCreated Emitted on success.
-    function createProgramWithDecoder(address decoderImpl, bytes32 codeId, bytes32 salt) external returns (address);
+    function createProgramWithInterface(bytes32 codeId, address _interface) external returns (address);
 
     /// @dev CodeGotValidated Emitted for each code in commitment.
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
