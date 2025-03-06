@@ -1,4 +1,4 @@
-use crate::{builtin, mock::*, Config, EthMessage, WeightInfo};
+use crate::{mock::*, Config, EthMessage, WeightInfo};
 use common::Origin as _;
 use frame_support::{
     assert_noop, assert_ok, assert_storage_noop, traits::Get, Blake2_256, StorageHasher,
@@ -26,6 +26,7 @@ type Initialized = crate::Initialized<Test>;
 type Paused = crate::Paused<Test>;
 type Event = crate::Event<Test>;
 type Error = crate::Error<Test>;
+type MessageFee = <Test as Config>::MessageFee;
 
 #[test]
 fn bridge_got_initialized() {
@@ -166,7 +167,7 @@ fn bridge_send_eth_message_works() {
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         assert_noop!(
-            GearEthBridge::send_eth_message(RuntimeOrigin::root(), H160::zero(), vec![]),
+            GearEthBridge::send_eth_message(RuntimeOrigin::root(), H160::zero(), vec![], 0),
             BadOrigin
         );
 
@@ -183,7 +184,8 @@ fn bridge_send_eth_message_works() {
         assert_ok!(GearEthBridge::send_eth_message(
             RuntimeOrigin::signed(SIGNER),
             destination,
-            payload
+            payload,
+            0,
         ));
 
         System::assert_last_event(Event::MessageQueued { message, hash }.into());
@@ -235,7 +237,8 @@ fn bridge_queue_root_changes() {
             assert_ok!(GearEthBridge::send_eth_message(
                 RuntimeOrigin::signed(SIGNER),
                 H160::random(),
-                H256::random().as_bytes().to_vec()
+                H256::random().as_bytes().to_vec(),
+                0,
             ));
 
             assert!(QueueChanged::get());
@@ -284,7 +287,8 @@ fn bridge_updates_authorities_and_clears() {
             assert_ok!(GearEthBridge::send_eth_message(
                 RuntimeOrigin::signed(SIGNER),
                 H160::zero(),
-                vec![]
+                vec![],
+                0,
             ));
         }
 
@@ -467,43 +471,18 @@ fn bridge_queue_capacity_exceeded_err() {
             assert_ok!(GearEthBridge::send_eth_message(
                 RuntimeOrigin::signed(SIGNER),
                 H160::zero(),
-                vec![]
+                vec![],
+                MessageFee::get(),
             ));
         }
 
-        run_block_and_assert_messaging_error(
+        run_block_and_assert_messaging_error_with_value(
             Request::SendEthMessage {
                 destination: H160::zero(),
                 payload: vec![],
             },
+            MessageFee::get(),
             ERR,
-        );
-    })
-}
-
-#[test]
-fn bridge_incorrect_value_applied_err() {
-    init_logger();
-    new_test_ext().execute_with(|| {
-        const ERR: Error = Error::IncorrectValueApplied;
-
-        run_to_block(WHEN_INITIALIZED);
-
-        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
-
-        let (response, _) = run_block_with_builtin_call(
-            SIGNER,
-            Request::SendEthMessage {
-                destination: H160::zero(),
-                payload: vec![],
-            },
-            None,
-            1,
-        );
-
-        assert_eq!(
-            String::from_utf8_lossy(&response),
-            format!("Panic occurred: {}", builtin::error_to_str(&ERR))
         );
     })
 }
@@ -534,6 +513,76 @@ fn bridge_insufficient_gas_err() {
     })
 }
 
+#[test]
+fn bridge_send_eth_message_requires_fee() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        for _ in 0..<Test as crate::Config>::QueueFeeThreshold::get() {
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(SIGNER),
+                H160::zero(),
+                vec![],
+                0,
+            ));
+        }
+
+        let destination = H160::zero();
+        let payload = H256::random().as_bytes().to_vec();
+        let message = EthMessage::new(16.into(), SIGNER.cast(), destination, payload.clone());
+        let nonce = message.nonce();
+        let hash = message.hash();
+
+        let (response, _) = run_block_with_builtin_call(
+            SIGNER,
+            Request::SendEthMessage {
+                destination,
+                payload,
+            },
+            None,
+            <Test as crate::Config>::MessageFee::get(),
+        );
+
+        let response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
+        assert_eq!(response, Response::EthMessageQueued { nonce, hash });
+        System::assert_has_event(Event::MessageQueued { message, hash }.into());
+        assert_eq!(MessageNonce::get(), 17.into());
+    })
+}
+
+#[test]
+fn bridge_insufficient_fee_err() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const ERR: Error = Error::InsufficientFee;
+
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        for _ in 0..<Test as crate::Config>::QueueFeeThreshold::get() {
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(SIGNER),
+                H160::zero(),
+                vec![],
+                <Test as crate::Config>::MessageFee::get(),
+            ));
+        }
+
+        run_block_and_assert_messaging_error_with_value(
+            Request::SendEthMessage {
+                destination: H160::zero(),
+                payload: vec![],
+            },
+            0,
+            ERR,
+        );
+    })
+}
+
 mod utils {
     use super::*;
     use crate::builtin;
@@ -560,7 +609,11 @@ mod utils {
     }
 
     #[track_caller]
-    pub(crate) fn run_block_and_assert_messaging_error(request: Request, error: Error) {
+    pub(crate) fn run_block_and_assert_messaging_error_with_value(
+        request: Request,
+        value: u128,
+        error: Error,
+    ) {
         let err_str = builtin::error_to_str(&error);
 
         assert_noop!(
@@ -573,18 +626,24 @@ mod utils {
                         RuntimeOrigin::signed(SIGNER),
                         destination,
                         payload,
+                        value,
                     )
                 }
             },
             error
         );
 
-        let (response, _) = run_block_with_builtin_call(SIGNER, request, None, 0);
+        let (response, _) = run_block_with_builtin_call(SIGNER, request, None, value);
 
         assert_eq!(
             String::from_utf8_lossy(&response),
             format!("Panic occurred: {err_str}")
         );
+    }
+
+    #[track_caller]
+    pub(crate) fn run_block_and_assert_messaging_error(request: Request, error: Error) {
+        run_block_and_assert_messaging_error_with_value(request, 0, error);
     }
 
     #[track_caller]

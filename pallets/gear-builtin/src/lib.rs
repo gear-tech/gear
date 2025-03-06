@@ -65,7 +65,8 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::ProgramId,
     message::{
-        ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
+        ContextOutcomeDrain, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        Payload, ReplyPacket, StoredDispatch, Value,
     },
     str::LimitedStr,
     utils::hash,
@@ -392,7 +393,19 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         // Actual call to the builtin actor
         let res = handle(&dispatch, &mut context);
 
-        let dispatch = dispatch.into_incoming(gas_limit);
+        // ATM builtin actors don't support value transfer, so we set value 0 to prevent generation of `SendValue` journal note.
+        fn into_incoming_dispatch_with_value(
+            dispatch: StoredDispatch,
+            gas_limit: u64,
+            value: Value,
+        ) -> IncomingDispatch {
+            let (kind, stored_message, context) = dispatch.into_parts();
+            let (id, source, _, payload, _, details) = stored_message.into_parts();
+            let message = IncomingMessage::new(id, source, payload, gas_limit, value, details);
+
+            IncomingDispatch::new(kind, message, context)
+        }
+        let dispatch = into_incoming_dispatch_with_value(dispatch, gas_limit, 0);
 
         // Consume the context and extract the amount of gas spent.
         let gas_amount = context.to_gas_amount();

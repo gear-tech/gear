@@ -62,7 +62,7 @@ benchmarks! {
         let destination = [42; 20].into();
 
         let payload = vec![42; T::MaxPayloadSize::get() as usize];
-    }: _(RawOrigin::Signed(origin), destination, payload)
+    }: _(RawOrigin::Signed(origin), destination, payload, T::MessageFee::get())
     verify {
         assert!(!crate::Queue::<T>::get().is_empty());
     }

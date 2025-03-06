@@ -21,13 +21,13 @@ use common::Origin;
 use core::marker::PhantomData;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
-    message::{Payload, StoredDispatch},
+    message::{Payload, StoredDispatch, Value},
     str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};
 use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext};
 use parity_scale_codec::{Decode, Encode};
-use sp_runtime::traits::Zero;
+use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;
 
 /// Gear builtin actor providing functionality of `pallet-gear-eth-bridge`.
@@ -43,12 +43,6 @@ where
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
     ) -> Result<Payload, BuiltinActorError> {
-        if !dispatch.value().is_zero() {
-            return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                error_to_str(&Error::<T>::IncorrectValueApplied),
-            )));
-        }
-
         let request = Request::decode(&mut dispatch.payload_bytes())
             .map_err(|_| BuiltinActorError::DecodingError)?;
 
@@ -56,7 +50,13 @@ where
             Request::SendEthMessage {
                 destination,
                 payload,
-            } => send_message_request::<T>(dispatch.source(), destination, payload, context),
+            } => send_message_request::<T>(
+                dispatch.source(),
+                destination,
+                dispatch.value(),
+                payload,
+                context,
+            ),
         }
     }
 
@@ -68,6 +68,7 @@ where
 fn send_message_request<T: Config>(
     source: ActorId,
     destination: H160,
+    value: Value,
     payload: Vec<u8>,
     context: &mut BuiltinContext,
 ) -> Result<Payload, BuiltinActorError>
@@ -77,6 +78,9 @@ where
     let gas_cost = <T as Config>::WeightInfo::send_eth_message().ref_time();
 
     context.try_charge_gas(gas_cost)?;
+
+    Pallet::<T>::try_charge_fee(source, value.unique_saturated_into(), true)
+        .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(&e))))?;
 
     Pallet::<T>::queue_message(source, destination, payload)
         .map(|(nonce, hash)| {
@@ -94,7 +98,8 @@ pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
         Error::BridgeIsPaused => "Send message: bridge is paused",
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
         Error::QueueCapacityExceeded => "Send message: queue capacity exceeded",
-        Error::IncorrectValueApplied => "Send message: incorrect value applied",
+        Error::InsufficientFee => "Send message: insufficient fee",
+        Error::FailedToTransferFee => "Send message: failed to transfer/refund fee",
         _ => unimplemented!(),
     }
 }

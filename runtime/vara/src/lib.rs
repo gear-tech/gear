@@ -1243,6 +1243,10 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
+    type QueueFeeThreshold = ConstU32<1024>;
+    type MessageFee = ConstU128<5_000_000_000_000_000>;
+    // TODO: use proper fee treasury address
+    type FeeTreasuryAddress = BankAddress;
     type SessionsPerEra = SessionsPerEra;
     type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
 }

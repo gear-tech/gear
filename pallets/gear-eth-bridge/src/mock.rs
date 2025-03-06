@@ -26,7 +26,7 @@ use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
-use sp_core::{ed25519::Public, H256};
+use sp_core::{ed25519::Public, ConstU128, H256};
 use sp_runtime::{
     impl_opaque_keys,
     traits::{BlakeTwo256, IdentityLookup},
@@ -161,6 +161,7 @@ parameter_types! {
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
+    pub const FeeTreasuryAddress: AccountId = 2;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
     pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
     pub SplitTxFeeRatio: Option<u32> = None;
@@ -294,6 +295,9 @@ impl pallet_gear_eth_bridge::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
+    type QueueFeeThreshold = ConstU32<16>;
+    type MessageFee = ConstU128<{ 1 * UNITS }>;
+    type FeeTreasuryAddress = FeeTreasuryAddress;
     type SessionsPerEra = SessionsPerEra;
     type WeightInfo = ();
 }

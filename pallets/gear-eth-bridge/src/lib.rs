@@ -52,7 +52,10 @@ pub mod pallet {
     use common::Origin;
     use frame_support::{
         pallet_prelude::*,
-        traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
+        traits::{
+            ConstBool, Currency, ExistenceRequirement, OneSessionHandler, StorageInstance,
+            StorageVersion,
+        },
         StorageHasher,
     };
     use frame_system::{
@@ -61,20 +64,28 @@ pub mod pallet {
     };
     use gprimitives::{ActorId, H160, H256, U256};
     use sp_runtime::{
-        traits::{Keccak256, One, Saturating, Zero},
+        traits::{CheckedSub, Keccak256, One, Saturating, Zero},
         BoundToRuntimeAppPublic, RuntimeAppPublic,
     };
     use sp_std::vec::Vec;
 
     type QueueCapacityOf<T> = <T as Config>::QueueCapacity;
     type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
+    type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+    type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
+    type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
+    //type CurrencyOf<T> = <T as Config>::Currency;
+    type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_gear_bank::Config {
+        //type Currency: Currency<AccountIdOf<Self>>;
+        //+ fungible::Unbalanced<AccountIdOf<Self>, Balance = BalanceOf<Self>>;
+
         /// Type representing aggregated runtime event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
@@ -88,6 +99,18 @@ pub mod pallet {
         /// bridged within the single staking era.
         #[pallet::constant]
         type QueueCapacity: Get<u32>;
+
+        /// TODO
+        #[pallet::constant]
+        type QueueFeeThreshold: Get<u32>;
+
+        // TODO
+        #[pallet::constant]
+        type MessageFee: Get<BalanceOf<Self>>;
+
+        // TODO
+        #[pallet::constant]
+        type FeeTreasuryAddress: Get<AccountIdOf<Self>>;
 
         /// Constant defining amount of sessions in manager for keys rotation.
         /// Similar to `pallet_staking::SessionsPerEra`.
@@ -150,9 +173,12 @@ pub mod pallet {
         /// so message couldn't be sent.
         QueueCapacityExceeded,
 
-        /// The error happens when bridging thorough builtin and message value
-        /// is inapplicable to operation or insufficient.
-        IncorrectValueApplied,
+        // The error happens when the message does not have enough value
+        // to cover the fee required for inclusion in the queue.
+        InsufficientFee,
+
+        /// The error happens when for some reason fee transfer failed.
+        FailedToTransferFee,
     }
 
     /// Lifecycle storage.
@@ -295,9 +321,11 @@ pub mod pallet {
             origin: OriginFor<T>,
             destination: H160,
             payload: Vec<u8>,
+            value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             let source = ensure_signed(origin)?.cast();
 
+            Self::try_charge_fee(source, value, false)?;
             Self::queue_message(source, destination, payload)?;
 
             Ok(().into())
@@ -305,6 +333,50 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        pub(crate) fn try_charge_fee(
+            source: ActorId,
+            value: BalanceOf<T>,
+            from_builtin: bool,
+        ) -> Result<(), Error<T>>
+        where
+            T::AccountId: Origin,
+        {
+            let account_id = T::AccountId::from_origin(source.into());
+
+            // Charge fee if queue exceeds threshold
+            if Queue::<T>::get().len() >= <T as Config>::QueueFeeThreshold::get() as _ {
+                let fee = <T as Config>::MessageFee::get();
+                let refund = value.checked_sub(&fee).ok_or(Error::<T>::InsufficientFee)?;
+
+                let treasury_id = <T as Config>::FeeTreasuryAddress::get();
+
+                if from_builtin {
+                    GearBank::<T>::transfer_value(&account_id, &treasury_id, fee)
+                        .map_err(|_| Error::<T>::FailedToTransferFee)?;
+                    // Refund the remaining value, zero check happens inside `withdraw_value`
+                    GearBank::<T>::withdraw_value(&account_id, refund)
+                        .map_err(|_| Error::<T>::FailedToTransferFee)?;
+                } else {
+                    // Transfer fee to treasury,
+                    // no need to refund because it's actuall value transfer never happend
+                    CurrencyOf::<T>::transfer(
+                        &account_id,
+                        &treasury_id,
+                        fee,
+                        ExistenceRequirement::AllowDeath,
+                    )
+                    .map_err(|_| Error::<T>::InsufficientFee)?;
+                }
+            }
+            // Queue threshold not exceeded, no fee charged, return deposited to bank value
+            else if from_builtin {
+                GearBank::<T>::withdraw_value(&account_id, value)
+                    .map_err(|_| Error::<T>::FailedToTransferFee)?;
+            }
+
+            Ok(())
+        }
+
         pub(crate) fn queue_message(
             source: ActorId,
             destination: H160,
