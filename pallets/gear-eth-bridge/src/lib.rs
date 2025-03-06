@@ -410,7 +410,7 @@ pub mod pallet {
                 // Transfer fee to treasury
                 if !fee.is_zero() {
                     CurrencyOf::<T>::transfer(
-                        &account_id,
+                        &builtin_id,
                         &treasury_id,
                         fee,
                         ExistenceRequirement::AllowDeath,
