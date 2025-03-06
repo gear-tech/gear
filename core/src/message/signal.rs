@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{prelude::*, MessageId, ProgramId},
+    ids::{MessageId, ProgramId, prelude::*},
     message::{Dispatch, DispatchKind, Message, SignalDetails},
 };
 use gear_core_errors::SignalCode;
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Message for signal entry point.

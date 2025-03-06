@@ -31,8 +31,8 @@ use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
 use sp_core::ConstBool;
 use sp_runtime::{
-    traits::{BlakeTwo256, ConstU64, IdentityLookup},
     BuildStorage, Perbill,
+    traits::{BlakeTwo256, ConstU64, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 

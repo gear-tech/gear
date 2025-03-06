@@ -43,11 +43,11 @@ use derive_more::{AsMut, AsRef, Display, From, Into};
 use gear_ss58::RawSs58Address;
 #[cfg(feature = "codec")]
 use scale_info::{
-    scale::{self, Decode, Encode, MaxEncodedLen},
     TypeInfo,
+    scale::{self, Decode, Encode, MaxEncodedLen},
 };
 #[cfg(feature = "serde")]
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 /// The error type returned when conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
@@ -178,7 +178,7 @@ impl fmt::Display for ActorId {
             let address_str = address.as_str();
 
             let len = address.as_str().len();
-            let median = (len + 1) / 2;
+            let median = len.div_ceil(2);
 
             let mut e1 = median;
             let mut s2 = median;

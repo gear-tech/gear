@@ -645,17 +645,18 @@ fn gas_allowance_respected() {
 
 mod util {
     pub(super) use crate::mock::{
-        message_queue_empty, BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK,
-        SIGNER, UNITS, VAL_1_STASH, VAL_2_STASH, VAL_3_STASH,
+        BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER, UNITS,
+        VAL_1_STASH, VAL_2_STASH, VAL_3_STASH, message_queue_empty,
     };
     use crate::{
-        self as pallet_gear_builtin, staking::Actor as StakingBuiltin, ActorWithId, GasAllowanceOf,
+        self as pallet_gear_builtin, ActorWithId, GasAllowanceOf, staking::Actor as StakingBuiltin,
     };
-    pub(super) use common::{storage::Limiter, Origin};
+    pub(super) use common::{Origin, storage::Limiter};
     pub(super) use demo_staking_broker::WASM_BINARY;
     use frame_election_provider_support::{
+        SequentialPhragmen,
         bounds::{ElectionBounds, ElectionBoundsBuilder},
-        onchain, SequentialPhragmen,
+        onchain,
     };
     pub(super) use frame_support::dispatch::GetDispatchInfo;
     use frame_support::{
@@ -667,15 +668,15 @@ mod util {
     use frame_support_test::TestRandomness;
     use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
-    pub(super) use gear_core::ids::{prelude::*, CodeId, ProgramId};
+    pub(super) use gear_core::ids::{CodeId, ProgramId, prelude::*};
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
     use pallet_session::historical::{self as pallet_session_historical};
     pub(super) use parity_scale_codec::Encode;
-    use sp_core::{crypto::key_types, H256};
+    use sp_core::{H256, crypto::key_types};
     use sp_runtime::{
+        BuildStorage, KeyTypeId, Perbill, Permill,
         testing::UintAuthorityId,
         traits::{BlakeTwo256, ConstU32, IdentityLookup, OpaqueKeys},
-        BuildStorage, KeyTypeId, Perbill, Permill,
     };
     use sp_std::convert::{TryFrom, TryInto};
 
@@ -1061,9 +1062,11 @@ mod util {
     }
 
     pub(super) fn assert_no_staking_events() {
-        assert!(System::events()
-            .into_iter()
-            .all(|e| { !matches!(e.event, RuntimeEvent::Staking(_)) }))
+        assert!(
+            System::events()
+                .into_iter()
+                .all(|e| { !matches!(e.event, RuntimeEvent::Staking(_)) })
+        )
     }
 
     pub(super) fn assert_error_message_sent() {

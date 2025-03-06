@@ -18,11 +18,12 @@
 
 use crate::Kind;
 use gstd::{
+    ActorId, CodeId, MessageId, ReservationId, Vec,
     errors::{ReplyCode, SignalCode, SimpleExecutionError},
     exec, format,
     msg::{self, MessageHandle},
     prelude::*,
-    prog, ActorId, CodeId, MessageId, ReservationId, Vec,
+    prog,
 };
 use parity_scale_codec::Encode;
 

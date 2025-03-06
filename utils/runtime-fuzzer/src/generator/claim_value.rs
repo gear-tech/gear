@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{RuntimeStateView, AUXILIARY_SIZE, ID_SIZE};
+use super::{AUXILIARY_SIZE, ID_SIZE, RuntimeStateView};
 use gear_call_gen::{ClaimValueArgs, GearCall};
 use gear_core::ids::MessageId;
 use gear_utils::NonEmpty;

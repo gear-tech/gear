@@ -34,9 +34,8 @@ use alloc::format;
 pub use pallet::*;
 
 use frame_support::traits::{
-    fungible,
+    Currency, StorageVersion, fungible,
     tokens::{Fortitude, Preservation, Provenance},
-    Currency, StorageVersion,
 };
 
 #[macro_export]
@@ -66,21 +65,20 @@ pub mod pallet {
     use super::*;
     use core::ops::Add;
     use frame_support::{
-        ensure,
+        Identity, ensure,
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
         sp_runtime::Saturating,
         traits::{
-            tokens::DepositConsequence, ExistenceRequirement, Get, Hooks, LockableCurrency,
-            ReservableCurrency,
+            ExistenceRequirement, Get, Hooks, LockableCurrency, ReservableCurrency,
+            tokens::DepositConsequence,
         },
         weights::Weight,
-        Identity,
     };
     use frame_system::pallet_prelude::BlockNumberFor;
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::{traits::Zero, Perbill};
+    use sp_runtime::{Perbill, traits::Zero};
 
     // Funds pallet struct itself.
     #[pallet::pallet]

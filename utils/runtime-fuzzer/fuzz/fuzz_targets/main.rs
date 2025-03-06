@@ -18,7 +18,7 @@
 
 #![no_main]
 
-use libfuzzer_sys::{fuzz_target, Corpus};
+use libfuzzer_sys::{Corpus, fuzz_target};
 use runtime_fuzzer::{self, FuzzerInput};
 
 fuzz_target!(|data: FuzzerInput<'_>| -> Corpus {

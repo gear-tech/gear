@@ -19,7 +19,7 @@
 use codec::{Decode, Encode};
 
 use crate::{
-    env, AsContextExt, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxStore, Value,
+    AsContextExt, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxStore, Value, env,
 };
 use alloc::{format, string::String};
 use gear_sandbox_env::WasmReturnValue;

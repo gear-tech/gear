@@ -60,13 +60,13 @@
 //!    type is always deleted last.
 //!
 //! 10. If node wasn't removed after `consume` it's [`GasNode::SpecifiedLocal`],
-//!      [`GasNode::Reserved`] or [`GasNode::External`] node. Similar to the previous invariant, but
-//!      focuses more on [`Tree::consume`] procedure, while the other focuses
-//!      on the all tree invariant. (checked in `consume` call assertions).
+//!     [`GasNode::Reserved`] or [`GasNode::External`] node. Similar to the previous invariant, but
+//!     focuses more on [`Tree::consume`] procedure, while the other focuses
+//!     on the all tree invariant. (checked in `consume` call assertions).
 //!
 //! 11. [`GasNode::UnspecifiedLocal`] and [`GasNode::Cut`] nodes can't
-//!      be removed, nor mutated during cascade removal. So after [`Tree::consume`]
-//!      call not more than one node is of [`GasNode::UnspecifiedLocal`] type.
+//!     be removed, nor mutated during cascade removal. So after [`Tree::consume`]
+//!     call not more than one node is of [`GasNode::UnspecifiedLocal`] type.
 //!
 //! 12. Between calls to [`Tree::consume`] if node is consumed and has no unspec
 //!     refs, it's internal gas value is zero.

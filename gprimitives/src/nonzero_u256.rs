@@ -28,9 +28,9 @@ use core::{
 };
 #[cfg(feature = "codec")]
 use scale_info::{
+    TypeInfo,
     prelude::vec::Vec,
     scale::{Decode, Encode, EncodeLike, Error, Input, Output},
-    TypeInfo,
 };
 
 /// A value that is known not to equal zero.
@@ -150,11 +150,7 @@ impl NonZeroU256 {
     #[must_use]
     #[inline]
     pub const fn new(n: U256) -> Option<Self> {
-        if n.is_zero() {
-            None
-        } else {
-            Some(Self(n))
-        }
+        if n.is_zero() { None } else { Some(Self(n)) }
     }
 
     /// Creates a non-zero without checking whether the value is non-zero.

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{code_validator::validate_program, crate_info::CrateInfo, smart_fs};
-use anyhow::{anyhow, Context, Ok, Result};
+use anyhow::{Context, Ok, Result, anyhow};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
 use std::{
@@ -160,7 +160,7 @@ impl WasmProject {
         let mut package = Table::new();
         package.insert("name".into(), format!("{}-wasm", &crate_info.name).into());
         package.insert("version".into(), crate_info.version.into());
-        package.insert("edition".into(), "2021".into());
+        package.insert("edition".into(), "2024".into());
 
         let mut lib = Table::new();
         lib.insert("name".into(), crate_info.snake_case_name.into());

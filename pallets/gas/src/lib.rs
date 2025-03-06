@@ -33,7 +33,7 @@
 //! - Obtaining maximum gas amount available within one block of execution.
 //! - Managing number of remaining gas, i.e. gas allowance.
 //! - Managing gas tree: create, split, cut, etc new nodes determining
-//!    execution resources of messages.
+//!   execution resources of messages.
 //!
 //! ## Interface
 //!
@@ -128,8 +128,8 @@
 #![allow(clippy::manual_inspect)]
 
 use common::{
-    storage::{MapStorage, ValueStorage},
     BlockLimiter, GasProvider,
+    storage::{MapStorage, ValueStorage},
 };
 use frame_support::{pallet_prelude::*, traits::StorageVersion};
 pub use pallet::*;

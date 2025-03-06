@@ -19,12 +19,12 @@
 //! Gear wasm entry points generator module.
 
 use crate::{
+    EntryPointsSet, MemoryLayout,
     generator::{
         CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, MemoryImportGenerationProof,
         ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    EntryPointsSet, MemoryLayout,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{Export, Function, Instruction, MemArg, ModuleBuilder};

@@ -152,13 +152,10 @@ where
         }
 
         let block_number = Callbacks::GetBlockNumber::call();
-        let message_with_bn = (
-            message,
-            Interval {
-                start: block_number,
-                finish: scheduled_at,
-            },
-        );
+        let message_with_bn = (message, Interval {
+            start: block_number,
+            finish: scheduled_at,
+        });
 
         Callbacks::OnInsert::call(&message_with_bn);
         T::insert(key1, key2, message_with_bn);

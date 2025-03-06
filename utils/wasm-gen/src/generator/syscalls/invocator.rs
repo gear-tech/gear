@@ -19,28 +19,28 @@
 //! Syscalls invocator module.
 
 use crate::{
+    ActorKind, InvocableSyscall, MemoryLayout, PtrParamAllowedValues, RegularParamAllowedValues,
+    SyscallsConfig, SyscallsParamsConfig,
     generator::{
         CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector, FunctionIndex,
         ModuleWithCallIndexes,
     },
     utils::{self, MemcpyUnit, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
-    ActorKind, InvocableSyscall, MemoryLayout, PtrParamAllowedValues, RegularParamAllowedValues,
-    SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_core::ids::CodeId;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
+    Instruction, MemArg,
     syscalls::{
         FallibleSyscallSignature, ParamType, Ptr, RegularParamType, SyscallName, SyscallSignature,
         SystemSyscallSignature,
     },
-    Instruction, MemArg,
 };
 use gsys::{ErrorCode, Handle, Hash};
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
+    collections::{BTreeMap, BinaryHeap, HashSet, btree_map::Entry},
     fmt::{self, Debug, Display},
     iter,
     num::NonZero,
@@ -192,14 +192,14 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         .into_iter()
                         .filter(|syscall| self.syscalls_imports.contains_key(syscall))
                         .flat_map(|syscall1| {
-                            iter::repeat(syscall1)
-                                .take(
-                                    syscalls
-                                        .iter()
-                                        .filter(|&&syscall2| syscall1 == syscall2)
-                                        .count(),
-                                )
-                                .collect::<Vec<_>>()
+                            iter::repeat_n(
+                                syscall1,
+                                syscalls
+                                    .iter()
+                                    .filter(|&&syscall2| syscall1 == syscall2)
+                                    .count(),
+                            )
+                            .collect::<Vec<_>>()
                         })
                         .rev()
                         .collect()
@@ -449,7 +449,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         ValType::I32 => true,
                         ValType::I64 => false,
                         ValType::F32 | ValType::F64 | ValType::V128 | ValType::Ref(_) => {
-                            panic!("gear wasm must not have any floating nums, SIMD or reference types")
+                            panic!(
+                                "gear wasm must not have any floating nums, SIMD or reference types"
+                            )
                         }
                     };
                     let param_instructions = if let Some(allowed_values) = allowed_values {
@@ -821,9 +823,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
     fn build_error_processing_ignored(signature: SyscallSignature) -> Vec<Instruction> {
         match signature {
-            SyscallSignature::System(system) => iter::repeat(Instruction::Drop)
-                .take(system.results().len())
-                .collect(),
+            SyscallSignature::System(system) => {
+                iter::repeat_n(Instruction::Drop, system.results().len()).collect()
+            }
             SyscallSignature::Fallible(_) => Vec::new(),
             SyscallSignature::Infallible(_) => unreachable!(
                 "Invalid implementation. This function is called only for returning errors syscall"
@@ -863,22 +865,19 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         } = MemoryLayout::from(self.memory_size_bytes());
 
         // add instructions before calling wait syscall
-        instructions.splice(
-            0..0,
-            [
-                Instruction::I32Const(init_called_ptr),
-                Instruction::I32Load8U(MemArg::zero()),
-                // if *init_called_ptr { .. }
-                Instruction::If(BlockType::Empty),
-                Instruction::I32Const(wait_called_ptr),
-                Instruction::I32Load(MemArg::i32()),
-                Instruction::I32Const(waiting_probability as i32),
-                Instruction::I32RemU,
-                Instruction::I32Eqz,
-                // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
-                Instruction::If(BlockType::Empty),
-            ],
-        );
+        instructions.splice(0..0, [
+            Instruction::I32Const(init_called_ptr),
+            Instruction::I32Load8U(MemArg::zero()),
+            // if *init_called_ptr { .. }
+            Instruction::If(BlockType::Empty),
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Load(MemArg::i32()),
+            Instruction::I32Const(waiting_probability as i32),
+            Instruction::I32RemU,
+            Instruction::I32Eqz,
+            // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
+            Instruction::If(BlockType::Empty),
+        ]);
 
         // add instructions after calling wait syscall
         instructions.extend_from_slice(&[

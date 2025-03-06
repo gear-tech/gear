@@ -126,7 +126,7 @@ fn build_tree<P: AsRef<Path>>(
             return true;
         }
 
-        PALLET_NAMES.iter().any(|&name| name == pallet_name)
+        PALLET_NAMES.contains(&pallet_name)
     };
 
     let junit_xml = fs::read_to_string(path).unwrap();

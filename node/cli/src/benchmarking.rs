@@ -251,6 +251,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
 }
 
 /// Generates inherent data for the `benchmark overhead` command.
+#[allow(clippy::result_large_err)]
 pub fn inherent_benchmark_data() -> Result<InherentData> {
     let mut inherent_data = InherentData::new();
     let d = Duration::from_millis(0);

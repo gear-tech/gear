@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
-use clap::{builder::PossibleValue, Parser, ValueEnum};
+use anyhow::{Result, anyhow};
+use clap::{Parser, ValueEnum, builder::PossibleValue};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt, fs, path::PathBuf};

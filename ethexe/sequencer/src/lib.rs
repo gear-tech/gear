@@ -19,18 +19,18 @@
 //! Sequencer for ethexe.
 
 use agro::{AggregatedCommitments, MultisignedCommitmentDigests, Signatures};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
     db::BlockMetaStorage,
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
 };
-use ethexe_ethereum::{router::Router, Ethereum};
+use ethexe_ethereum::{Ethereum, router::Router};
 use ethexe_service_utils::Timer;
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use futures::{
+    FutureExt, Stream, StreamExt,
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
-    FutureExt, Stream, StreamExt,
 };
 use gprimitives::H256;
 use indexmap::IndexSet;
@@ -292,7 +292,9 @@ impl SequencerService {
         self.status.submitted_code_commitments += code_commitments_len;
         self.status.submitted_block_commitments += block_commitments_len;
 
-        log::debug!("Collected {code_commitments_len} code commitments, {block_commitments_len} block commitments. Submitting...");
+        log::debug!(
+            "Collected {code_commitments_len} code commitments, {block_commitments_len} block commitments. Submitting..."
+        );
 
         self.submissions.push(Box::pin(
             Self::submit_batch_commitment(

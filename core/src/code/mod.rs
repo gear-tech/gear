@@ -20,12 +20,12 @@
 
 use crate::{
     gas_metering::{CustomConstantCostRules, Rules},
-    ids::{prelude::*, CodeId},
+    ids::{CodeId, prelude::*},
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use gear_wasm_instrument::{InstrumentationBuilder, Module, GEAR_SUPPORTED_FEATURES};
+use gear_wasm_instrument::{GEAR_SUPPORTED_FEATURES, InstrumentationBuilder, Module};
 
 mod errors;
 mod instrumented;
@@ -297,16 +297,12 @@ impl Code {
         R: Rules,
         GetRulesFn: FnMut(&Module) -> R,
     {
-        Self::try_new_internal(
-            original_code,
-            Some(get_gas_rules),
-            TryNewCodeConfig {
-                version,
-                stack_height,
-                data_segments_amount_limit,
-                ..Default::default()
-            },
-        )
+        Self::try_new_internal(original_code, Some(get_gas_rules), TryNewCodeConfig {
+            version,
+            stack_height,
+            data_segments_amount_limit,
+            ..Default::default()
+        })
     }
 
     /// Create new code for mock goals with const or no instrumentation rules.
@@ -424,8 +420,8 @@ impl CodeAndId {
 mod tests {
     use crate::{
         code::{
-            utils::REF_TYPE_SIZE, Code, CodeError, DataSectionError, ExportError, ImportError,
-            StackEndError, TryNewCodeConfig, GENERIC_OS_PAGE_SIZE,
+            Code, CodeError, DataSectionError, ExportError, GENERIC_OS_PAGE_SIZE, ImportError,
+            StackEndError, TryNewCodeConfig, utils::REF_TYPE_SIZE,
         },
         gas_metering::CustomConstantCostRules,
     };
@@ -463,16 +459,12 @@ mod tests {
         data_segments_amount_limit: Option<u32>,
         make_validation: bool,
     ) -> Result<Code, CodeError> {
-        Code::try_new_mock_const_or_no_rules(
-            wat2wasm(wat),
-            true,
-            TryNewCodeConfig {
-                stack_height,
-                data_segments_amount_limit,
-                make_validation,
-                ..Default::default()
-            },
-        )
+        Code::try_new_mock_const_or_no_rules(wat2wasm(wat), true, TryNewCodeConfig {
+            stack_height,
+            data_segments_amount_limit,
+            make_validation,
+            ..Default::default()
+        })
     }
 
     fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {

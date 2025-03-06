@@ -18,7 +18,7 @@
 
 //! codec for keys.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use rand::RngCore;
 use schnorrkel::PUBLIC_KEY_LENGTH;
 

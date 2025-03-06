@@ -19,7 +19,7 @@
 //! Various reservation related methods for ExtManager
 
 use super::ExtManager;
-use gear_common::{scheduler::StorageType, storage::Interval, ProgramId, ReservationId};
+use gear_common::{ProgramId, ReservationId, scheduler::StorageType, storage::Interval};
 use gear_core::{reservation::GasReservationSlot, tasks::ScheduledTask};
 
 impl ExtManager {

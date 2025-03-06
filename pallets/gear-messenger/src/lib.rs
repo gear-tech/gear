@@ -30,14 +30,14 @@
 //!
 //! The Gear Messenger Pallet provides functions for:
 //! - Counting amount of messages sent from outside (from extrinsics)
-//!    within the current block.
+//!   within the current block.
 //! - Counting amount of messages removed from queue to be processed
-//!    or skipped within the current block.
+//!   or skipped within the current block.
 //! - Managing continuation of queue processing within the current block.
 //! - Storing and managing message queue, it's pushing and popping algorithms.
 //! - Storing and managing mailbox, it's insertion and removal algorithms,
-//!    including the value claiming with Balances Pallet as `Currency`
-//!    `Config`'s associated type.
+//!   including the value claiming with Balances Pallet as `Currency`
+//!   `Config`'s associated type.
 //!
 //! ## Interface
 //!
@@ -130,7 +130,7 @@
 //! ## Assumptions
 //!
 //! * You should manually control storage load from queue and mailbox
-//!    length overflow (see Gear Payment Pallet).
+//!   length overflow (see Gear Payment Pallet).
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
@@ -157,7 +157,7 @@ pub use pallet::*;
 pub mod pallet {
     pub use frame_support::weights::Weight;
 
-    use common::{storage::*, BlockLimiter, Origin};
+    use common::{BlockLimiter, Origin, storage::*};
     use frame_support::{pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion};
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{

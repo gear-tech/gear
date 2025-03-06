@@ -36,7 +36,7 @@ pub const WASM_BINARY: &[u8] = &[];
 pub mod wasm;
 
 use core::ops::Range;
-use gstd::{prelude::*, ActorId};
+use gstd::{ActorId, prelude::*};
 
 #[derive(Debug, Decode, Encode, TypeInfo)]
 pub struct InitConfig {

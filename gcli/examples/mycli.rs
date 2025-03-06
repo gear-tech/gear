@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gcli::{async_trait, clap::Parser, App, Command};
+use gcli::{App, Command, async_trait, clap::Parser};
 
 /// My customized sub commands.
 #[derive(Debug, Parser)]

@@ -17,23 +17,23 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
-    wvara::WVara,
     AlloyEthereum, AlloyProvider, AlloyTransport, TryGetReceipt,
+    abi::{Gear::CodeState, IRouter, utils::uint256_to_u256},
+    wvara::WVara,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{fixed_bytes, Address, Bytes, U256},
+    primitives::{Address, Bytes, U256, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{eth::state::AccountOverride, Filter},
+    rpc::types::{Filter, eth::state::AccountOverride},
     transports::BoxTransport,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
 use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
 use events::signatures;
 use futures::StreamExt;
-use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
+use gear_core::ids::{ProgramId, prelude::CodeIdExt as _};
 use gprimitives::{ActorId, CodeId, H256};
 use std::{collections::HashMap, sync::Arc};
 
@@ -193,13 +193,10 @@ impl Router {
         );
 
         let mut state = HashMap::default();
-        state.insert(
-            *self.instance.address(),
-            AccountOverride {
-                state_diff: Some(state_diff),
-                ..Default::default()
-            },
-        );
+        state.insert(*self.instance.address(), AccountOverride {
+            state_diff: Some(state_diff),
+            ..Default::default()
+        });
 
         let estimate_gas_builder = builder.clone().state(state);
         let gas_limit = Self::HUGE_GAS_LIMIT

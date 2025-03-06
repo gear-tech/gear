@@ -18,7 +18,7 @@
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
-    syscalls::SyscallName, Function, Import, Instruction, MemArg, Module, ModuleBuilder,
+    Function, Import, Instruction, MemArg, Module, ModuleBuilder, syscalls::SyscallName,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},

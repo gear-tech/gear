@@ -48,7 +48,7 @@ pub use core::{
 /// [`alloc::collections`]: ::alloc::collections
 pub mod collections {
     pub use ::alloc::collections::*;
-    pub use ::hashbrown::{hash_map, hash_set, HashMap, HashSet};
+    pub use ::hashbrown::{HashMap, HashSet, hash_map, hash_set};
 
     /// Reexports from [`hashbrown`].
     pub mod hashbrown {

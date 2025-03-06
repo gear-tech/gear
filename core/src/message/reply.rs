@@ -18,7 +18,7 @@
 
 use super::common::ReplyDetails;
 use crate::{
-    ids::{prelude::*, MessageId, ProgramId},
+    ids::{MessageId, ProgramId, prelude::*},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
         Value,
@@ -26,8 +26,8 @@ use crate::{
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Message for Reply entry point.

@@ -24,8 +24,8 @@ extern crate alloc;
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use module::{
-    BrTable, ConstExpr, Data, Element, ElementItems, Export, Function, Global, Import, Instruction,
-    MemArg, Module, ModuleBuilder, ModuleError, Name, Table, GEAR_SUPPORTED_FEATURES,
+    BrTable, ConstExpr, Data, Element, ElementItems, Export, Function, GEAR_SUPPORTED_FEATURES,
+    Global, Import, Instruction, MemArg, Module, ModuleBuilder, ModuleError, Name, Table,
 };
 pub use wasmparser::{
     BlockType, ExternalKind, FuncType, GlobalType, MemoryType, RefType, TableType, TypeRef, ValType,
@@ -100,9 +100,7 @@ pub enum InstrumentationError {
     #[display(fmt = "The WASM module already has `gear_gas` global")]
     GasGlobalAlreadyExists,
     /// Error occurred during calculating the cost of the `gas_charge` function.
-    #[display(
-        fmt = "An overflow occurred while calculating the cost of the `gas_charge` function"
-    )]
+    #[display(fmt = "An overflow occurred while calculating the cost of the `gas_charge` function")]
     CostCalculationOverflow,
     /// Error occurred while trying to get the instruction cost.
     #[display(fmt = "Failed to get instruction cost")]
@@ -340,13 +338,10 @@ fn inject_gas_limiter<R: Rules>(
     *cost_instr = Instruction::I64Const(cost as i64);
 
     // gas_charge function
-    mbuilder.add_func(
-        FuncType::new([ValType::I32], []),
-        Function {
-            locals: vec![(1, ValType::I64)],
-            instructions: elements,
-        },
-    );
+    mbuilder.add_func(FuncType::new([ValType::I32], []), Function {
+        locals: vec![(1, ValType::I64)],
+        instructions: elements,
+    });
 
     // back to plain module
     let module = mbuilder.build();

@@ -27,8 +27,8 @@ use core::{
     ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive},
 };
 use num_traits::{
-    bounds::{LowerBounded, UpperBounded},
     CheckedAdd, One, Zero,
+    bounds::{LowerBounded, UpperBounded},
 };
 
 /// Describes not empty interval start..=end.

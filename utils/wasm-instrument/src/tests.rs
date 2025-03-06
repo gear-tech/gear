@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    GLOBAL_NAME_GAS, InstrumentationBuilder, InstrumentationError, Module, Rules,
     gas_metering::ConstantCostRules,
     module::{Function, Global, Instruction, Instruction::*, ModuleBuilder},
     syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
-    InstrumentationBuilder, InstrumentationError, Module, Rules, GLOBAL_NAME_GAS,
 };
 use alloc::format;
 use wasmparser::{BlockType, FuncType, ValType};
@@ -133,28 +133,25 @@ fn call_index() {
     let func_index = empty_func_index + 1;
     let gas_charge_index = func_index + 1;
 
-    assert_eq!(
-        get_function_body(&injected_module, 1).unwrap(),
-        [
-            I32Const(3),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            If(BlockType::Empty),
-            I32Const(3),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
-            Else,
-            I32Const(2),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
-            End,
-            Call(empty_func_index),
-            End
-        ]
-    );
+    assert_eq!(get_function_body(&injected_module, 1).unwrap(), [
+        I32Const(3),
+        Call(gas_charge_index),
+        Call(empty_func_index),
+        If(BlockType::Empty),
+        I32Const(3),
+        Call(gas_charge_index),
+        Call(empty_func_index),
+        Call(empty_func_index),
+        Call(empty_func_index),
+        Else,
+        I32Const(2),
+        Call(gas_charge_index),
+        Call(empty_func_index),
+        Call(empty_func_index),
+        End,
+        Call(empty_func_index),
+        End
+    ]);
 }
 
 #[test]
@@ -171,37 +168,34 @@ fn cost_overflow() {
     let func_index = empty_func_index + 1;
     let gas_charge_index = func_index + 1;
 
-    assert_eq!(
-        get_function_body(&injected_module, 1).unwrap(),
-        &[
-            // (instruction_cost * 3) as i32 => ((2147483647 * 2) + 2147483647) as i32 =>
-            // ((2147483647 + 2147483647 + 1) + 2147483646) as i32 =>
-            // (u32::MAX as i32) + 2147483646 as i32
-            I32Const(-1),
-            Call(gas_charge_index),
-            I32Const((instruction_cost - 1) as i32),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            If(BlockType::Empty),
-            // Same as upper
-            I32Const(-1),
-            Call(gas_charge_index),
-            I32Const((instruction_cost - 1) as i32),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
-            Else,
-            // (instruction_cost * 2) as i32
-            I32Const(-2),
-            Call(gas_charge_index),
-            Call(empty_func_index),
-            Call(empty_func_index),
-            End,
-            Call(empty_func_index),
-            End
-        ]
-    );
+    assert_eq!(get_function_body(&injected_module, 1).unwrap(), &[
+        // (instruction_cost * 3) as i32 => ((2147483647 * 2) + 2147483647) as i32 =>
+        // ((2147483647 + 2147483647 + 1) + 2147483646) as i32 =>
+        // (u32::MAX as i32) + 2147483646 as i32
+        I32Const(-1),
+        Call(gas_charge_index),
+        I32Const((instruction_cost - 1) as i32),
+        Call(gas_charge_index),
+        Call(empty_func_index),
+        If(BlockType::Empty),
+        // Same as upper
+        I32Const(-1),
+        Call(gas_charge_index),
+        I32Const((instruction_cost - 1) as i32),
+        Call(gas_charge_index),
+        Call(empty_func_index),
+        Call(empty_func_index),
+        Call(empty_func_index),
+        Else,
+        // (instruction_cost * 2) as i32
+        I32Const(-2),
+        Call(gas_charge_index),
+        Call(empty_func_index),
+        Call(empty_func_index),
+        End,
+        Call(empty_func_index),
+        End
+    ]);
 }
 
 #[macro_export]

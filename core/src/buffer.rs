@@ -26,8 +26,8 @@ use core::{
 
 use alloc::{vec, vec::Vec};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Limited len vector.
@@ -45,7 +45,7 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let len = self.0.len();
-        let median = (len + 1) / 2;
+        let median = len.div_ceil(2);
 
         let mut e1 = median;
         let mut s2 = median;

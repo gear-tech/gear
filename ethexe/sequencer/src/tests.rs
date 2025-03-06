@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use ethexe_signer::{sha3, PrivateKey};
+use ethexe_signer::{PrivateKey, sha3};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct TestComm([u8; 2]);
@@ -178,20 +178,14 @@ fn test_receive_commitments() {
     )
     .unwrap();
 
-    expected_commitments_storage.insert(
-        commitments[0].to_digest(),
-        CommitmentAndOrigins {
-            commitment: commitments[0],
-            origins: [validator1].iter().cloned().collect(),
-        },
-    );
-    expected_commitments_storage.insert(
-        commitments[1].to_digest(),
-        CommitmentAndOrigins {
-            commitment: commitments[1],
-            origins: [validator1].iter().cloned().collect(),
-        },
-    );
+    expected_commitments_storage.insert(commitments[0].to_digest(), CommitmentAndOrigins {
+        commitment: commitments[0],
+        origins: [validator1].iter().cloned().collect(),
+    });
+    expected_commitments_storage.insert(commitments[1].to_digest(), CommitmentAndOrigins {
+        commitment: commitments[1],
+        origins: [validator1].iter().cloned().collect(),
+    });
     assert_eq!(expected_commitments_storage, commitments_storage);
 
     let validator2_private_key = validators_private_keys[1];
@@ -262,13 +256,10 @@ fn test_blocks_commitment_candidate() {
         SequencerService::blocks_commitment_candidate(&commitments, commitment1.hash, threshold);
     assert!(candidate.is_none());
 
-    commitments.insert(
-        commitment1.to_digest(),
-        CommitmentAndOrigins {
-            commitment: commitment1.clone(),
-            origins: Default::default(),
-        },
-    );
+    commitments.insert(commitment1.to_digest(), CommitmentAndOrigins {
+        commitment: commitment1.clone(),
+        origins: Default::default(),
+    });
     let candidate =
         SequencerService::blocks_commitment_candidate(&commitments, H256::random(), threshold);
     assert!(candidate.is_none());
@@ -284,20 +275,14 @@ fn test_blocks_commitment_candidate() {
         .unwrap()
         .origins
         .extend([Address([1; 20]), Address([2; 20])]);
-    commitments.insert(
-        commitment2.to_digest(),
-        CommitmentAndOrigins {
-            commitment: commitment2.clone(),
-            origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
-        },
-    );
-    commitments.insert(
-        commitment3.to_digest(),
-        CommitmentAndOrigins {
-            commitment: commitment3.clone(),
-            origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
-        },
-    );
+    commitments.insert(commitment2.to_digest(), CommitmentAndOrigins {
+        commitment: commitment2.clone(),
+        origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
+    });
+    commitments.insert(commitment3.to_digest(), CommitmentAndOrigins {
+        commitment: commitment3.clone(),
+        origins: [[1; 20], [2; 20]].map(Address).iter().cloned().collect(),
+    });
 
     let candidate =
         SequencerService::blocks_commitment_candidate(&commitments, commitment1.hash, threshold)
@@ -343,13 +328,10 @@ fn test_codes_commitment_candidate() {
     let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold);
     assert!(candidate.is_none());
 
-    commitments.insert(
-        commitment1.to_digest(),
-        CommitmentAndOrigins {
-            commitment: commitment1.clone(),
-            origins: Default::default(),
-        },
-    );
+    commitments.insert(commitment1.to_digest(), CommitmentAndOrigins {
+        commitment: commitment1.clone(),
+        origins: Default::default(),
+    });
     let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold);
     assert!(candidate.is_none());
 
@@ -372,16 +354,13 @@ fn test_codes_commitment_candidate() {
     assert_eq!(candidate.digests(), &expected_digests);
     // assert!(candidate.signatures().is_empty());
 
-    commitments.insert(
-        commitment2.to_digest(),
-        CommitmentAndOrigins {
-            commitment: commitment2.clone(),
-            origins: [Address([3; 20]), Address([4; 20])]
-                .iter()
-                .cloned()
-                .collect(),
-        },
-    );
+    commitments.insert(commitment2.to_digest(), CommitmentAndOrigins {
+        commitment: commitment2.clone(),
+        origins: [Address([3; 20]), Address([4; 20])]
+            .iter()
+            .cloned()
+            .collect(),
+    });
     let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold)
         .expect("Must have candidate");
     let mut expected_digests: IndexSet<_> = [commitment1.to_digest(), commitment2.to_digest()]
@@ -391,13 +370,10 @@ fn test_codes_commitment_candidate() {
     assert_eq!(candidate.digests(), &expected_digests);
     // assert!(candidate.signatures().is_empty());
 
-    commitments.insert(
-        commitment3.to_digest(),
-        CommitmentAndOrigins {
-            commitment: commitment3,
-            origins: [Address([5; 20])].iter().cloned().collect(),
-        },
-    );
+    commitments.insert(commitment3.to_digest(), CommitmentAndOrigins {
+        commitment: commitment3,
+        origins: [Address([5; 20])].iter().cloned().collect(),
+    });
     let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold)
         .expect("Must have candidate");
     assert_eq!(candidate.digests(), &expected_digests);

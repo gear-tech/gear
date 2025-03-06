@@ -18,11 +18,11 @@
 
 //! Transaction pool rpc interface.
 
-use crate::{errors, RpcEvent};
+use crate::{RpcEvent, errors};
 use ethexe_common::tx_pool::{OffchainTransaction, SignedOffchainTransaction};
 use gprimitives::H256;
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
+    core::{RpcResult, async_trait},
     proc_macros::rpc,
 };
 use tokio::sync::{mpsc, oneshot};

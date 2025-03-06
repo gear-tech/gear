@@ -26,15 +26,15 @@ use alloy::{
 };
 use anyhow::{Context as _, Result};
 use ethexe_common::{
-    events::{BlockEvent, RouterEvent},
     BlockData,
+    events::{BlockEvent, RouterEvent},
 };
 use ethexe_db::BlockHeader;
 use ethexe_signer::Address;
 use futures::{
+    FutureExt, Stream, StreamExt,
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
-    FutureExt, Stream, StreamExt,
 };
 use gprimitives::{CodeId, H256};
 use std::{

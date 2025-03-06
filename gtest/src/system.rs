@@ -17,18 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    GAS_ALLOWANCE, Gas, Value,
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
     state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
-    Gas, Value, GAS_ALLOWANCE,
 };
 use codec::{Decode, DecodeAll};
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{
-    ids::{prelude::CodeIdExt, CodeId, ProgramId},
+    ids::{CodeId, ProgramId, prelude::CodeIdExt},
     pages::GearPage,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};

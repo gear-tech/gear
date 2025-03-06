@@ -22,7 +22,7 @@ use ethexe_observer::MockBlobReader;
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
+    core::{RpcResult, async_trait},
     proc_macros::rpc,
 };
 use sp_core::Bytes;

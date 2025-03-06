@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{util::with_optimized_encode, ActorId, CodeId, MessageId};
+use crate::{ActorId, CodeId, MessageId, util::with_optimized_encode};
 use gcore::errors::Result;
 use gstd_codegen::wait_create_program_for_reply;
 use scale_info::scale::Encode;

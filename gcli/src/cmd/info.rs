@@ -17,15 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `info`
-use crate::{result::Result, App};
+use crate::{App, result::Result};
 use clap::Parser;
 use gclient::{
+    GearApi,
     ext::{
-        sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
+        sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair},
         sp_runtime::AccountId32,
     },
     metadata::runtime_types::gear_common::storage::primitives::Interval,
-    GearApi,
 };
 use gear_core::message::UserStoredMessage;
 use std::fmt;

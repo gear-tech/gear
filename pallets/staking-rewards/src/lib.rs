@@ -53,18 +53,18 @@ mod mock;
 mod tests;
 
 use frame_support::{
+    PalletId,
     traits::{
-        fungible, Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced,
-        WithdrawReasons,
+        Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced, WithdrawReasons,
+        fungible,
     },
     weights::Weight,
-    PalletId,
 };
 use pallet_staking::{ActiveEraInfo, EraPayout};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::{
-    traits::{AccountIdConversion, Saturating, StaticLookup, UniqueSaturatedInto},
     PerThing, Perquintill,
+    traits::{AccountIdConversion, Saturating, StaticLookup, UniqueSaturatedInto},
 };
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
@@ -407,10 +407,8 @@ pub mod pallet {
 
             let entropy =
                 (T::PalletId::get(), b"gear rent pool").using_encoded(sp_io::hashing::blake2_256);
-            let actor_id = Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
-                .expect("infinite length input; no invalid inputs for type; qed");
-
-            actor_id
+            Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+                .expect("infinite length input; no invalid inputs for type; qed")
         }
 
         /// Return the amount in the rent pool.

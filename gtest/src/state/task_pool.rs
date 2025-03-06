@@ -19,13 +19,13 @@
 //! Auxiliary (for tests) task pool implementation for the crate.
 
 use gear_common::{
+    ProgramId,
     auxiliary::{
-        task_pool::{AuxiliaryTaskpool, TaskPoolErrorImpl, TaskPoolStorageWrap},
         BlockNumber,
+        task_pool::{AuxiliaryTaskpool, TaskPoolErrorImpl, TaskPoolStorageWrap},
     },
     scheduler::{TaskPool, TaskPoolCallbacks},
     storage::KeyIterableByKeyMap,
-    ProgramId,
 };
 use gear_core::tasks::VaraScheduledTask;
 

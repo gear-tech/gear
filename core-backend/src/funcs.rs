@@ -19,6 +19,7 @@
 //! Syscall implementations generic over wasmi and sandbox backends.
 
 use crate::{
+    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
@@ -30,13 +31,12 @@ use crate::{
     },
     runtime::CallerWrap,
     state::HostState,
-    BackendExternalities,
 };
 use alloc::{
     format,
     string::{String, ToString},
 };
-use blake2::{digest::typenum::U32, Blake2b, Digest};
+use blake2::{Blake2b, Digest, digest::typenum::U32};
 use core::marker::PhantomData;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},

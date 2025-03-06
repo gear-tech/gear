@@ -20,9 +20,9 @@
 
 use crate::GAS_MULTIPLIER;
 use gear_common::{
+    Gas, GasMultiplier, LockId, Origin,
     auxiliary::gas_provider::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
     gas_provider::{ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree},
-    Gas, GasMultiplier, LockId, Origin,
 };
 use gear_core::ids::{MessageId, ProgramId, ReservationId};
 

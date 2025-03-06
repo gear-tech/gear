@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Picking random ports
-use rand::{rngs::OsRng, Rng};
+use rand::{Rng, rngs::OsRng};
 use std::{net::TcpListener, ops::Range};
 
 /// localhost addr

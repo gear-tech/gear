@@ -22,7 +22,7 @@ use alloy::{
     providers::Provider as _,
     rpc::types::eth::{Filter, Topic},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::events::{BlockEvent, BlockRequestEvent};
 use ethexe_ethereum::{
     mirror,

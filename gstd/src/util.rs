@@ -20,13 +20,13 @@
 
 pub use scale_info::MetaType;
 use scale_info::{
-    scale::{Encode, Output},
     PortableRegistry, Registry,
+    scale::{Encode, Output},
 };
 
 use crate::prelude::{
-    mem::{transmute, MaybeUninit},
     Box, String, Vec,
+    mem::{MaybeUninit, transmute},
 };
 
 /// An auxiliary function that reduces gas consumption during payload encoding.

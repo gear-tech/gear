@@ -21,19 +21,19 @@
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use futures::FutureExt;
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
-use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
-use sc_network::{service::traits::NetworkService, NetworkBackend};
-use sc_network_sync::{strategy::warp::WarpSyncConfig, SyncingService};
+use sc_executor::{DEFAULT_HEAP_ALLOC_STRATEGY, HeapAllocStrategy, WasmExecutor};
+use sc_network::{NetworkBackend, service::traits::NetworkService};
+use sc_network_sync::{SyncingService, strategy::warp::WarpSyncConfig};
 use sc_service::{
-    error::Error as ServiceError, ChainSpec, Configuration, PartialComponents, RpcHandlers,
-    TaskManager,
+    ChainSpec, Configuration, PartialComponents, RpcHandlers, TaskManager,
+    error::Error as ServiceError,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::ConstructRuntimeApi;
 use sp_runtime::{
-    traits::{BlakeTwo256, Block as BlockT},
     OpaqueExtrinsic,
+    traits::{BlakeTwo256, Block as BlockT},
 };
 use sp_state_machine::Backend as StateBackend;
 use std::sync::Arc;
@@ -103,7 +103,7 @@ macro_rules! chain_ops {
 }
 
 /// Builds a new object suitable for chain operations.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::result_large_err)]
 pub fn new_chain_ops(
     config: &Configuration,
     rpc_calculations_multiplier: u64,
@@ -134,7 +134,7 @@ pub fn new_chain_ops(
 
 /// Creates PartialComponents for a node.
 /// Enables chain operations for cases when full node is unnecessary.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::result_large_err)]
 pub fn new_partial<RuntimeApi>(
     config: &Configuration,
     rpc_calculations_multiplier: u64,
@@ -148,9 +148,9 @@ pub fn new_partial<RuntimeApi>(
         sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi>>,
         (
             impl Fn(
-                    sc_rpc::SubscriptionTaskExecutor,
-                ) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>
-                + use<RuntimeApi>,
+                sc_rpc::SubscriptionTaskExecutor,
+            ) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>
+            + use<RuntimeApi>,
             (
                 sc_consensus_babe::BabeBlockImport<
                     Block,
@@ -351,6 +351,7 @@ where
 }
 
 /// Creates a full service from the configuration.
+#[allow(clippy::result_large_err)]
 pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>, RuntimeApi>(
     config: Configuration,
     disable_hardware_benchmarks: bool,
@@ -493,7 +494,7 @@ where
 
     (with_startup_data)(&block_import, &babe_link);
 
-    if let sc_service::config::Role::Authority { .. } = &role {
+    if let sc_service::config::Role::Authority = &role {
         let proposer = authorship::ProposerFactory::new(
             task_manager.spawn_handle(),
             client.clone(),
@@ -708,6 +709,7 @@ impl ExecuteWithClient for RevertConsensus {
 ///
 /// The actual "flavor", aka if it will use `Gear`, `Vara` etc. is determined based on
 /// [`IdentifyVariant`] using the chain spec.
+#[allow(clippy::result_large_err)]
 pub fn new_full(
     config: Configuration,
     disable_hardware_benchmarks: bool,
@@ -736,6 +738,7 @@ pub fn new_full(
 ///
 /// In particular this reverts:
 /// - Low level Babe and Grandpa consensus data.
+#[allow(clippy::result_large_err)]
 pub fn revert_backend(
     client: Arc<Client>,
     backend: Arc<FullBackend>,

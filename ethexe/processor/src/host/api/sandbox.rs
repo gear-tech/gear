@@ -21,7 +21,7 @@
 use crate::host::{api::MemoryWrap, context::HostContext};
 use anyhow::Result;
 use ethexe_runtime_common::pack_u32_to_i64;
-use gear_runtime_interface::{sandbox_detail, Instantiate};
+use gear_runtime_interface::{Instantiate, sandbox_detail};
 use parity_scale_codec::Encode;
 use sp_wasm_interface::{FunctionContext as _, IntoValue as _, Pointer, StoreData};
 use wasmtime::{Caller, Linker};

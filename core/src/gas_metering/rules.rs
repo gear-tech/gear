@@ -19,8 +19,8 @@
 use super::Schedule;
 use alloc::vec::Vec;
 use gear_wasm_instrument::{
-    gas_metering::{ConstantCostRules, MemoryGrowCost},
     Instruction, Module, Rules,
+    gas_metering::{ConstantCostRules, MemoryGrowCost},
 };
 
 /// This type provides the functionality of [`ConstantCostRules`].

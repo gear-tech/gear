@@ -13,7 +13,7 @@ mod wasm;
 
 #[cfg(test)]
 mod tests {
-    use gtest::{constants::DEFAULT_USER_ALICE, Gas, Program, System};
+    use gtest::{Gas, Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn gas_burned() {

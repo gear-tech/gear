@@ -18,8 +18,9 @@
 
 use async_trait::async_trait;
 use libp2p::{
+    StreamProtocol,
     futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    request_response, StreamProtocol,
+    request_response,
 };
 use parity_scale_codec::{Decode, DecodeAll, Encode};
 use std::{io, marker::PhantomData};
@@ -53,7 +54,7 @@ where
         io.take(Self::MAX_REQUEST_SIZE)
             .read_to_end(&mut vec)
             .await?;
-        Req::decode_all(&mut vec.as_slice()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        Req::decode_all(&mut vec.as_slice()).map_err(io::Error::other)
     }
 
     async fn read_response<T>(
@@ -68,7 +69,7 @@ where
         io.take(Self::MAX_RESPONSE_SIZE)
             .read_to_end(&mut vec)
             .await?;
-        Resp::decode_all(&mut vec.as_slice()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        Resp::decode_all(&mut vec.as_slice()).map_err(io::Error::other)
     }
 
     async fn write_request<T>(
