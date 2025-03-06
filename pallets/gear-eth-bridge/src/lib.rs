@@ -505,7 +505,10 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Resulting weight of the hook.
             //
@@ -532,6 +535,9 @@ pub mod pallet {
 
                     // Setting zero queue root, keeping invariant of this key existence.
                     QueueMerkleRoot::<T>::put(H256::zero());
+
+                    // Transfer fees to treasury and refund to users.
+                    Self::transfer_fees();
 
                     // Depositing event about clearing the bridge.
                     Self::deposit_event(Event::<T>::BridgeCleared);
@@ -580,10 +586,7 @@ pub mod pallet {
         type Public = sp_consensus_grandpa::AuthorityId;
     }
 
-    impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
+    impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
         type Key = <Self as BoundToRuntimeAppPublic>::Public;
 
         fn on_genesis_session<'a, I: 'a>(_validators: I) {}
@@ -622,9 +625,6 @@ pub mod pallet {
                     // and queue is empty, queue merkle root must present
                     // in storage and be zeroed.
                     QueueMerkleRoot::<T>::put(H256::zero());
-
-                    // Transfer fees to treasury and refund to users.
-                    Self::transfer_fees();
                 } else {
                     // Scheduling reset on next block's init.
                     //

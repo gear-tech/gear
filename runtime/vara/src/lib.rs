@@ -2096,7 +2096,7 @@ fn _check_eth_bridge_builtin_id_matches() {
         macro_rules! assert_type_eq {
             ($T:ty, $U:ty) => {
                 const _: fn() = || {
-                    let _: $T = unsafe { std::mem::zeroed::<$U>() };
+                    let _: $T = unsafe { core::mem::zeroed::<$U>() };
                 };
             };
         }

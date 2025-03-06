@@ -296,7 +296,7 @@ impl pallet_gear_eth_bridge::Config for Test {
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
     type QueueFeeThreshold = ConstU32<16>;
-    type MessageFee = ConstU128<{ 1 * UNITS }>;
+    type MessageFee = ConstU128<UNITS>;
     type FeeTreasuryAddress = FeeTreasuryAddress;
     type SessionsPerEra = SessionsPerEra;
     type WeightInfo = ();

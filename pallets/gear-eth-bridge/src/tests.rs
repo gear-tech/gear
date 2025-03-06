@@ -1,9 +1,12 @@
 use crate::{mock::*, Config, EthMessage, WeightInfo};
 use common::Origin as _;
 use frame_support::{
-    assert_noop, assert_ok, assert_storage_noop, traits::Get, Blake2_256, StorageHasher,
+    assert_noop, assert_ok, assert_storage_noop,
+    traits::{Currency as _, Get},
+    Blake2_256, StorageHasher,
 };
 use gbuiltin_eth_bridge::{Request, Response};
+use gear_core::message::Value;
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use pallet_gear::Event as GearEvent;
 use pallet_grandpa::Event as GrandpaEvent;
@@ -15,8 +18,8 @@ use utils::*;
 
 const EPOCH_BLOCKS: u64 = EpochDuration::get();
 const ERA_BLOCKS: u64 = EPOCH_BLOCKS * SessionsPerEra::get() as u64;
-const WHEN_INITIALIZED: u64 = 38;
-const WHEN_RESETTED: u64 = WHEN_INITIALIZED + ERA_BLOCKS + 1;
+const WHEN_INITIALIZED: u64 = 42;
+const WHEN_RESETTED: u64 = WHEN_INITIALIZED + ERA_BLOCKS;
 
 type AuthoritySetHash = crate::AuthoritySetHash<Test>;
 type MessageNonce = crate::MessageNonce<Test>;
@@ -516,25 +519,52 @@ fn bridge_insufficient_gas_err() {
 }
 
 #[test]
-fn bridge_send_eth_message_requires_fee() {
+fn bridge_fee_charged() {
     init_logger();
     new_test_ext().execute_with(|| {
         run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
-        for _ in 0..<Test as crate::Config>::QueueFeeThreshold::get() {
-            assert_ok!(GearEthBridge::send_eth_message(
-                RuntimeOrigin::signed(SIGNER),
-                H160::zero(),
-                vec![],
-                0,
-            ));
-        }
+        // Send a message via the pallet extrinsic
+
+        rewind_to_queue_fee_threshold();
+
+        let mut gas_meter = GasSpentMeter::start();
+        let mut signer_balance = balance_of(&SIGNER);
+        let fee = MessageFee::get();
+
+        let destination = H160::random();
+        let payload = H256::random().as_bytes().to_vec();
+
+        let message = EthMessage::new(16.into(), SIGNER.cast(), destination, payload.clone());
+        let hash = message.hash();
+
+        assert_ok!(GearEthBridge::send_eth_message(
+            RuntimeOrigin::signed(SIGNER),
+            destination,
+            payload,
+            fee,
+        ));
+
+        signer_balance -= gas_meter.spent() + fee;
+
+        System::assert_last_event(Event::MessageQueued { message, hash }.into());
+        assert_eq!(MessageNonce::get(), 17.into());
+
+        run_to_block(WHEN_RESETTED);
+
+        // Check that the fee was charged and transferred to the treasury
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&FeeTreasuryAddress::get()), fee);
+
+        // Send a message via the builtin actor
+
+        rewind_to_queue_fee_threshold();
 
         let destination = H160::zero();
         let payload = H256::random().as_bytes().to_vec();
-        let message = EthMessage::new(16.into(), SIGNER.cast(), destination, payload.clone());
+        let message = EthMessage::new(33.into(), SIGNER.cast(), destination, payload.clone());
         let nonce = message.nonce();
         let hash = message.hash();
 
@@ -545,15 +575,22 @@ fn bridge_send_eth_message_requires_fee() {
                 payload,
             },
             None,
-            <Test as crate::Config>::MessageFee::get(),
+            fee,
         );
 
+        signer_balance -= gas_meter.spent() + fee;
+
+        // Check that the response is correct
         let response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
         assert_eq!(response, Response::EthMessageQueued { nonce, hash });
         System::assert_has_event(Event::MessageQueued { message, hash }.into());
-        assert_eq!(MessageNonce::get(), 17.into());
+        assert_eq!(MessageNonce::get(), 34.into());
 
-        run_to_block(WHEN_RESETTED);
+        run_to_block(WHEN_RESETTED + ERA_BLOCKS);
+
+        // Check that the fee was charged and transferred to the treasury
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&FeeTreasuryAddress::get()), fee * 2);
     })
 }
 
@@ -567,17 +604,10 @@ fn bridge_insufficient_fee_err() {
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
-        let gas_meter = GasSpentMeter::start();
-        let initial_balance = balance_of(&SIGNER);
+        let mut gas_meter = GasSpentMeter::start();
+        let mut signer_balance = balance_of(&SIGNER);
 
-        for _ in 0..<Test as crate::Config>::QueueFeeThreshold::get() {
-            assert_ok!(GearEthBridge::send_eth_message(
-                RuntimeOrigin::signed(SIGNER),
-                H160::zero(),
-                vec![],
-                0,
-            ));
-        }
+        rewind_to_queue_fee_threshold();
 
         run_block_and_assert_messaging_error_with_value(
             Request::SendEthMessage {
@@ -588,7 +618,133 @@ fn bridge_insufficient_fee_err() {
             ERR,
         );
 
-        assert_eq!(balance_of(&SIGNER), initial_balance - gas_meter.spent());
+        signer_balance -= gas_meter.spent();
+
+        run_to_block(WHEN_RESETTED);
+
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&FeeTreasuryAddress::get()), 0);
+    })
+}
+
+#[test]
+fn bridge_insufficient_fee_refunded_err() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const ERR: Error = Error::InsufficientFee;
+
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let mut gas_meter = GasSpentMeter::start();
+        let mut signer_balance = balance_of(&SIGNER);
+        let fee: Value = MessageFee::get();
+        let insufficient_fee = fee - 1;
+
+        rewind_to_queue_fee_threshold();
+
+        run_block_and_assert_messaging_error_with_value(
+            Request::SendEthMessage {
+                destination: H160::zero(),
+                payload: vec![],
+            },
+            insufficient_fee,
+            ERR,
+        );
+
+        signer_balance -= gas_meter.spent();
+
+        run_to_block(WHEN_RESETTED);
+
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&FeeTreasuryAddress::get()), 0);
+    })
+}
+
+#[test]
+fn bridge_unused_fee_refunded() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let mut gas_meter = GasSpentMeter::start();
+        let mut signer_balance = balance_of(&SIGNER);
+        let fee: Value = MessageFee::get();
+        let unused_fee = fee * 2;
+
+        assert_ok!(GearEthBridge::send_eth_message(
+            RuntimeOrigin::signed(SIGNER),
+            H160::zero(),
+            vec![],
+            unused_fee,
+        ));
+
+        signer_balance -= gas_meter.spent();
+
+        run_to_block(WHEN_RESETTED);
+
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&FeeTreasuryAddress::get()), 0);
+
+        let (response, _) = run_block_with_builtin_call(
+            SIGNER,
+            Request::SendEthMessage {
+                destination: H160::zero(),
+                payload: vec![],
+            },
+            None,
+            unused_fee,
+        );
+
+        signer_balance -= gas_meter.spent();
+
+        // Check that the response is correct
+        let response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
+        assert!(matches!(response, Response::EthMessageQueued { .. }));
+
+        run_to_block(WHEN_RESETTED + ERA_BLOCKS);
+
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&FeeTreasuryAddress::get()), 0);
+    })
+}
+
+#[test]
+#[ignore]
+fn bridge_refund_value_smaller_ed() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const POOR_SIGNER: AccountId = 42;
+
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let mut gas_meter = GasSpentMeter::start();
+        let fee: Value = MessageFee::get();
+        let fee_with_dust = fee + 1;
+
+        let _ = Currency::deposit_creating(&POOR_SIGNER, fee_with_dust);
+        let mut signer_balance = balance_of(&POOR_SIGNER);
+
+        rewind_to_queue_fee_threshold();
+
+        assert_ok!(GearEthBridge::send_eth_message(
+            RuntimeOrigin::signed(POOR_SIGNER),
+            H160::zero(),
+            vec![],
+            fee_with_dust,
+        ));
+
+        signer_balance -= gas_meter.spent();
+
+        run_to_block(WHEN_RESETTED);
+
+        assert_eq!(balance_of(&POOR_SIGNER), signer_balance);
+        assert_eq!(balance_of(&FeeTreasuryAddress::get()), 0);
     })
 }
 
@@ -743,6 +899,17 @@ mod utils {
         System::reset_events();
     }
 
+    pub(crate) fn rewind_to_queue_fee_threshold() {
+        for _ in 0..<Test as crate::Config>::QueueFeeThreshold::get() {
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(SIGNER),
+                H160::zero(),
+                vec![],
+                0,
+            ));
+        }
+    }
+
     pub(crate) fn balance_of(account: &AccountId) -> Value {
         Currency::free_balance(account)
     }
@@ -752,18 +919,20 @@ mod utils {
     }
 
     pub(crate) struct GasSpentMeter {
-        initial: Value,
+        current: Value,
     }
 
     impl GasSpentMeter {
         pub(crate) fn start() -> Self {
             Self {
-                initial: balance_of_author(),
+                current: balance_of_author(),
             }
         }
 
-        pub(crate) fn spent(&self) -> Value {
-            balance_of_author() - self.initial
+        pub(crate) fn spent(&mut self) -> Value {
+            let spent = balance_of_author() - self.current;
+            self.current = balance_of_author();
+            spent
         }
     }
 }
