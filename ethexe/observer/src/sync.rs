@@ -41,7 +41,7 @@ use std::{
 // TODO (gsobol): make tests for ChainSync
 pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
     pub provider: Provider,
-    pub database: DB,
+    pub db: DB,
     pub blobs_reader: Arc<dyn BlobReader>,
     pub config: RuntimeConfig,
 }
@@ -69,7 +69,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
     }
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let Some(latest_synced_block_height) = self.database.latest_synced_block_height() else {
+        let Some(latest_synced_block_height) = self.db.latest_synced_block_height() else {
             log::warn!("latest_synced_block_height is not set in the database");
             return Ok(Default::default());
         };
@@ -120,7 +120,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         let mut codes_to_load_later = HashMap::new();
 
         let mut hash = block;
-        while !self.database.block_is_synced(hash) {
+        while !self.db.block_is_synced(hash) {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
                 None => {
@@ -153,10 +153,9 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
                             timestamp: *timestamp,
                             tx_hash: *tx_hash,
                         };
-                        self.database
-                            .set_code_blob_info(*code_id, code_info.clone());
+                        self.db.set_code_blob_info(*code_id, code_info.clone());
 
-                        if !self.database.original_code_exists(*code_id)
+                        if !self.db.original_code_exists(*code_id)
                             && !codes_to_load_now.contains(code_id)
                         {
                             codes_to_load_later.insert(*code_id, code_info);
@@ -167,7 +166,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
                             return Err(anyhow!("Code {code_id} is validated before requested"));
                         };
 
-                        if !self.database.original_code_exists(*code_id) {
+                        if !self.db.original_code_exists(*code_id) {
                             codes_to_load_now.insert(*code_id);
                         }
                     }
@@ -177,8 +176,8 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
 
             let parent_hash = block_data.header.parent_hash;
 
-            self.database.set_block_header(hash, block_data.header);
-            self.database.set_block_events(hash, &block_data.events);
+            self.db.set_block_header(hash, block_data.header);
+            self.db.set_block_events(hash, &block_data.events);
 
             chain.push(hash);
 
@@ -199,7 +198,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         let codes_futures = FuturesUnordered::new();
         for code_id in codes {
             let code_info = self
-                .database
+                .db
                 .code_blob_info(code_id)
                 .ok_or_else(|| anyhow!("Code info for code {code_id} is missing"))?;
 
@@ -218,7 +217,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         for res in future::join_all(codes_futures).await {
             let (code_id, _, code) = res?;
 
-            let real_id = self.database.set_original_code(code.as_slice());
+            let real_id = self.db.set_original_code(code.as_slice());
             if real_id != code_id {
                 return Err(anyhow!(
                     "Approved code {code_id} is not equal to real code id {real_id}"
@@ -232,14 +231,13 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
     fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
         for hash in chain {
             let block_header = self
-                .database
+                .db
                 .block_header(hash)
                 .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
 
-            self.database.set_block_is_synced(hash);
+            self.db.set_block_is_synced(hash);
 
-            self.database
-                .set_latest_synced_block_height(block_header.height);
+            self.db.set_latest_synced_block_height(block_header.height);
         }
     }
 }

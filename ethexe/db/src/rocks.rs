@@ -58,7 +58,7 @@ impl CASDatabase for RocksDatabase {
 }
 
 impl KVDatabase for RocksDatabase {
-    fn clone_boxed_kv(&self) -> Box<dyn KVDatabase> {
+    fn clone_boxed(&self) -> Box<dyn KVDatabase> {
         Box::new(self.clone())
     }
 

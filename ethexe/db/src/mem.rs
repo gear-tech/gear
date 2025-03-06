@@ -45,7 +45,7 @@ impl CASDatabase for MemDb {
 }
 
 impl KVDatabase for MemDb {
-    fn clone_boxed_kv(&self) -> Box<dyn KVDatabase> {
+    fn clone_boxed(&self) -> Box<dyn KVDatabase> {
         Box::new(self.clone())
     }
 

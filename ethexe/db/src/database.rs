@@ -98,7 +98,7 @@ impl Clone for Database {
     fn clone(&self) -> Self {
         Self {
             cas: self.cas.clone_boxed(),
-            kv: self.kv.clone_boxed_kv(),
+            kv: self.kv.clone_boxed(),
             router_address: self.router_address,
         }
     }
@@ -120,7 +120,7 @@ impl Database {
     pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB, router_address: [u8; 20]) -> Self {
         Self {
             cas: CASDatabase::clone_boxed(db),
-            kv: KVDatabase::clone_boxed_kv(db),
+            kv: KVDatabase::clone_boxed(db),
             router_address,
         }
     }
@@ -287,10 +287,6 @@ impl BlockMetaStorage for Database {
             &KeyPrefix::BlockProgramStates.two(self.router_address, block_hash),
             map.encode(),
         );
-    }
-
-    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool> {
-        self.block_outcome(block_hash).as_ref().map(Vec::is_empty)
     }
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {

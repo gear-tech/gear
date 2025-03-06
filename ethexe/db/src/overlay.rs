@@ -67,9 +67,9 @@ impl KVOverlay {
 }
 
 impl KVDatabase for KVOverlay {
-    fn clone_boxed_kv(&self) -> Box<dyn KVDatabase> {
+    fn clone_boxed(&self) -> Box<dyn KVDatabase> {
         Box::new(Self {
-            db: self.db.clone_boxed_kv(),
+            db: self.db.clone_boxed(),
             mem: self.mem.clone(),
         })
     }

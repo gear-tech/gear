@@ -58,7 +58,7 @@ pub trait CASDatabase: Send + Sync {
 /// Key-value database.
 pub trait KVDatabase: Send + Sync {
     /// Clone ref to key-value database instance.
-    fn clone_boxed_kv(&self) -> Box<dyn KVDatabase>;
+    fn clone_boxed(&self) -> Box<dyn KVDatabase>;
 
     /// Get value by key.
     fn get(&self, key: &[u8]) -> Option<Vec<u8>>;
@@ -167,14 +167,14 @@ mod tests {
     pub fn kv_multi_thread<DB: KVDatabase>(db: DB) {
         let amount = 10;
 
-        let db_clone = KVDatabase::clone_boxed_kv(&db);
+        let db_clone = KVDatabase::clone_boxed(&db);
         let handler1 = thread::spawn(move || {
             for x in 0u32..amount {
                 db_clone.put(x.to_le_bytes().as_slice(), to_big_vec(x));
             }
         });
 
-        let db_clone = KVDatabase::clone_boxed_kv(&db);
+        let db_clone = KVDatabase::clone_boxed(&db);
         let handler2 = thread::spawn(move || {
             for x in amount..amount * 2 {
                 db_clone.put(x.to_le_bytes().as_slice(), to_big_vec(x));
