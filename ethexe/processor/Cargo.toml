@@ -28,7 +28,9 @@ sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
 tokio = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
+rand.workspace = true
 env_logger.workspace = true
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
 wat.workspace = true
+itertools.workspace = true

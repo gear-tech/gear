@@ -173,20 +173,15 @@ impl Service {
 
         let processor = ethexe_processor::Processor::with_config(
             ProcessorConfig {
-                worker_threads_override: config.node.worker_threads_override,
-                virtual_threads: config.node.virtual_threads,
+                queues_processing_threads: config.node.virtual_threads,
             },
             db.clone(),
         )
         .with_context(|| "failed to create processor")?;
 
-        if let Some(worker_threads) = processor.config().worker_threads_override {
-            log::info!("🔧 Overriding amount of physical threads for runtime: {worker_threads}");
-        }
-
         log::info!(
             "🔧 Amount of virtual threads for programs processing: {}",
-            processor.config().virtual_threads
+            processor.config().queues_processing_threads
         );
 
         let signer = ethexe_signer::Signer::new(config.node.key_path.clone())
@@ -400,6 +395,12 @@ impl Service {
                         // TODO (gsobol): must be done in observer event handling
                         if let Some(s) = sequencer.as_mut() {
                             s.on_new_head(chain_head)?
+                        } else {
+                            // TODO: remove, this must be fixed in future when sequencer will be part of BP
+                            // HACK: Force validators to wait for some time, ensuring that the sequencer processes the block first.
+                            // This fixes a deadlock in tests.
+                            #[cfg(test)]
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         }
 
                         if commitments.is_empty() {
