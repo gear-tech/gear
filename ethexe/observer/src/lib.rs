@@ -90,7 +90,7 @@ struct RuntimeConfig {
 pub struct ObserverService {
     provider: Provider,
     db: Database,
-    // TODO (gsobol): consider to make clone boxed for BlobRead, in order to avoid Arc usage.
+    // TODO (gsobol): consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
     subscription: Subscription<Header>,
 
