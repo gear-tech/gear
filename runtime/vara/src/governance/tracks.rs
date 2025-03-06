@@ -20,10 +20,15 @@
 
 use super::*;
 
+use sp_runtime::AccountId32;
+
 const fn percent(x: i32) -> sp_runtime::FixedI64 {
     sp_runtime::FixedI64::from_rational(x as u128, 100)
 }
 use pallet_referenda::Curve;
+
+const BRIDGE_ADMIN_ACCOUNT: AccountId32 = AccountId32::new([1u8; 32]);
+
 const APP_ROOT: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
 const SUP_ROOT: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
 const APP_STAKING_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
@@ -31,6 +36,8 @@ const SUP_STAKING_ADMIN: Curve =
     Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_TREASURER: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
 const SUP_TREASURER: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
+const APP_BRIDGE_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
+const SUP_BRIDGE_ADMIN: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_FELLOWSHIP_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_FELLOWSHIP_ADMIN: Curve =
     Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
@@ -61,7 +68,7 @@ const APP_WHITELISTED_CALLER: Curve =
 const SUP_WHITELISTED_CALLER: Curve =
     Curve::make_reciprocal(1, 28, percent(20), percent(5), percent(50));
 
-const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 13] = [
+const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 14] = [
     (
         0,
         pallet_referenda::TrackInfo {
@@ -244,6 +251,20 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 13
             min_support: SUP_BIG_SPENDER,
         },
     ),
+    (
+        40,
+        pallet_referenda::TrackInfo {
+            name: "bridge_admin",
+            max_deciding: 10,
+            decision_deposit: 5_000 * ECONOMIC_UNITS,
+            prepare_period: 1 * MINUTES,
+            decision_period: 14 * DAYS,
+            confirm_period: 3 * HOURS,
+            min_enactment_period: 10 * MINUTES,
+            min_approval: APP_BRIDGE_ADMIN,
+            min_support: SUP_BRIDGE_ADMIN,
+        },
+    ),
 ];
 
 pub struct TracksInfo;
@@ -258,6 +279,15 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             match system_origin {
                 frame_system::RawOrigin::Root => Ok(0),
                 _ => Err(()),
+            }
+        } else if let Ok(frame_system::RawOrigin::Signed(signer)) =
+            frame_system::RawOrigin::try_from(id.clone())
+        {
+            if signer == BRIDGE_ADMIN_ACCOUNT {
+                // bridge_admin
+                return Ok(40);
+            } else {
+                return Err(());
             }
         } else if let Ok(custom_origin) = origins::Origin::try_from(id.clone()) {
             match custom_origin {
