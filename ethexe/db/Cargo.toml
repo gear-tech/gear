@@ -8,9 +8,9 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-ethexe-common.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
-gear-core.workspace = true
+gear-core = { workspace = true, features = ["std"] }
 gprimitives.workspace = true
 
 anyhow.workspace = true

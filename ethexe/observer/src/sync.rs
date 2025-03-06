@@ -26,7 +26,7 @@ use ethexe_common::{
     events::{BlockEvent, RouterEvent},
     BlockData,
 };
-use ethexe_db::{BlockHeader, CodeInfo};
+use ethexe_db::{BlockHeader, CodeInfo, CodesStorage};
 use ethexe_signer::Address;
 use futures::{
     future::{self},
@@ -40,9 +40,9 @@ use std::{
 };
 
 // TODO (gsobol): make tests for ChainSync
-pub(crate) struct ChainSync {
+pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
     pub provider: Provider,
-    pub database: Box<dyn OnChainStorage>,
+    pub database: DB,
     pub blobs_reader: Arc<dyn BlobReader>,
     pub router_address: Address,
     pub wvara_address: Address,
@@ -50,7 +50,7 @@ pub(crate) struct ChainSync {
     pub batched_sync_depth: u32,
 }
 
-impl ChainSync {
+impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
     pub async fn sync(self, chain_head: Header) -> Result<(H256, Vec<(CodeId, CodeInfo)>)> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
@@ -67,7 +67,7 @@ impl ChainSync {
         self.load_codes(codes_to_load_now.into_iter()).await?;
 
         // NOTE: reverse order is important here, because by default chain was loaded in order from head to past.
-        self.mark_chain_as_synced(chain.into_iter().rev()).await;
+        self.mark_chain_as_synced(chain.into_iter().rev());
 
         Ok((block, codes_to_load_later))
     }
@@ -157,7 +157,8 @@ impl ChainSync {
                             timestamp: *timestamp,
                             tx_hash: *tx_hash,
                         };
-                        self.database.set_code_info(*code_id, code_info.clone());
+                        self.database
+                            .set_code_blob_info(*code_id, code_info.clone());
 
                         if !self.database.original_code_exists(*code_id)
                             && !codes_to_load_now.contains(code_id)
@@ -178,12 +179,14 @@ impl ChainSync {
                 }
             }
 
-            self.database.set_block_header(hash, &block_data.header);
+            let parent_hash = block_data.header.parent_hash;
+
+            self.database.set_block_header(hash, block_data.header);
             self.database.set_block_events(hash, &block_data.events);
 
             chain.push(hash);
 
-            hash = block_data.header.parent_hash;
+            hash = parent_hash;
         }
 
         Ok((
@@ -195,13 +198,13 @@ impl ChainSync {
 
     async fn load_codes(&self, codes: impl Iterator<Item = CodeId>) -> Result<()> {
         // TODO (gsobol): consider to change this behaviour of loading already validated codes.
-        // Must be done with ObserverService::codes_futures together.
+        // Should be done with ObserverService::codes_futures together.
         // May be we should use futures_bounded::FuturesMap for this.
         let codes_futures = FuturesUnordered::new();
         for code_id in codes {
             let code_info = self
                 .database
-                .code_info(code_id)
+                .code_blob_info(code_id)
                 .ok_or_else(|| anyhow!("Code info for code {code_id} is missing"))?;
 
             codes_futures.push(
@@ -218,13 +221,19 @@ impl ChainSync {
 
         for res in future::join_all(codes_futures).await {
             let (code_id, _, code) = res?;
-            self.database.set_original_code(code_id, code.as_slice());
+
+            let real_id = self.database.set_original_code(code.as_slice());
+            if real_id != code_id {
+                return Err(anyhow!(
+                    "Approved code {code_id} is not equal to real code id {real_id}"
+                ));
+            }
         }
 
         Ok(())
     }
 
-    async fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
+    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
         for hash in chain {
             let block_header = self
                 .database

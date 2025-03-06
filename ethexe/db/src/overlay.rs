@@ -43,11 +43,11 @@ impl CASDatabase for CASOverlay {
         })
     }
 
-    fn read(&self, hash: &H256) -> Option<Vec<u8>> {
+    fn read(&self, hash: H256) -> Option<Vec<u8>> {
         self.mem.read(hash).or_else(|| self.db.read(hash))
     }
 
-    fn write_by_hash(&self, hash: &H256, data: &[u8]) {
+    fn write_by_hash(&self, hash: H256, data: &[u8]) {
         self.mem.write_by_hash(hash, data)
     }
 }

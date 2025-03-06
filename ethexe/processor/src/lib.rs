@@ -151,8 +151,8 @@ impl Processor {
 
         let (transitions, states, schedule) = handler.transitions.finalize();
 
-        self.db.set_block_end_program_states(block_hash, states);
-        self.db.set_block_end_schedule(block_hash, schedule);
+        self.db.set_block_program_states(block_hash, states);
+        self.db.set_block_schedule(block_hash, schedule);
 
         Ok(transitions)
     }
