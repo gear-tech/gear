@@ -15,7 +15,8 @@ use utils::*;
 
 const EPOCH_BLOCKS: u64 = EpochDuration::get();
 const ERA_BLOCKS: u64 = EPOCH_BLOCKS * SessionsPerEra::get() as u64;
-const WHEN_INITIALIZED: u64 = 42;
+const WHEN_INITIALIZED: u64 = 38;
+const WHEN_RESETTED: u64 = WHEN_INITIALIZED + ERA_BLOCKS + 1;
 
 type AuthoritySetHash = crate::AuthoritySetHash<Test>;
 type MessageNonce = crate::MessageNonce<Test>;
@@ -27,6 +28,7 @@ type Paused = crate::Paused<Test>;
 type Event = crate::Event<Test>;
 type Error = crate::Error<Test>;
 type MessageFee = <Test as Config>::MessageFee;
+type Currency = <Test as pallet_gear_bank::Config>::Currency;
 
 #[test]
 fn bridge_got_initialized() {
@@ -550,6 +552,8 @@ fn bridge_send_eth_message_requires_fee() {
         assert_eq!(response, Response::EthMessageQueued { nonce, hash });
         System::assert_has_event(Event::MessageQueued { message, hash }.into());
         assert_eq!(MessageNonce::get(), 17.into());
+
+        run_to_block(WHEN_RESETTED);
     })
 }
 
@@ -563,12 +567,15 @@ fn bridge_insufficient_fee_err() {
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
+        let gas_meter = GasSpentMeter::start();
+        let initial_balance = balance_of(&SIGNER);
+
         for _ in 0..<Test as crate::Config>::QueueFeeThreshold::get() {
             assert_ok!(GearEthBridge::send_eth_message(
                 RuntimeOrigin::signed(SIGNER),
                 H160::zero(),
                 vec![],
-                <Test as crate::Config>::MessageFee::get(),
+                0,
             ));
         }
 
@@ -580,13 +587,15 @@ fn bridge_insufficient_fee_err() {
             0,
             ERR,
         );
+
+        assert_eq!(balance_of(&SIGNER), initial_balance - gas_meter.spent());
     })
 }
 
 mod utils {
     use super::*;
     use crate::builtin;
-    use gear_core::message::UserMessage;
+    use gear_core::message::{UserMessage, Value};
     use gprimitives::{ActorId, MessageId};
 
     pub(crate) fn builtin_id() -> ActorId {
@@ -732,5 +741,29 @@ mod utils {
         }
 
         System::reset_events();
+    }
+
+    pub(crate) fn balance_of(account: &AccountId) -> Value {
+        Currency::free_balance(account)
+    }
+
+    pub(crate) fn balance_of_author() -> Value {
+        balance_of(&Authorship::author().expect("author exist"))
+    }
+
+    pub(crate) struct GasSpentMeter {
+        initial: Value,
+    }
+
+    impl GasSpentMeter {
+        pub(crate) fn start() -> Self {
+            Self {
+                initial: balance_of_author(),
+            }
+        }
+
+        pub(crate) fn spent(&self) -> Value {
+            balance_of_author() - self.initial
+        }
     }
 }

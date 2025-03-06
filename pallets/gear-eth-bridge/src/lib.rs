@@ -56,7 +56,7 @@ pub mod pallet {
             ConstBool, Currency, ExistenceRequirement, OneSessionHandler, StorageInstance,
             StorageVersion,
         },
-        StorageHasher,
+        Identity, StorageHasher,
     };
     use frame_system::{
         ensure_root, ensure_signed,
@@ -73,19 +73,19 @@ pub mod pallet {
     type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
     type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
     type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
-    type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
-    //type CurrencyOf<T> = <T as Config>::Currency;
-    type GearBank<T> = pallet_gear_bank::Pallet<T>;
+    pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
+    type GearBuiltin<T> = pallet_gear_builtin::Pallet<T>;
 
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+    /// Builtin ID of the pallet.
+    pub const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_gear_bank::Config {
-        //type Currency: Currency<AccountIdOf<Self>>;
-        //+ fungible::Unbalanced<AccountIdOf<Self>, Balance = BalanceOf<Self>>;
-
+    pub trait Config:
+        frame_system::Config + pallet_gear_bank::Config + pallet_gear_builtin::Config
+    {
         /// Type representing aggregated runtime event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
@@ -100,15 +100,16 @@ pub mod pallet {
         #[pallet::constant]
         type QueueCapacity: Get<u32>;
 
-        /// TODO
+        /// Constant defining threshold of messages in the queue, when fee
+        /// should be charged for inclusion.
         #[pallet::constant]
         type QueueFeeThreshold: Get<u32>;
 
-        // TODO
+        /// Constant defining fee charged for message inclusion in the queue.
         #[pallet::constant]
         type MessageFee: Get<BalanceOf<Self>>;
 
-        // TODO
+        /// Constant defining address of the treasury account for fees.
         #[pallet::constant]
         type FeeTreasuryAddress: Get<AccountIdOf<Self>>;
 
@@ -173,12 +174,21 @@ pub mod pallet {
         /// so message couldn't be sent.
         QueueCapacityExceeded,
 
-        // The error happens when the message does not have enough value
-        // to cover the fee required for inclusion in the queue.
+        /// The error happens when the message does not have enough value
+        /// to cover the fee required for inclusion in the queue.
         InsufficientFee,
 
         /// The error happens when for some reason fee transfer failed.
         FailedToTransferFee,
+    }
+
+    /// Type containing info of amount of fee and refund for account.
+    #[derive(MaxEncodedLen, Encode, Decode, TypeInfo, Default)]
+    struct AccountFee<Balance> {
+        /// Fee charged for message inclusion in the queue.
+        fee: Balance,
+        /// Refund for the remaining value.
+        refund: Balance,
     }
 
     /// Lifecycle storage.
@@ -251,6 +261,12 @@ pub mod pallet {
     /// update queue merkle root by the end of the block.
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
+
+    /// Operational storage.
+    ///
+    /// Private storage that keeps account fee and refund details.
+    #[pallet::storage]
+    type AccountsFee<T> = StorageMap<_, Identity, AccountIdOf<T>, AccountFee<BalanceOf<T>>>;
 
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
@@ -332,49 +348,89 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         pub(crate) fn try_charge_fee(
             source: ActorId,
             value: BalanceOf<T>,
             from_builtin: bool,
-        ) -> Result<(), Error<T>>
-        where
-            T::AccountId: Origin,
-        {
+        ) -> Result<(), Error<T>> {
             let account_id = T::AccountId::from_origin(source.into());
 
-            // Charge fee if queue exceeds threshold
+            // Charge fee if queue threshold exceeded
             if Queue::<T>::get().len() >= <T as Config>::QueueFeeThreshold::get() as _ {
                 let fee = <T as Config>::MessageFee::get();
+                // Return error if fee is greater than value
                 let refund = value.checked_sub(&fee).ok_or(Error::<T>::InsufficientFee)?;
 
-                let treasury_id = <T as Config>::FeeTreasuryAddress::get();
+                AccountsFee::<T>::mutate(account_id.clone(), |details| {
+                    let details = details.get_or_insert_with(Default::default);
+                    details.fee = details.fee.saturating_add(fee);
+                    details.refund = details.refund.saturating_add(refund);
+                });
+            }
+            // Queue threshold not exceeded, no fee charged, we should make full value refund
+            else if !value.is_zero() {
+                AccountsFee::<T>::mutate(account_id.clone(), |details| {
+                    let details = details.get_or_insert_with(Default::default);
+                    details.refund = details.refund.saturating_add(value);
+                });
+            }
 
-                if from_builtin {
-                    GearBank::<T>::transfer_value(&account_id, &treasury_id, fee)
-                        .map_err(|_| Error::<T>::FailedToTransferFee)?;
-                    // Refund the remaining value, zero check happens inside `withdraw_value`
-                    GearBank::<T>::withdraw_value(&account_id, refund)
-                        .map_err(|_| Error::<T>::FailedToTransferFee)?;
-                } else {
-                    // Transfer fee to treasury,
-                    // no need to refund because it's actuall value transfer never happend
+            // Transfer value manually to `builtin` in case of extrinsic call
+            if !from_builtin {
+                let builtin_id = T::AccountId::from_origin(
+                    GearBuiltin::<T>::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into(),
+                );
+
+                CurrencyOf::<T>::transfer(
+                    &account_id,
+                    &builtin_id,
+                    value,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .map_err(|_| Error::<T>::InsufficientFee)?;
+            }
+
+            Ok(())
+        }
+
+        fn transfer_fees() {
+            AccountsFee::<T>::iter().for_each(|(account_id, account_fee)| {
+                let fee = account_fee.fee;
+                let refund = account_fee.refund;
+
+                let treasury_id = <T as Config>::FeeTreasuryAddress::get();
+                let builtin_id = T::AccountId::from_origin(
+                    GearBuiltin::<T>::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into(),
+                );
+
+                // Transfer fee to treasury
+                if !fee.is_zero() {
                     CurrencyOf::<T>::transfer(
                         &account_id,
                         &treasury_id,
                         fee,
                         ExistenceRequirement::AllowDeath,
                     )
-                    .map_err(|_| Error::<T>::InsufficientFee)?;
+                    .expect("Failed to transfer fee");
                 }
-            }
-            // Queue threshold not exceeded, no fee charged, return deposited to bank value
-            else if from_builtin {
-                GearBank::<T>::withdraw_value(&account_id, value)
-                    .map_err(|_| Error::<T>::FailedToTransferFee)?;
-            }
 
-            Ok(())
+                // Refund the remaining value
+                if !refund.is_zero() {
+                    CurrencyOf::<T>::transfer(
+                        &builtin_id,
+                        &account_id,
+                        refund,
+                        ExistenceRequirement::AllowDeath,
+                    )
+                    .expect("Failed to transfer refund");
+                }
+
+                AccountsFee::<T>::remove(account_id);
+            });
         }
 
         pub(crate) fn queue_message(
@@ -524,7 +580,10 @@ pub mod pallet {
         type Public = sp_consensus_grandpa::AuthorityId;
     }
 
-    impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
+    impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         type Key = <Self as BoundToRuntimeAppPublic>::Public;
 
         fn on_genesis_session<'a, I: 'a>(_validators: I) {}
@@ -563,6 +622,9 @@ pub mod pallet {
                     // and queue is empty, queue merkle root must present
                     // in storage and be zeroed.
                     QueueMerkleRoot::<T>::put(H256::zero());
+
+                    // Transfer fees to treasury and refund to users.
+                    Self::transfer_fees();
                 } else {
                     // Scheduling reset on next block's init.
                     //

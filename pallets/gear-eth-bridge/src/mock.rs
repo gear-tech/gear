@@ -161,7 +161,7 @@ parameter_types! {
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
-    pub const FeeTreasuryAddress: AccountId = 2;
+    pub const FeeTreasuryAddress: AccountId = 15082002;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
     pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
     pub SplitTxFeeRatio: Option<u32> = None;
@@ -178,7 +178,7 @@ pallet_gear::impl_config!(
     BuiltinDispatcherFactory = GearBuiltin,
 );
 
-pub const BUILTIN_ID: u64 = 1;
+pub const BUILTIN_ID: u64 = crate::ETH_BRIDGE_BUILTIN_ID;
 
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;

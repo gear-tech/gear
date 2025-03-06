@@ -21,6 +21,7 @@
 use crate::{Call, Config, Pallet};
 use common::{benchmarking, Origin};
 use frame_benchmarking::benchmarks;
+use frame_support::traits::Currency as _;
 use frame_system::RawOrigin;
 use sp_runtime::traits::Get;
 use sp_std::vec;
@@ -58,6 +59,7 @@ benchmarks! {
         assert!(Pallet::<T>::unpause(RawOrigin::Root.into()).is_ok());
 
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
+        let _ = crate::CurrencyOf::<T>::deposit_creating(&origin, T::MessageFee::get());
 
         let destination = [42; 20].into();
 

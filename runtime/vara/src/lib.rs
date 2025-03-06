@@ -1244,9 +1244,8 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type QueueFeeThreshold = ConstU32<1024>;
-    type MessageFee = ConstU128<5_000_000_000_000_000>;
-    // TODO: use proper fee treasury address
-    type FeeTreasuryAddress = BankAddress;
+    type MessageFee = ConstU128<{ 500 * ECONOMIC_UNITS }>;
+    type FeeTreasuryAddress = TreasuryAccount;
     type SessionsPerEra = SessionsPerEra;
     type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
 }
@@ -2086,5 +2085,48 @@ where
             longevity: TransactionLongevity::max_value(),
             propagate: true,
         })
+    }
+}
+
+// Compile time test
+fn _check_eth_bridge_builtin_id_matches() {
+    // Checks that the `ETH_BRIDGE_BUILTIN_ID` matches the entry in the `BuiltinActors` tuple.
+    #[cfg(feature = "dev")]
+    {
+        macro_rules! assert_type_eq {
+            ($T:ty, $U:ty) => {
+                const _: fn() = || {
+                    let _: $T = unsafe { std::mem::zeroed::<$U>() };
+                };
+            };
+        }
+
+        trait Get3<T> {
+            type Output;
+        }
+
+        impl<T1, T2, T3, T4> Get3<(T1, T2, T3, T4)> for () {
+            type Output = T3;
+        }
+
+        assert_type_eq!(
+            <() as Get3<BuiltinActors>>::Output,
+            ActorWithId<{ pallet_gear_eth_bridge::ETH_BRIDGE_BUILTIN_ID }, pallet_gear_eth_bridge::Actor<Runtime>>
+        );
+    }
+
+    // Check that the size of `BuiltInActors` tuple is still 3.
+    // Should be removed after `pallet-gear-eth-bridge` development is finished.
+    #[cfg(not(feature = "dev"))]
+    {
+        trait TupleSizeIs3<T> {
+            fn is_3();
+        }
+
+        impl<T1, T2, T3> TupleSizeIs3<(T1, T2, T3)> for () {
+            fn is_3() {}
+        }
+
+        let _ = <() as TupleSizeIs3<BuiltinActors>>::is_3;
     }
 }
