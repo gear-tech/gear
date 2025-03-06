@@ -1584,7 +1584,9 @@ mod utils {
             self.apply_until_block_event_with_header(|e, _h| f(e)).await
         }
 
-        // TODO: consider to iterates also thru skipped blocks
+        // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
+        // If your test depends on events in skipped blocks, you need to improve this method.
+        // TODO (gsobol): iterate thru skipped blocks.
         pub async fn apply_until_block_event_with_header<R: Sized>(
             &mut self,
             mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,

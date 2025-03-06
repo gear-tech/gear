@@ -18,7 +18,7 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{BlobReader, Provider};
+use crate::{BlobReader, Provider, RuntimeConfig};
 use alloy::rpc::types::eth::Header;
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{
@@ -27,7 +27,6 @@ use ethexe_common::{
     BlockData,
 };
 use ethexe_db::{BlockHeader, CodeInfo, CodesStorage};
-use ethexe_signer::Address;
 use futures::{
     future::{self},
     stream::FuturesUnordered,
@@ -44,10 +43,7 @@ pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
     pub provider: Provider,
     pub database: DB,
     pub blobs_reader: Arc<dyn BlobReader>,
-    pub router_address: Address,
-    pub wvara_address: Address,
-    pub max_sync_depth: u32,
-    pub batched_sync_depth: u32,
+    pub config: RuntimeConfig,
 }
 
 impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
@@ -88,17 +84,17 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
             return Ok(Default::default());
         }
 
-        if (header.height - latest_synced_block_height) >= self.max_sync_depth {
+        if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
             // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
                     "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
                     header.height,
                     latest_synced_block_height,
-                    self.max_sync_depth
+                    self.config.max_sync_depth
                 ));
         }
 
-        if header.height - latest_synced_block_height < self.batched_sync_depth {
+        if header.height - latest_synced_block_height < self.config.batched_sync_depth {
             // No need to pre load data, because amount of blocks is small enough.
             return Ok(Default::default());
         }
@@ -107,8 +103,8 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
             self.provider.clone(),
             latest_synced_block_height as u64,
             header.height as u64,
-            self.router_address,
-            self.wvara_address,
+            self.config.router_address,
+            self.config.wvara_address,
         )
         .await
     }
@@ -131,8 +127,8 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
                     crate::load_block_data(
                         self.provider.clone(),
                         hash,
-                        self.router_address,
-                        self.wvara_address,
+                        self.config.router_address,
+                        self.config.wvara_address,
                         (hash == block).then_some(header.clone()),
                     )
                     .await?

@@ -78,6 +78,14 @@ pub enum ObserverEvent {
     BlockSynced(H256),
 }
 
+#[derive(Clone, Debug)]
+struct RuntimeConfig {
+    router_address: Address,
+    wvara_address: Address,
+    max_sync_depth: u32,
+    batched_sync_depth: u32,
+}
+
 // TODO (gsobol): make tests for observer service
 pub struct ObserverService {
     provider: Provider,
@@ -86,17 +94,13 @@ pub struct ObserverService {
     blobs_reader: Arc<dyn BlobReader>,
     subscription: Subscription<Header>,
 
-    router_address: Address,
-    wvara_address: Address,
-    max_sync_depth: u32,
-    batched_sync_depth: u32,
+    config: RuntimeConfig,
 
     last_block_number: u32,
 
     headers_stream: SubscriptionStream<Header>,
     block_sync_queue: VecDeque<Header>,
     sync_future: Option<SyncFuture>,
-
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
 
@@ -135,10 +139,7 @@ impl Stream for ObserverService {
                     provider: self.provider.clone(),
                     database: self.database.clone(),
                     blobs_reader: self.blobs_reader.clone(),
-                    router_address: self.router_address.0.into(),
-                    wvara_address: self.wvara_address.0.into(),
-                    max_sync_depth: self.max_sync_depth,
-                    batched_sync_depth: self.batched_sync_depth,
+                    config: self.config.clone(),
                 };
                 self.sync_future = Some(Box::pin(sync.sync(header)));
             }
@@ -227,11 +228,13 @@ impl ObserverService {
             database: db,
             blobs_reader,
             subscription,
-            router_address: *router_address,
-            wvara_address,
-            max_sync_depth,
-            // TODO (gsobol): make this configurable. Important: must be greater than 1.
-            batched_sync_depth: 2,
+            config: RuntimeConfig {
+                router_address: *router_address,
+                wvara_address,
+                max_sync_depth,
+                // TODO (gsobol): make this configurable. Important: must be greater than 1.
+                batched_sync_depth: 2,
+            },
             last_block_number: 0,
             headers_stream,
             codes_futures: Default::default(),
