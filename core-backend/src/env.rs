@@ -43,7 +43,7 @@ use gear_lazy_pages_common::{
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, ModuleWrapper, Store},
-    AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
+    AsContextExt, Error, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, SandboxStore, TryFromValue, Value,
 };
 use gear_wasm_instrument::{
@@ -74,14 +74,8 @@ fn store_host_state_mut<Ext: Send + 'static>(
     })
 }
 
-pub type EnvironmentExecutionOk<Ext, EntryPoint> = (
-    Environment<Ext, EntryPoint, SuccessExecution>,
-    BackendReport<Ext>,
-);
-pub type EnvironmentExecutionErr<Ext, EntryPoint> = (
-    Environment<Ext, EntryPoint, FailedExecution>,
-    EnvironmentError,
-);
+pub type EnvironmentExecutionOk<Ext, EntryPoint> = Environment<Ext, EntryPoint, SuccessExecution>;
+pub type EnvironmentExecutionErr<Ext, EntryPoint> = Environment<Ext, EntryPoint, FailedExecution>;
 pub type EnvironmentExecutionResult<Ext, EntryPoint> =
     Result<EnvironmentExecutionOk<Ext, EntryPoint>, EnvironmentExecutionErr<Ext, EntryPoint>>;
 
@@ -117,6 +111,7 @@ where
     store: Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     memory: BackendMemory<ExecutorMemory>,
     module_wrapper: ModuleWrapper,
+    execution_result: Option<Result<ReturnValue, Error>>,
     _phantom: PhantomData<State>,
 }
 
@@ -341,6 +336,7 @@ where
             store,
             memory,
             module_wrapper,
+            execution_result: None,
             _phantom: PhantomData,
         })
     }
@@ -361,7 +357,7 @@ where
             &mut BackendMemory<ExecutorMemory>,
             GlobalsAccessConfig,
         ),
-    ) -> EnvironmentExecutionResult<EnvExt, EntryPoint> {
+    ) -> Result<EnvironmentExecutionResult<EnvExt, EntryPoint>, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
 
@@ -461,36 +457,29 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        // Fetching global value.
-        let gas = instance
-            .get_global_val(&mut store, GLOBAL_NAME_GAS)
-            .and_then(i64::try_from_value)
-            .ok_or(System(WrongInjectedGas))? as u64;
-
-        let state = store.data_mut().take().unwrap_or_else(|| {
-            let err_msg = "Environment::execute: State must be set";
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}")
-        });
-
-        let (ext, termination_reason) = state.terminate(res, gas);
-
-        Ok((
-            Environment {
+        if res.is_ok() {
+            Ok(EnvironmentExecutionOk {
                 instance,
                 entries,
                 entry_point,
                 store,
                 memory,
                 module_wrapper,
+                execution_result: Some(res),
                 _phantom: PhantomData,
-            },
-            BackendReport {
-                termination_reason,
-                ext,
-            },
-        ))
+            })
+        } else {
+            Ok(EnvironmentExecutionErr {
+                instance,
+                entries,
+                entry_point,
+                store,
+                memory,
+                module_wrapper,
+                execution_result: Some(res),
+                _phantom: PhantomData,
+            })
+        }
     }
 }
 
@@ -502,20 +491,34 @@ where
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
     EntryPoint: WasmEntryPoint,
 {
-    pub fn memory(&self) -> &BackendMemory<ExecutorMemory> {
-        &self.memory
-    }
+    pub fn report(mut self) -> BackendReport<EnvExt> {
+        let state = self.store.data_mut().take().unwrap_or_else(|| {
+            let err_msg = "Environment::report: State must be set";
 
-    pub fn memory_mut(&mut self) -> &mut BackendMemory<ExecutorMemory> {
-        &mut self.memory
-    }
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
 
-    pub fn store(&self) -> &Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>> {
-        &self.store
-    }
+        let gas = self
+            .instance
+            .get_global_val(&mut self.store, GLOBAL_NAME_GAS)
+            .and_then(i64::try_from_value)
+            .ok_or(SystemEnvironmentError::WrongInjectedGas)
+            .unwrap() as u64;
 
-    pub fn store_mut(&mut self) -> &mut Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>> {
-        &mut self.store
+        let execution_result = self.execution_result.take().unwrap_or_else(|| {
+            let err_msg = "Environment::report: Execution result must be set";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
+
+        let (ext, termination_reason) = state.terminate(execution_result, gas);
+
+        BackendReport {
+            termination_reason,
+            ext,
+        }
     }
 }
 
@@ -589,6 +592,7 @@ where
             store,
             memory,
             module_wrapper,
+            execution_result: None,
             _phantom: PhantomData,
         })
     }

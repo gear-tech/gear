@@ -339,7 +339,7 @@ where
             program.code.exports().clone(),
             memory_size,
         )?;
-        env.execute(|ctx, memory, globals_config| {
+        let execution_result = env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 memory,
@@ -349,15 +349,15 @@ where
                 globals_config,
                 Default::default(),
             )
-        })
+        });
+
+        execution_result.unwrap().report()
     };
 
-    let (termination, mut store, memory, ext) = match execute() {
+    let (termination, ext) = match execute() {
         Ok(report) => {
             let BackendReport {
                 termination_reason,
-                store,
-                memory,
                 ext,
             } = report;
 
@@ -368,7 +368,7 @@ where
                 }
             };
 
-            (termination_reason, store, memory, ext)
+            (termination_reason, ext)
         }
         Err(e) => return Err(format!("Backend error: {e}")),
     };

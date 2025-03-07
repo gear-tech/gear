@@ -91,11 +91,11 @@ mod tests {
         let ext = MockExt::default();
         let env =
             Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-        let report = env.execute(|_, _, _| {}).unwrap();
+        let execution_result = env.execute(|_, _, _| {}).unwrap();
 
         let BackendReport {
             termination_reason, ..
-        } = report;
+        } = execution_result.unwrap().report();
 
         assert_eq!(termination_reason, ActorTerminationReason::Success.into());
     }
