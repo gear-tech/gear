@@ -437,12 +437,12 @@
 </span><span class="kw">use </span><a href="mod.rs.html#60-66"><span class="kw">super</span>::Inner</a>;
 <span class="kw">use crate</span>::{
     metadata::{
-        calls::{<a href="../metadata/generated.rs.html#10565-10575">BalancesCall</a>, <a href="../metadata/generated.rs.html#10739-10749">GearCall</a>, <a href="../metadata/generated.rs.html#10797-10803">GearVoucherCall</a>, <a href="../metadata/generated.rs.html#11189-11195">SudoCall</a>, <a href="../metadata/generated.rs.html#11275-11282">UtilityCall</a>},
+        calls::{<a href="../metadata/generated.rs.html#10574-10584">BalancesCall</a>, <a href="../metadata/generated.rs.html#10748-10758">GearCall</a>, <a href="../metadata/generated.rs.html#10806-10812">GearVoucherCall</a>, <a href="../metadata/generated.rs.html#11198-11204">SudoCall</a>, <a href="../metadata/generated.rs.html#11284-11291">UtilityCall</a>},
         runtime_types::{
-            pallet_gear_voucher::internal::{<a href="../metadata/generated.rs.html#3722-3745">PrepaidCall</a>, <a href="../metadata/generated.rs.html#3747">VoucherId</a>},
-            <a href="../metadata/generated.rs.html#10020-10025">sp_weights::weight_v2::Weight</a>,
+            pallet_gear_voucher::internal::{<a href="../metadata/generated.rs.html#3731-3754">PrepaidCall</a>, <a href="../metadata/generated.rs.html#3756">VoucherId</a>},
+            <a href="../metadata/generated.rs.html#10029-10034">sp_weights::weight_v2::Weight</a>,
         },
-        <a href="../metadata/generated.rs.html#10291-10358">vara_runtime::RuntimeCall</a>,
+        <a href="../metadata/generated.rs.html#10300-10367">vara_runtime::RuntimeCall</a>,
         <a href="../metadata/impls.rs.html#336-338">Convert</a>,
     },
     <a href="utils.rs.html#46">signer::utils::EventsResult</a>,
@@ -623,7 +623,7 @@
 <span class="comment">// pallet-utility
 </span><span class="kw">impl </span><a href="#41">SignerCalls</a> {
     <span class="doccomment">/// `pallet_utility::force_batch`
-    </span><span class="kw">pub async fn </span>force_batch(<span class="kw-2">&amp;</span><span class="self">self</span>, calls: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../metadata/generated.rs.html#10291-10358">RuntimeCall</a>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
+    </span><span class="kw">pub async fn </span>force_batch(<span class="kw-2">&amp;</span><span class="self">self</span>, calls: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../metadata/generated.rs.html#10300-10367">RuntimeCall</a>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
             </span>.run_tx(
                 UtilityCall::ForceBatch,
@@ -636,7 +636,7 @@
 <span class="comment">// pallet-sudo
 </span><span class="kw">impl </span><a href="#41">SignerCalls</a> {
     <span class="doccomment">/// `pallet_sudo::sudo_unchecked_weight`
-    </span><span class="kw">pub async fn </span>sudo_unchecked_weight(<span class="kw-2">&amp;</span><span class="self">self</span>, call: <a href="../metadata/generated.rs.html#10291-10358">RuntimeCall</a>, weight: <a href="../metadata/generated.rs.html#10020-10025">Weight</a>) -&gt; EventsResult {
+    </span><span class="kw">pub async fn </span>sudo_unchecked_weight(<span class="kw-2">&amp;</span><span class="self">self</span>, call: <a href="../metadata/generated.rs.html#10300-10367">RuntimeCall</a>, weight: <a href="../metadata/generated.rs.html#10029-10034">Weight</a>) -&gt; EventsResult {
         <span class="self">self</span>.<span class="number">0
             </span>.sudo_run_tx(
                 SudoCall::SudoUncheckedWeight,
@@ -689,7 +689,7 @@
     </span><span class="kw">pub async fn </span>update_voucher(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         spender: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;AccountId32&gt;,
-        voucher_id: <a href="../metadata/generated.rs.html#3747">VoucherId</a>,
+        voucher_id: <a href="../metadata/generated.rs.html#3756">VoucherId</a>,
         move_ownership: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;AccountId32&gt;&gt;,
         balance_top_up: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;,
         append_programs: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;ProgramId&gt;&gt;&gt;,
@@ -729,7 +729,7 @@
     </span><span class="kw">pub async fn </span>revoke_voucher(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         spender: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;AccountId32&gt;,
-        voucher_id: <a href="../metadata/generated.rs.html#3747">VoucherId</a>,
+        voucher_id: <a href="../metadata/generated.rs.html#3756">VoucherId</a>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
             </span>.run_tx(
@@ -743,7 +743,7 @@
     </span>}
 
     <span class="doccomment">/// `pallet_gear_voucher::decline`
-    </span><span class="kw">pub async fn </span>decline_voucher(<span class="kw-2">&amp;</span><span class="self">self</span>, voucher_id: <a href="../metadata/generated.rs.html#3747">VoucherId</a>) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
+    </span><span class="kw">pub async fn </span>decline_voucher(<span class="kw-2">&amp;</span><span class="self">self</span>, voucher_id: <a href="../metadata/generated.rs.html#3756">VoucherId</a>) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="self">self</span>.<span class="number">0
             </span>.run_tx(
                 GearVoucherCall::Decline,
@@ -755,7 +755,7 @@
     <span class="doccomment">/// `pallet_gear_voucher::call`
     </span><span class="kw">pub async fn </span>upload_code_with_voucher(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        voucher_id: <a href="../metadata/generated.rs.html#3747">VoucherId</a>,
+        voucher_id: <a href="../metadata/generated.rs.html#3756">VoucherId</a>,
         code: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="kw">let </span>call = PrepaidCall::&lt;u128&gt;::UploadCode { code };
@@ -771,7 +771,7 @@
     <span class="doccomment">/// `pallet_gear_voucher::call`
     </span><span class="kw">pub async fn </span>send_message_with_voucher(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        voucher_id: <a href="../metadata/generated.rs.html#3747">VoucherId</a>,
+        voucher_id: <a href="../metadata/generated.rs.html#3756">VoucherId</a>,
         destination: ProgramId,
         payload: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
         gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
@@ -797,7 +797,7 @@
     <span class="doccomment">/// `pallet_gear_voucher::call`
     </span><span class="kw">pub async fn </span>send_reply_with_voucher(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        voucher_id: <a href="../metadata/generated.rs.html#3747">VoucherId</a>,
+        voucher_id: <a href="../metadata/generated.rs.html#3756">VoucherId</a>,
         reply_to_id: MessageId,
         payload: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
         gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
@@ -821,7 +821,7 @@
     </span>}
 
     <span class="doccomment">/// `pallet_gear_voucher::call`
-    </span><span class="kw">pub async fn </span>decline_voucher_with_voucher(<span class="kw-2">&amp;</span><span class="self">self</span>, voucher_id: <a href="../metadata/generated.rs.html#3747">VoucherId</a>) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
+    </span><span class="kw">pub async fn </span>decline_voucher_with_voucher(<span class="kw-2">&amp;</span><span class="self">self</span>, voucher_id: <a href="../metadata/generated.rs.html#3756">VoucherId</a>) -&gt; <span class="prelude-ty">Result</span>&lt;TxInBlock&gt; {
         <span class="kw">let </span>call = PrepaidCall::&lt;u128&gt;::DeclineVoucher;
 
         <span class="self">self</span>.<span class="number">0

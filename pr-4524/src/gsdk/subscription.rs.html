@@ -145,7 +145,7 @@
 
 </span><span class="doccomment">//! Subscription implementation.
 
-</span><span class="kw">use crate</span>::{<a href="config.rs.html#36">config::GearConfig</a>, <a href="metadata/generated.rs.html#10437-10504">metadata::Event</a>};
+</span><span class="kw">use crate</span>::{<a href="config.rs.html#36">config::GearConfig</a>, <a href="metadata/generated.rs.html#10446-10513">metadata::Event</a>};
 <span class="kw">use </span><a href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">anyhow::Result</a>;
 <span class="kw">use </span>futures::{Stream, StreamExt};
 <span class="kw">use </span>sp_core::H256;
@@ -234,11 +234,11 @@
     }
 
     <span class="doccomment">/// Get gear events
-    </span><span class="kw">pub fn </span>events(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="metadata/generated.rs.html#10437-10504">Event</a>&gt;&gt; {
+    </span><span class="kw">pub fn </span>events(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="metadata/generated.rs.html#10446-10513">Event</a>&gt;&gt; {
         <a class="self" href="#110">self</a>.events
             .iter()
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.map">map</a>(|ev| {
-                <a href="#113">ev</a>.<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.and_then">and_then</a>(|e| <a href="#114">e</a>.as_root_event::&lt;<a href="metadata/generated.rs.html#10437-10504">Event</a>&gt;())
+                <a href="#113">ev</a>.<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.and_then">and_then</a>(|e| <a href="#114">e</a>.as_root_event::&lt;<a href="metadata/generated.rs.html#10446-10513">Event</a>&gt;())
                     .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">Into::into</a>)
             })
             .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.collect">collect</a>::&lt;<a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<span class="kw">_</span>&gt;&gt;&gt;()
