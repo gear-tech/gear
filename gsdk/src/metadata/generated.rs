@@ -3426,6 +3426,11 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct AccountFee<_0> {
+                    pub fee: _0,
+                    pub refund: _0,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3442,6 +3447,7 @@ pub mod runtime_types {
                     send_eth_message {
                         destination: ::subxt::ext::subxt_core::utils::H160,
                         payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                        value: ::core::primitive::u128,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3462,9 +3468,12 @@ pub mod runtime_types {
                     #[doc = "so message couldn't be sent."]
                     QueueCapacityExceeded,
                     #[codec(index = 4)]
-                    #[doc = "The error happens when bridging thorough builtin and message value"]
-                    #[doc = "is inapplicable to operation or insufficient."]
-                    IncorrectValueApplied,
+                    #[doc = "The error happens when the message does not have enough value"]
+                    #[doc = "to cover the fee required for inclusion in the queue."]
+                    InsufficientFee,
+                    #[codec(index = 5)]
+                    #[doc = "The error happens when the message value transfer failed."]
+                    FailedToTransferValue,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's event."]
@@ -11638,6 +11647,7 @@ pub mod storage {
         ClearTimer,
         MessageNonce,
         QueueChanged,
+        AccountsFee,
     }
     impl StorageInfo for GearEthBridgeStorage {
         const PALLET: &'static str = "GearEthBridge";
@@ -11652,6 +11662,7 @@ pub mod storage {
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
+                Self::AccountsFee => "AccountsFee",
             }
         }
     }
