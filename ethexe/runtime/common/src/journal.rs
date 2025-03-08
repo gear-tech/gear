@@ -95,12 +95,12 @@ impl<S: Storage> Handler<'_, S> {
                     );
 
                     state.mailbox_hash.modify_mailbox(storage, |mailbox| {
-                        mailbox.add(
+                        mailbox.add_and_store_user_mailbox(
+                            storage,
                             dispatch.destination(),
                             dispatch.id(),
-                            dispatch.value(),
-                            expiry,
-                        );
+                            (&dispatch, dispatch_origin, expiry).into(),
+                        )
                     });
 
                     transitions.modify_transition(dispatch.source(), |transition| {
