@@ -97,6 +97,7 @@ pub(crate) enum MemoryAccessError {
     Memory(MemoryError),
     ProcessAccess(ProcessAccessError),
     RuntimeBuffer(RuntimeBufferSizeError),
+    ManagerError,
     // TODO: remove #2164
     Decode,
 }
@@ -122,6 +123,9 @@ impl BackendSyscallError for MemoryAccessError {
             // pre-process charges: now we need actual counter type, so
             // it will be parsed and handled further (issue #3018).
             MemoryAccessError::ProcessAccess(ProcessAccessError::GasLimitExceeded) => {
+                UndefinedTerminationReason::ProcessAccessErrorResourcesExceed
+            }
+            MemoryAccessError::ManagerError => {
                 UndefinedTerminationReason::ProcessAccessErrorResourcesExceed
             }
             e @ MemoryAccessError::Decode => {
@@ -398,36 +402,36 @@ where
 /// Read static size type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryReadAs<T> {
-    ptr: u32,
+    pub ptr: u32,
     _phantom: PhantomData<T>,
 }
 
 /// Read decoded type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
-    ptr: u32,
+    pub ptr: u32,
     _phantom: PhantomData<T>,
 }
 
 /// Read access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryRead {
-    ptr: u32,
-    size: u32,
+    pub ptr: u32,
+    pub size: u32,
 }
 
 /// Write static size type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryWriteAs<T> {
-    ptr: u32,
+    pub ptr: u32,
     _phantom: PhantomData<T>,
 }
 
 /// Write access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryWrite {
-    ptr: u32,
-    size: u32,
+    pub ptr: u32,
+    pub size: u32,
 }
 
 #[cfg(test)]
