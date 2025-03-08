@@ -193,6 +193,12 @@ where
 
     log::debug!("Termination reason: {:?}", termination);
 
+    let syscalls_statistics = ext.syscalls_gas_statistics();
+    log::debug!(
+        "Syscalls statistics per execution: {:?}",
+        syscalls_statistics
+    );
+
     let info = ext
         .into_ext_info(&mut store, &memory)
         .map_err(SystemExecutionError::IntoExtInfo)?;

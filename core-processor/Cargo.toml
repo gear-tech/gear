@@ -19,6 +19,7 @@ gear-core-backend.workspace = true
 gear-wasm-instrument.workspace = true
 gear-lazy-pages-common.workspace = true
 gsys.workspace = true
+hashbrown.workspace = true
 
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true

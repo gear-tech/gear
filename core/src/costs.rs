@@ -88,7 +88,9 @@ impl CostOf<CallsAmount> {
 }
 
 /// Bytes amount.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into, Hash,
+)]
 pub struct BytesAmount(u32);
 
 /// Chain blocks amount.
@@ -310,7 +312,7 @@ pub struct SyscallCosts {
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum CostToken {
     /// Zero cost.
     Null,
