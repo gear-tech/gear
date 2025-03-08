@@ -34,6 +34,7 @@ use numerated::{
     interval::{Interval, TryFromRangeError},
     tree::IntervalsTree,
 };
+use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
@@ -110,7 +111,7 @@ pub struct IntoPageBufError;
 pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo, MaxEncodedLen)]
 pub struct PageBuf(PageBufInner);
 
 // These traits are implemented intentionally by hand to achieve two goals:
@@ -510,7 +511,8 @@ impl AllocationsContext {
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use core::{cell::Cell, iter};
+    use core::cell::Cell;
+    use numerated::tree::IntervalsTree;
 
     struct TestMemory(Cell<WasmPagesAmount>);
 
@@ -644,7 +646,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &iter::once(WasmPage::from(2)).collect(),
+                &[WasmPage::from(2)].into_iter().collect(),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -727,7 +729,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 13.into(),
-                &iter::once(WasmPage::from(1)).collect(),
+                &[WasmPage::from(1)].into_iter().collect(),
                 10.into(),
                 None,
                 13.into()
@@ -742,7 +744,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 13.into(),
-                &iter::once(WasmPage::from(1)).collect(),
+                &[WasmPage::from(1)].into_iter().collect(),
                 WasmPagesAmount::UPPER,
                 None,
                 13.into()
@@ -756,7 +758,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 WasmPagesAmount::UPPER,
-                &iter::once(WasmPage::from(1)).collect(),
+                &[WasmPage::from(1)].into_iter().collect(),
                 10.into(),
                 None,
                 WasmPagesAmount::UPPER,
@@ -858,7 +860,7 @@ mod tests {
 
         fn allocations(start: u16, end: u16) -> impl Strategy<Value = IntervalsTree<WasmPage>> {
             proptest::collection::btree_set(wasm_page_with_range(start, end), size_range(0..1024))
-                .prop_map(|pages| pages.into_iter().collect::<IntervalsTree<WasmPage>>())
+                .prop_map(|pages| pages.into_iter().collect())
         }
 
         fn wasm_page_with_range(start: u16, end: u16) -> impl Strategy<Value = WasmPage> {

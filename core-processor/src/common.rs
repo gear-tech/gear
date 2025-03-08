@@ -22,25 +22,28 @@ use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation}
 use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::String,
     vec::Vec,
 };
+
 use gear_core::{
+    buffer::LimitedVec,
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
     message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
+        PayloadSizeError, StoredDispatch,
     },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
+    str::LimitedStr,
 };
 pub use gear_core_backend::error::TrapExplanation;
 use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -141,7 +144,7 @@ impl DispatchResult {
 }
 
 /// Dispatch outcome of the specific message.
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, MaxEncodedLen)]
 pub enum DispatchOutcome {
     /// Message was a exit.
     Exit {
@@ -160,14 +163,18 @@ pub enum DispatchOutcome {
         /// Source of the init message. Funds inheritor.
         origin: ProgramId,
         /// Reason of the fail.
-        reason: String,
+        // there's no limits for `reason` or `trap`, but let's be reasonable
+        // and set limit to something big for large errors.
+        // todo(playX): figure out proper limit
+        reason: LimitedStr<'static>,
     },
     /// Message was a trap.
     MessageTrap {
         /// Program that was failed.
         program_id: ProgramId,
         /// Reason of the fail.
-        trap: String,
+        // todo(playX): figure out proper limit
+        trap: LimitedStr<'static>,
     },
     /// Message was a success.
     Success,
@@ -176,7 +183,7 @@ pub enum DispatchOutcome {
 }
 
 /// Journal record for the state update.
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, MaxEncodedLen)]
 pub enum JournalNote {
     /// Message was successfully dispatched.
     MessageDispatched {
@@ -270,7 +277,11 @@ pub enum JournalNote {
         /// Code hash used to create new programs with ids in `candidates` field
         code_id: CodeId,
         /// Collection of program candidate ids and their init message ids.
-        candidates: Vec<(MessageId, ProgramId)>,
+        ///
+        /// The limit in benchmarks is 2048, but in normal operation it should be 1024.
+        ///
+        /// todo(playX18): set the limit based on benchmark vs normal build
+        candidates: LimitedVec<(MessageId, ProgramId), PayloadSizeError, 2048>,
     },
     /// Stop processing queue.
     StopProcessing {
@@ -553,4 +564,9 @@ pub(crate) struct WasmExecutionContext {
     pub program: Program,
     /// Size of the memory block.
     pub memory_size: WasmPagesAmount,
+}
+
+#[test]
+fn test_journal_note_size_does_not_exceed_32mib() {
+    assert!(JournalNote::max_encoded_len() <= 32 * 1024 * 1024);
 }

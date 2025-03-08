@@ -15142,6 +15142,7 @@ fn incorrect_store_context() {
 
 #[test]
 fn allocate_in_init_free_in_handle() {
+    use gear_core::pages::numerated::tree::IntervalsTree;
     let static_pages = 16u16;
     let wat = format!(
         r#"
@@ -15182,7 +15183,7 @@ fn allocate_in_init_free_in_handle() {
         let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
         assert_eq!(
             allocations,
-            [WasmPage::from(static_pages)].into_iter().collect()
+            IntervalsTree::from_iter(std::iter::once(WasmPage::from(static_pages)))
         );
 
         Gear::send_message(
