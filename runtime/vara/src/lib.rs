@@ -1238,9 +1238,15 @@ impl pallet_gear_builtin::Config for Runtime {
     type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
 }
 
+
+parameter_types! {
+    pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
+}
+
 #[cfg(feature = "dev")]
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+    type PalletId = GearEthBridgePalletId;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;

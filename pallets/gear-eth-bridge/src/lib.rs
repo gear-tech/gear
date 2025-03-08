@@ -53,7 +53,7 @@ pub mod pallet {
     use frame_support::{
         pallet_prelude::*,
         traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
-        StorageHasher,
+        PalletId, StorageHasher,
     };
     use frame_system::{
         ensure_root, ensure_signed,
@@ -61,7 +61,7 @@ pub mod pallet {
     };
     use gprimitives::{ActorId, H160, H256, U256};
     use sp_runtime::{
-        traits::{Keccak256, One, Saturating, Zero},
+        traits::{AccountIdConversion, Keccak256, One, Saturating, Zero},
         BoundToRuntimeAppPublic, RuntimeAppPublic,
     };
     use sp_std::vec::Vec;
@@ -79,6 +79,10 @@ pub mod pallet {
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+        /// The bridge' pallet id, used for deriving its sovereign account ID.
+        #[pallet::constant]
+        type PalletId: Get<PalletId>;
 
         /// Constant defining maximal payload size in bytes of message for bridging.
         #[pallet::constant]
@@ -373,6 +377,11 @@ pub mod pallet {
 
             // Returning appropriate type.
             Some(proof.into())
+        }
+
+        /// The account ID of the bridge admin.
+        pub fn bridge_admin_account_id() -> T::AccountId {
+            T::PalletId::get().into_sub_account_truncating("bridge_admin")
         }
     }
 
