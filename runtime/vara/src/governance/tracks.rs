@@ -20,14 +20,12 @@
 
 use super::*;
 
-use sp_runtime::AccountId32;
-
 const fn percent(x: i32) -> sp_runtime::FixedI64 {
     sp_runtime::FixedI64::from_rational(x as u128, 100)
 }
-use pallet_referenda::Curve;
 
-const BRIDGE_ADMIN_ACCOUNT: AccountId32 = AccountId32::new([1u8; 32]);
+use pallet_gear_eth_bridge::BridgeAdminAddress;
+use pallet_referenda::Curve;
 
 const APP_ROOT: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
 const SUP_ROOT: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
@@ -257,10 +255,10 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 14
             name: "bridge_admin",
             max_deciding: 10,
             decision_deposit: 5_000 * ECONOMIC_UNITS,
-            prepare_period: 1 * MINUTES,
-            decision_period: 14 * DAYS,
-            confirm_period: 3 * HOURS,
-            min_enactment_period: 10 * MINUTES,
+            prepare_period: 5 * MINUTES,
+            decision_period: 3 * DAYS,
+            confirm_period: 1 * HOURS,
+            min_enactment_period: 1 * MINUTES,
             min_approval: APP_BRIDGE_ADMIN,
             min_support: SUP_BRIDGE_ADMIN,
         },
@@ -283,7 +281,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
         } else if let Ok(frame_system::RawOrigin::Signed(signer)) =
             frame_system::RawOrigin::try_from(id.clone())
         {
-            if signer == BRIDGE_ADMIN_ACCOUNT {
+            if signer == BridgeAdminAddress::<Runtime>::get() {
                 // bridge_admin
                 return Ok(40);
             } else {
