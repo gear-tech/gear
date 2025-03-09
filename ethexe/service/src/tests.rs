@@ -21,7 +21,7 @@
 use crate::{
     config::{self, Config},
     tests::utils::NodeNetworkConfig,
-    Service,
+    Event, Service,
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
@@ -40,6 +40,7 @@ use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
+use ethexe_sequencer::SequencerEvent;
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
 use ethexe_validator::Validator;
@@ -1183,7 +1184,7 @@ async fn fast_sync() {
             .validator(env.validators[2], env.validator_session_public_keys[2])
             .network_with_config(NodeNetworkConfig {
                 address: None,
-                bootstrap_address: sequencer.multiaddr,
+                bootstrap_address: sequencer.multiaddr.clone(),
                 fast_sync: true,
             }),
     );
@@ -1199,9 +1200,14 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    tokio::time::sleep(Duration::from_secs(15)).await;
-
-    bob.stop_service().await;
+    sequencer
+        .wait_for(|event| {
+            matches!(
+                event,
+                Event::Sequencer(SequencerEvent::CollectionRoundEnded { block_hash: _ })
+            )
+        })
+        .await;
 }
 
 mod utils {

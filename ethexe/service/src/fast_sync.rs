@@ -134,7 +134,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let latest_block_header = query.get_block_header_meta(latest_block).await?;
 
     let chain = query.get_last_committed_chain(latest_block).await?;
-    let (program_states, program_code_ids, code_infos) = collect_event_data(query, &chain).await?;
+    let (program_states, program_code_ids, code_infos, previous_committed_block) =
+        collect_event_data(query, &chain).await?;
     log::info!("Processing {} blocks", chain.len());
 
     let mut requests = BufRequests::default();
@@ -304,8 +305,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     db.set_latest_valid_block(latest_block, latest_block_header);
     db.set_block_commitment_queue(latest_block, VecDeque::new());
     db.set_block_end_schedule(latest_block, schedule_restorer.build());
-    db.set_block_is_empty(latest_block, true);
-    db.set_previous_committed_block(latest_block, H256::zero());
+    db.set_block_is_empty(latest_block, false);
+    db.set_previous_committed_block(
+        latest_block,
+        previous_committed_block.unwrap_or_else(H256::zero),
+    );
 
     let (completed, pending) = requests.stats();
     log::info!("[{completed:>05} / {pending:>05}] Fast synchronization done");
@@ -321,10 +325,12 @@ async fn collect_event_data(
     BTreeMap<ActorId, H256>,
     Vec<(ActorId, CodeId)>,
     Vec<(CodeId, CodeInfo)>,
+    Option<H256>,
 )> {
     let mut states = BTreeMap::new();
     let mut program_code_ids = Vec::new();
     let mut code_infos = Vec::new();
+    let mut previous_committed_block = None;
 
     for &block in blocks.iter().rev() {
         let events = query.get_block_events(block).await?;
@@ -336,6 +342,9 @@ async fn collect_event_data(
                     event: MirrorEvent::StateChanged { state_hash },
                 } => {
                     states.insert(actor_id, state_hash);
+                }
+                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
+                    previous_committed_block = Some(hash);
                 }
                 BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
                     program_code_ids.push((actor_id, code_id));
@@ -352,5 +361,10 @@ async fn collect_event_data(
         }
     }
 
-    Ok((states, program_code_ids, code_infos))
+    Ok((
+        states,
+        program_code_ids,
+        code_infos,
+        previous_committed_block,
+    ))
 }

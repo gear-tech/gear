@@ -617,7 +617,7 @@ impl Service {
 
                             let block_requests: Vec<_> = s
                                 .get_candidate_block_commitments()
-                                .map(BlockCommitmentValidationRequest::from)
+                                .map(BlockCommitmentValidationRequest::new)
                                 .collect();
 
                             if let Some(n) = network.as_mut() {
