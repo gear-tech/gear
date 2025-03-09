@@ -56,7 +56,7 @@ pub mod pallet {
         PalletId, StorageHasher,
     };
     use frame_system::{
-        ensure_root, ensure_signed,
+        ensure_signed,
         pallet_prelude::{BlockNumberFor, OriginFor},
     };
     use gprimitives::{ActorId, H160, H256, U256};
@@ -72,6 +72,14 @@ pub mod pallet {
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
+    /// Pallet Gear Eth Bridge's admin account ID.
+    pub struct BridgeAdminAddress<T: Config>(PhantomData<T>);
+    impl<T: Config> Get<<T as frame_system::Config>::AccountId> for BridgeAdminAddress<T> {
+        fn get() -> <T as frame_system::Config>::AccountId {
+            Pallet::<T>::bridge_admin_account_id()
+        }
+    }
+
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -83,6 +91,9 @@ pub mod pallet {
         /// The bridge' pallet id, used for deriving its sovereign account ID.
         #[pallet::constant]
         type PalletId: Get<PalletId>;
+
+        /// Origin type for the admin of the bridge.
+        type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// Constant defining maximal payload size in bytes of message for bridging.
         #[pallet::constant]
@@ -245,8 +256,8 @@ pub mod pallet {
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::pause())]
         pub fn pause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by root.
-            ensure_root(origin)?;
+            // Ensuring called by `AdminOrigin` or root.
+            T::AdminOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -269,8 +280,8 @@ pub mod pallet {
         #[pallet::call_index(1)]
         #[pallet::weight(<T as Config>::WeightInfo::unpause())]
         pub fn unpause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by root.
-            ensure_root(origin)?;
+            // Ensuring called by `AdminOrigin` or root.
+            T::AdminOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(

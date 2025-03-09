@@ -41,7 +41,7 @@ use frame_support::{
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
-    EnsureRoot,
+    EnsureRoot, EnsureSignedBy,
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
@@ -57,7 +57,7 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, Get, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
@@ -101,8 +101,8 @@ pub use frame_support::{
         tokens::{PayFromAccount, UnityAssetBalanceConversion},
         ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
         EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
-        LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo,
-        VariantCountOf, WithdrawReasons,
+        LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, SortedMembers,
+        StorageInfo, VariantCountOf, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -1238,6 +1238,22 @@ impl pallet_gear_builtin::Config for Runtime {
     type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
 }
 
+#[cfg(feature = "dev")]
+pub struct OnlyBridgeAdmin<T>(sp_std::marker::PhantomData<T>);
+
+#[cfg(feature = "dev")]
+impl<T> SortedMembers<AccountId> for OnlyBridgeAdmin<T>
+where
+    T: pallet_gear_eth_bridge::Config,
+{
+    fn sorted_members() -> Vec<AccountId> {
+        vec![pallet_gear_eth_bridge::BridgeAdminAddress::<Runtime>::get()]
+    }
+
+    fn count() -> usize {
+        1
+    }
+}
 
 parameter_types! {
     pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
@@ -1247,6 +1263,7 @@ parameter_types! {
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
+    type AdminOrigin = EnsureSignedBy<OnlyBridgeAdmin<Runtime>, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;
