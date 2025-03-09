@@ -20,7 +20,7 @@ use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
     eips::eip4844::kzg_to_versioned_hash,
     providers::{Provider as _, ProviderBuilder, RootProvider},
-    rpc::types::{beacon::sidecar::BeaconBlobBundle, eth::BlockTransactionsKind},
+    rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -96,7 +96,7 @@ impl BlobReader for ConsensusLayerBlobReader {
             .ok_or_else(|| anyhow!("failed to get block hash"))?;
         let block = self
             .provider
-            .get_block_by_hash(block_hash, BlockTransactionsKind::Hashes)
+            .get_block_by_hash(block_hash)
             .await?
             .ok_or_else(|| anyhow!("failed to get block"))?;
         let slot =

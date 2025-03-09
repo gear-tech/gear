@@ -21,7 +21,7 @@ use alloy::{
     network::{Ethereum, Network},
     primitives::Address as AlloyAddress,
     providers::{Provider as _, ProviderBuilder, RootProvider},
-    rpc::{client::BatchRequest, types::eth::BlockTransactionsKind},
+    rpc::client::BatchRequest,
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{
@@ -383,7 +383,7 @@ impl Query {
             None => {
                 let block = self
                     .provider
-                    .get_block_by_hash(block_hash.0.into(), BlockTransactionsKind::Hashes)
+                    .get_block_by_hash(block_hash.0.into())
                     .await?
                     .ok_or_else(|| anyhow!("Block not found"))?;
 

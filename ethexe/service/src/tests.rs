@@ -25,7 +25,6 @@ use crate::{
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider},
-    rpc::types::anvil::MineOptions,
 };
 use anyhow::Result;
 use ethexe_common::{
@@ -1412,10 +1411,7 @@ mod utils {
             } else {
                 self.observer
                     .provider()
-                    .evm_mine(Some(MineOptions::Options {
-                        timestamp: None,
-                        blocks: Some(blocks_amount.into()),
-                    }))
+                    .anvil_mine(Some(blocks_amount.into()), None)
                     .await
                     .unwrap();
             }
