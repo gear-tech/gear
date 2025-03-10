@@ -21,20 +21,20 @@ use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
 use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
-use ethexe_db::Database;
+use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
-use ethexe_processor::ProcessorConfig;
+use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::RpcEvent;
+use ethexe_rpc::{RpcEvent, RpcService};
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{Digest, PublicKey, Signature, Signer};
 use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};
-use ethexe_validator::BlockCommitmentValidationRequest;
+use ethexe_validator::{BlockCommitmentValidationRequest, Validator};
 use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -65,16 +65,16 @@ pub struct Service {
     observer: ObserverService,
     router_query: RouterQuery,
     compute: ComputeService,
-    signer: ethexe_signer::Signer,
+    signer: Signer,
     tx_pool: TxPoolService,
 
     // Optional services
     // TODO: consider network to be always enabled
     network: Option<NetworkService>,
     sequencer: Option<SequencerService>,
-    validator: Option<ethexe_validator::Validator>,
+    validator: Option<Validator>,
     prometheus: Option<PrometheusService>,
-    rpc: Option<ethexe_rpc::RpcService>,
+    rpc: Option<RpcService>,
 
     // Optional global event broadcaster.
     sender: Option<Sender<Event>>,
@@ -107,17 +107,15 @@ impl Service {
             None
         };
 
-        let rocks_db = ethexe_db::RocksDatabase::open(config.node.database_path.clone())
+        let rocks_db = RocksDatabase::open(config.node.database_path.clone())
             .with_context(|| "failed to open database")?;
-        let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
-
-        let blob_reader = mock_blob_reader.clone().map(|r| r as _);
+        let db = Database::from_one(&rocks_db, config.ethereum.router_address.0);
 
         let observer = ObserverService::new(
             &config.ethereum,
             config.node.eth_max_sync_depth,
-            &db,
-            blob_reader,
+            db.clone(),
+            mock_blob_reader.clone().map(|r| r as _),
         )
         .await
         .context("failed to create observer service")?;
@@ -153,7 +151,7 @@ impl Service {
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
-        let processor = ethexe_processor::Processor::with_config(
+        let processor = Processor::with_config(
             ProcessorConfig {
                 worker_threads_override: config.node.worker_threads_override,
                 virtual_threads: config.node.virtual_threads,
@@ -171,8 +169,8 @@ impl Service {
             processor.config().virtual_threads
         );
 
-        let signer = ethexe_signer::Signer::new(config.node.key_path.clone())
-            .with_context(|| "failed to create signer")?;
+        let signer =
+            Signer::new(config.node.key_path.clone()).with_context(|| "failed to create signer")?;
 
         let sequencer = if let Some(key) =
             Self::get_config_public_key(config.node.sequencer, &signer)
@@ -207,13 +205,13 @@ impl Service {
             validator_pub_key
                 .zip(validator_pub_key_session)
                 .map(|(pub_key, pub_key_session)| {
-                    ethexe_validator::Validator::new(
+                    Validator::new(
                         &ethexe_validator::Config {
                             pub_key,
                             pub_key_session,
                             router_address: config.ethereum.router_address,
                         },
-                        Box::new(db.clone()),
+                        db.clone(),
                         signer.clone(),
                     )
                 });
@@ -226,16 +224,17 @@ impl Service {
 
         let network = if let Some(net_config) = &config.network {
             Some(
-                ethexe_network::NetworkService::new(net_config.clone(), &signer, db.clone())
+                NetworkService::new(net_config.clone(), &signer, db.clone())
                     .with_context(|| "failed to create network service")?,
             )
         } else {
             None
         };
 
-        let rpc = config.rpc.as_ref().map(|config| {
-            ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
-        });
+        let rpc = config
+            .rpc
+            .as_ref()
+            .map(|config| RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone()));
 
         let tx_pool = TxPoolService::new(db.clone());
 
@@ -271,14 +270,14 @@ impl Service {
         db: Database,
         observer: ObserverService,
         router_query: RouterQuery,
-        processor: ethexe_processor::Processor,
-        signer: ethexe_signer::Signer,
+        processor: Processor,
+        signer: Signer,
         tx_pool: TxPoolService,
         network: Option<NetworkService>,
         sequencer: Option<SequencerService>,
-        validator: Option<ethexe_validator::Validator>,
+        validator: Option<Validator>,
         prometheus: Option<PrometheusService>,
-        rpc: Option<ethexe_rpc::RpcService>,
+        rpc: Option<RpcService>,
         sender: Option<Sender<Event>>,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor);
@@ -499,7 +498,7 @@ impl Service {
                                 NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
                                     if let Some(v) = validator.as_mut() {
                                         let maybe_batch_commitment = (!codes.is_empty() || !blocks.is_empty())
-                                        .then(|| v.validate_batch_commitment(&db, codes, blocks))
+                                        .then(|| v.validate_batch_commitment(codes, blocks))
                                         .transpose()
                                         .inspect_err(|e| log::warn!("failed to validate batch commitment from network: {e}"))
                                         .ok()
@@ -644,11 +643,8 @@ impl Service {
                                 // on local validator. So we just print warning in this case.
 
                                 if !code_requests.is_empty() || !block_requests.is_empty() {
-                                    match v.validate_batch_commitment(
-                                        &db,
-                                        code_requests,
-                                        block_requests,
-                                    ) {
+                                    match v.validate_batch_commitment(code_requests, block_requests)
+                                    {
                                         Ok((digest, signature)) => {
                                             s.receive_batch_commitment_signature(
                                                 digest, signature,
