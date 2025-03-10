@@ -146,10 +146,8 @@ impl Router {
         Err(anyhow!("Failed to define if code is validated"))
     }
 
-    pub async fn create_program(&self, code_id: CodeId, salt: H256) -> Result<(H256, ActorId)> {
-        let builder = self
-            .instance
-            .createProgram(code_id.into_bytes().into(), salt.to_fixed_bytes().into());
+    pub async fn create_program(&self, code_id: CodeId) -> Result<(H256, ActorId)> {
+        let builder = self.instance.createProgram(code_id.into_bytes().into());
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
@@ -267,7 +265,7 @@ impl RouterQuery {
 
     pub async fn mirror_proxy_impl(&self) -> Result<LocalAddress> {
         self.instance
-            .mirrorProxyImpl()
+            .mirrorImpl()
             .call()
             .await
             .map(|res| LocalAddress(res._0.into()))

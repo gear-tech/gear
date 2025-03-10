@@ -16,16 +16,16 @@ contract MirrorAbi is IMirror, Proxy {
     uint256 public nonce;
     address public router;
     address public initializer;
-    address public impl;
+    address public implAddress;
     address private _abi;
     bytes32 private constant PROXY_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
-    function initialize(address _initializer, address _router, address _impl, address _interface) public {
+    function initialize(address _initializer, address _router, address _implAddress, address _interface) public {
         require(initializer == address(0), "initializer could only be set once");
 
         initializer = _initializer;
         router = _router;
-        impl = _impl;
+        implAddress = _implAddress;
         _abi = _interface;
 
         assembly ("memory-safe") {
@@ -34,40 +34,31 @@ contract MirrorAbi is IMirror, Proxy {
     }
 
     function _delegate(address) internal override {
-        uint len = msg.data.length;
+        uint256 len = msg.data.length;
         require(len >= 32, "Mirror: invalid message data length");
         uint128 value = uint128(uint256(bytes32(msg.data[len - 32])));
 
         bytes memory payload = abi.encodeWithSelector(IMirror.sendMessage.selector, msg.data, value);
 
-        (bool success,) = impl.delegatecall(payload);
+        (bool success,) = implAddress.delegatecall(payload);
 
         require(success, "Mirror: delegatecall failed");
     }
 
-    function _implementation() internal view override returns (address){
+    function _implementation() internal view override returns (address) {
         return _abi;
     }
 
     function _mirrorImplDelegatecall() private returns (bytes memory resultData) {
         assembly ("memory-safe") {
             let freeMemPtr := mload(0x40)
-            let implAddr := sload(impl.slot)
+            let implAddr := sload(implAddress.slot)
 
             calldatacopy(0, 0, calldatasize())
 
-            let result := delegatecall(
-                gas(),
-                implAddr,
-                0,
-                calldatasize(),
-                0,
-                0
-            )
+            let result := delegatecall(gas(), implAddr, 0, calldatasize(), 0, 0)
 
-            if eq(result, 0) {
-                revert(0, returndatasize())
-            }
+            if eq(result, 0) { revert(0, returndatasize()) }
 
             let returnSize := returndatasize()
 
@@ -123,7 +114,7 @@ contract MirrorAbi is IMirror, Proxy {
         _;
     }
 
-    function sendMessage(bytes calldata /*_payload*/, uint128 _value)
+    function sendMessage(bytes calldata, /*_payload*/ uint128 _value)
         external
         whileActive
         whenInitMessageCreatedOrFromInitializer
@@ -137,7 +128,7 @@ contract MirrorAbi is IMirror, Proxy {
         }
     }
 
-    function sendReply(bytes32 /*_repliedTo*/, bytes calldata /*_payload*/, uint128 _value)
+    function sendReply(bytes32, /*_repliedTo*/ bytes calldata, /*_payload*/ uint128 _value)
         external
         whileActive
         whenInitMessageCreated
@@ -146,7 +137,7 @@ contract MirrorAbi is IMirror, Proxy {
         _mirrorImplDelegatecall();
     }
 
-    function claimValue(bytes32 /*_claimedId*/) external whenInitMessageCreated {
+    function claimValue(bytes32 /*_claimedId*/ ) external whenInitMessageCreated {
         _mirrorImplDelegatecall();
     }
 
@@ -159,7 +150,11 @@ contract MirrorAbi is IMirror, Proxy {
     }
 
     // NOTE (breathx): value to receive should be already handled in router.
-    function performStateTransition(Gear.StateTransition calldata /*_transition*/) external onlyRouter returns (bytes32 resultData) {
+    function performStateTransition(Gear.StateTransition calldata /*_transition*/ )
+        external
+        onlyRouter
+        returns (bytes32 resultData)
+    {
         bytes memory result = _mirrorImplDelegatecall();
 
         assembly ("memory-safe") {

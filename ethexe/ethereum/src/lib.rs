@@ -19,10 +19,11 @@
 #![allow(dead_code, clippy::new_without_default)]
 
 use abi::{
-    IMirror, IMirrorProxy,
+    IMirror,
     IRouter::{self, initializeCall as RouterInitializeCall},
     ITransparentUpgradeableProxy,
     IWrappedVara::{self, initializeCall as WrappedVaraInitializeCall},
+    MirrorImpl,
 };
 use alloy::{
     consensus::SignableTransaction,
@@ -155,12 +156,12 @@ impl Ethereum {
         let wvara_address = *wrapped_vara.address();
 
         let nonce = provider.get_transaction_count(deployer_address).await?;
-        let mirror_address = deployer_address.create(
+        let mirror_impl_address = deployer_address.create(
             nonce
                 .checked_add(2)
                 .ok_or_else(|| anyhow!("failed to add 2"))?,
         );
-        let mirror_proxy_address = deployer_address.create(
+        let mirror_abi_address = deployer_address.create(
             nonce
                 .checked_add(3)
                 .ok_or_else(|| anyhow!("failed to add 3"))?,
@@ -174,8 +175,8 @@ impl Ethereum {
             Bytes::copy_from_slice(
                 &RouterInitializeCall {
                     _owner: deployer_address,
-                    _mirror: mirror_address,
-                    _mirrorProxy: mirror_proxy_address,
+                    _mirrorImpl: mirror_impl_address,
+                    _mirrorAbi: mirror_abi_address,
                     _wrappedVara: wvara_address,
                     _eraDuration: U256::from(24 * 60 * 60),
                     _electionDuration: U256::from(2 * 60 * 60),
@@ -197,17 +198,14 @@ impl Ethereum {
         let router_address = *proxy.address();
         let router = IRouter::new(router_address, provider.clone());
 
-        let mirror = IMirror::deploy(provider.clone()).await?;
-        let mirror_proxy = IMirrorProxy::deploy(provider.clone(), router_address).await?;
+        let mirror_impl = MirrorImpl::deploy(provider.clone()).await?;
+        let mirror_abi = IMirror::deploy(provider.clone()).await?;
 
         let builder = wrapped_vara.approve(router_address, U256::MAX);
         builder.send().await?.try_get_receipt().await?;
 
-        assert_eq!(router.mirrorImpl().call().await?._0, *mirror.address());
-        assert_eq!(
-            router.mirrorProxyImpl().call().await?._0,
-            *mirror_proxy.address()
-        );
+        assert_eq!(router.mirrorImpl().call().await?._0, *mirror_impl.address());
+        assert_eq!(router.mirrorAbi().call().await?._0, *mirror_abi.address());
 
         let builder = router.lookupGenesisHash();
         builder.send().await?.try_get_receipt().await?;
@@ -221,11 +219,8 @@ impl Ethereum {
         );
         log::debug!("WrappedVara deployed at {wvara_address}");
 
-        log::debug!("Mirror impl has been deployed at {}", mirror.address());
-        log::debug!(
-            "Mirror proxy has been deployed at {}",
-            mirror_proxy.address()
-        );
+        log::debug!("Mirror impl has been deployed at {}", mirror_impl.address());
+        log::debug!("Mirror abi has been deployed at {}", mirror_abi.address());
 
         Ok(Self {
             router_address,

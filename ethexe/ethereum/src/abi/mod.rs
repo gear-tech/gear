@@ -22,6 +22,7 @@ mod events;
 mod gear;
 
 pub use mirror_abi::*;
+pub use mirror_impl::*;
 
 // TODO (breathx): remove this dummy hack to avoid reentrancy issues with
 // the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
@@ -29,15 +30,18 @@ mod mirror_abi {
     alloy::sol!(
         #[sol(rpc)]
         IMirror,
-        "Mirror.json"
+        "MirrorAbi.json"
     );
 }
 
-sol!(
-    #[sol(rpc)]
-    IMirrorProxy,
-    "MirrorProxy.json"
-);
+mod mirror_impl {
+    alloy::sol!(
+        #[allow(clippy::too_many_arguments)]
+        #[sol(rpc)]
+        MirrorImpl,
+        "MirrorImpl.json"
+    );
+}
 
 sol!(
     #[allow(clippy::too_many_arguments)]

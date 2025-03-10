@@ -261,10 +261,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         IMirror(mirror).initialize(msg.sender, address(this), router.implAddresses.mirrorImpl, address(0));
     }
 
-    function createProgramWithInterface(bytes32 _codeId, address _abiInterface)
-        external
-        returns (address mirror)
-    {
+    function createProgramWithInterface(bytes32 _codeId, address _abiInterface) external returns (address mirror) {
         Storage storage router = _router();
         mirror = _createProgram(_codeId, router);
 
@@ -412,17 +409,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
             let src := mload(ctr)
             let dest := add(code, 0x20)
-            for { let i := 0 } lt (i, prefixSize) { i:= add(i, 1) } {
-                mstore8(add(dest, i), byte(i, src))
-            }
+            for { let i := 0 } lt(i, prefixSize) { i := add(i, 1) } { mstore8(add(dest, i), byte(i, src)) }
 
             extcodecopy(_mirrorAbi, add(add(code, 0x20), prefixSize), 0, bytecodeSize)
 
             program := create(0, add(code, 0x20), mload(code))
 
-            if iszero(program) {
-                revert(0, 0)
-            }
+            if iszero(program) { revert(0, 0) }
         }
 
         router.protocolData.programs[address(program)] = _codeId;
@@ -430,7 +423,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         emit ProgramCreated(address(program), _codeId);
     }
-
 
     function _commitBlock(Storage storage router, Gear.BlockCommitment calldata _blockCommitment)
         private
