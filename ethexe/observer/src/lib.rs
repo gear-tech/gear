@@ -37,6 +37,7 @@ use futures::{
 use gprimitives::{CodeId, H256};
 use std::{
     collections::VecDeque,
+    fmt,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -67,7 +68,7 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Blob {
         code_id: CodeId,
@@ -76,6 +77,25 @@ pub enum ObserverEvent {
     },
     Block(SimpleBlockData),
     BlockSynced(H256),
+}
+
+impl fmt::Debug for ObserverEvent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ObserverEvent::Blob {
+                code_id,
+                timestamp,
+                code,
+            } => f
+                .debug_struct("Blob")
+                .field("code_id", code_id)
+                .field("timestamp", timestamp)
+                .field("code", &format_args!("{} bytes", code.len()))
+                .finish(),
+            ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
+            ObserverEvent::BlockSynced(hash) => f.debug_tuple("BlockSynced").field(hash).finish(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
