@@ -24,7 +24,7 @@ use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{NetworkEvent, NetworkService};
 use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
-use ethexe_processor::{Processor, ProcessorConfig};
+use ethexe_processor::ProcessorConfig;
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::RpcEvent;
 use ethexe_sequencer::{
@@ -65,7 +65,6 @@ pub struct Service {
     observer: ObserverService,
     router_query: RouterQuery,
     compute: ComputeService,
-    processor: Processor,
     signer: ethexe_signer::Signer,
     tx_pool: TxPoolService,
 
@@ -242,7 +241,7 @@ impl Service {
 
         let tx_pool = TxPoolService::new(db.clone());
 
-        let compute = ComputeService::new(db.clone(), processor.clone());
+        let compute = ComputeService::new(db.clone(), processor);
 
         Ok(Self {
             db,
@@ -250,7 +249,6 @@ impl Service {
             observer,
             router_query,
             compute,
-            processor,
             sequencer,
             signer,
             validator,
@@ -287,14 +285,13 @@ impl Service {
         sender: Option<Sender<Event>>,
         fast_sync: bool,
     ) -> Self {
-        let compute = ComputeService::new(db.clone(), processor.clone());
+        let compute = ComputeService::new(db.clone(), processor);
 
         Self {
             db,
             observer,
             router_query,
             compute,
-            processor,
             signer,
             network,
             sequencer,
@@ -324,7 +321,6 @@ impl Service {
             mut observer,
             router_query: _,
             mut compute,
-            processor: _,
             mut sequencer,
             signer: _signer,
             tx_pool,

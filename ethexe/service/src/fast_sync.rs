@@ -17,13 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Service;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodeInfo, CodesStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
+    gear::CodeCommitment,
 };
+use ethexe_compute::ComputeEvent;
+use ethexe_db::Database;
 use ethexe_network::{db_sync, db_sync::RequestId, NetworkEvent, NetworkService};
-use ethexe_observer::Query;
+use ethexe_observer::ObserverEvent;
 use ethexe_runtime_common::{
     state::{
         ActiveProgram, DispatchStash, Mailbox, MaybeHashOf, MemoryPages, MemoryPagesRegion,
@@ -38,11 +41,9 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     mem,
 };
-use tokio::task::JoinSet;
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 enum Request {
-    OriginalCode,
     ProgramState {
         program_id: ActorId,
     },
@@ -115,10 +116,10 @@ impl BufRequests {
 
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
+        observer,
+        compute,
         network,
-        processor,
         router_query,
-        query,
         db,
         ..
     } = service;
@@ -131,16 +132,24 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let latest_block = router_query.latest_committed_block_hash().await?;
     debug_assert_ne!(latest_block, H256::zero(), "router is not deployed");
-    let latest_block_header = query.get_block_header_meta(latest_block).await?;
 
-    let chain = query.get_last_committed_chain(latest_block).await?;
-    let (program_states, program_code_ids, code_infos, previous_committed_block) =
-        collect_event_data(query, &chain).await?;
-    log::info!("Processing {} blocks", chain.len());
+    observer.force_sync_block(latest_block).await?;
+    while let Some(event) = observer.next().await {
+        if let ObserverEvent::BlockSynced(synced_block) = event? {
+            debug_assert_eq!(latest_block, synced_block);
+            break;
+        }
+    }
+
+    let latest_block_header =
+        OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
+
+    let (program_states, program_code_ids, previous_committed_block) =
+        collect_event_data(db, latest_block).await?;
+    log::info!("Processing blocks");
 
     let mut requests = BufRequests::default();
     let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
-    let mut instrumentation = JoinSet::new();
     // initially fill `BufRequests` and database
     {
         for (&program_id, &state) in &program_states {
@@ -149,24 +158,40 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
         db.set_block_end_program_states(latest_block, program_states);
 
+        let mut codes_to_receive = HashSet::new();
         for (program_id, code_id) in program_code_ids {
             db.set_program_code_id(program_id, code_id);
+            codes_to_receive.insert(code_id);
         }
 
-        for (code_id, code_info) in code_infos {
-            db.set_code_info(code_id, code_info);
-            requests.add(code_id.into_bytes().into(), Request::OriginalCode);
+        log::info!("Instrument {} codes", codes_to_receive.len());
+        for &code_id in &codes_to_receive {
+            let code_info =
+                OnChainStorage::code_info(db, code_id).expect("observer must fulfill database");
+            let original_code =
+                OnChainStorage::original_code(db, code_id).expect("observer must fulfill database");
+            compute.receive_code(code_id, code_info.timestamp, original_code);
         }
+
+        while let Some(event) = compute.next().await {
+            if let ComputeEvent::CodeProcessed(CodeCommitment { id, .. }) = event? {
+                codes_to_receive.remove(&id);
+                if codes_to_receive.is_empty() {
+                    break;
+                }
+            }
+        }
+        log::info!("Instrumentation completed");
     }
     requests.request(network);
 
     while let Some(event) = network.next().await {
-        let (completed, pending) = requests.stats();
-        log::info!("[{completed:>05} / {pending:>05}] Processing synchronization");
-
         let NetworkEvent::DbResponse { request_id, result } = event else {
             continue;
         };
+
+        let (completed, pending) = requests.stats();
+        log::info!("[{completed:>05} / {pending:>05}] Processing synchronization");
 
         match result {
             Ok(db_sync::Response::DataForHashes(data)) => {
@@ -177,14 +202,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
                     for request in completed_requests {
                         match request {
-                            Request::OriginalCode => {
-                                let code_id: CodeId = CodeId::from(hash.0);
-                                let mut processor = processor.clone();
-                                let data = data.clone();
-                                instrumentation.spawn_blocking(move || {
-                                    processor.process_upload_code_raw(code_id, &data)
-                                });
-                            }
                             Request::ProgramState { program_id } => {
                                 let state: ProgramState = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
@@ -296,11 +313,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
     }
 
-    while let Some(res) = instrumentation.join_next().await {
-        let res = res.context("processor panicked")?;
-        let _valid = res.context("instrumentation failed")?;
-    }
-
     db.set_block_end_state_is_valid(latest_block, true);
     db.set_latest_valid_block(latest_block, latest_block_header);
     db.set_block_commitment_queue(latest_block, VecDeque::new());
@@ -319,52 +331,47 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 }
 
 async fn collect_event_data(
-    query: &mut Query,
-    blocks: &[H256],
+    db: &Database,
+    latest_block: H256,
 ) -> Result<(
     BTreeMap<ActorId, H256>,
     Vec<(ActorId, CodeId)>,
-    Vec<(CodeId, CodeInfo)>,
     Option<H256>,
 )> {
     let mut states = BTreeMap::new();
     let mut program_code_ids = Vec::new();
-    let mut code_infos = Vec::new();
     let mut previous_committed_block = None;
 
-    for &block in blocks.iter().rev() {
-        let events = query.get_block_events(block).await?;
+    let mut block = latest_block;
+    while !db.block_end_state_is_valid(block).unwrap_or(false) {
+        let events = db
+            .block_events(block)
+            .ok_or_else(|| anyhow!("no events found for block {block}"))?;
 
-        for event in events {
+        // we only care about the latest events
+        for event in events.into_iter().rev() {
             match event {
                 BlockEvent::Mirror {
                     actor_id,
                     event: MirrorEvent::StateChanged { state_hash },
                 } => {
-                    states.insert(actor_id, state_hash);
+                    states.entry(actor_id).or_insert(state_hash);
                 }
                 BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
-                    previous_committed_block = Some(hash);
+                    previous_committed_block.get_or_insert(hash);
                 }
                 BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
                     program_code_ids.push((actor_id, code_id));
                 }
-                BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                    code_id,
-                    timestamp,
-                    tx_hash,
-                }) => {
-                    code_infos.push((code_id, CodeInfo { timestamp, tx_hash }));
-                }
                 _ => {}
             }
         }
+
+        let header = OnChainStorage::block_header(db, block)
+            .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
+        let parent = header.parent_hash;
+        block = parent;
     }
 
-    Ok((
-        states,
-        program_code_ids,
-        code_infos,
-        previous_committed_block,
-    ))
+    Ok((states, program_code_ids, previous_committed_block))
 }
