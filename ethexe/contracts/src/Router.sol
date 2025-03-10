@@ -390,17 +390,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         address _mirrorAbi = router.implAddresses.mirrorAbi;
 
-        assembly {
+        assembly ("memory-safe") {
             let contractSize := extcodesize(_mirrorAbi)
 
             let ctr := mload(0x40)
-            mstore(ctr, shl(0xa8, 0x6080806040523460155761))
-            let offset := 0x0b
-            mstore8(add(ctr, offset), byte(0x1e, contractSize))
-            mstore8(add(ctr, add(offset, 0x01)), byte(0x1f, contractSize))
+            mstore(ctr, shl(0xf0, 0x3d61))
+            let offset := 0x02
+            mstore(add(ctr, offset), shl(0xf0, contractSize))
             offset := add(offset, 0x02)
-            mstore(add(ctr, offset), shl(0xa0, 0x90816100198239f35b5f80fd))
-            offset := add(offset, 0x0c)
+            mstore(add(ctr, offset), shl(0xc8, 0x80600b3d3981f3))
+            offset := add(offset, 0x07)
             mstore(0x40, add(ctr, offset))
 
             let prefixSize := offset

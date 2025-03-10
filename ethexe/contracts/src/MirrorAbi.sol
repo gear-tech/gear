@@ -28,16 +28,17 @@ contract MirrorAbi is IMirror, Proxy {
         impl = _impl;
         _abi = _interface;
 
-        assembly {
+        assembly ("memory-safe") {
             sstore(PROXY_SLOT, _interface)
         }
     }
 
     function _delegate(address) internal override {
         uint len = msg.data.length;
+        require(len >= 32, "Mirror: invalid message data length");
         uint128 value = uint128(uint256(bytes32(msg.data[len - 32])));
 
-        bytes memory payload = abi.encodeWithSignature("sendMessage(bytes,uint128)", msg.data, value);
+        bytes memory payload = abi.encodeWithSelector(IMirror.sendMessage.selector, msg.data, value);
 
         (bool success,) = impl.delegatecall(payload);
 
@@ -49,7 +50,7 @@ contract MirrorAbi is IMirror, Proxy {
     }
 
     function _mirrorImplDelegatecall() private returns (bytes memory resultData) {
-        assembly {
+        assembly ("memory-safe") {
             let freeMemPtr := mload(0x40)
             let implAddr := sload(impl.slot)
 
@@ -131,7 +132,7 @@ contract MirrorAbi is IMirror, Proxy {
     {
         bytes memory result = _mirrorImplDelegatecall();
 
-        assembly {
+        assembly ("memory-safe") {
             resultData := mload(result)
         }
     }
@@ -161,13 +162,13 @@ contract MirrorAbi is IMirror, Proxy {
     function performStateTransition(Gear.StateTransition calldata /*_transition*/) external onlyRouter returns (bytes32 resultData) {
         bytes memory result = _mirrorImplDelegatecall();
 
-        assembly {
+        assembly ("memory-safe") {
             resultData := mload(result)
         }
     }
 
     receive() external payable {
-        revert("");
+        revert();
     }
 
     function _wvara(address routerAddr) private view returns (IWrappedVara) {
