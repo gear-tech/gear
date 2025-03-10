@@ -22,7 +22,7 @@ use crate::{
     env_vars::EnvVars,
     ids::{MessageId, ProgramId, ReservationId},
     memory::Memory,
-    message::{DispatchKind, HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
     pages::WasmPage,
 };
 use alloc::collections::BTreeSet;

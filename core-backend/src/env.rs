@@ -261,12 +261,6 @@ where
         add_function!(Free, free);
         add_function!(FreeRange, free_range);
     }
-}
-
-        add_function!(Alloc, alloc);
-        add_function!(Free, free);
-        add_function!(FreeRange, free_range);
-    }
 
     fn setup_memory(ext: Ext, binary: &[u8], mem_size: WasmPagesAmount) -> SetupMemoryResult<Ext> {
         use EnvironmentError::*;
