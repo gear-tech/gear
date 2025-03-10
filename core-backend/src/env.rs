@@ -77,18 +77,12 @@ fn store_host_state_mut<Ext: Send + 'static>(
     })
 }
 
-pub type EnvironmentExecutionOk<'a, Ext, EntryPoint> =
-    Environment<'a, Ext, EntryPoint, SuccessExecution>;
-pub type EnvironmentExecutionErr<'a, Ext, EntryPoint> =
-    Environment<'a, Ext, EntryPoint, FailedExecution>;
-pub type EnvironmentExecutionResult<'a, Ext, EntryPoint> = Result<
-    EnvironmentExecutionOk<'a, Ext, EntryPoint>,
-    EnvironmentExecutionErr<'a, Ext, EntryPoint>,
->;
+pub type EnvironmentExecutionOk<'a, Ext> = Environment<'a, Ext, SuccessExecution>;
+pub type EnvironmentExecutionErr<'a, Ext> = Environment<'a, Ext, FailedExecution>;
+pub type EnvironmentExecutionResult<'a, Ext> =
+    Result<EnvironmentExecutionOk<'a, Ext>, EnvironmentExecutionErr<'a, Ext>>;
 
-impl<Ext: BackendExternalities, EntryPoint: WasmEntryPoint> Debug
-    for EnvironmentExecutionErr<'_, Ext, EntryPoint>
-{
+impl<Ext: BackendExternalities> Debug for EnvironmentExecutionErr<'_, Ext> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("EnvironmentExecutionErr").finish()
     }
@@ -124,14 +118,12 @@ pub struct FailedExecution;
 pub struct SuccessExecution;
 
 /// Environment to run one module at a time providing Ext.
-pub struct Environment<'a, Ext, EntryPoint = DispatchKind, State = ReadyToExecute>
+pub struct Environment<'a, Ext, State = ReadyToExecute>
 where
     Ext: BackendExternalities,
-    EntryPoint: WasmEntryPoint,
 {
     instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     entries: BTreeSet<DispatchKind>,
-    entry_point: EntryPoint,
     store: Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     memory: BackendMemory<ExecutorMemory>,
     code: &'a [u8],
@@ -187,13 +179,12 @@ impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
     }
 }
 
-impl<Ext, EntryPoint, T> Environment<'_, Ext, EntryPoint, T>
+impl<Ext, T> Environment<'_, Ext, T>
 where
     Ext: BackendExternalities + Send + 'static,
     Ext::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<Ext::FallibleError>,
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
-    EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
     fn bind_funcs(builder: &mut EnvBuilder<Ext>) {
@@ -369,27 +360,24 @@ impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvi
     }
 }
 
-impl<'a, EnvExt, EntryPoint> Environment<'a, EnvExt, EntryPoint>
+impl<'a, EnvExt> Environment<'a, EnvExt>
 where
     EnvExt: BackendExternalities + Send + 'static,
     EnvExt::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
-    EntryPoint: WasmEntryPoint,
 {
     pub fn new(
         ext: EnvExt,
         binary: &'a [u8],
-        entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPagesAmount,
-    ) -> Result<Environment<'a, EnvExt, EntryPoint, ReadyToExecute>, EnvironmentError> {
+    ) -> Result<Environment<'a, EnvExt, ReadyToExecute>, EnvironmentError> {
         let (store, memory, instance) = Self::setup_memory(ext, binary, mem_size)?;
 
         Ok(Environment {
             instance,
             entries,
-            entry_point,
             store,
             memory,
             code: binary,
@@ -399,29 +387,28 @@ where
     }
 }
 
-impl<'a, EnvExt, EntryPoint> Environment<'a, EnvExt, EntryPoint, ReadyToExecute>
+impl<'a, EnvExt> Environment<'a, EnvExt, ReadyToExecute>
 where
     EnvExt: BackendExternalities + Send + 'static,
     EnvExt::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
-    EntryPoint: WasmEntryPoint,
 {
     pub fn execute(
         self,
+        entry_point: impl WasmEntryPoint,
         prepare_memory: impl FnOnce(
             &mut Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>>,
             &mut BackendMemory<ExecutorMemory>,
             GlobalsAccessConfig,
         ),
-    ) -> Result<EnvironmentExecutionResult<'a, EnvExt, EntryPoint>, EnvironmentError> {
+    ) -> Result<EnvironmentExecutionResult<'a, EnvExt>, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
 
         let Self {
             mut instance,
             entries,
-            entry_point,
             mut store,
             mut memory,
             code,
@@ -518,7 +505,6 @@ where
             Ok(Ok(Environment {
                 instance,
                 entries,
-                entry_point,
                 store,
                 memory,
                 code,
@@ -529,7 +515,6 @@ where
             Ok(Err(Environment {
                 instance,
                 entries,
-                entry_point,
                 store,
                 memory,
                 code,
@@ -540,26 +525,24 @@ where
     }
 }
 
-impl<EnvExt, EntryPoint> Environment<'_, EnvExt, EntryPoint, SuccessExecution>
+impl<EnvExt> Environment<'_, EnvExt, SuccessExecution>
 where
     EnvExt: BackendExternalities + Send + 'static,
     EnvExt::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
-    EntryPoint: WasmEntryPoint,
 {
     pub fn report(self) -> BackendReport<EnvExt> {
         self.report_impl()
     }
 }
 
-impl<'a, EnvExt, EntryPoint> Environment<'a, EnvExt, EntryPoint, FailedExecution>
+impl<'a, EnvExt> Environment<'a, EnvExt, FailedExecution>
 where
     EnvExt: BackendExternalities + Send + 'static,
     EnvExt::UnrecoverableError: BackendSyscallError,
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
-    EntryPoint: WasmEntryPoint,
 {
     pub fn report(self) -> BackendReport<EnvExt> {
         self.report_impl()
@@ -568,20 +551,14 @@ where
         self,
         ext: EnvExt,
         mem_size: WasmPagesAmount,
-    ) -> Result<Environment<'a, EnvExt, EntryPoint, ReadyToExecute>, EnvironmentError> {
-        let Self {
-            entries,
-            entry_point,
-            code,
-            ..
-        } = self;
+    ) -> Result<Environment<'a, EnvExt, ReadyToExecute>, EnvironmentError> {
+        let Self { entries, code, .. } = self;
 
         let (store, memory, instance) = Self::setup_memory(ext, code, mem_size)?;
 
         Ok(Environment {
             instance,
             entries,
-            entry_point,
             store,
             memory,
             code,

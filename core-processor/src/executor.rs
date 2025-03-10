@@ -137,11 +137,10 @@ where
         let env = Environment::new(
             ext,
             program.code.code(),
-            kind,
             program.code.exports().clone(),
             memory_size,
         )?;
-        env.execute(|ctx, memory, globals_config| {
+        env.execute(kind, |ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 memory,
@@ -363,11 +362,10 @@ where
         let env = Environment::new(
             ext,
             program.code.code(),
-            function,
             program.code.exports().clone(),
             memory_size,
         )?;
-        env.execute(|ctx, memory, globals_config| {
+        env.execute(function, |ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 memory,

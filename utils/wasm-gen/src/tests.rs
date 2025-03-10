@@ -1057,14 +1057,13 @@ fn execute_wasm_with_custom_configs(
     let env = Environment::new(
         ext,
         code.code(),
-        DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),
     )
     .expect("Failed to create environment");
 
     let execution_result = env
-        .execute(|ctx, mem, globals_config| {
+        .execute(DispatchKind::Init, |ctx, mem, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 mem,

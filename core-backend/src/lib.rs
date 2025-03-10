@@ -89,9 +89,8 @@ mod tests {
 
         // Execute wasm and check success.
         let ext = MockExt::default();
-        let env =
-            Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-        let execution_result = env.execute(|_, _, _| {}).unwrap();
+        let env = Environment::new(ext, &code, Default::default(), 0.into()).unwrap();
+        let execution_result = env.execute(DispatchKind::Init, |_, _, _| {}).unwrap();
 
         let BackendReport {
             termination_reason, ..
