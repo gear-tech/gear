@@ -44,6 +44,7 @@ use frame_system::{
     EnsureRoot,
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
+use gear_core::constants::{PERFORMANCE_MULTIPLIER, MAILBOX_THRESHOLD, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT};
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 use pallet_gear_builtin::ActorWithId;
 use pallet_grandpa::{
@@ -1127,13 +1128,13 @@ parameter_types! {
     pub const ReservationCost: u64 = 100;
     pub const DispatchHoldCost: u64 = 100;
 
-    pub const OutgoingLimit: u32 = 1024;
+    pub const OutgoingLimit: u32 = OUTGOING_LIMIT;
     // 64 MB, must be less than max runtime heap memory.
     // NOTE: currently runtime heap memory is 1 GB (see https://shorturl.at/DET45)
-    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
-    pub const MailboxThreshold: u64 = 3000;
+    pub const OutgoingBytesLimit: u32 = OUTGOING_BYTES_LIMIT;
+    pub const MailboxThreshold: u64 = MAILBOX_THRESHOLD;
 
-    pub const PerformanceMultiplier: u32 = 100;
+    pub const PerformanceMultiplier: u32 = PERFORMANCE_MULTIPLIER;
 }
 
 parameter_types! {

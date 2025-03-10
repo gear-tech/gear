@@ -31,8 +31,7 @@ use frame_support::{
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::{
-    ids::{MessageId, ProgramId},
-    message::UserStoredMessage,
+    constants::BLOCK_HASH_COUNT, ids::{MessageId, ProgramId}, message::UserStoredMessage
 };
 use primitive_types::H256;
 use sp_core::ConstU8;
@@ -61,7 +60,7 @@ construct_runtime!(
 );
 
 parameter_types! {
-    pub const BlockHashCount: BlockNumber = 250;
+    pub const BlockHashCount: BlockNumber = BLOCK_HASH_COUNT;
     pub const ExistentialDeposit: Balance = 1;
 }
 

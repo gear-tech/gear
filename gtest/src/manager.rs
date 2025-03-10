@@ -80,9 +80,7 @@ mod send_dispatch;
 mod task;
 mod wait_wake;
 
-const OUTGOING_LIMIT: u32 = 1024;
-const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
-
+use gear_core::constants::{OUTGOING_LIMIT, OUTGOING_BYTES_LIMIT};
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
     // State metadata

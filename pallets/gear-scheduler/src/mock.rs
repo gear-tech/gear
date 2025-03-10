@@ -28,6 +28,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
+use gear_core::constants::{BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_LIMIT};
 use pallet_gear::GasAllowanceOf;
 use sp_core::{ConstBool, H256};
 use sp_runtime::{
@@ -77,22 +78,22 @@ pallet_gear::impl_config!(Test, Schedule = GearSchedule);
 pallet_gear_gas::impl_config!(Test);
 
 parameter_types! {
-    pub const BlockHashCount: BlockNumber = 250;
+    pub const BlockHashCount: BlockNumber = BLOCK_HASH_COUNT;
     pub const ExistentialDeposit: Balance = 500;
     pub ReserveThreshold: BlockNumber = 1;
 }
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
-    pub const OutgoingLimit: u32 = 1024;
-    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
-    pub const PerformanceMultiplier: u32 = 100;
+    pub const OutgoingLimit: u32 = OUTGOING_LIMIT;
+    pub const OutgoingBytesLimit: u32 = OUTGOING_BYTES_LIMIT;
+    pub const PerformanceMultiplier: u32 = PERFORMANCE_MULTIPLIER;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const BankAddress: AccountId = 15082001;
+    pub const BankAddress: AccountId = BANK_ADDRESS;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
     pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
     pub SplitTxFeeRatio: Option<u32> = None;

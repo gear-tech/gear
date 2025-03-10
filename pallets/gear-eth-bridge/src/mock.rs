@@ -23,6 +23,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+use gear_core::constants::{BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER};
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
@@ -140,7 +141,7 @@ mod grandpa_keys_handler {
 pub type VaraSessionHandler = (grandpa_keys_handler::GrandpaAndGearEthBridge,);
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: u64 = BLOCK_HASH_COUNT;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
 
@@ -151,16 +152,16 @@ common::impl_pallet_timestamp!(Test);
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
-    pub const OutgoingLimit: u32 = 1024;
-    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
+    pub const OutgoingLimit: u32 = OUTGOING_LIMIT;
+    pub const OutgoingBytesLimit: u32 = OUTGOING_BYTES_LIMIT;
     pub ReserveThreshold: BlockNumber = 1;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 12_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const PerformanceMultiplier: u32 = 100;
-    pub const BankAddress: AccountId = 15082001;
+    pub const PerformanceMultiplier: u32 = PERFORMANCE_MULTIPLIER;
+    pub const BankAddress: AccountId = BANK_ADDRESS;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
     pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
     pub SplitTxFeeRatio: Option<u32> = None;

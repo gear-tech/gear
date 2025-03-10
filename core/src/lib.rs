@@ -43,6 +43,7 @@ pub mod program;
 pub mod reservation;
 pub mod str;
 pub mod tasks;
+pub mod constants;
 pub mod utils {
     //! Utility functions.
 

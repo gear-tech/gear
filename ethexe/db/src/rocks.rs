@@ -128,6 +128,7 @@ fn configure_rocksdb() -> Options {
     opts.create_if_missing(true);
     opts.increase_parallelism(8);
     opts.set_max_background_jobs(4);
+    // todo(playx): should this also use gear_core::OUTGOING_BYTES_LIMIT?
     opts.set_write_buffer_size(64 * 1024 * 1024);
     opts.set_max_write_buffer_number(3);
     opts.set_use_fsync(false);

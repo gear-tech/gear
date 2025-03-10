@@ -21,6 +21,7 @@ use frame_support::{
     construct_runtime, parameter_types, traits::ConstU32, weights::constants::RocksDbWeight,
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+use gear_core::constants::BLOCK_HASH_COUNT;
 use primitive_types::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
@@ -55,7 +56,7 @@ pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 
 parameter_types! {
-    pub const BlockHashCount: BlockNumber = 250;
+    pub const BlockHashCount: BlockNumber = BLOCK_HASH_COUNT;
     pub const ExistentialDeposit: Balance = 1;
     pub const GearBlockNumber: BlockNumber = 100;
 }

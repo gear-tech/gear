@@ -33,6 +33,7 @@ use frame_support::{
     PalletId,
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
+use gear_core::constants::BLOCK_HASH_COUNT;
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
@@ -77,7 +78,7 @@ common::impl_pallet_timestamp!(Test);
 
 parameter_types! {
     pub const BlockGasLimit: u64 = MAX_BLOCK;
-    pub const BlockHashCount: BlockNumber = 250;
+    pub const BlockHashCount: BlockNumber = BLOCK_HASH_COUNT;
     pub const ExistentialDeposit: Balance = 500;
     pub ReserveThreshold: BlockNumber = 1;
 }
