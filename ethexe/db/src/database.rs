@@ -43,23 +43,37 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+// TODO (gsobol): because router address is a part of almost all keys, consider to use different db for each router.
+// TODO (gsobol): make separate structures for each key prefix. Each structure should have own method for key generation.
 #[repr(u64)]
 enum KeyPrefix {
+    /// BlockSmallData key prefix uses two keys: router address and block hash.
     BlockSmallData = 0,
+    /// BlockEvents key prefix uses two keys: router address and block hash.
     BlockEvents = 1,
 
+    /// BlockProgramStates key prefix uses two keys: router address and block hash.
     BlockProgramStates = 2,
+    /// BlockOutcome key prefix uses two keys: router address and block hash.
     BlockOutcome = 3,
+    /// BlockSchedule key prefix uses two keys: router address and block hash.
     BlockSchedule = 4,
 
+    /// ProgramToCodeId key prefix uses two keys: router address and program id.
     ProgramToCodeId = 5,
+    /// InstrumentedCode key prefix uses three keys: router address, runtime id and code id.
     InstrumentedCode = 6,
+    /// CodeUploadInfo key prefix uses two keys: router address and code id.
     CodeUploadInfo = 7,
+    /// CodeValid key prefix uses two keys: router address and code id.
     CodeValid = 8,
 
+    /// SignedTransaction key prefix uses one key: transaction hash.
     SignedTransaction = 9,
 
+    /// LatestComputedBlock key prefix uses one key: router address.
     LatestComputedBlock = 10,
+    /// LatestSyncedBlockHeight key prefix uses one key: router address.
     LatestSyncedBlockHeight = 11,
 }
 
