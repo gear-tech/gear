@@ -29,6 +29,7 @@ extern crate alloc;
 
 pub mod buffer;
 pub mod code;
+pub mod constants;
 pub mod costs;
 pub mod env;
 pub mod env_vars;
@@ -43,7 +44,6 @@ pub mod program;
 pub mod reservation;
 pub mod str;
 pub mod tasks;
-pub mod constants;
 pub mod utils {
     //! Utility functions.
 

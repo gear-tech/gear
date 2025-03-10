@@ -30,7 +30,10 @@ use core_processor::{
 };
 use ethexe_common::gear::Origin;
 use gear_core::{
-    code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT}, constants::{OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT}, ids::ProgramId, message::{DispatchKind, IncomingDispatch, IncomingMessage}
+    code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
+    constants::{OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT},
+    ids::ProgramId,
+    message::{DispatchKind, IncomingDispatch, IncomingMessage},
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::CodeId;

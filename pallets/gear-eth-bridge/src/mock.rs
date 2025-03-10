@@ -23,7 +23,9 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use gear_core::constants::{BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER};
+use gear_core::constants::{
+    BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER,
+};
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};

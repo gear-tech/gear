@@ -34,7 +34,12 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use gear_core::{
-    constants::{BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER}, ids::ProgramId, message::{Payload, StoredDispatch}
+    constants::{
+        BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT,
+        PERFORMANCE_MULTIPLIER,
+    },
+    ids::ProgramId,
+    message::{Payload, StoredDispatch},
 };
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_core::H256;

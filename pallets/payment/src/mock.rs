@@ -29,7 +29,9 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, mocking, pallet_prelude::BlockNumberFor};
-use gear_core::constants::{BANK_ADDRESS, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER};
+use gear_core::constants::{
+    BANK_ADDRESS, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER,
+};
 use pallet_gear_voucher::VoucherId;
 #[allow(deprecated)]
 use pallet_transaction_payment::CurrencyAdapter;

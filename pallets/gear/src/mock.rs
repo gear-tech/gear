@@ -28,7 +28,9 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, mocking, pallet_prelude::BlockNumberFor};
-use gear_core::constants::{BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER};
+use gear_core::constants::{
+    BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER,
+};
 use sp_core::{ConstU8, H256};
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},

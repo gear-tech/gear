@@ -44,7 +44,9 @@ use frame_system::{
     EnsureRoot,
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
-use gear_core::constants::{PERFORMANCE_MULTIPLIER, MAILBOX_THRESHOLD, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT};
+use gear_core::constants::{
+    MAILBOX_THRESHOLD, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER,
+};
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 use pallet_gear_builtin::ActorWithId;
 use pallet_grandpa::{

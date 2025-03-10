@@ -31,7 +31,9 @@ use frame_support::{
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::{
-    constants::BLOCK_HASH_COUNT, ids::{MessageId, ProgramId}, message::UserStoredMessage
+    constants::BLOCK_HASH_COUNT,
+    ids::{MessageId, ProgramId},
+    message::UserStoredMessage,
 };
 use primitive_types::H256;
 use sp_core::ConstU8;

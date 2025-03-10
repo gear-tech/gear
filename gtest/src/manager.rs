@@ -80,7 +80,7 @@ mod send_dispatch;
 mod task;
 mod wait_wake;
 
-use gear_core::constants::{OUTGOING_LIMIT, OUTGOING_BYTES_LIMIT};
+use gear_core::constants::{OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT};
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
     // State metadata
