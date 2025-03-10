@@ -245,7 +245,7 @@ impl ObserverService {
     /// If genesis block is not yet fully setup in the database, we need to do it
     async fn pre_process_genesis_for_db(
         db: &Database,
-        provider: &Provider,
+        provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<()> {
         use ethexe_common::db::BlockMetaStorage;
@@ -257,7 +257,7 @@ impl ObserverService {
         }
 
         let genesis_block = provider
-            .get_block_by_hash(genesis_block_hash.0.into(), Default::default())
+            .get_block_by_hash(genesis_block_hash.0.into())
             .await?
             .ok_or_else(|| {
                 anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
