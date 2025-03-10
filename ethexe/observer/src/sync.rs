@@ -18,8 +18,8 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{BlobReader, Provider, RuntimeConfig};
-use alloy::rpc::types::eth::Header;
+use crate::{BlobReader, RuntimeConfig};
+use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{
     db::OnChainStorage,
@@ -40,7 +40,7 @@ use std::{
 
 // TODO (gsobol): make tests for ChainSync
 pub(crate) struct ChainSync {
-    pub provider: Provider,
+    pub provider: RootProvider,
     pub database: Box<dyn OnChainStorage>,
     pub blobs_reader: Arc<dyn BlobReader>,
     pub config: RuntimeConfig,

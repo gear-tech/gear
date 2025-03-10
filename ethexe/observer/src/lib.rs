@@ -22,7 +22,6 @@ use alloy::{
     providers::{Provider as _, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
-    transports::BoxTransport,
 };
 use anyhow::{anyhow, Context as _, Result};
 use ethexe_common::{db::OnChainStorage, SimpleBlockData};
@@ -44,8 +43,6 @@ use std::{
 };
 use sync::ChainSync;
 use utils::*;
-
-pub type Provider = RootProvider<BoxTransport>;
 
 mod blobs;
 mod sync;
@@ -88,7 +85,7 @@ struct RuntimeConfig {
 
 // TODO (gsobol): make tests for observer service
 pub struct ObserverService {
-    provider: Provider,
+    provider: RootProvider,
     database: Box<dyn OnChainStorage>,
     // TODO (gsobol): consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
@@ -212,8 +209,8 @@ impl ObserverService {
 
         let wvara_address = Address(router_query.wvara_address().await?.0 .0);
 
-        let provider = ProviderBuilder::new()
-            .on_builtin(rpc)
+        let provider = ProviderBuilder::default()
+            .connect(rpc)
             .await
             .context("failed to create ethereum provider")?;
 
@@ -246,7 +243,7 @@ impl ObserverService {
         })
     }
 
-    pub fn provider(&self) -> &Provider {
+    pub fn provider(&self) -> &RootProvider {
         &self.provider
     }
 
@@ -273,7 +270,7 @@ impl ObserverService {
     /// If genesis block is not yet fully setup in the database, we need to do it
     async fn pre_process_genesis_for_db<DB>(
         db: &DB,
-        provider: &Provider,
+        provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<()>
     where
@@ -286,7 +283,7 @@ impl ObserverService {
         }
 
         let genesis_block = provider
-            .get_block_by_hash(genesis_block_hash.0.into(), Default::default())
+            .get_block_by_hash(genesis_block_hash.0.into())
             .await?
             .ok_or_else(|| {
                 anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
