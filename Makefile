@@ -16,8 +16,8 @@ ethexe-contracts-pre-commit:
 	@ echo " > Building contracts" && forge build --root ethexe/contracts
 	@ echo " > Testing contracts" && forge test --root ethexe/contracts -vvv
 	@ echo " > Copying Router arfitact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
-	@ echo " > Copying Mirror arfitact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
-	@ echo " > Copying MirrorProxy arfitact" && cp ./ethexe/contracts/out/MirrorProxy.sol/MirrorProxy.json ./ethexe/ethereum
+	@ echo " > Copying MirrorAbi arfitact" && cp ./ethexe/contracts/out/MirrorAbi.sol/MirrorAbi.json ./ethexe/ethereum
+	@ echo " > Copying MirrorImpl arfitact" && cp ./ethexe/contracts/out/MirrorImpl.sol/MirrorImpl.json ./ethexe/ethereum
 	@ echo " > Copying WrappedVara arfitact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
 	@ echo " > Copying TransparentUpgradeableProxy arfitact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
 
