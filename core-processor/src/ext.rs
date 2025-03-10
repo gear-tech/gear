@@ -578,7 +578,7 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
             ..
         } = self.context;
 
-        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
+        let (static_pages, allocations, allocations_changed) = allocations_context.into_parts();
 
         // Accessed pages are all pages, that had been released and are in allocations set or static.
         let mut accessed_pages = LP::get_write_accessed_pages();
@@ -617,7 +617,8 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
             gas_amount: gas_counter.to_amount(),
             gas_reserver,
             system_reservation_context,
-            allocations: (allocations != initial_allocations).then_some(allocations),
+            // `allocations_changed` can be some times `true` event if final state of allocations is the same as before execution
+            allocations: allocations_changed.then_some(allocations),
             pages_data,
             generated_dispatches,
             awakening,
@@ -1421,8 +1422,8 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         &self.context.forbidden_funcs
     }
 
-    fn endpoint_dispatch_kind(&self) -> DispatchKind {
-        self.context.message_context.kind()
+    fn msg_ctx(&self) -> &MessageContext {
+        &self.context.message_context
     }
 }
 

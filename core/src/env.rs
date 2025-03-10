@@ -392,6 +392,6 @@ pub trait Externalities {
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
 
-    /// Return the current dispatch kind.
-    fn endpoint_dispatch_kind(&self) -> DispatchKind;
+    /// Return the current message context.
+    fn msg_ctx(&self) -> &MessageContext;
 }

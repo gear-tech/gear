@@ -24,9 +24,10 @@ use alloy::{
     rpc::types::eth::Header,
     transports::BoxTransport,
 };
-use anyhow::{Context as _, Result};
-use ethexe_common::events::{BlockEvent, BlockRequestEvent, RouterEvent};
-use ethexe_db::BlockHeader;
+use anyhow::{anyhow, Context as _, Result};
+use ethexe_common::{db::OnChainStorage, SimpleBlockData};
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo};
+use ethexe_ethereum::router::RouterQuery;
 use ethexe_signer::Address;
 use futures::{
     future::BoxFuture,
@@ -34,29 +35,29 @@ use futures::{
     FutureExt, Stream, StreamExt,
 };
 use gprimitives::{CodeId, H256};
-use parity_scale_codec::{Decode, Encode};
 use std::{
+    collections::VecDeque,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
+use sync::ChainSync;
+use utils::*;
 
-pub(crate) type Provider = RootProvider<BoxTransport>;
+pub type Provider = RootProvider<BoxTransport>;
 
 mod blobs;
-mod observer;
-mod query;
+mod sync;
+mod utils;
 
 #[cfg(test)]
 mod tests;
 
 pub use blobs::*;
-pub use observer::*;
-pub use query::*;
 
 type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, u64, Vec<u8>)>>;
-type BlockFuture = BoxFuture<'static, Result<(H256, BlockHeader, Vec<BlockEvent>)>>;
+type SyncFuture = BoxFuture<'static, Result<(H256, Vec<(CodeId, CodeInfo)>)>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -73,21 +74,33 @@ pub enum ObserverEvent {
         timestamp: u64,
         code: Vec<u8>,
     },
-    Block(BlockData),
+    Block(SimpleBlockData),
+    BlockSynced(H256),
 }
 
+#[derive(Clone, Debug)]
+struct RuntimeConfig {
+    router_address: Address,
+    wvara_address: Address,
+    max_sync_depth: u32,
+    batched_sync_depth: u32,
+}
+
+// TODO (gsobol): make tests for observer service
 pub struct ObserverService {
-    blobs: Arc<dyn BlobReader>,
     provider: Provider,
+    database: Box<dyn OnChainStorage>,
+    // TODO (gsobol): consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
+    blobs_reader: Arc<dyn BlobReader>,
     subscription: Subscription<Header>,
 
-    router: Address,
+    config: RuntimeConfig,
 
     last_block_number: u32,
 
     headers_stream: SubscriptionStream<Header>,
-    block_future: Option<BlockFuture>,
-
+    block_sync_queue: VecDeque<Header>,
+    sync_future: Option<SyncFuture>,
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
 }
 
@@ -95,32 +108,56 @@ impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.block_future.is_none() {
-            if let Poll::Ready(res) = self.headers_stream.poll_next_unpin(cx) {
-                if let Some(header) = res {
-                    self.block_future = Some(Box::pin(Self::get_block(
-                        header,
-                        self.provider.clone(),
-                        self.router,
-                    )));
-                } else {
-                    // TODO: test resubscribe works.
-                    log::warn!("Alloy headers stream ended, resubscribing");
-                    self.headers_stream = self.subscription.resubscribe().into_stream();
-                    cx.waker().wake_by_ref();
-                    return Poll::Pending;
-                }
+        if let Poll::Ready(res) = self.headers_stream.poll_next_unpin(cx) {
+            let Some(header) = res else {
+                // TODO (breathx): test resubscribe works.
+                log::warn!("Alloy headers stream ended, resubscribing");
+                self.headers_stream = self.subscription.resubscribe().into_stream();
+                cx.waker().wake_by_ref();
+                return Poll::Pending;
+            };
+
+            let data = SimpleBlockData {
+                hash: H256(header.hash.0),
+                header: BlockHeader {
+                    height: header.number as u32,
+                    timestamp: header.timestamp,
+                    parent_hash: H256(header.parent_hash.0),
+                },
+            };
+
+            log::trace!("Received a new block: {data:?}");
+
+            self.block_sync_queue.push_back(header);
+
+            return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
+        }
+
+        if self.sync_future.is_none() {
+            if let Some(header) = self.block_sync_queue.pop_front() {
+                let sync = ChainSync {
+                    provider: self.provider.clone(),
+                    database: self.database.clone_boxed(),
+                    blobs_reader: self.blobs_reader.clone(),
+                    config: self.config.clone(),
+                };
+                self.sync_future = Some(Box::pin(sync.sync(header)));
             }
         }
 
-        if let Some(fut) = self.block_future.as_mut() {
+        if let Some(fut) = self.sync_future.as_mut() {
             if let Poll::Ready(res) = fut.poll_unpin(cx) {
-                let event =
-                    res.map(|(hash, header, events)| self.handle_stream_next(hash, header, events));
+                self.sync_future = None;
 
-                self.block_future = None;
+                let res = res.map(|(hash, codes)| {
+                    for (code_id, code_info) in codes {
+                        self.lookup_code(code_id, code_info.timestamp, code_info.tx_hash);
+                    }
 
-                return Poll::Ready(Some(event));
+                    ObserverEvent::BlockSynced(hash)
+                });
+
+                return Poll::Ready(Some(res));
             }
         }
 
@@ -145,22 +182,38 @@ impl FusedStream for ObserverService {
 }
 
 impl ObserverService {
-    pub async fn new(config: &EthereumConfig) -> Result<Self> {
-        let blobs = Arc::new(
-            ConsensusLayerBlobReader::new(&config.rpc, &config.beacon_rpc, config.block_time)
-                .await
-                .context("failed to create blob reader")?,
-        );
+    pub async fn new<DB>(
+        eth_cfg: &EthereumConfig,
+        max_sync_depth: u32,
+        db: &DB,
+        // TODO (gsobol): blobs reader should be provided by the caller always.
+        blobs_reader: Option<Arc<dyn BlobReader>>,
+    ) -> Result<Self>
+    where
+        DB: OnChainStorage + BlockMetaStorage,
+    {
+        let EthereumConfig {
+            rpc,
+            beacon_rpc,
+            router_address,
+            block_time,
+        } = eth_cfg;
 
-        Self::new_with_blobs(config, blobs).await
-    }
+        let blobs_reader = match blobs_reader {
+            Some(reader) => reader,
+            None => Arc::new(
+                ConsensusLayerBlobReader::new(rpc, beacon_rpc, *block_time)
+                    .await
+                    .context("failed to create blob reader")?,
+            ),
+        };
 
-    pub async fn new_with_blobs(
-        config: &EthereumConfig,
-        blobs: Arc<dyn BlobReader>,
-    ) -> Result<Self> {
+        let router_query = RouterQuery::new(rpc, *router_address).await?;
+
+        let wvara_address = Address(router_query.wvara_address().await?.0 .0);
+
         let provider = ProviderBuilder::new()
-            .on_builtin(&config.rpc)
+            .on_builtin(rpc)
             .await
             .context("failed to create ethereum provider")?;
 
@@ -169,17 +222,27 @@ impl ObserverService {
             .await
             .context("failed to subscribe blocks")?;
 
+        Self::pre_process_genesis_for_db(db, &provider, &router_query).await?;
+
         let headers_stream = subscription.resubscribe().into_stream();
 
         Ok(Self {
-            blobs,
             provider,
+            database: OnChainStorage::clone_boxed(db),
+            blobs_reader,
             subscription,
-            router: config.router_address,
+            config: RuntimeConfig {
+                router_address: *router_address,
+                wvara_address,
+                max_sync_depth,
+                // TODO (gsobol): make this configurable. Important: must be greater than 1.
+                batched_sync_depth: 2,
+            },
             last_block_number: 0,
             headers_stream,
-            block_future: None,
-            codes_futures: FuturesUnordered::new(),
+            codes_futures: Default::default(),
+            block_sync_queue: Default::default(),
+            sync_future: Default::default(),
         })
     }
 
@@ -194,122 +257,65 @@ impl ObserverService {
         }
     }
 
-    pub fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
-        self.codes_futures.push(Box::pin(read_code_from_tx_hash(
-            self.blobs.clone(),
-            code_id,
-            timestamp,
-            tx_hash,
-            Some(3),
-        )));
-    }
-
-    async fn get_block(
-        header: Header,
-        provider: Provider,
-        router: Address,
-    ) -> Result<(H256, BlockHeader, Vec<BlockEvent>)> {
-        let hash = (*header.hash).into();
-        let parent_hash = (*header.parent_hash).into();
-        let block_number = header.number as u32;
-        let block_timestamp = header.timestamp;
-
-        let header = BlockHeader {
-            height: block_number,
-            timestamp: block_timestamp,
-            parent_hash,
-        };
-
-        read_block_events(hash, &provider, router.0.into())
-            .await
-            .map(|events| (hash, header, events))
-    }
-
-    fn handle_stream_next(
-        &mut self,
-        hash: H256,
-        header: BlockHeader,
-        events: Vec<BlockEvent>,
-    ) -> ObserverEvent {
-        // TODO (breathx): set in db?
-        log::trace!("Received block: {hash:?}");
-
-        self.last_block_number = header.height;
-
-        // TODO: replace me with proper processing of all events, including commitments.
-        for event in &events {
-            if let BlockEvent::Router(RouterEvent::CodeValidationRequested {
+    fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
+        self.codes_futures
+            .push(Box::pin(utils::read_code_from_tx_hash(
+                self.blobs_reader.clone(),
                 code_id,
                 timestamp,
                 tx_hash,
-            }) = event
-            {
-                self.lookup_code(*code_id, *timestamp, *tx_hash);
-            }
+                Some(3),
+            )));
+    }
+
+    // TODO (gsobol): this is a temporary solution.
+    // Choose a better place for this, out of ObserverService.
+    /// If genesis block is not yet fully setup in the database, we need to do it
+    async fn pre_process_genesis_for_db<DB>(
+        db: &DB,
+        provider: &Provider,
+        router_query: &RouterQuery,
+    ) -> Result<()>
+    where
+        DB: OnChainStorage + BlockMetaStorage,
+    {
+        let genesis_block_hash = router_query.genesis_block_hash().await?;
+
+        if BlockMetaStorage::block_end_state_is_valid(db, genesis_block_hash).unwrap_or(false) {
+            return Ok(());
         }
 
-        ObserverEvent::Block(BlockData {
-            hash,
-            header,
-            events,
-        })
+        let genesis_block = provider
+            .get_block_by_hash(genesis_block_hash.0.into(), Default::default())
+            .await?
+            .ok_or_else(|| {
+                anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
+            })?;
+
+        let genesis_header = BlockHeader {
+            height: genesis_block.header.number as u32,
+            timestamp: genesis_block.header.timestamp,
+            parent_hash: H256(genesis_block.header.parent_hash.0),
+        };
+
+        OnChainStorage::set_block_header(db, genesis_block_hash, &genesis_header);
+        OnChainStorage::set_block_events(db, genesis_block_hash, &[]);
+
+        db.set_latest_synced_block_height(genesis_header.height);
+        db.set_block_is_synced(genesis_block_hash);
+
+        db.set_block_commitment_queue(genesis_block_hash, Default::default());
+        db.set_previous_committed_block(genesis_block_hash, H256::zero());
+        db.set_block_is_empty(genesis_block_hash, true);
+        db.set_block_end_program_states(genesis_block_hash, Default::default());
+        db.set_block_end_schedule(genesis_block_hash, Default::default());
+
+        db.set_latest_valid_block(genesis_block_hash, genesis_header);
+
+        db.set_block_end_state_is_valid(genesis_block_hash, true);
+
+        Ok(())
     }
-}
-
-impl Clone for ObserverService {
-    fn clone(&self) -> Self {
-        let subscription = self.subscription.resubscribe();
-        let headers_stream = subscription.resubscribe().into_stream();
-
-        Self {
-            blobs: self.blobs.clone(),
-            provider: self.provider.clone(),
-            subscription,
-            router: self.router,
-            last_block_number: self.last_block_number,
-            headers_stream,
-            block_future: None,
-            codes_futures: FuturesUnordered::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct BlockData {
-    pub hash: H256,
-    pub header: BlockHeader,
-    pub events: Vec<BlockEvent>,
-}
-
-impl BlockData {
-    pub fn to_simple(&self) -> SimpleBlockData {
-        SimpleBlockData {
-            hash: self.hash,
-            header: self.header.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct RequestBlockData {
-    pub hash: H256,
-    pub header: BlockHeader,
-    pub events: Vec<BlockRequestEvent>,
-}
-
-impl RequestBlockData {
-    pub fn to_simple(&self) -> SimpleBlockData {
-        SimpleBlockData {
-            hash: self.hash,
-            header: self.header.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SimpleBlockData {
-    pub hash: H256,
-    pub header: BlockHeader,
 }
 
 #[derive(Debug, Clone, Copy, Default)]

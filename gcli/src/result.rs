@@ -45,14 +45,8 @@ pub enum Error {
     Codec(#[from] scale_info::scale::Error),
     #[error("{0:?}")]
     Code(gear_core::code::CodeError),
-    #[error("Wasm execution error {0}")]
-    WasmExecution(String),
-    #[error("Wasmer runtime error {0}")]
-    Wasmer(wasmer::RuntimeError),
     #[error(transparent)]
     Etc(#[from] etc::Error),
-    #[error("Metadata parsing error {0:?}")]
-    MetaParseError(gmeta::MetadataParseError),
 }
 
 impl From<gear_core::code::CodeError> for Error {
