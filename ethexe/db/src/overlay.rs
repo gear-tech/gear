@@ -47,8 +47,8 @@ impl CASDatabase for CASOverlay {
         self.mem.read(hash).or_else(|| self.db.read(hash))
     }
 
-    fn write_by_hash(&self, hash: H256, data: &[u8]) {
-        self.mem.write_by_hash(hash, data)
+    fn write(&self, data: &[u8]) -> H256 {
+        self.mem.write(data)
     }
 }
 

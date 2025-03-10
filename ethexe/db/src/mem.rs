@@ -37,10 +37,10 @@ impl CASDatabase for MemDb {
         self.inner.get(&key).map(|v| v.value().clone())
     }
 
-    fn write_by_hash(&self, hash: H256, data: &[u8]) {
-        debug_assert_eq!(hash, crate::hash(data));
-        let key = hash.as_bytes().to_vec();
-        self.inner.insert(key, data.to_vec());
+    fn write(&self, data: &[u8]) -> H256 {
+        let hash = crate::hash(data);
+        self.inner.insert(hash.as_bytes().to_vec(), data.to_vec());
+        hash
     }
 }
 

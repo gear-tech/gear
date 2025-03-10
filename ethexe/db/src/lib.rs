@@ -44,15 +44,7 @@ pub trait CASDatabase: Send + Sync {
     fn read(&self, hash: H256) -> Option<Vec<u8>>;
 
     /// Write data, returns data hash.
-    fn write(&self, data: &[u8]) -> H256 {
-        let hash = hash(data);
-        self.write_by_hash(hash, data);
-        hash
-    }
-
-    /// Write data when hash is known.
-    /// Note: should have debug check for hash match.
-    fn write_by_hash(&self, hash: H256, data: &[u8]);
+    fn write(&self, data: &[u8]) -> H256;
 }
 
 /// Key-value database.
