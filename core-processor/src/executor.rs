@@ -156,28 +156,56 @@ where
 
     let (termination, mut store, memory, ext) = match execute() {
         Ok(report) => {
-            let BackendReport {
-                termination_reason,
-                mut store,
-                mut memory,
-                ext,
-            } = report;
+            match report {
+                Ok(success_execution) => {
+                    let BackendReport {
+                        termination_reason,
+                        mut store,
+                        mut memory,
+                        ext,
+                    } = success_execution.report();
 
-            let mut termination = match termination_reason {
-                TerminationReason::Actor(reason) => reason,
-                TerminationReason::System(reason) => {
-                    return Err(ExecutionError::System(reason.into()));
+                    let mut termination = match termination_reason {
+                        TerminationReason::Actor(reason) => reason,
+                        TerminationReason::System(reason) => {
+                            return Err(ExecutionError::System(reason.into()));
+                        }
+                    };
+
+                    // released pages initial data will be added to `pages_initial_data` after execution.
+                    Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
+
+                    if !Ext::lazy_pages_status().is_normal() {
+                        termination = ext.current_counter_type().into()
+                    }
+
+                    (termination, store, memory, ext)
                 }
-            };
+                Err(failed_execution) => {
+                    let BackendReport {
+                        termination_reason,
+                        mut store,
+                        mut memory,
+                        ext,
+                    } = failed_execution.report();
 
-            // released pages initial data will be added to `pages_initial_data` after execution.
-            Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
+                    let mut termination = match termination_reason {
+                        TerminationReason::Actor(reason) => reason,
+                        TerminationReason::System(reason) => {
+                            return Err(ExecutionError::System(reason.into()));
+                        }
+                    };
 
-            if !Ext::lazy_pages_status().is_normal() {
-                termination = ext.current_counter_type().into()
+                    // released pages initial data will be added to `pages_initial_data` after execution.
+                    Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
+
+                    if !Ext::lazy_pages_status().is_normal() {
+                        termination = ext.current_counter_type().into()
+                    }
+
+                    (termination, store, memory, ext)
+                }
             }
-
-            (termination, store, memory, ext)
         }
         Err(EnvironmentError::System(e)) => {
             return Err(ExecutionError::System(SystemExecutionError::Environment(e)));
@@ -339,7 +367,7 @@ where
             program.code.exports().clone(),
             memory_size,
         )?;
-        let execution_result = env.execute(|ctx, memory, globals_config| {
+        env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 memory,
@@ -349,27 +377,46 @@ where
                 globals_config,
                 Default::default(),
             )
-        });
-
-        execution_result.unwrap().report()
+        })
     };
 
-    let (termination, ext) = match execute() {
-        Ok(report) => {
-            let BackendReport {
-                termination_reason,
-                ext,
-            } = report;
+    let (termination, mut store, memory, ext) = match execute() {
+        Ok(execution_result) => match execution_result {
+            Ok(success_execution) => {
+                let BackendReport {
+                    termination_reason,
+                    store,
+                    memory,
+                    ext,
+                } = success_execution.report();
 
-            let termination_reason = match termination_reason {
-                TerminationReason::Actor(reason) => reason,
-                TerminationReason::System(reason) => {
-                    return Err(format!("Backend error: {reason}"));
-                }
-            };
+                let termination_reason = match termination_reason {
+                    TerminationReason::Actor(reason) => reason,
+                    TerminationReason::System(reason) => {
+                        return Err(format!("Backend error: {reason}"));
+                    }
+                };
 
-            (termination_reason, ext)
-        }
+                (termination_reason, store, memory, ext)
+            }
+            Err(failed_execution) => {
+                let BackendReport {
+                    termination_reason,
+                    store,
+                    memory,
+                    ext,
+                } = failed_execution.report();
+
+                let termination_reason = match termination_reason {
+                    TerminationReason::Actor(reason) => reason,
+                    TerminationReason::System(reason) => {
+                        return Err(format!("Backend error: {reason}"));
+                    }
+                };
+
+                (termination_reason, store, memory, ext)
+            }
+        },
         Err(e) => return Err(format!("Backend error: {e}")),
     };
 

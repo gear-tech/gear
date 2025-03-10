@@ -27,7 +27,6 @@ use super::{
 use common::Origin;
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory, Store},
-    embedded_executor::ModuleWrapper,
     SandboxEnvironmentBuilder, SandboxInstance, SandboxStore,
 };
 
@@ -58,9 +57,7 @@ where
         let mut env_builder = EnvironmentDefinitionBuilder::new();
         let mut store = Store::new(());
         let memory = module.add_memory(&mut store, &mut env_builder);
-        let module_wrapper = ModuleWrapper::new(&store.engine(), &module.code)
-            .expect("Failed to create benchmarking Sandbox instance");
-        let instance = Instance::new(&mut store, &module_wrapper, &env_builder)
+        let instance = Instance::new(&mut store, &module.code, &env_builder)
             .expect("Failed to create benchmarking Sandbox instance");
         Self {
             instance,
@@ -82,9 +79,7 @@ impl Sandbox {
         let mut env_builder = EnvironmentDefinitionBuilder::new();
         let mut store = Store::new(());
         let memory = module.add_memory(&mut store, &mut env_builder);
-        let module_wrapper = ModuleWrapper::new(&store.engine(), &module.code)
-            .expect("Failed to create benchmarking Sandbox instance");
-        let instance = Instance::new(&mut store, &module_wrapper, &env_builder)
+        let instance = Instance::new(&mut store, &module.code, &env_builder)
             .expect("Failed to create benchmarking Sandbox instance");
         Self {
             instance,
