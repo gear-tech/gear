@@ -63,7 +63,6 @@ pub enum Event {
 pub struct Service {
     db: Database,
     observer: ObserverService,
-    router_query: RouterQuery,
     compute: ComputeService,
     signer: ethexe_signer::Signer,
     tx_pool: TxPoolService,
@@ -247,7 +246,6 @@ impl Service {
             db,
             network,
             observer,
-            router_query,
             compute,
             sequencer,
             signer,
@@ -273,7 +271,6 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
-        router_query: RouterQuery,
         processor: ethexe_processor::Processor,
         signer: ethexe_signer::Signer,
         tx_pool: TxPoolService,
@@ -290,7 +287,6 @@ impl Service {
         Self {
             db,
             observer,
-            router_query,
             compute,
             signer,
             network,
@@ -319,7 +315,6 @@ impl Service {
             db,
             mut network,
             mut observer,
-            router_query: _,
             mut compute,
             mut sequencer,
             signer: _signer,
@@ -481,14 +476,13 @@ impl Service {
                     };
 
                     match event {
-                        NetworkEvent::Message { source, data } => {
-                            log::trace!("Received a network message from peer {source:?}");
-
+                        NetworkEvent::Message { source: _, data } => {
                             let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
                                 .inspect_err(|e| {
                                     log::warn!("Failed to decode network message: {e}")
                                 })
                             else {
+                                // TODO: use peer scoring for this case
                                 continue;
                             };
 

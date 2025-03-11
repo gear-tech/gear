@@ -17,7 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Service;
-use anyhow::{anyhow, Result};
+use alloy::{
+    eips::{BlockId, BlockNumberOrTag},
+    providers::Provider,
+};
+use anyhow::{anyhow, Context, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -119,7 +123,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         observer,
         compute,
         network,
-        router_query,
         db,
         ..
     } = service;
@@ -130,23 +133,29 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     log::info!("Fast synchronization is in progress...");
 
-    let latest_block = router_query.latest_committed_block_hash().await?;
-    debug_assert_ne!(latest_block, H256::zero(), "router is not deployed");
+    let highest_block = observer
+        .provider()
+        .get_block(
+            BlockId::Number(BlockNumberOrTag::Latest),
+            Default::default(),
+        )
+        .await
+        .context("failed to get latest block")?
+        .expect("latest block always exist");
+    let highest_block = H256(highest_block.header.hash.0);
 
-    observer.force_sync_block(latest_block).await?;
+    observer.force_sync_block(highest_block).await?;
     while let Some(event) = observer.next().await {
         if let ObserverEvent::BlockSynced(synced_block) = event? {
-            debug_assert_eq!(latest_block, synced_block);
+            debug_assert_eq!(highest_block, synced_block);
             break;
         }
     }
 
+    let (program_states, program_code_ids, latest_block, previous_block) =
+        collect_event_data(db, highest_block).await?;
     let latest_block_header =
         OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
-
-    let (program_states, program_code_ids, previous_committed_block) =
-        collect_event_data(db, latest_block).await?;
-    log::info!("Processing blocks");
 
     let mut requests = BufRequests::default();
     let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
@@ -155,8 +164,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         for (&program_id, &state) in &program_states {
             requests.add(state, Request::ProgramState { program_id });
         }
-
-        db.set_block_end_program_states(latest_block, program_states);
 
         let mut codes_to_receive = HashSet::new();
         for (program_id, code_id) in program_code_ids {
@@ -191,7 +198,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         };
 
         let (completed, pending) = requests.stats();
-        log::info!("[{completed:>05} / {pending:>05}] Processing synchronization");
+        log::info!("[{completed:>05} / {pending:>05}] Getting network data");
 
         match result {
             Ok(db_sync::Response::DataForHashes(data)) => {
@@ -313,36 +320,38 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
     }
 
+    let (completed, pending) = requests.stats();
+    log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
+    debug_assert_eq!(completed, pending);
+
+    db.set_block_end_program_states(latest_block, program_states);
     db.set_block_end_state_is_valid(latest_block, true);
+    db.set_block_end_schedule(latest_block, schedule_restorer.build());
     db.set_latest_valid_block(latest_block, latest_block_header);
     db.set_block_commitment_queue(latest_block, VecDeque::new());
-    db.set_block_end_schedule(latest_block, schedule_restorer.build());
     db.set_block_is_empty(latest_block, false);
-    db.set_previous_committed_block(
-        latest_block,
-        previous_committed_block.unwrap_or_else(H256::zero),
-    );
+    db.set_previous_committed_block(latest_block, previous_block.unwrap_or_else(H256::zero));
 
-    let (completed, pending) = requests.stats();
-    log::info!("[{completed:>05} / {pending:>05}] Fast synchronization done");
-    debug_assert_eq!(completed, pending);
+    log::info!("Fast synchronization done");
 
     Ok(())
 }
 
 async fn collect_event_data(
     db: &Database,
-    latest_block: H256,
+    highest_block: H256,
 ) -> Result<(
     BTreeMap<ActorId, H256>,
     Vec<(ActorId, CodeId)>,
+    H256,
     Option<H256>,
 )> {
     let mut states = BTreeMap::new();
     let mut program_code_ids = Vec::new();
-    let mut previous_committed_block = None;
+    let mut previous_block = None;
+    let mut latest_block = None;
 
-    let mut block = latest_block;
+    let mut block = highest_block;
     while !db.block_end_state_is_valid(block).unwrap_or(false) {
         let events = db
             .block_events(block)
@@ -358,7 +367,11 @@ async fn collect_event_data(
                     states.entry(actor_id).or_insert(state_hash);
                 }
                 BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
-                    previous_committed_block.get_or_insert(hash);
+                    if latest_block.is_some() {
+                        previous_block.get_or_insert(hash);
+                    } else {
+                        latest_block = Some(hash);
+                    }
                 }
                 BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
                     program_code_ids.push((actor_id, code_id));
@@ -373,5 +386,16 @@ async fn collect_event_data(
         block = parent;
     }
 
-    Ok((states, program_code_ids, previous_committed_block))
+    let latest_block = latest_block.context("no blocks committed")?;
+
+    #[cfg(debug_assertions)]
+    if let Some(previous_block) = previous_block {
+        let latest_block_header =
+            OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
+        let previous_block_header = OnChainStorage::block_header(db, previous_block)
+            .expect("observer must fulfill database");
+        assert!(previous_block_header.height < latest_block_header.height);
+    }
+
+    Ok((states, program_code_ids, latest_block, previous_block))
 }

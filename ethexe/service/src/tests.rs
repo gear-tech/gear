@@ -34,7 +34,7 @@ use ethexe_common::{
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
-use ethexe_ethereum::{router::RouterQuery, Ethereum};
+use ethexe_ethereum::Ethereum;
 use ethexe_observer::{EthereumConfig, MockBlobReader, Provider};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
@@ -1272,7 +1272,6 @@ mod utils {
         pub blob_reader: Arc<MockBlobReader>,
         pub provider: Provider,
         pub ethereum: Ethereum,
-        pub router_query: RouterQuery,
         pub signer: Signer,
         pub validators: Vec<ethexe_signer::PublicKey>,
         pub validator_session_public_keys: Vec<ethexe_signer::PublicKey>,
@@ -1486,7 +1485,6 @@ mod utils {
                 blob_reader,
                 provider,
                 ethereum,
-                router_query,
                 signer,
                 validators,
                 validator_session_public_keys,
@@ -1534,7 +1532,6 @@ mod utils {
                 db,
                 multiaddr: None,
                 eth_cfg: self.eth_cfg.clone(),
-                router_query: self.router_query.clone(),
                 broadcaster: None,
                 receiver: None,
                 blob_reader: self.blob_reader.clone(),
@@ -1950,7 +1947,6 @@ mod utils {
         broadcaster: Option<Sender<Event>>,
         receiver: Option<Receiver<Event>>,
         blob_reader: Arc<MockBlobReader>,
-        router_query: RouterQuery,
         signer: Signer,
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
@@ -2051,7 +2047,6 @@ mod utils {
             let service = Service::new_from_parts(
                 self.db.clone(),
                 observer,
-                self.router_query.clone(),
                 processor,
                 self.signer.clone(),
                 tx_pool_service,
