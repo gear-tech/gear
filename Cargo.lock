@@ -2201,7 +2201,7 @@ name = "cargo-gbuild"
 version = "1.7.1"
 dependencies = [
  "anyhow",
- "cargo_metadata 0.19.1",
+ "cargo_metadata 0.19.2",
  "cargo_toml",
  "clap 4.5.23",
  "colored",
@@ -2259,9 +2259,9 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.19.1"
+version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8769706aad5d996120af43197bf46ef6ad0fda35216b4505f926a365a232d924"
+checksum = "dd5eb614ed4c27c5d706420e4320fbe3216ab31fa1c33cd8246ac36dae4479ba"
 dependencies = [
  "camino",
  "cargo-platform",
@@ -2925,7 +2925,7 @@ version = "1.7.1"
 dependencies = [
  "anyhow",
  "cargo-http-registry",
- "cargo_metadata 0.19.1",
+ "cargo_metadata 0.19.2",
  "clap 4.5.23",
  "reqwest",
  "serde",
@@ -6661,7 +6661,7 @@ name = "gear-wasm-builder"
 version = "1.7.1"
 dependencies = [
  "anyhow",
- "cargo_metadata 0.19.1",
+ "cargo_metadata 0.19.2",
  "cargo_toml",
  "chrono",
  "gear-core",
