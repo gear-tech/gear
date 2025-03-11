@@ -380,7 +380,7 @@ fn maybe_last_message(account: impl Origin) -> Option<UserMessage> {
 fn get_last_event() -> crate::mock::RuntimeEvent {
     System::events()
         .into_iter()
-        .last()
+        .next_back()
         .expect("failed to get last event")
         .event
 }

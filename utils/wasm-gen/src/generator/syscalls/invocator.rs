@@ -192,14 +192,14 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         .into_iter()
                         .filter(|syscall| self.syscalls_imports.contains_key(syscall))
                         .flat_map(|syscall1| {
-                            iter::repeat(syscall1)
-                                .take(
-                                    syscalls
-                                        .iter()
-                                        .filter(|&&syscall2| syscall1 == syscall2)
-                                        .count(),
-                                )
-                                .collect::<Vec<_>>()
+                            iter::repeat_n(
+                                syscall1,
+                                syscalls
+                                    .iter()
+                                    .filter(|&&syscall2| syscall1 == syscall2)
+                                    .count(),
+                            )
+                            .collect::<Vec<_>>()
                         })
                         .rev()
                         .collect()
@@ -821,9 +821,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
     fn build_error_processing_ignored(signature: SyscallSignature) -> Vec<Instruction> {
         match signature {
-            SyscallSignature::System(system) => iter::repeat(Instruction::Drop)
-                .take(system.results().len())
-                .collect(),
+            SyscallSignature::System(system) => {
+                iter::repeat_n(Instruction::Drop, system.results().len()).collect()
+            }
             SyscallSignature::Fallible(_) => Vec::new(),
             SyscallSignature::Infallible(_) => unreachable!(
                 "Invalid implementation. This function is called only for returning errors syscall"

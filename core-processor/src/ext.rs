@@ -1201,6 +1201,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         })
     }
 
+    #[allow(clippy::obfuscated_if_else)]
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError> {
         let (amount, reimburse) = self.context.gas_reserver.unreserve(id)?;
 

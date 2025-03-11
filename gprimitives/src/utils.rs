@@ -24,7 +24,7 @@ use {
 };
 
 const LEN: usize = 32;
-const MEDIAN: usize = (LEN + 1) / 2;
+const MEDIAN: usize = LEN.div_ceil(2);
 
 pub(crate) struct ByteArray<'a>(pub &'a [u8; LEN]);
 
