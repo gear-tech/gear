@@ -26,8 +26,7 @@ use crate::{
     peer_score,
     utils::ParityScaleCodec,
 };
-use ethexe_db::{CodesStorage, Database};
-use gear_core::ids::ProgramId;
+use ethexe_db::Database;
 use gprimitives::H256;
 use libp2p::{
     core::{transport::PortUse, Endpoint},
@@ -57,24 +56,16 @@ pub struct RequestId(u64);
 pub struct ResponseId(u64);
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
-pub enum Request {
-    DataForHashes(BTreeSet<H256>),
-    ProgramIds,
-}
+pub struct Request(pub BTreeSet<H256>);
 
 impl fmt::Debug for Request {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Request::DataForHashes(set) => {
-                if f.alternate() {
-                    f.debug_tuple("DataForHashes").field(&set).finish()
-                } else {
-                    f.debug_tuple("DataForHashes")
-                        .field(&format_args!("{} keys", set.len()))
-                        .finish()
-                }
-            }
-            Request::ProgramIds => f.debug_tuple("ProgramIds").finish(),
+        if f.alternate() {
+            f.debug_tuple("Request").field(&self.0).finish()
+        } else {
+            f.debug_tuple("Request")
+                .field(&format_args!("{} keys", self.0.len()))
+                .finish()
         }
     }
 }
@@ -82,128 +73,80 @@ impl fmt::Debug for Request {
 impl Request {
     /// Calculate missing request keys in response and create a new request with these keys
     fn difference(&self, resp: &Response) -> Option<Self> {
-        match (self, resp) {
-            (Request::DataForHashes(requested_hashes), Response::DataForHashes(hashes)) => {
-                let hashes_keys = hashes.keys().copied().collect();
-                let new_requested_hashes: BTreeSet<H256> =
-                    requested_hashes.difference(&hashes_keys).copied().collect();
-                if !new_requested_hashes.is_empty() {
-                    Some(Request::DataForHashes(new_requested_hashes))
-                } else {
-                    None
-                }
-            }
-            (Request::ProgramIds, Response::ProgramIds(_ids)) => None,
-            _ => unreachable!("should be checked in `Response::validate()`"),
+        let hashes_keys = resp.0.keys().copied().collect();
+        let new_requested_hashes: BTreeSet<H256> =
+            self.0.difference(&hashes_keys).copied().collect();
+        if !new_requested_hashes.is_empty() {
+            Some(Self(new_requested_hashes))
+        } else {
+            None
         }
     }
 }
 
 #[derive(Debug, Eq, PartialEq)]
 enum ResponseValidationError {
-    /// Request kind unequal to response kind
-    TypeMismatch,
     /// Hashed data unequal to its corresponding hash
     DataHashMismatch,
 }
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
-pub enum Response {
-    /// Key (hash) - value (bytes) data
-    DataForHashes(BTreeMap<H256, Vec<u8>>),
-    /// All existing programs
-    ProgramIds(BTreeSet<ProgramId>),
-}
+pub struct Response(pub BTreeMap<H256, Vec<u8>>);
 
 impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Response::DataForHashes(data) => {
-                if f.alternate() {
-                    f.debug_tuple("DataForHashes").field(&data).finish()
-                } else {
-                    f.debug_tuple("DataForHashes")
-                        .field(&format_args!("{} entries", data.len()))
-                        .finish()
-                }
-            }
-            Response::ProgramIds(ids) => {
-                if f.alternate() {
-                    f.debug_tuple("ProgramIds").field(&ids).finish()
-                } else {
-                    f.debug_tuple("ProgramIds")
-                        .field(&format_args!("{} entries", ids.len()))
-                        .finish()
-                }
-            }
+        if f.alternate() {
+            f.debug_tuple("Response").field(&self.0).finish()
+        } else {
+            f.debug_tuple("Response")
+                .field(&format_args!("{} entries", self.0.len()))
+                .finish()
         }
     }
 }
 
 impl Response {
     fn from_db(request: Request, db: &Database) -> Self {
-        match request {
-            Request::DataForHashes(hashes) => Response::DataForHashes(
-                hashes
-                    .into_iter()
-                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                    .collect(),
-            ),
-            Request::ProgramIds => Response::ProgramIds(db.program_ids()),
-        }
+        Self(
+            request
+                .0
+                .into_iter()
+                .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
+                .collect(),
+        )
     }
 
     fn merge(&mut self, new_response: Response) {
-        match (self, new_response) {
-            (Response::DataForHashes(data), Response::DataForHashes(new_data)) => {
-                data.extend(new_data);
-            }
-            (Response::ProgramIds(ids), Response::ProgramIds(new_ids)) => {
-                ids.extend(new_ids);
-            }
-            _ => unreachable!("should be checked in `Response::validate()`"),
-        }
+        self.0.extend(new_response.0);
     }
 
     /// Validates response against request.
     ///
     /// Returns `false` if external validation is required.
-    fn validate(&self, request: &Request) -> Result<(), ResponseValidationError> {
-        match (request, self) {
-            (Request::DataForHashes(_requested_hashes), Response::DataForHashes(hashes)) => {
-                for (hash, data) in hashes {
-                    if *hash != ethexe_db::hash(data) {
-                        return Err(ResponseValidationError::DataHashMismatch);
-                    }
-                }
-
-                Ok(())
+    fn validate(&self) -> Result<(), ResponseValidationError> {
+        for (hash, data) in &self.0 {
+            if *hash != ethexe_db::hash(data) {
+                return Err(ResponseValidationError::DataHashMismatch);
             }
-            (Request::ProgramIds, Response::ProgramIds(_ids)) => Ok(()),
-            (_, _) => Err(ResponseValidationError::TypeMismatch),
         }
+
+        Ok(())
     }
 
     fn strip(&mut self, request: &Request) -> bool {
-        match (request, self) {
-            (Request::DataForHashes(requested_hashes), Self::DataForHashes(hashes)) => {
-                let hashes_keys: BTreeSet<H256> = hashes.keys().copied().collect();
-                let excessive_requested_hashes: BTreeSet<H256> =
-                    hashes_keys.difference(requested_hashes).copied().collect();
+        let hashes_keys: BTreeSet<H256> = self.0.keys().copied().collect();
+        let excessive_requested_hashes: BTreeSet<H256> =
+            hashes_keys.difference(&request.0).copied().collect();
 
-                if excessive_requested_hashes.is_empty() {
-                    return false;
-                }
-
-                for excessive_key in excessive_requested_hashes {
-                    hashes.remove(&excessive_key);
-                }
-
-                true
-            }
-            (Request::ProgramIds, Response::ProgramIds(_ids)) => false,
-            _ => unreachable!("should be checked in `Response::validate()`"),
+        if excessive_requested_hashes.is_empty() {
+            return false;
         }
+
+        for excessive_key in excessive_requested_hashes {
+            self.0.remove(&excessive_key);
+        }
+
+        true
     }
 }
 
@@ -637,8 +580,8 @@ mod tests {
         let hash2 = ethexe_db::hash(b"2");
         let hash3 = ethexe_db::hash(b"3");
 
-        let request = Request::DataForHashes([hash1, hash2].into());
-        let mut response = Response::DataForHashes(
+        let request = Request([hash1, hash2].into());
+        let mut response = Response(
             [
                 (hash1, b"1".to_vec()),
                 (hash2, b"2".to_vec()),
@@ -649,7 +592,7 @@ mod tests {
         assert!(response.strip(&request));
         assert_eq!(
             response,
-            Response::DataForHashes([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into())
+            Response([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into())
         );
     }
 
@@ -657,10 +600,9 @@ mod tests {
     fn validate_data_hash_mismatch() {
         let hash1 = ethexe_db::hash(b"1");
 
-        let request = Request::DataForHashes([hash1].into());
-        let response = Response::DataForHashes([(hash1, b"2".to_vec())].into());
+        let response = Response([(hash1, b"2".to_vec())].into());
         assert_eq!(
-            response.validate(&request),
+            response.validate(),
             Err(ResponseValidationError::DataHashMismatch)
         );
     }
@@ -708,7 +650,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::DataForHashes([hello_hash, world_hash].into()));
+            .request(Request([hello_hash, world_hash].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -725,7 +667,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response::DataForHashes(
+                response: Response(
                     [
                         (hello_hash, b"hello".to_vec()),
                         (world_hash, b"world".to_vec())
@@ -751,9 +693,7 @@ mod tests {
         });
         bob.connect(&mut alice).await;
 
-        let request_id = alice
-            .behaviour_mut()
-            .request(Request::DataForHashes([].into()));
+        let request_id = alice.behaviour_mut().request(Request([].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -775,10 +715,8 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::DataForHashes([].into()));
-                    let _res = bob
-                        .behaviour_mut()
-                        .send_response(channel, Response::ProgramIds([].into()));
+                    assert_eq!(request, Request([].into()));
+                    drop(channel);
                 }
             }
         });
@@ -808,9 +746,7 @@ mod tests {
         });
         bob.connect(&mut alice).await;
 
-        let request_id = alice
-            .behaviour_mut()
-            .request(Request::DataForHashes([].into()));
+        let request_id = alice.behaviour_mut().request(Request([].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -832,7 +768,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::DataForHashes([].into()));
+                    assert_eq!(request, Request([].into()));
                     // just ignore request
                     mem::forget(channel);
                 }
@@ -871,7 +807,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::DataForHashes([data_0, data_1].into()));
+            .request(Request([data_0, data_1].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -893,11 +829,11 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::DataForHashes([data_0, data_1].into()));
+                    assert_eq!(request, Request([data_0, data_1].into()));
                     bob.behaviour_mut()
                         .send_response(
                             channel,
-                            Response::DataForHashes(
+                            Response(
                                 [
                                     (data_0, DATA[0].to_vec()),
                                     (data_1, DATA[1].to_vec()),
@@ -916,9 +852,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response::DataForHashes(
-                    [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
-                ),
+                response: Response([(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()),
             }
         );
     }
@@ -943,9 +877,9 @@ mod tests {
         let world_hash = charlie_db.write(b"world");
         let mark_hash = dave_db.write(b"!");
 
-        let request_id = alice.behaviour_mut().request(Request::DataForHashes(
-            [hello_hash, world_hash, mark_hash].into(),
-        ));
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request([hello_hash, world_hash, mark_hash].into()));
 
         // first round
         let event = alice.next_behaviour_event().await;
@@ -968,7 +902,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response::DataForHashes(
+                response: Response(
                     [
                         (hello_hash, b"hello".to_vec()),
                         (world_hash, b"world".to_vec()),
@@ -997,7 +931,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::DataForHashes([hello_hash, world_hash].into()));
+            .request(Request([hello_hash, world_hash].into()));
 
         // first round
         let event = alice.next_behaviour_event().await;
@@ -1024,7 +958,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response::DataForHashes(
+                response: Response(
                     [
                         (hello_hash, b"hello".to_vec()),
                         (world_hash, b"world".to_vec())
@@ -1049,7 +983,7 @@ mod tests {
         bob.connect(&mut alice).await;
         tokio::spawn(bob.loop_on_next());
 
-        let request_id = alice.behaviour_mut().request(Request::ProgramIds);
+        let request_id = alice.behaviour_mut().request(Request([].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -1081,7 +1015,7 @@ mod tests {
         alice.connect(&mut bob).await;
 
         // make request way heavier so there definitely will be a few simultaneous requests
-        let request = Request::DataForHashes(
+        let request = Request(
             iter::from_fn(|| Some(H256::random()))
                 .take(16 * 1024)
                 .collect(),

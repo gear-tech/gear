@@ -94,7 +94,7 @@ impl BufRequests {
         let buffered_requests = mem::take(&mut self.buffered_requests);
         if !buffered_requests.is_empty() {
             let request = buffered_requests.keys().copied().collect();
-            let request_id = network.request_db_data(db_sync::Request::DataForHashes(request));
+            let request_id = network.request_db_data(db_sync::Request(request));
 
             for (hash, requests) in buffered_requests {
                 self.total_pending_requests += requests.len() as u64;
@@ -201,7 +201,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         log::info!("[{completed:>05} / {pending:>05}] Getting network data");
 
         match result {
-            Ok(db_sync::Response::DataForHashes(data)) => {
+            Ok(db_sync::Response(data)) => {
                 for (hash, data) in data {
                     let completed_requests = requests
                         .complete(request_id, hash)
@@ -297,9 +297,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                         }
                     }
                 }
-            }
-            Ok(db_sync::Response::ProgramIds(_ids)) => {
-                unreachable!();
             }
             Err(err) => {
                 unreachable!("{err:?}");

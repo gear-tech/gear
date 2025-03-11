@@ -155,7 +155,7 @@ impl OngoingRequest {
 
         let request_id = self.request_id;
 
-        match response.validate(&self.request) {
+        match response.validate() {
             Ok(()) => self
                 .inner_complete(peer, response)
                 .map(|(request_id, response)| PeerResponse::Success {

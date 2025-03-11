@@ -639,8 +639,7 @@ mod tests {
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        let request_id =
-            service1.request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
+        let request_id = service1.request_db_data(db_sync::Request([hello, world].into()));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -650,7 +649,7 @@ mod tests {
             event,
             NetworkEvent::DbResponse {
                 request_id,
-                result: Ok(db_sync::Response::DataForHashes(
+                result: Ok(db_sync::Response(
                     [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
                 ))
             }
