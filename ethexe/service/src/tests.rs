@@ -1135,10 +1135,10 @@ async fn fast_sync() {
     );
     alice.start_service().await;
 
-    log::info!("Uploading `demo-ping` program");
+    log::info!("Creating `demo-autoreply` programs");
 
     let code_info = env
-        .upload_code(demo_async::WASM_BINARY)
+        .upload_code(demo_autoreply::WASM_BINARY)
         .await
         .unwrap()
         .wait_for()
@@ -1146,7 +1146,7 @@ async fn fast_sync() {
         .unwrap();
 
     let code_id = code_info.code_id;
-    let mut program_ids = [(ActorId::zero(), ActorId::zero()); 5];
+    let mut program_ids = [(ActorId::zero(), ActorId::zero()); 16];
 
     for (i, (program_id, destination)) in program_ids.iter_mut().enumerate() {
         let program_info = env
@@ -1181,14 +1181,20 @@ async fn fast_sync() {
     );
     bob.start_service().await;
 
+    log::info!("Sending messages to programs");
+
     for (program_id, destination) in program_ids {
-        let _reply_info = env
+        let reply_info = env
             .send_message(program_id, destination.as_ref(), 0)
             .await
             .unwrap()
             .wait_for()
             .await
             .unwrap();
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Auto)
+        );
     }
 
     sequencer

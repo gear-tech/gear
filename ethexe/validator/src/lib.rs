@@ -277,11 +277,6 @@ impl Validator {
             return Err(anyhow!("Requested and local transitions digest mismatch"));
         }
 
-        log::error!(
-            "{block_hash} DB: {:?}; NETWORK: {}",
-            db.previous_committed_block(block_hash),
-            allowed_previous_committed_block
-        );
         if db.previous_committed_block(block_hash).ok_or_else(|| {
             anyhow!("Cannot get from db previous commitment for block {block_hash}")
         })? != allowed_previous_committed_block

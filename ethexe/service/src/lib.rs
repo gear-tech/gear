@@ -607,6 +607,11 @@ impl Service {
                                 .map(BlockCommitmentValidationRequest::new)
                                 .collect();
 
+                            if code_requests.is_empty() && block_requests.is_empty() {
+                                log::debug!("No code or block commitments to validate");
+                                continue;
+                            }
+
                             if let Some(n) = network.as_mut() {
                                 // TODO (breathx): remove this clones bypassing as call arguments by ref: anyway we encode.
                                 let message = NetworkMessage::RequestCommitmentsValidation {
@@ -628,24 +633,21 @@ impl Service {
                                     block_requests.len()
                                 );
 
-                                // Because sequencer can collect commitments from different sources,
-                                // it's possible that some of collected commitments validation will fail
-                                // on local validator. So we just print warning in this case.
-
-                                if !code_requests.is_empty() || !block_requests.is_empty() {
-                                    match v.validate_batch_commitment(
-                                        &db,
-                                        code_requests,
-                                        block_requests,
-                                    ) {
-                                        Ok((digest, signature)) => {
-                                            s.receive_batch_commitment_signature(
-                                                digest, signature,
-                                            )?;
-                                        }
-                                        Err(err) => {
-                                            log::warn!("Collected batch commitments validation failed: {err}");
-                                        }
+                                match v.validate_batch_commitment(
+                                    &db,
+                                    code_requests,
+                                    block_requests,
+                                ) {
+                                    Ok((digest, signature)) => {
+                                        s.receive_batch_commitment_signature(digest, signature)?;
+                                    }
+                                    Err(err) => {
+                                        // Because sequencer can collect commitments from different sources,
+                                        // it's possible that some of collected commitments validation will fail
+                                        // on local validator. So we just print warning in this case.
+                                        log::warn!(
+                                            "Collected batch commitments validation failed: {err}"
+                                        );
                                     }
                                 }
                             };
