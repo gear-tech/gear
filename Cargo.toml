@@ -111,7 +111,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = "0.9.1"
+alloy = "0.12.4"
 alloy-primitives = { version = "0.8", default-features = false }
 alloy-sol-types = { version = "0.8", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
