@@ -25,7 +25,7 @@ use crate::{
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
-    providers::{ext::AnvilApi, Provider as _},
+    providers::{ext::AnvilApi, Provider as _, RootProvider},
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Result;
@@ -35,7 +35,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::{EthereumConfig, MockBlobReader, Provider};
+use ethexe_observer::{EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
@@ -474,7 +474,7 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(block_data.header.parent_hash)
+        .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
 
     assert_eq!(schedule, expected_schedule);
@@ -550,7 +550,7 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(block_data.header.parent_hash)
+        .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
     assert!(schedule.is_empty(), "{:?}", schedule);
 }
@@ -1047,7 +1047,7 @@ async fn tx_pool_gossip() {
     tokio::time::sleep(Duration::from_secs(2)).await;
     let reference_block = node0
         .db
-        .latest_valid_block()
+        .latest_computed_block()
         .expect("at least genesis block is latest valid")
         .0;
 
@@ -1276,7 +1276,7 @@ mod utils {
         pub eth_cfg: EthereumConfig,
         pub wallets: Wallets,
         pub blob_reader: Arc<MockBlobReader>,
-        pub provider: Provider,
+        pub provider: RootProvider,
         pub ethereum: Ethereum,
         pub signer: Signer,
         pub validators: Vec<ethexe_signer::PublicKey>,
@@ -1439,7 +1439,7 @@ mod utils {
                 block_time: config.block_time,
             };
             let mut observer =
-                ObserverService::new(&eth_cfg, u32::MAX, &db, Some(blob_reader.clone()))
+                ObserverService::new(&eth_cfg, u32::MAX, db.clone(), Some(blob_reader.clone()))
                     .await
                     .unwrap();
 
@@ -2026,7 +2026,7 @@ mod utils {
                             pub_key_session,
                             router_address: self.eth_cfg.router_address,
                         },
-                        Box::new(self.db.clone()),
+                        self.db.clone(),
                         self.signer.clone(),
                     )
                 });
@@ -2035,7 +2035,7 @@ mod utils {
             let observer = ObserverService::new(
                 &self.eth_cfg,
                 u32::MAX,
-                &self.db,
+                self.db.clone(),
                 Some(self.blob_reader.clone()),
             )
             .await

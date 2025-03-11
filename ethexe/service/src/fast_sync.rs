@@ -135,10 +135,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let highest_block = observer
         .provider()
-        .get_block(
-            BlockId::Number(BlockNumberOrTag::Latest),
-            Default::default(),
-        )
+        .get_block(BlockId::Number(BlockNumberOrTag::Latest))
         .await
         .context("failed to get latest block")?
         .expect("latest block always exist");
@@ -173,10 +170,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
         log::info!("Instrument {} codes", codes_to_receive.len());
         for &code_id in &codes_to_receive {
-            let code_info =
-                OnChainStorage::code_info(db, code_id).expect("observer must fulfill database");
-            let original_code =
-                OnChainStorage::original_code(db, code_id).expect("observer must fulfill database");
+            let code_info = db
+                .code_blob_info(code_id)
+                .expect("observer must fulfill database");
+            let original_code = db
+                .original_code(code_id)
+                .expect("observer must fulfill database");
             compute.receive_code(code_id, code_info.timestamp, original_code);
         }
 
@@ -312,13 +311,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
     debug_assert_eq!(completed, pending);
 
-    db.set_block_end_program_states(latest_block, program_states);
-    db.set_block_end_state_is_valid(latest_block, true);
-    db.set_block_end_schedule(latest_block, schedule_restorer.build());
-    db.set_latest_valid_block(latest_block, latest_block_header);
+    db.set_block_program_states(latest_block, program_states);
+    db.set_block_schedule(latest_block, schedule_restorer.build());
     db.set_block_commitment_queue(latest_block, VecDeque::new());
-    db.set_block_is_empty(latest_block, false);
-    db.set_previous_committed_block(latest_block, previous_block.unwrap_or_else(H256::zero));
+    db.set_block_outcome(latest_block, Vec::new());
+    db.set_previous_not_empty_block(latest_block, previous_block.unwrap_or_else(H256::zero));
+    db.set_block_computed(latest_block);
 
     log::info!("Fast synchronization done");
 
@@ -340,7 +338,7 @@ async fn collect_event_data(
     let mut latest_block = None;
 
     let mut block = highest_block;
-    while !db.block_end_state_is_valid(block).unwrap_or(false) {
+    while !db.block_computed(block) {
         let events = db
             .block_events(block)
             .ok_or_else(|| anyhow!("no events found for block {block}"))?;

@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IMirror, AlloyProvider, AlloyTransport, TryGetReceipt};
+use crate::{abi::IMirror, AlloyProvider, TryGetReceipt};
 use alloy::{
     primitives::{Address, U256},
     providers::{Provider, RootProvider},
-    transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
 use ethexe_signer::Address as LocalAddress;
@@ -31,9 +30,9 @@ use std::sync::Arc;
 pub mod events;
 
 type InstanceProvider = Arc<AlloyProvider>;
-type Instance = IMirror::IMirrorInstance<AlloyTransport, InstanceProvider>;
+type Instance = IMirror::IMirrorInstance<(), InstanceProvider>;
 
-type QueryInstance = IMirror::IMirrorInstance<AlloyTransport, RootProvider<BoxTransport>>;
+type QueryInstance = IMirror::IMirrorInstance<(), RootProvider>;
 
 pub struct Mirror(Instance);
 
@@ -114,7 +113,7 @@ impl Mirror {
 pub struct MirrorQuery(QueryInstance);
 
 impl MirrorQuery {
-    pub fn from_provider(address: Address, provider: RootProvider<BoxTransport>) -> Self {
+    pub fn from_provider(address: Address, provider: RootProvider) -> Self {
         Self(QueryInstance::new(address, provider))
     }
 
