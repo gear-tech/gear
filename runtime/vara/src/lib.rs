@@ -1247,7 +1247,10 @@ where
     T: pallet_gear_eth_bridge::Config,
 {
     fn sorted_members() -> Vec<AccountId> {
-        vec![pallet_gear_eth_bridge::BridgeAdminAddress::<Runtime>::get(), pallet_gear_eth_bridge::BridgePauserAddress::<Runtime>::get()]
+        vec![
+            pallet_gear_eth_bridge::BridgeAdminAddress::<Runtime>::get(),
+            pallet_gear_eth_bridge::BridgePauserAddress::<Runtime>::get(),
+        ]
     }
 
     fn count() -> usize {

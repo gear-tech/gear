@@ -80,7 +80,6 @@ pub mod pallet {
         }
     }
 
-
     /// Pallet Gear Eth Bridge's admin account ID.
     pub struct BridgePauserAddress<T: Config>(PhantomData<T>);
     impl<T: Config> Get<<T as frame_system::Config>::AccountId> for BridgePauserAddress<T> {
@@ -88,7 +87,6 @@ pub mod pallet {
             Pallet::<T>::bridge_pauser_account_id()
         }
     }
-
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
