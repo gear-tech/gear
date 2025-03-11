@@ -24,7 +24,7 @@ use crate::{
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
-    providers::{ext::AnvilApi, Provider as _},
+    providers::{ext::AnvilApi, Provider as _, RootProvider},
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Result;
@@ -34,7 +34,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{EthereumConfig, MockBlobReader, Provider};
+use ethexe_observer::{EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
@@ -1134,7 +1134,7 @@ mod utils {
         pub eth_cfg: EthereumConfig,
         pub wallets: Wallets,
         pub blob_reader: Arc<MockBlobReader>,
-        pub provider: Provider,
+        pub provider: RootProvider,
         pub ethereum: Ethereum,
         pub router_query: RouterQuery,
         pub signer: Signer,
