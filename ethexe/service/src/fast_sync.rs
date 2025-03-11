@@ -34,7 +34,7 @@ use ethexe_observer::ObserverEvent;
 use ethexe_runtime_common::{
     state::{
         ActiveProgram, DispatchStash, Mailbox, MaybeHashOf, MemoryPages, MemoryPagesRegion,
-        Program, ProgramState, Storage, Waitlist,
+        Program, ProgramState, Waitlist,
     },
     ScheduleRestorer,
 };
@@ -207,6 +207,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                         .complete(request_id, hash)
                         .expect("unknown `db-sync` response");
 
+                    db.write(&data);
+
                     for request in completed_requests {
                         match request {
                             Request::ProgramState { program_id } => {
@@ -250,8 +252,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                                 if let Some(stash_hash) = stash_hash.hash() {
                                     requests.add(stash_hash, Request::DispatchStash { program_id });
                                 }
-
-                                db.write_state(state);
                             }
                             Request::MemoryPages => {
                                 let memory_pages: MemoryPages = Decode::decode(&mut &data[..])
@@ -264,8 +264,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                                 {
                                     requests.add(pages_region_hash, Request::MemoryPagesRegions);
                                 }
-
-                                db.write_pages(memory_pages);
                             }
                             Request::MemoryPagesRegions => {
                                 let pages_region: MemoryPagesRegion =
@@ -279,30 +277,23 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                                 {
                                     requests.add(page_buf_hash, Request::Data);
                                 }
-
-                                db.write_pages_region(pages_region);
                             }
                             Request::Waitlist { program_id } => {
                                 let waitlist: Waitlist = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
                                 schedule_restorer.waitlist(program_id, &waitlist);
-                                db.write_waitlist(waitlist);
                             }
                             Request::Mailbox { program_id } => {
                                 let mailbox: Mailbox = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
                                 schedule_restorer.mailbox(program_id, &mailbox);
-                                db.write_mailbox(mailbox);
                             }
                             Request::DispatchStash { program_id } => {
                                 let stash: DispatchStash = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
                                 schedule_restorer.stash(program_id, &stash);
-                                db.write_stash(stash);
                             }
-                            Request::Data => {
-                                db.write(&data);
-                            }
+                            Request::Data => {}
                         }
                     }
                 }
