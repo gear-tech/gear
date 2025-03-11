@@ -20,9 +20,10 @@ use crate as pallet_gear_eth_bridge;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks},
+    PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
@@ -290,7 +291,13 @@ impl pallet_session::Config for Test {
     type WeightInfo = pallet_session::weights::SubstrateWeight<Test>;
 }
 
+parameter_types! {
+    pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
+}
+
 impl pallet_gear_eth_bridge::Config for Test {
+    type AdminOrigin = EnsureRoot<AccountId>;
+    type PalletId = GearEthBridgePalletId;
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
