@@ -80,6 +80,16 @@ pub mod pallet {
         }
     }
 
+
+    /// Pallet Gear Eth Bridge's admin account ID.
+    pub struct BridgePauserAddress<T: Config>(PhantomData<T>);
+    impl<T: Config> Get<<T as frame_system::Config>::AccountId> for BridgePauserAddress<T> {
+        fn get() -> <T as frame_system::Config>::AccountId {
+            Pallet::<T>::bridge_pauser_account_id()
+        }
+    }
+
+
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -393,6 +403,11 @@ pub mod pallet {
         /// The account ID of the bridge admin.
         pub fn bridge_admin_account_id() -> T::AccountId {
             T::PalletId::get().into_sub_account_truncating("bridge_admin")
+        }
+
+        /// The account ID of the bridge pauser.
+        pub fn bridge_pauser_account_id() -> T::AccountId {
+            T::PalletId::get().into_sub_account_truncating("bridge_pauser")
         }
     }
 

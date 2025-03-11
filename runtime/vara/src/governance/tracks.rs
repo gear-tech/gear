@@ -18,6 +18,8 @@
 
 //! Track configurations for governance.
 
+#![allow(clippy::identity_op)]
+
 use super::*;
 
 const fn percent(x: i32) -> sp_runtime::FixedI64 {
@@ -79,7 +81,7 @@ const APP_WHITELISTED_CALLER: Curve =
 const SUP_WHITELISTED_CALLER: Curve =
     Curve::make_reciprocal(1, 28, percent(20), percent(5), percent(50));
 
-const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 14] = [
+const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15] = [
     (
         0,
         pallet_referenda::TrackInfo {
