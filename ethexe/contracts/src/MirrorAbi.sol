@@ -2,6 +2,8 @@
 pragma solidity ^0.8.26;
 
 import {Proxy} from "@openzeppelin/contracts/proxy/Proxy.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {IMirror} from "./IMirror.sol";
 import {Gear} from "./libraries/Gear.sol";
 import {IRouter} from "./IRouter.sol";
@@ -18,7 +20,6 @@ contract MirrorAbi is IMirror, Proxy {
     address public initializer;
     address public implAddress;
     address private _abi;
-    bytes32 private constant PROXY_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     function initialize(address _initializer, address _router, address _implAddress, address _interface) public {
         require(initializer == address(0), "initializer could only be set once");
@@ -28,12 +29,10 @@ contract MirrorAbi is IMirror, Proxy {
         implAddress = _implAddress;
         _abi = _interface;
 
-        assembly ("memory-safe") {
-            sstore(PROXY_SLOT, _interface)
-        }
+        StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT).value = _interface;
     }
 
-    function _delegate(address) internal override {
+    function _delegate(address /*_implementation*/ ) internal override {
         uint256 len = msg.data.length;
         require(len >= 32, "Mirror: invalid message data length");
         uint128 value = uint128(uint256(bytes32(msg.data[len - 32])));

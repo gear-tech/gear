@@ -141,7 +141,7 @@ contract POCTest is Base {
         {
             vm.expectEmit(true, false, false, false);
             emit IRouter.ProgramCreated(address(0), bytes32(uint256(1)));
-            _ping = router.createProgram(_codeId);
+            _ping = router.createProgram(_codeId, "salt");
             assertEq(IMirror(_ping).implAddress(), router.mirrorImpl());
             IMirror(_ping).sendMessage("PING", 0);
         }

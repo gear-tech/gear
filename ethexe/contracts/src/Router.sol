@@ -12,7 +12,6 @@ import {IWrappedVara} from "./IWrappedVara.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
-import {MirrorAbi} from "./MirrorAbi.sol";
 
 // TODO (gsobol): append middleware for slashing support.
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
@@ -217,12 +216,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     }
 
     // Owner calls.
-    function setMirrorImpl(address newMirror) external onlyOwner {
-        _router().implAddresses.mirrorImpl = newMirror;
+    function setMirrorImpl(address _newMirrorImpl) external onlyOwner {
+        _router().implAddresses.mirrorImpl = _newMirrorImpl;
     }
 
-    function setMirrorAbi(address _mirrorAbi) external onlyOwner {
-        _router().implAddresses.mirrorAbi = _mirrorAbi;
+    function setMirrorAbi(address _newMirrorAbi) external onlyOwner {
+        _router().implAddresses.mirrorAbi = _newMirrorAbi;
     }
 
     // # Calls.
@@ -254,18 +253,31 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         emit CodeValidationRequested(_codeId);
     }
 
-    function createProgram(bytes32 _codeId) external returns (address mirror) {
-        Storage storage router = _router();
-        mirror = _createProgram(_codeId, router);
+    function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {
+        Storage storage router = _router(); //TODO: maybe remove this
+        address mirror = _createProgram(_codeId, _salt);
 
+        // TODO: check if `router=address(this)` is really needed here. it can be just `immutable`.
+        // TODO: check if `router.implAddresses.mirrorImpl` is really needed here.
+        // (it can be queried using `staticcall` to `IRouter(router immutable).mirrorImpl()`)
         IMirror(mirror).initialize(msg.sender, address(this), router.implAddresses.mirrorImpl, address(0));
+
+        return mirror;
     }
 
-    function createProgramWithInterface(bytes32 _codeId, address _abiInterface) external returns (address mirror) {
-        Storage storage router = _router();
-        mirror = _createProgram(_codeId, router);
+    function createProgramWithInterface(bytes32 _codeId, bytes32 _salt, address _abiInterface)
+        external
+        returns (address)
+    {
+        Storage storage router = _router(); //TODO: maybe remove this
+        address mirror = _createProgram(_codeId, _salt);
 
+        // TODO: check if `router=address(this)` is really needed here. it can be just `immutable`.
+        // TODO: check if `router.implAddresses.mirrorImpl` is really needed here.
+        // (it can be queried using `staticcall` to `IRouter(router immutable).mirrorImpl()`)
         IMirror(mirror).initialize(msg.sender, address(this), router.implAddresses.mirrorImpl, _abiInterface);
+
+        return mirror;
     }
 
     function commitBatch(
@@ -377,7 +389,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     /* Helper private functions */
 
-    function _createProgram(bytes32 _codeId, Storage storage router) private returns (address program) {
+    function _createProgram(bytes32 _codeId, bytes32 /*_salt*/ ) private returns (address) {
+        Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
         require(
@@ -386,21 +399,17 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         );
 
         address _mirrorAbi = router.implAddresses.mirrorAbi;
+        address program;
 
         assembly ("memory-safe") {
             let contractSize := extcodesize(_mirrorAbi)
 
             let ctr := mload(0x40)
-            mstore(ctr, shl(0xf0, 0x3d61))
-            let offset := 0x02
-            mstore(add(ctr, offset), shl(0xf0, contractSize))
-            offset := add(offset, 0x02)
-            mstore(add(ctr, offset), shl(0xc8, 0x80600b3d3981f3))
-            offset := add(offset, 0x07)
-            mstore(0x40, add(ctr, offset))
+            mstore(ctr, or(shl(0xa8, 0x3d61000080600b3d3981f3), shl(0xe0, and(contractSize, 0xffff))))
+            mstore(0x40, add(ctr, 11)) //TODO: fix unaligned free memory pointer
 
-            let prefixSize := offset
-            let bytecodeSize := extcodesize(_mirrorAbi)
+            let prefixSize := 11
+            let bytecodeSize := contractSize
             let fullBytecodeSize := add(prefixSize, bytecodeSize)
 
             let code := mload(0x40)
@@ -418,10 +427,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             if iszero(program) { revert(0, 0) }
         }
 
-        router.protocolData.programs[address(program)] = _codeId;
+        router.protocolData.programs[program] = _codeId;
         router.protocolData.programsCount++;
 
-        emit ProgramCreated(address(program), _codeId);
+        emit ProgramCreated(program, _codeId);
+
+        return program;
     }
 
     function _commitBlock(Storage storage router, Gear.BlockCommitment calldata _blockCommitment)
