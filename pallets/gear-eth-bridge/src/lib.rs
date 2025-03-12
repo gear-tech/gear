@@ -80,7 +80,7 @@ pub mod pallet {
         }
     }
 
-    /// Pallet Gear Eth Bridge's admin account ID.
+    /// Pallet Gear Eth Bridge's pauser account ID.
     pub struct BridgePauserAddress<T: Config>(PhantomData<T>);
     impl<T: Config> Get<<T as frame_system::Config>::AccountId> for BridgePauserAddress<T> {
         fn get() -> <T as frame_system::Config>::AccountId {

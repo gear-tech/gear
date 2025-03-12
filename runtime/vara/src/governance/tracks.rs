@@ -313,6 +313,9 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
             if signer == BridgeAdminAddress::<Runtime>::get() {
                 // bridge_admin
                 return Ok(40);
+            } else if signer == BridgePauserAddress::<Runtime>::get() {
+                // bridge_pauser
+                return Ok(41);
             } else {
                 return Err(());
             }
