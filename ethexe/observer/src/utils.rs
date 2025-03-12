@@ -18,10 +18,10 @@
 
 // TODO (gsobol): add tests for utils
 
-use crate::{BlobReader, Provider};
+use crate::BlobReader;
 use alloy::{
     network::{Ethereum, Network},
-    providers::Provider as _,
+    providers::{Provider as _, RootProvider},
     rpc::{
         client::BatchRequest,
         types::{
@@ -38,7 +38,7 @@ use ethexe_signer::Address;
 use futures::{future, stream::FuturesUnordered, FutureExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{CodeId, H256};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, future::IntoFuture, sync::Arc};
 
 /// Max number of blocks to query in alloy.
 pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
@@ -147,7 +147,7 @@ pub(crate) fn block_response_to_data(response: Option<Block>) -> Result<(H256, B
 }
 
 pub(crate) async fn load_block_data(
-    provider: Provider,
+    provider: RootProvider,
     block: H256,
     router_address: Address,
     wvara_address: Address,
@@ -169,10 +169,7 @@ pub(crate) async fn load_block_data(
     {
         ((block, header), logs_request.await?)
     } else {
-        let block_request = provider.get_block_by_hash(
-            block.0.into(),
-            alloy::rpc::types::BlockTransactionsKind::Hashes,
-        );
+        let block_request = provider.get_block_by_hash(block.0.into()).into_future();
 
         match future::try_join(block_request, logs_request).await {
             Ok((response, logs)) => (crate::block_response_to_data(response)?, logs),
@@ -215,7 +212,7 @@ pub(crate) async fn load_block_data(
 }
 
 pub(crate) async fn load_blocks_data_batched(
-    provider: Provider,
+    provider: RootProvider,
     from_block: u64,
     to_block: u64,
     router_address: Address,
@@ -244,7 +241,7 @@ pub(crate) async fn load_blocks_data_batched(
 }
 
 async fn load_blocks_batch_data(
-    provider: Provider,
+    provider: RootProvider,
     router_address: Address,
     wvara_address: Address,
     from_block: u64,
