@@ -62,13 +62,7 @@ impl WeightExpectation {
 pub(super) fn check_expectations(expectations: &[WeightExpectation]) -> Result<usize, Vec<String>> {
     let errors = expectations
         .iter()
-        .filter_map(|expectation| {
-            if let Err(err) = expectation.check() {
-                Some(err)
-            } else {
-                None
-            }
-        })
+        .filter_map(|expectation| expectation.check().err())
         .collect::<Vec<String>>();
 
     if errors.is_empty() {

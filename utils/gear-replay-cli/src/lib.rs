@@ -189,6 +189,7 @@ pub(crate) fn rpc_err_handler(error: impl Debug) -> &'static str {
 
 /// Execute the given `method` and `data` on top of `ext` using the `executor` and `strategy`.
 /// Returning the results (encoded) and the state `changes`.
+#[allow(clippy::result_large_err)]
 pub(crate) fn state_machine_call<Block: BlockT, Executor: CodeExecutor>(
     ext: &TestExternalities<HashingFor<Block>>,
     executor: &Executor,

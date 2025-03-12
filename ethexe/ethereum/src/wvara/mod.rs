@@ -18,12 +18,11 @@
 
 use crate::{
     abi::{self, IWrappedVara},
-    AlloyProvider, AlloyTransport, TryGetReceipt,
+    AlloyProvider, TryGetReceipt,
 };
 use alloy::{
     primitives::{Address, U256 as AlloyU256},
     providers::{Provider, ProviderBuilder, RootProvider},
-    transports::BoxTransport,
 };
 use anyhow::Result;
 use ethexe_signer::Address as LocalAddress;
@@ -33,10 +32,9 @@ use std::sync::Arc;
 pub mod events;
 
 type InstanceProvider = Arc<AlloyProvider>;
-type Instance = IWrappedVara::IWrappedVaraInstance<AlloyTransport, InstanceProvider>;
+type Instance = IWrappedVara::IWrappedVaraInstance<(), InstanceProvider>;
 
-type QueryInstance =
-    IWrappedVara::IWrappedVaraInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
+type QueryInstance = IWrappedVara::IWrappedVaraInstance<(), Arc<RootProvider>>;
 
 pub struct WVara(Instance);
 
@@ -96,7 +94,7 @@ pub struct WVaraQuery(QueryInstance);
 
 impl WVaraQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = Arc::new(ProviderBuilder::new().on_builtin(rpc_url).await?);
+        let provider = Arc::new(ProviderBuilder::default().connect(rpc_url).await?);
 
         Ok(Self(QueryInstance::new(
             Address::new(router_address.0),

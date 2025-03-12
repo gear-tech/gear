@@ -1,14 +1,14 @@
 [workspace.package]
 version = "1.7.1"
 authors = ["Gear Technologies"]
-edition = "2021"
+edition = "2024"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.84"
+rust-version = "1.85"
 
 [workspace]
-resolver = "2"
+resolver = "3"
 
 default-members = ["node/cli"]
 
@@ -111,7 +111,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = "0.9.1"
+alloy = "0.12.4"
 alloy-primitives = { version = "0.8", default-features = false }
 alloy-sol-types = { version = "0.8", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
@@ -124,7 +124,7 @@ byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
-cargo_metadata = "0.19.1"
+cargo_metadata = "0.19.2"
 clap = "4.5.8"
 codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false }
 color-eyre = "0.6.3"
@@ -302,6 +302,7 @@ ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
 ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common", default-features = false }
+ethexe-tx-pool = { path = "ethexe/tx-pool", default-features = false }
 ethexe-compute = { path = "ethexe/compute", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
