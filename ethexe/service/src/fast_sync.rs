@@ -25,7 +25,7 @@ use anyhow::{anyhow, Context, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::CodeCommitment,
+    gear::{CodeCommitment, StateTransition},
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_db::Database;
@@ -311,12 +311,17 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
     debug_assert_eq!(completed, pending);
 
+    // FIXME: the block can have program states of a few future blocks
     db.set_block_program_states(latest_block, program_states);
     db.set_block_schedule(latest_block, schedule_restorer.build());
     db.set_block_commitment_queue(latest_block, VecDeque::new());
-    db.set_block_outcome(latest_block, Vec::new());
+    // `latest_block` is committed and thus cannot be empty,
+    // so we just insert placeholder value to pass emptiness check
+    db.set_block_outcome(latest_block, vec![StateTransition::default()]);
+    // and `previous_block` is committed too
     db.set_previous_not_empty_block(latest_block, previous_block.unwrap_or_else(H256::zero));
     db.set_block_computed(latest_block);
+    db.set_latest_computed_block(latest_block, latest_block_header);
 
     log::info!("Fast synchronization done");
 

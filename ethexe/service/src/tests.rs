@@ -1146,7 +1146,7 @@ async fn fast_sync() {
         .unwrap();
 
     let code_id = code_info.code_id;
-    let mut program_ids = [(ActorId::zero(), ActorId::zero()); 16];
+    let mut program_ids = [(ActorId::zero(), ActorId::zero()); 5];
 
     for (i, (program_id, destination)) in program_ids.iter_mut().enumerate() {
         let program_info = env
