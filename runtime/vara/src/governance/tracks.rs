@@ -26,7 +26,7 @@ const fn percent(x: i32) -> sp_runtime::FixedI64 {
     sp_runtime::FixedI64::from_rational(x as u128, 100)
 }
 
-use pallet_gear_eth_bridge::BridgeAdminAddress;
+use pallet_gear_eth_bridge::{BridgeAdminAddress, BridgePauserAddress};
 use pallet_referenda::Curve;
 
 const APP_ROOT: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
