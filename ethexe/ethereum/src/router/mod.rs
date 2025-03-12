@@ -23,7 +23,7 @@ use crate::{
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{fixed_bytes, Address, U256},
+    primitives::{fixed_bytes, Address, B256, U256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{eth::state::AccountOverride, Filter},
 };
@@ -312,6 +312,16 @@ impl RouterQuery {
         self.instance
             .validators()
             .call()
+            .await
+            .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::into)
+    }
+
+    pub async fn validators_at(&self, block: H256) -> Result<Vec<LocalAddress>> {
+        self.instance
+            .validators()
+            .call()
+            .block(B256::from(block.0).into())
             .await
             .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::into)

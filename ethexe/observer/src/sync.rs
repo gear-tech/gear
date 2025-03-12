@@ -18,7 +18,7 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{BlobReader, RuntimeConfig};
+use crate::{BlobData, BlobReader, BlockSyncedData, RuntimeConfig};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{
@@ -27,6 +27,7 @@ use ethexe_common::{
     BlockData,
 };
 use ethexe_db::{BlockHeader, CodeInfo, CodesStorage};
+use ethexe_ethereum::router::RouterQuery;
 use futures::{
     future::{self},
     stream::FuturesUnordered,
@@ -41,13 +42,17 @@ use std::{
 // TODO (gsobol): make tests for ChainSync
 pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
     pub provider: RootProvider,
+    pub router_query: RouterQuery,
     pub db: DB,
     pub blobs_reader: Arc<dyn BlobReader>,
     pub config: RuntimeConfig,
 }
 
 impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
-    pub async fn sync(self, chain_head: Header) -> Result<(H256, Vec<(CodeId, CodeInfo)>)> {
+    pub async fn sync(
+        self,
+        chain_head: Header,
+    ) -> Result<(BlockSyncedData, Vec<(CodeId, CodeInfo)>)> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
             height: chain_head.number as u32,
@@ -65,7 +70,14 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         // NOTE: reverse order is important here, because by default chain was loaded in order from head to past.
         self.mark_chain_as_synced(chain.into_iter().rev());
 
-        Ok((block, codes_to_load_later))
+        let validators = self.router_query.validators_at(block).await?;
+
+        let res = BlockSyncedData {
+            block_hash: block,
+            validators,
+        };
+
+        Ok((res, codes_to_load_later))
     }
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
@@ -215,7 +227,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         }
 
         for res in future::join_all(codes_futures).await {
-            let (code_id, _, code) = res?;
+            let BlobData { code_id, code, .. } = res?;
 
             let real_id = self.db.set_original_code(code.as_slice());
             if real_id != code_id {
