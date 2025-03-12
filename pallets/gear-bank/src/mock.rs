@@ -52,6 +52,8 @@ mod consts {
     pub const CHARLIE: AccountId = 3;
     pub const EVE: AccountId = 4;
 
+    pub const TREASURY: AccountId = 77;
+
     pub const EXISTENTIAL_DEPOSIT: Balance = 100_000;
 
     pub const VALUE_PER_GAS: Balance = 6;
@@ -64,8 +66,8 @@ parameter_types! {
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
+    pub const TreasuryAddress: AccountId = TREASURY;
     pub const TreasuryGasFeeShare: Percent = Percent::from_percent(50);
-    pub const TreasuryTxFeeShare: Percent = Percent::zero();
     // TODO: Issue #4058
     pub SplitTxFeeRatio: Option<u32> = None;
 }
@@ -83,7 +85,11 @@ construct_runtime!(
 common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_balances!(Test);
-pallet_gear_bank::impl_config!(Test);
+pallet_gear_bank::impl_config!(
+    Test,
+    TreasuryAddress = TreasuryAddress,
+    TreasuryGasFeeShare = TreasuryGasFeeShare
+);
 
 pub fn new_test_ext() -> TestExternalities {
     let mut storage = frame_system::GenesisConfig::<Test>::default()
@@ -97,6 +103,7 @@ pub fn new_test_ext() -> TestExternalities {
         (BLOCK_AUTHOR, EXISTENTIAL_DEPOSIT),
         (CHARLIE, EXISTENTIAL_DEPOSIT),
         (EVE, EXISTENTIAL_DEPOSIT),
+        (TREASURY, EXISTENTIAL_DEPOSIT),
     ];
 
     pallet_balances::GenesisConfig::<Test> { balances }
