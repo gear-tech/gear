@@ -52,8 +52,8 @@ cfg_if! {
             const WRITE_BIT_MASK: u32 = 0b10;
             const TRAPNO: u16 = 0xe; // Page Fault
 
-            let mcontext = unsafe { (*ucontext) }.uc_mcontext;
-            let exception_state = unsafe { (*mcontext) }.__es;
+            let mcontext = unsafe { *ucontext }.uc_mcontext;
+            let exception_state = unsafe { *mcontext }.__es;
             let trapno = exception_state.__trapno;
             let err = exception_state.__err;
 
@@ -70,7 +70,7 @@ cfg_if! {
 
             let ucontext = unsafe { ucontext.as_mut() }?;
             let mcontext = ucontext.uc_mcontext;
-            let exception_state = unsafe { (*mcontext) }.__es;
+            let exception_state = unsafe { *mcontext }.__es;
             let esr = exception_state.__esr;
 
             let exception_class = esr >> EXCEPTION_CLASS_SHIFT;
