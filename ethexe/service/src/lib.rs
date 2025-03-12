@@ -241,6 +241,8 @@ impl Service {
 
         let compute = ComputeService::new(db.clone(), processor);
 
+        let fast_sync = config.node.fast_sync;
+
         Ok(Self {
             db,
             network,
@@ -253,7 +255,7 @@ impl Service {
             rpc,
             tx_pool,
             sender: None,
-            fast_sync: false, // TODO: add to Config
+            fast_sync,
         })
     }
 

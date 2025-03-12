@@ -20,7 +20,6 @@
 
 use crate::{
     config::{self, Config},
-    tests::utils::NodeNetworkConfig,
     Event, Service,
 };
 use alloy::{
@@ -80,6 +79,7 @@ async fn basics() {
         worker_threads_override: None,
         virtual_threads: 16,
         dev: true,
+        fast_sync: false,
     };
 
     let eth_cfg = EthereumConfig {
@@ -1173,11 +1173,8 @@ async fn fast_sync() {
     let mut bob = env.new_node(
         NodeConfig::named("Bob")
             .validator(env.validators[2], env.validator_session_public_keys[2])
-            .network_with_config(NodeNetworkConfig {
-                address: None,
-                bootstrap_address: sequencer.multiaddr.clone(),
-                fast_sync: true,
-            }),
+            .network(None, sequencer.multiaddr.clone())
+            .fast_sync(),
     );
     bob.start_service().await;
 
@@ -1514,6 +1511,7 @@ mod utils {
                 validator_session_public_key,
                 network,
                 rpc: service_rpc_config,
+                fast_sync,
             } = config;
 
             let db = db.unwrap_or_else(|| {
@@ -1527,10 +1525,6 @@ mod utils {
                     format!("/memory/{nonce}")
                 })
             });
-            let fast_sync = network
-                .as_ref()
-                .map(|network| network.fast_sync)
-                .unwrap_or(false);
             let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
 
             Node {
@@ -1838,6 +1832,8 @@ mod utils {
         pub network: Option<NodeNetworkConfig>,
         /// RPC configuration, if provided then new node starts with RPC service.
         pub rpc: Option<RpcConfig>,
+        /// Do P2P database synchronization before the main loop
+        pub fast_sync: bool,
     }
 
     impl NodeConfig {
@@ -1868,17 +1864,16 @@ mod utils {
             self
         }
 
-        pub fn network_with_config(mut self, config: NodeNetworkConfig) -> Self {
-            self.network = Some(config);
-            self
-        }
-
-        pub fn network(self, address: Option<String>, bootstrap_address: Option<String>) -> Self {
-            self.network_with_config(NodeNetworkConfig {
+        pub fn network(
+            mut self,
+            address: Option<String>,
+            bootstrap_address: Option<String>,
+        ) -> Self {
+            self.network = Some(NodeNetworkConfig {
                 address,
                 bootstrap_address,
-                fast_sync: false,
-            })
+            });
+            self
         }
 
         pub fn service_rpc(mut self, rpc_port: u16) -> Self {
@@ -1891,6 +1886,11 @@ mod utils {
 
             self
         }
+
+        pub fn fast_sync(mut self) -> Self {
+            self.fast_sync = true;
+            self
+        }
     }
 
     #[derive(Default)]
@@ -1899,8 +1899,6 @@ mod utils {
         pub address: Option<String>,
         /// Network bootstrap address, if not provided, then no bootstrap address will be used.
         pub bootstrap_address: Option<String>,
-        /// Do P2P database synchronization before the main loop
-        pub fast_sync: bool,
     }
 
     /// Provides access to hardcoded anvil wallets or custom set wallets.
