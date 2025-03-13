@@ -29,9 +29,10 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_common::{
-    db::CodesStorage,
+    db::{CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
+use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::{EthereumConfig, MockBlobReader};
@@ -39,7 +40,6 @@ use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
 use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
-use ethexe_sequencer::SequencerEvent;
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
 use ethexe_validator::Validator;
@@ -1170,6 +1170,18 @@ async fn fast_sync() {
     }
 
     log::info!("Starting Bob (fast-sync)");
+    let latest_block = env.latest_block().await;
+    alice
+        .wait_for(|event| {
+            matches!(
+                event,
+                Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash })) if block_hash == latest_block
+            )
+        })
+        .await;
+    let latest_block = alice.db.block_header(latest_block).unwrap();
+    let bob_previous_block = latest_block.parent_hash;
+
     let mut bob = env.new_node(
         NodeConfig::named("Bob")
             .validator(env.validators[2], env.validator_session_public_keys[2])
@@ -1194,19 +1206,74 @@ async fn fast_sync() {
         );
     }
 
-    sequencer
+    env.skip_blocks(100).await;
+
+    let latest_block = env.latest_block().await;
+    log::info!("Do assertions since {latest_block}");
+
+    alice
         .wait_for(|event| {
             matches!(
                 event,
-                Event::Sequencer(SequencerEvent::CollectionRoundEnded { block_hash: _ })
+                Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash })) if block_hash == latest_block
             )
         })
         .await;
+
+    bob.wait_for(|event| {
+        matches!(
+            event,
+            Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash })) if block_hash == latest_block
+        )
+    })
+        .await;
+
+    assert_eq!(alice.db.program_ids(), bob.db.program_ids());
+    assert_eq!(
+        alice.db.latest_computed_block(),
+        bob.db.latest_computed_block()
+    );
+
+    let mut block = latest_block;
+    loop {
+        if block == bob_previous_block {
+            break;
+        }
+
+        log::trace!("assert block {block}");
+
+        assert_eq!(alice.db.block_computed(block), bob.db.block_computed(block));
+        assert_eq!(
+            alice.db.block_commitment_queue(block),
+            bob.db.block_commitment_queue(block)
+        );
+        assert_eq!(
+            alice.db.previous_not_empty_block(block),
+            bob.db.previous_not_empty_block(block)
+        );
+        assert_eq!(
+            alice.db.block_program_states(block),
+            bob.db.block_program_states(block)
+        );
+        assert_eq!(alice.db.block_outcome(block), bob.db.block_outcome(block));
+        assert_eq!(alice.db.block_schedule(block), bob.db.block_schedule(block));
+
+        assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
+        assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
+        assert_eq!(
+            alice.db.block_is_synced(block),
+            bob.db.block_is_synced(block)
+        );
+
+        let header = alice.db.block_header(block).unwrap();
+        block = header.parent_hash;
+    }
 }
 
 mod utils {
     use super::*;
     use crate::Event;
+    use alloy::eips::BlockId;
     use ethexe_common::SimpleBlockData;
     use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkEvent};
@@ -1665,6 +1732,17 @@ mod utils {
                     .await
                     .unwrap();
             }
+        }
+
+        pub async fn latest_block(&self) -> H256 {
+            let latest_block = self
+                .provider
+                .get_block(BlockId::latest())
+                .await
+                .unwrap()
+                .expect("latest block always exist")
+                .header;
+            H256(latest_block.hash.0)
         }
 
         #[allow(unused)]
