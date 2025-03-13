@@ -80,11 +80,10 @@ pub enum NetworkEvent {
 impl fmt::Debug for NetworkEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NetworkEvent::DbResponse { request_id, result } => f
-                .debug_struct("DbResponse")
-                .field("request_id", request_id)
-                .field("result", result)
-                .finish(),
+            NetworkEvent::DbResponse(res) => f.debug_tuple("DbResponse").field(res).finish(),
+            NetworkEvent::ExternalValidation(resp) => {
+                f.debug_tuple("ExternalValidation").field(resp).finish()
+            }
             NetworkEvent::Message { data, source } => f
                 .debug_struct("Message")
                 .field("data", &format_args!("{} bytes", data.len()))
