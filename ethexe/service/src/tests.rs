@@ -1125,10 +1125,7 @@ mod utils {
         str::FromStr,
         sync::atomic::{AtomicUsize, Ordering},
     };
-    use tokio::sync::{
-        broadcast::{self, Receiver, Sender},
-        Mutex,
-    };
+    use tokio::sync::broadcast::{self, Receiver, Sender};
 
     pub struct TestEnv {
         pub eth_cfg: EthereumConfig,
@@ -1146,7 +1143,7 @@ mod utils {
         pub continuous_block_generation: bool,
 
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
-        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+        broadcaster: Sender<ObserverEvent>,
         db: Database,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
@@ -1296,8 +1293,7 @@ mod utils {
             let provider = observer.provider().clone();
 
             let (broadcaster, _events_stream) = {
-                let (sender, mut receiver) = tokio::sync::broadcast::channel(2048);
-                let sender = Arc::new(Mutex::new(sender));
+                let (sender, mut receiver) = broadcast::channel(2048);
                 let cloned_sender = sender.clone();
 
                 let (send_subscription_created, receive_subscription_created) =
@@ -1309,8 +1305,6 @@ mod utils {
                         log::trace!(target: "test-event", "📗 Event: {:?}", event);
 
                         cloned_sender
-                            .lock()
-                            .await
                             .send(event)
                             .inspect_err(|err| log::error!("Failed to broadcast event: {err}"))
                             .unwrap();
@@ -1533,14 +1527,14 @@ mod utils {
     }
 
     pub struct ObserverEventsPublisher {
-        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+        broadcaster: Sender<ObserverEvent>,
         db: Database,
     }
 
     impl ObserverEventsPublisher {
         pub async fn subscribe(&self) -> ObserverEventsListener {
             ObserverEventsListener {
-                receiver: self.broadcaster.lock().await.subscribe(),
+                receiver: self.broadcaster.subscribe(),
                 db: self.db.clone(),
             }
         }
@@ -1918,18 +1912,14 @@ mod utils {
                 .map(|rpc| RpcClient::new(format!("http://{}", rpc.listen_addr)))
         }
 
-        pub fn listener(&self) -> ServiceEventsListener {
+        pub fn listener(&mut self) -> ServiceEventsListener {
             ServiceEventsListener {
-                receiver: self
-                    .broadcaster
-                    .as_ref()
-                    .expect("channel isn't created")
-                    .subscribe(),
+                receiver: self.receiver.as_mut().expect("channel isn't created"),
             }
         }
 
         // TODO(playX18): Tests that actually use Event broadcast channel extensively
-        pub async fn wait_for(&self, f: impl Fn(Event) -> bool) {
+        pub async fn wait_for(&mut self, f: impl Fn(Event) -> bool) {
             self.listener()
                 .wait_for(|e| Ok(f(e)))
                 .await
@@ -1937,19 +1927,11 @@ mod utils {
         }
     }
 
-    pub struct ServiceEventsListener {
-        receiver: Receiver<Event>,
+    pub struct ServiceEventsListener<'a> {
+        receiver: &'a mut Receiver<Event>,
     }
 
-    impl Clone for ServiceEventsListener {
-        fn clone(&self) -> Self {
-            Self {
-                receiver: self.receiver.resubscribe(),
-            }
-        }
-    }
-
-    impl ServiceEventsListener {
+    impl ServiceEventsListener<'_> {
         pub async fn next_event(&mut self) -> Result<Event> {
             self.receiver.recv().await.map_err(Into::into)
         }
