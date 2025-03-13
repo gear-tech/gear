@@ -63,7 +63,7 @@ use utils::{NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
 
 #[tokio::test]
 async fn basics() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let tmp_dir = tempdir().unwrap();
     let tmp_dir = tmp_dir.path().to_path_buf();
@@ -121,7 +121,7 @@ async fn basics() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -207,7 +207,7 @@ async fn ping() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn uninitialized_program() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -367,7 +367,7 @@ async fn uninitialized_program() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn mailbox() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -556,7 +556,7 @@ async fn mailbox() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn incoming_transfers() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -665,7 +665,7 @@ async fn incoming_transfers() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn ping_reorg() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -775,7 +775,7 @@ async fn ping_reorg() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping_deep_sync() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -843,7 +843,7 @@ async fn ping_deep_sync() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn multiple_validators() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let config = TestEnvConfig {
         validators: ValidatorsConfig::Generated(3),
@@ -854,7 +854,7 @@ async fn multiple_validators() {
     log::info!("📗 Starting sequencer");
     let sequencer_pub_key = env.wallets.next();
     let mut sequencer = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("sequencer")
             .sequencer(sequencer_pub_key)
             .network(None, None),
     );
@@ -862,7 +862,7 @@ async fn multiple_validators() {
 
     log::info!("📗 Starting validator 0");
     let mut validator0 = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("validator-0")
             .validator(env.validators[0], env.validator_session_public_keys[0])
             .network(None, sequencer.multiaddr.clone()),
     );
@@ -870,7 +870,7 @@ async fn multiple_validators() {
 
     log::info!("📗 Starting validator 1");
     let mut validator1 = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("validator-1")
             .validator(env.validators[1], env.validator_session_public_keys[1])
             .network(None, sequencer.multiaddr.clone()),
     );
@@ -878,7 +878,7 @@ async fn multiple_validators() {
 
     log::info!("📗 Starting validator 2");
     let mut validator2 = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("validator-2")
             .validator(env.validators[2], env.validator_session_public_keys[2])
             .network(None, sequencer.multiaddr.clone()),
     );
@@ -1009,7 +1009,7 @@ async fn multiple_validators() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn tx_pool_gossip() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let test_env_config = TestEnvConfig {
         validators: ValidatorsConfig::Generated(2),
@@ -1115,7 +1115,7 @@ mod utils {
     use ethexe_sequencer::{SequencerConfig, SequencerService};
     use ethexe_signer::PrivateKey;
     use ethexe_tx_pool::TxPoolService;
-    use futures::StreamExt;
+    use futures::{FutureExt, StreamExt};
     use gear_core::message::ReplyCode;
     use rand::{rngs::StdRng, SeedableRng};
     use roast_secp256k1_evm::frost::{
@@ -1123,26 +1123,75 @@ mod utils {
         Identifier, SigningKey,
     };
     use std::{
+        future::Future,
         ops::Mul,
+        pin::Pin,
         str::FromStr,
         sync::{
             atomic::{AtomicUsize, Ordering},
-            RwLock,
+            RwLock, RwLockReadGuard, RwLockWriteGuard,
         },
+        task::{Context, Poll},
     };
     use tokio::sync::{
         broadcast::{self, Receiver, Sender},
         Mutex,
     };
 
-    static TASK_NAMES: LazyLock<RwLock<HashMap<task::Id, &'static str>>> =
-        LazyLock::new(Default::default);
+    struct TaskNames;
 
-    fn get_task_name(id: task::Id) -> String {
-        if let Some(task_name) = TASK_NAMES.read().unwrap().get(&id) {
-            task_name.to_string()
-        } else {
-            id.to_string()
+    impl TaskNames {
+        fn map() -> &'static RwLock<HashMap<task::Id, String>> {
+            static TASK_NAMES: LazyLock<RwLock<HashMap<task::Id, String>>> =
+                LazyLock::new(Default::default);
+            &*TASK_NAMES
+        }
+
+        fn read() -> RwLockReadGuard<'static, HashMap<task::Id, String>> {
+            TaskNames::map().read().unwrap()
+        }
+
+        fn write() -> RwLockWriteGuard<'static, HashMap<task::Id, String>> {
+            TaskNames::map().write().unwrap()
+        }
+
+        fn task_name(id: task::Id) -> String {
+            if let Some(task_name) = Self::read().get(&id) {
+                task_name.clone()
+            } else {
+                id.to_string()
+            }
+        }
+    }
+
+    struct NamedJoinHandle<T> {
+        handle: JoinHandle<T>,
+    }
+
+    impl<T> NamedJoinHandle<T> {
+        fn wrap(name: impl Into<String>, handle: JoinHandle<T>) -> NamedJoinHandle<T> {
+            let mut map = TaskNames::write();
+            map.insert(handle.id(), name.into());
+            Self { handle }
+        }
+
+        fn abort(&self) {
+            self.handle.abort();
+        }
+    }
+
+    impl<T> Future for NamedJoinHandle<T> {
+        type Output = <JoinHandle<T> as Future>::Output;
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            self.handle.poll_unpin(cx)
+        }
+    }
+
+    impl<T> Drop for NamedJoinHandle<T> {
+        fn drop(&mut self) {
+            let mut map = TaskNames::write();
+            map.remove(&self.handle.id());
         }
     }
 
@@ -1159,7 +1208,7 @@ mod utils {
         let _ = env_logger::Builder::from_default_env()
             .format(|f, record| {
                 let task_name = task::try_id()
-                    .map(get_task_name)
+                    .map(TaskNames::task_name)
                     .unwrap_or_else(get_current_thread_name);
                 let level = f.default_styled_level(record.level());
                 let target = record.target();
@@ -1187,7 +1236,7 @@ mod utils {
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
         db: Database,
-        events_stream: JoinHandle<()>,
+        _events_stream: NamedJoinHandle<()>,
         _anvil: Option<AnvilInstance>,
     }
 
@@ -1335,7 +1384,6 @@ mod utils {
             let provider = observer.provider().clone();
 
             let (broadcaster, events_stream) = {
-                let mut observer = observer.clone();
                 let (sender, mut receiver) = tokio::sync::broadcast::channel(2048);
                 let sender = Arc::new(Mutex::new(sender));
                 let cloned_sender = sender.clone();
@@ -1365,10 +1413,8 @@ mod utils {
 
                     panic!("📗 Observer stream ended");
                 });
-                TASK_NAMES
-                    .write()
-                    .unwrap()
-                    .insert(handle.id(), "observer-stream");
+                let handle =
+                    NamedJoinHandle::wrap(format!("observer-stream-{}", handle.id()), handle);
                 receive_subscription_created.await.unwrap();
 
                 (sender, handle)
@@ -1392,7 +1438,7 @@ mod utils {
                 broadcaster,
                 db,
                 _anvil: anvil,
-                events_stream,
+                _events_stream: events_stream,
             })
         }
 
@@ -1578,14 +1624,6 @@ mod utils {
         }
     }
 
-    impl Drop for TestEnv {
-        fn drop(&mut self) {
-            let id = self.events_stream.id();
-            self.events_stream.abort();
-            TASK_NAMES.write().unwrap().remove(&id);
-        }
-    }
-
     pub struct ObserverEventsPublisher {
         broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
         db: Database,
@@ -1713,7 +1751,7 @@ mod utils {
     #[derive(Default)]
     pub struct NodeConfig {
         /// Node name.
-        pub name: Option<&'static str>,
+        pub name: Option<String>,
         /// Database, if not provided, will be created with MemDb.
         pub db: Option<Database>,
         /// Sequencer public key, if provided then new node starts as sequencer.
@@ -1729,9 +1767,9 @@ mod utils {
     }
 
     impl NodeConfig {
-        pub fn named(name: &'static str) -> Self {
+        pub fn named(name: impl Into<String>) -> Self {
             Self {
-                name: Some(name),
+                name: Some(name.into()),
                 ..Default::default()
             }
         }
@@ -1830,7 +1868,7 @@ mod utils {
     }
 
     pub struct Node {
-        pub name: Option<&'static str>,
+        pub name: Option<String>,
         pub db: Database,
         pub multiaddr: Option<String>,
 
@@ -1843,7 +1881,7 @@ mod utils {
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
         block_time: Duration,
-        running_service_handle: Option<JoinHandle<Result<()>>>,
+        running_service_handle: Option<NamedJoinHandle<Result<()>>>,
         sequencer_public_key: Option<ethexe_signer::PublicKey>,
         validator_public_key: Option<ethexe_signer::PublicKey>,
         validator_session_public_key: Option<ethexe_signer::PublicKey>,
@@ -1951,9 +1989,12 @@ mod utils {
             );
 
             let handle = task::spawn(service.run());
-            if let Some(name) = self.name {
-                TASK_NAMES.write().unwrap().insert(handle.id(), name);
-            }
+            let handle = NamedJoinHandle::wrap(
+                self.name
+                    .clone()
+                    .unwrap_or_else(|| format!("node-{}", handle.id())),
+                handle,
+            );
             self.running_service_handle = Some(handle);
 
             self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
@@ -1969,12 +2010,9 @@ mod utils {
                 .running_service_handle
                 .take()
                 .expect("Service is not running");
-            let id = handle.id();
             handle.abort();
 
             assert!(handle.await.unwrap_err().is_cancelled());
-
-            TASK_NAMES.write().unwrap().remove(&id);
 
             self.broadcaster = None;
             self.multiaddr = None;
