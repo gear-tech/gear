@@ -1140,8 +1140,8 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub BankAddress: AccountId = BANK_ADDRESS.into();
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
-    pub const TreasuryGasFeeShare: Percent = Percent::zero();
-    pub const TreasuryTxFeeShare: Percent = Percent::zero();
+    pub const TreasuryGasFeeShare: Percent = Percent::one();
+    pub const TreasuryTxFeeShare: Percent = Percent::one();
 }
 
 impl pallet_gear_bank::Config for Runtime {
