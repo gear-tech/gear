@@ -50,10 +50,10 @@ use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     io::Write,
     net::{Ipv4Addr, SocketAddr},
-    sync::{Arc, LazyLock},
+    sync::Arc,
     thread,
     time::Duration,
 };
@@ -1123,13 +1123,14 @@ mod utils {
         Identifier, SigningKey,
     };
     use std::{
+        collections::HashMap,
         future::Future,
         ops::Mul,
         pin::Pin,
         str::FromStr,
         sync::{
             atomic::{AtomicUsize, Ordering},
-            RwLock, RwLockReadGuard, RwLockWriteGuard,
+            LazyLock, RwLock, RwLockReadGuard, RwLockWriteGuard,
         },
         task::{Context, Poll},
     };
@@ -1144,7 +1145,7 @@ mod utils {
         fn map() -> &'static RwLock<HashMap<task::Id, String>> {
             static TASK_NAMES: LazyLock<RwLock<HashMap<task::Id, String>>> =
                 LazyLock::new(Default::default);
-            &*TASK_NAMES
+            &TASK_NAMES
         }
 
         fn read() -> RwLockReadGuard<'static, HashMap<task::Id, String>> {
@@ -1236,8 +1237,8 @@ mod utils {
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
         db: Database,
-        _events_stream: NamedJoinHandle<()>,
         _anvil: Option<AnvilInstance>,
+        _events_stream: NamedJoinHandle<()>,
     }
 
     impl TestEnv {
@@ -1383,7 +1384,7 @@ mod utils {
 
             let provider = observer.provider().clone();
 
-            let (broadcaster, events_stream) = {
+            let (broadcaster, _events_stream) = {
                 let (sender, mut receiver) = tokio::sync::broadcast::channel(2048);
                 let sender = Arc::new(Mutex::new(sender));
                 let cloned_sender = sender.clone();
@@ -1438,7 +1439,7 @@ mod utils {
                 broadcaster,
                 db,
                 _anvil: anvil,
-                _events_stream: events_stream,
+                _events_stream,
             })
         }
 
