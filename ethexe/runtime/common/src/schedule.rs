@@ -1,7 +1,7 @@
 use crate::{
     state::{
-        Dispatch, DispatchStash, Mailbox, PayloadLookup, Storage, ValueWithExpiry, Waitlist,
-        MAILBOX_VALIDITY,
+        Dispatch, DispatchStash, Expiring, MailboxMessage, PayloadLookup, Storage, UserMailbox,
+        Waitlist, MAILBOX_VALIDITY,
     },
     TransitionController,
 };
@@ -169,7 +169,7 @@ impl Restorer {
     }
 
     pub fn waitlist(&mut self, program_id: ActorId, waitlist: &Waitlist) {
-        for (&message_id, &ValueWithExpiry { value: _, expiry }) in waitlist.as_ref() {
+        for (&message_id, &Expiring { value: _, expiry }) in waitlist.as_ref() {
             if expiry <= self.current_block {
                 continue;
             }
@@ -181,28 +181,26 @@ impl Restorer {
         }
     }
 
-    pub fn mailbox(&mut self, program_id: ActorId, mailbox: &Mailbox) {
-        for (&user_id, user_mailbox) in mailbox.as_ref() {
-            for (&message_id, &ValueWithExpiry { value: _, expiry }) in user_mailbox {
-                if expiry <= self.current_block {
-                    continue;
-                }
-
-                self.schedule
-                    .entry(expiry)
-                    .or_default()
-                    .insert(ScheduledTask::RemoveFromMailbox(
-                        (program_id, user_id),
-                        message_id,
-                    ));
+    pub fn mailbox(&mut self, program_id: ActorId, user_id: ActorId, mailbox: &UserMailbox) {
+        for (&message_id, &Expiring { value: _, expiry }) in mailbox.as_ref() {
+            if expiry <= self.current_block {
+                continue;
             }
+
+            self.schedule
+                .entry(expiry)
+                .or_default()
+                .insert(ScheduledTask::RemoveFromMailbox(
+                    (program_id, user_id),
+                    message_id,
+                ));
         }
     }
 
     pub fn stash(&mut self, program_id: ActorId, stash: &DispatchStash) {
         for (
             &message_id,
-            &ValueWithExpiry {
+            &Expiring {
                 value: (ref dispatch, user_id),
                 expiry,
             },

@@ -351,7 +351,7 @@ impl MaybeHashOf<Mailbox> {
 
 impl MaybeHashOf<UserMailbox> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<UserMailbox> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_user_mailbox(hash).ok_or(anyhow!(
                 "failed to read ['UserMailbox'] from storage by hash"
             ))
@@ -751,8 +751,8 @@ impl Waitlist {
     }
 }
 
-impl AsRef<BTreeMap<MessageId, ValueWithExpiry<Dispatch>>> for Waitlist {
-    fn as_ref(&self) -> &BTreeMap<MessageId, ValueWithExpiry<Dispatch>> {
+impl AsRef<BTreeMap<MessageId, Expiring<Dispatch>>> for Waitlist {
+    fn as_ref(&self) -> &BTreeMap<MessageId, Expiring<Dispatch>> {
         &self.inner
     }
 }
@@ -821,7 +821,7 @@ impl DispatchStash {
         (dispatch, user_id)
     }
 
-    pub fn into_inner(self) -> BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>> {
+    pub fn into_inner(self) -> BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>> {
         self.0
     }
 
@@ -830,8 +830,8 @@ impl DispatchStash {
     }
 }
 
-impl AsRef<BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>> for DispatchStash {
-    fn as_ref(&self) -> &BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>> {
+impl AsRef<BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>> for DispatchStash {
+    fn as_ref(&self) -> &BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>> {
         &self.0
     }
 }
@@ -884,6 +884,12 @@ impl UserMailbox {
 
     fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
+    }
+}
+
+impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
+    fn as_ref(&self) -> &BTreeMap<MessageId, Expiring<MailboxMessage>> {
+        &self.0
     }
 }
 
@@ -943,7 +949,7 @@ impl Mailbox {
             } else {
                 let hash = mailbox
                     .store(storage)
-                    .hash()
+                    .to_option()
                     .expect("failed to store user mailbox");
 
                 self.inner.insert(user_id, hash);
@@ -979,8 +985,8 @@ impl Mailbox {
     }
 }
 
-impl AsRef<BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>> for Mailbox {
-    fn as_ref(&self) -> &BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>> {
+impl AsRef<BTreeMap<ActorId, HashOf<UserMailbox>>> for Mailbox {
+    fn as_ref(&self) -> &BTreeMap<ActorId, HashOf<UserMailbox>> {
         &self.inner
     }
 }

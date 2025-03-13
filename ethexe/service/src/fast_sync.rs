@@ -34,7 +34,7 @@ use ethexe_observer::ObserverEvent;
 use ethexe_runtime_common::{
     state::{
         ActiveProgram, DispatchStash, Mailbox, MaybeHashOf, MemoryPages, MemoryPagesRegion,
-        Program, ProgramState, Waitlist,
+        Program, ProgramState, UserMailbox, Waitlist,
     },
     ScheduleRestorer,
 };
@@ -58,6 +58,10 @@ enum Request {
     },
     Mailbox {
         program_id: ActorId,
+    },
+    UserMailbox {
+        program_id: ActorId,
+        user_id: ActorId,
     },
     DispatchStash {
         program_id: ActorId,
@@ -285,7 +289,23 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                             Request::Mailbox { program_id } => {
                                 let mailbox: Mailbox = Decode::decode(&mut &data[..])
                                     .expect("`db-sync` must validate data");
-                                schedule_restorer.mailbox(program_id, &mailbox);
+                                for (&user_id, user_mailbox) in mailbox.as_ref() {
+                                    requests.add(
+                                        user_mailbox.hash(),
+                                        Request::UserMailbox {
+                                            program_id,
+                                            user_id,
+                                        },
+                                    );
+                                }
+                            }
+                            Request::UserMailbox {
+                                program_id,
+                                user_id,
+                            } => {
+                                let user_mailbox: UserMailbox = Decode::decode(&mut &data[..])
+                                    .expect("`db-sync` must validate data");
+                                schedule_restorer.mailbox(program_id, user_id, &user_mailbox);
                             }
                             Request::DispatchStash { program_id } => {
                                 let stash: DispatchStash = Decode::decode(&mut &data[..])
