@@ -73,11 +73,7 @@ impl Router {
     /// Huge gas limit is necessary so that the transaction is more likely to be picked up
     const HUGE_GAS_LIMIT: u64 = 10_000_000;
 
-    pub(crate) fn new(
-        address: Address,
-        wvara_address: Address,
-        provider: AlloyProvider,
-    ) -> Self {
+    pub(crate) fn new(address: Address, wvara_address: Address, provider: AlloyProvider) -> Self {
         Self {
             instance: Instance::new(address, provider),
             wvara_address,
