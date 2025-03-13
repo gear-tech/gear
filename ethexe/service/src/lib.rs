@@ -767,6 +767,8 @@ mod identity {
 
         pub fn receive_new_chain_head(&mut self, block: SimpleBlockData) {
             self.block = Some(block);
+
+            // TODO (gsobol): block producer could be calculated right here, using propagation from previous blocks.
             self.producer = None;
         }
 
