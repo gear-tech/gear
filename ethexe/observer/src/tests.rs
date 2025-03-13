@@ -144,7 +144,9 @@ async fn test_deployment() -> Result<()> {
     assert!(matches!(event, ObserverEvent::BlockSynced(..)));
 
     let event = observer_next().await;
-    assert!(matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm));
+    assert!(
+        matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm)
+    );
 
     let wat = "(module)";
     let wasm = wat2wasm(wat);
@@ -157,7 +159,9 @@ async fn test_deployment() -> Result<()> {
     assert!(matches!(event, ObserverEvent::BlockSynced(..)));
 
     let event = observer_next().await;
-    assert!(matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm));
+    assert!(
+        matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm)
+    );
 
     Ok(())
 }
