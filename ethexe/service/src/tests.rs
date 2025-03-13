@@ -24,7 +24,7 @@ use crate::{
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
-    providers::{ext::AnvilApi, Provider},
+    providers::{ext::AnvilApi, Provider as _, RootProvider},
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Result;
@@ -35,7 +35,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{EthereumConfig, MockBlobReader, Query};
+use ethexe_observer::{EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
@@ -74,7 +74,7 @@ async fn basics() {
         sequencer: Default::default(),
         validator: Default::default(),
         validator_session: Default::default(),
-        max_commitment_depth: 1_000,
+        eth_max_sync_depth: 1_000,
         worker_threads_override: None,
         virtual_threads: 16,
         dev: true,
@@ -322,7 +322,7 @@ async fn uninitialized_program() {
             .unwrap();
         let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
         assert_eq!(res.code, expected_err);
-        // Checking further initialisation.
+        // Checking further initialization.
 
         // Required replies.
         for mid in msgs_for_reply {
@@ -472,7 +472,7 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(block_data.header.parent_hash)
+        .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
 
     assert_eq!(schedule, expected_schedule);
@@ -581,7 +581,7 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(block_data.header.parent_hash)
+        .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
     assert!(schedule.is_empty(), "{:?}", schedule);
 }
@@ -752,9 +752,9 @@ async fn ping_reorg() {
 
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
-        env.observer.provider().get_block_number().await.unwrap()
+        env.provider.get_block_number().await.unwrap()
     );
-    let program_created_snapshot_id = env.observer.provider().anvil_snapshot().await.unwrap();
+    let program_created_snapshot_id = env.provider.anvil_snapshot().await.unwrap();
 
     let res = env
         .send_message(ping_id, b"PING", 0)
@@ -767,8 +767,7 @@ async fn ping_reorg() {
     assert_eq!(res.payload, b"PONG");
 
     log::info!("📗 Test after reverting to the program creation snapshot");
-    env.observer
-        .provider()
+    env.provider
         .anvil_revert(program_created_snapshot_id)
         .await
         .map(|res| assert!(res))
@@ -786,7 +785,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::from_one(&MemDb::default(), env.router_address.0);
+    node.db = Database::from_one(&MemDb::default(), env.eth_cfg.router_address.0);
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
@@ -1072,22 +1071,14 @@ async fn tx_pool_gossip() {
 
     log::info!("Populate node-0 and node-1 with 2 valid blocks");
 
-    env.observer
-        .provider()
-        .evm_mine(None)
-        .await
-        .expect("failed mining a new block");
-    env.observer
-        .provider()
-        .evm_mine(None)
-        .await
-        .expect("failed mining a new block");
+    env.force_new_block().await;
+    env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
     tokio::time::sleep(Duration::from_secs(2)).await;
     let reference_block = node0
         .db
-        .latest_valid_block()
+        .latest_computed_block()
         .expect("at least genesis block is latest valid")
         .0;
 
@@ -1150,6 +1141,7 @@ mod utils {
     use super::*;
     use crate::Event;
     use ethexe_common::SimpleBlockData;
+    use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkEvent};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
@@ -1174,25 +1166,23 @@ mod utils {
     };
 
     pub struct TestEnv {
-        pub rpc_url: String,
+        pub eth_cfg: EthereumConfig,
         pub wallets: Wallets,
-        pub observer: ObserverService,
         pub blob_reader: Arc<MockBlobReader>,
+        pub provider: RootProvider,
         pub ethereum: Ethereum,
-        #[allow(unused)]
         pub router_query: RouterQuery,
         pub signer: Signer,
         pub validators: Vec<ethexe_signer::PublicKey>,
         pub validator_session_public_keys: Vec<ethexe_signer::PublicKey>,
-        pub router_address: ethexe_signer::Address,
         pub sender_id: ActorId,
-        pub genesis_block_hash: H256,
         pub threshold: u64,
         pub block_time: Duration,
         pub continuous_block_generation: bool,
 
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+        db: Database,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
     }
@@ -1325,18 +1315,22 @@ mod utils {
 
             let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
+            let db = Database::from_one(&MemDb::default(), router_address.0);
+
             let eth_cfg = EthereumConfig {
                 rpc: rpc_url.clone(),
                 beacon_rpc: Default::default(),
                 router_address,
                 block_time: config.block_time,
             };
-            let observer = ObserverService::new_with_blobs(&eth_cfg, blob_reader.clone())
-                .await
-                .unwrap();
+            let mut observer =
+                ObserverService::new(&eth_cfg, u32::MAX, db.clone(), Some(blob_reader.clone()))
+                    .await
+                    .unwrap();
+
+            let provider = observer.provider().clone();
 
             let (broadcaster, _events_stream) = {
-                let mut observer = observer.clone();
                 let (sender, mut receiver) = tokio::sync::broadcast::channel(2048);
                 let sender = Arc::new(Mutex::new(sender));
                 let cloned_sender = sender.clone();
@@ -1370,26 +1364,24 @@ mod utils {
 
                 (sender, handle)
             };
-            let genesis_block_hash = router_query.genesis_block_hash().await?;
             let threshold = router_query.threshold().await?;
 
             Ok(TestEnv {
-                rpc_url,
+                eth_cfg,
                 wallets,
-                observer,
                 blob_reader,
+                provider,
                 ethereum,
                 router_query,
                 signer,
                 validators,
                 validator_session_public_keys,
-                router_address,
                 sender_id: ActorId::from(H160::from(sender_address.0)),
-                genesis_block_hash,
                 threshold,
                 block_time,
                 continuous_block_generation,
                 broadcaster,
+                db,
                 _anvil: anvil,
                 _events_stream,
             })
@@ -1405,8 +1397,9 @@ mod utils {
                 rpc: service_rpc_config,
             } = config;
 
-            let db =
-                db.unwrap_or_else(|| Database::from_one(&MemDb::default(), self.router_address.0));
+            let db = db.unwrap_or_else(|| {
+                Database::from_one(&MemDb::default(), self.eth_cfg.router_address.0)
+            });
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
@@ -1421,17 +1414,15 @@ mod utils {
             Node {
                 db,
                 multiaddr: None,
+                eth_cfg: self.eth_cfg.clone(),
+                router_query: self.router_query.clone(),
                 broadcaster: None,
                 receiver: None,
-                rpc_url: self.rpc_url.clone(),
-                genesis_block_hash: self.genesis_block_hash,
                 blob_reader: self.blob_reader.clone(),
-                observer: self.observer.clone(),
                 signer: self.signer.clone(),
-                block_time: self.block_time,
                 validators: self.validators.iter().map(|k| k.to_address()).collect(),
                 threshold: self.threshold,
-                router_address: self.router_address,
+                block_time: self.block_time,
                 running_service_handle: None,
                 sequencer_public_key,
                 validator_public_key,
@@ -1539,6 +1530,7 @@ mod utils {
         pub fn events_publisher(&self) -> ObserverEventsPublisher {
             ObserverEventsPublisher {
                 broadcaster: self.broadcaster.clone(),
+                db: self.db.clone(),
             }
         }
 
@@ -1546,7 +1538,7 @@ mod utils {
             if self.continuous_block_generation {
                 // nothing to do: new block will be generated automatically
             } else {
-                self.observer.provider().evm_mine(None).await.unwrap();
+                self.provider.evm_mine(None).await.unwrap();
             }
         }
 
@@ -1554,8 +1546,7 @@ mod utils {
             if self.continuous_block_generation {
                 tokio::time::sleep(self.block_time.mul(blocks_amount)).await;
             } else {
-                self.observer
-                    .provider()
+                self.provider
                     .evm_mine(Some(MineOptions::Options {
                         timestamp: None,
                         blocks: Some(blocks_amount.into()),
@@ -1578,24 +1569,28 @@ mod utils {
 
     pub struct ObserverEventsPublisher {
         broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+        db: Database,
     }
 
     impl ObserverEventsPublisher {
         pub async fn subscribe(&self) -> ObserverEventsListener {
             ObserverEventsListener {
                 receiver: self.broadcaster.lock().await.subscribe(),
+                db: self.db.clone(),
             }
         }
     }
 
     pub struct ObserverEventsListener {
         receiver: broadcast::Receiver<ObserverEvent>,
+        db: Database,
     }
 
     impl Clone for ObserverEventsListener {
         fn clone(&self) -> Self {
             Self {
                 receiver: self.receiver.resubscribe(),
+                db: self.db.clone(),
             }
         }
     }
@@ -1624,6 +1619,9 @@ mod utils {
             self.apply_until_block_event_with_header(|e, _h| f(e)).await
         }
 
+        // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
+        // If your test depends on events in skipped blocks, you need to improve this method.
+        // TODO (gsobol): iterate thru skipped blocks.
         pub async fn apply_until_block_event_with_header<R: Sized>(
             &mut self,
             mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
@@ -1631,13 +1629,21 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let ObserverEvent::Block(block) = event else {
+                let ObserverEvent::BlockSynced(block) = event else {
                     continue;
                 };
 
-                let block_data = block.to_simple();
+                let header =
+                    OnChainStorage::block_header(&self.db, block).expect("Block header not found");
+                let events =
+                    OnChainStorage::block_events(&self.db, block).expect("Block events not found");
 
-                for event in block.events {
+                let block_data = SimpleBlockData {
+                    hash: block,
+                    header,
+                };
+
+                for event in events {
                     if let Some(res) = f(event, &block_data)? {
                         return Ok(res);
                     }
@@ -1799,16 +1805,14 @@ mod utils {
         pub db: Database,
         pub multiaddr: Option<String>,
 
+        eth_cfg: EthereumConfig,
         broadcaster: Option<Sender<Event>>,
         receiver: Option<Receiver<Event>>,
-        rpc_url: String,
-        genesis_block_hash: H256,
         blob_reader: Arc<MockBlobReader>,
-        observer: ObserverService,
+        router_query: RouterQuery,
         signer: Signer,
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
-        router_address: ethexe_signer::Address,
         block_time: Duration,
         running_service_handle: Option<JoinHandle<Result<()>>>,
         sequencer_public_key: Option<ethexe_signer::PublicKey>,
@@ -1827,21 +1831,6 @@ mod utils {
             );
 
             let processor = Processor::new(self.db.clone()).unwrap();
-
-            let query = Query::new(
-                Arc::new(self.db.clone()),
-                &self.rpc_url,
-                self.router_address,
-                self.genesis_block_hash,
-                self.blob_reader.clone(),
-                10000,
-            )
-            .await
-            .unwrap();
-
-            let router_query = RouterQuery::new(&self.rpc_url, self.router_address)
-                .await
-                .unwrap();
 
             let wait_for_network = self.network_bootstrap_address.is_some();
 
@@ -1867,9 +1856,9 @@ mod utils {
                 Some(key) => Some(
                     SequencerService::new(
                         &SequencerConfig {
-                            ethereum_rpc: self.rpc_url.clone(),
+                            ethereum_rpc: self.eth_cfg.rpc.clone(),
                             sign_tx_public: *key,
-                            router_address: self.router_address,
+                            router_address: self.eth_cfg.router_address,
                             validators: self.validators.clone(),
                             threshold: self.threshold,
                             block_time: self.block_time,
@@ -1891,12 +1880,22 @@ mod utils {
                         &ethexe_validator::Config {
                             pub_key,
                             pub_key_session,
-                            router_address: self.router_address,
+                            router_address: self.eth_cfg.router_address,
                         },
+                        self.db.clone(),
                         self.signer.clone(),
                     )
                 });
             let (sender, receiver) = broadcast::channel(2048);
+
+            let observer = ObserverService::new(
+                &self.eth_cfg,
+                u32::MAX,
+                self.db.clone(),
+                Some(self.blob_reader.clone()),
+            )
+            .await
+            .unwrap();
 
             let tx_pool_service = TxPoolService::new(self.db.clone());
 
@@ -1906,11 +1905,11 @@ mod utils {
 
             self.receiver = Some(receiver);
             self.broadcaster = Some(sender.clone());
+
             let service = Service::new_from_parts(
                 self.db.clone(),
-                self.observer.clone(),
-                query,
-                router_query,
+                observer,
+                self.router_query.clone(),
                 processor,
                 self.signer.clone(),
                 tx_pool_service,

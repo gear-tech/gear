@@ -19,14 +19,13 @@
 use crate::{
     abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
     wvara::WVara,
-    AlloyEthereum, AlloyProvider, AlloyTransport, TryGetReceipt,
+    AlloyEthereum, AlloyProvider, TryGetReceipt,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     primitives::{fixed_bytes, Address, Bytes, U256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{eth::state::AccountOverride, Filter},
-    transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
@@ -40,13 +39,13 @@ use std::{collections::HashMap, sync::Arc};
 pub mod events;
 
 type InstanceProvider = Arc<AlloyProvider>;
-type Instance = IRouter::IRouterInstance<AlloyTransport, InstanceProvider>;
+type Instance = IRouter::IRouterInstance<(), InstanceProvider>;
 
-type QueryInstance = IRouter::IRouterInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
+type QueryInstance = IRouter::IRouterInstance<(), Arc<RootProvider>>;
 
 pub struct PendingCodeRequestBuilder {
     code_id: CodeId,
-    pending_builder: PendingTransactionBuilder<AlloyTransport, AlloyEthereum>,
+    pending_builder: PendingTransactionBuilder<AlloyEthereum>,
 }
 
 impl PendingCodeRequestBuilder {
@@ -222,17 +221,14 @@ pub struct RouterQuery {
 
 impl RouterQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = Arc::new(ProviderBuilder::new().on_builtin(rpc_url).await?);
+        let provider = Arc::new(ProviderBuilder::default().connect(rpc_url).await?);
 
         Ok(Self {
             instance: QueryInstance::new(Address::new(router_address.0), provider),
         })
     }
 
-    pub fn from_provider(
-        router_address: Address,
-        provider: Arc<RootProvider<BoxTransport>>,
-    ) -> Self {
+    pub fn from_provider(router_address: Address, provider: Arc<RootProvider>) -> Self {
         Self {
             instance: QueryInstance::new(router_address, provider),
         }
