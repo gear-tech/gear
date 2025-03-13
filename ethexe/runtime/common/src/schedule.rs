@@ -22,9 +22,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     ) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, transitions| {
-                let MailboxMessage {
-                    value: Expiring { value, .. },
-                    origin,
+                let Expiring {
+                    value: MailboxMessage { value, origin, .. },
                     ..
                 } = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
                     mailbox
@@ -89,7 +88,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                         storage,
                         user_id,
                         stashed_message_id,
-                        (&dispatch, expiry).into(),
+                        dispatch.clone().into(),
+                        expiry,
                     );
                 });
 

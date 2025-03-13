@@ -28,8 +28,6 @@ use ethexe_common::{
 };
 use gprimitives::{ActorId, H256};
 
-pub type Expiry = u32;
-
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
     header: BlockHeader,
@@ -85,7 +83,7 @@ impl InBlockTransitions {
             .unwrap_or_default()
     }
 
-    pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> Expiry {
+    pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> u32 {
         let scheduled_block = self.header.height + u32::from(in_blocks);
 
         self.schedule

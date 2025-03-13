@@ -78,12 +78,12 @@ impl Storage for RuntimeInterfaceStorage {
         database_ri::read_unwrapping(&hash.hash())
     }
 
-    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        database_ri::read_unwrapping(&hash.hash())
-    }
-
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
         unsafe { HashOf::new(database_ri::write(mailbox)) }
+    }
+
+    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
+        database_ri::read_unwrapping(&hash.hash())
     }
 
     fn write_user_mailbox(&self, user_mailbox: UserMailbox) -> HashOf<UserMailbox> {

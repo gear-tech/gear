@@ -578,15 +578,15 @@ impl Storage for Database {
         })
     }
 
+    fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
+        unsafe { HashOf::new(self.cas.write(&mailbox.encode())) }
+    }
+
     fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
         self.cas.read(&hash.hash()).map(|data| {
             UserMailbox::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `UserMailbox`")
         })
-    }
-
-    fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
-        unsafe { HashOf::new(self.cas.write(&mailbox.encode())) }
     }
 
     fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox> {

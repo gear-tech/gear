@@ -1,5 +1,7 @@
 use crate::{
-    state::{ActiveProgram, Dispatch, Expiring, Program, Storage, MAILBOX_VALIDITY},
+    state::{
+        ActiveProgram, Dispatch, Expiring, MailboxMessage, Program, Storage, MAILBOX_VALIDITY,
+    },
     TransitionController,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
@@ -94,12 +96,20 @@ impl<S: Storage> Handler<'_, S> {
                         ),
                     );
 
+                    // TODO (breathx): remove allocation
+                    let payload = storage
+                        .write_payload_raw(dispatch.payload_bytes().to_vec())
+                        .expect("failed to write payload");
+
+                    let message = MailboxMessage::new(payload, dispatch.value(), dispatch_origin);
+
                     state.mailbox_hash.modify_mailbox(storage, |mailbox| {
                         mailbox.add_and_store_user_mailbox(
                             storage,
                             dispatch.destination(),
                             dispatch.id(),
-                            (&dispatch, dispatch_origin, expiry).into(),
+                            message,
+                            expiry,
                         )
                     });
 

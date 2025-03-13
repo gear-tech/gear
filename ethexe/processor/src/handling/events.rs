@@ -105,13 +105,13 @@ impl ProcessingHandler {
                 value,
             } => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
-                    let Some(MailboxMessage {
+                    let Some(Expiring {
                         value:
-                            Expiring {
+                            MailboxMessage {
                                 value: claimed_value,
-                                expiry,
+                                ..
                             },
-                        ..
+                        expiry,
                     }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
                         mailbox.remove_and_store_user_mailbox(storage, source, replied_to)
                     })
@@ -150,20 +150,25 @@ impl ProcessingHandler {
             }
             MirrorRequestEvent::ValueClaimingRequested { claimed_id, source } => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
-                    let Some(MailboxMessage {
-                        value: Expiring { value, expiry },
-                        ..
+                    let Some(Expiring {
+                        value:
+                            MailboxMessage {
+                                value: claimed_value,
+                                ..
+                            },
+                        expiry,
                     }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
                         mailbox.remove_and_store_user_mailbox(storage, source, claimed_id)
                     })
                     else {
                         return Ok(());
                     };
+
                     transitions.modify_transition(actor_id, |transition| {
                         transition.claims.push(ValueClaim {
                             message_id: claimed_id,
                             destination: source,
-                            value,
+                            value: claimed_value,
                         });
                     });
 
