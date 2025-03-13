@@ -34,14 +34,14 @@ use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 pub mod events;
 
-type InstanceProvider = Arc<AlloyProvider>;
+type InstanceProvider = AlloyProvider;
 type Instance = IRouter::IRouterInstance<(), InstanceProvider>;
 
-type QueryInstance = IRouter::IRouterInstance<(), Arc<RootProvider>>;
+type QueryInstance = IRouter::IRouterInstance<(), RootProvider>;
 
 pub struct PendingCodeRequestBuilder {
     code_id: CodeId,
@@ -94,7 +94,7 @@ impl Router {
         RouterQuery {
             instance: QueryInstance::new(
                 *self.instance.address(),
-                Arc::new(self.instance.provider().root().clone()),
+                self.instance.provider().root().clone(),
             ),
         }
     }
@@ -221,14 +221,14 @@ pub struct RouterQuery {
 
 impl RouterQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = Arc::new(ProviderBuilder::default().connect(rpc_url).await?);
+        let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self {
             instance: QueryInstance::new(Address::new(router_address.0), provider),
         })
     }
 
-    pub fn from_provider(router_address: Address, provider: Arc<RootProvider>) -> Self {
+    pub fn from_provider(router_address: Address, provider: RootProvider) -> Self {
         Self {
             instance: QueryInstance::new(router_address, provider),
         }

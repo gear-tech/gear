@@ -99,7 +99,6 @@ pub struct ObserverService {
     db: Database,
     // TODO (gsobol): consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
-    router_query: RouterQuery,
     subscription: Subscription<Header>,
 
     config: RuntimeConfig,
@@ -145,7 +144,6 @@ impl Stream for ObserverService {
             if let Some(header) = self.block_sync_queue.pop_front() {
                 let sync = ChainSync {
                     provider: self.provider.clone(),
-                    router_query: self.router_query.clone(),
                     db: self.db.clone(),
                     blobs_reader: self.blobs_reader.clone(),
                     config: self.config.clone(),
@@ -230,7 +228,6 @@ impl ObserverService {
             provider,
             db,
             blobs_reader,
-            router_query,
             subscription,
             config: RuntimeConfig {
                 router_address: *router_address,

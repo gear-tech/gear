@@ -29,7 +29,7 @@ use std::sync::Arc;
 
 pub mod events;
 
-type InstanceProvider = Arc<AlloyProvider>;
+type InstanceProvider = AlloyProvider;
 type Instance = IMirror::IMirrorInstance<(), InstanceProvider>;
 
 type QueryInstance = IMirror::IMirrorInstance<(), Arc<RootProvider>>;

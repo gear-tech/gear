@@ -42,7 +42,6 @@ use std::{
 // TODO (gsobol): make tests for ChainSync
 pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
     pub provider: RootProvider,
-    pub router_query: RouterQuery,
     pub db: DB,
     pub blobs_reader: Arc<dyn BlobReader>,
     pub config: RuntimeConfig,
@@ -70,7 +69,10 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         // NOTE: reverse order is important here, because by default chain was loaded in order from head to past.
         self.mark_chain_as_synced(chain.into_iter().rev());
 
-        let validators = self.router_query.validators_at(block).await?;
+        let validators =
+            RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
+                .validators_at(block)
+                .await?;
 
         let res = BlockSyncedData {
             block_hash: block,

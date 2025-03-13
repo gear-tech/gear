@@ -31,7 +31,7 @@ use std::sync::Arc;
 
 pub mod events;
 
-type InstanceProvider = Arc<AlloyProvider>;
+type InstanceProvider = AlloyProvider;
 type Instance = IWrappedVara::IWrappedVaraInstance<(), InstanceProvider>;
 
 type QueryInstance = IWrappedVara::IWrappedVaraInstance<(), Arc<RootProvider>>;
