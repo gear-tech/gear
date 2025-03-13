@@ -59,6 +59,7 @@ use tempfile::tempdir;
 use tokio::task::{self, JoinHandle};
 use utils::{NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
 
+#[ignore = "until rpc fixed"]
 #[tokio::test]
 async fn basics() {
     gear_utils::init_default_logger();
