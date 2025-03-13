@@ -28,15 +28,13 @@ use gprimitives::{MessageId, H256};
 
 pub mod events;
 
-type InstanceProvider = AlloyProvider;
-type Instance = IMirror::IMirrorInstance<(), InstanceProvider>;
-
+type Instance = IMirror::IMirrorInstance<(), AlloyProvider>;
 type QueryInstance = IMirror::IMirrorInstance<(), RootProvider>;
 
 pub struct Mirror(Instance);
 
 impl Mirror {
-    pub(crate) fn new(address: Address, provider: InstanceProvider) -> Self {
+    pub(crate) fn new(address: Address, provider: AlloyProvider) -> Self {
         Self(Instance::new(address, provider))
     }
 

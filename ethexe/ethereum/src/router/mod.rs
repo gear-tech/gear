@@ -38,9 +38,7 @@ use std::collections::HashMap;
 
 pub mod events;
 
-type InstanceProvider = AlloyProvider;
-type Instance = IRouter::IRouterInstance<(), InstanceProvider>;
-
+type Instance = IRouter::IRouterInstance<(), AlloyProvider>;
 type QueryInstance = IRouter::IRouterInstance<(), RootProvider>;
 
 pub struct PendingCodeRequestBuilder {
@@ -78,7 +76,7 @@ impl Router {
     pub(crate) fn new(
         address: Address,
         wvara_address: Address,
-        provider: InstanceProvider,
+        provider: AlloyProvider,
     ) -> Self {
         Self {
             instance: Instance::new(address, provider),

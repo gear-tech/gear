@@ -353,7 +353,7 @@ impl Service {
 
         let mut identity = identity::ServiceIdentity::new(
             validator.as_ref().map(|validator| validator.address()),
-            observer.block_time(),
+            observer.block_time_secs(),
         );
 
         loop {
@@ -746,8 +746,11 @@ mod identity {
     use super::*;
 
     pub struct ServiceIdentity {
+        // Service depended data (constant for the service lifetime)
         validator: Option<Address>,
         block_duration: u64,
+
+        // Block depended data (updated on each new block)
         block: Option<SimpleBlockData>,
         producer: Option<Address>,
     }
@@ -785,8 +788,11 @@ mod identity {
         }
 
         pub fn block_producer(&self) -> Result<Address> {
-            self.producer
-                .ok_or_else(|| anyhow!("block producer is not set"))
+            self.producer.ok_or_else(|| {
+                anyhow!(
+                    "block producer is not set: no blocks were received or received block is not synced yet"
+                )
+            })
         }
 
         pub fn is_block_producer(&self) -> Result<bool> {

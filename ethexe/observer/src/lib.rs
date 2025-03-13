@@ -304,7 +304,7 @@ impl ObserverService {
         }
     }
 
-    pub fn block_time(&self) -> u64 {
+    pub fn block_time_secs(&self) -> u64 {
         self.config.block_time.as_secs()
     }
 

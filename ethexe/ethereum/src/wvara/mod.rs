@@ -30,15 +30,13 @@ use gprimitives::{H256, U256};
 
 pub mod events;
 
-type InstanceProvider = AlloyProvider;
-type Instance = IWrappedVara::IWrappedVaraInstance<(), InstanceProvider>;
-
+type Instance = IWrappedVara::IWrappedVaraInstance<(), AlloyProvider>;
 type QueryInstance = IWrappedVara::IWrappedVaraInstance<(), RootProvider>;
 
 pub struct WVara(Instance);
 
 impl WVara {
-    pub(crate) fn new(address: Address, provider: InstanceProvider) -> Self {
+    pub(crate) fn new(address: Address, provider: AlloyProvider) -> Self {
         Self(Instance::new(address, provider))
     }
 
