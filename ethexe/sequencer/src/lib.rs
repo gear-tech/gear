@@ -183,11 +183,7 @@ impl SequencerService {
     }
 
     pub fn on_new_head(&mut self, hash: H256) -> Result<()> {
-        if self
-            .db
-            .block_end_state_is_valid(hash)
-            .is_none_or(|valid| !valid)
-        {
+        if !self.db.block_computed(hash) {
             bail!("Block {hash} database state is not valid");
         }
 
@@ -322,13 +318,13 @@ impl SequencerService {
     fn handle_collection_round_end(&mut self, block_hash: H256) -> SequencerEvent {
         // If chain head is not yet processed by this node, this is normal situation,
         // so we just skip this round for sequencer.
-        let Some(block_is_empty) = self.db.block_is_empty(block_hash) else {
+        let Some(block_is_empty) = self.db.block_outcome_is_empty(block_hash) else {
             log::warn!("Failed to get block emptiness status for {block_hash}");
             return SequencerEvent::CollectionRoundEnded { block_hash };
         };
 
         let last_non_empty_block = if block_is_empty {
-            let Some(prev_commitment) = self.db.previous_committed_block(block_hash) else {
+            let Some(prev_commitment) = self.db.previous_not_empty_block(block_hash) else {
                 return SequencerEvent::CollectionRoundEnded { block_hash };
             };
 

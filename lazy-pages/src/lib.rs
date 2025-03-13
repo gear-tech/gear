@@ -337,7 +337,7 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
             exception_types::*, kern_return::*, mach_types::*, port::*, thread_status::*, traps::*,
         };
 
-        extern "C" {
+        unsafe extern "C" {
             // See https://web.mit.edu/darwin/src/modules/xnu/osfmk/man/task_set_exception_ports.html
             fn task_set_exception_ports(
                 task: task_t,
@@ -358,13 +358,15 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
         #[cfg(target_arch = "aarch64")]
         static MACHINE_THREAD_STATE: i32 = 6;
 
-        task_set_exception_ports(
-            mach_task_self(),
-            EXC_MASK_BAD_ACCESS,
-            MACH_PORT_NULL,
-            EXCEPTION_STATE_IDENTITY as exception_behavior_t,
-            MACHINE_THREAD_STATE,
-        );
+        unsafe {
+            task_set_exception_ports(
+                mach_task_self(),
+                EXC_MASK_BAD_ACCESS,
+                MACH_PORT_NULL,
+                EXCEPTION_STATE_IDENTITY as exception_behavior_t,
+                MACHINE_THREAD_STATE,
+            )
+        };
     }
 
     LAZY_PAGES_INITIALIZED.get_or_init(|| {

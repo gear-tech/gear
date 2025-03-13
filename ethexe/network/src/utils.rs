@@ -53,7 +53,7 @@ where
         io.take(Self::MAX_REQUEST_SIZE)
             .read_to_end(&mut vec)
             .await?;
-        Req::decode_all(&mut vec.as_slice()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        Req::decode_all(&mut vec.as_slice()).map_err(io::Error::other)
     }
 
     async fn read_response<T>(
@@ -68,7 +68,7 @@ where
         io.take(Self::MAX_RESPONSE_SIZE)
             .read_to_end(&mut vec)
             .await?;
-        Resp::decode_all(&mut vec.as_slice()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        Resp::decode_all(&mut vec.as_slice()).map_err(io::Error::other)
     }
 
     async fn write_request<T>(

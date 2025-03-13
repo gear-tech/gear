@@ -16,12 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Provider;
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
     eips::eip4844::kzg_to_versioned_hash,
-    providers::{Provider as _, ProviderBuilder},
-    rpc::types::{beacon::sidecar::BeaconBlobBundle, eth::BlockTransactionsKind},
+    providers::{Provider as _, ProviderBuilder, RootProvider},
+    rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -44,7 +43,7 @@ pub trait BlobReader: Send + Sync {
 
 #[derive(Clone)]
 pub struct ConsensusLayerBlobReader {
-    provider: Provider,
+    provider: RootProvider,
     http_client: Client,
     ethereum_beacon_rpc: String,
     beacon_block_time: Duration,
@@ -57,7 +56,7 @@ impl ConsensusLayerBlobReader {
         beacon_block_time: Duration,
     ) -> Result<Self> {
         Ok(Self {
-            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
+            provider: ProviderBuilder::default().connect(ethereum_rpc).await?,
             http_client: Client::new(),
             ethereum_beacon_rpc: ethereum_beacon_rpc.into(),
             beacon_block_time,
@@ -97,7 +96,7 @@ impl BlobReader for ConsensusLayerBlobReader {
             .ok_or_else(|| anyhow!("failed to get block hash"))?;
         let block = self
             .provider
-            .get_block_by_hash(block_hash, BlockTransactionsKind::Hashes)
+            .get_block_by_hash(block_hash)
             .await?
             .ok_or_else(|| anyhow!("failed to get block"))?;
         let slot =
@@ -106,7 +105,7 @@ impl BlobReader for ConsensusLayerBlobReader {
             Some(attempts) => {
                 let mut count = 0;
                 loop {
-                    log::debug!("trying to get blob, attempt #{}", count + 1);
+                    log::trace!("trying to get blob, attempt #{}", count + 1);
                     let blob_bundle_result = self.read_blob_bundle(slot).await;
                     if blob_bundle_result.is_ok() || count >= attempts {
                         break blob_bundle_result;
@@ -141,6 +140,7 @@ impl BlobReader for ConsensusLayerBlobReader {
 #[derive(Clone)]
 pub struct MockBlobReader {
     transactions: Arc<RwLock<HashMap<H256, Vec<u8>>>>,
+    // TODO (gsobol): remove block_time here, because it's useless for mock
     block_time: Duration,
 }
 
@@ -164,7 +164,7 @@ impl BlobReader for MockBlobReader {
             Some(attempts) => {
                 let mut count = 0;
                 loop {
-                    log::debug!("trying to get blob, attempt #{}", count + 1);
+                    log::trace!("trying to get blob, attempt #{}", count + 1);
                     let maybe_blob_data = self.transactions.read().await.get(&tx_hash).cloned();
                     if maybe_blob_data.is_some() || count >= attempts {
                         break maybe_blob_data;
