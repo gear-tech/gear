@@ -52,8 +52,7 @@ use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    io::Write,
+    collections::{BTreeMap, BTreeSet},
     io::Write,
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -1436,7 +1435,6 @@ mod utils {
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Sender<ObserverEvent>,
         db: Database,
-        events_stream: JoinHandle<()>,
         _anvil: Option<AnvilInstance>,
         _events_stream: NamedJoinHandle<()>,
     }
@@ -1644,7 +1642,7 @@ mod utils {
                 broadcaster,
                 db,
                 _anvil: anvil,
-                events_stream,
+                _events_stream,
             })
         }
 
@@ -1838,14 +1836,6 @@ mod utils {
                 .add_blob_transaction(tx_hash, code.to_vec())
                 .await;
             code_id
-        }
-    }
-
-    impl Drop for TestEnv {
-        fn drop(&mut self) {
-            let id = self.events_stream.id();
-            self.events_stream.abort();
-            TASK_NAMES.write().unwrap().remove(&id);
         }
     }
 
@@ -2246,8 +2236,6 @@ mod utils {
             handle.abort();
 
             assert!(handle.await.unwrap_err().is_cancelled());
-
-            TASK_NAMES.write().unwrap().remove(&id);
 
             self.broadcaster = None;
             self.multiaddr = None;
