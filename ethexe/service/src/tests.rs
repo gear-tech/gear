@@ -38,7 +38,7 @@ use ethexe_observer::{EthereumConfig, MockBlobReader, Query};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
-use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
+use ethexe_runtime_common::state::{Expiring, Storage};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
 use ethexe_validator::Validator;
@@ -478,8 +478,8 @@ async fn mailbox() {
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
         BTreeMap::from_iter([
-            (mid_expected_message, ValueWithExpiry { value: 0, expiry }),
-            (ping_expected_message, ValueWithExpiry { value: 0, expiry }),
+            (mid_expected_message, Expiring { value: 0, expiry }),
+            (ping_expected_message, Expiring { value: 0, expiry }),
         ]),
     )]);
 
@@ -517,7 +517,7 @@ async fn mailbox() {
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([(mid_expected_message, ValueWithExpiry { value: 0, expiry })]),
+        BTreeMap::from_iter([(mid_expected_message, Expiring { value: 0, expiry })]),
     )]);
 
     assert_eq!(mailbox.into_values(&node.db), expected_mailbox);

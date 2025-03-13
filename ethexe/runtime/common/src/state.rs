@@ -643,12 +643,12 @@ impl Dispatch {
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct ValueWithExpiry<T> {
+pub struct Expiring<T> {
     pub value: T,
     pub expiry: u32,
 }
 
-impl<T> From<(T, u32)> for ValueWithExpiry<T> {
+impl<T> From<(T, u32)> for Expiring<T> {
     fn from((value, expiry): (T, u32)) -> Self {
         Self { value, expiry }
     }
@@ -683,7 +683,7 @@ impl MessageQueue {
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Waitlist {
-    inner: BTreeMap<MessageId, ValueWithExpiry<Dispatch>>,
+    inner: BTreeMap<MessageId, Expiring<Dispatch>>,
     #[into(ignore)]
     #[codec(skip)]
     changed: bool,
@@ -695,7 +695,7 @@ impl Waitlist {
 
         let r = self.inner.insert(
             message_id,
-            ValueWithExpiry {
+            Expiring {
                 value: dispatch,
                 expiry,
             },
@@ -703,7 +703,7 @@ impl Waitlist {
         debug_assert!(r.is_none())
     }
 
-    pub fn wake(&mut self, message_id: &MessageId) -> Option<ValueWithExpiry<Dispatch>> {
+    pub fn wake(&mut self, message_id: &MessageId) -> Option<Expiring<Dispatch>> {
         self.inner
             .remove(message_id)
             .inspect(|_| self.changed = true)
@@ -714,20 +714,20 @@ impl Waitlist {
             .then(|| MaybeHashOf((!self.inner.is_empty()).then(|| storage.write_waitlist(self))))
     }
 
-    pub fn into_inner(self) -> BTreeMap<MessageId, ValueWithExpiry<Dispatch>> {
+    pub fn into_inner(self) -> BTreeMap<MessageId, Expiring<Dispatch>> {
         self.into()
     }
 }
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct DispatchStash(BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>);
+pub struct DispatchStash(BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>);
 
 impl DispatchStash {
     pub fn add_to_program(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
         let r = self.0.insert(
             message_id,
-            ValueWithExpiry {
+            Expiring {
                 value: (dispatch, None),
                 expiry,
             },
@@ -744,7 +744,7 @@ impl DispatchStash {
     ) {
         let r = self.0.insert(
             message_id,
-            ValueWithExpiry {
+            Expiring {
                 value: (dispatch, Some(user_id)),
                 expiry,
             },
@@ -753,7 +753,7 @@ impl DispatchStash {
     }
 
     pub fn remove_to_program(&mut self, message_id: &MessageId) -> Dispatch {
-        let ValueWithExpiry {
+        let Expiring {
             value: (dispatch, user_id),
             ..
         } = self
@@ -769,7 +769,7 @@ impl DispatchStash {
     }
 
     pub fn remove_to_user(&mut self, message_id: &MessageId) -> (Dispatch, ActorId) {
-        let ValueWithExpiry {
+        let Expiring {
             value: (dispatch, user_id),
             ..
         } = self
@@ -791,7 +791,7 @@ impl DispatchStash {
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MailboxMessage {
-    pub value: ValueWithExpiry<Value>,
+    pub value: Expiring<Value>,
     pub payload: PayloadLookup,
     pub origin: Origin,
 }
@@ -799,7 +799,7 @@ pub struct MailboxMessage {
 impl MailboxMessage {
     pub fn new(value: Value, expiry: u32, payload: PayloadLookup, origin: Origin) -> Self {
         Self {
-            value: ValueWithExpiry { value, expiry },
+            value: Expiring { value, expiry },
             payload,
             origin,
         }
@@ -812,7 +812,7 @@ impl From<(&StoredDispatch, Origin, Expiry)> for MailboxMessage {
         let payload_bytes = stored_dispatch.message().payload_bytes();
 
         Self {
-            value: ValueWithExpiry { value, expiry },
+            value: Expiring { value, expiry },
             payload: PayloadLookup::Direct(Payload::try_from(payload_bytes).unwrap()),
             origin,
         }
@@ -822,7 +822,7 @@ impl From<(&StoredDispatch, Origin, Expiry)> for MailboxMessage {
 impl From<(&Dispatch, Expiry)> for MailboxMessage {
     fn from((dispatch, expiry): (&Dispatch, Expiry)) -> Self {
         Self {
-            value: ValueWithExpiry {
+            value: Expiring {
                 value: dispatch.value,
                 expiry,
             },
@@ -928,7 +928,7 @@ impl Mailbox {
     pub fn into_values<S: Storage>(
         self,
         storage: &S,
-    ) -> BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>> {
+    ) -> BTreeMap<ActorId, BTreeMap<MessageId, Expiring<Value>>> {
         self.inner
             .into_iter()
             .map(|(k, v)| {

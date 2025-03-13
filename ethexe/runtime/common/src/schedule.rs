@@ -1,5 +1,5 @@
 use crate::{
-    state::{Dispatch, MailboxMessage, PayloadLookup, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{Dispatch, Expiring, MailboxMessage, PayloadLookup, Storage, MAILBOX_VALIDITY},
     TransitionController,
 };
 use ethexe_common::{
@@ -23,7 +23,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
         self.controller
             .update_state(program_id, |state, storage, transitions| {
                 let MailboxMessage {
-                    value: ValueWithExpiry { value, .. },
+                    value: Expiring { value, .. },
                     origin,
                     ..
                 } = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
@@ -109,7 +109,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, _| {
-                let ValueWithExpiry {
+                let Expiring {
                     value: dispatch, ..
                 } = state.waitlist_hash.modify_waitlist(storage, |waitlist| {
                     waitlist

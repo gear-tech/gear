@@ -1,5 +1,5 @@
 use crate::{
-    state::{ActiveProgram, Dispatch, Program, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{ActiveProgram, Dispatch, Expiring, Program, Storage, MAILBOX_VALIDITY},
     TransitionController,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
@@ -294,7 +294,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, transitions| {
-                let Some(ValueWithExpiry {
+                let Some(Expiring {
                     value: dispatch,
                     expiry,
                 }) = state
