@@ -21,7 +21,7 @@ use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequest
 use ethexe_db::{
     BlockHeader, BlockMetaStorage, CodesStorage, MemDb, OnChainStorage, ScheduledTask,
 };
-use ethexe_runtime_common::state::ValueWithExpiry;
+use ethexe_runtime_common::state::Expiring;
 use gear_core::ids::{prelude::CodeIdExt, ProgramId};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
@@ -540,7 +540,7 @@ fn many_waits() {
 
             for (
                 mid,
-                ValueWithExpiry {
+                Expiring {
                     value: dispatch,
                     expiry,
                 },
