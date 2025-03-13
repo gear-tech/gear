@@ -25,14 +25,13 @@ use anyhow::{anyhow, Result};
 use ethexe_signer::Address as LocalAddress;
 use events::signatures;
 use gprimitives::{MessageId, H256};
-use std::sync::Arc;
 
 pub mod events;
 
 type InstanceProvider = AlloyProvider;
 type Instance = IMirror::IMirrorInstance<(), InstanceProvider>;
 
-type QueryInstance = IMirror::IMirrorInstance<(), Arc<RootProvider>>;
+type QueryInstance = IMirror::IMirrorInstance<(), RootProvider>;
 
 pub struct Mirror(Instance);
 
@@ -48,7 +47,7 @@ impl Mirror {
     pub fn query(&self) -> MirrorQuery {
         MirrorQuery(QueryInstance::new(
             *self.0.address(),
-            Arc::new(self.0.provider().root().clone()),
+            self.0.provider().root().clone(),
         ))
     }
 
@@ -114,7 +113,7 @@ pub struct MirrorQuery(QueryInstance);
 
 impl MirrorQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = Arc::new(ProviderBuilder::default().connect(rpc_url).await?);
+        let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self(QueryInstance::new(
             Address::new(router_address.0),
