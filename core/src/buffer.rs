@@ -81,6 +81,14 @@ where
     }
 }
 
+impl<T: Clone, E: Default, const N: usize> TryFrom<&[T]> for LimitedVec<T, E, N> {
+    type Error = E;
+    fn try_from(x: &[T]) -> Result<Self, Self::Error> {
+        (x.len() <= N).then_some(()).ok_or_else(E::default)?;
+        Ok(Self(Vec::from(x), PhantomData))
+    }
+}
+
 impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
     type Error = E;
     fn try_from(x: Vec<T>) -> Result<Self, Self::Error> {
