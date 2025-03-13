@@ -508,7 +508,7 @@ impl Storage for Database {
     }
 
     fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        self.cas.read(&hash.hash()).map(|data| {
+        self.cas.read(hash.hash()).map(|data| {
             UserMailbox::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `UserMailbox`")
         })
