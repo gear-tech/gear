@@ -1142,14 +1142,12 @@ parameter_types! {
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const TreasuryGasFeeShare: Percent = Percent::zero();
     pub const TreasuryTxFeeShare: Percent = Percent::zero();
-    pub SplitTxFeeRatio: Option<u32> = None;
 }
 
 impl pallet_gear_bank::Config for Runtime {
     type Currency = Balances;
     type BankAddress = BankAddress;
     type GasMultiplier = GasMultiplier;
-    type SplitTxFeeRatio = SplitTxFeeRatio;
     type TreasuryAddress = TreasuryAccount;
     type TreasuryGasFeeShare = TreasuryGasFeeShare;
     type TreasuryTxFeeShare = TreasuryTxFeeShare;

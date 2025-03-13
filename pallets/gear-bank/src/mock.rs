@@ -68,8 +68,6 @@ parameter_types! {
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
     pub const TreasuryAddress: AccountId = TREASURY;
     pub const TreasuryGasFeeShare: Percent = Percent::from_percent(50);
-    // TODO: Issue #4058
-    pub SplitTxFeeRatio: Option<u32> = None;
 }
 
 construct_runtime!(

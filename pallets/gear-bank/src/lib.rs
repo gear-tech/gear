@@ -64,7 +64,6 @@ macro_rules! impl_config_inner {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
-            type SplitTxFeeRatio = SplitTxFeeRatio;
             type TreasuryAddress = GearBankConfigTreasuryAddress;
             type TreasuryGasFeeShare = GearBankConfigTreasuryGasFeeShare;
             type TreasuryTxFeeShare = GearBankConfigTreasuryTxFeeShare;
@@ -150,9 +149,6 @@ pub mod pallet {
 
         #[pallet::constant]
         type TreasuryTxFeeShare: Get<Percent>;
-
-        /// The ratio of how much of the tx fees goes to the treasury
-        type SplitTxFeeRatio: Get<Option<u32>>;
     }
 
     // Funds pallets error.
