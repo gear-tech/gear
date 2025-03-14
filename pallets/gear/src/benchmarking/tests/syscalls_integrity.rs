@@ -32,7 +32,10 @@ use super::*;
 use crate::{BlockGasLimitOf, CurrencyOf, Event, String, WaitlistOf};
 use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
-use gear_core::ids::{prelude::*, CodeId, ReservationId};
+use gear_core::{
+    constants::{MAILBOX_THRESHOLD, PERFORMANCE_MULTIPLIER},
+    ids::{prelude::*, CodeId, ReservationId},
+};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::{syscalls::SyscallName, BlockType, Function, Instruction, MemArg};
 use pallet_timestamp::Pallet as TimestampPallet;
@@ -903,9 +906,9 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let performance_multiplier = T::PerformanceMultiplier::get().value();
+        let performance_multiplier = PERFORMANCE_MULTIPLIER;
         let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
-        let mailbox_threshold = T::MailboxThreshold::get();
+        let mailbox_threshold = MAILBOX_THRESHOLD;
         let gas_to_value_multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get()
             .gas_to_value(1)
             .unique_saturated_into();

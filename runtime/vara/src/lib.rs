@@ -44,9 +44,6 @@ use frame_system::{
     EnsureRoot,
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
-use gear_core::constants::{
-    MAILBOX_THRESHOLD, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER,
-};
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 use pallet_gear_builtin::ActorWithId;
 use pallet_grandpa::{
@@ -1130,13 +1127,6 @@ parameter_types! {
     pub const ReservationCost: u64 = 100;
     pub const DispatchHoldCost: u64 = 100;
 
-    pub const OutgoingLimit: u32 = OUTGOING_LIMIT;
-    // 64 MB, must be less than max runtime heap memory.
-    // NOTE: currently runtime heap memory is 1 GB (see https://shorturl.at/DET45)
-    pub const OutgoingBytesLimit: u32 = OUTGOING_BYTES_LIMIT;
-    pub const MailboxThreshold: u64 = MAILBOX_THRESHOLD;
-
-    pub const PerformanceMultiplier: u32 = PERFORMANCE_MULTIPLIER;
 }
 
 parameter_types! {
@@ -1160,13 +1150,9 @@ impl pallet_gear::Config for Runtime {
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
-    type OutgoingLimit = OutgoingLimit;
-    type OutgoingBytesLimit = OutgoingBytesLimit;
-    type PerformanceMultiplier = PerformanceMultiplier;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
-    type MailboxThreshold = MailboxThreshold;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;

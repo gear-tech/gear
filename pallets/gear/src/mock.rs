@@ -28,9 +28,6 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, mocking, pallet_prelude::BlockNumberFor};
-use gear_core::constants::{
-    BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER,
-};
 use sp_core::{ConstU8, H256};
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
@@ -101,21 +98,18 @@ common::impl_pallet_timestamp!(Test);
 common::impl_pallet_balances!(Test);
 
 parameter_types! {
-    pub const BlockHashCount: BlockNumber = BLOCK_HASH_COUNT;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 500;
 }
 
 parameter_types! {
     // Match the default `max_block` set in frame_system::limits::BlockWeights::with_sensible_defaults()
     pub const BlockGasLimit: u64 = MAX_BLOCK;
-    pub const OutgoingLimit: u32 = OUTGOING_LIMIT;
-    pub const OutgoingBytesLimit: u32 = OUTGOING_BYTES_LIMIT;
     pub ReserveThreshold: BlockNumber = 1;
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const PerformanceMultiplier: u32 = PERFORMANCE_MULTIPLIER;
 }
 
 thread_local! {
@@ -162,7 +156,7 @@ impl Drop for DynamicScheduleReset {
 }
 
 parameter_types! {
-    pub const BankAddress: AccountId = BANK_ADDRESS;
+    pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(1);
     pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
     pub SplitTxFeeRatio: Option<u32> = None;

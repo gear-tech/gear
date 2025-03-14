@@ -667,10 +667,6 @@ mod util {
     use frame_support_test::TestRandomness;
     use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
-    use gear_core::constants::{
-        BANK_ADDRESS, BLOCK_HASH_COUNT, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT,
-        PERFORMANCE_MULTIPLIER,
-    };
     pub(super) use gear_core::ids::{prelude::*, CodeId, ProgramId};
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
     use pallet_session::historical::{self as pallet_session_historical};
@@ -717,7 +713,7 @@ mod util {
     );
 
     parameter_types! {
-        pub const BlockHashCount: u64 = BLOCK_HASH_COUNT;
+        pub const BlockHashCount: u64 = 250;
         pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
         pub ElectionBoundsOnChain: ElectionBounds = ElectionBoundsBuilder::default().build();
     }
@@ -759,16 +755,13 @@ mod util {
 
     parameter_types! {
         pub const BlockGasLimit: u64 = 350_000_000_000;
-        pub const OutgoingLimit: u32 = OUTGOING_LIMIT;
-        pub const OutgoingBytesLimit: u32 = OUTGOING_BYTES_LIMIT;
         pub ReserveThreshold: BlockNumber = 1;
         pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
         pub RentFreePeriod: BlockNumber = 12_000;
         pub RentCostPerBlock: Balance = 11;
         pub ResumeMinimalPeriod: BlockNumber = 100;
         pub ResumeSessionDuration: BlockNumber = 1_000;
-        pub const PerformanceMultiplier: u32 = PERFORMANCE_MULTIPLIER;
-        pub const BankAddress: AccountId = BANK_ADDRESS;
+        pub const BankAddress: AccountId = 15082001;
         pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
         pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
         pub SplitTxFeeRatio: Option<u32> = None;

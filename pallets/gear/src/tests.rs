@@ -40,7 +40,7 @@ use core_processor::common::ActorExecutionErrorReplyReason;
 use demo_constructor::{Calls, Scheme};
 use frame_support::{
     assert_noop, assert_ok,
-    sp_runtime::traits::{TypedGet, Zero},
+    sp_runtime::traits::Zero,
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
@@ -49,6 +49,7 @@ use gear_core::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
         InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
+    constants::{MAILBOX_THRESHOLD, OUTGOING_BYTES_LIMIT},
     gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
@@ -314,7 +315,7 @@ fn test_failing_delayed_reservation_send() {
         run_to_next_block(None);
         assert!(Gear::is_initialized(pid));
 
-        let reservation_amount = <Test as Config>::MailboxThreshold::get();
+        let reservation_amount = MAILBOX_THRESHOLD;
         let sending_delay = 1u32;
         let sending_delay_hold_bound: HoldBound<Test> =
             HoldBoundBuilder::new(StorageType::DispatchStash).duration(sending_delay as u64);
@@ -406,7 +407,7 @@ fn cascading_delayed_gasless_send_work() {
             RuntimeOrigin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            min_limit - <Test as Config>::MailboxThreshold::get(),
+            min_limit - MAILBOX_THRESHOLD,
             0,
             false,
         ));
@@ -449,7 +450,7 @@ fn cascading_delayed_gasless_send_work() {
             RuntimeOrigin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            min_limit - 2 * <Test as Config>::MailboxThreshold::get(),
+            min_limit - 2 * MAILBOX_THRESHOLD,
             0,
             false,
         ));
@@ -491,7 +492,7 @@ fn calculate_gas_delayed_reservations_sending() {
             USER_1.into_origin(),
             HandleKind::Handle(pid),
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_amount: 10 * MAILBOX_THRESHOLD,
                 reservation_delay: 1_000,
                 sending_delay: 10,
             }
@@ -507,7 +508,7 @@ fn calculate_gas_delayed_reservations_sending() {
             USER_1.into_origin(),
             HandleKind::Handle(pid),
             ReservationSendingShowcase::ToSourceAfterWait {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_amount: 10 * MAILBOX_THRESHOLD,
                 reservation_delay: 1_000,
                 wait_for: 3,
                 sending_delay: 10,
@@ -549,9 +550,9 @@ fn delayed_reservations_sending_validation() {
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_amount: 10 * MAILBOX_THRESHOLD,
                 reservation_delay: 1_000,
-                sending_delay: (1_000 * <Test as Config>::MailboxThreshold::get()
+                sending_delay: (1_000 * MAILBOX_THRESHOLD
                     + CostsPerBlockOf::<Test>::reserve_for()
                         / CostsPerBlockOf::<Test>::dispatch_stash())
                     as u32,
@@ -585,10 +586,10 @@ fn delayed_reservations_sending_validation() {
             RuntimeOrigin::signed(USER_1),
             pid,
             ReservationSendingShowcase::ToSourceAfterWait {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                reservation_amount: 10 * MAILBOX_THRESHOLD,
                 reservation_delay: 1_000,
                 wait_for,
-                sending_delay: (1_000 * <Test as Config>::MailboxThreshold::get()
+                sending_delay: (1_000 * MAILBOX_THRESHOLD
                     + CostsPerBlockOf::<Test>::reserve_for()
                         / CostsPerBlockOf::<Test>::dispatch_stash())
                     as u32,
@@ -662,7 +663,7 @@ fn delayed_reservations_to_mailbox() {
         let sending_delay = 10;
         let delay_lock_amount = LockOrExpiration::lock_for_stash(sending_delay);
 
-        let reservation_amount = delay_lock_amount + 10 * <Test as Config>::MailboxThreshold::get();
+        let reservation_amount = delay_lock_amount + 10 * MAILBOX_THRESHOLD;
         let reservation_expiration = LockOrExpiration::expiration_for_mailbox(reservation_amount);
 
         assert_ok!(Gear::send_message(
@@ -1628,7 +1629,7 @@ fn gasfull_after_gasless() {
             (call $reply_wgas (i32.const 0) (i32.const 32) (i64.const {gas_limit}) (i32.const 222) (i32.const 333))
         )
     )"#,
-        gas_limit = 10 * <Test as Config>::MailboxThreshold::get()
+        gas_limit = 10 * MAILBOX_THRESHOLD
     );
 
     new_test_ext().execute_with(|| {
@@ -2017,7 +2018,7 @@ fn delayed_user_replacement() {
     // Scenario planned to enter mailbox.
     new_test_ext().execute_with(|| {
         let gas_limit_to_forward = DEFAULT_GAS_LIMIT * 100;
-        assert!(<Test as Config>::MailboxThreshold::get() <= gas_limit_to_forward);
+        assert!(MAILBOX_THRESHOLD <= gas_limit_to_forward);
 
         scenario(gas_limit_to_forward, true)
     });
@@ -2169,7 +2170,7 @@ fn delayed_send_user_message_with_reservation() {
                 .saturating_mul(CostsPerBlockOf::<Test>::reserve_for().saturated_into()),
         );
 
-        let mailbox_gas_threshold = gas_price(<Test as Config>::MailboxThreshold::get());
+        let mailbox_gas_threshold = gas_price(MAILBOX_THRESHOLD);
 
         // At this point a `Cut` node has been created with `mailbox_threshold` as value and
         // `delay` + 1 locked for using dispatch stash storage.
@@ -2622,9 +2623,9 @@ fn mailbox_rent_out_of_rent() {
         // For both cases value moves back to program.
         let cases = [
             // Gasful message.
-            TestData::gasful(<Test as Config>::MailboxThreshold::get() * 2, 1_000),
+            TestData::gasful(MAILBOX_THRESHOLD * 2, 1_000),
             // Gasless message.
-            TestData::gasless(3_000, <Test as Config>::MailboxThreshold::get()),
+            TestData::gasless(3_000, MAILBOX_THRESHOLD),
         ];
 
         let mb_cost = CostsPerBlockOf::<Test>::mailbox();
@@ -2714,10 +2715,7 @@ fn mailbox_rent_claimed() {
             // Gasful message and 10 blocks of hold in mailbox.
             (TestData::gasful(20_000, 1_000), 10),
             // Gasless message and 5 blocks of hold in mailbox.
-            (
-                TestData::gasless(3_000, <Test as Config>::MailboxThreshold::get()),
-                5,
-            ),
+            (TestData::gasless(3_000, MAILBOX_THRESHOLD), 5),
         ];
 
         let mb_cost = CostsPerBlockOf::<Test>::mailbox();
@@ -2994,7 +2992,7 @@ fn mailbox_threshold_works() {
         let (_init_mid, proxy) =
             init_constructor(demo_proxy_with_gas::scheme(USER_1.into_origin().into(), 0));
 
-        let rent = <Test as Config>::MailboxThreshold::get();
+        let rent = MAILBOX_THRESHOLD;
 
         let check_result = |sufficient: bool| -> MessageId {
             run_to_next_block(None);
@@ -11750,7 +11748,7 @@ fn gas_reservations_check_params() {
             demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::CheckArgs {
-                mailbox_threshold: <Test as Config>::MailboxThreshold::get(),
+                mailbox_threshold: MAILBOX_THRESHOLD,
             }
             .encode(),
             10_000_000_000,
@@ -12955,7 +12953,7 @@ fn reply_with_small_non_zero_gas() {
     init_logger();
     new_test_ext().execute_with(|| {
         let gas_limit = 1;
-        assert!(gas_limit < <Test as Config>::MailboxThreshold::get());
+        assert!(gas_limit < MAILBOX_THRESHOLD);
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -15113,7 +15111,7 @@ fn incorrect_store_context() {
         let message = IncomingMessage::new(mid, USER_1.cast(), payload, gas_limit, 0, None);
 
         // Get overloaded `StoreContext` using `MessageContext`
-        let limit = <Test as Config>::OutgoingBytesLimit::get();
+        let limit = OUTGOING_BYTES_LIMIT;
         let dispatch = IncomingDispatch::new(DispatchKind::Handle, message.clone(), None);
         let settings = ContextSettings::with_outgoing_limits(1024, limit + 1);
         let mut message_context = MessageContext::new(dispatch, pid, settings);

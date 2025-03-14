@@ -19,18 +19,25 @@
 //! Runtime constants which we want to keep in one place instead
 //! of changing them in multiple places.
 
-/// Limit of outgoing messages per block.
+// # Messaging constants
+
+/// The maximum amount of messages that can be produced in during all message executions.
 pub const OUTGOING_LIMIT: u32 = 1024;
-/// Outgoing bytes limit per block.
+
+/// The maximum amount of bytes in outgoing messages during message execution.
 /// 64 MB, must be less than max runtime heap memory.
 pub const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
-/// Mailbox threshold default value. This is minimal amount of gas
-/// for message to be added to mailbox.
+
+/// The minimal gas amount for message to be inserted in mailbox.
+///
+/// This gas will be consuming as rent for storing and message will be available
+/// for reply or claim, once gas ends, message removes.
+///
+/// Messages with gas limit less than that minimum will not be added in mailbox,
+/// but will be seen in events.
 pub const MAILBOX_THRESHOLD: u64 = 3000;
+
+// # Runtime constants
+
 /// Performance multiplier default value.
-// TODO(playx): what's the use of this constant?
 pub const PERFORMANCE_MULTIPLIER: u32 = 100;
-/// Default bank address. It points to the bank pallet.
-pub const BANK_ADDRESS: u64 = 15082001;
-/// Maximum number of block number to block hash mappings to keep
-pub const BLOCK_HASH_COUNT: u64 = 250;

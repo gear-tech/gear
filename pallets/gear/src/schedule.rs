@@ -24,6 +24,7 @@ use common::scheduler::SchedulingCostsPerBlock;
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
+    constants::MAILBOX_THRESHOLD,
     costs::{
         ExtCosts, InstantiationCosts, IoCosts, LazyPagesCosts, PagesCosts, ProcessCosts, RentCosts,
         SyscallCosts,
@@ -1355,7 +1356,7 @@ impl<T: Config> Default for RentWeights<T> {
             dispatch_stash: Weight::from_parts(CostsPerBlockOf::<T>::dispatch_stash(), 0),
             reservation: Weight::from_parts(CostsPerBlockOf::<T>::reservation(), 0),
             mailbox: Weight::from_parts(CostsPerBlockOf::<T>::mailbox(), 0),
-            mailbox_threshold: Weight::from_parts(T::MailboxThreshold::get(), 0),
+            mailbox_threshold: Weight::from_parts(MAILBOX_THRESHOLD, 0),
             _phantom: PhantomData,
         }
     }

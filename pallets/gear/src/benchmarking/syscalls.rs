@@ -35,6 +35,7 @@ use common::{benchmarking, storage::*, Origin, ProgramStorage};
 use core::marker::PhantomData;
 use frame_system::RawOrigin;
 use gear_core::{
+    constants::MAILBOX_THRESHOLD,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
@@ -45,7 +46,6 @@ use gear_core_errors::*;
 use gear_wasm_instrument::{Instruction, SyscallName};
 use rand::{seq::SliceRandom, SeedableRng};
 use rand_pcg::Pcg64;
-use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
 
 /// Size of fallible syscall error length
@@ -317,7 +317,7 @@ where
         let res_offset = COMMON_OFFSET;
 
         // It is not allowed to reserve less than mailbox threshold
-        let mailbox_threshold = <T as Config>::MailboxThreshold::get();
+        let mailbox_threshold = MAILBOX_THRESHOLD;
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
