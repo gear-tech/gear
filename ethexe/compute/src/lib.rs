@@ -266,7 +266,7 @@ impl ChainHeadProcessContext {
             .block_codes_queue(parent)
             .ok_or_else(|| anyhow!("codes queue not found for computed block {parent}"))?;
         codes_queue.retain(|code_id| !validated_codes_in_current.contains(code_id));
-        codes_queue.extend(requested_codes_in_current.into_iter());
+        codes_queue.extend(requested_codes_in_current);
         db.set_block_codes_queue(block, codes_queue);
 
         Ok(blocks_queue)
