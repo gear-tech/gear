@@ -107,9 +107,13 @@ impl Service {
             None
         };
 
-        let rocks_db = RocksDatabase::open(config.node.database_path.clone())
-            .with_context(|| "failed to open database")?;
-        let db = Database::from_one(&rocks_db, config.ethereum.router_address.0);
+        let database_path = config
+            .node
+            .database_path
+            .join(config.ethereum.router_address.to_string());
+        let rocks_db =
+            RocksDatabase::open(database_path).with_context(|| "failed to open database")?;
+        let db = Database::from_one(&rocks_db);
 
         let observer = ObserverService::new(
             &config.ethereum,
