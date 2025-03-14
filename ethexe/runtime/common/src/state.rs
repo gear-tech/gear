@@ -242,15 +242,15 @@ impl<S: Sealed> MaybeHashOf<S> {
     }
 
     pub fn hash(self) -> Option<H256> {
-        self.to_option().map(HashOf::hash)
+        self.to_inner().map(HashOf::hash)
     }
 
-    pub fn to_option(self) -> Option<HashOf<S>> {
+    pub fn to_inner(self) -> Option<HashOf<S>> {
         self.0
     }
 
     pub fn map<T>(&self, f: impl FnOnce(HashOf<S>) -> T) -> Option<T> {
-        self.to_option().map(f)
+        self.to_inner().map(f)
     }
 
     pub fn map_or_default<T: Default>(&self, f: impl FnOnce(HashOf<S>) -> T) -> T {
@@ -926,7 +926,7 @@ impl Mailbox {
             } else {
                 let hash = mailbox
                     .store(storage)
-                    .to_option()
+                    .to_inner()
                     .expect("failed to store user mailbox");
 
                 self.inner.insert(user_id, hash);
@@ -1055,7 +1055,7 @@ impl MemoryPages {
         for (region_idx, region) in updated_regions {
             let region_hash = region
                 .store(storage)
-                .to_option()
+                .to_inner()
                 .expect("infallible; pages are only appended here, none are removed");
 
             self[region_idx] = region_hash.into();
@@ -1096,7 +1096,7 @@ impl MemoryPages {
         }
 
         for (region_idx, region) in updated_regions {
-            if let Some(region_hash) = region.store(storage).to_option() {
+            if let Some(region_hash) = region.store(storage).to_inner() {
                 self[region_idx] = region_hash.into();
             }
         }

@@ -535,7 +535,7 @@ fn many_waits() {
 
         for (pid, state_hash) in &states {
             let state = processor.db.read_state(*state_hash).unwrap();
-            let waitlist_hash = state.waitlist_hash.to_option().unwrap();
+            let waitlist_hash = state.waitlist_hash.to_inner().unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
 
             for (
