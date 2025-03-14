@@ -893,17 +893,6 @@ pub mod runtime_types {
                 )]
                 pub struct PagesAmount(pub ::core::primitive::u32);
             }
-            pub mod percent {
-                use super::runtime_types;
-                #[derive(
-                    ::subxt::ext ::subxt_core::ext::codec::CompactAs,
-                    Debug,
-                    crate::gp::Decode,
-                    crate::gp::DecodeAsType,
-                    crate::gp::Encode,
-                )]
-                pub struct Percent(pub ::core::primitive::u32);
-            }
             pub mod program {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
