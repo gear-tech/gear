@@ -90,22 +90,11 @@ impl KeyPrefix {
         let key = [key1.as_ref(), key2.as_ref()].concat();
         self.one(key)
     }
-
-    fn three(
-        self,
-        key1: impl AsRef<[u8]>,
-        key2: impl AsRef<[u8]>,
-        key3: impl AsRef<[u8]>,
-    ) -> Vec<u8> {
-        let key = [key1.as_ref(), key2.as_ref(), key3.as_ref()].concat();
-        self.one(key)
-    }
 }
 
 pub struct Database {
     cas: Box<dyn CASDatabase>,
     kv: Box<dyn KVDatabase>,
-    router_address: [u8; 20],
 }
 
 impl Clone for Database {
@@ -113,29 +102,19 @@ impl Clone for Database {
         Self {
             cas: self.cas.clone_boxed(),
             kv: self.kv.clone_boxed(),
-            router_address: self.router_address,
         }
     }
 }
 
 impl Database {
-    pub fn new(
-        cas: Box<dyn CASDatabase>,
-        kv: Box<dyn KVDatabase>,
-        router_address: [u8; 20],
-    ) -> Self {
-        Self {
-            cas,
-            kv,
-            router_address,
-        }
+    pub fn new(cas: Box<dyn CASDatabase>, kv: Box<dyn KVDatabase>) -> Self {
+        Self { cas, kv }
     }
 
-    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB, router_address: [u8; 20]) -> Self {
+    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Self {
         Self {
             cas: CASDatabase::clone_boxed(db),
             kv: KVDatabase::clone_boxed(db),
-            router_address,
         }
     }
 
@@ -145,7 +124,6 @@ impl Database {
         Self {
             cas: Box::new(CASOverlay::new(self.cas)),
             kv: Box::new(KVOverlay::new(self.kv)),
-            router_address: self.router_address,
         }
     }
 
@@ -230,7 +208,7 @@ impl Database {
 
     fn block_small_data(&self, block_hash: H256) -> Option<BlockSmallData> {
         self.kv
-            .get(&KeyPrefix::BlockSmallData.two(self.router_address, block_hash))
+            .get(&KeyPrefix::BlockSmallData.one(block_hash))
             .map(|data| {
                 BlockSmallData::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BlockSmallMetaInfo`")
@@ -238,10 +216,8 @@ impl Database {
     }
 
     fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
-        self.kv.put(
-            &KeyPrefix::BlockSmallData.two(self.router_address, block_hash),
-            meta.encode(),
-        );
+        self.kv
+            .put(&KeyPrefix::BlockSmallData.one(block_hash), meta.encode());
     }
 }
 
@@ -288,7 +264,7 @@ impl BlockMetaStorage for Database {
 
     fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
         self.kv
-            .get(&KeyPrefix::BlockProgramStates.two(self.router_address, block_hash))
+            .get(&KeyPrefix::BlockProgramStates.one(block_hash))
             .map(|data| {
                 BTreeMap::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
@@ -297,15 +273,13 @@ impl BlockMetaStorage for Database {
 
     fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
         log::trace!("For block {block_hash} set program states: {map:?}");
-        self.kv.put(
-            &KeyPrefix::BlockProgramStates.two(self.router_address, block_hash),
-            map.encode(),
-        );
+        self.kv
+            .put(&KeyPrefix::BlockProgramStates.one(block_hash), map.encode());
     }
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
         self.kv
-            .get(&KeyPrefix::BlockOutcome.two(self.router_address, block_hash))
+            .get(&KeyPrefix::BlockOutcome.one(block_hash))
             .map(|data| {
                 Vec::<StateTransition>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<StateTransition>`")
@@ -314,15 +288,13 @@ impl BlockMetaStorage for Database {
 
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
         log::trace!("For block {block_hash} set outcome: {outcome:?}");
-        self.kv.put(
-            &KeyPrefix::BlockOutcome.two(self.router_address, block_hash),
-            outcome.encode(),
-        );
+        self.kv
+            .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome.encode());
     }
 
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule> {
         self.kv
-            .get(&KeyPrefix::BlockSchedule.two(self.router_address, block_hash))
+            .get(&KeyPrefix::BlockSchedule.one(block_hash))
             .map(|data| {
                 Schedule::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
@@ -330,15 +302,13 @@ impl BlockMetaStorage for Database {
     }
 
     fn set_block_schedule(&self, block_hash: H256, map: Schedule) {
-        self.kv.put(
-            &KeyPrefix::BlockSchedule.two(self.router_address, block_hash),
-            map.encode(),
-        );
+        self.kv
+            .put(&KeyPrefix::BlockSchedule.one(block_hash), map.encode());
     }
 
     fn latest_computed_block(&self) -> Option<(H256, BlockHeader)> {
         self.kv
-            .get(&KeyPrefix::LatestComputedBlock.one(self.router_address))
+            .get(KeyPrefix::LatestComputedBlock.prefix().as_ref())
             .map(|data| {
                 <(H256, BlockHeader)>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `(H256, BlockHeader)`")
@@ -348,7 +318,7 @@ impl BlockMetaStorage for Database {
     fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader) {
         log::trace!("Set latest computed block: {block_hash} {header:?}");
         self.kv.put(
-            &KeyPrefix::LatestComputedBlock.one(self.router_address),
+            KeyPrefix::LatestComputedBlock.prefix().as_ref(),
             (block_hash, header).encode(),
         );
     }
@@ -369,7 +339,7 @@ impl CodesStorage for Database {
 
     fn program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
         self.kv
-            .get(&KeyPrefix::ProgramToCodeId.two(self.router_address, program_id))
+            .get(&KeyPrefix::ProgramToCodeId.one(program_id))
             .map(|data| {
                 CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`")
             })
@@ -377,7 +347,7 @@ impl CodesStorage for Database {
 
     fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
         self.kv.put(
-            &KeyPrefix::ProgramToCodeId.two(self.router_address, program_id),
+            &KeyPrefix::ProgramToCodeId.one(program_id),
             code_id.into_bytes().to_vec(),
         );
     }
@@ -385,7 +355,7 @@ impl CodesStorage for Database {
     // TODO (gsobol): consider to move to another place
     // TODO (gsobol): test this method
     fn program_ids(&self) -> BTreeSet<ProgramId> {
-        let key_prefix = KeyPrefix::ProgramToCodeId.one(self.router_address);
+        let key_prefix = KeyPrefix::ProgramToCodeId.prefix();
 
         self.kv
             .iter_prefix(&key_prefix)
@@ -405,11 +375,7 @@ impl CodesStorage for Database {
 
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
         self.kv
-            .get(&KeyPrefix::InstrumentedCode.three(
-                self.router_address,
-                runtime_id.to_le_bytes(),
-                code_id,
-            ))
+            .get(&KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id))
             .map(|data| {
                 InstrumentedCode::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `InstrumentedCode`")
@@ -418,28 +384,20 @@ impl CodesStorage for Database {
 
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
         self.kv.put(
-            &KeyPrefix::InstrumentedCode.three(
-                self.router_address,
-                runtime_id.to_le_bytes(),
-                code_id,
-            ),
+            &KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id),
             code.encode(),
         );
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
-        self.kv
-            .get(&KeyPrefix::CodeValid.two(self.router_address, code_id))
-            .map(|data| {
-                bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
-            })
+        self.kv.get(&KeyPrefix::CodeValid.one(code_id)).map(|data| {
+            bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
+        })
     }
 
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
-        self.kv.put(
-            &KeyPrefix::CodeValid.two(self.router_address, code_id),
-            valid.encode(),
-        );
+        self.kv
+            .put(&KeyPrefix::CodeValid.one(code_id), valid.encode());
     }
 }
 
@@ -570,7 +528,7 @@ impl OnChainStorage for Database {
 
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
         self.kv
-            .get(&KeyPrefix::BlockEvents.two(self.router_address, block_hash))
+            .get(&KeyPrefix::BlockEvents.one(block_hash))
             .map(|data| {
                 Vec::<BlockEvent>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<BlockEvent>`")
@@ -578,25 +536,21 @@ impl OnChainStorage for Database {
     }
 
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
-        self.kv.put(
-            &KeyPrefix::BlockEvents.two(self.router_address, block_hash),
-            events.encode(),
-        );
+        self.kv
+            .put(&KeyPrefix::BlockEvents.one(block_hash), events.encode());
     }
 
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeInfo> {
         self.kv
-            .get(&KeyPrefix::CodeUploadInfo.two(self.router_address, code_id))
+            .get(&KeyPrefix::CodeUploadInfo.one(code_id))
             .map(|data| {
                 Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `CodeInfo`")
             })
     }
 
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeInfo) {
-        self.kv.put(
-            &KeyPrefix::CodeUploadInfo.two(self.router_address, code_id),
-            code_info.encode(),
-        );
+        self.kv
+            .put(&KeyPrefix::CodeUploadInfo.one(code_id), code_info.encode());
     }
 
     fn block_is_synced(&self, block_hash: H256) -> bool {
@@ -610,7 +564,7 @@ impl OnChainStorage for Database {
 
     fn latest_synced_block_height(&self) -> Option<u32> {
         self.kv
-            .get(&KeyPrefix::LatestSyncedBlockHeight.one(self.router_address))
+            .get(KeyPrefix::LatestSyncedBlockHeight.prefix().as_ref())
             .map(|data| {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
@@ -618,7 +572,7 @@ impl OnChainStorage for Database {
 
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv.put(
-            &KeyPrefix::LatestSyncedBlockHeight.one(self.router_address),
+            &KeyPrefix::LatestSyncedBlockHeight.prefix().as_ref(),
             height.encode(),
         );
     }
@@ -633,11 +587,7 @@ mod tests {
 
     #[test]
     fn test_offchain_transaction() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let tx = SignedOffchainTransaction {
             signature: Default::default(),
@@ -656,11 +606,7 @@ mod tests {
 
     #[test]
     fn test_check_within_recent_blocks() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
@@ -672,11 +618,7 @@ mod tests {
 
     #[test]
     fn test_block_program_states() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let block_hash = H256::random();
         let program_states = BTreeMap::new();
@@ -686,11 +628,7 @@ mod tests {
 
     #[test]
     fn test_block_outcome() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let block_hash = H256::random();
         let block_outcome = vec![StateTransition::default()];
@@ -700,11 +638,7 @@ mod tests {
 
     #[test]
     fn test_block_schedule() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let block_hash = H256::random();
         let schedule = Schedule::default();
@@ -714,11 +648,7 @@ mod tests {
 
     #[test]
     fn test_latest_computed_block() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
@@ -728,11 +658,7 @@ mod tests {
 
     #[test]
     fn test_block_events() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let block_hash = H256::random();
         let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged)];
@@ -742,11 +668,7 @@ mod tests {
 
     #[test]
     fn test_code_blob_info() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let code_id = CodeId::default();
         let code_info = CodeInfo::default();
@@ -756,11 +678,7 @@ mod tests {
 
     #[test]
     fn test_block_is_synced() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let block_hash = H256::random();
         db.set_block_is_synced(block_hash);
@@ -769,11 +687,7 @@ mod tests {
 
     #[test]
     fn test_latest_synced_block_height() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let height = 42;
         db.set_latest_synced_block_height(height);
@@ -782,11 +696,7 @@ mod tests {
 
     #[test]
     fn test_original_code() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let code = vec![1, 2, 3];
         let code_id = db.set_original_code(&code);
@@ -795,11 +705,7 @@ mod tests {
 
     #[test]
     fn test_program_code_id() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let program_id = ProgramId::default();
         let code_id = CodeId::default();
@@ -809,11 +715,7 @@ mod tests {
 
     #[test]
     fn test_instrumented_code() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let runtime_id = 1;
         let code_id = CodeId::default();
@@ -839,11 +741,7 @@ mod tests {
 
     #[test]
     fn test_code_valid() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let code_id = CodeId::default();
         db.set_code_valid(code_id, true);
@@ -852,11 +750,7 @@ mod tests {
 
     #[test]
     fn test_block_header() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
@@ -866,11 +760,7 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let state = ProgramState::zero();
         let hash = db.write_state(state.clone());
@@ -879,11 +769,7 @@ mod tests {
 
     #[test]
     fn test_queue() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let queue = MessageQueue::default();
         let hash = db.write_queue(queue.clone());
@@ -892,11 +778,7 @@ mod tests {
 
     #[test]
     fn test_waitlist() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let waitlist = Waitlist::default();
         let hash = db.write_waitlist(waitlist.clone());
@@ -905,11 +787,7 @@ mod tests {
 
     #[test]
     fn test_stash() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let stash = DispatchStash::default();
         let hash = db.write_stash(stash.clone());
@@ -918,11 +796,7 @@ mod tests {
 
     #[test]
     fn test_mailbox() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let mailbox = Mailbox::default();
         let hash = db.write_mailbox(mailbox.clone());
@@ -931,11 +805,7 @@ mod tests {
 
     #[test]
     fn test_pages() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let pages = MemoryPages::default();
         let hash = db.write_pages(pages.clone());
@@ -944,11 +814,7 @@ mod tests {
 
     #[test]
     fn test_pages_region() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let pages_region = MemoryPagesRegion::default();
         let hash = db.write_pages_region(pages_region.clone());
@@ -957,11 +823,7 @@ mod tests {
 
     #[test]
     fn test_allocations() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let allocations = Allocations::default();
         let hash = db.write_allocations(allocations.clone());
@@ -970,11 +832,7 @@ mod tests {
 
     #[test]
     fn test_payload() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let payload: Payload = vec![1, 2, 3].try_into().unwrap();
         let hash = db.write_payload(payload.clone());
@@ -983,11 +841,7 @@ mod tests {
 
     #[test]
     fn test_page_data() {
-        let db = Database::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            [0; 20],
-        );
+        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
 
         let mut page_data = PageBuf::new_zeroed();
         page_data[42] = 42;

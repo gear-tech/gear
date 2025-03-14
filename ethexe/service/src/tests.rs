@@ -750,7 +750,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::from_one(&MemDb::default(), env.eth_cfg.router_address.0);
+    node.db = Database::from_one(&MemDb::default());
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
@@ -1280,7 +1280,7 @@ mod utils {
 
             let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
-            let db = Database::from_one(&MemDb::default(), router_address.0);
+            let db = Database::from_one(&MemDb::default());
 
             let eth_cfg = EthereumConfig {
                 rpc: rpc_url.clone(),
@@ -1362,9 +1362,7 @@ mod utils {
                 rpc: service_rpc_config,
             } = config;
 
-            let db = db.unwrap_or_else(|| {
-                Database::from_one(&MemDb::default(), self.eth_cfg.router_address.0)
-            });
+            let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {

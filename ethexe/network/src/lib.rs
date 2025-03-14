@@ -591,7 +591,7 @@ mod tests {
     }
 
     fn new_service() -> (TempDir, NetworkService) {
-        new_service_with_db(Database::from_one(&MemDb::default(), [0; 20]))
+        new_service_with_db(Database::from_one(&MemDb::default()))
     }
 
     #[tokio::test]
@@ -611,7 +611,7 @@ mod tests {
         let (_tmp_dir, mut service1) = new_service();
 
         // second service
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let db = Database::from_one(&MemDb::default());
 
         let hello = db.write(b"hello");
         let world = db.write(b"world");

@@ -612,7 +612,7 @@ mod tests {
     use std::{iter, mem};
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let db = Database::from_one(&MemDb::default());
         let behaviour = Behaviour::new(config, peer_score::Handle::new_test(), db.clone());
         let mut swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;

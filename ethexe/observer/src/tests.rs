@@ -87,7 +87,7 @@ async fn test_deployment() -> Result<()> {
     let router_address = ethereum.router().address();
 
     let db = MemDb::default();
-    let database = Database::from_one(&db, router_address.0);
+    let database = Database::from_one(&db);
 
     let mut observer = ObserverService::new(
         &EthereumConfig {
