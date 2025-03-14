@@ -530,9 +530,9 @@ fn many_waits() {
     {
         let mut expected_schedule = ScheduleRestorer::new(0);
 
-        for (pid, state_hash) in states {
-            let state = processor.db.read_state(state_hash).unwrap();
-            let waitlist_hash = state.waitlist_hash.to_option().unwrap();
+        for (pid, state_hash) in &states {
+            let state = processor.db.read_state(*state_hash).unwrap();
+            let waitlist_hash = state.waitlist_hash.to_inner().unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
             expected_schedule.waitlist(pid, &waitlist);
         }

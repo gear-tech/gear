@@ -70,6 +70,23 @@ impl fmt::Debug for Request {
     }
 }
 
+impl fmt::Debug for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Request::DataForHashes(set) => {
+                if f.alternate() {
+                    f.debug_tuple("DataForHashes").field(&set).finish()
+                } else {
+                    f.debug_tuple("DataForHashes")
+                        .field(&format_args!("{} keys", set.len()))
+                        .finish()
+                }
+            }
+            Request::ProgramIds => f.debug_tuple("ProgramIds").finish(),
+        }
+    }
+}
+
 impl Request {
     /// Calculate missing request keys in response and create a new request with these keys
     fn difference(&self, resp: &Response) -> Option<Self> {
@@ -101,6 +118,31 @@ impl fmt::Debug for Response {
             f.debug_tuple("Response")
                 .field(&format_args!("{} entries", self.0.len()))
                 .finish()
+        }
+    }
+}
+
+impl fmt::Debug for Response {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Response::DataForHashes(data) => {
+                if f.alternate() {
+                    f.debug_tuple("DataForHashes").field(&data).finish()
+                } else {
+                    f.debug_tuple("DataForHashes")
+                        .field(&format_args!("{} entries", data.len()))
+                        .finish()
+                }
+            }
+            Response::ProgramIds(ids) => {
+                if f.alternate() {
+                    f.debug_tuple("ProgramIds").field(&ids).finish()
+                } else {
+                    f.debug_tuple("ProgramIds")
+                        .field(&format_args!("{} entries", ids.len()))
+                        .finish()
+                }
+            }
         }
     }
 }
