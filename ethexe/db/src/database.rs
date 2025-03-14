@@ -572,7 +572,7 @@ impl OnChainStorage for Database {
 
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv.put(
-            &KeyPrefix::LatestSyncedBlockHeight.prefix().as_ref(),
+            KeyPrefix::LatestSyncedBlockHeight.prefix().as_ref(),
             height.encode(),
         );
     }
