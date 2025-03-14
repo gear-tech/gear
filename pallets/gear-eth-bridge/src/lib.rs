@@ -100,8 +100,8 @@ pub mod pallet {
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
-        /// Origin type for the admin of the bridge.
-        type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+        /// Privileged origin for bridge management operations.
+        type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// Constant defining maximal payload size in bytes of message for bridging.
         #[pallet::constant]
@@ -264,8 +264,8 @@ pub mod pallet {
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::pause())]
         pub fn pause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by `AdminOrigin` or root.
-            T::AdminOrigin::ensure_origin_or_root(origin)?;
+            // Ensuring called by `ControlOrigin` or root.
+            T::ControlOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -288,8 +288,8 @@ pub mod pallet {
         #[pallet::call_index(1)]
         #[pallet::weight(<T as Config>::WeightInfo::unpause())]
         pub fn unpause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by `AdminOrigin` or root.
-            T::AdminOrigin::ensure_origin_or_root(origin)?;
+            // Ensuring called by `ControlOrigin` or root.
+            T::ControlOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(

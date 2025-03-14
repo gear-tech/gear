@@ -1239,10 +1239,10 @@ impl pallet_gear_builtin::Config for Runtime {
 }
 
 #[cfg(feature = "dev")]
-pub struct OnlyBridgeAdmin<T>(sp_std::marker::PhantomData<T>);
+pub struct BridgeAdmins<T>(sp_std::marker::PhantomData<T>);
 
 #[cfg(feature = "dev")]
-impl<T> SortedMembers<AccountId> for OnlyBridgeAdmin<T>
+impl<T> SortedMembers<AccountId> for BridgeAdmins<T>
 where
     T: pallet_gear_eth_bridge::Config,
 {
@@ -1266,7 +1266,7 @@ parameter_types! {
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
-    type AdminOrigin = EnsureSignedBy<OnlyBridgeAdmin<Runtime>, AccountId>;
+    type ControlOrigin = EnsureSignedBy<BridgeAdmins<Runtime>, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;

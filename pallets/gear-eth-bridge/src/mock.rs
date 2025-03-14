@@ -19,15 +19,15 @@
 use crate as pallet_gear_eth_bridge;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks},
+    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
     PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
+use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureSignedBy};
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
-use sp_core::{ed25519::Public, H256};
+use sp_core::{ed25519::Public, Get, H256};
 use sp_runtime::{
     impl_opaque_keys,
     traits::{BlakeTwo256, IdentityLookup},
@@ -291,12 +291,30 @@ impl pallet_session::Config for Test {
     type WeightInfo = pallet_session::weights::SubstrateWeight<Test>;
 }
 
+pub struct BridgeAdmins<T>(sp_std::marker::PhantomData<T>);
+
+impl<T> SortedMembers<AccountId> for BridgeAdmins<T>
+where
+    T: pallet_gear_eth_bridge::Config,
+{
+    fn sorted_members() -> Vec<AccountId> {
+        vec![
+            pallet_gear_eth_bridge::BridgeAdminAddress::<Test>::get(),
+            pallet_gear_eth_bridge::BridgePauserAddress::<Test>::get(),
+        ]
+    }
+
+    fn count() -> usize {
+        2
+    }
+}
+
 parameter_types! {
     pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
 }
 
 impl pallet_gear_eth_bridge::Config for Test {
-    type AdminOrigin = EnsureRoot<AccountId>;
+    type ControlOrigin = EnsureSignedBy<BridgeAdmins<Test>, AccountId>;
     type PalletId = GearEthBridgePalletId;
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
