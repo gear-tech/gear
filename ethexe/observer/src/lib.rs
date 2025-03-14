@@ -36,6 +36,7 @@ use futures::{
 use gprimitives::{CodeId, H256};
 use std::{
     collections::VecDeque,
+    fmt,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -70,18 +71,38 @@ pub struct BlockSyncedData {
     pub validators: Vec<Address>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct BlobData {
     pub code_id: CodeId,
     pub timestamp: u64,
     pub code: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Blob(BlobData),
     Block(SimpleBlockData),
     BlockSynced(BlockSyncedData),
+}
+
+impl fmt::Debug for BlobData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BlobData")
+            .field("code_id", &self.code_id)
+            .field("timestamp", &self.timestamp)
+            .field("code", &format_args!("{} bytes", self.code.len()))
+            .finish()
+    }
+}
+
+impl fmt::Debug for ObserverEvent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ObserverEvent::Blob(data) => data.fmt(f),
+            ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
+            ObserverEvent::BlockSynced(hash) => f.debug_tuple("BlockSynced").field(hash).finish(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
