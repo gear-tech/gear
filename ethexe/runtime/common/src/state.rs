@@ -27,6 +27,7 @@ use alloc::{
 use anyhow::{anyhow, Result};
 use core::{
     any::Any,
+    cmp::Ordering,
     marker::PhantomData,
     mem,
     ops::{Index, IndexMut},
@@ -142,9 +143,7 @@ impl PayloadLookup {
     }
 }
 
-#[derive(
-    Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::DebugCustom, derive_more::Display,
-)]
+#[derive(Encode, Decode, derive_more::Into, derive_more::DebugCustom, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[debug(fmt = "HashOf<{}>({hash:?})", "private::shortname::<S>()")]
 #[display(fmt = "{hash}")]
@@ -154,6 +153,26 @@ pub struct HashOf<S: Sealed + 'static> {
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
     _phantom: PhantomData<S>,
+}
+
+impl<S: Sealed> PartialEq for HashOf<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash.eq(&other.hash)
+    }
+}
+
+impl<S: Sealed> Eq for HashOf<S> {}
+
+impl<S: Sealed> PartialOrd for HashOf<S> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<S: Sealed> Ord for HashOf<S> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.hash.cmp(&other.hash)
+    }
 }
 
 impl<S: Sealed> Clone for HashOf<S> {
@@ -174,7 +193,7 @@ impl<S: Sealed> HashOf<S> {
         }
     }
 
-    pub fn hash(&self) -> H256 {
+    pub fn hash(self) -> H256 {
         self.hash
     }
 }
@@ -222,23 +241,27 @@ impl<S: Sealed> MaybeHashOf<S> {
         self.0.is_none()
     }
 
-    pub fn hash(&self) -> Option<HashOf<S>> {
+    pub fn hash(self) -> Option<H256> {
+        self.to_inner().map(HashOf::hash)
+    }
+
+    pub fn to_inner(self) -> Option<HashOf<S>> {
         self.0
     }
 
-    pub fn with_hash<T>(&self, f: impl FnOnce(HashOf<S>) -> T) -> Option<T> {
-        self.hash().map(f)
+    pub fn map<T>(&self, f: impl FnOnce(HashOf<S>) -> T) -> Option<T> {
+        self.to_inner().map(f)
     }
 
-    pub fn with_hash_or_default<T: Default>(&self, f: impl FnOnce(HashOf<S>) -> T) -> T {
-        self.with_hash(f).unwrap_or_default()
+    pub fn map_or_default<T: Default>(&self, f: impl FnOnce(HashOf<S>) -> T) -> T {
+        self.map(f).unwrap_or_default()
     }
 
-    pub fn with_hash_or_default_fallible<T: Default>(
+    pub fn try_map_or_default<T: Default>(
         &self,
         f: impl FnOnce(HashOf<S>) -> Result<T>,
     ) -> Result<T> {
-        self.with_hash(f).unwrap_or_else(|| Ok(Default::default()))
+        self.map(f).unwrap_or_else(|| Ok(Default::default()))
     }
 
     pub fn replace(&mut self, other: Option<Self>) {
@@ -256,7 +279,7 @@ impl<S: Sealed + 'static> From<HashOf<S>> for MaybeHashOf<S> {
 
 impl MaybeHashOf<Allocations> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Allocations> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_allocations(hash).ok_or(anyhow!(
                 "failed to read ['Allocations'] from storage by hash"
             ))
@@ -280,7 +303,7 @@ impl MaybeHashOf<Allocations> {
 
 impl MaybeHashOf<DispatchStash> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<DispatchStash> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_stash(hash).ok_or(anyhow!(
                 "failed to read ['DispatchStash'] from storage by hash"
             ))
@@ -304,7 +327,7 @@ impl MaybeHashOf<DispatchStash> {
 
 impl MaybeHashOf<Mailbox> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Mailbox> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage
                 .read_mailbox(hash)
                 .ok_or(anyhow!("failed to read ['Mailbox'] from storage by hash"))
@@ -328,7 +351,7 @@ impl MaybeHashOf<Mailbox> {
 
 impl MaybeHashOf<UserMailbox> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<UserMailbox> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_user_mailbox(hash).ok_or(anyhow!(
                 "failed to read ['UserMailbox'] from storage by hash"
             ))
@@ -338,7 +361,7 @@ impl MaybeHashOf<UserMailbox> {
 
 impl MaybeHashOf<MemoryPages> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MemoryPages> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_pages(hash).ok_or(anyhow!(
                 "failed to read ['MemoryPages'] from storage by hash"
             ))
@@ -362,7 +385,7 @@ impl MaybeHashOf<MemoryPages> {
 
 impl MaybeHashOf<MessageQueue> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
             ))
@@ -386,7 +409,7 @@ impl MaybeHashOf<MessageQueue> {
 
 impl MaybeHashOf<Payload> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Payload> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage
                 .read_payload(hash)
                 .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash"))
@@ -398,7 +421,7 @@ impl MaybeHashOf<Payload> {
 
 impl MaybeHashOf<Waitlist> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Waitlist> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage
                 .read_waitlist(hash)
                 .ok_or(anyhow!("failed to read ['Waitlist'] from storage by hash"))
@@ -903,7 +926,7 @@ impl Mailbox {
             } else {
                 let hash = mailbox
                     .store(storage)
-                    .hash()
+                    .to_inner()
                     .expect("failed to store user mailbox");
 
                 self.inner.insert(user_id, hash);
@@ -1032,7 +1055,7 @@ impl MemoryPages {
         for (region_idx, region) in updated_regions {
             let region_hash = region
                 .store(storage)
-                .hash()
+                .to_inner()
                 .expect("infallible; pages are only appended here, none are removed");
 
             self[region_idx] = region_hash.into();
@@ -1073,7 +1096,7 @@ impl MemoryPages {
         }
 
         for (region_idx, region) in updated_regions {
-            if let Some(region_hash) = region.store(storage).hash() {
+            if let Some(region_hash) = region.store(storage).to_inner() {
                 self[region_idx] = region_hash.into();
             }
         }

@@ -74,7 +74,7 @@ impl ThreadParams {
 
         let region_idx = MemoryPages::page_region(page);
 
-        let region_hash = pages_registry[region_idx].with_hash(|hash| hash)?;
+        let region_hash = pages_registry[region_idx].to_inner()?;
 
         let pages_regions = self
             .pages_regions_cache
