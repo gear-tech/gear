@@ -29,6 +29,7 @@ use anyhow::{anyhow, Context};
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
 use futures::{future::Either, ready, stream::FusedStream, Stream};
+use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
     connection_limits,
     core::{muxing::StreamMuxerBox, upgrade},
@@ -86,7 +87,14 @@ impl fmt::Debug for NetworkEvent {
             }
             NetworkEvent::Message { data, source } => f
                 .debug_struct("Message")
-                .field("data", &format_args!("{} bytes", data.len()))
+                .field(
+                    "data",
+                    &format_args!(
+                        "{:.8} ({} bytes)",
+                        ByteSliceFormatter::Dynamic(data),
+                        data.len()
+                    ),
+                )
                 .field("source", source)
                 .finish(),
             NetworkEvent::PeerBlocked(peer_id) => {
