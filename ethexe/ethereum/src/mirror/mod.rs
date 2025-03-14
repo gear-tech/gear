@@ -19,7 +19,7 @@
 use crate::{abi::IMirror, AlloyProvider, TryGetReceipt};
 use alloy::{
     primitives::{Address, U256},
-    providers::{Provider, ProviderBuilder, RootProvider},
+    providers::{Provider, RootProvider},
 };
 use anyhow::{anyhow, Result};
 use ethexe_signer::Address as LocalAddress;
@@ -32,12 +32,12 @@ pub mod events;
 type InstanceProvider = Arc<AlloyProvider>;
 type Instance = IMirror::IMirrorInstance<(), InstanceProvider>;
 
-type QueryInstance = IMirror::IMirrorInstance<(), Arc<RootProvider>>;
+type QueryInstance = IMirror::IMirrorInstance<(), RootProvider>;
 
 pub struct Mirror(Instance);
 
 impl Mirror {
-    pub(crate) fn new(address: Address, provider: InstanceProvider) -> Self {
+    pub fn new(address: Address, provider: InstanceProvider) -> Self {
         Self(Instance::new(address, provider))
     }
 
@@ -48,7 +48,7 @@ impl Mirror {
     pub fn query(&self) -> MirrorQuery {
         MirrorQuery(QueryInstance::new(
             *self.0.address(),
-            Arc::new(self.0.provider().root().clone()),
+            self.0.provider().root().clone(),
         ))
     }
 
@@ -113,13 +113,8 @@ impl Mirror {
 pub struct MirrorQuery(QueryInstance);
 
 impl MirrorQuery {
-    pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = Arc::new(ProviderBuilder::default().connect(rpc_url).await?);
-
-        Ok(Self(QueryInstance::new(
-            Address::new(router_address.0),
-            provider,
-        )))
+    pub fn from_provider(address: Address, provider: RootProvider) -> Self {
+        Self(QueryInstance::new(address, provider))
     }
 
     pub async fn state_hash(&self) -> Result<H256> {

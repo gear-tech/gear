@@ -21,7 +21,7 @@ use crate::{
     export::PeerId,
     peer_score::Handle,
 };
-use ethexe_db::{CodesStorage, Database};
+use ethexe_db::Database;
 use libp2p::{
     request_response,
     request_response::OutboundRequestId,
@@ -59,41 +59,6 @@ pub(crate) enum PeerResponse {
         peer_id: PeerId,
         request_id: RequestId,
     },
-    ExternalValidation(ValidatingResponse),
-}
-
-#[derive(Debug)]
-pub(crate) enum ExternalValidation {
-    Success {
-        request_id: RequestId,
-        response: Response,
-    },
-    NewRound {
-        peer_id: PeerId,
-        request_id: RequestId,
-    },
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ValidatingResponse {
-    ongoing_request: OngoingRequest,
-    peer_id: PeerId,
-    response: Response,
-}
-
-impl ValidatingResponse {
-    pub fn request(&self) -> &Request {
-        &self.ongoing_request.request
-    }
-
-    pub fn response(&self) -> &Response {
-        &self.response
-    }
-
-    #[cfg(test)]
-    pub(crate) fn peer_id(&self) -> PeerId {
-        self.peer_id
-    }
 }
 
 #[derive(Debug)]
@@ -192,21 +157,13 @@ impl OngoingRequest {
 
         let request_id = self.request_id;
 
-        match response.validate(&self.request) {
-            Ok(true) => self
+        match response.validate() {
+            Ok(()) => self
                 .inner_complete(peer, response)
                 .map(|(request_id, response)| PeerResponse::Success {
                     request_id,
                     response,
                 }),
-            Ok(false) => {
-                let validating_response = ValidatingResponse {
-                    ongoing_request: self,
-                    peer_id: peer,
-                    response,
-                };
-                Ok(PeerResponse::ExternalValidation(validating_response))
-            }
             Err(error) => {
                 log::trace!(
                     "response validation failed for request {request_id:?} from {peer}: {error:?}",
@@ -297,8 +254,9 @@ impl OngoingRequests {
     }
 
     fn next_request_id(&mut self) -> RequestId {
+        let id = self.request_id_counter;
         self.request_id_counter += 1;
-        RequestId(self.request_id_counter)
+        RequestId(id)
     }
 
     pub(crate) fn push_pending_request(&mut self, request: Request) -> RequestId {
@@ -395,44 +353,6 @@ impl OngoingRequests {
         })
     }
 
-    pub(crate) fn on_external_validation(
-        &mut self,
-        res: Result<ValidatingResponse, ValidatingResponse>,
-        behaviour: &mut InnerBehaviour,
-    ) -> Result<ExternalValidation, SendRequestError> {
-        let new_ongoing_request = match res {
-            Ok(validating_response) => {
-                let ValidatingResponse {
-                    ongoing_request,
-                    peer_id,
-                    response,
-                } = validating_response;
-
-                match ongoing_request.inner_complete(peer_id, response) {
-                    Ok((request_id, response)) => {
-                        return Ok(ExternalValidation::Success {
-                            request_id,
-                            response,
-                        });
-                    }
-                    Err(new_ongoing_request) => new_ongoing_request,
-                }
-            }
-            Err(validating_response) => {
-                self.peer_score_handle
-                    .invalid_data(validating_response.peer_id);
-                validating_response.ongoing_request
-            }
-        };
-
-        let request_id = new_ongoing_request.request_id;
-        let peer_id = self.send_request(behaviour, new_ongoing_request)?;
-        Ok(ExternalValidation::NewRound {
-            peer_id,
-            request_id,
-        })
-    }
-
     pub(crate) fn on_peer_failed(
         &mut self,
         behaviour: &mut InnerBehaviour,
@@ -475,8 +395,9 @@ impl OngoingResponses {
     }
 
     fn next_response_id(&mut self) -> ResponseId {
+        let id = self.response_id_counter;
         self.response_id_counter += 1;
-        ResponseId(self.response_id_counter)
+        ResponseId(id)
     }
 
     pub(crate) fn prepare_response(
@@ -493,16 +414,7 @@ impl OngoingResponses {
 
         let db = self.db.clone();
         self.db_readers.spawn_blocking(move || {
-            let response = match request {
-                Request::DataForHashes(hashes) => Response::DataForHashes(
-                    hashes
-                        .into_iter()
-                        .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                        .collect(),
-                ),
-                Request::ProgramIds => Response::ProgramIds(db.program_ids()),
-            };
-
+            let response = Response::from_db(request, &db);
             OngoingResponse {
                 response_id,
                 peer_id,

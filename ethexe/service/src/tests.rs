@@ -20,7 +20,7 @@
 
 use crate::{
     config::{self, Config},
-    Service,
+    Event, Service,
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
@@ -29,12 +29,13 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_common::{
-    db::CodesStorage,
+    db::{CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
 };
+use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
-use ethexe_ethereum::{router::RouterQuery, Ethereum};
+use ethexe_ethereum::Ethereum;
 use ethexe_observer::{EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
@@ -80,6 +81,7 @@ async fn basics() {
         worker_threads_override: None,
         virtual_threads: 16,
         dev: true,
+        fast_sync: false,
     };
 
     let eth_cfg = EthereumConfig {
@@ -1139,9 +1141,174 @@ async fn tx_pool_gossip() {
     assert_eq!(node1_db_tx, signed_ethexe_tx);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(120_000)]
+async fn fast_sync() {
+    utils::init_logger();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::Generated(3),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("Starting sequencer");
+    let sequencer_pub_key = env.wallets.next();
+    let mut sequencer = env.new_node(
+        NodeConfig::named("sequencer")
+            .sequencer(sequencer_pub_key)
+            .validator(env.validators[0], env.validator_session_public_keys[0])
+            .network(None, None),
+    );
+    sequencer.start_service().await;
+
+    log::info!("Starting Alice");
+    let mut alice = env.new_node(
+        NodeConfig::named("Alice")
+            .validator(env.validators[1], env.validator_session_public_keys[1])
+            .network(None, sequencer.multiaddr.clone()),
+    );
+    alice.start_service().await;
+
+    log::info!("Creating `demo-autoreply` programs");
+
+    let code_info = env
+        .upload_code(demo_autoreply::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = code_info.code_id;
+    let mut program_ids = [(ActorId::zero(), ActorId::zero()); 5];
+
+    for (i, (program_id, destination)) in program_ids.iter_mut().enumerate() {
+        let program_info = env
+            .create_program(code_id, 500_000_000_000_000)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        *program_id = program_info.program_id;
+        *destination = ActorId::from(i as u64 % 3);
+
+        let _reply_info = env
+            .send_message(program_info.program_id, destination.as_ref(), 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+    }
+
+    log::info!("Starting Bob (fast-sync)");
+    let latest_block = env.latest_block().await;
+    alice
+        .wait_for(|event| {
+            matches!(
+                event,
+                Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash })) if block_hash == latest_block
+            )
+        })
+        .await;
+    let latest_block = alice.db.block_header(latest_block).unwrap();
+    let bob_previous_block = latest_block.parent_hash;
+
+    let mut bob = env.new_node(
+        NodeConfig::named("Bob")
+            .validator(env.validators[2], env.validator_session_public_keys[2])
+            .network(None, sequencer.multiaddr.clone())
+            .fast_sync(),
+    );
+    bob.start_service().await;
+
+    log::info!("Sending messages to programs");
+
+    for (program_id, destination) in program_ids {
+        let reply_info = env
+            .send_message(program_id, destination.as_ref(), 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Auto)
+        );
+    }
+
+    env.skip_blocks(100).await;
+
+    let latest_block = env.latest_block().await;
+    log::info!("Do assertions since {latest_block}");
+
+    alice
+        .wait_for(|event| {
+            matches!(
+                event,
+                Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash })) if block_hash == latest_block
+            )
+        })
+        .await;
+
+    bob.wait_for(|event| {
+        matches!(
+            event,
+            Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash })) if block_hash == latest_block
+        )
+    })
+        .await;
+
+    assert_eq!(alice.db.program_ids(), bob.db.program_ids());
+    assert_eq!(
+        alice.db.latest_computed_block(),
+        bob.db.latest_computed_block()
+    );
+
+    let mut block = latest_block;
+    loop {
+        if block == bob_previous_block {
+            break;
+        }
+
+        log::trace!("assert block {block}");
+
+        assert_eq!(alice.db.block_computed(block), bob.db.block_computed(block));
+        assert_eq!(
+            alice.db.block_commitment_queue(block),
+            bob.db.block_commitment_queue(block)
+        );
+        assert_eq!(
+            alice.db.previous_not_empty_block(block),
+            bob.db.previous_not_empty_block(block)
+        );
+        assert_eq!(
+            alice.db.block_program_states(block),
+            bob.db.block_program_states(block)
+        );
+        assert_eq!(alice.db.block_outcome(block), bob.db.block_outcome(block));
+        assert_eq!(alice.db.block_schedule(block), bob.db.block_schedule(block));
+
+        assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
+        assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
+        assert_eq!(
+            alice.db.block_is_synced(block),
+            bob.db.block_is_synced(block)
+        );
+
+        let header = alice.db.block_header(block).unwrap();
+        block = header.parent_hash;
+    }
+}
+
 mod utils {
     use super::*;
     use crate::Event;
+    use alloy::eips::BlockId;
     use ethexe_common::SimpleBlockData;
     use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkEvent};
@@ -1257,7 +1424,6 @@ mod utils {
         pub blob_reader: Arc<MockBlobReader>,
         pub provider: RootProvider,
         pub ethereum: Ethereum,
-        pub router_query: RouterQuery,
         pub signer: Signer,
         pub validators: Vec<ethexe_signer::PublicKey>,
         pub validator_session_public_keys: Vec<ethexe_signer::PublicKey>,
@@ -1283,6 +1449,15 @@ mod utils {
                 router_address,
                 continuous_block_generation,
             } = config;
+
+            // we set our own hook with `exit(1)` because
+            // we use multithreaded tokio runtime in tests
+            // so panics are not observed until any service is stopped
+            let default_panic = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
+                default_panic(info);
+                std::process::exit(1);
+            }));
 
             log::info!(
                 "📗 Starting new test environment. Continuous block generation: {}",
@@ -1457,7 +1632,6 @@ mod utils {
                 blob_reader,
                 provider,
                 ethereum,
-                router_query,
                 signer,
                 validators,
                 validator_session_public_keys,
@@ -1481,6 +1655,7 @@ mod utils {
                 validator_session_public_key,
                 network,
                 rpc: service_rpc_config,
+                fast_sync,
             } = config;
 
             let db = db.unwrap_or_else(|| {
@@ -1489,12 +1664,11 @@ mod utils {
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
-                    static NONCE: AtomicUsize = AtomicUsize::new(1);
+                    static NONCE: AtomicUsize = AtomicUsize::new(10);
                     let nonce = NONCE.fetch_add(1, Ordering::Relaxed);
                     format!("/memory/{nonce}")
                 })
             });
-
             let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
 
             Node {
@@ -1502,7 +1676,6 @@ mod utils {
                 db,
                 multiaddr: None,
                 eth_cfg: self.eth_cfg.clone(),
-                router_query: self.router_query.clone(),
                 broadcaster: None,
                 receiver: None,
                 blob_reader: self.blob_reader.clone(),
@@ -1517,6 +1690,7 @@ mod utils {
                 network_address,
                 network_bootstrap_address,
                 service_rpc_config,
+                fast_sync,
             }
         }
 
@@ -1641,6 +1815,17 @@ mod utils {
                     .await
                     .unwrap();
             }
+        }
+
+        pub async fn latest_block(&self) -> H256 {
+            let latest_block = self
+                .provider
+                .get_block(BlockId::latest())
+                .await
+                .unwrap()
+                .expect("latest block always exist")
+                .header;
+            H256(latest_block.hash.0)
         }
 
         #[allow(unused)]
@@ -1794,6 +1979,8 @@ mod utils {
         pub network: Option<NodeNetworkConfig>,
         /// RPC configuration, if provided then new node starts with RPC service.
         pub rpc: Option<RpcConfig>,
+        /// Do P2P database synchronization before the main loop
+        pub fast_sync: bool,
     }
 
     impl NodeConfig {
@@ -1844,6 +2031,11 @@ mod utils {
             };
             self.rpc = Some(service_rpc_config);
 
+            self
+        }
+
+        pub fn fast_sync(mut self) -> Self {
+            self.fast_sync = true;
             self
         }
     }
@@ -1906,7 +2098,6 @@ mod utils {
         broadcaster: Option<Sender<Event>>,
         receiver: Option<Receiver<Event>>,
         blob_reader: Arc<MockBlobReader>,
-        router_query: RouterQuery,
         signer: Signer,
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
@@ -1918,6 +2109,7 @@ mod utils {
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
         service_rpc_config: Option<RpcConfig>,
+        fast_sync: bool,
     }
 
     impl Node {
@@ -2006,7 +2198,6 @@ mod utils {
             let service = Service::new_from_parts(
                 self.db.clone(),
                 observer,
-                self.router_query.clone(),
                 processor,
                 self.signer.clone(),
                 tx_pool_service,
@@ -2016,6 +2207,7 @@ mod utils {
                 None,
                 rpc,
                 Some(sender),
+                self.fast_sync,
             );
 
             let handle = task::spawn(service.run());
@@ -2029,7 +2221,8 @@ mod utils {
 
             self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
 
-            if wait_for_network {
+            // fast sync implies network has connections
+            if wait_for_network && !self.fast_sync {
                 self.wait_for(|e| matches!(e, Event::Network(NetworkEvent::PeerConnected(_))))
                     .await;
             }

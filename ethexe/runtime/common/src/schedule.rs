@@ -1,9 +1,12 @@
 use crate::{
-    state::{Dispatch, Expiring, MailboxMessage, PayloadLookup, Storage, MAILBOX_VALIDITY},
+    state::{
+        Dispatch, DispatchStash, Expiring, MailboxMessage, PayloadLookup, Storage, UserMailbox,
+        Waitlist, MAILBOX_VALIDITY,
+    },
     TransitionController,
 };
 use ethexe_common::{
-    db::{Rfm, ScheduledTask, Sd, Sum},
+    db::{Rfm, Schedule, ScheduledTask, Sd, Sum},
     gear::ValueClaim,
 };
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
@@ -143,5 +146,87 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     }
     fn remove_resume_session(&mut self, _: u32) -> u64 {
         unreachable!("deprecated")
+    }
+}
+
+/// A [`Schedule`] restorer.
+///
+/// Used primary for fast sync and tests
+pub struct Restorer {
+    current_block: u32,
+    schedule: Schedule,
+}
+
+impl Restorer {
+    /// Creates restorer.
+    ///
+    /// A current block required to detect whether a value expired or not
+    pub fn new(current_block: u32) -> Self {
+        Self {
+            current_block,
+            schedule: Default::default(),
+        }
+    }
+
+    pub fn waitlist(&mut self, program_id: ActorId, waitlist: &Waitlist) {
+        for (&message_id, &Expiring { value: _, expiry }) in waitlist.as_ref() {
+            if expiry <= self.current_block {
+                continue;
+            }
+
+            self.schedule
+                .entry(expiry)
+                .or_default()
+                .insert(ScheduledTask::WakeMessage(program_id, message_id));
+        }
+    }
+
+    pub fn mailbox(&mut self, program_id: ActorId, user_id: ActorId, mailbox: &UserMailbox) {
+        for (&message_id, &Expiring { value: _, expiry }) in mailbox.as_ref() {
+            if expiry <= self.current_block {
+                continue;
+            }
+
+            self.schedule
+                .entry(expiry)
+                .or_default()
+                .insert(ScheduledTask::RemoveFromMailbox(
+                    (program_id, user_id),
+                    message_id,
+                ));
+        }
+    }
+
+    pub fn stash(&mut self, program_id: ActorId, stash: &DispatchStash) {
+        for (
+            &message_id,
+            &Expiring {
+                value: (ref dispatch, user_id),
+                expiry,
+            },
+        ) in stash.as_ref()
+        {
+            debug_assert_eq!(message_id, dispatch.id);
+            debug_assert_eq!(program_id, dispatch.source);
+
+            if expiry <= self.current_block {
+                continue;
+            }
+
+            let task = if user_id.is_some() {
+                ScheduledTask::SendUserMessage {
+                    message_id,
+                    to_mailbox: program_id,
+                }
+            } else {
+                ScheduledTask::SendDispatch((program_id, message_id))
+            };
+
+            self.schedule.entry(expiry).or_default().insert(task);
+        }
+    }
+
+    pub fn build(self) -> Schedule {
+        self.schedule
     }
 }

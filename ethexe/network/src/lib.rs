@@ -68,8 +68,10 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 #[derive(Clone, Eq, PartialEq)]
 pub enum NetworkEvent {
-    DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
-    ExternalValidation(db_sync::ValidatingResponse),
+    DbResponse {
+        request_id: db_sync::RequestId,
+        result: Result<db_sync::Response, db_sync::RequestFailure>,
+    },
     Message {
         data: Vec<u8>,
         source: Option<PeerId>,
@@ -81,10 +83,11 @@ pub enum NetworkEvent {
 impl fmt::Debug for NetworkEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NetworkEvent::DbResponse(res) => f.debug_tuple("DbResponse").field(res).finish(),
-            NetworkEvent::ExternalValidation(resp) => {
-                f.debug_tuple("ExternalValidation").field(resp).finish()
-            }
+            NetworkEvent::DbResponse { request_id, result } => f
+                .debug_struct("DbResponse")
+                .field("request_id", request_id)
+                .field("result", result)
+                .finish(),
             NetworkEvent::Message { data, source } => f
                 .debug_struct("Message")
                 .field(
@@ -413,20 +416,20 @@ impl NetworkService {
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
-            BehaviourEvent::DbSync(db_sync::Event::ExternalValidation(validating_response)) => {
-                return Some(NetworkEvent::ExternalValidation(validating_response));
-            }
             BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
-                request_id: _,
+                request_id,
                 response,
             }) => {
-                return Some(NetworkEvent::DbResponse(Ok(response)));
+                return Some(NetworkEvent::DbResponse {
+                    request_id,
+                    result: Ok(response),
+                });
             }
-            BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
-                request_id: _,
-                error,
-            }) => {
-                return Some(NetworkEvent::DbResponse(Err(error)));
+            BehaviourEvent::DbSync(db_sync::Event::RequestFailed { request_id, error }) => {
+                return Some(NetworkEvent::DbResponse {
+                    request_id,
+                    result: Err(error),
+                });
             }
             BehaviourEvent::DbSync(_) => {}
         }
@@ -464,15 +467,8 @@ impl NetworkService {
         }
     }
 
-    pub fn request_db_data(&mut self, request: db_sync::Request) {
-        self.swarm.behaviour_mut().db_sync.request(request);
-    }
-
-    pub fn request_validated(
-        &mut self,
-        res: Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>,
-    ) {
-        self.swarm.behaviour_mut().db_sync.request_validated(res);
+    pub fn request_db_data(&mut self, request: db_sync::Request) -> db_sync::RequestId {
+        self.swarm.behaviour_mut().db_sync.request(request)
     }
 }
 
@@ -651,7 +647,7 @@ mod tests {
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        service1.request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
+        let request_id = service1.request_db_data(db_sync::Request([hello, world].into()));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -659,9 +655,12 @@ mod tests {
             .unwrap();
         assert_eq!(
             event,
-            NetworkEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
-                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-            )))
+            NetworkEvent::DbResponse {
+                request_id,
+                result: Ok(db_sync::Response(
+                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+                ))
+            }
         );
     }
 
@@ -686,37 +685,5 @@ mod tests {
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
-    }
-
-    #[tokio::test]
-    async fn external_validation() {
-        init_logger();
-
-        let (_tmp_dir, mut service1) = new_service();
-        let (_tmp_dir, mut service2) = new_service();
-
-        service1.connect(&mut service2).await;
-        tokio::spawn(service2.loop_on_next());
-
-        service1.request_db_data(db_sync::Request::ProgramIds);
-
-        let event = timeout(Duration::from_secs(5), service1.next())
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        if let NetworkEvent::ExternalValidation(validating_response) = event {
-            service1.request_validated(Ok(validating_response));
-        } else {
-            unreachable!("{event:?}");
-        }
-
-        let event = timeout(Duration::from_secs(5), service1.next())
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        assert_eq!(
-            event,
-            NetworkEvent::DbResponse(Ok(db_sync::Response::ProgramIds([].into())))
-        );
     }
 }

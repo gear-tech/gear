@@ -61,6 +61,7 @@ pub struct NodeConfig {
     pub worker_threads_override: Option<usize>,
     pub virtual_threads: usize,
     pub dev: bool,
+    pub fast_sync: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

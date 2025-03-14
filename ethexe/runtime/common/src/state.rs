@@ -751,6 +751,12 @@ impl Waitlist {
     }
 }
 
+impl AsRef<BTreeMap<MessageId, Expiring<Dispatch>>> for Waitlist {
+    fn as_ref(&self) -> &BTreeMap<MessageId, Expiring<Dispatch>> {
+        &self.inner
+    }
+}
+
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct DispatchStash(BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>);
@@ -815,8 +821,18 @@ impl DispatchStash {
         (dispatch, user_id)
     }
 
+    pub fn into_inner(self) -> BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>> {
+        self.0
+    }
+
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_stash(self)))
+    }
+}
+
+impl AsRef<BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>> for DispatchStash {
+    fn as_ref(&self) -> &BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>> {
+        &self.0
     }
 }
 
@@ -871,6 +887,13 @@ impl UserMailbox {
     }
 }
 
+impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
+    fn as_ref(&self) -> &BTreeMap<MessageId, Expiring<MailboxMessage>> {
+        &self.0
+    }
+}
+
+// TODO (breathx): consider here LocalMailbox for each user.
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mailbox {
@@ -959,6 +982,12 @@ impl Mailbox {
                 )
             })
             .collect()
+    }
+}
+
+impl AsRef<BTreeMap<ActorId, HashOf<UserMailbox>>> for Mailbox {
+    fn as_ref(&self) -> &BTreeMap<ActorId, HashOf<UserMailbox>> {
+        &self.inner
     }
 }
 
@@ -1105,6 +1134,10 @@ impl MemoryPages {
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages(self)))
     }
+
+    pub fn to_inner(&self) -> MemoryPagesInner {
+        self.0
+    }
 }
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
@@ -1116,6 +1149,10 @@ pub type MemoryPagesRegionInner = BTreeMap<GearPage, HashOf<PageBuf>>;
 impl MemoryPagesRegion {
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages_region(self)))
+    }
+
+    pub fn as_inner(&self) -> &MemoryPagesRegionInner {
+        &self.0
     }
 }
 
