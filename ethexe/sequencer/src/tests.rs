@@ -340,7 +340,7 @@ fn test_codes_commitment_candidate() {
         valid: false,
     };
 
-    let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold);
+    let candidate = SequencerService::codes_commitment_candidate(commitments.iter(), threshold);
     assert!(candidate.is_none());
 
     commitments.insert(
@@ -350,7 +350,7 @@ fn test_codes_commitment_candidate() {
             origins: Default::default(),
         },
     );
-    let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold);
+    let candidate = SequencerService::codes_commitment_candidate(commitments.iter(), threshold);
     assert!(candidate.is_none());
 
     commitments
@@ -358,7 +358,7 @@ fn test_codes_commitment_candidate() {
         .unwrap()
         .origins
         .insert(Address([1; 20]));
-    let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold);
+    let candidate = SequencerService::codes_commitment_candidate(commitments.iter(), threshold);
     assert!(candidate.is_none());
 
     commitments
@@ -366,7 +366,7 @@ fn test_codes_commitment_candidate() {
         .unwrap()
         .origins
         .insert(Address([2; 20]));
-    let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold)
+    let candidate = SequencerService::codes_commitment_candidate(commitments.iter(), threshold)
         .expect("Must have candidate");
     let expected_digests: IndexSet<_> = [commitment1.to_digest()].into_iter().collect();
     assert_eq!(candidate.digests(), &expected_digests);
@@ -382,7 +382,7 @@ fn test_codes_commitment_candidate() {
                 .collect(),
         },
     );
-    let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold)
+    let candidate = SequencerService::codes_commitment_candidate(commitments.iter(), threshold)
         .expect("Must have candidate");
     let mut expected_digests: IndexSet<_> = [commitment1.to_digest(), commitment2.to_digest()]
         .into_iter()
@@ -398,7 +398,7 @@ fn test_codes_commitment_candidate() {
             origins: [Address([5; 20])].iter().cloned().collect(),
         },
     );
-    let candidate = SequencerService::codes_commitment_candidate(&commitments, threshold)
+    let candidate = SequencerService::codes_commitment_candidate(commitments.iter(), threshold)
         .expect("Must have candidate");
     assert_eq!(candidate.digests(), &expected_digests);
     // assert!(candidate.signatures().is_empty());

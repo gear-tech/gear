@@ -319,7 +319,7 @@ impl SequencerService {
         // If chain head is not yet processed by this node, this is normal situation,
         // so we just skip this round for sequencer.
         let Some(block_is_empty) = self.db.block_outcome_is_empty(block_hash) else {
-            log::warn!("Failed to get block emptiness status for {block_hash}");
+            log::error!("Failed to get block emptiness status for {block_hash}");
             return SequencerEvent::CollectionRoundEnded { block_hash };
         };
 
@@ -333,8 +333,18 @@ impl SequencerService {
             block_hash
         };
 
-        self.codes_candidate =
-            Self::codes_commitment_candidate(&self.code_commitments, self.threshold);
+        let Some(waiting_for_codes) = self.db.block_codes_queue(block_hash) else {
+            log::error!("Failed to get block codes queue for {block_hash}");
+            return SequencerEvent::CollectionRoundEnded { block_hash };
+        };
+        let waiting_for_codes: BTreeSet<_> = waiting_for_codes.into_iter().collect();
+        self.codes_candidate = Self::codes_commitment_candidate(
+            self.code_commitments
+                .iter()
+                .filter(|(_, c)| waiting_for_codes.contains(&c.commitment.id)),
+            self.threshold,
+        );
+
         self.blocks_candidate = Self::blocks_commitment_candidate(
             &self.block_commitments,
             last_non_empty_block,
@@ -415,12 +425,11 @@ impl SequencerService {
         Some(candidate)
     }
 
-    fn codes_commitment_candidate(
-        commitments: &CommitmentsMap<CodeCommitment>,
+    fn codes_commitment_candidate<'a>(
+        commitments: impl Iterator<Item = (&'a Digest, &'a CommitmentAndOrigins<CodeCommitment>)> + 'a,
         threshold: u64,
     ) -> Option<MultisignedCommitmentDigests> {
         let suitable_commitment_digests: IndexSet<_> = commitments
-            .iter()
             .filter_map(|(&digest, c)| (c.origins.len() as u64 >= threshold).then_some(digest))
             .collect();
 
