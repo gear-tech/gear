@@ -23,17 +23,18 @@ use crate::{
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{fixed_bytes, Address, Bytes, B256, U256},
+    primitives::{fixed_bytes, Address, B256, U256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{eth::state::AccountOverride, Filter},
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
-use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
+use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment};
+use ethexe_signer::{Address as LocalAddress, PublicKey};
 use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
 use gprimitives::{ActorId, CodeId, H256};
+use roast_secp256k1_evm::frost::Signature as FrostSignature;
 use std::collections::HashMap;
 
 pub mod events;
@@ -166,15 +167,22 @@ impl Router {
     pub async fn commit_batch(
         &self,
         commitment: BatchCommitment,
-        signatures: Vec<LocalSignature>,
+        signature: FrostSignature,
     ) -> Result<H256> {
+        let signature_serialized = signature
+            .serialize()
+            .map_err(|_| anyhow!("Failed to serialize signature"))?;
+        let point_r_compressed: [u8; 33] = signature_serialized[..33]
+            .try_into()
+            .map_err(|_| anyhow!("Failed to get point R from signature"))?;
+        let point_r_uncompressed = PublicKey(point_r_compressed).to_uncompressed();
+        let (point_r_x_bytes, point_r_y_bytes) = point_r_uncompressed.split_at(32);
+
         let builder = self.instance.commitBatch(
             commitment.into(),
-            SignatureType::ECDSA as u8,
-            signatures
-                .into_iter()
-                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
-                .collect(),
+            U256::from_be_slice(point_r_x_bytes),
+            U256::from_be_slice(point_r_y_bytes),
+            U256::from_be_slice(&signature_serialized[33..]),
         );
 
         let mut state_diff = HashMap::default();
