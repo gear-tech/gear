@@ -29,6 +29,7 @@ use anyhow::{anyhow, Context};
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
 use futures::{future::Either, ready, stream::FusedStream, Stream};
+use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
     connection_limits,
     core::{muxing::StreamMuxerBox, upgrade},
@@ -47,7 +48,7 @@ use libp2p::{
 use libp2p_swarm_test::SwarmExt;
 use std::{
     collections::HashSet,
-    fs,
+    fmt, fs,
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
     pin::Pin,
@@ -65,7 +66,7 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum NetworkEvent {
     DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
     ExternalValidation(db_sync::ValidatingResponse),
@@ -75,6 +76,35 @@ pub enum NetworkEvent {
     },
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
+}
+
+impl fmt::Debug for NetworkEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NetworkEvent::DbResponse(res) => f.debug_tuple("DbResponse").field(res).finish(),
+            NetworkEvent::ExternalValidation(resp) => {
+                f.debug_tuple("ExternalValidation").field(resp).finish()
+            }
+            NetworkEvent::Message { data, source } => f
+                .debug_struct("Message")
+                .field(
+                    "data",
+                    &format_args!(
+                        "{:.8} ({} bytes)",
+                        ByteSliceFormatter::Dynamic(data),
+                        data.len()
+                    ),
+                )
+                .field("source", source)
+                .finish(),
+            NetworkEvent::PeerBlocked(peer_id) => {
+                f.debug_tuple("PeerBlocked").field(peer_id).finish()
+            }
+            NetworkEvent::PeerConnected(peer_id) => {
+                f.debug_tuple("PeerConnected").field(peer_id).finish()
+            }
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone)]

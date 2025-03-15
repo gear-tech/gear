@@ -21,7 +21,7 @@ use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequest
 use ethexe_db::{
     BlockHeader, BlockMetaStorage, CodesStorage, MemDb, OnChainStorage, ScheduledTask,
 };
-use ethexe_runtime_common::state::ValueWithExpiry;
+use ethexe_runtime_common::state::Expiring;
 use gear_core::ids::{prelude::CodeIdExt, ProgramId};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
@@ -535,12 +535,12 @@ fn many_waits() {
 
         for (pid, state_hash) in &states {
             let state = processor.db.read_state(*state_hash).unwrap();
-            let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
+            let waitlist_hash = state.waitlist_hash.to_inner().unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
 
             for (
                 mid,
-                ValueWithExpiry {
+                Expiring {
                     value: dispatch,
                     expiry,
                 },

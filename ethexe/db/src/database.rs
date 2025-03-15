@@ -31,7 +31,7 @@ use ethexe_common::{
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
-    ProgramState, Storage, Waitlist,
+    ProgramState, Storage, UserMailbox, Waitlist,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -463,6 +463,17 @@ impl Storage for Database {
 
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
         unsafe { HashOf::new(self.cas.write(&mailbox.encode())) }
+    }
+
+    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
+        self.cas.read(hash.hash()).map(|data| {
+            UserMailbox::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `UserMailbox`")
+        })
+    }
+
+    fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox> {
+        unsafe { HashOf::new(self.cas.write(&use_mailbox.encode())) }
     }
 
     fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
