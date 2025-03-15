@@ -18,7 +18,7 @@
 
 use crate::{mock::*, GasMultiplier, OnFinalizeValue, UnusedValue, *};
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
-use sp_runtime::{traits::Zero, StateVersion};
+use sp_runtime::{traits::Zero, Percent, StateVersion};
 use utils::*;
 
 #[test]
@@ -499,9 +499,8 @@ fn spend_gas_all_balance_validator_account_deleted() {
 
         assert_bank_balance(0, 0);
 
-        // mul ceil GAS_AMOUNT because of gas fee split.
-        let (gas_split, _) = SplitGasFeeRatio::get().unwrap();
-        assert_balance(&BLOCK_AUTHOR, gas_split.mul_ceil(gas_price(GAS_AMOUNT)));
+        let block_author_share = Percent::one() - TreasuryGasFeeShare::get();
+        assert_balance(&BLOCK_AUTHOR, block_author_share * gas_price(GAS_AMOUNT));
 
         assert_alice_dec(gas_price(GAS_AMOUNT));
         assert_gas_value(&ALICE, 0, 0);
@@ -549,8 +548,11 @@ fn spend_gas_small_amount_validator_account_deleted() {
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
         GearBank::on_finalize(1);
 
-        assert_eq!(UnusedValue::<Test>::get(), GAS_VALUE_AMOUNT);
-        assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
+        let block_author_share = Percent::one() - TreasuryGasFeeShare::get();
+        let unused_value_inc = block_author_share * GAS_VALUE_AMOUNT;
+
+        assert_eq!(UnusedValue::<Test>::get(), unused_value_inc);
+        assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + unused_value_inc);
 
         assert_bank_balance(0, 0);
 
@@ -1638,12 +1640,11 @@ mod utils {
     // Asserts block author balance inc.
     #[track_caller]
     pub fn assert_block_author_inc(diff: Balance) {
-        // mul ceil diff because of gas fee split.
-        let (gas_split, _) = SplitGasFeeRatio::get().unwrap();
-        assert_balance(
-            &BLOCK_AUTHOR,
-            EXISTENTIAL_DEPOSIT + gas_split.mul_ceil(diff),
-        )
+        let treasury_share = TreasuryGasFeeShare::get();
+        assert_balance(&TREASURY, EXISTENTIAL_DEPOSIT + treasury_share * diff);
+
+        let author_share = Percent::one() - treasury_share;
+        assert_balance(&BLOCK_AUTHOR, EXISTENTIAL_DEPOSIT + author_share * diff)
     }
 
     // Asserts Charlie balance inc.
