@@ -40,6 +40,7 @@ use core::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
+    constants::MAILBOX_THRESHOLD,
     ids::{prelude::*, MessageId, ProgramId, ReservationId},
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
@@ -696,7 +697,7 @@ where
         let interval_finish = if to_user {
             // Querying `MailboxThreshold`, that represents minimal amount of gas
             // for message to be added to mailbox.
-            let threshold = T::MailboxThreshold::get();
+            let threshold = MAILBOX_THRESHOLD;
 
             // Figuring out gas limit for insertion.
             //
@@ -920,8 +921,7 @@ where
     ) {
         // Querying `MailboxThreshold`, that represents minimal amount of gas
         // for message to be added to mailbox.
-        let threshold = T::MailboxThreshold::get();
-
+        let threshold = MAILBOX_THRESHOLD;
         let msg_id = reservation
             .map(GasNodeId::Reservation)
             .unwrap_or_else(|| origin_msg.into());

@@ -48,13 +48,9 @@ macro_rules! impl_config_inner {
             type Randomness = TestRandomness<Self>;
             type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
             type Schedule = GearConfigSchedule;
-            type OutgoingLimit = OutgoingLimit;
-            type OutgoingBytesLimit = OutgoingBytesLimit;
-            type PerformanceMultiplier = PerformanceMultiplier;
             type DebugInfo = GearConfigDebugInfo;
             type CodeStorage = GearProgram;
             type ProgramStorage = GearProgram;
-            type MailboxThreshold = ConstU64<3_000>;
             type ReservationsLimit = ConstU64<256>;
             type Messenger = GearMessenger;
             type GasProvider = GearGas;
