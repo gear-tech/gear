@@ -107,7 +107,7 @@ macro_rules! impl_primitive {
     (@display $ty:ty) => {
         impl fmt::Display for $ty {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let byte_array = utils::ByteArray(&self.0);
+                let byte_array = utils::ByteSliceFormatter::Array(&self.0);
 
                 let is_alternate = f.alternate();
                 if is_alternate {

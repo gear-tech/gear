@@ -517,7 +517,7 @@ async fn mailbox() {
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
     assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
 
@@ -540,7 +540,7 @@ async fn mailbox() {
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
@@ -1728,17 +1728,17 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let ObserverEvent::BlockSynced(block) = event else {
+                let ObserverEvent::BlockSynced(data) = event else {
                     continue;
                 };
 
-                let header =
-                    OnChainStorage::block_header(&self.db, block).expect("Block header not found");
-                let events =
-                    OnChainStorage::block_events(&self.db, block).expect("Block events not found");
+                let header = OnChainStorage::block_header(&self.db, data.block_hash)
+                    .expect("Block header not found");
+                let events = OnChainStorage::block_events(&self.db, data.block_hash)
+                    .expect("Block events not found");
 
                 let block_data = SimpleBlockData {
-                    hash: block,
+                    hash: data.block_hash,
                     header,
                 };
 
@@ -2140,12 +2140,8 @@ mod utils {
 
             self.listener
                 .apply_until(|event| match event {
-                    ObserverEvent::Blob {
-                        code_id: loaded_id,
-                        code,
-                        ..
-                    } if loaded_id == self.code_id => {
-                        code_info = Some(code);
+                    ObserverEvent::Blob(blob) if blob.code_id == self.code_id => {
+                        code_info = Some(blob.code);
                         Ok(Some(()))
                     }
                     _ => Ok(None),
