@@ -106,7 +106,7 @@ fn now() -> u64 {
 async fn test_add_transaction() {
     gear_utils::init_default_logger();
 
-    let db = Database::from_one(&MemDb::default(), Default::default());
+    let db = Database::from_one(&MemDb::default());
     let bm = BlocksManager::new(db.clone());
 
     let tx_pool = TxPoolService::new(db);
