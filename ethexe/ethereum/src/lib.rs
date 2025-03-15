@@ -55,7 +55,7 @@ use roast_secp256k1_evm::frost::{
     Identifier,
 };
 use router::{Router, RouterQuery};
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 mod abi;
 mod eip1167;
@@ -80,7 +80,7 @@ pub(crate) type ExeFiller = JoinFill<
 pub struct Ethereum {
     router_address: Address,
     wvara_address: Address,
-    provider: Arc<AlloyProvider>,
+    provider: AlloyProvider,
 }
 
 impl Ethereum {
@@ -232,7 +232,7 @@ impl Ethereum {
         })
     }
 
-    pub fn provider(&self) -> Arc<AlloyProvider> {
+    pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
     }
 
@@ -253,13 +253,11 @@ async fn create_provider(
     rpc_url: &str,
     signer: LocalSigner,
     sender_address: LocalAddress,
-) -> Result<Arc<AlloyProvider>> {
-    Ok(Arc::new(
-        ProviderBuilder::new()
-            .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
-            .connect(rpc_url)
-            .await?,
-    ))
+) -> Result<AlloyProvider> {
+    Ok(ProviderBuilder::new()
+        .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
+        .connect(rpc_url)
+        .await?)
 }
 
 #[derive(Debug, Clone)]
