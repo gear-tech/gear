@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Mirror} from "../../src/Mirror.sol";
+import {MirrorImpl} from "../../src/MirrorImpl.sol";
 import {Router} from "../../src/Router.sol";
 
 contract MirrorScript is Script {
@@ -14,8 +14,8 @@ contract MirrorScript is Script {
 
         vm.startBroadcast(privateKey);
 
-        Mirror mirror = new Mirror();
-        Router(routerAddress).setMirror(address(mirror));
+        MirrorImpl mirror = new MirrorImpl();
+        Router(routerAddress).setMirrorImpl(address(mirror));
 
         vm.stopBroadcast();
     }

@@ -15,7 +15,7 @@ import {Vm} from "forge-std/Vm.sol";
 
 import {Gear} from "../src/libraries/Gear.sol";
 import {Base} from "./Base.t.sol";
-import {IMirror} from "../src/Mirror.sol";
+import {IMirror} from "../src/IMirror.sol";
 import {IRouter} from "../src/IRouter.sol";
 
 contract POCTest is Base {
@@ -142,6 +142,7 @@ contract POCTest is Base {
             vm.expectEmit(true, false, false, false);
             emit IRouter.ProgramCreated(address(0), bytes32(uint256(1)));
             _ping = router.createProgram(_codeId, "salt");
+            assertEq(IMirror(_ping).implAddress(), router.mirrorImpl());
             IMirror(_ping).sendMessage("PING", 0);
         }
         vm.stopPrank();
