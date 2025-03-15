@@ -23,7 +23,7 @@ use crate::{
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{fixed_bytes, Address, Bytes, U256},
+    primitives::{fixed_bytes, Address, Bytes, B256, U256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{eth::state::AccountOverride, Filter},
 };
@@ -34,14 +34,12 @@ use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 pub mod events;
 
-type InstanceProvider = Arc<AlloyProvider>;
-type Instance = IRouter::IRouterInstance<(), InstanceProvider>;
-
-type QueryInstance = IRouter::IRouterInstance<(), Arc<RootProvider>>;
+type Instance = IRouter::IRouterInstance<(), AlloyProvider>;
+type QueryInstance = IRouter::IRouterInstance<(), RootProvider>;
 
 pub struct PendingCodeRequestBuilder {
     code_id: CodeId,
@@ -75,11 +73,7 @@ impl Router {
     /// Huge gas limit is necessary so that the transaction is more likely to be picked up
     const HUGE_GAS_LIMIT: u64 = 10_000_000;
 
-    pub(crate) fn new(
-        address: Address,
-        wvara_address: Address,
-        provider: InstanceProvider,
-    ) -> Self {
+    pub(crate) fn new(address: Address, wvara_address: Address, provider: AlloyProvider) -> Self {
         Self {
             instance: Instance::new(address, provider),
             wvara_address,
@@ -94,7 +88,7 @@ impl Router {
         RouterQuery {
             instance: QueryInstance::new(
                 *self.instance.address(),
-                Arc::new(self.instance.provider().root().clone()),
+                self.instance.provider().root().clone(),
             ),
         }
     }
@@ -221,14 +215,14 @@ pub struct RouterQuery {
 
 impl RouterQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = Arc::new(ProviderBuilder::default().connect(rpc_url).await?);
+        let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self {
             instance: QueryInstance::new(Address::new(router_address.0), provider),
         })
     }
 
-    pub fn from_provider(router_address: Address, provider: Arc<RootProvider>) -> Self {
+    pub fn from_provider(router_address: Address, provider: RootProvider) -> Self {
         Self {
             instance: QueryInstance::new(router_address, provider),
         }
@@ -304,6 +298,16 @@ impl RouterQuery {
         self.instance
             .validators()
             .call()
+            .await
+            .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::into)
+    }
+
+    pub async fn validators_at(&self, block: H256) -> Result<Vec<LocalAddress>> {
+        self.instance
+            .validators()
+            .call()
+            .block(B256::from(block.0).into())
             .await
             .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::into)
