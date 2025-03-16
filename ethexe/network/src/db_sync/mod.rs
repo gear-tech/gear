@@ -20,7 +20,8 @@ mod ongoing;
 
 use crate::{
     db_sync::ongoing::{
-        OngoingRequests, OngoingResponses, PeerResponse, SendRequestError, SendRequestErrorKind,
+        OngoingRequests, OngoingResponses, PeerFailed, PeerResponse, SendNextRequest,
+        SendRequestError, SendRequestErrorKind,
     },
     export::{Multiaddr, PeerId},
     peer_score,
@@ -219,6 +220,86 @@ pub enum Event {
     },
 }
 
+impl<T, E> From<Result<T, E>> for Event
+where
+    Self: From<T>,
+    Self: From<E>,
+{
+    fn from(res: Result<T, E>) -> Self {
+        res.map(Into::into).unwrap_or_else(Into::into)
+    }
+}
+
+impl From<PeerResponse> for Event {
+    fn from(resp: PeerResponse) -> Self {
+        match resp {
+            PeerResponse::Success {
+                request_id,
+                response,
+            } => Event::RequestSucceed {
+                request_id,
+                response,
+            },
+            PeerResponse::NewRound {
+                peer_id,
+                request_id,
+            } => Event::NewRequestRound {
+                request_id,
+                peer_id,
+                reason: NewRequestRoundReason::PartialData,
+            },
+        }
+    }
+}
+
+impl From<PeerFailed> for Event {
+    fn from(
+        PeerFailed {
+            peer_id,
+            request_id,
+        }: PeerFailed,
+    ) -> Self {
+        Event::NewRequestRound {
+            request_id,
+            peer_id,
+            reason: NewRequestRoundReason::PeerFailed,
+        }
+    }
+}
+
+impl From<SendNextRequest> for Event {
+    fn from(
+        SendNextRequest {
+            peer_id,
+            request_id,
+        }: SendNextRequest,
+    ) -> Self {
+        Event::NewRequestRound {
+            request_id,
+            peer_id,
+            reason: NewRequestRoundReason::FromQueue,
+        }
+    }
+}
+
+impl From<SendRequestError> for Event {
+    fn from(err: SendRequestError) -> Self {
+        match err {
+            SendRequestError {
+                request_id,
+                kind: SendRequestErrorKind::OutOfRounds,
+            } => Event::RequestFailed {
+                request_id,
+                error: RequestFailure::OutOfRounds,
+            },
+            SendRequestError {
+                request_id,
+                kind: SendRequestErrorKind::NoPeers,
+            } => Event::PendingStateRequest { request_id },
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
     max_rounds_per_request: u32,
@@ -323,39 +404,10 @@ impl Behaviour {
                         response,
                     },
             } => {
-                let event = match self.ongoing_requests.on_peer_response(
-                    &mut self.inner,
-                    peer,
-                    request_id,
-                    response,
-                ) {
-                    Ok(PeerResponse::Success {
-                        request_id,
-                        response,
-                    }) => Event::RequestSucceed {
-                        request_id,
-                        response,
-                    },
-                    Ok(PeerResponse::NewRound {
-                        peer_id,
-                        request_id,
-                    }) => Event::NewRequestRound {
-                        request_id,
-                        peer_id,
-                        reason: NewRequestRoundReason::PartialData,
-                    },
-                    Err(SendRequestError {
-                        request_id,
-                        kind: SendRequestErrorKind::OutOfRounds,
-                    }) => Event::RequestFailed {
-                        request_id,
-                        error: RequestFailure::OutOfRounds,
-                    },
-                    Err(SendRequestError {
-                        request_id,
-                        kind: SendRequestErrorKind::NoPeers,
-                    }) => Event::PendingStateRequest { request_id },
-                };
+                let event = self
+                    .ongoing_requests
+                    .on_peer_response(&mut self.inner, peer, request_id, response)
+                    .into();
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
@@ -373,28 +425,10 @@ impl Behaviour {
                     self.peer_score_handle.unsupported_protocol(peer);
                 }
 
-                let event =
-                    match self
-                        .ongoing_requests
-                        .on_peer_failed(&mut self.inner, peer, request_id)
-                    {
-                        Ok((peer_id, request_id)) => Event::NewRequestRound {
-                            request_id,
-                            peer_id,
-                            reason: NewRequestRoundReason::PeerFailed,
-                        },
-                        Err(SendRequestError {
-                            request_id,
-                            kind: SendRequestErrorKind::OutOfRounds,
-                        }) => Event::RequestFailed {
-                            request_id,
-                            error: RequestFailure::OutOfRounds,
-                        },
-                        Err(SendRequestError {
-                            request_id,
-                            kind: SendRequestErrorKind::NoPeers,
-                        }) => Event::PendingStateRequest { request_id },
-                    };
+                let event = self
+                    .ongoing_requests
+                    .on_peer_failed(&mut self.inner, peer, request_id)
+                    .into();
 
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
@@ -507,32 +541,21 @@ impl NetworkBehaviour for Behaviour {
             return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
-        let event = match self.ongoing_requests.send_pending_request(&mut self.inner) {
-            Ok(Some((peer_id, request_id))) => Some(Event::NewRequestRound {
-                request_id,
-                peer_id,
-                reason: NewRequestRoundReason::FromQueue,
-            }),
+        let event = match self.ongoing_requests.send_next_request(&mut self.inner) {
+            Ok(Some(success)) => Some(success.into()),
             Ok(None) => None,
-            Err(SendRequestError {
-                request_id,
-                kind: SendRequestErrorKind::OutOfRounds,
-            }) => Some(Event::RequestFailed {
-                request_id,
-                error: RequestFailure::OutOfRounds,
-            }),
             Err(SendRequestError {
                 request_id: _,
                 kind: SendRequestErrorKind::NoPeers,
             }) => None,
+            Err(err) => Some(err.into()),
         };
         if let Some(event) = event {
             return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
-        if let Poll::Ready((peer_id, response_id)) = self
-            .ongoing_responses
-            .poll_send_response(cx, &mut self.inner)
+        if let Poll::Ready((peer_id, response_id)) =
+            self.ongoing_responses.poll(cx, &mut self.inner)
         {
             return Poll::Ready(ToSwarm::GenerateEvent(Event::ResponseSent {
                 response_id,

@@ -38,6 +38,12 @@ use std::{
 use tokio::{task::JoinSet, time, time::Sleep};
 
 #[derive(Debug)]
+pub(crate) struct SendNextRequest {
+    pub(crate) peer_id: PeerId,
+    pub(crate) request_id: RequestId,
+}
+
+#[derive(Debug)]
 pub(crate) struct SendRequestError {
     pub(crate) request_id: RequestId,
     pub(crate) kind: SendRequestErrorKind,
@@ -59,6 +65,12 @@ pub(crate) enum PeerResponse {
         peer_id: PeerId,
         request_id: RequestId,
     },
+}
+
+#[derive(Debug)]
+pub(crate) struct PeerFailed {
+    pub(crate) peer_id: PeerId,
+    pub(crate) request_id: RequestId,
 }
 
 #[derive(Debug)]
@@ -315,17 +327,20 @@ impl OngoingRequests {
         }
     }
 
-    pub(crate) fn send_pending_request(
+    pub(crate) fn send_next_request(
         &mut self,
         behaviour: &mut InnerBehaviour,
-    ) -> Result<Option<(PeerId, RequestId)>, SendRequestError> {
+    ) -> Result<Option<SendNextRequest>, SendRequestError> {
         let Some(ongoing_request) = self.pending_requests.pop_back() else {
             return Ok(None);
         };
 
         let request_id = ongoing_request.request_id;
         let peer_id = self.send_request(behaviour, ongoing_request)?;
-        Ok(Some((peer_id, request_id)))
+        Ok(Some(SendNextRequest {
+            request_id,
+            peer_id,
+        }))
     }
 
     pub(crate) fn on_peer_response(
@@ -358,7 +373,7 @@ impl OngoingRequests {
         behaviour: &mut InnerBehaviour,
         peer: PeerId,
         request_id: OutboundRequestId,
-    ) -> Result<(PeerId, RequestId), SendRequestError> {
+    ) -> Result<PeerFailed, SendRequestError> {
         let ongoing_request = self
             .active_requests
             .remove(&request_id)
@@ -366,7 +381,10 @@ impl OngoingRequests {
         let request_id = ongoing_request.request_id;
         let new_ongoing_request = ongoing_request.peer_failed(peer);
         let peer_id = self.send_request(behaviour, new_ongoing_request)?;
-        Ok((peer_id, request_id))
+        Ok(PeerFailed {
+            peer_id,
+            request_id,
+        })
     }
 }
 
@@ -426,7 +444,7 @@ impl OngoingResponses {
         Some(response_id)
     }
 
-    pub(crate) fn poll_send_response(
+    pub(crate) fn poll(
         &mut self,
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,
