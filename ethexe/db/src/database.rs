@@ -77,6 +77,13 @@ enum KeyPrefix {
     LatestSyncedBlockHeight = 11,
 }
 
+#[derive(Debug, Encode, Decode)]
+enum BlockOutcome {
+    Transitions(Vec<StateTransition>),
+    /// The actual outcome is not available but it must be considered non-empty.
+    ForcedNonEmpty,
+}
+
 impl KeyPrefix {
     fn prefix(self) -> [u8; 32] {
         H256::from_low_u64_be(self as u64).0
@@ -243,6 +250,26 @@ impl Database {
             meta.encode(),
         );
     }
+
+    fn block_outcome_inner(&self, block_hash: H256) -> Option<BlockOutcome> {
+        self.kv
+            .get(&KeyPrefix::BlockOutcome.two(self.router_address, block_hash))
+            .map(|data| {
+                BlockOutcome::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<StateTransition>`")
+            })
+    }
+
+    /// # Safety
+    ///
+    /// If the block is actually empty but forced to be not, then database invariants are violated.
+    pub unsafe fn set_non_empty_block_outcome(&self, block_hash: H256) {
+        log::trace!("For block {block_hash} set non-empty outcome");
+        self.kv.put(
+            &KeyPrefix::BlockOutcome.two(self.router_address, block_hash),
+            BlockOutcome::ForcedNonEmpty.encode(),
+        );
+    }
 }
 
 #[cfg_attr(test, derive(serde::Serialize))]
@@ -304,11 +331,12 @@ impl BlockMetaStorage for Database {
     }
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
-        self.kv
-            .get(&KeyPrefix::BlockOutcome.two(self.router_address, block_hash))
-            .map(|data| {
-                Vec::<StateTransition>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<StateTransition>`")
+        self.block_outcome_inner(block_hash)
+            .map(|outcome| match outcome {
+                BlockOutcome::Transitions(transitions) => transitions,
+                BlockOutcome::ForcedNonEmpty => {
+                    panic!("`block_outcome()` called on forced non-empty block {block_hash}")
+                }
             })
     }
 
@@ -316,8 +344,16 @@ impl BlockMetaStorage for Database {
         log::trace!("For block {block_hash} set outcome: {outcome:?}");
         self.kv.put(
             &KeyPrefix::BlockOutcome.two(self.router_address, block_hash),
-            outcome.encode(),
+            BlockOutcome::Transitions(outcome).encode(),
         );
+    }
+
+    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool> {
+        self.block_outcome_inner(block_hash)
+            .map(|outcome| match outcome {
+                BlockOutcome::Transitions(transitions) => transitions.is_empty(),
+                BlockOutcome::ForcedNonEmpty => false,
+            })
     }
 
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule> {

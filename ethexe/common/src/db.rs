@@ -88,10 +88,7 @@ pub trait BlockMetaStorage: Send + Sync {
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
-    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool> {
-        self.block_outcome(block_hash)
-            .map(|outcome| outcome.is_empty())
-    }
+    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool>;
 
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
     fn set_block_schedule(&self, block_hash: H256, map: Schedule);

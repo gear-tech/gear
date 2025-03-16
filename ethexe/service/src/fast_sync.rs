@@ -25,7 +25,7 @@ use anyhow::{anyhow, Context, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::{CodeCommitment, StateTransition},
+    gear::CodeCommitment,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_db::Database;
@@ -336,8 +336,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     db.set_block_schedule(latest_block, schedule_restorer.build());
     db.set_block_commitment_queue(latest_block, VecDeque::new());
     // `latest_block` is committed and thus cannot be empty,
-    // so we just insert placeholder value to pass emptiness check
-    db.set_block_outcome(latest_block, vec![StateTransition::default()]);
+    // so we force it to be non-empty via the unsafe method
+    // without restoration of state transitions
+    unsafe {
+        db.set_non_empty_block_outcome(latest_block);
+    }
     // and `previous_block` is committed too
     db.set_previous_not_empty_block(latest_block, previous_block.unwrap_or_else(H256::zero));
     db.set_block_computed(latest_block);
