@@ -17,13 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
-use anyhow::{bail, Context, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use anyhow::{anyhow, bail, Context, Result};
+use ethexe_common::{
+    gear::{BlockCommitment, CodeCommitment},
+    SimpleBlockData,
+};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{NetworkEvent, NetworkService};
-use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
+use ethexe_observer::{BlobData, BlockSyncedData, MockBlobReader, ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
@@ -31,7 +34,7 @@ use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_signer::{Digest, PublicKey, Signature, Signer};
+use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer};
 use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};
 use ethexe_validator::{BlockCommitmentValidationRequest, Validator};
 use futures::StreamExt;
@@ -355,6 +358,11 @@ impl Service {
                 .expect("failed to broadcast service STARTED event");
         }
 
+        let mut identity = identity::ServiceIdentity::new(
+            validator.as_ref().map(|validator| validator.address()),
+            observer.block_time_secs(),
+        );
+
         loop {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
@@ -382,11 +390,11 @@ impl Service {
             match event {
                 Event::ServiceStarted => unreachable!("never handled here"),
                 Event::Observer(event) => match event {
-                    ObserverEvent::Blob {
+                    ObserverEvent::Blob(BlobData {
                         code_id,
                         timestamp,
                         code,
-                    } => {
+                    }) => {
                         log::info!(
                             "🔢 receive a code blob, code_id {code_id}, code size {}",
                             code.len()
@@ -401,18 +409,28 @@ impl Service {
                             block_data.hash,
                             block_data.header.parent_hash,
                         );
+
+                        identity.receive_new_chain_head(block_data);
                     }
-                    ObserverEvent::BlockSynced(block_hash) => {
+                    ObserverEvent::BlockSynced(data) => {
                         // NOTE: Observer guarantees that, if this event is emitted,
                         // then from latest synced block and up to `block_hash`:
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
                         // 2) all approved(at least) codes are loaded and available in database.
-                        compute.receive_synced_head(block_hash);
+
+                        if identity.receive_synced_block(&data)? {
+                            let is_block_producer = identity
+                                .is_block_producer()
+                                .unwrap_or_else(|e| unreachable!("{e}"));
+                            log::info!(
+                                "🔗 Block synced, I'm a block producer: {is_block_producer}"
+                            );
+                            compute.receive_synced_head(data.block_hash);
+                        }
                     }
                 },
                 Event::Compute(event) => match event {
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
-                        // TODO (gsobol): must be done in observer event handling
                         if let Some(s) = sequencer.as_mut() {
                             s.on_new_head(block_hash)?
                         }
@@ -689,5 +707,71 @@ impl Service {
         log::info!("Unimplemented tx execution");
 
         Ok(tx_hash)
+    }
+}
+
+mod identity {
+    use super::*;
+
+    pub struct ServiceIdentity {
+        // Service depended data (constant for the service lifetime)
+        validator: Option<Address>,
+        block_duration: u64,
+
+        // Block depended data (updated on each new block)
+        block: Option<SimpleBlockData>,
+        producer: Option<Address>,
+    }
+
+    impl ServiceIdentity {
+        pub fn new(validator: Option<Address>, block_duration: u64) -> Self {
+            Self {
+                validator,
+                block_duration,
+                block: None,
+                producer: None,
+            }
+        }
+
+        pub fn receive_new_chain_head(&mut self, block: SimpleBlockData) {
+            self.block = Some(block);
+
+            // TODO (gsobol): block producer could be calculated right here, using propagation from previous blocks.
+            self.producer = None;
+        }
+
+        /// Returns whether synced block is previously received chain head.
+        pub fn receive_synced_block(&mut self, data: &BlockSyncedData) -> Result<bool> {
+            let block = self
+                .block
+                .as_ref()
+                .ok_or_else(|| anyhow!("no blocks were received yet"))?;
+
+            if data.block_hash != block.hash {
+                Ok(false)
+            } else {
+                let slot = block.header.timestamp / self.block_duration;
+                let index = Self::block_producer_index(data.validators.len(), slot);
+                self.producer = data.validators.get(index).cloned();
+                Ok(true)
+            }
+        }
+
+        pub fn block_producer(&self) -> Result<Address> {
+            self.producer.ok_or_else(|| {
+                anyhow!(
+                    "block producer is not set: no blocks were received or received block is not synced yet"
+                )
+            })
+        }
+
+        pub fn is_block_producer(&self) -> Result<bool> {
+            Ok(self.validator == Some(self.block_producer()?))
+        }
+
+        // TODO (gsobol): temporary implementation - next slot is the next validator in the list.
+        const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
+            (slot % validators_amount as u64) as usize
+        }
     }
 }

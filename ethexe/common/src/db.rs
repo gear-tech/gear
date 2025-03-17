@@ -80,6 +80,9 @@ pub trait BlockMetaStorage: Send + Sync {
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
 
+    fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>>;
+    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>);
+
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
     fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
 

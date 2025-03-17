@@ -19,25 +19,22 @@
 use crate::{abi::IMirror, AlloyProvider, TryGetReceipt};
 use alloy::{
     primitives::{Address, U256},
-    providers::{Provider, RootProvider},
+    providers::{Provider, ProviderBuilder, RootProvider},
 };
 use anyhow::{anyhow, Result};
 use ethexe_signer::Address as LocalAddress;
 use events::signatures;
 use gprimitives::{MessageId, H256};
-use std::sync::Arc;
 
 pub mod events;
 
-type InstanceProvider = Arc<AlloyProvider>;
-type Instance = IMirror::IMirrorInstance<(), InstanceProvider>;
-
+type Instance = IMirror::IMirrorInstance<(), AlloyProvider>;
 type QueryInstance = IMirror::IMirrorInstance<(), RootProvider>;
 
 pub struct Mirror(Instance);
 
 impl Mirror {
-    pub fn new(address: Address, provider: InstanceProvider) -> Self {
+    pub(crate) fn new(address: Address, provider: AlloyProvider) -> Self {
         Self(Instance::new(address, provider))
     }
 
@@ -113,8 +110,13 @@ impl Mirror {
 pub struct MirrorQuery(QueryInstance);
 
 impl MirrorQuery {
-    pub fn from_provider(address: Address, provider: RootProvider) -> Self {
-        Self(QueryInstance::new(address, provider))
+    pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
+        let provider = ProviderBuilder::default().connect(rpc_url).await?;
+
+        Ok(Self(QueryInstance::new(
+            Address::new(router_address.0),
+            provider,
+        )))
     }
 
     pub async fn state_hash(&self) -> Result<H256> {

@@ -54,8 +54,8 @@ mod tests;
 
 pub use blobs::*;
 
-type BlobDownloadFuture = BoxFuture<'static, Result<(CodeId, u64, Vec<u8>)>>;
-type SyncFuture = BoxFuture<'static, Result<(H256, Vec<(CodeId, CodeInfo)>)>>;
+type BlobDownloadFuture = BoxFuture<'static, Result<BlobData>>;
+type SyncFuture = BoxFuture<'static, Result<(BlockSyncedData, Vec<(CodeId, CodeInfo)>)>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -65,30 +65,40 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlockSyncedData {
+    pub block_hash: H256,
+    pub validators: Vec<Address>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct BlobData {
+    pub code_id: CodeId,
+    pub timestamp: u64,
+    pub code: Vec<u8>,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
-    Blob {
-        code_id: CodeId,
-        timestamp: u64,
-        code: Vec<u8>,
-    },
+    Blob(BlobData),
     Block(SimpleBlockData),
-    BlockSynced(H256),
+    BlockSynced(BlockSyncedData),
+}
+
+impl fmt::Debug for BlobData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BlobData")
+            .field("code_id", &self.code_id)
+            .field("timestamp", &self.timestamp)
+            .field("code", &format_args!("{} bytes", self.code.len()))
+            .finish()
+    }
 }
 
 impl fmt::Debug for ObserverEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ObserverEvent::Blob {
-                code_id,
-                timestamp,
-                code,
-            } => f
-                .debug_struct("Blob")
-                .field("code_id", code_id)
-                .field("timestamp", timestamp)
-                .field("code", &format_args!("{} bytes", code.len()))
-                .finish(),
+            ObserverEvent::Blob(data) => data.fmt(f),
             ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
             ObserverEvent::BlockSynced(hash) => f.debug_tuple("BlockSynced").field(hash).finish(),
         }
@@ -101,6 +111,7 @@ struct RuntimeConfig {
     wvara_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
+    block_time: Duration,
 }
 
 // TODO (gsobol): make tests for observer service
@@ -179,13 +190,7 @@ impl Stream for ObserverService {
         }
 
         if let Poll::Ready(Some(res)) = self.codes_futures.poll_next_unpin(cx) {
-            let event = res.map(|(code_id, timestamp, code)| ObserverEvent::Blob {
-                code_id,
-                timestamp,
-                code,
-            });
-
-            return Poll::Ready(Some(event));
+            return Poll::Ready(Some(res.map(ObserverEvent::Blob)));
         }
 
         Poll::Pending
@@ -251,6 +256,7 @@ impl ObserverService {
                 max_sync_depth,
                 // TODO (gsobol): make this configurable. Important: must be greater than 1.
                 batched_sync_depth: 2,
+                block_time: *block_time,
             },
             last_block_number: 0,
             headers_stream,
@@ -296,6 +302,7 @@ impl ObserverService {
         db.set_block_is_synced(genesis_block_hash);
 
         db.set_block_commitment_queue(genesis_block_hash, Default::default());
+        db.set_block_codes_queue(genesis_block_hash, Default::default());
         db.set_previous_not_empty_block(genesis_block_hash, H256::zero());
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
@@ -317,6 +324,10 @@ impl ObserverService {
             eth_best_height: self.last_block_number,
             pending_codes: self.codes_futures.len(),
         }
+    }
+
+    pub fn block_time_secs(&self) -> u64 {
+        self.config.block_time.as_secs()
     }
 
     pub async fn force_sync_block(&mut self, block: H256) -> Result<()> {
