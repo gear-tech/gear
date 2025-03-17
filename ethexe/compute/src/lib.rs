@@ -307,7 +307,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_codes_queue_propagation() {
-        let db = Database::memory(Default::default());
+        let db = Database::memory();
 
         // Prepare test data
         let parent_block = H256::random();
