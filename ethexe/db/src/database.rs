@@ -139,12 +139,9 @@ impl Database {
         }
     }
 
-    pub fn new_in_memory(router_address: [u8; 20]) -> Self {
-        Self::new(
-            Box::new(MemDb::default()),
-            Box::new(MemDb::default()),
-            router_address,
-        )
+    pub fn memory(router_address: [u8; 20]) -> Self {
+        let mem = MemDb::default();
+        Self::from_one(&mem, router_address)
     }
 
     /// # Safety
