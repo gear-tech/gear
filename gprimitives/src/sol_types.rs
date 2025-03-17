@@ -68,9 +68,9 @@ mod tests {
         const ADDR: Address = address!("0102030405060708090a0b0c0d0e0f1011121314");
 
         let actor_id: ActorId = ADDR.into();
-        let addres: Address = actor_id.into();
+        let address: Address = actor_id.into();
 
-        assert_eq!(ADDR, addres);
+        assert_eq!(ADDR, address);
 
         let address_encoded = ADDR.abi_encode();
         let actor_id_encoded = actor_id.abi_encode();

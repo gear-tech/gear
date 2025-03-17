@@ -32,7 +32,7 @@ pub mod node;
 mod result;
 
 pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
-pub const RENT_POOL_SS58_ADDRESS: &str = "kGkkENXuYL4Xw6H1ymWm6VwHLi66s56Ywt45pf9hEx1hmx5MV";
+pub const TREASURY_SS58_ADDRESS: &str = "kGi1Ui7VXBFmPmaoMD5xgWd2VHNixZ5BbLNhHFYD39T85rUi3";
 
 impl NodeExec for NodeInstance {
     /// Run binary `gcli`
