@@ -74,23 +74,32 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
-            Self::BlockEvents(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
-            Self::BlockProgramStates(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
-            Self::BlockOutcome(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
-            Self::BlockSchedule(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
-            Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
+            Self::BlockSmallData(hash)
+            | Self::BlockEvents(hash)
+            | Self::BlockProgramStates(hash)
+            | Self::BlockOutcome(hash)
+            | Self::BlockSchedule(hash)
+            | Self::SignedTransaction(hash) => {
+                [prefix.as_ref(), hash.as_ref()].concat()
+            }
+
+            Self::ProgramToCodeId(program_id) => {
+                [prefix.as_ref(), program_id.as_ref()].concat()
+            }
+
+            Self::CodeUploadInfo(code_id)
+            | Self::CodeValid(code_id) => {
+                [prefix.as_ref(), code_id.as_ref()].concat()
+            }
+
+            
             Self::InstrumentedCode(runtime_id, code_id) => [
                 prefix.as_ref(),
                 runtime_id.to_le_bytes().as_ref(),
                 code_id.as_ref(),
             ]
             .concat(),
-            Self::CodeUploadInfo(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
-            Self::CodeValid(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
-            Self::SignedTransaction(tx_hash) => [prefix.as_ref(), tx_hash.as_ref()].concat(),
-            Self::LatestComputedBlock => prefix.as_ref().to_vec(),
-            Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
+            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -121,9 +130,9 @@ impl Database {
         }
     }
 
-    pub fn memory(router_address: [u8; 20]) -> Self {
+    pub fn memory() -> Self {
         let mem = MemDb::default();
-        Self::from_one(&mem, router_address)
+        Self::from_one(&mem)
     }
 
     /// # Safety
@@ -617,7 +626,7 @@ mod tests {
 
     #[test]
     fn test_offchain_transaction() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let tx = SignedOffchainTransaction {
             signature: Default::default(),
@@ -636,7 +645,7 @@ mod tests {
 
     #[test]
     fn test_check_within_recent_blocks() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
@@ -648,7 +657,7 @@ mod tests {
 
     #[test]
     fn test_block_program_states() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let block_hash = H256::random();
         let program_states = BTreeMap::new();
@@ -658,7 +667,7 @@ mod tests {
 
     #[test]
     fn test_block_outcome() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let block_hash = H256::random();
         let block_outcome = vec![StateTransition::default()];
@@ -668,7 +677,7 @@ mod tests {
 
     #[test]
     fn test_block_schedule() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let block_hash = H256::random();
         let schedule = Schedule::default();
@@ -678,7 +687,7 @@ mod tests {
 
     #[test]
     fn test_latest_computed_block() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
@@ -688,7 +697,7 @@ mod tests {
 
     #[test]
     fn test_block_events() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let block_hash = H256::random();
         let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged)];
@@ -698,7 +707,7 @@ mod tests {
 
     #[test]
     fn test_code_blob_info() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let code_id = CodeId::default();
         let code_info = CodeInfo::default();
@@ -708,7 +717,7 @@ mod tests {
 
     #[test]
     fn test_block_is_synced() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let block_hash = H256::random();
         db.set_block_is_synced(block_hash);
@@ -717,7 +726,7 @@ mod tests {
 
     #[test]
     fn test_latest_synced_block_height() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let height = 42;
         db.set_latest_synced_block_height(height);
@@ -726,7 +735,7 @@ mod tests {
 
     #[test]
     fn test_original_code() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let code = vec![1, 2, 3];
         let code_id = db.set_original_code(&code);
@@ -735,7 +744,7 @@ mod tests {
 
     #[test]
     fn test_program_code_id() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let program_id = ProgramId::default();
         let code_id = CodeId::default();
@@ -745,7 +754,7 @@ mod tests {
 
     #[test]
     fn test_instrumented_code() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let runtime_id = 1;
         let code_id = CodeId::default();
@@ -771,7 +780,7 @@ mod tests {
 
     #[test]
     fn test_code_valid() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let code_id = CodeId::default();
         db.set_code_valid(code_id, true);
@@ -780,7 +789,7 @@ mod tests {
 
     #[test]
     fn test_block_header() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
@@ -790,7 +799,7 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let state = ProgramState::zero();
         let hash = db.write_state(state.clone());
@@ -799,7 +808,7 @@ mod tests {
 
     #[test]
     fn test_queue() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let queue = MessageQueue::default();
         let hash = db.write_queue(queue.clone());
@@ -808,7 +817,7 @@ mod tests {
 
     #[test]
     fn test_waitlist() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let waitlist = Waitlist::default();
         let hash = db.write_waitlist(waitlist.clone());
@@ -817,7 +826,7 @@ mod tests {
 
     #[test]
     fn test_stash() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let stash = DispatchStash::default();
         let hash = db.write_stash(stash.clone());
@@ -826,7 +835,7 @@ mod tests {
 
     #[test]
     fn test_mailbox() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let mailbox = Mailbox::default();
         let hash = db.write_mailbox(mailbox.clone());
@@ -835,7 +844,7 @@ mod tests {
 
     #[test]
     fn test_pages() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let pages = MemoryPages::default();
         let hash = db.write_pages(pages.clone());
@@ -844,7 +853,7 @@ mod tests {
 
     #[test]
     fn test_pages_region() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let pages_region = MemoryPagesRegion::default();
         let hash = db.write_pages_region(pages_region.clone());
@@ -853,7 +862,7 @@ mod tests {
 
     #[test]
     fn test_allocations() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let allocations = Allocations::default();
         let hash = db.write_allocations(allocations.clone());
@@ -862,7 +871,7 @@ mod tests {
 
     #[test]
     fn test_payload() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let payload: Payload = vec![1, 2, 3].try_into().unwrap();
         let hash = db.write_payload(payload.clone());
@@ -871,7 +880,7 @@ mod tests {
 
     #[test]
     fn test_page_data() {
-        let db = Database::new(Box::new(MemDb::default()), Box::new(MemDb::default()));
+        let db = Database::memory();
 
         let mut page_data = PageBuf::new_zeroed();
         page_data[42] = 42;
