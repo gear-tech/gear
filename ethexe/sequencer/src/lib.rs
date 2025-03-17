@@ -23,9 +23,9 @@ use anyhow::{anyhow, bail, Result};
 use ethexe_common::{
     db::BlockMetaStorage,
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
+    timer::Timer,
 };
 use ethexe_ethereum::{router::Router, Ethereum};
-use ethexe_service_utils::Timer;
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use futures::{
     future::BoxFuture,

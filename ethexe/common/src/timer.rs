@@ -27,10 +27,8 @@ use std::{
 use tokio::time::{self, Sleep};
 
 /// Asynchronous timer with inner data kept.
-pub struct Timer<T = ()>
-where
-    T: Debug,
-{
+#[derive(Debug)]
+pub struct Timer<T = ()> {
     /// Name of the timer.
     name: &'static str,
 
@@ -86,6 +84,19 @@ impl<T: Debug> Timer<T> {
     }
 }
 
+impl<T: Clone> Clone for Timer<T> {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name,
+            duration: self.duration,
+            inner: self
+                .inner
+                .as_ref()
+                .map(|(sleep, data)| (Box::pin(time::sleep_until(sleep.deadline())), data.clone())),
+        }
+    }
+}
+
 impl<T: Debug + Unpin> Future for Timer<T> {
     type Output = T;
 
@@ -95,7 +106,7 @@ impl<T: Debug + Unpin> Future for Timer<T> {
 
             let data = self.inner.take().map(|(_, data)| data).unwrap();
 
-            log::debug!("Timer '{}' with data {:?} rings", self.name, data);
+            log::trace!("Timer '{}' with data {:?} rings", self.name, data);
 
             return Poll::Ready(data);
         }

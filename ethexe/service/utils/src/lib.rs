@@ -21,10 +21,6 @@
 use futures::{future, stream::FusedStream, StreamExt};
 use std::future::Future;
 
-pub use timer::Timer;
-
-mod timer;
-
 mod private {
     pub trait Sealed {}
 
