@@ -23,7 +23,6 @@ use gsdk::Api;
 
 const REWARD_PER_BLOCK: u128 = 18_000; // 3_000 gas * 6 value per gas
 
-// TODO: rework the test: it's too complex and doesn't test the claim command.
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {
     let node = common::create_messager().await?;
@@ -49,6 +48,13 @@ async fn test_command_claim_works() -> Result<()> {
 
     // Claim value from message id
     let _ = node.run(Args::new("claim").message_id(id))?;
+
+    let mailbox = signer
+        .api()
+        .mailbox(Some(common::alice_account_id()), 10)
+        .await?;
+
+    assert!(mailbox.is_empty(), "Mailbox should be empty");
 
     let treasury_after = signer
         .api()
