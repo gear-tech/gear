@@ -31,7 +31,7 @@ use ethexe_common::{
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
-    ProgramState, Storage, UserMailbox, Waitlist,
+    ProgramState, Storage, Waitlist,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -43,52 +43,65 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-// TODO (gsobol): because router address is a part of almost all keys, consider to use different db for each router.
-// TODO (gsobol): make separate structures for each key prefix. Each structure should have own method for key generation.
+// todo(playxe): possibly a better way to iterate prefixes, don't just do `H256::from_u64_be_low(prefix)`.
 #[repr(u64)]
-enum KeyPrefix {
-    /// BlockSmallData key prefix uses two keys: router address and block hash.
-    BlockSmallData = 0,
-    /// BlockEvents key prefix uses two keys: router address and block hash.
-    BlockEvents = 1,
+enum Key {
+    BlockSmallData(H256) = 0,
+    BlockEvents(H256) = 1,
+    BlockProgramStates(H256) = 2,
+    BlockOutcome(H256) = 3,
+    BlockSchedule(H256) = 4,
 
-    /// BlockProgramStates key prefix uses two keys: router address and block hash.
-    BlockProgramStates = 2,
-    /// BlockOutcome key prefix uses two keys: router address and block hash.
-    BlockOutcome = 3,
-    /// BlockSchedule key prefix uses two keys: router address and block hash.
-    BlockSchedule = 4,
+    ProgramToCodeId(ProgramId) = 5,
+    InstrumentedCode(u32, CodeId) = 6,
+    CodeUploadInfo(CodeId) = 7,
+    CodeValid(CodeId) = 8,
 
-    /// ProgramToCodeId key prefix uses two keys: router address and program id.
-    ProgramToCodeId = 5,
-    /// InstrumentedCode key prefix uses three keys: router address, runtime id and code id.
-    InstrumentedCode = 6,
-    /// CodeUploadInfo key prefix uses two keys: router address and code id.
-    CodeUploadInfo = 7,
-    /// CodeValid key prefix uses two keys: router address and code id.
-    CodeValid = 8,
+    SignedTransaction(H256) = 9,
 
-    /// SignedTransaction key prefix uses one key: transaction hash.
-    SignedTransaction = 9,
-
-    /// LatestComputedBlock key prefix uses one key: router address.
     LatestComputedBlock = 10,
-    /// LatestSyncedBlockHeight key prefix uses one key: router address.
     LatestSyncedBlockHeight = 11,
 }
 
-impl KeyPrefix {
-    fn prefix(self) -> [u8; 32] {
-        H256::from_low_u64_be(self as u64).0
-    }
-
-    fn one(self, key: impl AsRef<[u8]>) -> Vec<u8> {
-        [self.prefix().as_ref(), key.as_ref()].concat()
-    }
-
-    fn two(self, key1: impl AsRef<[u8]>, key2: impl AsRef<[u8]>) -> Vec<u8> {
-        let key = [key1.as_ref(), key2.as_ref()].concat();
-        self.one(key)
+impl Key {
+    fn to_bytes(self) -> Vec<u8> {
+        match self {
+            Self::BlockSmallData(block_hash) => {
+                [H256::from_low_u64_be(0).as_ref(), block_hash.as_ref()].concat()
+            }
+            Self::BlockEvents(block_hash) => {
+                [H256::from_low_u64_be(1).as_ref(), block_hash.as_ref()].concat()
+            }
+            Self::BlockProgramStates(block_hash) => {
+                [H256::from_low_u64_be(2).as_ref(), block_hash.as_ref()].concat()
+            }
+            Self::BlockOutcome(block_hash) => {
+                [H256::from_low_u64_be(3).as_ref(), block_hash.as_ref()].concat()
+            }
+            Self::BlockSchedule(block_hash) => {
+                [H256::from_low_u64_be(4).as_ref(), block_hash.as_ref()].concat()
+            }
+            Self::ProgramToCodeId(program_id) => {
+                [H256::from_low_u64_be(5).as_ref(), program_id.as_ref()].concat()
+            }
+            Self::InstrumentedCode(runtime_id, code_id) => [
+                H256::from_low_u64_be(6).as_ref(),
+                runtime_id.to_le_bytes().as_ref(),
+                code_id.as_ref(),
+            ]
+            .concat(),
+            Self::CodeUploadInfo(code_id) => {
+                [H256::from_low_u64_be(7).as_ref(), code_id.as_ref()].concat()
+            }
+            Self::CodeValid(code_id) => {
+                [H256::from_low_u64_be(8).as_ref(), code_id.as_ref()].concat()
+            }
+            Self::SignedTransaction(tx_hash) => {
+                [H256::from_low_u64_be(9).as_ref(), tx_hash.as_ref()].concat()
+            }
+            Self::LatestComputedBlock => H256::from_low_u64_be(10).as_ref().to_vec(),
+            Self::LatestSyncedBlockHeight => H256::from_low_u64_be(11).as_ref().to_vec(),
+        }
     }
 }
 
@@ -137,7 +150,7 @@ impl Database {
 
     pub fn get_offchain_transaction(&self, tx_hash: H256) -> Option<SignedOffchainTransaction> {
         self.kv
-            .get(&KeyPrefix::SignedTransaction.one(tx_hash))
+            .get(&Key::SignedTransaction(tx_hash).to_bytes())
             .map(|data| {
                 Decode::decode(&mut data.as_slice())
                     .expect("failed to data into `SignedTransaction`")
@@ -147,7 +160,7 @@ impl Database {
     pub fn set_offchain_transaction(&self, tx: SignedOffchainTransaction) {
         let tx_hash = tx.tx_hash();
         self.kv
-            .put(&KeyPrefix::SignedTransaction.one(tx_hash), tx.encode());
+            .put(&Key::SignedTransaction(tx_hash).to_bytes(), tx.encode());
     }
 
     // TODO (gsobol): test this method
@@ -208,7 +221,7 @@ impl Database {
 
     fn block_small_data(&self, block_hash: H256) -> Option<BlockSmallData> {
         self.kv
-            .get(&KeyPrefix::BlockSmallData.one(block_hash))
+            .get(&Key::BlockSmallData(block_hash).to_bytes())
             .map(|data| {
                 BlockSmallData::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BlockSmallMetaInfo`")
@@ -217,7 +230,7 @@ impl Database {
 
     fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
         self.kv
-            .put(&KeyPrefix::BlockSmallData.one(block_hash), meta.encode());
+            .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
     }
 }
 
@@ -264,7 +277,7 @@ impl BlockMetaStorage for Database {
 
     fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
         self.kv
-            .get(&KeyPrefix::BlockProgramStates.one(block_hash))
+            .get(&Key::BlockProgramStates(block_hash).to_bytes())
             .map(|data| {
                 BTreeMap::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
@@ -273,13 +286,15 @@ impl BlockMetaStorage for Database {
 
     fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
         log::trace!("For block {block_hash} set program states: {map:?}");
-        self.kv
-            .put(&KeyPrefix::BlockProgramStates.one(block_hash), map.encode());
+        self.kv.put(
+            &Key::BlockProgramStates(block_hash).to_bytes(),
+            map.encode(),
+        );
     }
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
         self.kv
-            .get(&KeyPrefix::BlockOutcome.one(block_hash))
+            .get(&Key::BlockOutcome(block_hash).to_bytes())
             .map(|data| {
                 Vec::<StateTransition>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<StateTransition>`")
@@ -289,12 +304,12 @@ impl BlockMetaStorage for Database {
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
         log::trace!("For block {block_hash} set outcome: {outcome:?}");
         self.kv
-            .put(&KeyPrefix::BlockOutcome.one(block_hash), outcome.encode());
+            .put(&Key::BlockOutcome(block_hash).to_bytes(), outcome.encode());
     }
 
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule> {
         self.kv
-            .get(&KeyPrefix::BlockSchedule.one(block_hash))
+            .get(&Key::BlockSchedule(block_hash).to_bytes())
             .map(|data| {
                 Schedule::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
@@ -303,12 +318,12 @@ impl BlockMetaStorage for Database {
 
     fn set_block_schedule(&self, block_hash: H256, map: Schedule) {
         self.kv
-            .put(&KeyPrefix::BlockSchedule.one(block_hash), map.encode());
+            .put(&Key::BlockSchedule(block_hash).to_bytes(), map.encode());
     }
 
     fn latest_computed_block(&self) -> Option<(H256, BlockHeader)> {
         self.kv
-            .get(KeyPrefix::LatestComputedBlock.prefix().as_ref())
+            .get(&Key::LatestComputedBlock.to_bytes())
             .map(|data| {
                 <(H256, BlockHeader)>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `(H256, BlockHeader)`")
@@ -318,7 +333,7 @@ impl BlockMetaStorage for Database {
     fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader) {
         log::trace!("Set latest computed block: {block_hash} {header:?}");
         self.kv.put(
-            KeyPrefix::LatestComputedBlock.prefix().as_ref(),
+            &Key::LatestComputedBlock.to_bytes(),
             (block_hash, header).encode(),
         );
     }
@@ -339,7 +354,7 @@ impl CodesStorage for Database {
 
     fn program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
         self.kv
-            .get(&KeyPrefix::ProgramToCodeId.one(program_id))
+            .get(&Key::ProgramToCodeId(program_id).to_bytes())
             .map(|data| {
                 CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`")
             })
@@ -347,7 +362,7 @@ impl CodesStorage for Database {
 
     fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
         self.kv.put(
-            &KeyPrefix::ProgramToCodeId.one(program_id),
+            &Key::ProgramToCodeId(program_id).to_bytes(),
             code_id.into_bytes().to_vec(),
         );
     }
@@ -355,7 +370,7 @@ impl CodesStorage for Database {
     // TODO (gsobol): consider to move to another place
     // TODO (gsobol): test this method
     fn program_ids(&self) -> BTreeSet<ProgramId> {
-        let key_prefix = KeyPrefix::ProgramToCodeId.prefix();
+        let key_prefix = H256::from_low_u64_be(5).0;
 
         self.kv
             .iter_prefix(&key_prefix)
@@ -375,7 +390,7 @@ impl CodesStorage for Database {
 
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
         self.kv
-            .get(&KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id))
+            .get(&Key::InstrumentedCode(runtime_id, code_id).to_bytes())
             .map(|data| {
                 InstrumentedCode::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `InstrumentedCode`")
@@ -384,20 +399,22 @@ impl CodesStorage for Database {
 
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
         self.kv.put(
-            &KeyPrefix::InstrumentedCode.two(runtime_id.to_le_bytes(), code_id),
+            &Key::InstrumentedCode(runtime_id, code_id).to_bytes(),
             code.encode(),
         );
     }
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
-        self.kv.get(&KeyPrefix::CodeValid.one(code_id)).map(|data| {
-            bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
-        })
+        self.kv
+            .get(&Key::CodeValid(code_id).to_bytes())
+            .map(|data| {
+                bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
+            })
     }
 
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
         self.kv
-            .put(&KeyPrefix::CodeValid.one(code_id), valid.encode());
+            .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
     }
 }
 
@@ -465,17 +482,6 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(&mailbox.encode())) }
     }
 
-    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        self.cas.read(hash.hash()).map(|data| {
-            UserMailbox::decode(&mut data.as_slice())
-                .expect("Failed to decode data into `UserMailbox`")
-        })
-    }
-
-    fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox> {
-        unsafe { HashOf::new(self.cas.write(&use_mailbox.encode())) }
-    }
-
     fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
         self.cas.read(hash.hash()).map(|data| {
             MemoryPages::decode(&mut &data[..]).expect("Failed to decode data into `MemoryPages`")
@@ -539,7 +545,7 @@ impl OnChainStorage for Database {
 
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
         self.kv
-            .get(&KeyPrefix::BlockEvents.one(block_hash))
+            .get(&Key::BlockEvents(block_hash).to_bytes())
             .map(|data| {
                 Vec::<BlockEvent>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<BlockEvent>`")
@@ -548,12 +554,12 @@ impl OnChainStorage for Database {
 
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
         self.kv
-            .put(&KeyPrefix::BlockEvents.one(block_hash), events.encode());
+            .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
     }
 
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeInfo> {
         self.kv
-            .get(&KeyPrefix::CodeUploadInfo.one(code_id))
+            .get(&Key::CodeUploadInfo(code_id).to_bytes())
             .map(|data| {
                 Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `CodeInfo`")
             })
@@ -561,7 +567,7 @@ impl OnChainStorage for Database {
 
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeInfo) {
         self.kv
-            .put(&KeyPrefix::CodeUploadInfo.one(code_id), code_info.encode());
+            .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
 
     fn block_is_synced(&self, block_hash: H256) -> bool {
@@ -575,17 +581,15 @@ impl OnChainStorage for Database {
 
     fn latest_synced_block_height(&self) -> Option<u32> {
         self.kv
-            .get(KeyPrefix::LatestSyncedBlockHeight.prefix().as_ref())
+            .get(&Key::LatestSyncedBlockHeight.to_bytes())
             .map(|data| {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
     }
 
     fn set_latest_synced_block_height(&self, height: u32) {
-        self.kv.put(
-            KeyPrefix::LatestSyncedBlockHeight.prefix().as_ref(),
-            height.encode(),
-        );
+        self.kv
+            .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
     }
 }
 
