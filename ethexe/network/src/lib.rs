@@ -70,7 +70,7 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 pub enum NetworkEvent {
     DbResponse {
         request_id: db_sync::RequestId,
-        result: Result<db_sync::Response, db_sync::RequestFailure>,
+        result: Result<db_sync::Response, (db_sync::OngoingRequest, db_sync::RequestFailure)>,
     },
     Message {
         data: Vec<u8>,
@@ -425,10 +425,13 @@ impl NetworkService {
                     result: Ok(response),
                 });
             }
-            BehaviourEvent::DbSync(db_sync::Event::RequestFailed { request_id, error }) => {
+            BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
+                ongoing_request,
+                error,
+            }) => {
                 return Some(NetworkEvent::DbResponse {
-                    request_id,
-                    result: Err(error),
+                    request_id: ongoing_request.id(),
+                    result: Err((ongoing_request, error)),
                 });
             }
             BehaviourEvent::DbSync(_) => {}
@@ -467,8 +470,8 @@ impl NetworkService {
         }
     }
 
-    pub fn request_db_data(&mut self, request: db_sync::Request) -> db_sync::RequestId {
-        self.swarm.behaviour_mut().db_sync.request(request)
+    pub fn db_sync(&mut self) -> &mut db_sync::Behaviour {
+        &mut self.swarm.behaviour_mut().db_sync
     }
 }
 
@@ -647,7 +650,9 @@ mod tests {
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        let request_id = service1.request_db_data(db_sync::Request([hello, world].into()));
+        let request_id = service1
+            .db_sync()
+            .request(db_sync::Request([hello, world].into()));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await

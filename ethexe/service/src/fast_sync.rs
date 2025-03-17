@@ -98,7 +98,7 @@ impl BufRequests {
         let buffered_requests = mem::take(&mut self.buffered_requests);
         if !buffered_requests.is_empty() {
             let request = buffered_requests.keys().copied().collect();
-            let request_id = network.request_db_data(db_sync::Request(request));
+            let request_id = network.db_sync().request(db_sync::Request(request));
 
             for (hash, requests) in buffered_requests {
                 self.total_pending_requests += requests.len() as u64;
@@ -317,8 +317,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                     }
                 }
             }
-            Err(err) => {
-                unreachable!("{err:?}");
+            Err((request, err)) => {
+                network.db_sync().retry(request);
+                log::warn!("{request_id:?} failed: {err}. Retrying...");
             }
         }
 
