@@ -64,20 +64,11 @@ enum Key {
 
 impl Key {
     fn prefix(&self) -> [u8; 32] {
-        match self {
-            Self::BlockSmallData(_) => H256::from_low_u64_be(0).0,
-            Self::BlockEvents(_) => H256::from_low_u64_be(1).0,
-            Self::BlockProgramStates(_) => H256::from_low_u64_be(2).0,
-            Self::BlockOutcome(_) => H256::from_low_u64_be(3).0,
-            Self::BlockSchedule(_) => H256::from_low_u64_be(4).0,
-            Self::ProgramToCodeId(_) => H256::from_low_u64_be(5).0,
-            Self::InstrumentedCode(_, _) => H256::from_low_u64_be(6).0,
-            Self::CodeUploadInfo(_) => H256::from_low_u64_be(7).0,
-            Self::CodeValid(_) => H256::from_low_u64_be(8).0,
-            Self::SignedTransaction(_) => H256::from_low_u64_be(9).0,
-            Self::LatestComputedBlock => H256::from_low_u64_be(10).0,
-            Self::LatestSyncedBlockHeight => H256::from_low_u64_be(11).0,
-        }
+        // SAFETY: Because `Key` is marked as `#[repr(u64)]` it's actual layout
+        // is `#[repr(C)]` and it's first field is a `u64` discriminant. We can read
+        // it safely.
+        let discriminant = unsafe { <*const _>::from(self).cast::<u64>().read() };
+        H256::from_low_u64_be(discriminant).into()
     }
 
     fn to_bytes(&self) -> Vec<u8> {
