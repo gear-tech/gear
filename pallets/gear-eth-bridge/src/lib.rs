@@ -249,6 +249,14 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
+    #[pallet::storage]
+    #[pallet::getter(fn bridge_admin)]
+    pub type BridgeAdmin<T: Config> = StorageValue<_, T::AccountId, ValueQuery, BridgeAdminAddress<T>>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn bridge_pauser)]
+    pub type BridgePauser<T: Config> = StorageValue<_, T::AccountId, ValueQuery, BridgePauserAddress<T>>;
+
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
     #[pallet::storage_version(ETH_BRIDGE_STORAGE_VERSION)]
