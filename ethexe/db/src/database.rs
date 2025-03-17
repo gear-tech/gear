@@ -79,20 +79,14 @@ impl Key {
             | Self::BlockProgramStates(hash)
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
-            | Self::SignedTransaction(hash) => {
-                [prefix.as_ref(), hash.as_ref()].concat()
-            }
+            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
-            Self::ProgramToCodeId(program_id) => {
-                [prefix.as_ref(), program_id.as_ref()].concat()
-            }
+            Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
-            Self::CodeUploadInfo(code_id)
-            | Self::CodeValid(code_id) => {
+            Self::CodeUploadInfo(code_id) | Self::CodeValid(code_id) => {
                 [prefix.as_ref(), code_id.as_ref()].concat()
             }
 
-            
             Self::InstrumentedCode(runtime_id, code_id) => [
                 prefix.as_ref(),
                 runtime_id.to_le_bytes().as_ref(),
