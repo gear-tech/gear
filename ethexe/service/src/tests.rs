@@ -1283,6 +1283,10 @@ async fn fast_sync() {
             bob.db.block_commitment_queue(block)
         );
         assert_eq!(
+            alice.db.block_codes_queue(block),
+            bob.db.block_codes_queue(block)
+        );
+        assert_eq!(
             alice.db.previous_not_empty_block(block),
             bob.db.previous_not_empty_block(block)
         );

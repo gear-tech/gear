@@ -147,8 +147,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     observer.force_sync_block(highest_block).await?;
     while let Some(event) = observer.next().await {
-        if let ObserverEvent::BlockSynced(synced_block) = event? {
-            debug_assert_eq!(highest_block, synced_block);
+        if let ObserverEvent::BlockSynced(data) = event? {
+            debug_assert_eq!(highest_block, data.block_hash);
             break;
         }
     }
@@ -336,9 +336,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     db.set_block_program_states(latest_block, program_states);
     db.set_block_schedule(latest_block, schedule_restorer.build());
     db.set_block_commitment_queue(latest_block, VecDeque::new());
-    // `latest_block` is committed and thus cannot be empty,
-    // so we force it to be non-empty via the unsafe method
-    // without restoration of state transitions
+    db.set_block_codes_queue(latest_block, VecDeque::new()); // TODO
     unsafe {
         db.set_non_empty_block_outcome(latest_block);
     }
