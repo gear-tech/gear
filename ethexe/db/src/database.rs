@@ -614,7 +614,6 @@ impl OnChainStorage for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MemDb;
     use ethexe_common::{events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage};
     use gear_core::code::InstantiatedSectionSizes;
 
