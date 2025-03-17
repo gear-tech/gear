@@ -80,7 +80,7 @@ impl Key {
         }
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
             Self::BlockSmallData(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
