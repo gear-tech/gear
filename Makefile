@@ -233,7 +233,7 @@ test-gsdk-release: node-release
 	@ ./scripts/gear.sh test gsdk --release
 
 .PHONY: test-gcli
-test-gcli: node
+test-gcli: node-release
 	@ ./scripts/gear.sh test gcli
 
 .PHONY: test-gcli-release
