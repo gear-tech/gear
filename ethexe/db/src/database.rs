@@ -20,7 +20,7 @@
 
 use crate::{
     overlay::{CASOverlay, KVOverlay},
-    CASDatabase, KVDatabase,
+    CASDatabase, KVDatabase, MemDb,
 };
 use anyhow::{bail, Result};
 use ethexe_common::{
@@ -139,6 +139,11 @@ impl Database {
         }
     }
 
+    pub fn memory(router_address: [u8; 20]) -> Self {
+        let mem = MemDb::default();
+        Self::from_one(&mem, router_address)
+    }
+
     /// # Safety
     /// Not ready for using in prod. Intended to be for rpc calls only.
     pub unsafe fn overlaid(self) -> Self {
@@ -253,6 +258,7 @@ struct BlockSmallData {
     block_computed: bool,
     prev_not_empty_block: Option<H256>,
     commitment_queue: Option<VecDeque<H256>>,
+    codes_queue: Option<VecDeque<CodeId>>,
 }
 
 impl BlockMetaStorage for Database {
@@ -273,6 +279,15 @@ impl BlockMetaStorage for Database {
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
         log::trace!("For block {block_hash} set commitment queue: {queue:?}");
         self.mutate_small_data(block_hash, |data| data.commitment_queue = Some(queue));
+    }
+
+    fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>> {
+        self.with_small_data(block_hash, |data| data.codes_queue)?
+    }
+
+    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>) {
+        log::trace!("For block {block_hash} set codes queue: {queue:?}");
+        self.mutate_small_data(block_hash, |data| data.codes_queue = Some(queue));
     }
 
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256> {
