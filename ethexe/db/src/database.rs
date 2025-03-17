@@ -31,7 +31,7 @@ use ethexe_common::{
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
-    ProgramState, Storage, Waitlist,
+    ProgramState, Storage, UserMailbox, Waitlist,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -43,7 +43,6 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-// todo(playxe): possibly a better way to iterate prefixes, don't just do `H256::from_u64_be_low(prefix)`.
 #[repr(u64)]
 enum Key {
     BlockSmallData(H256) = 0,
@@ -64,43 +63,43 @@ enum Key {
 }
 
 impl Key {
-    fn to_bytes(self) -> Vec<u8> {
+    fn prefix(&self) -> [u8; 32] {
         match self {
-            Self::BlockSmallData(block_hash) => {
-                [H256::from_low_u64_be(0).as_ref(), block_hash.as_ref()].concat()
-            }
-            Self::BlockEvents(block_hash) => {
-                [H256::from_low_u64_be(1).as_ref(), block_hash.as_ref()].concat()
-            }
-            Self::BlockProgramStates(block_hash) => {
-                [H256::from_low_u64_be(2).as_ref(), block_hash.as_ref()].concat()
-            }
-            Self::BlockOutcome(block_hash) => {
-                [H256::from_low_u64_be(3).as_ref(), block_hash.as_ref()].concat()
-            }
-            Self::BlockSchedule(block_hash) => {
-                [H256::from_low_u64_be(4).as_ref(), block_hash.as_ref()].concat()
-            }
-            Self::ProgramToCodeId(program_id) => {
-                [H256::from_low_u64_be(5).as_ref(), program_id.as_ref()].concat()
-            }
+            Self::BlockSmallData(_) => H256::from_low_u64_be(0).0,
+            Self::BlockEvents(_) => H256::from_low_u64_be(1).0,
+            Self::BlockProgramStates(_) => H256::from_low_u64_be(2).0,
+            Self::BlockOutcome(_) => H256::from_low_u64_be(3).0,
+            Self::BlockSchedule(_) => H256::from_low_u64_be(4).0,
+            Self::ProgramToCodeId(_) => H256::from_low_u64_be(5).0,
+            Self::InstrumentedCode(_, _) => H256::from_low_u64_be(6).0,
+            Self::CodeUploadInfo(_) => H256::from_low_u64_be(7).0,
+            Self::CodeValid(_) => H256::from_low_u64_be(8).0,
+            Self::SignedTransaction(_) => H256::from_low_u64_be(9).0,
+            Self::LatestComputedBlock => H256::from_low_u64_be(10).0,
+            Self::LatestSyncedBlockHeight => H256::from_low_u64_be(11).0,
+        }
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
+        let prefix = self.prefix();
+        match self {
+            Self::BlockSmallData(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
+            Self::BlockEvents(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
+            Self::BlockProgramStates(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
+            Self::BlockOutcome(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
+            Self::BlockSchedule(block_hash) => [prefix.as_ref(), block_hash.as_ref()].concat(),
+            Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
             Self::InstrumentedCode(runtime_id, code_id) => [
-                H256::from_low_u64_be(6).as_ref(),
+                prefix.as_ref(),
                 runtime_id.to_le_bytes().as_ref(),
                 code_id.as_ref(),
             ]
             .concat(),
-            Self::CodeUploadInfo(code_id) => {
-                [H256::from_low_u64_be(7).as_ref(), code_id.as_ref()].concat()
-            }
-            Self::CodeValid(code_id) => {
-                [H256::from_low_u64_be(8).as_ref(), code_id.as_ref()].concat()
-            }
-            Self::SignedTransaction(tx_hash) => {
-                [H256::from_low_u64_be(9).as_ref(), tx_hash.as_ref()].concat()
-            }
-            Self::LatestComputedBlock => H256::from_low_u64_be(10).as_ref().to_vec(),
-            Self::LatestSyncedBlockHeight => H256::from_low_u64_be(11).as_ref().to_vec(),
+            Self::CodeUploadInfo(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
+            Self::CodeValid(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
+            Self::SignedTransaction(tx_hash) => [prefix.as_ref(), tx_hash.as_ref()].concat(),
+            Self::LatestComputedBlock => prefix.as_ref().to_vec(),
+            Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -370,8 +369,7 @@ impl CodesStorage for Database {
     // TODO (gsobol): consider to move to another place
     // TODO (gsobol): test this method
     fn program_ids(&self) -> BTreeSet<ProgramId> {
-        let key_prefix = H256::from_low_u64_be(5).0;
-
+        let key_prefix = Key::ProgramToCodeId(Default::default()).prefix();
         self.kv
             .iter_prefix(&key_prefix)
             .map(|(key, code_id)| {
@@ -480,6 +478,17 @@ impl Storage for Database {
 
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
         unsafe { HashOf::new(self.cas.write(&mailbox.encode())) }
+    }
+
+    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
+        self.cas.read(hash.hash()).map(|data| {
+            UserMailbox::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `UserMailbox`")
+        })
+    }
+
+    fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox> {
+        unsafe { HashOf::new(self.cas.write(&use_mailbox.encode())) }
     }
 
     fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
