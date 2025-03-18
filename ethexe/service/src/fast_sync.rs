@@ -332,11 +332,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
     debug_assert_eq!(completed, pending);
 
-    // FIXME: the block can have program states of a few future blocks
     db.set_block_program_states(latest_block, program_states);
     db.set_block_schedule(latest_block, schedule_restorer.build());
+    // TODO: verify queues are not important
     db.set_block_commitment_queue(latest_block, VecDeque::new());
-    db.set_block_codes_queue(latest_block, VecDeque::new()); // TODO
+    db.set_block_codes_queue(latest_block, VecDeque::new());
     unsafe {
         db.set_non_empty_block_outcome(latest_block);
     }
@@ -371,12 +371,13 @@ async fn collect_event_data(
             .ok_or_else(|| anyhow!("no events found for block {block}"))?;
 
         // we only care about the latest events
+        // NOTE: logic relies on events in original order
         for event in events.into_iter().rev() {
             match event {
                 BlockEvent::Mirror {
                     actor_id,
                     event: MirrorEvent::StateChanged { state_hash },
-                } => {
+                } if latest_block.is_some() => {
                     states.entry(actor_id).or_insert(state_hash);
                 }
                 BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
