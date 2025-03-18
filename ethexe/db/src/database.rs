@@ -161,7 +161,7 @@ impl Database {
             .put(&Key::SignedTransaction(tx_hash).to_bytes(), tx.encode());
     }
 
-    // TODO (gsobol): test this method
+    // TODO #4559: test this method
     pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> Result<bool> {
         let Some((latest_computed_block_hash, latest_computed_block_header)) =
             self.latest_computed_block()
@@ -376,7 +376,7 @@ impl CodesStorage for Database {
     }
 
     // TODO (gsobol): consider to move to another place
-    // TODO (gsobol): test this method
+    // TODO #4559: test this method
     fn program_ids(&self) -> BTreeSet<ProgramId> {
         let key_prefix = Key::ProgramToCodeId(Default::default()).prefix();
         self.kv

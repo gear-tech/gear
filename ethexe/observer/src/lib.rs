@@ -114,11 +114,11 @@ struct RuntimeConfig {
     block_time: Duration,
 }
 
-// TODO (gsobol): make tests for observer service
+// TODO #4552: make tests for observer service
 pub struct ObserverService {
     provider: RootProvider,
     db: Database,
-    // TODO (gsobol): consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
+    // TODO #4561: consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
     subscription: Subscription<Header>,
 
@@ -208,7 +208,7 @@ impl ObserverService {
         eth_cfg: &EthereumConfig,
         max_sync_depth: u32,
         db: Database,
-        // TODO (gsobol): blobs reader should be provided by the caller always.
+        // TODO #4561: blobs reader should be provided by the caller always.
         blobs_reader: Option<Arc<dyn BlobReader>>,
     ) -> Result<Self> {
         let EthereumConfig {
@@ -254,7 +254,7 @@ impl ObserverService {
                 router_address: *router_address,
                 wvara_address,
                 max_sync_depth,
-                // TODO (gsobol): make this configurable. Important: must be greater than 1.
+                // TODO #4562: make this configurable. Important: must be greater than 1.
                 batched_sync_depth: 2,
                 block_time: *block_time,
             },
@@ -266,7 +266,7 @@ impl ObserverService {
         })
     }
 
-    // TODO (gsobol): this is a temporary solution.
+    // TODO #4563: this is a temporary solution.
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
     async fn pre_process_genesis_for_db(
