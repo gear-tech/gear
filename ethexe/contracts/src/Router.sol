@@ -88,7 +88,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         // Skipping validators1 copying - means we forget election results
         // if an election is already done for the next era.
         _resetValidators(
-            oldRouter.validationSettings.validators0,
+            newRouter.validationSettings.validators0,
             Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
             SSTORE2.read(Gear.currentEraValidators(oldRouter).verifiableSecretSharingCommitmentPointer),
             Gear.currentEraValidators(oldRouter).list,
