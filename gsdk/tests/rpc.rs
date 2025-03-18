@@ -215,7 +215,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
     let git_commit_hash = || -> Cow<str> {
         // This code is taken from
         // https://github.com/paritytech/substrate/blob/ae1a608c91a5da441a0ee7c26a4d5d410713580d/utils/build-script-utils/src/version.rs#L21
-        let commit = if let Ok(hash) = std::env::var("SUBSTRATE_CLI_GIT_COMMIT_HASH") {
+        if let Ok(hash) = std::env::var("SUBSTRATE_CLI_GIT_COMMIT_HASH") {
             Cow::from(hash.trim().to_owned())
         } else {
             // We deliberately set the length here to `11` to ensure that
@@ -238,8 +238,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
                     Cow::from("unknown")
                 }
             }
-        };
-        commit
+        }
     };
 
     // This test relies on the fact the node has been built from the same commit hash

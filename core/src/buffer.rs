@@ -45,7 +45,7 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let len = self.0.len();
-        let median = (len + 1) / 2;
+        let median = len.div_ceil(2);
 
         let mut e1 = median;
         let mut s2 = median;
@@ -78,6 +78,14 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         core::fmt::Display::fmt(self, f)
+    }
+}
+
+impl<T: Clone, E: Default, const N: usize> TryFrom<&[T]> for LimitedVec<T, E, N> {
+    type Error = E;
+    fn try_from(x: &[T]) -> Result<Self, Self::Error> {
+        (x.len() <= N).then_some(()).ok_or_else(E::default)?;
+        Ok(Self(Vec::from(x), PhantomData))
     }
 }
 

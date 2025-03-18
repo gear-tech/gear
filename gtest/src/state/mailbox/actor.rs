@@ -56,7 +56,7 @@ impl<'a> ActorMailbox<'a> {
     /// Sends user reply message.
     ///
     /// Same as [`Self::reply_bytes`], but payload is encoded
-    /// in a *partiy-scale-codec* format.
+    /// in a *parity-scale-codec* format.
     pub fn reply(
         &self,
         log: Log,

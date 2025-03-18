@@ -166,6 +166,7 @@ impl OngoingRequest {
         response
     }
 
+    #[allow(clippy::result_large_err)]
     fn inner_complete(
         mut self,
         peer: PeerId,
@@ -185,6 +186,7 @@ impl OngoingRequest {
     /// Try to bring the request to the complete state.
     ///
     /// Returns `Err(self)` if response validation is failed or response is incomplete.
+    #[allow(clippy::result_large_err)]
     fn try_complete(mut self, peer: PeerId, response: Response) -> Result<PeerResponse, Self> {
         self.tried_peers.insert(peer);
 

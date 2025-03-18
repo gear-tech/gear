@@ -52,7 +52,7 @@ impl Cli {
 
     fn file_params(&self) -> Result<Option<Params>> {
         Ok(match &self.cfg {
-            Some(ref path_str) if path_str == "none" => None,
+            Some(path_str) if path_str == "none" => None,
             Some(path) => {
                 let path = PathBuf::from(path);
 

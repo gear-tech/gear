@@ -22,7 +22,6 @@
 
 use crate::{events::BlockEvent, gear::StateTransition};
 use alloc::{
-    boxed::Box,
     collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
 };
@@ -66,7 +65,7 @@ impl BlockHeader {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode)]
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct CodeInfo {
     pub timestamp: u64,
     pub tx_hash: H256,
@@ -75,46 +74,38 @@ pub struct CodeInfo {
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
 pub trait BlockMetaStorage: Send + Sync {
-    // TODO (gsobol): remove header info (already in BlocksOnChainData)
-    fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
-    fn set_block_header(&self, block_hash: H256, header: BlockHeader);
-
-    // TODO (gsobol): rename to block_computed or block_completed
-    fn block_end_state_is_valid(&self, block_hash: H256) -> Option<bool>;
-    fn set_block_end_state_is_valid(&self, block_hash: H256, is_valid: bool);
-
-    // TODO (gsobol): consider to remove, because emptiness can be identified by the absence of outcomes
-    fn block_is_empty(&self, block_hash: H256) -> Option<bool>;
-    fn set_block_is_empty(&self, block_hash: H256, is_empty: bool);
+    fn block_computed(&self, block_hash: H256) -> bool;
+    fn set_block_computed(&self, block_hash: H256);
 
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
 
-    // TODO (gsobol): consider to rename to previous_commitment_block
-    fn previous_committed_block(&self, block_hash: H256) -> Option<H256>;
-    fn set_previous_committed_block(&self, block_hash: H256, prev_commitment: H256);
+    fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>>;
+    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>);
 
-    // TODO (gsobol): start states and schedule should be removed
-    fn block_start_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_start_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
+    fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
+    fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
 
-    fn block_end_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_end_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
+    fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
+    fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
+    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool> {
+        self.block_outcome(block_hash)
+            .map(|outcome| outcome.is_empty())
+    }
 
-    fn latest_valid_block(&self) -> Option<(H256, BlockHeader)>;
-    fn set_latest_valid_block(&self, block_hash: H256, header: BlockHeader);
+    fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
+    fn set_block_schedule(&self, block_hash: H256, map: Schedule);
 
-    fn block_start_schedule(&self, block_hash: H256) -> Option<Schedule>;
-    fn set_block_start_schedule(&self, block_hash: H256, map: Schedule);
-
-    fn block_end_schedule(&self, block_hash: H256) -> Option<Schedule>;
-    fn set_block_end_schedule(&self, block_hash: H256, map: Schedule);
+    fn latest_computed_block(&self) -> Option<(H256, BlockHeader)>;
+    fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader);
 }
 
 pub trait CodesStorage: Send + Sync {
+    fn original_code_exists(&self, code_id: CodeId) -> bool;
+
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
     fn set_original_code(&self, code: &[u8]) -> CodeId;
 
@@ -125,29 +116,19 @@ pub trait CodesStorage: Send + Sync {
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
 
-    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo>;
-    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo);
-
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
 
 pub trait OnChainStorage: Send + Sync {
-    fn clone_boxed(&self) -> Box<dyn OnChainStorage>;
-
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
-    fn set_block_header(&self, block_hash: H256, header: &BlockHeader);
+    fn set_block_header(&self, block_hash: H256, header: BlockHeader);
 
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
 
-    fn original_code_exists(&self, code_id: CodeId) -> bool;
-
-    fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
-    fn set_original_code(&self, code_id: CodeId, code: &[u8]);
-
-    fn code_info(&self, code_id: CodeId) -> Option<CodeInfo>;
-    fn set_code_info(&self, code_id: CodeId, code_info: CodeInfo);
+    fn code_blob_info(&self, code_id: CodeId) -> Option<CodeInfo>;
+    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeInfo);
 
     fn block_is_synced(&self, block_hash: H256) -> bool;
     fn set_block_is_synced(&self, block_hash: H256);
