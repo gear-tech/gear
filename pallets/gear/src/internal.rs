@@ -695,10 +695,6 @@ where
         let gas_for_delay = delay_hold.lock_amount();
 
         let interval_finish = if to_user {
-            // Querying `MailboxThreshold`, that represents minimal amount of gas
-            // for message to be added to mailbox.
-            let threshold = MAILBOX_THRESHOLD;
-
             // Figuring out gas limit for insertion.
             //
             // In case of sending with gas, we use applied gas limit, otherwise
@@ -723,14 +719,15 @@ where
                     // Here we subtract gas for delay from gas limit to prevent
                     // case when gasless message steal threshold from gas for
                     // delay payment and delay payment becomes insufficient.
-                    (gas_limit.saturating_sub(gas_for_delay) >= threshold).then_some(threshold)
+                    (gas_limit.saturating_sub(gas_for_delay) >= MAILBOX_THRESHOLD)
+                        .then_some(MAILBOX_THRESHOLD)
                 })
                 .unwrap_or_default();
 
             // Message is going to be inserted into mailbox.
             //
             // No hold bound checks required, because gas_limit isn't less than threshold.
-            to_mailbox = !dispatch.is_reply() && gas_limit >= threshold;
+            to_mailbox = !dispatch.is_reply() && gas_limit >= MAILBOX_THRESHOLD;
             let gas_amount = if to_mailbox {
                 // Cutting gas for storing in mailbox.
                 gas_for_delay.saturating_add(gas_limit)
@@ -919,9 +916,6 @@ where
         message: Message,
         reservation: Option<ReservationId>,
     ) {
-        // Querying `MailboxThreshold`, that represents minimal amount of gas
-        // for message to be added to mailbox.
-        let threshold = MAILBOX_THRESHOLD;
         let msg_id = reservation
             .map(GasNodeId::Reservation)
             .unwrap_or_else(|| origin_msg.into());
@@ -944,9 +938,9 @@ where
                     unreachable!("{err_msg}");
                 });
 
-                // If available gas is greater then threshold,
-                // than threshold can be used.
-                (gas_limit >= threshold).then_some(threshold)
+                // If available gas is greater than threshold,
+                // then threshold can be used. Threshold represents the minimal amount of gas
+                (gas_limit >= MAILBOX_THRESHOLD).then_some(MAILBOX_THRESHOLD)
             })
             .unwrap_or_default();
 
@@ -985,7 +979,7 @@ where
         });
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
-        let expiration = if message.details().is_none() && gas_limit >= threshold {
+        let expiration = if message.details().is_none() && gas_limit >= MAILBOX_THRESHOLD {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 

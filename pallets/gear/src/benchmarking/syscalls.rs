@@ -316,9 +316,6 @@ where
         let repetitions = r;
         let res_offset = COMMON_OFFSET;
 
-        // It is not allowed to reserve less than mailbox threshold
-        let mailbox_threshold = MAILBOX_THRESHOLD;
-
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SyscallName::ReserveGas],
@@ -327,7 +324,8 @@ where
                 res_offset,
                 &[
                     // gas amount
-                    InstrI64Const(mailbox_threshold),
+                    // it is not allowed to reserve less than mailbox threshold
+                    InstrI64Const(MAILBOX_THRESHOLD),
                     // duration
                     InstrI32Const(1),
                 ],
