@@ -332,15 +332,14 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
     debug_assert_eq!(completed, pending);
 
-    db.set_block_program_states(latest_block, program_states);
-    db.set_block_schedule(latest_block, schedule_restorer.restore());
-    // TODO: verify queues are not important
     db.set_block_commitment_queue(latest_block, VecDeque::new());
     db.set_block_codes_queue(latest_block, VecDeque::new());
+
+    db.set_block_program_states(latest_block, program_states);
+    db.set_block_schedule(latest_block, schedule_restorer.restore());
     unsafe {
         db.set_non_empty_block_outcome(latest_block);
     }
-    // and `previous_block` is committed too
     db.set_previous_not_empty_block(latest_block, previous_block.unwrap_or_else(H256::zero));
     db.set_block_computed(latest_block);
     db.set_latest_computed_block(latest_block, latest_block_header);
@@ -371,7 +370,7 @@ async fn collect_event_data(
             .ok_or_else(|| anyhow!("no events found for block {block}"))?;
 
         // we only care about the latest events
-        // NOTE: logic relies on events in original order
+        // NOTE: logic relies on events in order as they are emitted on Ethereum
         for event in events.into_iter().rev() {
             match event {
                 BlockEvent::Mirror {
