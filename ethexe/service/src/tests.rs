@@ -1475,10 +1475,11 @@ mod utils {
                 }
                 None => {
                     let anvil = if continuous_block_generation {
-                        Anvil::new().block_time(block_time.as_secs()).spawn()
+                        Anvil::new().block_time(block_time.as_secs())
                     } else {
-                        Anvil::new().spawn()
+                        Anvil::new()
                     };
+                    let anvil = anvil.arg("--slots-in-an-epoch=1").spawn();
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
                 }
