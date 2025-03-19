@@ -46,6 +46,76 @@ use std::{
     mem,
 };
 
+struct EventData {
+    program_states: BTreeMap<ActorId, H256>,
+    program_code_ids: Vec<(ActorId, CodeId)>,
+    latest_block: H256,
+    previous_block: Option<H256>,
+}
+
+impl EventData {
+    async fn collect(db: &Database, highest_block: H256) -> Result<Self> {
+        let mut program_states = BTreeMap::new();
+        let mut program_code_ids = Vec::new();
+        let mut previous_block = None;
+        let mut latest_block = None;
+
+        let mut block = highest_block;
+        while !db.block_computed(block) {
+            let events = db
+                .block_events(block)
+                .ok_or_else(|| anyhow!("no events found for block {block}"))?;
+
+            // we only care about the latest events
+            // NOTE: logic relies on events in order as they are emitted on Ethereum
+            for event in events.into_iter().rev() {
+                match event {
+                    BlockEvent::Mirror {
+                        actor_id,
+                        event: MirrorEvent::StateChanged { state_hash },
+                    } if latest_block.is_some() => {
+                        program_states.entry(actor_id).or_insert(state_hash);
+                    }
+                    BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
+                        if latest_block.is_some() {
+                            previous_block.get_or_insert(hash);
+                        } else {
+                            latest_block = Some(hash);
+                        }
+                    }
+                    BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
+                        program_code_ids.push((actor_id, code_id));
+                    }
+                    _ => {}
+                }
+            }
+
+            let header = OnChainStorage::block_header(db, block)
+                .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
+            let parent = header.parent_hash;
+            block = parent;
+        }
+
+        let latest_block = latest_block.context("no blocks committed")?;
+
+        #[cfg(debug_assertions)]
+        if let Some(previous_block) = previous_block {
+            let latest_block_header = OnChainStorage::block_header(db, latest_block)
+                .expect("observer must fulfill database");
+            let previous_block_header = OnChainStorage::block_header(db, previous_block)
+                .expect("observer must fulfill database");
+            assert!(previous_block_header.height < latest_block_header.height);
+        }
+
+        Ok(Self {
+            program_states,
+            program_code_ids,
+            latest_block,
+            previous_block,
+        })
+    }
+}
+
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 enum Request {
     ProgramState {
@@ -139,12 +209,16 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let highest_block = observer
         .provider()
-        .get_block(BlockId::Number(BlockNumberOrTag::Latest))
+        // we get finalized block to avoid block reorganization
+        // because we restore database only for the latest block of a chain,
+        // and thus the reorganization can lead us to an empty block
+        .get_block(BlockId::Number(BlockNumberOrTag::Finalized))
         .await
         .context("failed to get latest block")?
         .expect("latest block always exist");
     let highest_block = H256(highest_block.header.hash.0);
 
+    log::info!("Syncing chain head {highest_block}");
     observer.force_sync_block(highest_block).await?;
     while let Some(event) = observer.next().await {
         if let ObserverEvent::BlockSynced(data) = event? {
@@ -153,8 +227,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
     }
 
-    let (program_states, program_code_ids, latest_block, previous_block) =
-        collect_event_data(db, highest_block).await?;
+    let event_data = EventData::collect(db, highest_block).await?;
+    let latest_block = event_data.latest_block;
     let latest_block_header =
         OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
 
@@ -162,12 +236,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
     // initially fill `BufRequests` and database
     {
-        for (&program_id, &state) in &program_states {
+        for (&program_id, &state) in &event_data.program_states {
             requests.add(state, Request::ProgramState { program_id });
         }
 
         let mut codes_to_receive = HashSet::new();
-        for (program_id, code_id) in program_code_ids {
+        for (program_id, code_id) in event_data.program_code_ids {
             db.set_program_code_id(program_id, code_id);
             codes_to_receive.insert(code_id);
         }
@@ -335,80 +409,19 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     db.set_block_commitment_queue(latest_block, VecDeque::new());
     db.set_block_codes_queue(latest_block, VecDeque::new());
 
-    db.set_block_program_states(latest_block, program_states);
+    db.set_block_program_states(latest_block, event_data.program_states);
     db.set_block_schedule(latest_block, schedule_restorer.restore());
     unsafe {
         db.set_non_empty_block_outcome(latest_block);
     }
-    db.set_previous_not_empty_block(latest_block, previous_block.unwrap_or_else(H256::zero));
+    db.set_previous_not_empty_block(
+        latest_block,
+        event_data.previous_block.unwrap_or_else(H256::zero),
+    );
     db.set_block_computed(latest_block);
     db.set_latest_computed_block(latest_block, latest_block_header);
 
     log::info!("Fast synchronization done");
 
     Ok(())
-}
-
-async fn collect_event_data(
-    db: &Database,
-    highest_block: H256,
-) -> Result<(
-    BTreeMap<ActorId, H256>,
-    Vec<(ActorId, CodeId)>,
-    H256,
-    Option<H256>,
-)> {
-    let mut states = BTreeMap::new();
-    let mut program_code_ids = Vec::new();
-    let mut previous_block = None;
-    let mut latest_block = None;
-
-    let mut block = highest_block;
-    while !db.block_computed(block) {
-        let events = db
-            .block_events(block)
-            .ok_or_else(|| anyhow!("no events found for block {block}"))?;
-
-        // we only care about the latest events
-        // NOTE: logic relies on events in order as they are emitted on Ethereum
-        for event in events.into_iter().rev() {
-            match event {
-                BlockEvent::Mirror {
-                    actor_id,
-                    event: MirrorEvent::StateChanged { state_hash },
-                } if latest_block.is_some() => {
-                    states.entry(actor_id).or_insert(state_hash);
-                }
-                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
-                    if latest_block.is_some() {
-                        previous_block.get_or_insert(hash);
-                    } else {
-                        latest_block = Some(hash);
-                    }
-                }
-                BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
-                    program_code_ids.push((actor_id, code_id));
-                }
-                _ => {}
-            }
-        }
-
-        let header = OnChainStorage::block_header(db, block)
-            .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
-        let parent = header.parent_hash;
-        block = parent;
-    }
-
-    let latest_block = latest_block.context("no blocks committed")?;
-
-    #[cfg(debug_assertions)]
-    if let Some(previous_block) = previous_block {
-        let latest_block_header =
-            OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
-        let previous_block_header = OnChainStorage::block_header(db, previous_block)
-            .expect("observer must fulfill database");
-        assert!(previous_block_header.height < latest_block_header.height);
-    }
-
-    Ok((states, program_code_ids, latest_block, previous_block))
 }
