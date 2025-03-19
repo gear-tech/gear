@@ -39,7 +39,7 @@ use std::{
     sync::Arc,
 };
 
-// TODO (gsobol): make tests for ChainSync
+// TODO #4552: make tests for ChainSync
 pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
     pub provider: RootProvider,
     pub db: DB,
@@ -206,7 +206,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
     }
 
     async fn load_codes(&self, codes: impl Iterator<Item = CodeId>) -> Result<()> {
-        // TODO (gsobol): consider to change this behaviour of loading already validated codes.
+        // TODO #4564: consider to change this behaviour of loading already validated codes.
         // Should be done with ObserverService::codes_futures together.
         // May be we should use futures_bounded::FuturesMap for this.
         let codes_futures = FuturesUnordered::new();

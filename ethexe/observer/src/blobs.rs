@@ -140,7 +140,7 @@ impl BlobReader for ConsensusLayerBlobReader {
 #[derive(Clone)]
 pub struct MockBlobReader {
     transactions: Arc<RwLock<HashMap<H256, Vec<u8>>>>,
-    // TODO (gsobol): remove block_time here, because it's useless for mock
+    // TODO #4560: remove block_time here, because it's useless for mock
     block_time: Duration,
 }
 
