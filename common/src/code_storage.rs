@@ -28,15 +28,15 @@ pub enum Error {
 
 /// Trait to work with program binary codes in a storage.
 pub trait CodeStorage {
-    type InstrumentedCodeStorage: MapStorage<Key = CodeId, Value = InstrumentedCode>;
-    type OriginalCodeStorage: MapStorage<Key = CodeId, Value = Vec<u8>>;
-    type CodeMetadataStorage: MapStorage<Key = CodeId, Value = CodeMetadata>;
+    type InstrumentedCodeMap: MapStorage<Key = CodeId, Value = InstrumentedCode>;
+    type OriginalCodeMap: MapStorage<Key = CodeId, Value = Vec<u8>>;
+    type CodeMetadataMap: MapStorage<Key = CodeId, Value = CodeMetadata>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
-        Self::CodeMetadataStorage::clear();
-        Self::OriginalCodeStorage::clear();
-        Self::InstrumentedCodeStorage::clear();
+        Self::CodeMetadataMap::clear();
+        Self::OriginalCodeMap::clear();
+        Self::InstrumentedCodeMap::clear();
     }
 
     /// Add the code to the storage.
@@ -44,13 +44,13 @@ pub trait CodeStorage {
         let (code, code_id) = code_and_id.into_parts();
         let (original_code, instrumented_code, code_metadata) = code.into_parts();
 
-        Self::InstrumentedCodeStorage::mutate(code_id, |maybe| {
+        Self::InstrumentedCodeMap::mutate(code_id, |maybe| {
             if maybe.is_some() {
                 return Err(CodeStorageError::DuplicateItem);
             }
 
-            Self::OriginalCodeStorage::insert(code_id, original_code);
-            Self::CodeMetadataStorage::insert(code_id, code_metadata);
+            Self::OriginalCodeMap::insert(code_id, original_code);
+            Self::CodeMetadataMap::insert(code_id, code_metadata);
 
             *maybe = Some(instrumented_code);
             Ok(())
@@ -62,34 +62,34 @@ pub trait CodeStorage {
         code_id: CodeId,
         instrumented_code_and_metadata: InstrumentedCodeAndMetadata,
     ) {
-        Self::InstrumentedCodeStorage::insert(
+        Self::InstrumentedCodeMap::insert(
             code_id,
             instrumented_code_and_metadata.instrumented_code,
         );
-        Self::CodeMetadataStorage::insert(code_id, instrumented_code_and_metadata.metadata);
+        Self::CodeMetadataMap::insert(code_id, instrumented_code_and_metadata.metadata);
     }
 
     /// Update the corresponding metadata in the storage.
     fn update_code_metadata(code_id: CodeId, metadata: CodeMetadata) {
-        Self::CodeMetadataStorage::insert(code_id, metadata);
+        Self::CodeMetadataMap::insert(code_id, metadata);
     }
 
     /// Returns true if the code associated with given id exists.
     fn exists(code_id: CodeId) -> bool {
-        Self::InstrumentedCodeStorage::contains_key(&code_id)
+        Self::InstrumentedCodeMap::contains_key(&code_id)
     }
 
     /// Returns true if the code associated with given id was removed.
     ///
     /// If there is no code for the given id then false is returned.
     fn remove_code(code_id: CodeId) -> bool {
-        Self::InstrumentedCodeStorage::mutate(code_id, |maybe| {
+        Self::InstrumentedCodeMap::mutate(code_id, |maybe| {
             if maybe.is_none() {
                 return false;
             }
 
-            Self::OriginalCodeStorage::remove(code_id);
-            Self::CodeMetadataStorage::remove(code_id);
+            Self::OriginalCodeMap::remove(code_id);
+            Self::CodeMetadataMap::remove(code_id);
 
             *maybe = None;
             true
@@ -97,14 +97,14 @@ pub trait CodeStorage {
     }
 
     fn get_instrumented_code(code_id: CodeId) -> Option<InstrumentedCode> {
-        Self::InstrumentedCodeStorage::get(&code_id)
+        Self::InstrumentedCodeMap::get(&code_id)
     }
 
     fn get_original_code(code_id: CodeId) -> Option<Vec<u8>> {
-        Self::OriginalCodeStorage::get(&code_id)
+        Self::OriginalCodeMap::get(&code_id)
     }
 
     fn get_code_metadata(code_id: CodeId) -> Option<CodeMetadata> {
-        Self::CodeMetadataStorage::get(&code_id)
+        Self::CodeMetadataMap::get(&code_id)
     }
 }

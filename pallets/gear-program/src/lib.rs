@@ -296,9 +296,9 @@ pub mod pallet {
     );
 
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
-        type InstrumentedCodeStorage = InstrumentedCodeStorageWrap<T>;
-        type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
-        type CodeMetadataStorage = CodeMetadataStorageWrap<T>;
+        type InstrumentedCodeMap = InstrumentedCodeStorageWrap<T>;
+        type OriginalCodeMap = OriginalCodeStorageWrap<T>;
+        type CodeMetadataMap = CodeMetadataStorageWrap<T>;
     }
 
     impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {

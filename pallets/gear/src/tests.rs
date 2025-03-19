@@ -10164,9 +10164,7 @@ fn test_reinstrumentation_failure() {
         let _reset_guard = DynamicSchedule::mutate(|schedule| {
             // Insert new original code to cause re-instrumentation failure.
             let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
-            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
-                code_id, wasm,
-            );
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeMap::insert(code_id, wasm);
 
             schedule.instruction_weights.version = new_weights_version;
         });
@@ -10213,9 +10211,7 @@ fn test_init_reinstrumentation_failure() {
         let _reset_guard = DynamicSchedule::mutate(|schedule| {
             // Insert new original code to cause init re-instrumentation failure.
             let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
-            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
-                code_id, wasm,
-            );
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeMap::insert(code_id, wasm);
 
             schedule.instruction_weights.version = new_weights_version;
         });

@@ -53,13 +53,14 @@ enum Key {
 
     ProgramToCodeId(ProgramId) = 5,
     InstrumentedCode(u32, CodeId) = 6,
-    CodeUploadInfo(CodeId) = 7,
-    CodeValid(CodeId) = 8,
+    CodeMetadata(CodeId) = 7,
+    CodeUploadInfo(CodeId) = 8,
+    CodeValid(CodeId) = 9,
 
-    SignedTransaction(H256) = 9,
+    SignedTransaction(H256) = 10,
 
-    LatestComputedBlock = 10,
-    LatestSyncedBlockHeight = 11,
+    LatestComputedBlock = 11,
+    LatestSyncedBlockHeight = 12,
 }
 
 impl Key {
@@ -83,9 +84,9 @@ impl Key {
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
-            Self::CodeUploadInfo(code_id) | Self::CodeValid(code_id) => {
-                [prefix.as_ref(), code_id.as_ref()].concat()
-            }
+            Self::CodeMetadata(code_id)
+            | Self::CodeUploadInfo(code_id)
+            | Self::CodeValid(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
 
             Self::InstrumentedCode(runtime_id, code_id) => [
                 prefix.as_ref(),
@@ -413,7 +414,7 @@ impl CodesStorage for Database {
 
     fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata> {
         self.kv
-            .get(&KeyPrefix::CodeMetadata.one(code_id))
+            .get(&Key::CodeMetadata(code_id).to_bytes())
             .map(|data| {
                 CodeMetadata::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `CodeMetadata`")
@@ -422,7 +423,7 @@ impl CodesStorage for Database {
 
     fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata) {
         self.kv.put(
-            &KeyPrefix::CodeMetadata.one(code_id),
+            &Key::CodeMetadata(code_id).to_bytes(),
             code_metadata.encode(),
         );
     }
@@ -631,7 +632,7 @@ impl OnChainStorage for Database {
 mod tests {
     use super::*;
     use ethexe_common::{events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage};
-    use gear_core::code::InstantiatedSectionSizes;
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
     fn test_offchain_transaction() {
@@ -767,23 +768,54 @@ mod tests {
 
         let runtime_id = 1;
         let code_id = CodeId::default();
-        let instrumented_code = unsafe {
-            InstrumentedCode::new_unchecked(
-                vec![1, 2, 3, 4],
-                2,
-                Default::default(),
-                0.into(),
-                None,
-                InstantiatedSectionSizes::EMPTY,
-                1,
-            )
-        };
+        let section_sizes = InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0);
+        let instrumented_code = InstrumentedCode::new(vec![1, 2, 3, 4], section_sizes);
         db.set_instrumented_code(runtime_id, code_id, instrumented_code.clone());
         assert_eq!(
             db.instrumented_code(runtime_id, code_id)
                 .as_ref()
-                .map(|c| c.code()),
-            Some(instrumented_code.code())
+                .map(|c| c.bytes()),
+            Some(instrumented_code.bytes())
+        );
+    }
+
+    #[test]
+    fn test_code_metadata() {
+        let db = Database::memory();
+
+        let code_id = CodeId::default();
+        let code_metadata = CodeMetadata::new(
+            1,
+            2,
+            Default::default(),
+            0.into(),
+            None,
+            InstrumentationStatus::Instrumented(3),
+        );
+        db.set_code_metadata(code_id, code_metadata.clone());
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.original_code_len()),
+            Some(code_metadata.original_code_len())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instrumented_code_len()),
+            Some(code_metadata.instrumented_code_len())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instrumentation_status()),
+            Some(code_metadata.instrumentation_status())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instruction_weights_version()),
+            Some(code_metadata.instruction_weights_version())
         );
     }
 

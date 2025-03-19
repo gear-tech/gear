@@ -119,7 +119,6 @@ pub trait CodesStorage: Send + Sync {
     fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
     fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
 
-
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
