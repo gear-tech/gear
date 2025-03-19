@@ -14,7 +14,6 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
-// TODO (gsobol): append middleware for slashing support.
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
@@ -65,6 +64,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         );
     }
 
+    // TODO #4558: make reinitialization test.
     function reinitialize() public onlyOwner reinitializer(2) {
         Storage storage oldRouter = _router();
 
@@ -84,11 +84,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             oldRouter.validationSettings.signingThresholdPercentage;
 
         // Copy validators from the old router.
-        // TODO (gsobol): consider what to do. Maybe we should start reelection process.
+        // TODO #4557: consider what to do. Maybe we should start reelection process.
         // Skipping validators1 copying - means we forget election results
         // if an election is already done for the next era.
         _resetValidators(
-            oldRouter.validationSettings.validators0,
+            newRouter.validationSettings.validators0,
             Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
             SSTORE2.read(Gear.currentEraValidators(oldRouter).verifiableSecretSharingCommitmentPointer),
             Gear.currentEraValidators(oldRouter).list,

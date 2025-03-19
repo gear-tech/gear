@@ -43,7 +43,7 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     [b1, b2, b3, b4, b5, b6]
 }
 
-// TODO: move to submodule.
+// TODO #4547: move to submodule.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockData {
     pub hash: H256,

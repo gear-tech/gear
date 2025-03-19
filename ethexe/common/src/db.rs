@@ -18,7 +18,7 @@
 
 //! ethexe common db types and traits.
 
-// TODO (gsobol): move types to another module(s)
+// TODO #4547: move types to another module(s)
 
 use crate::{events::BlockEvent, gear::StateTransition};
 use alloc::{

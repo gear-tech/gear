@@ -66,8 +66,8 @@ fn process_observer_event() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
-        .expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
@@ -141,8 +141,8 @@ fn handle_new_code_valid() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
-        .expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
     init_genesis_block(&mut processor);
 
@@ -185,8 +185,8 @@ fn handle_new_code_invalid() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
-        .expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
     init_genesis_block(&mut processor);
 
@@ -215,7 +215,7 @@ fn ping_pong() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
@@ -294,7 +294,7 @@ fn async_and_ping() {
     let user_id = ActorId::from(10);
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
@@ -432,7 +432,7 @@ fn many_waits() {
     let (_, code) = wat_to_wasm(wat);
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);

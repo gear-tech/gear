@@ -47,9 +47,8 @@ pub enum ComputeEvent {
     CodeProcessed(CodeCommitment),
 }
 
-// TODO (gsobol): add state monitoring in prometheus
-// TODO (gsobol): append off-chain transactions handling
-// TODO (gsobol) asap: add tests for compute service
+// TODO #4548: add state monitoring in prometheus
+// TODO #4549: add tests for compute service
 pub struct ComputeService {
     db: Database,
     processor: Processor,
@@ -93,7 +92,7 @@ impl FusedStream for ComputeService {
 }
 
 impl ComputeService {
-    // TODO (gsobol): consider to create Processor inside ComputeService
+    // TODO #4550: consider to create Processor inside ComputeService
     pub fn new(db: Database, processor: Processor) -> Self {
         Self {
             db,
@@ -211,7 +210,7 @@ impl ChainHeadProcessContext {
 
         self.db.set_block_outcome(block, outcomes);
 
-        // TODO (gsobol): move set_program_states here from processor
+        // TODO #4551: move set_program_states here from processor
 
         // Set block as valid - means state db has all states for the end of the block
         self.db.set_block_computed(block);
@@ -311,7 +310,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_codes_queue_propagation() {
-        let db = Database::memory(Default::default());
+        let db = Database::memory();
 
         // Prepare test data
         let parent_block = H256::random();

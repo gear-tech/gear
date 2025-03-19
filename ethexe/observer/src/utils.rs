@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO (gsobol): add tests for utils
+// TODO #4552: add tests for observer utils
 
 use crate::{BlobData, BlobReader};
 use alloy::{

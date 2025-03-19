@@ -23,7 +23,7 @@ use ethexe_network::NetworkConfig;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
-use ethexe_signer::PublicKey;
+use ethexe_signer::{Address, PublicKey};
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug)]
@@ -62,6 +62,15 @@ pub struct NodeConfig {
     pub virtual_threads: usize,
     pub dev: bool,
     pub fast_sync: bool,
+}
+
+impl NodeConfig {
+    /// Return the path to the database for the given router address.
+    pub fn database_path_for(&self, router_address: Address) -> PathBuf {
+        let mut path = self.database_path.clone();
+        path.push(router_address.to_string());
+        path
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
