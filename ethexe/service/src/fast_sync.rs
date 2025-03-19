@@ -129,17 +129,27 @@ impl EventData {
     }
 }
 
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum Request {
-    ProgramState,
+    ProgramState {
+        program_ids: HashSet<ActorId>,
+    },
     MemoryPages,
     MemoryPagesRegions,
-    Waitlist,
-    Mailbox,
-    UserMailbox,
-    DispatchStash,
-    /// We don't care about an actual type of the request
-    /// because we will just insert data into the database
+    Waitlist {
+        program_ids: HashSet<ActorId>,
+    },
+    Mailbox {
+        program_ids: HashSet<ActorId>,
+    },
+    UserMailbox {
+        program_ids: HashSet<ActorId>,
+        user_id: ActorId,
+    },
+    DispatchStash {
+        program_ids: HashSet<ActorId>,
+    },
+    /// Any data we only insert into the database.
     Data,
 }
 
@@ -158,8 +168,9 @@ struct BufRequests {
 }
 
 impl BufRequests {
-    fn add(&mut self, hash: H256, request: Request) {
-        self.buffered_requests.insert(hash, request);
+    fn add(&mut self, hash: H256, metadata: Request) {
+        let old = self.buffered_requests.insert(hash, metadata);
+        debug_assert_eq!(old, None);
     }
 
     /// Returns `true` if there are pending requests
@@ -179,9 +190,9 @@ impl BufRequests {
     }
 
     fn complete(&mut self, request_id: RequestId, hash: H256) -> Option<Request> {
-        let requests = self.pending_requests.remove(&(request_id, hash))?;
+        let request = self.pending_requests.remove(&(request_id, hash))?;
         self.total_completed_requests += 1;
-        Some(requests)
+        Some(request)
     }
 
     /// (total completed request, total pending requests)
@@ -229,14 +240,19 @@ async fn sync_from_network(
 ) -> Schedule {
     let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
     let mut requests = BufRequests::default();
-    let mut states = HashMap::<H256, HashSet<ActorId>>::new();
-    let mut mailbox_states = HashMap::new();
-    for (&program_id, &state) in program_states {
-        requests.add(state, Request::ProgramState);
-        states.entry(state).or_default().insert(program_id);
-    }
-    requests.request(network);
 
+    let program_states: HashMap<H256, HashSet<ActorId>> =
+        program_states
+            .iter()
+            .fold(HashMap::new(), |mut acc, (&program_id, &state)| {
+                acc.entry(state).or_default().insert(program_id);
+                acc
+            });
+    for (state, program_ids) in program_states {
+        requests.add(state, Request::ProgramState { program_ids });
+    }
+
+    requests.request(network);
     while let Some(event) = network.next().await {
         let NetworkEvent::DbResponse { request_id, result } = event else {
             continue;
@@ -255,7 +271,7 @@ async fn sync_from_network(
                     db.write(&data);
 
                     match request {
-                        Request::ProgramState => {
+                        Request::ProgramState { program_ids } => {
                             let state: ProgramState = Decode::decode(&mut &data[..])
                                 .expect("`db-sync` must validate data");
 
@@ -288,21 +304,29 @@ async fn sync_from_network(
                                 requests.add(queue_hash, Request::Data);
                             }
 
-                            let program_ids = states.remove(&hash).expect("unknown program state");
-
                             if let Some(waitlist_hash) = waitlist_hash.hash() {
-                                requests.add(waitlist_hash, Request::Waitlist);
-                                states
-                                    .entry(waitlist_hash)
-                                    .insert_entry(program_ids.clone());
+                                requests.add(
+                                    waitlist_hash,
+                                    Request::Waitlist {
+                                        program_ids: program_ids.clone(),
+                                    },
+                                );
                             }
                             if let Some(mailbox_hash) = mailbox_hash.hash() {
-                                requests.add(mailbox_hash, Request::Mailbox);
-                                states.entry(mailbox_hash).insert_entry(program_ids.clone());
+                                requests.add(
+                                    mailbox_hash,
+                                    Request::Mailbox {
+                                        program_ids: program_ids.clone(),
+                                    },
+                                );
                             }
                             if let Some(stash_hash) = stash_hash.hash() {
-                                requests.add(stash_hash, Request::DispatchStash);
-                                states.entry(stash_hash).insert_entry(program_ids.clone());
+                                requests.add(
+                                    stash_hash,
+                                    Request::DispatchStash {
+                                        program_ids: program_ids.clone(),
+                                    },
+                                );
                             }
                         }
                         Request::MemoryPages => {
@@ -329,37 +353,39 @@ async fn sync_from_network(
                                 requests.add(page_buf_hash, Request::Data);
                             }
                         }
-                        Request::Waitlist => {
+                        Request::Waitlist { program_ids } => {
                             let waitlist: Waitlist = Decode::decode(&mut &data[..])
                                 .expect("`db-sync` must validate data");
-                            let program_ids = states.remove(&hash).expect("unknown waitlist");
                             for program_id in program_ids {
                                 schedule_restorer.waitlist(program_id, &waitlist);
                             }
                         }
-                        Request::Mailbox => {
+                        Request::Mailbox { program_ids } => {
                             let mailbox: Mailbox = Decode::decode(&mut &data[..])
                                 .expect("`db-sync` must validate data");
-                            let program_ids = states.remove(&hash).expect("unknown mailbox");
                             for (&user_id, user_mailbox) in mailbox.as_ref() {
-                                requests.add(user_mailbox.hash(), Request::UserMailbox);
-                                mailbox_states
-                                    .insert(user_mailbox.hash(), (program_ids.clone(), user_id));
+                                requests.add(
+                                    user_mailbox.hash(),
+                                    Request::UserMailbox {
+                                        program_ids: program_ids.clone(),
+                                        user_id,
+                                    },
+                                );
                             }
                         }
-                        Request::UserMailbox => {
+                        Request::UserMailbox {
+                            program_ids,
+                            user_id,
+                        } => {
                             let user_mailbox: UserMailbox = Decode::decode(&mut &data[..])
                                 .expect("`db-sync` must validate data");
-                            let (program_ids, user_id) =
-                                mailbox_states.remove(&hash).expect("unknown user mailbox");
                             for program_id in program_ids {
                                 schedule_restorer.mailbox(program_id, user_id, &user_mailbox);
                             }
                         }
-                        Request::DispatchStash => {
+                        Request::DispatchStash { program_ids } => {
                             let stash: DispatchStash = Decode::decode(&mut &data[..])
                                 .expect("`db-sync` must validate data");
-                            let program_ids = states.remove(&hash).expect("unknown waitlist state");
                             for program_id in program_ids {
                                 schedule_restorer.stash(program_id, &stash);
                             }
