@@ -27,7 +27,7 @@ use ethexe_common::{
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::CodeCommitment,
 };
-use ethexe_compute::ComputeEvent;
+use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_network::{db_sync, db_sync::RequestId, NetworkEvent, NetworkService};
 use ethexe_observer::ObserverEvent;
@@ -49,6 +49,7 @@ use std::{
 struct EventData {
     program_states: BTreeMap<ActorId, H256>,
     program_code_ids: Vec<(ActorId, CodeId)>,
+    code_ids: HashSet<CodeId>,
     latest_block: H256,
     previous_block: Option<H256>,
 }
@@ -57,6 +58,7 @@ impl EventData {
     async fn collect(db: &Database, highest_block: H256) -> Result<Self> {
         let mut program_states = BTreeMap::new();
         let mut program_code_ids = Vec::new();
+        let mut code_ids = HashSet::new();
         let mut previous_block = None;
         let mut latest_block = None;
 
@@ -83,8 +85,18 @@ impl EventData {
                             latest_block = Some(hash);
                         }
                     }
-                    BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
+                    BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id })
+                        if latest_block.is_some() =>
+                    {
                         program_code_ids.push((actor_id, code_id));
+                    }
+                    BlockEvent::Router(RouterEvent::CodeGotValidated {
+                        code_id,
+                        valid: true,
+                    }) => {
+                        if !db.instrumented_code_exists(ethexe_runtime::VERSION, code_id) {
+                            code_ids.insert(code_id);
+                        }
                     }
                     _ => {}
                 }
@@ -110,6 +122,7 @@ impl EventData {
         Ok(Self {
             program_states,
             program_code_ids,
+            code_ids,
             latest_block,
             previous_block,
         })
@@ -192,6 +205,36 @@ impl BufRequests {
     }
 }
 
+async fn instrument_codes(
+    db: &Database,
+    compute: &mut ComputeService,
+    mut code_ids: HashSet<CodeId>,
+) -> Result<()> {
+    log::info!("Instrument {} codes", code_ids.len());
+
+    for &code_id in &code_ids {
+        let code_info = db
+            .code_blob_info(code_id)
+            .expect("observer must fulfill database");
+        let original_code = db
+            .original_code(code_id)
+            .expect("observer must fulfill database");
+        compute.receive_code(code_id, code_info.timestamp, original_code);
+    }
+
+    while let Some(event) = compute.next().await {
+        if let ComputeEvent::CodeProcessed(CodeCommitment { id, .. }) = event? {
+            code_ids.remove(&id);
+            if code_ids.is_empty() {
+                break;
+            }
+        }
+    }
+
+    log::info!("Instrumentation done");
+    Ok(())
+}
+
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
         observer,
@@ -221,53 +264,33 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     log::info!("Syncing chain head {highest_block}");
     observer.force_sync_block(highest_block).await?;
     while let Some(event) = observer.next().await {
-        if let ObserverEvent::BlockSynced(data) = event? {
-            debug_assert_eq!(highest_block, data.block_hash);
-            break;
+        match event? {
+            ObserverEvent::Blob(_blob) => {
+                unreachable!("no blob events should occur before chain head is synced")
+            }
+            ObserverEvent::Block(_) => {}
+            ObserverEvent::BlockSynced(data) => {
+                debug_assert_eq!(highest_block, data.block_hash);
+                break;
+            }
         }
     }
 
     let event_data = EventData::collect(db, highest_block).await?;
+
+    instrument_codes(db, compute, event_data.code_ids).await?;
+
     let latest_block = event_data.latest_block;
     let latest_block_header =
         OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
 
     let mut requests = BufRequests::default();
-    let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
-    // initially fill `BufRequests` and database
-    {
-        for (&program_id, &state) in &event_data.program_states {
-            requests.add(state, Request::ProgramState { program_id });
-        }
-
-        let mut codes_to_receive = HashSet::new();
-        for (program_id, code_id) in event_data.program_code_ids {
-            db.set_program_code_id(program_id, code_id);
-            codes_to_receive.insert(code_id);
-        }
-
-        log::info!("Instrument {} codes", codes_to_receive.len());
-        for &code_id in &codes_to_receive {
-            let code_info = db
-                .code_blob_info(code_id)
-                .expect("observer must fulfill database");
-            let original_code = db
-                .original_code(code_id)
-                .expect("observer must fulfill database");
-            compute.receive_code(code_id, code_info.timestamp, original_code);
-        }
-
-        while let Some(event) = compute.next().await {
-            if let ComputeEvent::CodeProcessed(CodeCommitment { id, .. }) = event? {
-                codes_to_receive.remove(&id);
-                if codes_to_receive.is_empty() {
-                    break;
-                }
-            }
-        }
-        log::info!("Instrumentation completed");
+    for (&program_id, &state) in &event_data.program_states {
+        requests.add(state, Request::ProgramState { program_id });
     }
     requests.request(network);
+
+    let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
 
     while let Some(event) = network.next().await {
         let NetworkEvent::DbResponse { request_id, result } = event else {
@@ -405,6 +428,10 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let (completed, pending) = requests.stats();
     log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
     debug_assert_eq!(completed, pending);
+
+    for (program_id, code_id) in event_data.program_code_ids {
+        db.set_program_code_id(program_id, code_id);
+    }
 
     db.set_block_commitment_queue(latest_block, VecDeque::new());
     db.set_block_codes_queue(latest_block, VecDeque::new());
