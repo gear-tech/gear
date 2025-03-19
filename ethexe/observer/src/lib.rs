@@ -19,9 +19,10 @@
 //! Ethereum state observer for ethexe.
 
 use alloy::{
-    providers::{Provider as _, ProviderBuilder, RootProvider},
+    providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
+    transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
 use ethexe_common::{db::OnChainStorage, SimpleBlockData};
@@ -56,6 +57,8 @@ pub use blobs::*;
 
 type BlobDownloadFuture = BoxFuture<'static, Result<BlobData>>;
 type SyncFuture = BoxFuture<'static, Result<(BlockSyncedData, Vec<(CodeId, CodeInfo)>)>>;
+type HeadersSubscriptionFuture =
+    BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -120,27 +123,44 @@ pub struct ObserverService {
     db: Database,
     // TODO #4561: consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
-    subscription: Subscription<Header>,
 
     config: RuntimeConfig,
-
     last_block_number: u32,
-
     headers_stream: SubscriptionStream<Header>,
     block_sync_queue: VecDeque<Header>,
+
     sync_future: Option<SyncFuture>,
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
+    subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
 impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(future) = self.subscription_future.as_mut() {
+            match future.poll_unpin(cx) {
+                Poll::Ready(Ok(subscription)) => self.headers_stream = subscription.into_stream(),
+                Poll::Ready(Err(e)) => {
+                    return Poll::Ready(Some(Err(anyhow!(
+                        "failed to create new headers stream: {e}"
+                    ))))
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+
         if let Poll::Ready(res) = self.headers_stream.poll_next_unpin(cx) {
             let Some(header) = res else {
-                // TODO (breathx): test resubscribe works.
-                log::warn!("Alloy headers stream ended, resubscribing");
-                self.headers_stream = self.subscription.resubscribe().into_stream();
+                log::warn!("Alloy headers stream ended. Creating a new one...");
+
+                // TODO: test creation a new subscription in case with Receiver becomes invalid.
+                // Subscption is a wrapper on top of tokio Receiver.
+                // When stream is terminated Receiver and Subscroption become invalid.
+                let provider = self.provider().clone();
+                self.subscription_future =
+                    Some(Box::pin(async move { provider.subscribe_blocks().await }));
+
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
             };
@@ -236,20 +256,18 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
-        let subscription = provider
-            .subscribe_blocks()
-            .await
-            .context("failed to subscribe blocks")?;
-
         Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
 
-        let headers_stream = subscription.resubscribe().into_stream();
+        let headers_stream = provider
+            .subscribe_blocks()
+            .await
+            .context("failed to subscribe blocks")?
+            .into_stream();
 
         Ok(Self {
             provider,
             db,
             blobs_reader,
-            subscription,
             config: RuntimeConfig {
                 router_address: *router_address,
                 wvara_address,
@@ -259,6 +277,7 @@ impl ObserverService {
                 block_time: *block_time,
             },
             last_block_number: 0,
+            subscription_future: None,
             headers_stream,
             codes_futures: Default::default(),
             block_sync_queue: Default::default(),
