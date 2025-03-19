@@ -305,6 +305,7 @@ impl ExtManager {
             }
         };
 
+        #[allow(clippy::large_enum_variant)]
         enum Exec {
             Notes(Vec<JournalNote>),
             ExecutableActor(

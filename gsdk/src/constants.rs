@@ -16,24 +16,56 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! gear api constants methods
-use crate::{result::Result, Api};
+//! Runtime constants query methods
+
+use crate::{metadata::runtime_types::gear_common::GasMultiplier, result::Result, Api};
 use parity_scale_codec::Decode;
+use sp_runtime::Percent;
+use subxt::utils::AccountId32;
 
 impl Api {
-    /// pallet gas constants
-    ///
-    /// Get gas limit.
-    pub fn gas_limit(&self) -> Result<u64> {
-        let addr = subxt::dynamic::constant("GearGas", "BlockGasLimit");
-        Ok(u64::decode(&mut self.constants().at(&addr)?.encoded())?)
+    /// Query constant
+    fn query_constant<D: Decode>(&self, pallet: &'static str, constant: &'static str) -> Result<D> {
+        let addr = subxt::dynamic::constant(pallet, constant);
+        D::decode(&mut self.constants().at(&addr)?.encoded()).map_err(Into::into)
     }
+}
 
-    /// pallet babe constant
-    ///
+// pallet-babe
+impl Api {
     /// Get expected block time.
     pub fn expected_block_time(&self) -> Result<u64> {
-        let addr = subxt::dynamic::constant("Babe", "ExpectedBlockTime");
-        Ok(u64::decode(&mut self.constants().at(&addr)?.encoded())?)
+        self.query_constant("Babe", "ExpectedBlockTime")
+    }
+}
+
+// pallet-gear-bank
+impl Api {
+    /// Get gas multiplier.
+    pub fn gas_multiplier(&self) -> Result<GasMultiplier<u128, u64>> {
+        self.query_constant("GearBank", "GasMultiplier")
+    }
+
+    /// Get treasury address set.
+    pub fn treasury_address(&self) -> Result<AccountId32> {
+        self.query_constant("GearBank", "TreasuryAddress")
+    }
+
+    /// Get treasury gas payouts fee percent.
+    pub fn treasury_gas_fee_share(&self) -> Result<Percent> {
+        self.query_constant("GearBank", "TreasuryGasFeeShare")
+    }
+
+    /// Get treasury tx fee percent.
+    pub fn treasury_tx_fee_share(&self) -> Result<Percent> {
+        self.query_constant("GearBank", "TreasuryTxFeeShare")
+    }
+}
+
+// pallet-gear-gas
+impl Api {
+    /// Get gas limit.
+    pub fn gas_limit(&self) -> Result<u64> {
+        self.query_constant("GearGas", "BlockGasLimit")
     }
 }

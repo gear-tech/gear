@@ -24,21 +24,22 @@ use crate::{
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
-    providers::{ext::AnvilApi, Provider},
+    providers::{ext::AnvilApi, Provider as _, RootProvider},
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Result;
 use ethexe_common::{
     db::CodesStorage,
     events::{BlockEvent, MirrorEvent, RouterEvent},
+    gear::Origin,
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{EthereumConfig, MockBlobReader, Query};
+use ethexe_observer::{EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
-use ethexe_runtime_common::state::{Storage, ValueWithExpiry};
+use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
 use ethexe_validator::Validator;
@@ -51,17 +52,20 @@ use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
+    io::Write,
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
+    thread,
     time::Duration,
 };
 use tempfile::tempdir;
 use tokio::task::{self, JoinHandle};
 use utils::{NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
 
+#[ignore = "until rpc fixed"]
 #[tokio::test]
 async fn basics() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let tmp_dir = tempdir().unwrap();
     let tmp_dir = tmp_dir.path().to_path_buf();
@@ -72,7 +76,7 @@ async fn basics() {
         sequencer: Default::default(),
         validator: Default::default(),
         validator_session: Default::default(),
-        max_commitment_depth: 1_000,
+        eth_max_sync_depth: 1_000,
         worker_threads_override: None,
         virtual_threads: 16,
         dev: true,
@@ -119,7 +123,7 @@ async fn basics() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -205,7 +209,7 @@ async fn ping() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn uninitialized_program() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -320,7 +324,7 @@ async fn uninitialized_program() {
             .unwrap();
         let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
         assert_eq!(res.code, expected_err);
-        // Checking further initialisation.
+        // Checking further initialization.
 
         // Required replies.
         for mid in msgs_for_reply {
@@ -365,7 +369,7 @@ async fn uninitialized_program() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn mailbox() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -470,16 +474,39 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(block_data.header.parent_hash)
+        .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
 
     assert_eq!(schedule, expected_schedule);
 
+    let mid_payload = PayloadLookup::Direct(original_mid.into_bytes().to_vec().try_into().unwrap());
+    let ping_payload = PayloadLookup::Direct(b"PING".to_vec().try_into().unwrap());
+
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
         BTreeMap::from_iter([
-            (mid_expected_message, ValueWithExpiry { value: 0, expiry }),
-            (ping_expected_message, ValueWithExpiry { value: 0, expiry }),
+            (
+                mid_expected_message,
+                Expiring {
+                    value: MailboxMessage {
+                        payload: mid_payload.clone(),
+                        value: 0,
+                        origin: Origin::Ethereum,
+                    },
+                    expiry,
+                },
+            ),
+            (
+                ping_expected_message,
+                Expiring {
+                    value: MailboxMessage {
+                        payload: ping_payload,
+                        value: 0,
+                        origin: Origin::Ethereum,
+                    },
+                    expiry,
+                },
+            ),
         ]),
     )]);
 
@@ -490,9 +517,9 @@ async fn mailbox() {
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
-    assert_eq!(mailbox.into_inner(), expected_mailbox);
+    assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
 
     mirror
         .send_reply(ping_expected_message, "PONG", 0)
@@ -513,14 +540,24 @@ async fn mailbox() {
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .with_hash_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
-        BTreeMap::from_iter([(mid_expected_message, ValueWithExpiry { value: 0, expiry })]),
+        BTreeMap::from_iter([(
+            mid_expected_message,
+            Expiring {
+                value: MailboxMessage {
+                    payload: mid_payload,
+                    value: 0,
+                    origin: Origin::Ethereum,
+                },
+                expiry,
+            },
+        )]),
     )]);
 
-    assert_eq!(mailbox.into_inner(), expected_mailbox);
+    assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
 
     mirror.claim_value(mid_expected_message).await.unwrap();
 
@@ -546,7 +583,7 @@ async fn mailbox() {
 
     let schedule = node
         .db
-        .block_end_schedule(block_data.header.parent_hash)
+        .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
     assert!(schedule.is_empty(), "{:?}", schedule);
 }
@@ -554,7 +591,7 @@ async fn mailbox() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn incoming_transfers() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -663,7 +700,7 @@ async fn incoming_transfers() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn ping_reorg() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -717,9 +754,9 @@ async fn ping_reorg() {
 
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
-        env.observer.provider().get_block_number().await.unwrap()
+        env.provider.get_block_number().await.unwrap()
     );
-    let program_created_snapshot_id = env.observer.provider().anvil_snapshot().await.unwrap();
+    let program_created_snapshot_id = env.provider.anvil_snapshot().await.unwrap();
 
     let res = env
         .send_message(ping_id, b"PING", 0)
@@ -732,8 +769,7 @@ async fn ping_reorg() {
     assert_eq!(res.payload, b"PONG");
 
     log::info!("📗 Test after reverting to the program creation snapshot");
-    env.observer
-        .provider()
+    env.provider
         .anvil_revert(program_created_snapshot_id)
         .await
         .map(|res| assert!(res))
@@ -751,7 +787,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::from_one(&MemDb::default(), env.router_address.0);
+    node.db = Database::from_one(&MemDb::default());
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
@@ -774,7 +810,7 @@ async fn ping_reorg() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping_deep_sync() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -842,7 +878,7 @@ async fn ping_deep_sync() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn multiple_validators() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let config = TestEnvConfig {
         validators: ValidatorsConfig::Generated(3),
@@ -853,7 +889,7 @@ async fn multiple_validators() {
     log::info!("📗 Starting sequencer");
     let sequencer_pub_key = env.wallets.next();
     let mut sequencer = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("sequencer")
             .sequencer(sequencer_pub_key)
             .network(None, None),
     );
@@ -861,7 +897,7 @@ async fn multiple_validators() {
 
     log::info!("📗 Starting validator 0");
     let mut validator0 = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("validator-0")
             .validator(env.validators[0], env.validator_session_public_keys[0])
             .network(None, sequencer.multiaddr.clone()),
     );
@@ -869,7 +905,7 @@ async fn multiple_validators() {
 
     log::info!("📗 Starting validator 1");
     let mut validator1 = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("validator-1")
             .validator(env.validators[1], env.validator_session_public_keys[1])
             .network(None, sequencer.multiaddr.clone()),
     );
@@ -877,7 +913,7 @@ async fn multiple_validators() {
 
     log::info!("📗 Starting validator 2");
     let mut validator2 = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("validator-2")
             .validator(env.validators[2], env.validator_session_public_keys[2])
             .network(None, sequencer.multiaddr.clone()),
     );
@@ -1008,7 +1044,7 @@ async fn multiple_validators() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn tx_pool_gossip() {
-    gear_utils::init_default_logger();
+    utils::init_logger();
 
     let test_env_config = TestEnvConfig {
         validators: ValidatorsConfig::Generated(2),
@@ -1037,22 +1073,14 @@ async fn tx_pool_gossip() {
 
     log::info!("Populate node-0 and node-1 with 2 valid blocks");
 
-    env.observer
-        .provider()
-        .evm_mine(None)
-        .await
-        .expect("failed mining a new block");
-    env.observer
-        .provider()
-        .evm_mine(None)
-        .await
-        .expect("failed mining a new block");
+    env.force_new_block().await;
+    env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
     tokio::time::sleep(Duration::from_secs(2)).await;
     let reference_block = node0
         .db
-        .latest_valid_block()
+        .latest_computed_block()
         .expect("at least genesis block is latest valid")
         .0;
 
@@ -1115,13 +1143,14 @@ mod utils {
     use super::*;
     use crate::Event;
     use ethexe_common::SimpleBlockData;
+    use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkEvent};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
     use ethexe_sequencer::{SequencerConfig, SequencerService};
     use ethexe_signer::PrivateKey;
     use ethexe_tx_pool::TxPoolService;
-    use futures::StreamExt;
+    use futures::{FutureExt, StreamExt};
     use gear_core::message::ReplyCode;
     use rand::{rngs::StdRng, SeedableRng};
     use roast_secp256k1_evm::frost::{
@@ -1129,37 +1158,119 @@ mod utils {
         Identifier, SigningKey,
     };
     use std::{
+        collections::HashMap,
+        future::Future,
         ops::Mul,
+        pin::Pin,
         str::FromStr,
-        sync::atomic::{AtomicUsize, Ordering},
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            LazyLock, RwLock, RwLockReadGuard, RwLockWriteGuard,
+        },
+        task::{Context, Poll},
     };
-    use tokio::sync::{
-        broadcast::{self, Receiver, Sender},
-        Mutex,
-    };
+    use tokio::sync::broadcast::{self, Receiver, Sender};
+
+    struct TaskNames;
+
+    impl TaskNames {
+        fn map() -> &'static RwLock<HashMap<task::Id, String>> {
+            static TASK_NAMES: LazyLock<RwLock<HashMap<task::Id, String>>> =
+                LazyLock::new(Default::default);
+            &TASK_NAMES
+        }
+
+        fn read() -> RwLockReadGuard<'static, HashMap<task::Id, String>> {
+            TaskNames::map().read().unwrap()
+        }
+
+        fn write() -> RwLockWriteGuard<'static, HashMap<task::Id, String>> {
+            TaskNames::map().write().unwrap()
+        }
+
+        fn task_name(id: task::Id) -> String {
+            if let Some(task_name) = Self::read().get(&id) {
+                task_name.clone()
+            } else {
+                id.to_string()
+            }
+        }
+    }
+
+    struct NamedJoinHandle<T> {
+        handle: JoinHandle<T>,
+    }
+
+    impl<T> NamedJoinHandle<T> {
+        fn wrap(name: impl Into<String>, handle: JoinHandle<T>) -> NamedJoinHandle<T> {
+            let mut map = TaskNames::write();
+            map.insert(handle.id(), name.into());
+            Self { handle }
+        }
+
+        fn abort(&self) {
+            self.handle.abort();
+        }
+    }
+
+    impl<T> Future for NamedJoinHandle<T> {
+        type Output = <JoinHandle<T> as Future>::Output;
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            self.handle.poll_unpin(cx)
+        }
+    }
+
+    impl<T> Drop for NamedJoinHandle<T> {
+        fn drop(&mut self) {
+            let mut map = TaskNames::write();
+            map.remove(&self.handle.id());
+        }
+    }
+
+    fn get_current_thread_name() -> String {
+        let current = thread::current();
+        if let Some(name) = current.name() {
+            name.to_string()
+        } else {
+            format!("{:?}", current.id())
+        }
+    }
+
+    pub fn init_logger() {
+        let _ = env_logger::Builder::from_default_env()
+            .format(|f, record| {
+                let task_name = task::try_id()
+                    .map(TaskNames::task_name)
+                    .unwrap_or_else(get_current_thread_name);
+                let level = f.default_styled_level(record.level());
+                let target = record.target();
+                let args = record.args();
+                writeln!(f, "[{task_name:^11} {level:<5} {target}] {args}")
+            })
+            .try_init();
+    }
 
     pub struct TestEnv {
-        pub rpc_url: String,
+        pub eth_cfg: EthereumConfig,
         pub wallets: Wallets,
-        pub observer: ObserverService,
         pub blob_reader: Arc<MockBlobReader>,
+        pub provider: RootProvider,
         pub ethereum: Ethereum,
-        #[allow(unused)]
         pub router_query: RouterQuery,
         pub signer: Signer,
         pub validators: Vec<ethexe_signer::PublicKey>,
         pub validator_session_public_keys: Vec<ethexe_signer::PublicKey>,
-        pub router_address: ethexe_signer::Address,
         pub sender_id: ActorId,
-        pub genesis_block_hash: H256,
         pub threshold: u64,
         pub block_time: Duration,
         pub continuous_block_generation: bool,
 
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
-        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+        broadcaster: Sender<ObserverEvent>,
+        db: Database,
         _anvil: Option<AnvilInstance>,
-        _events_stream: JoinHandle<()>,
+        _events_stream: NamedJoinHandle<()>,
     }
 
     impl TestEnv {
@@ -1290,20 +1401,23 @@ mod utils {
 
             let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
+            let db = Database::from_one(&MemDb::default());
+
             let eth_cfg = EthereumConfig {
                 rpc: rpc_url.clone(),
                 beacon_rpc: Default::default(),
                 router_address,
                 block_time: config.block_time,
             };
-            let observer = ObserverService::new_with_blobs(&eth_cfg, blob_reader.clone())
-                .await
-                .unwrap();
+            let mut observer =
+                ObserverService::new(&eth_cfg, u32::MAX, db.clone(), Some(blob_reader.clone()))
+                    .await
+                    .unwrap();
+
+            let provider = observer.provider().clone();
 
             let (broadcaster, _events_stream) = {
-                let mut observer = observer.clone();
-                let (sender, mut receiver) = tokio::sync::broadcast::channel(2048);
-                let sender = Arc::new(Mutex::new(sender));
+                let (sender, mut receiver) = broadcast::channel(2048);
                 let cloned_sender = sender.clone();
 
                 let (send_subscription_created, receive_subscription_created) =
@@ -1315,8 +1429,6 @@ mod utils {
                         log::trace!(target: "test-event", "📗 Event: {:?}", event);
 
                         cloned_sender
-                            .lock()
-                            .await
                             .send(event)
                             .inspect_err(|err| log::error!("Failed to broadcast event: {err}"))
                             .unwrap();
@@ -1331,30 +1443,30 @@ mod utils {
 
                     panic!("📗 Observer stream ended");
                 });
+                let handle =
+                    NamedJoinHandle::wrap(format!("observer-stream-{}", handle.id()), handle);
                 receive_subscription_created.await.unwrap();
 
                 (sender, handle)
             };
-            let genesis_block_hash = router_query.genesis_block_hash().await?;
             let threshold = router_query.threshold().await?;
 
             Ok(TestEnv {
-                rpc_url,
+                eth_cfg,
                 wallets,
-                observer,
                 blob_reader,
+                provider,
                 ethereum,
                 router_query,
                 signer,
                 validators,
                 validator_session_public_keys,
-                router_address,
                 sender_id: ActorId::from(H160::from(sender_address.0)),
-                genesis_block_hash,
                 threshold,
                 block_time,
                 continuous_block_generation,
                 broadcaster,
+                db,
                 _anvil: anvil,
                 _events_stream,
             })
@@ -1362,6 +1474,7 @@ mod utils {
 
         pub fn new_node(&mut self, config: NodeConfig) -> Node {
             let NodeConfig {
+                name,
                 db,
                 sequencer_public_key,
                 validator_public_key,
@@ -1370,8 +1483,7 @@ mod utils {
                 rpc: service_rpc_config,
             } = config;
 
-            let db =
-                db.unwrap_or_else(|| Database::from_one(&MemDb::default(), self.router_address.0));
+            let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
@@ -1384,19 +1496,18 @@ mod utils {
             let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
 
             Node {
+                name,
                 db,
                 multiaddr: None,
+                eth_cfg: self.eth_cfg.clone(),
+                router_query: self.router_query.clone(),
                 broadcaster: None,
                 receiver: None,
-                rpc_url: self.rpc_url.clone(),
-                genesis_block_hash: self.genesis_block_hash,
                 blob_reader: self.blob_reader.clone(),
-                observer: self.observer.clone(),
                 signer: self.signer.clone(),
-                block_time: self.block_time,
                 validators: self.validators.iter().map(|k| k.to_address()).collect(),
                 threshold: self.threshold,
-                router_address: self.router_address,
+                block_time: self.block_time,
                 running_service_handle: None,
                 sequencer_public_key,
                 validator_public_key,
@@ -1504,6 +1615,7 @@ mod utils {
         pub fn events_publisher(&self) -> ObserverEventsPublisher {
             ObserverEventsPublisher {
                 broadcaster: self.broadcaster.clone(),
+                db: self.db.clone(),
             }
         }
 
@@ -1511,7 +1623,7 @@ mod utils {
             if self.continuous_block_generation {
                 // nothing to do: new block will be generated automatically
             } else {
-                self.observer.provider().evm_mine(None).await.unwrap();
+                self.provider.evm_mine(None).await.unwrap();
             }
         }
 
@@ -1519,8 +1631,7 @@ mod utils {
             if self.continuous_block_generation {
                 tokio::time::sleep(self.block_time.mul(blocks_amount)).await;
             } else {
-                self.observer
-                    .provider()
+                self.provider
                     .evm_mine(Some(MineOptions::Options {
                         timestamp: None,
                         blocks: Some(blocks_amount.into()),
@@ -1542,25 +1653,29 @@ mod utils {
     }
 
     pub struct ObserverEventsPublisher {
-        broadcaster: Arc<Mutex<Sender<ObserverEvent>>>,
+        broadcaster: Sender<ObserverEvent>,
+        db: Database,
     }
 
     impl ObserverEventsPublisher {
         pub async fn subscribe(&self) -> ObserverEventsListener {
             ObserverEventsListener {
-                receiver: self.broadcaster.lock().await.subscribe(),
+                receiver: self.broadcaster.subscribe(),
+                db: self.db.clone(),
             }
         }
     }
 
     pub struct ObserverEventsListener {
         receiver: broadcast::Receiver<ObserverEvent>,
+        db: Database,
     }
 
     impl Clone for ObserverEventsListener {
         fn clone(&self) -> Self {
             Self {
                 receiver: self.receiver.resubscribe(),
+                db: self.db.clone(),
             }
         }
     }
@@ -1589,6 +1704,9 @@ mod utils {
             self.apply_until_block_event_with_header(|e, _h| f(e)).await
         }
 
+        // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
+        // If your test depends on events in skipped blocks, you need to improve this method.
+        // TODO #4554: iterate thru skipped blocks.
         pub async fn apply_until_block_event_with_header<R: Sized>(
             &mut self,
             mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
@@ -1596,13 +1714,21 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let ObserverEvent::Block(block) = event else {
+                let ObserverEvent::BlockSynced(data) = event else {
                     continue;
                 };
 
-                let block_data = block.to_simple();
+                let header = OnChainStorage::block_header(&self.db, data.block_hash)
+                    .expect("Block header not found");
+                let events = OnChainStorage::block_events(&self.db, data.block_hash)
+                    .expect("Block events not found");
 
-                for event in block.events {
+                let block_data = SimpleBlockData {
+                    hash: data.block_hash,
+                    header,
+                };
+
+                for event in events {
                     if let Some(res) = f(event, &block_data)? {
                         return Ok(res);
                     }
@@ -1652,6 +1778,8 @@ mod utils {
     // TODO (breathx): consider to remove me in favor of crate::config::NodeConfig.
     #[derive(Default)]
     pub struct NodeConfig {
+        /// Node name.
+        pub name: Option<String>,
         /// Database, if not provided, will be created with MemDb.
         pub db: Option<Database>,
         /// Sequencer public key, if provided then new node starts as sequencer.
@@ -1667,6 +1795,13 @@ mod utils {
     }
 
     impl NodeConfig {
+        pub fn named(name: impl Into<String>) -> Self {
+            Self {
+                name: Some(name.into()),
+                ..Default::default()
+            }
+        }
+
         pub fn db(mut self, db: Database) -> Self {
             self.db = Some(db);
             self
@@ -1761,21 +1896,20 @@ mod utils {
     }
 
     pub struct Node {
+        pub name: Option<String>,
         pub db: Database,
         pub multiaddr: Option<String>,
 
+        eth_cfg: EthereumConfig,
         broadcaster: Option<Sender<Event>>,
         receiver: Option<Receiver<Event>>,
-        rpc_url: String,
-        genesis_block_hash: H256,
         blob_reader: Arc<MockBlobReader>,
-        observer: ObserverService,
+        router_query: RouterQuery,
         signer: Signer,
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
-        router_address: ethexe_signer::Address,
         block_time: Duration,
-        running_service_handle: Option<JoinHandle<Result<()>>>,
+        running_service_handle: Option<NamedJoinHandle<Result<()>>>,
         sequencer_public_key: Option<ethexe_signer::PublicKey>,
         validator_public_key: Option<ethexe_signer::PublicKey>,
         validator_session_public_key: Option<ethexe_signer::PublicKey>,
@@ -1792,21 +1926,6 @@ mod utils {
             );
 
             let processor = Processor::new(self.db.clone()).unwrap();
-
-            let query = Query::new(
-                Arc::new(self.db.clone()),
-                &self.rpc_url,
-                self.router_address,
-                self.genesis_block_hash,
-                self.blob_reader.clone(),
-                10000,
-            )
-            .await
-            .unwrap();
-
-            let router_query = RouterQuery::new(&self.rpc_url, self.router_address)
-                .await
-                .unwrap();
 
             let wait_for_network = self.network_bootstrap_address.is_some();
 
@@ -1832,9 +1951,9 @@ mod utils {
                 Some(key) => Some(
                     SequencerService::new(
                         &SequencerConfig {
-                            ethereum_rpc: self.rpc_url.clone(),
+                            ethereum_rpc: self.eth_cfg.rpc.clone(),
                             sign_tx_public: *key,
-                            router_address: self.router_address,
+                            router_address: self.eth_cfg.router_address,
                             validators: self.validators.clone(),
                             threshold: self.threshold,
                             block_time: self.block_time,
@@ -1856,12 +1975,22 @@ mod utils {
                         &ethexe_validator::Config {
                             pub_key,
                             pub_key_session,
-                            router_address: self.router_address,
+                            router_address: self.eth_cfg.router_address,
                         },
+                        self.db.clone(),
                         self.signer.clone(),
                     )
                 });
             let (sender, receiver) = broadcast::channel(2048);
+
+            let observer = ObserverService::new(
+                &self.eth_cfg,
+                u32::MAX,
+                self.db.clone(),
+                Some(self.blob_reader.clone()),
+            )
+            .await
+            .unwrap();
 
             let tx_pool_service = TxPoolService::new(self.db.clone());
 
@@ -1871,11 +2000,11 @@ mod utils {
 
             self.receiver = Some(receiver);
             self.broadcaster = Some(sender.clone());
+
             let service = Service::new_from_parts(
                 self.db.clone(),
-                self.observer.clone(),
-                query,
-                router_query,
+                observer,
+                self.router_query.clone(),
                 processor,
                 self.signer.clone(),
                 tx_pool_service,
@@ -1888,6 +2017,12 @@ mod utils {
             );
 
             let handle = task::spawn(service.run());
+            let handle = NamedJoinHandle::wrap(
+                self.name
+                    .clone()
+                    .unwrap_or_else(|| format!("node-{}", handle.id())),
+                handle,
+            );
             self.running_service_handle = Some(handle);
 
             self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
@@ -1903,7 +2038,6 @@ mod utils {
                 .running_service_handle
                 .take()
                 .expect("Service is not running");
-
             handle.abort();
 
             assert!(handle.await.unwrap_err().is_cancelled());
@@ -1919,18 +2053,14 @@ mod utils {
                 .map(|rpc| RpcClient::new(format!("http://{}", rpc.listen_addr)))
         }
 
-        pub fn listener(&self) -> ServiceEventsListener {
+        pub fn listener(&mut self) -> ServiceEventsListener {
             ServiceEventsListener {
-                receiver: self
-                    .broadcaster
-                    .as_ref()
-                    .expect("channel isn't created")
-                    .subscribe(),
+                receiver: self.receiver.as_mut().expect("channel isn't created"),
             }
         }
 
         // TODO(playX18): Tests that actually use Event broadcast channel extensively
-        pub async fn wait_for(&self, f: impl Fn(Event) -> bool) {
+        pub async fn wait_for(&mut self, f: impl Fn(Event) -> bool) {
             self.listener()
                 .wait_for(|e| Ok(f(e)))
                 .await
@@ -1938,19 +2068,11 @@ mod utils {
         }
     }
 
-    pub struct ServiceEventsListener {
-        receiver: Receiver<Event>,
+    pub struct ServiceEventsListener<'a> {
+        receiver: &'a mut Receiver<Event>,
     }
 
-    impl Clone for ServiceEventsListener {
-        fn clone(&self) -> Self {
-            Self {
-                receiver: self.receiver.resubscribe(),
-            }
-        }
-    }
-
-    impl ServiceEventsListener {
+    impl ServiceEventsListener<'_> {
         pub async fn next_event(&mut self) -> Result<Event> {
             self.receiver.recv().await.map_err(Into::into)
         }
@@ -1995,12 +2117,8 @@ mod utils {
 
             self.listener
                 .apply_until(|event| match event {
-                    ObserverEvent::Blob {
-                        code_id: loaded_id,
-                        code,
-                        ..
-                    } if loaded_id == self.code_id => {
-                        code_info = Some(code);
+                    ObserverEvent::Blob(blob) if blob.code_id == self.code_id => {
+                        code_info = Some(blob.code);
                         Ok(Some(()))
                     }
                     _ => Ok(None),

@@ -24,7 +24,7 @@
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
-use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb};
+use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb, OnChainStorage};
 use ethexe_signer::{Signer, ToDigest};
 use gprimitives::{H160, H256};
 use parity_scale_codec::Encode;
@@ -62,7 +62,7 @@ impl BlocksManager {
     pub(crate) fn add_block(&self) -> (H256, BlockHeader) {
         let block_hash = H256::random();
 
-        match self.db.latest_valid_block() {
+        match self.db.latest_computed_block() {
             Some((parent_hash, parent_header)) => {
                 let header = BlockHeader {
                     height: parent_header.height + 1,
@@ -71,7 +71,8 @@ impl BlocksManager {
                 };
 
                 self.db.set_block_header(block_hash, header.clone());
-                self.db.set_latest_valid_block(block_hash, header.clone());
+                self.db
+                    .set_latest_computed_block(block_hash, header.clone());
 
                 (block_hash, header)
             }
@@ -83,7 +84,8 @@ impl BlocksManager {
                 };
 
                 self.db.set_block_header(block_hash, header.clone());
-                self.db.set_latest_valid_block(block_hash, header.clone());
+                self.db
+                    .set_latest_computed_block(block_hash, header.clone());
 
                 (block_hash, header)
             }
@@ -104,7 +106,7 @@ fn now() -> u64 {
 async fn test_add_transaction() {
     gear_utils::init_default_logger();
 
-    let db = Database::from_one(&MemDb::default(), Default::default());
+    let db = Database::from_one(&MemDb::default());
     let bm = BlocksManager::new(db.clone());
 
     let tx_pool = TxPoolService::new(db);

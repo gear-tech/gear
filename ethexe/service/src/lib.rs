@@ -18,23 +18,26 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
-use anyhow::{bail, Context, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
+use anyhow::{anyhow, bail, Context, Result};
+use ethexe_common::{
+    gear::{BlockCommitment, CodeCommitment},
+    SimpleBlockData,
+};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
-use ethexe_db::Database;
+use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{MockBlobReader, ObserverEvent, ObserverService};
-use ethexe_processor::ProcessorConfig;
+use ethexe_observer::{BlobData, BlockSyncedData, MockBlobReader, ObserverEvent, ObserverService};
+use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::RpcEvent;
+use ethexe_rpc::{RpcEvent, RpcService};
 use ethexe_sequencer::{
     agro::AggregatedCommitments, SequencerConfig, SequencerEvent, SequencerService,
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_signer::{Digest, PublicKey, Signature, Signer};
+use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer};
 use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};
-use ethexe_validator::BlockCommitmentValidationRequest;
+use ethexe_validator::{BlockCommitmentValidationRequest, Validator};
 use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -65,16 +68,16 @@ pub struct Service {
     observer: ObserverService,
     router_query: RouterQuery,
     compute: ComputeService,
-    signer: ethexe_signer::Signer,
+    signer: Signer,
     tx_pool: TxPoolService,
 
     // Optional services
     // TODO: consider network to be always enabled
     network: Option<NetworkService>,
     sequencer: Option<SequencerService>,
-    validator: Option<ethexe_validator::Validator>,
+    validator: Option<Validator>,
     prometheus: Option<PrometheusService>,
-    rpc: Option<ethexe_rpc::RpcService>,
+    rpc: Option<RpcService>,
 
     // Optional global event broadcaster.
     sender: Option<Sender<Event>>,
@@ -107,27 +110,22 @@ impl Service {
             None
         };
 
-        let blob_reader: Arc<dyn ethexe_observer::BlobReader> = if config.node.dev {
-            mock_blob_reader.clone().unwrap()
-        } else {
-            Arc::new(
-                ethexe_observer::ConsensusLayerBlobReader::new(
-                    &config.ethereum.rpc,
-                    &config.ethereum.beacon_rpc,
-                    config.ethereum.block_time,
-                )
-                .await
-                .with_context(|| "failed to create blob reader")?,
-            )
-        };
+        let rocks_db = RocksDatabase::open(
+            config
+                .node
+                .database_path_for(config.ethereum.router_address),
+        )
+        .with_context(|| "failed to open database")?;
+        let db = Database::from_one(&rocks_db);
 
-        let rocks_db = ethexe_db::RocksDatabase::open(config.node.database_path.clone())
-            .with_context(|| "failed to open database")?;
-        let db = ethexe_db::Database::from_one(&rocks_db, config.ethereum.router_address.0);
-
-        let observer = ObserverService::new(&config.ethereum)
-            .await
-            .context("failed to create observer service")?;
+        let observer = ObserverService::new(
+            &config.ethereum,
+            config.node.eth_max_sync_depth,
+            db.clone(),
+            mock_blob_reader.clone().map(|r| r as _),
+        )
+        .await
+        .context("failed to create observer service")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -160,18 +158,7 @@ impl Service {
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
-        let query = ethexe_observer::Query::new(
-            Arc::new(db.clone()),
-            &config.ethereum.rpc,
-            config.ethereum.router_address,
-            genesis_block_hash,
-            blob_reader,
-            config.node.max_commitment_depth,
-        )
-        .await
-        .with_context(|| "failed to create observer query")?;
-
-        let processor = ethexe_processor::Processor::with_config(
+        let processor = Processor::with_config(
             ProcessorConfig {
                 worker_threads_override: config.node.worker_threads_override,
                 virtual_threads: config.node.virtual_threads,
@@ -189,8 +176,8 @@ impl Service {
             processor.config().virtual_threads
         );
 
-        let signer = ethexe_signer::Signer::new(config.node.key_path.clone())
-            .with_context(|| "failed to create signer")?;
+        let signer =
+            Signer::new(config.node.key_path.clone()).with_context(|| "failed to create signer")?;
 
         let sequencer = if let Some(key) =
             Self::get_config_public_key(config.node.sequencer, &signer)
@@ -225,12 +212,13 @@ impl Service {
             validator_pub_key
                 .zip(validator_pub_key_session)
                 .map(|(pub_key, pub_key_session)| {
-                    ethexe_validator::Validator::new(
+                    Validator::new(
                         &ethexe_validator::Config {
                             pub_key,
                             pub_key_session,
                             router_address: config.ethereum.router_address,
                         },
+                        db.clone(),
                         signer.clone(),
                     )
                 });
@@ -243,19 +231,21 @@ impl Service {
 
         let network = if let Some(net_config) = &config.network {
             Some(
-                ethexe_network::NetworkService::new(net_config.clone(), &signer, db.clone())
+                NetworkService::new(net_config.clone(), &signer, db.clone())
                     .with_context(|| "failed to create network service")?,
             )
         } else {
             None
         };
 
-        let rpc = config.rpc.as_ref().map(|config| {
-            ethexe_rpc::RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone())
-        });
+        let rpc = config
+            .rpc
+            .as_ref()
+            .map(|config| RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone()));
 
         let tx_pool = TxPoolService::new(db.clone());
-        let compute = ComputeService::new(db.clone(), processor, query);
+
+        let compute = ComputeService::new(db.clone(), processor);
 
         Ok(Self {
             db,
@@ -286,19 +276,18 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
-        query: ethexe_observer::Query,
         router_query: RouterQuery,
-        processor: ethexe_processor::Processor,
-        signer: ethexe_signer::Signer,
+        processor: Processor,
+        signer: Signer,
         tx_pool: TxPoolService,
         network: Option<NetworkService>,
         sequencer: Option<SequencerService>,
-        validator: Option<ethexe_validator::Validator>,
+        validator: Option<Validator>,
         prometheus: Option<PrometheusService>,
-        rpc: Option<ethexe_rpc::RpcService>,
+        rpc: Option<RpcService>,
         sender: Option<Sender<Event>>,
     ) -> Self {
-        let compute = ComputeService::new(db.clone(), processor.clone(), query.clone());
+        let compute = ComputeService::new(db.clone(), processor);
 
         Self {
             db,
@@ -366,6 +355,11 @@ impl Service {
                 .expect("failed to broadcast service STARTED event");
         }
 
+        let mut identity = identity::ServiceIdentity::new(
+            validator.as_ref().map(|validator| validator.address()),
+            observer.block_time_secs(),
+        );
+
         loop {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
@@ -392,22 +386,58 @@ impl Service {
 
             match event {
                 Event::ServiceStarted => unreachable!("never handled here"),
-                Event::Compute(event) => match event {
-                    ComputeEvent::BlockProcessed(BlockProcessed {
-                        chain_head,
-                        commitments,
+                Event::Observer(event) => match event {
+                    ObserverEvent::Blob(BlobData {
+                        code_id,
+                        timestamp,
+                        code,
                     }) => {
-                        // TODO (gsobol): must be done in observer event handling
-                        if let Some(s) = sequencer.as_mut() {
-                            s.on_new_head(chain_head)?
-                        }
+                        log::info!(
+                            "🔢 receive a code blob, code_id {code_id}, code size {}",
+                            code.len()
+                        );
 
-                        if commitments.is_empty() {
-                            continue;
+                        compute.receive_code(code_id, timestamp, code)
+                    }
+                    ObserverEvent::Block(block_data) => {
+                        log::info!(
+                            "📦 receive a chain head, height {}, hash {}, parent hash {}",
+                            block_data.header.height,
+                            block_data.hash,
+                            block_data.header.parent_hash,
+                        );
+
+                        identity.receive_new_chain_head(block_data);
+                    }
+                    ObserverEvent::BlockSynced(data) => {
+                        // NOTE: Observer guarantees that, if this event is emitted,
+                        // then from latest synced block and up to `block_hash`:
+                        // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
+                        // 2) all approved(at least) codes are loaded and available in database.
+
+                        if identity.receive_synced_block(&data)? {
+                            let is_block_producer = identity
+                                .is_block_producer()
+                                .unwrap_or_else(|e| unreachable!("{e}"));
+                            log::info!(
+                                "🔗 Block synced, I'm a block producer: {is_block_producer}"
+                            );
+                            compute.receive_synced_head(data.block_hash);
+                        }
+                    }
+                },
+                Event::Compute(event) => match event {
+                    ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
+                        if let Some(s) = sequencer.as_mut() {
+                            s.on_new_head(block_hash)?
                         }
 
                         if let Some(v) = validator.as_mut() {
-                            let aggregated_block_commitments = v.aggregate(commitments)?;
+                            let Some(aggregated_block_commitments) =
+                                v.aggregate_commitments_for_block(block_hash)?
+                            else {
+                                continue;
+                            };
 
                             if let Some(n) = network.as_mut() {
                                 log::debug!("Publishing block commitments to network...");
@@ -490,7 +520,7 @@ impl Service {
                                 NetworkMessage::RequestCommitmentsValidation { codes, blocks } => {
                                     if let Some(v) = validator.as_mut() {
                                         let maybe_batch_commitment = (!codes.is_empty() || !blocks.is_empty())
-                                        .then(|| v.validate_batch_commitment(&db, codes, blocks))
+                                        .then(|| v.validate_batch_commitment(codes, blocks))
                                         .transpose()
                                         .inspect_err(|e| log::warn!("failed to validate batch commitment from network: {e}"))
                                         .ok()
@@ -544,14 +574,6 @@ impl Service {
                         | NetworkEvent::PeerConnected(_) => (),
                     }
                 }
-                Event::Observer(event) => match event {
-                    ObserverEvent::Blob {
-                        code_id,
-                        timestamp,
-                        code,
-                    } => compute.receive_code(code_id, timestamp, code),
-                    ObserverEvent::Block(block_data) => compute.receive_chain_head(block_data),
-                },
                 Event::Prometheus(event) => {
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
@@ -643,11 +665,8 @@ impl Service {
                                 // on local validator. So we just print warning in this case.
 
                                 if !code_requests.is_empty() || !block_requests.is_empty() {
-                                    match v.validate_batch_commitment(
-                                        &db,
-                                        code_requests,
-                                        block_requests,
-                                    ) {
+                                    match v.validate_batch_commitment(code_requests, block_requests)
+                                    {
                                         Ok((digest, signature)) => {
                                             s.receive_batch_commitment_signature(
                                                 digest, signature,
@@ -724,5 +743,71 @@ impl Service {
         log::info!("Unimplemented tx execution");
 
         Ok(tx_hash)
+    }
+}
+
+mod identity {
+    use super::*;
+
+    pub struct ServiceIdentity {
+        // Service depended data (constant for the service lifetime)
+        validator: Option<Address>,
+        block_duration: u64,
+
+        // Block depended data (updated on each new block)
+        block: Option<SimpleBlockData>,
+        producer: Option<Address>,
+    }
+
+    impl ServiceIdentity {
+        pub fn new(validator: Option<Address>, block_duration: u64) -> Self {
+            Self {
+                validator,
+                block_duration,
+                block: None,
+                producer: None,
+            }
+        }
+
+        pub fn receive_new_chain_head(&mut self, block: SimpleBlockData) {
+            self.block = Some(block);
+
+            // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
+            self.producer = None;
+        }
+
+        /// Returns whether synced block is previously received chain head.
+        pub fn receive_synced_block(&mut self, data: &BlockSyncedData) -> Result<bool> {
+            let block = self
+                .block
+                .as_ref()
+                .ok_or_else(|| anyhow!("no blocks were received yet"))?;
+
+            if data.block_hash != block.hash {
+                Ok(false)
+            } else {
+                let slot = block.header.timestamp / self.block_duration;
+                let index = Self::block_producer_index(data.validators.len(), slot);
+                self.producer = data.validators.get(index).cloned();
+                Ok(true)
+            }
+        }
+
+        pub fn block_producer(&self) -> Result<Address> {
+            self.producer.ok_or_else(|| {
+                anyhow!(
+                    "block producer is not set: no blocks were received or received block is not synced yet"
+                )
+            })
+        }
+
+        pub fn is_block_producer(&self) -> Result<bool> {
+            Ok(self.validator == Some(self.block_producer()?))
+        }
+
+        // TODO #4553: temporary implementation - next slot is the next validator in the list.
+        const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
+            (slot % validators_amount as u64) as usize
+        }
     }
 }

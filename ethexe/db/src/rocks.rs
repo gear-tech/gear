@@ -43,22 +43,23 @@ impl CASDatabase for RocksDatabase {
         Box::new(self.clone())
     }
 
-    fn read(&self, hash: &H256) -> Option<Vec<u8>> {
+    fn read(&self, hash: H256) -> Option<Vec<u8>> {
         self.inner
             .get(hash.as_bytes())
             .expect("Failed to read data, database is not in valid state")
     }
 
-    fn write_by_hash(&self, hash: &H256, data: &[u8]) {
-        debug_assert_eq!(*hash, crate::hash(data));
+    fn write(&self, data: &[u8]) -> H256 {
+        let hash = crate::hash(data);
         self.inner
             .put(hash.as_bytes(), data)
             .expect("Failed to write data, database is not in valid state");
+        hash
     }
 }
 
 impl KVDatabase for RocksDatabase {
-    fn clone_boxed_kv(&self) -> Box<dyn KVDatabase> {
+    fn clone_boxed(&self) -> Box<dyn KVDatabase> {
         Box::new(self.clone())
     }
 

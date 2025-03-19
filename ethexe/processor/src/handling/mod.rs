@@ -18,7 +18,7 @@
 
 use crate::Processor;
 use anyhow::{anyhow, Result};
-use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use ethexe_db::{BlockMetaStorage, CodesStorage, Database, OnChainStorage};
 use ethexe_runtime_common::{
     state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,
 };
@@ -59,12 +59,12 @@ impl Processor {
 
         let states = self
             .db
-            .block_start_program_states(block_hash)
+            .block_program_states(header.parent_hash)
             .ok_or_else(|| {
                 anyhow!("failed to get block start program states for under-processing block")
             })?;
 
-        let schedule = self.db.block_start_schedule(block_hash).ok_or_else(|| {
+        let schedule = self.db.block_schedule(header.parent_hash).ok_or_else(|| {
             anyhow!("failed to get block start schedule for under-processing block")
         })?;
 

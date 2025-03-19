@@ -4,7 +4,7 @@ ethexe-pre-commit: ethexe-contracts-pre-commit ethexe-pre-commit-no-contracts
 
 .PHONY: ethexe-pre-commit-no-contracts
 ethexe-pre-commit-no-contracts:
-	@ echo " > Formatting ethexe" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
+	@ echo " > Formatting ethexe" && cargo fmt --all
 	@ echo " >> Clippy checking ethexe" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
 	@ echo " >>> Testing ethexe" && cargo nextest run -p "ethexe-*" --no-fail-fast
 
@@ -233,7 +233,7 @@ test-gsdk-release: node-release
 	@ ./scripts/gear.sh test gsdk --release
 
 .PHONY: test-gcli
-test-gcli: node
+test-gcli: node-release
 	@ ./scripts/gear.sh test gcli
 
 .PHONY: test-gcli-release

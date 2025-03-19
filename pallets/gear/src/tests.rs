@@ -15782,7 +15782,7 @@ pub(crate) mod utils {
                     None
                 }
             })
-            .last()
+            .next_back()
             .expect("Not found RuntimeEvent::MessagesDispatched");
 
         assert_eq!(expected, last_dequeued);
@@ -16061,7 +16061,7 @@ pub(crate) mod utils {
     pub(super) fn get_last_event() -> MockRuntimeEvent {
         System::events()
             .into_iter()
-            .last()
+            .next_back()
             .expect("failed to get last event")
             .event
     }
