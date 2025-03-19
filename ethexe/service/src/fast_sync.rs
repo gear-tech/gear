@@ -333,7 +333,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     debug_assert_eq!(completed, pending);
 
     db.set_block_program_states(latest_block, program_states);
-    db.set_block_schedule(latest_block, schedule_restorer.build());
+    db.set_block_schedule(latest_block, schedule_restorer.restore());
     // TODO: verify queues are not important
     db.set_block_commitment_queue(latest_block, VecDeque::new());
     db.set_block_codes_queue(latest_block, VecDeque::new());

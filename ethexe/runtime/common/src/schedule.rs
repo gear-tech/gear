@@ -160,7 +160,7 @@ pub struct Restorer {
 impl Restorer {
     /// Creates restorer.
     ///
-    /// A current block required to detect whether a value expired or not
+    /// A current block is required to detect whether a value expired or not
     pub fn new(current_block: u32) -> Self {
         Self {
             current_block,
@@ -169,10 +169,19 @@ impl Restorer {
     }
 
     pub fn waitlist(&mut self, program_id: ActorId, waitlist: &Waitlist) {
-        for (&message_id, &Expiring { value: _, expiry }) in waitlist.as_ref() {
+        for (
+            &message_id,
+            &Expiring {
+                value: ref dispatch,
+                expiry,
+            },
+        ) in waitlist.as_ref()
+        {
             if expiry <= self.current_block {
                 continue;
             }
+
+            debug_assert_eq!(message_id, dispatch.id);
 
             self.schedule
                 .entry(expiry)
@@ -207,7 +216,6 @@ impl Restorer {
         ) in stash.as_ref()
         {
             debug_assert_eq!(message_id, dispatch.id);
-            debug_assert_eq!(program_id, dispatch.source);
 
             if expiry <= self.current_block {
                 continue;
@@ -226,7 +234,137 @@ impl Restorer {
         }
     }
 
-    pub fn build(self) -> Schedule {
+    pub fn restore(self) -> Schedule {
         self.schedule
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{Mailbox, MemStorage};
+    use ethexe_common::gear::Origin;
+    use gear_core::message::Payload;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn restorer_waitlist() {
+        let program_id = ProgramId::from(1);
+
+        let dispatch = Dispatch::reply(
+            MessageId::from(456),
+            ActorId::from(789),
+            PayloadLookup::Direct(Payload::filled_with(0xfe)),
+            0xffffff,
+            SuccessReplyReason::Auto,
+            Origin::Ethereum,
+        );
+
+        let mut waitlist = Waitlist::default();
+        waitlist.wait(dispatch.clone(), 1000);
+
+        let mut restorer = Restorer::new(999);
+        restorer.waitlist(program_id, &waitlist);
+        assert_eq!(
+            restorer.restore(),
+            BTreeMap::from([(
+                1000,
+                BTreeSet::from([ScheduledTask::WakeMessage(program_id, dispatch.id)])
+            )])
+        );
+
+        let mut restorer = Restorer::new(1000);
+        restorer.waitlist(program_id, &waitlist);
+        assert_eq!(restorer.restore(), BTreeMap::new());
+    }
+
+    #[test]
+    fn restorer_mailbox() {
+        let storage = MemStorage::default();
+
+        let program_id = ProgramId::from(1);
+        let user_id = ActorId::from(2);
+        let message_id = MessageId::from(3);
+        let message = MailboxMessage::new(
+            PayloadLookup::Direct(Payload::filled_with(0xfe)),
+            0xffffff,
+            Origin::Ethereum,
+        );
+
+        let mut mailbox = Mailbox::default();
+        mailbox.add_and_store_user_mailbox(&storage, user_id, message_id, message, 1000);
+        let user_mailbox = mailbox
+            .as_ref()
+            .iter()
+            .next()
+            .map(|(&mailbox_user_id, &user_mailbox)| {
+                assert_eq!(user_id, mailbox_user_id);
+                storage.read_user_mailbox(user_mailbox).unwrap()
+            })
+            .unwrap();
+
+        let mut restorer = Restorer::new(999);
+        restorer.mailbox(program_id, user_id, &user_mailbox);
+        assert_eq!(
+            restorer.restore(),
+            BTreeMap::from([(
+                1000,
+                BTreeSet::from([ScheduledTask::RemoveFromMailbox(
+                    (program_id, user_id),
+                    message_id
+                )])
+            )]),
+        );
+
+        let mut restorer = Restorer::new(1000);
+        restorer.mailbox(program_id, user_id, &user_mailbox);
+        assert_eq!(restorer.restore(), BTreeMap::new());
+    }
+
+    #[test]
+    fn restorer_stash() {
+        let program_id = ProgramId::from(1);
+        let program_dispatch = Dispatch::reply(
+            MessageId::from(456),
+            ActorId::from(789),
+            PayloadLookup::Direct(Payload::filled_with(0xfe)),
+            0xffffff,
+            SuccessReplyReason::Auto,
+            Origin::Ethereum,
+        );
+
+        let user_id = ActorId::from(2);
+        let user_dispatch = Dispatch::reply(
+            MessageId::from(789),
+            ActorId::from(999),
+            PayloadLookup::Direct(Payload::filled_with(0xaa)),
+            0xbbbbbb,
+            SuccessReplyReason::Auto,
+            Origin::Ethereum,
+        );
+
+        let mut stash = DispatchStash::default();
+        stash.add_to_program(program_dispatch.clone(), 1000);
+        stash.add_to_user(user_dispatch.clone(), 1000, user_id);
+
+        let mut restorer = Restorer::new(999);
+        restorer.stash(program_id, &stash);
+        assert_eq!(
+            restorer.restore(),
+            BTreeMap::from([(
+                1000,
+                BTreeSet::from([
+                    ScheduledTask::SendDispatch((program_id, program_dispatch.id)),
+                    ScheduledTask::SendUserMessage {
+                        message_id: user_dispatch.id,
+                        to_mailbox: program_id
+                    }
+                ])
+            )]),
+        );
+
+        let mut restorer = Restorer::new(1000);
+        restorer.stash(program_id, &stash);
+        assert_eq!(restorer.restore(), BTreeMap::new());
     }
 }

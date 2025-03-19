@@ -528,17 +528,17 @@ fn many_waits() {
 
     // Reproducibility test.
     {
-        let mut expected_schedule = ScheduleRestorer::new(0);
+        let mut restorer = ScheduleRestorer::new(0);
 
         for (pid, state_hash) in states {
             let state = processor.db.read_state(state_hash).unwrap();
             let waitlist_hash = state.waitlist_hash.to_inner().unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
-            expected_schedule.waitlist(pid, &waitlist);
+            restorer.waitlist(pid, &waitlist);
         }
 
         // This could fail in case of handling more scheduled ops: please, update test than.
-        assert_eq!(schedule, expected_schedule.build());
+        assert_eq!(schedule, restorer.restore());
     }
 
     let mut handler = processor.handler(ch11).unwrap();

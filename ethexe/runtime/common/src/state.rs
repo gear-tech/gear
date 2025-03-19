@@ -27,6 +27,7 @@ use alloc::{
 use anyhow::{anyhow, Result};
 use core::{
     any::Any,
+    cell::RefCell,
     cmp::Ordering,
     marker::PhantomData,
     mem,
@@ -722,11 +723,11 @@ pub struct Waitlist {
 }
 
 impl Waitlist {
-    pub fn wait(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
+    pub fn wait(&mut self, dispatch: Dispatch, expiry: u32) {
         self.changed = true;
 
         let r = self.inner.insert(
-            message_id,
+            dispatch.id,
             Expiring {
                 value: dispatch,
                 expiry,
@@ -762,9 +763,9 @@ impl AsRef<BTreeMap<MessageId, Expiring<Dispatch>>> for Waitlist {
 pub struct DispatchStash(BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>);
 
 impl DispatchStash {
-    pub fn add_to_program(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
+    pub fn add_to_program(&mut self, dispatch: Dispatch, expiry: u32) {
         let r = self.0.insert(
-            message_id,
+            dispatch.id,
             Expiring {
                 value: (dispatch, None),
                 expiry,
@@ -773,15 +774,9 @@ impl DispatchStash {
         debug_assert!(r.is_none());
     }
 
-    pub fn add_to_user(
-        &mut self,
-        message_id: MessageId,
-        dispatch: Dispatch,
-        expiry: u32,
-        user_id: ActorId,
-    ) {
+    pub fn add_to_user(&mut self, dispatch: Dispatch, expiry: u32, user_id: ActorId) {
         let r = self.0.insert(
-            message_id,
+            dispatch.id,
             Expiring {
                 value: (dispatch, Some(user_id)),
                 expiry,
@@ -1233,7 +1228,7 @@ pub trait Storage {
     fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox>;
 
     /// Writes user mailbox and returns its hash.
-    fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox>;
+    fn write_user_mailbox(&self, user_mailbox: UserMailbox) -> HashOf<UserMailbox>;
 
     /// Reads memory pages by pages hash.
     fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;
@@ -1288,5 +1283,118 @@ pub trait Storage {
             .into_iter()
             .map(|(k, v)| (k, self.write_page_data(v)))
             .collect()
+    }
+}
+
+/// In-memory storage for testing purposes.
+#[derive(Debug, Default)]
+pub struct MemStorage {
+    inner: RefCell<BTreeMap<H256, Vec<u8>>>,
+}
+
+impl MemStorage {
+    fn read<T: Decode>(&self, hash: H256) -> Option<T> {
+        self.inner
+            .borrow()
+            .get(&hash)
+            .map(|vec| Decode::decode(&mut &vec[..]).unwrap())
+    }
+
+    fn write<T: Encode>(&self, value: T) -> H256 {
+        let value = value.encode();
+        let hash = gear_core::utils::hash(&value);
+        let hash = H256(hash);
+        self.inner.borrow_mut().insert(hash, value);
+        hash
+    }
+}
+
+impl Storage for MemStorage {
+    fn read_state(&self, hash: H256) -> Option<ProgramState> {
+        self.read(hash)
+    }
+
+    fn write_state(&self, state: ProgramState) -> H256 {
+        self.write(state)
+    }
+
+    fn read_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
+        self.read(hash.hash())
+    }
+
+    fn write_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
+        unsafe { HashOf::new(self.write(queue)) }
+    }
+
+    fn read_waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
+        self.read(hash.hash())
+    }
+
+    fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist> {
+        unsafe { HashOf::new(self.write(waitlist)) }
+    }
+
+    fn read_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
+        self.read(hash.hash())
+    }
+
+    fn write_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
+        unsafe { HashOf::new(self.write(stash)) }
+    }
+
+    fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
+        self.read(hash.hash())
+    }
+
+    fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
+        unsafe { HashOf::new(self.write(mailbox)) }
+    }
+
+    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
+        self.read(hash.hash())
+    }
+
+    fn write_user_mailbox(&self, user_mailbox: UserMailbox) -> HashOf<UserMailbox> {
+        unsafe { HashOf::new(self.write(user_mailbox)) }
+    }
+
+    fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
+        self.read(hash.hash())
+    }
+
+    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+        self.read(hash.hash())
+    }
+
+    fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
+        unsafe { HashOf::new(self.write(pages)) }
+    }
+
+    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+        unsafe { HashOf::new(self.write(pages_region)) }
+    }
+
+    fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
+        self.read(hash.hash())
+    }
+
+    fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations> {
+        unsafe { HashOf::new(self.write(allocations)) }
+    }
+
+    fn read_payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
+        self.read(hash.hash())
+    }
+
+    fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
+        unsafe { HashOf::new(self.write(payload)) }
+    }
+
+    fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
+        self.read(hash.hash())
+    }
+
+    fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {
+        unsafe { HashOf::new(self.write(data)) }
     }
 }
