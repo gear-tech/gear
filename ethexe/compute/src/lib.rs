@@ -162,8 +162,12 @@ impl ChainHeadProcessContext {
                 valid: true,
             }) = event
             {
+                // TODO: test branch
                 use ethexe_common::db::CodesStorage;
-                if self.db.instrumented_code(0, *code_id).is_none() {
+                if !self
+                    .db
+                    .instrumented_code_exists(ethexe_runtime::VERSION, *code_id)
+                {
                     let code = CodesStorage::original_code(&self.db, *code_id)
                         .ok_or_else(|| anyhow!("code not found for validated code {code_id}"))?;
                     self.processor.process_upload_code(*code_id, &code)?;

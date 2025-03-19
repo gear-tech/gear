@@ -454,6 +454,16 @@ impl CodesStorage for Database {
             .collect()
     }
 
+    fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool {
+        self.kv
+            .get(&KeyPrefix::InstrumentedCode.three(
+                self.router_address,
+                runtime_id.to_le_bytes(),
+                code_id,
+            ))
+            .is_some()
+    }
+
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
         self.kv
             .get(&KeyPrefix::InstrumentedCode.three(
