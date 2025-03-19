@@ -23,14 +23,14 @@ use alloy::{
 };
 use anyhow::{anyhow, Context, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockHeader, BlockMetaStorage, CodesStorage, OnChainStorage, Schedule},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::CodeCommitment,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_network::{db_sync, db_sync::RequestId, NetworkEvent, NetworkService};
-use ethexe_observer::ObserverEvent;
+use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_runtime_common::{
     state::{
         ActiveProgram, DispatchStash, Mailbox, MaybeHashOf, MemoryPages, MemoryPagesRegion,
@@ -205,55 +205,11 @@ impl BufRequests {
     }
 }
 
-async fn instrument_codes(
-    db: &Database,
-    compute: &mut ComputeService,
-    mut code_ids: HashSet<CodeId>,
-) -> Result<()> {
-    log::info!("Instrument {} codes", code_ids.len());
-
-    for &code_id in &code_ids {
-        let code_info = db
-            .code_blob_info(code_id)
-            .expect("observer must fulfill database");
-        let original_code = db
-            .original_code(code_id)
-            .expect("observer must fulfill database");
-        compute.receive_code(code_id, code_info.timestamp, original_code);
-    }
-
-    while let Some(event) = compute.next().await {
-        if let ComputeEvent::CodeProcessed(CodeCommitment { id, .. }) = event? {
-            code_ids.remove(&id);
-            if code_ids.is_empty() {
-                break;
-            }
-        }
-    }
-
-    log::info!("Instrumentation done");
-    Ok(())
-}
-
-pub(crate) async fn sync(service: &mut Service) -> Result<()> {
-    let Service {
-        observer,
-        compute,
-        network,
-        db,
-        ..
-    } = service;
-    let Some(network) = network else {
-        log::warn!("Fast synchronization has been skipped because network service is disabled");
-        return Ok(());
-    };
-
-    log::info!("Fast synchronization is in progress...");
-
+async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
     let highest_block = observer
         .provider()
         // we get finalized block to avoid block reorganization
-        // because we restore database only for the latest block of a chain,
+        // because we restore the database only for the latest block of a chain,
         // and thus the reorganization can lead us to an empty block
         .get_block(BlockId::Number(BlockNumberOrTag::Finalized))
         .await
@@ -276,21 +232,21 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
     }
 
-    let event_data = EventData::collect(db, highest_block).await?;
+    Ok(highest_block)
+}
 
-    instrument_codes(db, compute, event_data.code_ids).await?;
-
-    let latest_block = event_data.latest_block;
-    let latest_block_header =
-        OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
-
+async fn sync_from_network(
+    network: &mut NetworkService,
+    db: &Database,
+    program_states: &BTreeMap<ActorId, H256>,
+    latest_block_header: &BlockHeader,
+) -> Schedule {
+    let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
     let mut requests = BufRequests::default();
-    for (&program_id, &state) in &event_data.program_states {
+    for (&program_id, &state) in program_states {
         requests.add(state, Request::ProgramState { program_id });
     }
     requests.request(network);
-
-    let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
 
     while let Some(event) = network.next().await {
         let NetworkEvent::DbResponse { request_id, result } = event else {
@@ -429,6 +385,71 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
     debug_assert_eq!(completed, pending);
 
+    schedule_restorer.restore()
+}
+
+async fn instrument_codes(
+    db: &Database,
+    compute: &mut ComputeService,
+    mut code_ids: HashSet<CodeId>,
+) -> Result<()> {
+    log::info!("Instrument {} codes", code_ids.len());
+
+    for &code_id in &code_ids {
+        let code_info = db
+            .code_blob_info(code_id)
+            .expect("observer must fulfill database");
+        let original_code = db
+            .original_code(code_id)
+            .expect("observer must fulfill database");
+        compute.receive_code(code_id, code_info.timestamp, original_code);
+    }
+
+    while let Some(event) = compute.next().await {
+        if let ComputeEvent::CodeProcessed(CodeCommitment { id, .. }) = event? {
+            code_ids.remove(&id);
+            if code_ids.is_empty() {
+                break;
+            }
+        }
+    }
+
+    log::info!("Instrumentation done");
+    Ok(())
+}
+
+pub(crate) async fn sync(service: &mut Service) -> Result<()> {
+    let Service {
+        observer,
+        compute,
+        network,
+        db,
+        ..
+    } = service;
+    let Some(network) = network else {
+        log::warn!("Fast synchronization has been skipped because network service is disabled");
+        return Ok(());
+    };
+
+    log::info!("Fast synchronization is in progress...");
+
+    let finalized_block = sync_finalized_head(observer).await?;
+    let event_data = EventData::collect(db, finalized_block).await?;
+
+    instrument_codes(db, compute, event_data.code_ids).await?;
+
+    let latest_block = event_data.latest_block;
+    let latest_block_header =
+        OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
+
+    let schedule = sync_from_network(
+        network,
+        db,
+        &event_data.program_states,
+        &latest_block_header,
+    )
+    .await;
+
     for (program_id, code_id) in event_data.program_code_ids {
         db.set_program_code_id(program_id, code_id);
     }
@@ -437,7 +458,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     db.set_block_codes_queue(latest_block, VecDeque::new());
 
     db.set_block_program_states(latest_block, event_data.program_states);
-    db.set_block_schedule(latest_block, schedule_restorer.restore());
+    db.set_block_schedule(latest_block, schedule);
     unsafe {
         db.set_non_empty_block_outcome(latest_block);
     }
