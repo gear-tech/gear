@@ -125,15 +125,13 @@ pub struct ObserverService {
     blobs_reader: Arc<dyn BlobReader>,
 
     config: RuntimeConfig,
-
     last_block_number: u32,
-
-    headers_subscription_future: Option<HeadersSubscriptionFuture>,
     headers_stream: SubscriptionStream<Header>,
-
     block_sync_queue: VecDeque<Header>,
+
     sync_future: Option<SyncFuture>,
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
+    subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
 impl Stream for ObserverService {
