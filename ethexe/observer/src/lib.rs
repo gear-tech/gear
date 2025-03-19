@@ -138,8 +138,8 @@ impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(subscription_future) = self.headers_subscription_future.as_mut() {
-            match subscription_future.poll_unpin(cx) {
+        if let Some(future) = self.subscription_future.as_mut() {
+            match future.poll_unpin(cx) {
                 Poll::Ready(Ok(subscription)) => self.headers_stream = subscription.into_stream(),
                 Poll::Ready(Err(e)) => {
                     return Poll::Ready(Some(Err(anyhow!(
@@ -155,7 +155,7 @@ impl Stream for ObserverService {
                 log::warn!("Alloy headers stream ended. Creating a new one...");
 
                 let provider = self.provider().clone();
-                self.headers_subscription_future =
+                self.subscription_future =
                     Some(Box::pin(async move { provider.subscribe_blocks().await }));
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
@@ -273,7 +273,7 @@ impl ObserverService {
                 block_time: *block_time,
             },
             last_block_number: 0,
-            headers_subscription_future: None,
+            subscription_future: None,
             headers_stream,
             codes_futures: Default::default(),
             block_sync_queue: Default::default(),
