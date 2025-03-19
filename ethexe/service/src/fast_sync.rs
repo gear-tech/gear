@@ -129,32 +129,32 @@ impl EventData {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-enum Request {
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum Request<'a> {
     ProgramState {
-        program_ids: HashSet<ActorId>,
+        program_ids: &'a HashSet<ActorId>,
     },
     MemoryPages,
     MemoryPagesRegions,
     Waitlist {
-        program_ids: HashSet<ActorId>,
+        program_ids: &'a HashSet<ActorId>,
     },
     Mailbox {
-        program_ids: HashSet<ActorId>,
+        program_ids: &'a HashSet<ActorId>,
     },
     UserMailbox {
-        program_ids: HashSet<ActorId>,
+        program_ids: &'a HashSet<ActorId>,
         user_id: ActorId,
     },
     DispatchStash {
-        program_ids: HashSet<ActorId>,
+        program_ids: &'a HashSet<ActorId>,
     },
     /// Any data we only insert into the database.
     Data,
 }
 
 #[derive(Debug, Default)]
-struct BufRequests {
+struct BufRequests<'a> {
     /// Total completed requests
     total_completed_requests: u64,
     /// Total pending requests
@@ -162,14 +162,14 @@ struct BufRequests {
 
     /// Buffered requests we convert into one network request, and after that
     /// we convert them into `pending_requests` because `RequestId` is known
-    buffered_requests: HashMap<H256, Request>,
+    buffered_requests: HashMap<H256, Request<'a>>,
     /// Pending requests, we remove one by one on each hash from a response
-    pending_requests: HashMap<(RequestId, H256), Request>,
+    pending_requests: HashMap<(RequestId, H256), Request<'a>>,
 }
 
-impl BufRequests {
-    fn add(&mut self, hash: H256, metadata: Request) {
-        let old = self.buffered_requests.insert(hash, metadata);
+impl<'a> BufRequests<'a> {
+    fn add(&mut self, hash: H256, request: Request<'a>) {
+        let old = self.buffered_requests.insert(hash, request);
         debug_assert_eq!(old, None);
     }
 
@@ -189,7 +189,7 @@ impl BufRequests {
         !self.pending_requests.is_empty()
     }
 
-    fn complete(&mut self, request_id: RequestId, hash: H256) -> Option<Request> {
+    fn complete(&mut self, request_id: RequestId, hash: H256) -> Option<Request<'a>> {
         let request = self.pending_requests.remove(&(request_id, hash))?;
         self.total_completed_requests += 1;
         Some(request)
@@ -248,7 +248,7 @@ async fn sync_from_network(
                 acc.entry(state).or_default().insert(program_id);
                 acc
             });
-    for (state, program_ids) in program_states {
+    for (&state, program_ids) in &program_states {
         requests.add(state, Request::ProgramState { program_ids });
     }
 
@@ -305,28 +305,13 @@ async fn sync_from_network(
                             }
 
                             if let Some(waitlist_hash) = waitlist_hash.hash() {
-                                requests.add(
-                                    waitlist_hash,
-                                    Request::Waitlist {
-                                        program_ids: program_ids.clone(),
-                                    },
-                                );
+                                requests.add(waitlist_hash, Request::Waitlist { program_ids });
                             }
                             if let Some(mailbox_hash) = mailbox_hash.hash() {
-                                requests.add(
-                                    mailbox_hash,
-                                    Request::Mailbox {
-                                        program_ids: program_ids.clone(),
-                                    },
-                                );
+                                requests.add(mailbox_hash, Request::Mailbox { program_ids });
                             }
                             if let Some(stash_hash) = stash_hash.hash() {
-                                requests.add(
-                                    stash_hash,
-                                    Request::DispatchStash {
-                                        program_ids: program_ids.clone(),
-                                    },
-                                );
+                                requests.add(stash_hash, Request::DispatchStash { program_ids });
                             }
                         }
                         Request::MemoryPages => {
@@ -356,7 +341,7 @@ async fn sync_from_network(
                         Request::Waitlist { program_ids } => {
                             let waitlist: Waitlist = Decode::decode(&mut &data[..])
                                 .expect("`db-sync` must validate data");
-                            for program_id in program_ids {
+                            for &program_id in program_ids {
                                 schedule_restorer.waitlist(program_id, &waitlist);
                             }
                         }
@@ -367,7 +352,7 @@ async fn sync_from_network(
                                 requests.add(
                                     user_mailbox.hash(),
                                     Request::UserMailbox {
-                                        program_ids: program_ids.clone(),
+                                        program_ids,
                                         user_id,
                                     },
                                 );
@@ -379,14 +364,14 @@ async fn sync_from_network(
                         } => {
                             let user_mailbox: UserMailbox = Decode::decode(&mut &data[..])
                                 .expect("`db-sync` must validate data");
-                            for program_id in program_ids {
+                            for &program_id in program_ids {
                                 schedule_restorer.mailbox(program_id, user_id, &user_mailbox);
                             }
                         }
                         Request::DispatchStash { program_ids } => {
                             let stash: DispatchStash = Decode::decode(&mut &data[..])
                                 .expect("`db-sync` must validate data");
-                            for program_id in program_ids {
+                            for &program_id in program_ids {
                                 schedule_restorer.stash(program_id, &stash);
                             }
                         }
