@@ -42,8 +42,8 @@ use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet, VecDeque},
-    mem,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    pin::pin,
 };
 
 struct EventData {
@@ -135,7 +135,7 @@ enum Request<'a> {
         program_ids: &'a HashSet<ActorId>,
     },
     MemoryPages,
-    MemoryPagesRegions,
+    MemoryPagesRegion,
     Waitlist {
         program_ids: &'a HashSet<ActorId>,
     },
@@ -153,6 +153,21 @@ enum Request<'a> {
     Data,
 }
 
+impl Request<'_> {
+    /// Simple request means that there is no need to process its content if it's already in the database
+    /// because it has no fields that affect data flow.
+    ///
+    /// For example, `ProgramState` has a list of program IDs,
+    /// so we need to process the whole request tree up to `Waitlist`, `UserMailbox` and others
+    /// because they can change `ScheduleRestorer`.
+    fn is_simple(self) -> bool {
+        match self {
+            Request::MemoryPages | Request::MemoryPagesRegion | Request::Data => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct BufRequests<'a> {
     /// Total completed requests
@@ -160,11 +175,17 @@ struct BufRequests<'a> {
     /// Total pending requests
     total_pending_requests: u64,
 
-    /// Buffered requests we convert into one network request, and after that
+    /// Buffered requests are either:
+    /// * Skipped if they are simple
+    /// * Completed if the database has keys
+    /// * Converted into one network request, and after that
     /// we convert them into `pending_requests` because `RequestId` is known
     buffered_requests: HashMap<H256, Request<'a>>,
-    /// Pending requests, we remove one by one on each hash from a response
+    /// Pending requests, we remove one by one on each hash from a network response
     pending_requests: HashMap<(RequestId, H256), Request<'a>>,
+    /// Requests that are completed and ready to be written into the database
+    // TODO: do not write requests to the database if they are already there
+    completed_requests: HashMap<H256, (Request<'a>, Vec<u8>)>,
 }
 
 impl<'a> BufRequests<'a> {
@@ -173,26 +194,58 @@ impl<'a> BufRequests<'a> {
         debug_assert_eq!(old, None);
     }
 
-    /// Returns `true` if there are pending requests
-    fn request(&mut self, network: &mut NetworkService) -> bool {
-        let buffered_requests = mem::take(&mut self.buffered_requests);
-        if !buffered_requests.is_empty() {
-            let request = buffered_requests.keys().copied().collect();
-            let request_id = network.db_sync().request(db_sync::Request(request));
+    fn request(&mut self, network: &mut NetworkService, db: &Database) -> bool {
+        debug_assert!(!self.buffered_requests.is_empty());
 
-            for (hash, request) in buffered_requests {
-                self.total_pending_requests += 1;
+        let mut network_request = BTreeSet::new();
+        let mut pending_requests = HashMap::new();
+        for (hash, request) in self.buffered_requests.drain() {
+            if request.is_simple() && db.has_hash(hash) {
+                continue;
+            }
+
+            if let Some(data) = db.read_by_hash(hash) {
+                self.completed_requests.insert(hash, (request, data));
+                self.total_completed_requests += 1;
+            } else {
+                network_request.insert(hash);
+                pending_requests.insert(hash, request);
+            }
+        }
+
+        if !network_request.is_empty() {
+            let request_id = network.db_sync().request(db_sync::Request(network_request));
+            for (hash, request) in pending_requests {
                 self.pending_requests.insert((request_id, hash), request);
+                self.total_pending_requests += 1;
             }
         }
 
         !self.pending_requests.is_empty()
     }
 
-    fn complete(&mut self, request_id: RequestId, hash: H256) -> Option<Request<'a>> {
-        let request = self.pending_requests.remove(&(request_id, hash))?;
-        self.total_completed_requests += 1;
-        Some(request)
+    fn response(&mut self, request_id: RequestId, response: db_sync::Response) {
+        let db_sync::Response(data) = response;
+
+        for (hash, data) in data {
+            let request = self
+                .pending_requests
+                .remove(&(request_id, hash))
+                .expect("unknown pending request");
+            self.completed_requests.insert(hash, (request, data));
+            self.total_completed_requests += 1;
+        }
+    }
+
+    fn take_completed(&mut self) -> Vec<(Request<'a>, Vec<u8>)> {
+        self.completed_requests
+            .drain()
+            .map(|(_hash, value)| value)
+            .collect()
+    }
+
+    fn has_buffered(&self) -> bool {
+        !self.buffered_requests.is_empty()
     }
 
     /// (total completed request, total pending requests)
@@ -252,140 +305,150 @@ async fn sync_from_network(
         requests.add(state, Request::ProgramState { program_ids });
     }
 
-    requests.request(network);
-    while let Some(event) = network.next().await {
-        let NetworkEvent::DbResponse { request_id, result } = event else {
-            continue;
-        };
+    loop {
+        let wait_for_network = requests.request(network, db);
 
         let (completed, pending) = requests.stats();
         log::info!("[{completed:>05} / {pending:>05}] Getting network data");
 
-        match result {
-            Ok(db_sync::Response(data)) => {
-                for (hash, data) in data {
-                    let request = requests
-                        .complete(request_id, hash)
-                        .expect("unknown `db-sync` response");
-
-                    db.write(&data);
-
-                    match request {
-                        Request::ProgramState { program_ids } => {
-                            let state: ProgramState = Decode::decode(&mut &data[..])
-                                .expect("`db-sync` must validate data");
-
-                            let ProgramState {
-                                program,
-                                queue_hash,
-                                waitlist_hash,
-                                stash_hash,
-                                mailbox_hash,
-                                balance: _,
-                                executable_balance: _,
-                            } = &state;
-
-                            if let Program::Active(ActiveProgram {
-                                allocations_hash,
-                                pages_hash,
-                                memory_infix: _,
-                                initialized: _,
-                            }) = program
-                            {
-                                if let Some(allocations_hash) = allocations_hash.hash() {
-                                    requests.add(allocations_hash, Request::Data);
-                                }
-                                if let Some(pages_hash) = pages_hash.hash() {
-                                    requests.add(pages_hash, Request::MemoryPages);
-                                }
-                            }
-
-                            if let Some(queue_hash) = queue_hash.hash() {
-                                requests.add(queue_hash, Request::Data);
-                            }
-
-                            if let Some(waitlist_hash) = waitlist_hash.hash() {
-                                requests.add(waitlist_hash, Request::Waitlist { program_ids });
-                            }
-                            if let Some(mailbox_hash) = mailbox_hash.hash() {
-                                requests.add(mailbox_hash, Request::Mailbox { program_ids });
-                            }
-                            if let Some(stash_hash) = stash_hash.hash() {
-                                requests.add(stash_hash, Request::DispatchStash { program_ids });
-                            }
-                        }
-                        Request::MemoryPages => {
-                            let memory_pages: MemoryPages = Decode::decode(&mut &data[..])
-                                .expect("`db-sync` must validate data");
-
-                            for pages_region_hash in memory_pages
-                                .to_inner()
-                                .into_iter()
-                                .flat_map(MaybeHashOf::hash)
-                            {
-                                requests.add(pages_region_hash, Request::MemoryPagesRegions);
-                            }
-                        }
-                        Request::MemoryPagesRegions => {
-                            let pages_region: MemoryPagesRegion = Decode::decode(&mut &data[..])
-                                .expect("`db-sync` must validate data");
-
-                            for page_buf_hash in pages_region
-                                .as_inner()
-                                .iter()
-                                .map(|(_page, hash)| hash.hash())
-                            {
-                                requests.add(page_buf_hash, Request::Data);
-                            }
-                        }
-                        Request::Waitlist { program_ids } => {
-                            let waitlist: Waitlist = Decode::decode(&mut &data[..])
-                                .expect("`db-sync` must validate data");
-                            for &program_id in program_ids {
-                                schedule_restorer.waitlist(program_id, &waitlist);
-                            }
-                        }
-                        Request::Mailbox { program_ids } => {
-                            let mailbox: Mailbox = Decode::decode(&mut &data[..])
-                                .expect("`db-sync` must validate data");
-                            for (&user_id, user_mailbox) in mailbox.as_ref() {
-                                requests.add(
-                                    user_mailbox.hash(),
-                                    Request::UserMailbox {
-                                        program_ids,
-                                        user_id,
-                                    },
-                                );
-                            }
-                        }
-                        Request::UserMailbox {
-                            program_ids,
-                            user_id,
-                        } => {
-                            let user_mailbox: UserMailbox = Decode::decode(&mut &data[..])
-                                .expect("`db-sync` must validate data");
-                            for &program_id in program_ids {
-                                schedule_restorer.mailbox(program_id, user_id, &user_mailbox);
-                            }
-                        }
-                        Request::DispatchStash { program_ids } => {
-                            let stash: DispatchStash = Decode::decode(&mut &data[..])
-                                .expect("`db-sync` must validate data");
-                            for &program_id in program_ids {
-                                schedule_restorer.stash(program_id, &stash);
-                            }
-                        }
-                        Request::Data => {}
-                    }
+        if wait_for_network {
+            let stream = network.filter_map(|event| async move {
+                if let NetworkEvent::DbResponse { request_id, result } = event {
+                    Some((request_id, result))
+                } else {
+                    None
                 }
-            }
-            Err((request, err)) => {
-                network.db_sync().retry(request);
-                log::warn!("{request_id:?} failed: {err}. Retrying...");
+            });
+            let mut stream = pin!(stream);
+            let (request_id, result) = stream
+                .next()
+                .await
+                .expect("network service stream is infinite");
+
+            match result {
+                Ok(response) => {
+                    requests.response(request_id, response);
+                }
+                Err((request, err)) => {
+                    network.db_sync().retry(request);
+                    log::warn!("{request_id:?} failed: {err}. Retrying...");
+                }
             }
         }
 
-        if !requests.request(network) {
+        for (request, data) in requests.take_completed() {
+            db.write(&data);
+
+            match request {
+                Request::ProgramState { program_ids } => {
+                    let state: ProgramState =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+
+                    let ProgramState {
+                        program,
+                        queue_hash,
+                        waitlist_hash,
+                        stash_hash,
+                        mailbox_hash,
+                        balance: _,
+                        executable_balance: _,
+                    } = &state;
+
+                    if let Program::Active(ActiveProgram {
+                        allocations_hash,
+                        pages_hash,
+                        memory_infix: _,
+                        initialized: _,
+                    }) = program
+                    {
+                        if let Some(allocations_hash) = allocations_hash.hash() {
+                            requests.add(allocations_hash, Request::Data);
+                        }
+                        if let Some(pages_hash) = pages_hash.hash() {
+                            requests.add(pages_hash, Request::MemoryPages);
+                        }
+                    }
+
+                    if let Some(queue_hash) = queue_hash.hash() {
+                        requests.add(queue_hash, Request::Data);
+                    }
+
+                    if let Some(waitlist_hash) = waitlist_hash.hash() {
+                        requests.add(waitlist_hash, Request::Waitlist { program_ids });
+                    }
+                    if let Some(mailbox_hash) = mailbox_hash.hash() {
+                        requests.add(mailbox_hash, Request::Mailbox { program_ids });
+                    }
+                    if let Some(stash_hash) = stash_hash.hash() {
+                        requests.add(stash_hash, Request::DispatchStash { program_ids });
+                    }
+                }
+                Request::MemoryPages => {
+                    let memory_pages: MemoryPages =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+
+                    for pages_region_hash in memory_pages
+                        .to_inner()
+                        .into_iter()
+                        .flat_map(MaybeHashOf::hash)
+                    {
+                        requests.add(pages_region_hash, Request::MemoryPagesRegion);
+                    }
+                }
+                Request::MemoryPagesRegion => {
+                    let pages_region: MemoryPagesRegion =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+
+                    for page_buf_hash in pages_region
+                        .as_inner()
+                        .iter()
+                        .map(|(_page, hash)| hash.hash())
+                    {
+                        requests.add(page_buf_hash, Request::Data);
+                    }
+                }
+                Request::Waitlist { program_ids } => {
+                    let waitlist: Waitlist =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+                    for &program_id in program_ids {
+                        schedule_restorer.waitlist(program_id, &waitlist);
+                    }
+                }
+                Request::Mailbox { program_ids } => {
+                    let mailbox: Mailbox =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+                    for (&user_id, user_mailbox) in mailbox.as_ref() {
+                        requests.add(
+                            user_mailbox.hash(),
+                            Request::UserMailbox {
+                                program_ids,
+                                user_id,
+                            },
+                        );
+                    }
+                }
+                Request::UserMailbox {
+                    program_ids,
+                    user_id,
+                } => {
+                    let user_mailbox: UserMailbox =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+                    for &program_id in program_ids {
+                        schedule_restorer.mailbox(program_id, user_id, &user_mailbox);
+                    }
+                }
+                Request::DispatchStash { program_ids } => {
+                    let stash: DispatchStash =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+                    for &program_id in program_ids {
+                        schedule_restorer.stash(program_id, &stash);
+                    }
+                }
+                Request::Data => {}
+            }
+        }
+
+        if !requests.has_buffered() {
             break;
         }
     }
