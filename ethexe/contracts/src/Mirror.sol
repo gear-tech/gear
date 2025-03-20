@@ -9,12 +9,17 @@ import {IWrappedVara} from "./IWrappedVara.sol";
 import {Gear} from "./libraries/Gear.sol";
 
 contract Mirror is IMirror {
+    address public immutable router;
+
     address public inheritor;
     /// @dev This nonce is the source for message ids unique generations. Must be bumped on each send. Zeroed nonce is always represent init message by eligible account.
     address public initializer;
     bytes32 public stateHash;
     uint256 public nonce;
-    address public immutable router;
+
+    constructor(address _router) {
+        router = _router;
+    }
 
     /// @dev Only the router can call functions marked with this modifier.
     modifier onlyRouter() {
@@ -25,7 +30,7 @@ contract Mirror is IMirror {
     /// @dev Non-zero value must be transferred from source to router in functions marked with this modifier.
     modifier retrievingValue(uint128 value) {
         if (value != 0) {
-            bool success = _wvara(router).transferFrom(_source(), router, value);
+            bool success = _wvara(router).transferFrom(msg.sender, router, value);
             require(success, "failed to transfer non-zero amount of WVara from source to router");
         }
         _;
@@ -47,7 +52,7 @@ contract Mirror is IMirror {
     /// @dev Functions marked with this modifier can be called only after the initializer has created the init message or from the initializer (first access).
     modifier whenInitMessageCreatedOrFromInitializer() {
         require(
-            nonce > 0 || _source() == initializer,
+            nonce > 0 || msg.sender == initializer,
             "initializer hasn't created init message yet; and source is not initializer"
         );
         _;
@@ -57,10 +62,6 @@ contract Mirror is IMirror {
     modifier whileActive() {
         require(inheritor == address(0), "program is terminated");
         _;
-    }
-
-    constructor(address _router) {
-        router = _router;
     }
 
     /* Primary Gear logic */
@@ -74,7 +75,7 @@ contract Mirror is IMirror {
     {
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
 
-        emit MessageQueueingRequested(id, _source(), _payload, _value);
+        emit MessageQueueingRequested(id, msg.sender, _payload, _value);
 
         return id;
     }
@@ -85,11 +86,11 @@ contract Mirror is IMirror {
         whenInitMessageCreated
         retrievingValue(_value)
     {
-        emit ReplyQueueingRequested(_repliedTo, _source(), _payload, _value);
+        emit ReplyQueueingRequested(_repliedTo, msg.sender, _payload, _value);
     }
 
     function claimValue(bytes32 _claimedId) external whenInitMessageCreated {
-        emit ValueClaimingRequested(_claimedId, _source());
+        emit ValueClaimingRequested(_claimedId, msg.sender);
     }
 
     function executableBalanceTopUp(uint128 _value) external whileActive retrievingValue(_value) {
@@ -219,10 +220,6 @@ contract Mirror is IMirror {
     function _wvara(address routerAddr) private view returns (IWrappedVara) {
         address wvaraAddr = IRouter(routerAddr).wrappedVara();
         return IWrappedVara(wvaraAddr);
-    }
-
-    function _source() private view returns (address) {
-        return msg.sender;
     }
 
     function _transferValue(address destination, uint128 value) private {

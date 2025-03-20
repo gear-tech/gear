@@ -75,6 +75,8 @@ interface IMirror {
 
     /* Operational functions */
 
+    function router() external view returns (address);
+
     function inheritor() external view returns (address);
 
     function initializer() external view returns (address);
@@ -82,8 +84,6 @@ interface IMirror {
     function stateHash() external view returns (bytes32);
 
     function nonce() external view returns (uint256);
-
-    function router() external view returns (address);
 
     /* Primary Gear logic */
 

@@ -109,7 +109,7 @@ interface IRouter {
     /// @dev ProgramCreated Emitted on success.
     function createProgram(bytes32 codeId, bytes32 salt) external returns (address);
     /// @dev ProgramCreated Emitted on success.
-    function createProgramWithAbiInterface(bytes32 codeId, address abiInterface, bytes32 salt)
+    function createProgramWithAbiInterface(bytes32 codeId, bytes32 salt, address abiInterface)
         external
         returns (address);
 

@@ -251,7 +251,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return mirror;
     }
 
-    function createProgramWithAbiInterface(bytes32 _codeId, address _abiInterface, bytes32 _salt)
+    function createProgramWithAbiInterface(bytes32 _codeId, bytes32 _salt, address _abiInterface)
         external
         returns (address)
     {
@@ -375,11 +375,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
-        /*require(
+        require(
             router.protocolData.codes[_codeId] == Gear.CodeState.Validated,
             "code must be validated before program creation"
-        );*/
-        // TODO: ^^^ uncomment this (for testing only)
+        );
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
