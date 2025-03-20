@@ -32,7 +32,7 @@ use futures::{future::Either, ready, stream::FusedStream, Stream};
 use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
     connection_limits,
-    core::{muxing::StreamMuxerBox, upgrade},
+    core::{muxing::StreamMuxerBox, transport::ListenerId, upgrade},
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
@@ -150,6 +150,7 @@ impl NetworkConfig {
 
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
+    listeners: Vec<ListenerId>,
 }
 
 impl Stream for NetworkService {
@@ -194,8 +195,10 @@ impl NetworkService {
             swarm.add_external_address(multiaddr);
         }
 
+        let mut listeners = Vec::new();
         for multiaddr in config.listen_addresses {
-            swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
+            let id = swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
+            listeners.push(id);
         }
 
         for multiaddr in config.bootstrap_addresses {
@@ -213,7 +216,7 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        Ok(Self { swarm })
+        Ok(Self { swarm, listeners })
     }
 
     fn generate_keypair(
@@ -473,6 +476,14 @@ impl NetworkService {
         res: Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>,
     ) {
         self.swarm.behaviour_mut().db_sync.request_validated(res);
+    }
+}
+
+impl Drop for NetworkService {
+    fn drop(&mut self) {
+        for id in self.listeners.drain(..) {
+            self.swarm.remove_listener(id);
+        }
     }
 }
 
