@@ -21,8 +21,11 @@ use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
 use ethexe_runtime_common::unpack_i64_to_u32;
-use gear_core::{code::InstrumentedCode, ids::ProgramId};
-use gprimitives::{CodeId, H256};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    ids::ProgramId,
+};
+use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
@@ -120,7 +123,7 @@ impl InstanceWrapper {
     pub fn instrument(
         &mut self,
         original_code: impl AsRef<[u8]>,
-    ) -> Result<Option<InstrumentedCode>> {
+    ) -> Result<Option<(InstrumentedCode, CodeMetadata)>> {
         self.call("instrument_code", original_code)
     }
 
@@ -128,18 +131,18 @@ impl InstanceWrapper {
         &mut self,
         db: Database,
         program_id: ProgramId,
-        original_code_id: CodeId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
+        maybe_code_metadata: Option<CodeMetadata>,
     ) -> Result<(Vec<JournalNote>, Option<Origin>)> {
         let chain_head = self.chain_head.expect("chain head must be set before run");
         threads::set(db, chain_head, state_hash);
 
         let arg = (
             program_id,
-            original_code_id,
             state_hash,
             maybe_instrumented_code,
+            maybe_code_metadata,
         );
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
