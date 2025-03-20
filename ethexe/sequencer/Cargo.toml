@@ -14,6 +14,7 @@ ethexe-observer.workspace = true
 ethexe-processor.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
+ethexe-db.workspace = true
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["codec"] }
 
@@ -23,6 +24,7 @@ anyhow.workspace = true
 futures.workspace = true
 tokio.workspace = true
 indexmap = { workspace = true, features = ["std"] }
+derive_more.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

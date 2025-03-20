@@ -4818,7 +4818,9 @@ name = "ethexe-sequencer"
 version = "1.7.1"
 dependencies = [
  "anyhow",
+ "derive_more 0.99.18",
  "ethexe-common",
+ "ethexe-db",
  "ethexe-ethereum",
  "ethexe-observer",
  "ethexe-processor",
