@@ -44,6 +44,7 @@ use std::{
 };
 
 pub mod agro;
+pub mod bp;
 
 #[cfg(test)]
 mod tests;
