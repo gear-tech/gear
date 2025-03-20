@@ -49,8 +49,15 @@ $ anvil
 
 ```shell
 $ source .env
+
 $ forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
 $ forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
+
+$ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
+$ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
+
+$ forge script script/Ping.s.sol:PingScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
+$ forge script script/Ping.s.sol:PingScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 ```
 
 ### Upgrade
