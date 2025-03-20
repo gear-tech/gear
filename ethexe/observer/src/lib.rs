@@ -154,9 +154,7 @@ impl Stream for ObserverService {
             let Some(header) = res else {
                 log::warn!("Alloy headers stream ended. Creating a new one...");
 
-                // TODO: test creation a new subscription in case with Receiver becomes invalid.
-                // Subscption is a wrapper on top of tokio Receiver.
-                // When stream is terminated Receiver and Subscroption become invalid.
+                // TODO #4568: test creating a new subscription in case when Receiver becomes invalid
                 let provider = self.provider().clone();
                 self.subscription_future =
                     Some(Box::pin(async move { provider.subscribe_blocks().await }));
