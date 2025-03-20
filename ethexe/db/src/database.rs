@@ -149,6 +149,10 @@ impl Database {
         self.cas.read(hash)
     }
 
+    pub fn has_hash(&self, hash: H256) -> bool {
+        self.cas.has(hash)
+    }
+
     pub fn write(&self, data: &[u8]) -> H256 {
         self.cas.write(data)
     }
