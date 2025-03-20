@@ -154,13 +154,4 @@ impl MirrorQuery {
             .map(|res| LocalAddress(res._0.into()))
             .map_err(Into::into)
     }
-
-    pub async fn decoder(&self) -> Result<LocalAddress> {
-        self.0
-            .decoder()
-            .call()
-            .await
-            .map(|res| LocalAddress(res._0.into()))
-            .map_err(Into::into)
-    }
 }

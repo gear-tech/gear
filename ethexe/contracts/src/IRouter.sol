@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {Gear} from "./libraries/Gear.sol";
 
@@ -77,7 +77,6 @@ interface IRouter {
     function latestCommittedBlockHash() external view returns (bytes32);
 
     function mirrorImpl() external view returns (address);
-    function mirrorProxyImpl() external view returns (address);
     function wrappedVara() external view returns (address);
 
     function validatorsAggregatedPublicKey() external view returns (Gear.AggregatedPublicKey memory);
@@ -110,7 +109,9 @@ interface IRouter {
     /// @dev ProgramCreated Emitted on success.
     function createProgram(bytes32 codeId, bytes32 salt) external returns (address);
     /// @dev ProgramCreated Emitted on success.
-    function createProgramWithDecoder(address decoderImpl, bytes32 codeId, bytes32 salt) external returns (address);
+    function createProgramWithAbiInterface(bytes32 codeId, bytes32 salt, address abiInterface)
+        external
+        returns (address);
 
     /// @dev CodeGotValidated Emitted for each code in commitment.
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
