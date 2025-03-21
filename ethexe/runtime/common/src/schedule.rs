@@ -1,10 +1,10 @@
 use crate::{
-    state::{Dispatch, PayloadLookup, Storage, ValueWithExpiry, MAILBOX_VALIDITY},
+    state::{Dispatch, Expiring, MailboxMessage, PayloadLookup, Storage, MAILBOX_VALIDITY},
     TransitionController,
 };
 use ethexe_common::{
     db::{Rfm, ScheduledTask, Sd, Sum},
-    gear::{Origin, ValueClaim},
+    gear::ValueClaim,
 };
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;
@@ -22,12 +22,14 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     ) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, transitions| {
-                let ValueWithExpiry { value, .. } =
-                    state.mailbox_hash.modify_mailbox(storage, |mailbox| {
-                        mailbox
-                            .remove(user_id, message_id)
-                            .expect("failed to find message in mailbox")
-                    });
+                let Expiring {
+                    value: MailboxMessage { value, origin, .. },
+                    ..
+                } = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    mailbox
+                        .remove_and_store_user_mailbox(storage, user_id, message_id)
+                        .expect("failed to find message in mailbox")
+                });
 
                 transitions.modify_transition(program_id, |transition| {
                     transition.claims.push(ValueClaim {
@@ -43,8 +45,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                     PayloadLookup::empty(),
                     0,
                     SuccessReplyReason::Auto,
-                    // TODO(rmasl): use the actual origin (https://github.com/gear-tech/gear/pull/4460)
-                    Origin::Ethereum,
+                    origin,
                 );
 
                 state
@@ -83,7 +84,13 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 );
 
                 state.mailbox_hash.modify_mailbox(storage, |mailbox| {
-                    mailbox.add(user_id, stashed_message_id, dispatch.value, expiry);
+                    mailbox.add_and_store_user_mailbox(
+                        storage,
+                        user_id,
+                        stashed_message_id,
+                        dispatch.clone().into(),
+                        expiry,
+                    );
                 });
 
                 transitions.modify_transition(program_id, |transition| {
@@ -102,7 +109,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, _| {
-                let ValueWithExpiry {
+                let Expiring {
                     value: dispatch, ..
                 } = state.waitlist_hash.modify_waitlist(storage, |waitlist| {
                     waitlist

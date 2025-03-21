@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO (gsobol): add tests for utils
+// TODO #4552: add tests for observer utils
 
-use crate::BlobReader;
+use crate::{BlobData, BlobReader};
 use alloy::{
     network::{Ethereum, Network},
     providers::{Provider as _, RootProvider},
@@ -49,7 +49,7 @@ pub(crate) async fn read_code_from_tx_hash(
     timestamp: u64,
     tx_hash: H256,
     attempts: Option<u8>,
-) -> Result<(CodeId, u64, Vec<u8>)> {
+) -> Result<BlobData> {
     let code = blob_reader
         .read_blob_from_tx_hash(tx_hash, attempts)
         .await
@@ -59,7 +59,11 @@ pub(crate) async fn read_code_from_tx_hash(
         .then_some(())
         .ok_or_else(|| anyhow!("unexpected code id"))?;
 
-    Ok((expected_code_id, timestamp, code))
+    Ok(BlobData {
+        code_id: expected_code_id,
+        timestamp,
+        code,
+    })
 }
 
 pub(crate) fn router_and_wvara_filter(

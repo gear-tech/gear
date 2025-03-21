@@ -2,20 +2,16 @@
 pragma solidity ^0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Mirror} from "../../src/Mirror.sol";
-import {Router} from "../../src/Router.sol";
+import {MirrorProxy} from "../src/MirrorProxy.sol";
 
-contract MirrorScript is Script {
+contract MirrorProxyScript is Script {
     function setUp() public {}
 
     function run() public {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
-        address routerAddress = vm.envAddress("ROUTER_ADDRESS");
-
         vm.startBroadcast(privateKey);
 
-        Mirror mirror = new Mirror(routerAddress);
-        Router(routerAddress).setMirror(address(mirror));
+        new MirrorProxy();
 
         vm.stopBroadcast();
     }

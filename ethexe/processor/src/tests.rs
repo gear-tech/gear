@@ -21,7 +21,7 @@ use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequest
 use ethexe_db::{
     BlockHeader, BlockMetaStorage, CodesStorage, MemDb, OnChainStorage, ScheduledTask,
 };
-use ethexe_runtime_common::state::ValueWithExpiry;
+use ethexe_runtime_common::state::Expiring;
 use gear_core::ids::{prelude::CodeIdExt, ProgramId};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
@@ -69,8 +69,8 @@ fn process_observer_event() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
-        .expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
@@ -144,8 +144,8 @@ fn handle_new_code_valid() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
-        .expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
     init_genesis_block(&mut processor);
 
@@ -188,8 +188,8 @@ fn handle_new_code_invalid() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
-        .expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
     init_genesis_block(&mut processor);
 
@@ -218,7 +218,7 @@ fn ping_pong() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
@@ -297,7 +297,7 @@ fn async_and_ping() {
     let user_id = ActorId::from(10);
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
@@ -435,7 +435,7 @@ fn many_waits() {
     let (_, code) = wat_to_wasm(wat);
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
@@ -535,12 +535,12 @@ fn many_waits() {
 
         for (pid, state_hash) in &states {
             let state = processor.db.read_state(*state_hash).unwrap();
-            let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
+            let waitlist_hash = state.waitlist_hash.to_inner().unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
 
             for (
                 mid,
-                ValueWithExpiry {
+                Expiring {
                     value: dispatch,
                     expiry,
                 },

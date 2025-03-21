@@ -1,28 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
-import {Proxy} from "@openzeppelin/contracts/proxy/Proxy.sol";
-import {IMirrorProxy} from "./IMirrorProxy.sol";
-import {IRouter} from "./IRouter.sol";
+contract MirrorProxy {
+    address internal constant ROUTER = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-/*
-
-    DO NOT CHANGE THIS CONTRACT.
-
-*/
-
-contract MirrorProxy is IMirrorProxy, Proxy {
-    address public immutable router;
-
-    address public decoder;
     address public inheritor;
     address public initializer;
     bytes32 public stateHash;
     uint256 public nonce;
 
-    constructor(address _router) {
-        router = _router;
-    }
+    constructor() payable {}
 
     /* Primary Gear logic */
 
@@ -49,10 +36,24 @@ contract MirrorProxy is IMirrorProxy, Proxy {
     /* MirrorProxy implementation */
 
     function _delegate() internal {
-        _delegate(_implementation());
+        assembly {
+            // IRouter.mirrorImpl.selector = bytes4(0xe6fabc09)
+            mstore(0, shl(224, 0xe6fabc09))
+            let success := staticcall(gas(), ROUTER, 0, 4, 0, 32)
+            if iszero(success) { revert(0, 0) }
+            let implementation := mload(0)
+
+            // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/Proxy.sol
+            calldatacopy(0, 0, calldatasize())
+            let result := delegatecall(gas(), implementation, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch result
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
+        }
     }
 
-    function _implementation() internal view virtual override returns (address) {
-        return IRouter(router).mirrorImpl();
+    fallback() external payable {
+        _delegate();
     }
 }
