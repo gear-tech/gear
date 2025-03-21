@@ -41,7 +41,7 @@ use frame_support::{
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
-    EnsureRoot, EnsureSignedBy,
+    EnsureRoot,
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
@@ -57,7 +57,9 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, Get, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
+#[cfg(feature = "dev")]
+use sp_core::Get;
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
@@ -1259,14 +1261,14 @@ where
 }
 
 parameter_types! {
-    pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
+    pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/getha");
 }
 
 #[cfg(feature = "dev")]
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
-    type ControlOrigin = EnsureSignedBy<BridgeAdmins<Runtime>, AccountId>;
+    type ControlOrigin = frame_system::EnsureSignedBy<BridgeAdmins<Runtime>, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;
