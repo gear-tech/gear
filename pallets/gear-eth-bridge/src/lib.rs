@@ -53,15 +53,15 @@ pub mod pallet {
     use frame_support::{
         pallet_prelude::*,
         traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
-        StorageHasher,
+        PalletId, StorageHasher,
     };
     use frame_system::{
-        ensure_root, ensure_signed,
+        ensure_signed,
         pallet_prelude::{BlockNumberFor, OriginFor},
     };
     use gprimitives::{ActorId, H160, H256, U256};
     use sp_runtime::{
-        traits::{Keccak256, One, Saturating, Zero},
+        traits::{AccountIdConversion, Keccak256, One, Saturating, Zero},
         BoundToRuntimeAppPublic, RuntimeAppPublic,
     };
     use sp_std::vec::Vec;
@@ -72,6 +72,22 @@ pub mod pallet {
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
+    /// Pallet Gear Eth Bridge's admin account ID.
+    pub struct BridgeAdminAddress<T: Config>(PhantomData<T>);
+    impl<T: Config> Get<<T as frame_system::Config>::AccountId> for BridgeAdminAddress<T> {
+        fn get() -> <T as frame_system::Config>::AccountId {
+            Pallet::<T>::bridge_admin_account_id()
+        }
+    }
+
+    /// Pallet Gear Eth Bridge's pauser account ID.
+    pub struct BridgePauserAddress<T: Config>(PhantomData<T>);
+    impl<T: Config> Get<<T as frame_system::Config>::AccountId> for BridgePauserAddress<T> {
+        fn get() -> <T as frame_system::Config>::AccountId {
+            Pallet::<T>::bridge_pauser_account_id()
+        }
+    }
+
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -79,6 +95,13 @@ pub mod pallet {
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+        /// The bridge' pallet id, used for deriving its sovereign account ID.
+        #[pallet::constant]
+        type PalletId: Get<PalletId>;
+
+        /// Privileged origin for bridge management operations.
+        type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// Constant defining maximal payload size in bytes of message for bridging.
         #[pallet::constant]
@@ -226,6 +249,16 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
+    #[pallet::storage]
+    #[pallet::getter(fn bridge_admin)]
+    pub type BridgeAdmin<T: Config> =
+        StorageValue<_, T::AccountId, ValueQuery, BridgeAdminAddress<T>>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn bridge_pauser)]
+    pub type BridgePauser<T: Config> =
+        StorageValue<_, T::AccountId, ValueQuery, BridgePauserAddress<T>>;
+
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
     #[pallet::storage_version(ETH_BRIDGE_STORAGE_VERSION)]
@@ -241,8 +274,8 @@ pub mod pallet {
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::pause())]
         pub fn pause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by root.
-            ensure_root(origin)?;
+            // Ensuring called by `ControlOrigin` or root.
+            T::ControlOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -265,8 +298,8 @@ pub mod pallet {
         #[pallet::call_index(1)]
         #[pallet::weight(<T as Config>::WeightInfo::unpause())]
         pub fn unpause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by root.
-            ensure_root(origin)?;
+            // Ensuring called by `ControlOrigin` or root.
+            T::ControlOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -373,6 +406,16 @@ pub mod pallet {
 
             // Returning appropriate type.
             Some(proof.into())
+        }
+
+        /// The account ID of the bridge admin.
+        pub fn bridge_admin_account_id() -> T::AccountId {
+            T::PalletId::get().into_sub_account_truncating("bridge_admin")
+        }
+
+        /// The account ID of the bridge pauser.
+        pub fn bridge_pauser_account_id() -> T::AccountId {
+            T::PalletId::get().into_sub_account_truncating("bridge_pauser")
         }
     }
 

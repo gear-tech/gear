@@ -57,6 +57,8 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+#[cfg(feature = "dev")]
+use sp_core::Get;
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
@@ -101,8 +103,8 @@ pub use frame_support::{
         tokens::{PayFromAccount, UnityAssetBalanceConversion},
         ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
         EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
-        LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo,
-        VariantCountOf, WithdrawReasons,
+        LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, SortedMembers,
+        StorageInfo, VariantCountOf, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -1240,8 +1242,34 @@ impl pallet_gear_builtin::Config for Runtime {
 }
 
 #[cfg(feature = "dev")]
+pub struct BridgeAdmins<T>(sp_std::marker::PhantomData<T>);
+
+#[cfg(feature = "dev")]
+impl<T> SortedMembers<AccountId> for BridgeAdmins<T>
+where
+    T: pallet_gear_eth_bridge::Config,
+{
+    fn sorted_members() -> Vec<AccountId> {
+        vec![
+            pallet_gear_eth_bridge::BridgeAdminAddress::<Runtime>::get(),
+            pallet_gear_eth_bridge::BridgePauserAddress::<Runtime>::get(),
+        ]
+    }
+
+    fn count() -> usize {
+        2
+    }
+}
+
+parameter_types! {
+    pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/getha");
+}
+
+#[cfg(feature = "dev")]
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+    type PalletId = GearEthBridgePalletId;
+    type ControlOrigin = frame_system::EnsureSignedBy<BridgeAdmins<Runtime>, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;
