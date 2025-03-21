@@ -251,11 +251,13 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn bridge_admin)]
-    pub type BridgeAdmin<T: Config> = StorageValue<_, T::AccountId, ValueQuery, BridgeAdminAddress<T>>;
+    pub type BridgeAdmin<T: Config> =
+        StorageValue<_, T::AccountId, ValueQuery, BridgeAdminAddress<T>>;
 
     #[pallet::storage]
     #[pallet::getter(fn bridge_pauser)]
-    pub type BridgePauser<T: Config> = StorageValue<_, T::AccountId, ValueQuery, BridgePauserAddress<T>>;
+    pub type BridgePauser<T: Config> =
+        StorageValue<_, T::AccountId, ValueQuery, BridgePauserAddress<T>>;
 
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]

@@ -57,9 +57,9 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 #[cfg(feature = "dev")]
 use sp_core::Get;
+use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
