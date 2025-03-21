@@ -21,7 +21,7 @@ pub struct Producer {
     state: ProducerState,
 }
 
-pub enum ProducerState {
+enum ProducerState {
     #[allow(unused)]
     CollectOffChainTransactions,
     WaitingBlockComputed(H256),

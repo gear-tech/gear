@@ -7,20 +7,14 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::{
-    agro::{AggregatedCommitments, SignedCommitmentsBatch},
-    producer::{Producer, ProducerState},
-};
+use crate::{agro::SignedCommitmentsBatch, producer::Producer, verifier::Verifier};
 use anyhow::anyhow;
-use ethexe_common::{
-    gear::{BlockCommitment, CodeCommitment},
-    SimpleBlockData,
-};
+use ethexe_common::SimpleBlockData;
 use ethexe_db::Database;
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::{
     sha3::{digest::Update, Keccak256},
-    Address, Digest, PublicKey, Signature, Signer, ToDigest,
+    PublicKey, Signature, Signer, ToDigest,
 };
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
@@ -66,7 +60,6 @@ pub enum ControlEvent {
     ComputeProducerBlock(ProducerBlock),
     PublishProducerBlock(SignedProducerBlock),
     RequestValidation(SignedCommitmentsBatch),
-    SendValidationRequest,
 }
 
 pub struct SignedProducerBlock {
@@ -176,26 +169,6 @@ struct ChainHeadReceived {
     producer_blocks: Vec<SignedProducerBlock>,
 }
 
-pub struct Verifier {
-    validators: Vec<Address>,
-    producer: Address,
-    block: SimpleBlockData,
-    state: VerifierState,
-}
-
-enum VerifierState {
-    WaitingParentComputed {
-        parent_hash: H256,
-    },
-    WaitingForBlock,
-    WaitingProducerBlockComputed {
-        // +_+_+ think about
-        block_hash: H256,
-        parent_hash: Option<H256>,
-    },
-    WaitingForCommitment,
-}
-
 impl ValidatorService {
     pub fn new(pub_key: PublicKey, signer: Signer, db: Database, slot_duration: u64) -> Self {
         Self {
@@ -266,40 +239,14 @@ impl ControlService for ValidatorService {
             self.state = State::Producer(producer);
             self.output.extend(events);
         } else {
-            let parent_hash = block.header.parent_hash;
-            let producer_blocks = mem::take(&mut state.producer_blocks);
-
-            if let Some(producer_block) = producer_blocks.into_iter().find(|block| {
-                if block.block.block_hash != data.block_hash {
-                    unreachable!("Guarantied by service impl: block hashes must be equal");
-                }
-
-                let Ok(pk) = block
-                    .ecdsa_signature
-                    .recover_from_digest(block.block.to_digest())
-                else {
-                    return false;
-                };
-
-                pk.to_address() == producer
-            }) {
-                self.state = State::Verifier(Verifier {
-                    validators: data.validators,
-                    producer,
-                    block,
-                    state: VerifierState::WaitingForBlock,
-                });
-                self.receive_block_from_producer(producer_block)?;
-            } else {
-                self.state = State::Verifier(Verifier {
-                    validators: data.validators,
-                    producer,
-                    block,
-                    state: VerifierState::WaitingParentComputed { parent_hash },
-                });
-                self.output
-                    .push_back(ControlEvent::ComputeBlock(parent_hash));
-            }
+            let (verifier, events) = Verifier::new(
+                block,
+                data.validators,
+                producer,
+                mem::take(&mut state.producer_blocks),
+            )?;
+            self.output.extend(events);
+            self.state = State::Verifier(verifier);
         }
 
         Ok(())
@@ -328,43 +275,9 @@ impl ControlService for ValidatorService {
                 }
             }
             State::Verifier(verifier) => {
-                // +_+_+ make a method recover for SignedProducerBlock
-                let Ok(pk) = signed
-                    .ecdsa_signature
-                    .recover_from_digest(signed.block.to_digest())
-                else {
-                    log::warn!("Failed to recover public key from signature");
-                    return Ok(());
-                };
-
-                if pk.to_address() != verifier.producer {
-                    log::warn!("Received block from wrong producer");
-                    return Ok(());
-                }
-
-                match verifier.state {
-                    VerifierState::WaitingParentComputed { parent_hash } => {
-                        verifier.state = VerifierState::WaitingProducerBlockComputed {
-                            block_hash: signed.block.block_hash,
-                            parent_hash: Some(parent_hash),
-                        };
-                        self.output
-                            .push_back(ControlEvent::ComputeProducerBlock(signed.block));
-                    }
-                    VerifierState::WaitingForBlock => {
-                        verifier.state = VerifierState::WaitingProducerBlockComputed {
-                            block_hash: signed.block.block_hash,
-                            parent_hash: None,
-                        };
-                        self.output
-                            .push_back(ControlEvent::ComputeProducerBlock(signed.block));
-                    }
-                    _ => {
-                        log::warn!("Received not waited block from producer");
-                    }
-                }
-
-                Ok(())
+                verifier.receive_block_from_producer(signed).map(|events| {
+                    self.output.extend(events);
+                })
             }
             State::Producer(_) => Err(ControlError::Warning(anyhow!(
                 "Received producer block in producer mode"
@@ -380,49 +293,17 @@ impl ControlService for ValidatorService {
                 if let Some(signed_batch) = producer.receive_computed_block(computed_block)? {
                     self.output
                         .push_back(ControlEvent::RequestValidation(signed_batch));
-                    // +_+_+ 
+                    // +_+_+
                     self.state = State::Coordinator(Coordinator {});
                 } else {
                     // Empty block - nothing to do until next chain head.
                     self.state = State::Initial;
                 }
             }
-            State::Verifier(verifier) => match verifier.state {
-                VerifierState::WaitingProducerBlockComputed {
-                    block_hash,
-                    parent_hash,
-                } => {
-                    if computed_block == block_hash {
-                        verifier.state = VerifierState::WaitingForCommitment;
-                        self.output.push_back(ControlEvent::SendValidationRequest);
-                    } else if Some(computed_block) == parent_hash {
-                        // Nothing
-                    } else {
-                        log::warn!(
-                            "Received computed block {} is different from the expected block hash {}",
-                            computed_block,
-                            block_hash
-                        );
-                    }
-                }
-                VerifierState::WaitingParentComputed { parent_hash } => {
-                    if parent_hash == computed_block {
-                        verifier.state = VerifierState::WaitingForBlock;
-                        self.output
-                            .push_back(ControlEvent::ComputeBlock(parent_hash));
-                    } else {
-                        log::warn!(
-                            "Received computed block {} is different from the expected parent block hash {}",
-                            computed_block,
-                            parent_hash
-                        );
-                    }
-                }
-                _ => {
-                    log::warn!("Received computed block {computed_block} in unexpected state");
-                }
-            },
-            _ => log::warn!("Received computed block {computed_block} in unexpected state"),
+            State::Verifier(verifier) => verifier.receive_computed_block(computed_block)?,
+            _ => Err(ControlError::Warning(anyhow!(
+                "Received computed block in unexpected state"
+            )))?,
         }
 
         Ok(())

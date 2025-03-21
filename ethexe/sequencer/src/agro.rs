@@ -23,10 +23,7 @@ use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode};
-use std::{
-    collections::BTreeMap,
-    ops::{Deref, Not},
-};
+use std::{collections::BTreeMap, ops::Deref};
 
 pub struct SignedCommitmentsBatch {
     blocks: Vec<BlockCommitment>,
