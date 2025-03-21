@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
@@ -16,7 +16,6 @@ import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
 
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {IMirror, Mirror} from "../src/Mirror.sol";
-import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {IRouter, Router} from "../src/Router.sol";
 import {Middleware} from "../src/Middleware.sol";
 import {Gear} from "../src/libraries/Gear.sol";
@@ -37,7 +36,6 @@ contract Base is POCBaseTest {
     WrappedVara public wrappedVara;
     Router public router;
     Mirror public mirror;
-    MirrorProxy public mirrorProxy;
 
     function setUp() public virtual override {
         revert("Must not be called");
@@ -103,7 +101,6 @@ contract Base is POCBaseTest {
         address wrappedVaraAddress = address(wrappedVara);
 
         address mirrorAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 2);
-        address mirrorProxyAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
 
         vm.startPrank(admin, admin);
         {
@@ -116,7 +113,6 @@ contract Base is POCBaseTest {
                         (
                             admin,
                             mirrorAddress,
-                            mirrorProxyAddress,
                             wrappedVaraAddress,
                             uint256(eraDuration),
                             uint256(electionDuration),
@@ -136,13 +132,11 @@ contract Base is POCBaseTest {
 
         vm.startPrank(admin, admin);
         {
-            mirror = new Mirror();
-            mirrorProxy = new MirrorProxy(address(router));
+            mirror = new Mirror(address(router));
         }
         vm.stopPrank();
 
         assertEq(router.mirrorImpl(), address(mirror));
-        assertEq(router.mirrorProxyImpl(), address(mirrorProxy));
         assertEq(router.validators(), _validators);
         assertEq(router.signingThresholdPercentage(), 6666);
         assertTrue(router.areValidators(_validators));

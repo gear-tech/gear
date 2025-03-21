@@ -122,9 +122,13 @@ impl Service {
             None
         };
 
-        let rocks_db = RocksDatabase::open(config.node.database_path.clone())
-            .with_context(|| "failed to open database")?;
-        let db = Database::from_one(&rocks_db, config.ethereum.router_address.0);
+        let rocks_db = RocksDatabase::open(
+            config
+                .node
+                .database_path_for(config.ethereum.router_address),
+        )
+        .with_context(|| "failed to open database")?;
+        let db = Database::from_one(&rocks_db);
 
         let observer = ObserverService::new(
             &config.ethereum,
@@ -852,7 +856,7 @@ mod identity {
         pub fn receive_new_chain_head(&mut self, block: SimpleBlockData) {
             self.block = Some(block);
 
-            // TODO (gsobol): block producer could be calculated right here, using propagation from previous blocks.
+            // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
             self.producer = None;
         }
 
@@ -885,7 +889,7 @@ mod identity {
             Ok(self.validator == Some(self.block_producer()?))
         }
 
-        // TODO (gsobol): temporary implementation - next slot is the next validator in the list.
+        // TODO #4553: temporary implementation - next slot is the next validator in the list.
         const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
             (slot % validators_amount as u64) as usize
         }

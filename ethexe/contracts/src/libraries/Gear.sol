@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IRouter} from "../IRouter.sol";
@@ -34,7 +34,6 @@ library Gear {
 
     struct AddressBook {
         address mirror;
-        address mirrorProxy;
         address wrappedVara;
     }
 

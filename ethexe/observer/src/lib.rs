@@ -19,9 +19,10 @@
 //! Ethereum state observer for ethexe.
 
 use alloy::{
-    providers::{Provider as _, ProviderBuilder, RootProvider},
+    providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
+    transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
 use ethexe_common::{db::OnChainStorage, SimpleBlockData};
@@ -56,6 +57,8 @@ pub use blobs::*;
 
 type BlobDownloadFuture = BoxFuture<'static, Result<BlobData>>;
 type SyncFuture = BoxFuture<'static, Result<(BlockSyncedData, Vec<(CodeId, CodeInfo)>)>>;
+type HeadersSubscriptionFuture =
+    BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -114,33 +117,48 @@ struct RuntimeConfig {
     block_time: Duration,
 }
 
-// TODO (gsobol): make tests for observer service
+// TODO #4552: make tests for observer service
 pub struct ObserverService {
     provider: RootProvider,
     db: Database,
-    // TODO (gsobol): consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
+    // TODO #4561: consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
     blobs_reader: Arc<dyn BlobReader>,
-    subscription: Subscription<Header>,
 
     config: RuntimeConfig,
-
     last_block_number: u32,
-
     headers_stream: SubscriptionStream<Header>,
     block_sync_queue: VecDeque<Header>,
+
     sync_future: Option<SyncFuture>,
     codes_futures: FuturesUnordered<BlobDownloadFuture>,
+    subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
 impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(future) = self.subscription_future.as_mut() {
+            match future.poll_unpin(cx) {
+                Poll::Ready(Ok(subscription)) => self.headers_stream = subscription.into_stream(),
+                Poll::Ready(Err(e)) => {
+                    return Poll::Ready(Some(Err(anyhow!(
+                        "failed to create new headers stream: {e}"
+                    ))))
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+
         if let Poll::Ready(res) = self.headers_stream.poll_next_unpin(cx) {
             let Some(header) = res else {
-                // TODO (breathx): test resubscribe works.
-                log::warn!("Alloy headers stream ended, resubscribing");
-                self.headers_stream = self.subscription.resubscribe().into_stream();
+                log::warn!("Alloy headers stream ended. Creating a new one...");
+
+                // TODO #4568: test creating a new subscription in case when Receiver becomes invalid
+                let provider = self.provider().clone();
+                self.subscription_future =
+                    Some(Box::pin(async move { provider.subscribe_blocks().await }));
+
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
             };
@@ -208,7 +226,7 @@ impl ObserverService {
         eth_cfg: &EthereumConfig,
         max_sync_depth: u32,
         db: Database,
-        // TODO (gsobol): blobs reader should be provided by the caller always.
+        // TODO #4561: blobs reader should be provided by the caller always.
         blobs_reader: Option<Arc<dyn BlobReader>>,
     ) -> Result<Self> {
         let EthereumConfig {
@@ -236,29 +254,28 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
-        let subscription = provider
-            .subscribe_blocks()
-            .await
-            .context("failed to subscribe blocks")?;
-
         Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
 
-        let headers_stream = subscription.resubscribe().into_stream();
+        let headers_stream = provider
+            .subscribe_blocks()
+            .await
+            .context("failed to subscribe blocks")?
+            .into_stream();
 
         Ok(Self {
             provider,
             db,
             blobs_reader,
-            subscription,
             config: RuntimeConfig {
                 router_address: *router_address,
                 wvara_address,
                 max_sync_depth,
-                // TODO (gsobol): make this configurable. Important: must be greater than 1.
+                // TODO #4562: make this configurable. Important: must be greater than 1.
                 batched_sync_depth: 2,
                 block_time: *block_time,
             },
             last_block_number: 0,
+            subscription_future: None,
             headers_stream,
             codes_futures: Default::default(),
             block_sync_queue: Default::default(),
@@ -266,7 +283,7 @@ impl ObserverService {
         })
     }
 
-    // TODO (gsobol): this is a temporary solution.
+    // TODO #4563: this is a temporary solution.
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
     async fn pre_process_genesis_for_db(
@@ -302,6 +319,7 @@ impl ObserverService {
         db.set_block_is_synced(genesis_block_hash);
 
         db.set_block_commitment_queue(genesis_block_hash, Default::default());
+        db.set_block_codes_queue(genesis_block_hash, Default::default());
         db.set_previous_not_empty_block(genesis_block_hash, H256::zero());
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());

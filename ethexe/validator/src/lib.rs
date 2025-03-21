@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn test_validate_code_commitments() {
-        let db = Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
+        let db = Database::from_one(&ethexe_db::MemDb::default());
 
         let code_id = CodeId::from(H256::random());
 
@@ -538,7 +538,7 @@ mod tests {
 
     #[test]
     fn test_validate_block_commitment() {
-        let db = Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
+        let db = Database::from_one(&ethexe_db::MemDb::default());
 
         let block_hash = H256::random();
         let block_timestamp = rand::random::<u32>() as u64;
@@ -634,7 +634,7 @@ mod tests {
 
     #[test]
     fn test_verify_is_predecessor() {
-        let db = Database::from_one(&ethexe_db::MemDb::default(), [0; 20]);
+        let db = Database::from_one(&ethexe_db::MemDb::default());
 
         let blocks = [H256::random(), H256::random(), H256::random()];
         db.set_block_header(

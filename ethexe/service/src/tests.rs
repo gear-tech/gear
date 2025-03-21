@@ -787,7 +787,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::from_one(&MemDb::default(), env.eth_cfg.router_address.0);
+    node.db = Database::from_one(&MemDb::default());
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
@@ -1405,7 +1405,7 @@ mod utils {
 
             let blob_reader = Arc::new(MockBlobReader::new(block_time));
 
-            let db = Database::from_one(&MemDb::default(), router_address.0);
+            let db = Database::from_one(&MemDb::default());
 
             let eth_cfg = EthereumConfig {
                 rpc: rpc_url.clone(),
@@ -1491,9 +1491,7 @@ mod utils {
                 rpc: service_rpc_config,
             } = config;
 
-            let db = db.unwrap_or_else(|| {
-                Database::from_one(&MemDb::default(), self.eth_cfg.router_address.0)
-            });
+            let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
@@ -1720,7 +1718,7 @@ mod utils {
 
         // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
         // If your test depends on events in skipped blocks, you need to improve this method.
-        // TODO (gsobol): iterate thru skipped blocks.
+        // TODO #4554: iterate thru skipped blocks.
         pub async fn apply_until_block_event_with_header<R: Sized>(
             &mut self,
             mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
