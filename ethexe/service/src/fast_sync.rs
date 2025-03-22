@@ -197,7 +197,6 @@ struct RequestManager<'a> {
     /// Pending requests, we remove one by one on each hash from a network response
     pending_requests: HashMap<(RequestId, H256), RequestMetadata<'a>>,
     /// Completed requests
-    // TODO: do not write requests to the database if they are already there
     responses: HashMap<H256, (RequestMetadata<'a>, Vec<u8>)>,
 }
 
@@ -242,7 +241,12 @@ impl<'a> RequestManager<'a> {
         !self.pending_requests.is_empty()
     }
 
-    fn handle_response(&mut self, request_id: RequestId, response: db_sync::Response) {
+    fn handle_response(
+        &mut self,
+        request_id: RequestId,
+        response: db_sync::Response,
+        db: &Database,
+    ) {
         let db_sync::Response(data) = response;
 
         for (hash, data) in data {
@@ -250,6 +254,10 @@ impl<'a> RequestManager<'a> {
                 .pending_requests
                 .remove(&(request_id, hash))
                 .expect("unknown pending request");
+
+            let db_hash = db.write(&data);
+            debug_assert_eq!(hash, db_hash);
+
             self.responses.insert(hash, (metadata, data));
             self.total_completed_requests += 1;
         }
@@ -344,7 +352,7 @@ async fn sync_from_network(
 
             match result {
                 Ok(response) => {
-                    manager.handle_response(request_id, response);
+                    manager.handle_response(request_id, response, db);
                 }
                 Err((request, err)) => {
                     network.db_sync().retry(request);
@@ -354,8 +362,6 @@ async fn sync_from_network(
         }
 
         for (metadata, data) in manager.take_responses() {
-            db.write(&data);
-
             match metadata {
                 RequestMetadata::ProgramState { program_ids } => {
                     let state: ProgramState =
