@@ -51,6 +51,8 @@ mod tests;
 
 #[derive(Debug, Clone, derive_more::From)]
 pub enum Event {
+    // Fast sync done. Sent just once.
+    FastSyncDone(H256),
     // Basic event to notify that service has started. Sent just once.
     ServiceStarted,
     // Services events.
@@ -392,7 +394,9 @@ impl Service {
             }
 
             match event {
-                Event::ServiceStarted => unreachable!("never handled here"),
+                Event::FastSyncDone(_) | Event::ServiceStarted => {
+                    unreachable!("never handled here")
+                }
                 Event::Observer(event) => match event {
                     ObserverEvent::Blob(BlobData {
                         code_id,

@@ -20,7 +20,8 @@
 
 use crate::{
     config::{self, Config},
-    Event, Service,
+    tests::utils::Node,
+    Service,
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
@@ -1146,6 +1147,56 @@ async fn tx_pool_gossip() {
 async fn fast_sync() {
     utils::init_logger();
 
+    let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
+        log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
+
+        assert_eq!(alice.db.program_ids(), bob.db.program_ids());
+        assert_eq!(
+            alice.db.latest_computed_block(),
+            bob.db.latest_computed_block()
+        );
+
+        let mut block = latest_block;
+        loop {
+            if fast_synced_block == block {
+                break;
+            }
+
+            log::trace!("assert block {block}");
+
+            assert_eq!(
+                alice.db.block_commitment_queue(block),
+                bob.db.block_commitment_queue(block)
+            );
+            assert_eq!(
+                alice.db.block_codes_queue(block),
+                bob.db.block_codes_queue(block)
+            );
+
+            assert_eq!(alice.db.block_computed(block), bob.db.block_computed(block));
+            assert_eq!(
+                alice.db.previous_not_empty_block(block),
+                bob.db.previous_not_empty_block(block)
+            );
+            assert_eq!(
+                alice.db.block_program_states(block),
+                bob.db.block_program_states(block)
+            );
+            assert_eq!(alice.db.block_outcome(block), bob.db.block_outcome(block));
+            assert_eq!(alice.db.block_schedule(block), bob.db.block_schedule(block));
+
+            assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
+            assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
+            assert_eq!(
+                alice.db.block_is_synced(block),
+                bob.db.block_is_synced(block)
+            );
+
+            let header = alice.db.block_header(block).unwrap();
+            block = header.parent_hash;
+        }
+    };
+
     let config = TestEnvConfig {
         validators: ValidatorsConfig::Generated(3),
         ..Default::default()
@@ -1181,9 +1232,9 @@ async fn fast_sync() {
         .unwrap();
 
     let code_id = code_info.code_id;
-    let mut program_ids = [(ActorId::zero(), ActorId::zero()); 5];
+    let mut program_ids = [ActorId::zero(); 8];
 
-    for (i, (program_id, destination)) in program_ids.iter_mut().enumerate() {
+    for (i, program_id) in program_ids.iter_mut().enumerate() {
         let program_info = env
             .create_program(code_id, 500_000_000_000_000)
             .await
@@ -1193,8 +1244,8 @@ async fn fast_sync() {
             .unwrap();
 
         *program_id = program_info.program_id;
-        *destination = ActorId::from(i as u64 % 3);
 
+        let destination = ActorId::from(i as u64 % 3);
         let _reply_info = env
             .send_message(program_info.program_id, destination.as_ref(), 0)
             .await
@@ -1204,19 +1255,13 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    log::info!("Starting Bob (fast-sync)");
     let latest_block = env.latest_block().await;
     alice
-        .wait_for(|event| {
-            matches!(
-                event,
-                Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash })) if block_hash == latest_block
-            )
-        })
+        .listener()
+        .wait_for_block_processed(latest_block)
         .await;
-    let latest_block = alice.db.block_header(latest_block).unwrap();
-    let bob_previous_block = latest_block.parent_hash;
 
+    log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(
         NodeConfig::named("Bob")
             .validator(env.validators[2], env.validator_session_public_keys[2])
@@ -1226,10 +1271,40 @@ async fn fast_sync() {
     bob.start_service().await;
 
     log::info!("Sending messages to programs");
-
-    for (program_id, destination) in program_ids {
+    for program_id in program_ids {
         let reply_info = env
-            .send_message(program_id, destination.as_ref(), 0)
+            .send_message(program_id, b"", 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Auto)
+        );
+    }
+
+    let latest_block = env.latest_block().await;
+    alice
+        .listener()
+        .wait_for_block_processed(latest_block)
+        .await;
+    bob.listener().wait_for_block_processed(latest_block).await;
+
+    log::info!("Stopping Bob");
+    bob.stop_service().await;
+
+    assert_chain(
+        latest_block,
+        bob.latest_fast_synced_block.take().unwrap(),
+        &alice,
+        &bob,
+    );
+
+    for program_id in program_ids {
+        let reply_info = env
+            .send_message(program_id, b"", 0)
             .await
             .unwrap()
             .wait_for()
@@ -1244,69 +1319,34 @@ async fn fast_sync() {
     env.skip_blocks(100).await;
 
     let latest_block = env.latest_block().await;
-    log::info!("Do assertions since {latest_block}");
-
+    sequencer
+        .listener()
+        .wait_for_block_processed(latest_block)
+        .await;
     alice
-        .wait_for(|event| {
-            matches!(
-                event,
-                Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash })) if block_hash == latest_block
-            )
-        })
+        .listener()
+        .wait_for_block_processed(latest_block)
         .await;
 
-    bob.wait_for(|event| {
-        matches!(
-            event,
-            Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash })) if block_hash == latest_block
-        )
-    })
-        .await;
+    log::info!("Starting Bob again to check how it handles partially empty database");
+    bob.start_service().await;
 
-    assert_eq!(alice.db.program_ids(), bob.db.program_ids());
-    assert_eq!(
-        alice.db.latest_computed_block(),
-        bob.db.latest_computed_block()
+    // mine a block so Bob can produce the event we will wait for
+    env.skip_blocks(1).await;
+
+    let latest_block = env.latest_block().await;
+    alice
+        .listener()
+        .wait_for_block_processed(latest_block)
+        .await;
+    bob.listener().wait_for_block_processed(latest_block).await;
+
+    assert_chain(
+        latest_block,
+        bob.latest_fast_synced_block.take().unwrap(),
+        &alice,
+        &bob,
     );
-
-    let mut block = latest_block;
-    loop {
-        if block == bob_previous_block {
-            break;
-        }
-
-        log::trace!("assert block {block}");
-
-        assert_eq!(alice.db.block_computed(block), bob.db.block_computed(block));
-        assert_eq!(
-            alice.db.block_commitment_queue(block),
-            bob.db.block_commitment_queue(block)
-        );
-        assert_eq!(
-            alice.db.block_codes_queue(block),
-            bob.db.block_codes_queue(block)
-        );
-        assert_eq!(
-            alice.db.previous_not_empty_block(block),
-            bob.db.previous_not_empty_block(block)
-        );
-        assert_eq!(
-            alice.db.block_program_states(block),
-            bob.db.block_program_states(block)
-        );
-        assert_eq!(alice.db.block_outcome(block), bob.db.block_outcome(block));
-        assert_eq!(alice.db.block_schedule(block), bob.db.block_schedule(block));
-
-        assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
-        assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
-        assert_eq!(
-            alice.db.block_is_synced(block),
-            bob.db.block_is_synced(block)
-        );
-
-        let header = alice.db.block_header(block).unwrap();
-        block = header.parent_hash;
-    }
 }
 
 mod utils {
@@ -1667,7 +1707,7 @@ mod utils {
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
-                    static NONCE: AtomicUsize = AtomicUsize::new(10);
+                    static NONCE: AtomicUsize = AtomicUsize::new(1);
                     let nonce = NONCE.fetch_add(1, Ordering::Relaxed);
                     format!("/memory/{nonce}")
                 })
@@ -1678,6 +1718,7 @@ mod utils {
                 name,
                 db,
                 multiaddr: None,
+                latest_fast_synced_block: None,
                 eth_cfg: self.eth_cfg.clone(),
                 broadcaster: None,
                 receiver: None,
@@ -2096,6 +2137,7 @@ mod utils {
         pub name: Option<String>,
         pub db: Database,
         pub multiaddr: Option<String>,
+        pub latest_fast_synced_block: Option<H256>,
 
         eth_cfg: EthereumConfig,
         broadcaster: Option<Sender<Event>>,
@@ -2222,6 +2264,21 @@ mod utils {
             );
             self.running_service_handle = Some(handle);
 
+            if self.fast_sync {
+                self.latest_fast_synced_block = self
+                    .listener()
+                    .apply_until(|e| {
+                        if let Event::FastSyncDone(block) = e {
+                            Ok(Some(block))
+                        } else {
+                            Ok(None)
+                        }
+                    })
+                    .await
+                    .map(Some)
+                    .unwrap();
+            }
+
             self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
 
             // fast sync implies network has connections
@@ -2278,6 +2335,15 @@ mod utils {
         pub async fn wait_for(&mut self, f: impl Fn(Event) -> Result<bool>) -> Result<()> {
             self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
                 .await
+        }
+
+        pub async fn wait_for_block_processed(&mut self, block_hash: H256) {
+            self.wait_for(|event| {
+                Ok(matches!(
+                    event,
+                    Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash: b })) if b == block_hash
+                ))
+            }).await.unwrap();
         }
 
         pub async fn apply_until<R: Sized>(

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Service;
+use crate::{Event, Service};
 use alloy::{
     eips::{BlockId, BlockNumberOrTag},
     providers::Provider,
@@ -68,7 +68,6 @@ impl EventData {
                 .block_events(block)
                 .ok_or_else(|| anyhow!("no events found for block {block}"))?;
 
-            // we only care about the latest events
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in events.into_iter().rev() {
                 match event {
@@ -106,6 +105,18 @@ impl EventData {
                 .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
             let parent = header.parent_hash;
             block = parent;
+        }
+
+        // recover data we haven't seen in events by latest computed block
+        if let Some((computed_block, _computed_header)) = db.latest_computed_block() {
+            let computed_program_states = db
+                .block_program_states(computed_block)
+                .context("program states of latest computed block not found")?;
+            for (program_id, state) in computed_program_states {
+                program_states.entry(program_id).or_insert(state);
+            }
+
+            latest_block.get_or_insert(computed_block);
         }
 
         let latest_block = latest_block.context("no blocks committed")?;
@@ -191,7 +202,11 @@ struct BufRequests<'a> {
 impl<'a> BufRequests<'a> {
     fn add(&mut self, hash: H256, request: Request<'a>) {
         let old = self.buffered_requests.insert(hash, request);
-        debug_assert_eq!(old, None);
+
+        #[cfg(debug_assertions)]
+        if let Some(old_request) = old {
+            assert_eq!(request, old_request);
+        }
     }
 
     fn request(&mut self, network: &mut NetworkService, db: &Database) -> bool {
@@ -211,13 +226,14 @@ impl<'a> BufRequests<'a> {
                 network_request.insert(hash);
                 pending_requests.insert(hash, request);
             }
+
+            self.total_pending_requests += 1;
         }
 
         if !network_request.is_empty() {
             let request_id = network.db_sync().request(db_sync::Request(network_request));
             for (hash, request) in pending_requests {
                 self.pending_requests.insert((request_id, hash), request);
-                self.total_pending_requests += 1;
             }
         }
 
@@ -250,8 +266,10 @@ impl<'a> BufRequests<'a> {
 
     /// (total completed request, total pending requests)
     fn stats(&self) -> (u64, u64) {
-        debug_assert!(self.total_completed_requests <= self.total_pending_requests);
-        (self.total_completed_requests, self.total_pending_requests)
+        let completed = self.total_completed_requests;
+        let pending = self.total_pending_requests;
+        debug_assert!(completed <= pending, "{completed} <= {pending}");
+        (completed, pending)
     }
 }
 
@@ -465,6 +483,11 @@ async fn instrument_codes(
     compute: &mut ComputeService,
     mut code_ids: HashSet<CodeId>,
 ) -> Result<()> {
+    if code_ids.is_empty() {
+        log::info!("No codes to instrument. Skipping...");
+        return Ok(());
+    }
+
     log::info!("Instrument {} codes", code_ids.len());
 
     for &code_id in &code_ids {
@@ -496,6 +519,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         compute,
         network,
         db,
+        sender,
         ..
     } = service;
     let Some(network) = network else {
@@ -526,6 +550,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_program_code_id(program_id, code_id);
     }
 
+    // NOTE: there is no invariant that fast sync should recover queues
     db.set_block_commitment_queue(latest_block, VecDeque::new());
     db.set_block_codes_queue(latest_block, VecDeque::new());
 
@@ -542,6 +567,14 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     db.set_latest_computed_block(latest_block, latest_block_header);
 
     log::info!("Fast synchronization done");
+
+    // Broadcast service started event.
+    // Never supposed to be Some in production code.
+    if let Some(sender) = sender.as_ref() {
+        sender
+            .send(Event::FastSyncDone(latest_block))
+            .expect("failed to broadcast service STARTED event");
+    }
 
     Ok(())
 }
