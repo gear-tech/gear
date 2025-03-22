@@ -87,7 +87,12 @@ contract Base is POCBaseTest {
             collateral: address(wrappedVara),
             roleSlashRequester: admin,
             roleSlashExecutor: admin,
-            vetoResolver: admin
+            vetoResolver: admin,
+
+            // TODO: add real addresses for testing associated functions
+            operatorRewards: address(0),
+            operatorRewardsFactory: address(0),
+            router: address(router)
         });
 
         middleware = new Middleware(cfg);

@@ -15,6 +15,10 @@ import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService
 import {INetworkMiddlewareService} from "symbiotic-core/src/interfaces/service/INetworkMiddlewareService.sol";
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratableEntity.sol";
+import {IDefaultOperatorRewards} from
+    "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
+import {IDefaultOperatorRewardsFactory} from
+    "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 
@@ -53,6 +57,8 @@ contract Middleware {
     error RoleMismatch();
     error ResolverMismatch();
     error ResolverSetDelayTooLong();
+    error NotRouter();
+    error NotOperatorRewards();
 
     struct VaultSlashData {
         address vault;
@@ -89,6 +95,9 @@ contract Middleware {
         address roleSlashRequester;
         address roleSlashExecutor;
         address vetoResolver;
+        address operatorRewards;
+        address operatorRewardsFactory;
+        address router;
     }
 
     uint96 public constant NETWORK_IDENTIFIER = 0;
@@ -111,6 +120,10 @@ contract Middleware {
     address public immutable vetoResolver;
     bytes32 public immutable subnetwork;
 
+    address public immutable operatorRewards;
+    address public immutable operatorRewardsFactory;
+    address public immutable router;
+
     address public roleSlashRequester;
     address public roleSlashExecutor;
 
@@ -119,6 +132,10 @@ contract Middleware {
 
     constructor(Config memory cfg) {
         _validateConfiguration(cfg);
+
+        if (!IDefaultOperatorRewardsFactory(operatorRewardsFactory).isEntity(cfg.operatorRewards)) {
+            revert NotOperatorRewards();
+        }
 
         eraDuration = cfg.eraDuration;
         minVaultEpochDuration = cfg.minVaultEpochDuration;
@@ -140,6 +157,10 @@ contract Middleware {
         vetoResolver = cfg.vetoResolver;
 
         subnetwork = address(this).subnetwork(NETWORK_IDENTIFIER);
+
+        operatorRewards = cfg.operatorRewards;
+        operatorRewardsFactory = cfg.operatorRewardsFactory;
+        router = cfg.router;
 
         // Presently network and middleware are the same address
         INetworkRegistry(networkRegistry).registerNetwork();
@@ -181,6 +202,10 @@ contract Middleware {
         }
 
         operators.remove(operator);
+    }
+
+    function distributeOperatorRewards(address token, uint256 amount, bytes32 root) external _onlyRouter {
+        IDefaultOperatorRewards(operatorRewards).distributeRewards(address(this), token, amount, root);
     }
 
     // TODO: check vault has enough stake
@@ -481,6 +506,13 @@ contract Middleware {
     modifier _onlyRole(address role) {
         if (msg.sender != role) {
             revert RoleMismatch();
+        }
+        _;
+    }
+
+    modifier _onlyRouter() {
+        if (msg.sender != router) {
+            revert NotRouter();
         }
         _;
     }
