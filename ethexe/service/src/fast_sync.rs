@@ -280,6 +280,25 @@ impl<'a> RequestManager<'a> {
     }
 }
 
+impl Drop for RequestManager<'_> {
+    fn drop(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            let Self {
+                total_completed_requests,
+                total_pending_requests,
+                buffered_requests,
+                pending_requests,
+                responses,
+            } = self;
+            assert_eq!(total_completed_requests, total_pending_requests);
+            assert_eq!(*buffered_requests, HashMap::new());
+            assert_eq!(*pending_requests, HashMap::new());
+            assert_eq!(*responses, HashMap::new());
+        }
+    }
+}
+
 async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
     let highest_block = observer
         .provider()
@@ -317,7 +336,6 @@ async fn sync_from_network(
     latest_block_header: &BlockHeader,
 ) -> Schedule {
     let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
-    let mut manager = RequestManager::default();
 
     let program_states: HashMap<H256, HashSet<ActorId>> =
         program_states
@@ -326,6 +344,7 @@ async fn sync_from_network(
                 acc.entry(state).or_default().insert(program_id);
                 acc
             });
+    let mut manager = RequestManager::default();
     for (&state, program_ids) in &program_states {
         manager.add(state, RequestMetadata::ProgramState { program_ids });
     }
@@ -478,7 +497,6 @@ async fn sync_from_network(
 
     let (completed, pending) = manager.stats();
     log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
-    debug_assert_eq!(completed, pending);
 
     schedule_restorer.restore()
 }
