@@ -1032,7 +1032,7 @@ async fn multiple_validators() {
         NodeConfig::default()
             .validator(env.validators[2], env.validator_session_public_keys[2])
             .network(None, sequencer.multiaddr.clone())
-            .db(validator2.db),
+            .db(validator2.db.clone()),
     );
 
     validator2.start_service().await;
@@ -1371,6 +1371,7 @@ mod utils {
     use std::{
         collections::HashMap,
         future::Future,
+        mem::ManuallyDrop,
         ops::Mul,
         pin::Pin,
         str::FromStr,
@@ -1408,15 +1409,17 @@ mod utils {
         }
     }
 
-    struct NamedJoinHandle<T> {
-        handle: JoinHandle<T>,
+    pub struct NamedJoinHandle<T> {
+        handle: ManuallyDrop<JoinHandle<T>>,
     }
 
     impl<T> NamedJoinHandle<T> {
         fn wrap(name: impl Into<String>, handle: JoinHandle<T>) -> NamedJoinHandle<T> {
             let mut map = TaskNames::write();
             map.insert(handle.id(), name.into());
-            Self { handle }
+            Self {
+                handle: ManuallyDrop::new(handle),
+            }
         }
 
         fn abort(&self) {
@@ -1434,8 +1437,21 @@ mod utils {
 
     impl<T> Drop for NamedJoinHandle<T> {
         fn drop(&mut self) {
+            // we lock the map before manually dropping the handle to make sure
+            // the task name is known even during dropping
+
             let mut map = TaskNames::write();
-            map.remove(&self.handle.id());
+            let id = self.handle.id();
+
+            // # Safety
+            //
+            // `handle` is dropped only inside this `Drop` implementation and has
+            // no further usage inside the implementation.
+            unsafe {
+                ManuallyDrop::drop(&mut self.handle);
+            }
+
+            map.remove(&id);
         }
     }
 
@@ -1493,15 +1509,6 @@ mod utils {
                 router_address,
                 continuous_block_generation,
             } = config;
-
-            // we set our own hook with `exit(1)` because
-            // we use multithreaded tokio runtime in tests
-            // so panics are not observed until any service is stopped
-            let default_panic = std::panic::take_hook();
-            std::panic::set_hook(Box::new(move |info| {
-                default_panic(info);
-                std::process::exit(1);
-            }));
 
             log::info!(
                 "📗 Starting new test environment. Continuous block generation: {}",
@@ -1720,7 +1727,6 @@ mod utils {
                 multiaddr: None,
                 latest_fast_synced_block: None,
                 eth_cfg: self.eth_cfg.clone(),
-                broadcaster: None,
                 receiver: None,
                 blob_reader: self.blob_reader.clone(),
                 signer: self.signer.clone(),
@@ -2140,7 +2146,6 @@ mod utils {
         pub latest_fast_synced_block: Option<H256>,
 
         eth_cfg: EthereumConfig,
-        broadcaster: Option<Sender<Event>>,
         receiver: Option<Receiver<Event>>,
         blob_reader: Arc<MockBlobReader>,
         signer: Signer,
@@ -2238,7 +2243,6 @@ mod utils {
             });
 
             self.receiver = Some(receiver);
-            self.broadcaster = Some(sender.clone());
 
             let service = Service::new_from_parts(
                 self.db.clone(),
@@ -2297,7 +2301,6 @@ mod utils {
 
             assert!(handle.await.unwrap_err().is_cancelled());
 
-            self.broadcaster = None;
             self.multiaddr = None;
             self.receiver = None;
         }
@@ -2320,6 +2323,14 @@ mod utils {
                 .wait_for(|e| Ok(f(e)))
                 .await
                 .expect("infallible; always ok")
+        }
+    }
+
+    impl Drop for Node {
+        fn drop(&mut self) {
+            if let Some(handle) = &self.running_service_handle {
+                handle.abort();
+            }
         }
     }
 
