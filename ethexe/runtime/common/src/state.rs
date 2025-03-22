@@ -816,10 +816,6 @@ impl DispatchStash {
         (dispatch, user_id)
     }
 
-    pub fn into_inner(self) -> BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>> {
-        self.0
-    }
-
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_stash(self)))
     }
