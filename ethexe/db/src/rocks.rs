@@ -49,6 +49,15 @@ impl CASDatabase for RocksDatabase {
             .expect("Failed to read data, database is not in valid state")
     }
 
+    fn has(&self, hash: H256) -> bool {
+        self.inner.key_may_exist(hash)
+            && self
+                .inner
+                .get_pinned(hash)
+                .expect("Failed to read data, database is not in valid state")
+                .is_some()
+    }
+
     fn write(&self, data: &[u8]) -> H256 {
         let hash = crate::hash(data);
         self.inner
