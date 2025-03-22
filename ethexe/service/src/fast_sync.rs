@@ -170,12 +170,12 @@ impl RequestMetadata<'_> {
     /// so we need to process the whole request tree up to `Waitlist`, `UserMailbox` and others
     /// because they can change `ScheduleRestorer`.
     fn is_simple(self) -> bool {
-        match self {
+        matches!(
+            self,
             RequestMetadata::MemoryPages
-            | RequestMetadata::MemoryPagesRegion
-            | RequestMetadata::Data => true,
-            _ => false,
-        }
+                | RequestMetadata::MemoryPagesRegion
+                | RequestMetadata::Data
+        )
     }
 }
 
@@ -190,7 +190,7 @@ struct RequestManager<'a> {
     /// * Skipped if they are simple
     /// * Completed if the database has keys
     /// * Converted into one network request, and after that
-    /// we convert them into `pending_requests` because `RequestId` is known
+    ///   we convert them into `pending_requests` because `RequestId` is known
     buffered_requests: HashMap<H256, RequestMetadata<'a>>,
     /// Pending requests, we remove one by one on each hash from a network response
     pending_requests: HashMap<(RequestId, H256), RequestMetadata<'a>>,
