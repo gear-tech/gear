@@ -888,7 +888,6 @@ impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
     }
 }
 
-// TODO (breathx): consider here LocalMailbox for each user.
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mailbox {
