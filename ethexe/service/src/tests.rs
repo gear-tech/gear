@@ -1224,7 +1224,7 @@ async fn fast_sync() {
     log::info!("Creating `demo-autoreply` programs");
 
     let code_info = env
-        .upload_code(demo_autoreply::WASM_BINARY)
+        .upload_code(demo_mul_by_const::WASM_BINARY)
         .await
         .unwrap()
         .wait_for()
@@ -1245,9 +1245,9 @@ async fn fast_sync() {
 
         *program_id = program_info.program_id;
 
-        let destination = ActorId::from(i as u64 % 3);
+        let value = i as u64 % 3;
         let _reply_info = env
-            .send_message(program_info.program_id, destination.as_ref(), 0)
+            .send_message(program_info.program_id, &value.encode(), 0)
             .await
             .unwrap()
             .wait_for()
@@ -1271,9 +1271,9 @@ async fn fast_sync() {
     bob.start_service().await;
 
     log::info!("Sending messages to programs");
-    for program_id in program_ids {
+    for (i, program_id) in program_ids.into_iter().enumerate() {
         let reply_info = env
-            .send_message(program_id, b"", 0)
+            .send_message(program_id, &(i as u64).encode(), 0)
             .await
             .unwrap()
             .wait_for()
@@ -1281,7 +1281,7 @@ async fn fast_sync() {
             .unwrap();
         assert_eq!(
             reply_info.code,
-            ReplyCode::Success(SuccessReplyReason::Auto)
+            ReplyCode::Success(SuccessReplyReason::Manual)
         );
     }
 
@@ -1302,9 +1302,10 @@ async fn fast_sync() {
         &bob,
     );
 
-    for program_id in program_ids {
+    for (i, program_id) in program_ids.into_iter().enumerate() {
+        let i = (i * 3) as u64;
         let reply_info = env
-            .send_message(program_id, b"", 0)
+            .send_message(program_id, &i.encode(), 0)
             .await
             .unwrap()
             .wait_for()
@@ -1312,7 +1313,7 @@ async fn fast_sync() {
             .unwrap();
         assert_eq!(
             reply_info.code,
-            ReplyCode::Success(SuccessReplyReason::Auto)
+            ReplyCode::Success(SuccessReplyReason::Manual)
         );
     }
 

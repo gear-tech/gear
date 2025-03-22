@@ -4846,7 +4846,7 @@ dependencies = [
  "clap 4.5.23",
  "demo-async",
  "demo-async-init",
- "demo-autoreply",
+ "demo-mul-by-const",
  "demo-ping",
  "derive_more 0.99.18",
  "directories",

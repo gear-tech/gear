@@ -77,4 +77,4 @@ ethexe-rpc = { workspace = true, features = ["test-utils"] }
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-async-init = { workspace = true, features = ["debug", "ethexe"] }
-demo-autoreply = { workspace = true, features = ["debug", "ethexe"] }
+demo-mul-by-const = { workspace = true, features = ["debug"] }
