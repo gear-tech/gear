@@ -50,7 +50,7 @@ struct EventData {
     program_states: BTreeMap<ActorId, H256>,
     program_code_ids: Vec<(ActorId, CodeId)>,
     code_ids: HashSet<CodeId>,
-    latest_block: H256,
+    latest_block: Option<H256>,
     previous_block: Option<H256>,
 }
 
@@ -107,27 +107,25 @@ impl EventData {
             block = parent;
         }
 
-        // recover data we haven't seen in events by latest computed block
-        if let Some((computed_block, _computed_header)) = db.latest_computed_block() {
-            let computed_program_states = db
-                .block_program_states(computed_block)
-                .context("program states of latest computed block not found")?;
-            for (program_id, state) in computed_program_states {
-                program_states.entry(program_id).or_insert(state);
+        if let Some(latest_block) = latest_block {
+            // recover data we haven't seen in events by the latest computed block
+            if let Some((computed_block, _computed_header)) = db.latest_computed_block() {
+                let computed_program_states = db
+                    .block_program_states(computed_block)
+                    .context("program states of latest computed block not found")?;
+                for (program_id, state) in computed_program_states {
+                    program_states.entry(program_id).or_insert(state);
+                }
             }
 
-            latest_block.get_or_insert(computed_block);
-        }
-
-        let latest_block = latest_block.context("no blocks committed")?;
-
-        #[cfg(debug_assertions)]
-        if let Some(previous_block) = previous_block {
-            let latest_block_header = OnChainStorage::block_header(db, latest_block)
-                .expect("observer must fulfill database");
-            let previous_block_header = OnChainStorage::block_header(db, previous_block)
-                .expect("observer must fulfill database");
-            assert!(previous_block_header.height < latest_block_header.height);
+            #[cfg(debug_assertions)]
+            if let Some(previous_block) = previous_block {
+                let latest_block_header = OnChainStorage::block_header(db, latest_block)
+                    .expect("observer must fulfill database");
+                let previous_block_header = OnChainStorage::block_header(db, previous_block)
+                    .expect("observer must fulfill database");
+                assert!(previous_block_header.height < latest_block_header.height);
+            }
         }
 
         Ok(Self {
@@ -546,7 +544,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         ..
     } = service;
     let Some(network) = network else {
-        log::warn!("Fast synchronization has been skipped because network service is disabled");
+        log::warn!("Network service is disabled. Skipping...");
         return Ok(());
     };
 
@@ -557,7 +555,10 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     instrument_codes(db, compute, event_data.code_ids).await?;
 
-    let latest_block = event_data.latest_block;
+    let Some(latest_block) = event_data.latest_block else {
+        log::info!("No any committed block found. Skipping...");
+        return Ok(());
+    };
     let latest_block_header =
         OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
 
