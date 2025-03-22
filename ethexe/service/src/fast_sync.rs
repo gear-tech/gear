@@ -141,7 +141,7 @@ impl EventData {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum Request<'a> {
+enum RequestMetadata<'a> {
     ProgramState {
         program_ids: &'a HashSet<ActorId>,
     },
@@ -164,23 +164,25 @@ enum Request<'a> {
     Data,
 }
 
-impl Request<'_> {
-    /// Simple request means that there is no need to process its content if it's already in the database
-    /// because it has no fields that affect data flow.
+impl RequestMetadata<'_> {
+    /// Simple request metadata means that there is no need to process its content
+    /// if it's already in the database because it has no fields that affect data flow.
     ///
     /// For example, `ProgramState` has a list of program IDs,
     /// so we need to process the whole request tree up to `Waitlist`, `UserMailbox` and others
     /// because they can change `ScheduleRestorer`.
     fn is_simple(self) -> bool {
         match self {
-            Request::MemoryPages | Request::MemoryPagesRegion | Request::Data => true,
+            RequestMetadata::MemoryPages
+            | RequestMetadata::MemoryPagesRegion
+            | RequestMetadata::Data => true,
             _ => false,
         }
     }
 }
 
 #[derive(Debug, Default)]
-struct BufRequests<'a> {
+struct RequestManager<'a> {
     /// Total completed requests
     total_completed_requests: u64,
     /// Total pending requests
@@ -191,21 +193,21 @@ struct BufRequests<'a> {
     /// * Completed if the database has keys
     /// * Converted into one network request, and after that
     /// we convert them into `pending_requests` because `RequestId` is known
-    buffered_requests: HashMap<H256, Request<'a>>,
+    buffered_requests: HashMap<H256, RequestMetadata<'a>>,
     /// Pending requests, we remove one by one on each hash from a network response
-    pending_requests: HashMap<(RequestId, H256), Request<'a>>,
-    /// Requests that are completed and ready to be written into the database
+    pending_requests: HashMap<(RequestId, H256), RequestMetadata<'a>>,
+    /// Completed requests
     // TODO: do not write requests to the database if they are already there
-    completed_requests: HashMap<H256, (Request<'a>, Vec<u8>)>,
+    responses: HashMap<H256, (RequestMetadata<'a>, Vec<u8>)>,
 }
 
-impl<'a> BufRequests<'a> {
-    fn add(&mut self, hash: H256, request: Request<'a>) {
-        let old = self.buffered_requests.insert(hash, request);
+impl<'a> RequestManager<'a> {
+    fn add(&mut self, hash: H256, metadata: RequestMetadata<'a>) {
+        let old = self.buffered_requests.insert(hash, metadata);
 
         #[cfg(debug_assertions)]
         if let Some(old_request) = old {
-            assert_eq!(request, old_request);
+            assert_eq!(metadata, old_request);
         }
     }
 
@@ -214,17 +216,17 @@ impl<'a> BufRequests<'a> {
 
         let mut network_request = BTreeSet::new();
         let mut pending_requests = HashMap::new();
-        for (hash, request) in self.buffered_requests.drain() {
-            if request.is_simple() && db.has_hash(hash) {
+        for (hash, metadata) in self.buffered_requests.drain() {
+            if metadata.is_simple() && db.has_hash(hash) {
                 continue;
             }
 
             if let Some(data) = db.read_by_hash(hash) {
-                self.completed_requests.insert(hash, (request, data));
+                self.responses.insert(hash, (metadata, data));
                 self.total_completed_requests += 1;
             } else {
                 network_request.insert(hash);
-                pending_requests.insert(hash, request);
+                pending_requests.insert(hash, metadata);
             }
 
             self.total_pending_requests += 1;
@@ -232,36 +234,33 @@ impl<'a> BufRequests<'a> {
 
         if !network_request.is_empty() {
             let request_id = network.db_sync().request(db_sync::Request(network_request));
-            for (hash, request) in pending_requests {
-                self.pending_requests.insert((request_id, hash), request);
+            for (hash, metadata) in pending_requests {
+                self.pending_requests.insert((request_id, hash), metadata);
             }
         }
 
         !self.pending_requests.is_empty()
     }
 
-    fn response(&mut self, request_id: RequestId, response: db_sync::Response) {
+    fn handle_response(&mut self, request_id: RequestId, response: db_sync::Response) {
         let db_sync::Response(data) = response;
 
         for (hash, data) in data {
-            let request = self
+            let metadata = self
                 .pending_requests
                 .remove(&(request_id, hash))
                 .expect("unknown pending request");
-            self.completed_requests.insert(hash, (request, data));
+            self.responses.insert(hash, (metadata, data));
             self.total_completed_requests += 1;
         }
     }
 
-    fn take_completed(&mut self) -> Vec<(Request<'a>, Vec<u8>)> {
-        self.completed_requests
-            .drain()
-            .map(|(_hash, value)| value)
-            .collect()
+    fn take_responses(&mut self) -> Vec<(RequestMetadata<'a>, Vec<u8>)> {
+        self.responses.drain().map(|(_hash, value)| value).collect()
     }
 
-    fn has_buffered(&self) -> bool {
-        !self.buffered_requests.is_empty()
+    fn is_empty(&self) -> bool {
+        self.buffered_requests.is_empty()
     }
 
     /// (total completed request, total pending requests)
@@ -310,7 +309,7 @@ async fn sync_from_network(
     latest_block_header: &BlockHeader,
 ) -> Schedule {
     let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
-    let mut requests = BufRequests::default();
+    let mut manager = RequestManager::default();
 
     let program_states: HashMap<H256, HashSet<ActorId>> =
         program_states
@@ -320,13 +319,13 @@ async fn sync_from_network(
                 acc
             });
     for (&state, program_ids) in &program_states {
-        requests.add(state, Request::ProgramState { program_ids });
+        manager.add(state, RequestMetadata::ProgramState { program_ids });
     }
 
     loop {
-        let wait_for_network = requests.request(network, db);
+        let wait_for_network = manager.request(network, db);
 
-        let (completed, pending) = requests.stats();
+        let (completed, pending) = manager.stats();
         log::info!("[{completed:>05} / {pending:>05}] Getting network data");
 
         if wait_for_network {
@@ -345,7 +344,7 @@ async fn sync_from_network(
 
             match result {
                 Ok(response) => {
-                    requests.response(request_id, response);
+                    manager.handle_response(request_id, response);
                 }
                 Err((request, err)) => {
                     network.db_sync().retry(request);
@@ -354,11 +353,11 @@ async fn sync_from_network(
             }
         }
 
-        for (request, data) in requests.take_completed() {
+        for (metadata, data) in manager.take_responses() {
             db.write(&data);
 
-            match request {
-                Request::ProgramState { program_ids } => {
+            match metadata {
+                RequestMetadata::ProgramState { program_ids } => {
                     let state: ProgramState =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
 
@@ -380,28 +379,28 @@ async fn sync_from_network(
                     }) = program
                     {
                         if let Some(allocations_hash) = allocations_hash.hash() {
-                            requests.add(allocations_hash, Request::Data);
+                            manager.add(allocations_hash, RequestMetadata::Data);
                         }
                         if let Some(pages_hash) = pages_hash.hash() {
-                            requests.add(pages_hash, Request::MemoryPages);
+                            manager.add(pages_hash, RequestMetadata::MemoryPages);
                         }
                     }
 
                     if let Some(queue_hash) = queue_hash.hash() {
-                        requests.add(queue_hash, Request::Data);
+                        manager.add(queue_hash, RequestMetadata::Data);
                     }
 
                     if let Some(waitlist_hash) = waitlist_hash.hash() {
-                        requests.add(waitlist_hash, Request::Waitlist { program_ids });
+                        manager.add(waitlist_hash, RequestMetadata::Waitlist { program_ids });
                     }
                     if let Some(mailbox_hash) = mailbox_hash.hash() {
-                        requests.add(mailbox_hash, Request::Mailbox { program_ids });
+                        manager.add(mailbox_hash, RequestMetadata::Mailbox { program_ids });
                     }
                     if let Some(stash_hash) = stash_hash.hash() {
-                        requests.add(stash_hash, Request::DispatchStash { program_ids });
+                        manager.add(stash_hash, RequestMetadata::DispatchStash { program_ids });
                     }
                 }
-                Request::MemoryPages => {
+                RequestMetadata::MemoryPages => {
                     let memory_pages: MemoryPages =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
 
@@ -410,10 +409,10 @@ async fn sync_from_network(
                         .into_iter()
                         .flat_map(MaybeHashOf::hash)
                     {
-                        requests.add(pages_region_hash, Request::MemoryPagesRegion);
+                        manager.add(pages_region_hash, RequestMetadata::MemoryPagesRegion);
                     }
                 }
-                Request::MemoryPagesRegion => {
+                RequestMetadata::MemoryPagesRegion => {
                     let pages_region: MemoryPagesRegion =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
 
@@ -422,30 +421,30 @@ async fn sync_from_network(
                         .iter()
                         .map(|(_page, hash)| hash.hash())
                     {
-                        requests.add(page_buf_hash, Request::Data);
+                        manager.add(page_buf_hash, RequestMetadata::Data);
                     }
                 }
-                Request::Waitlist { program_ids } => {
+                RequestMetadata::Waitlist { program_ids } => {
                     let waitlist: Waitlist =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
                     for &program_id in program_ids {
                         schedule_restorer.waitlist(program_id, &waitlist);
                     }
                 }
-                Request::Mailbox { program_ids } => {
+                RequestMetadata::Mailbox { program_ids } => {
                     let mailbox: Mailbox =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
                     for (&user_id, user_mailbox) in mailbox.as_ref() {
-                        requests.add(
+                        manager.add(
                             user_mailbox.hash(),
-                            Request::UserMailbox {
+                            RequestMetadata::UserMailbox {
                                 program_ids,
                                 user_id,
                             },
                         );
                     }
                 }
-                Request::UserMailbox {
+                RequestMetadata::UserMailbox {
                     program_ids,
                     user_id,
                 } => {
@@ -455,23 +454,23 @@ async fn sync_from_network(
                         schedule_restorer.mailbox(program_id, user_id, &user_mailbox);
                     }
                 }
-                Request::DispatchStash { program_ids } => {
+                RequestMetadata::DispatchStash { program_ids } => {
                     let stash: DispatchStash =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
                     for &program_id in program_ids {
                         schedule_restorer.stash(program_id, &stash);
                     }
                 }
-                Request::Data => {}
+                RequestMetadata::Data => {}
             }
         }
 
-        if !requests.has_buffered() {
+        if manager.is_empty() {
             break;
         }
     }
 
-    let (completed, pending) = requests.stats();
+    let (completed, pending) = manager.stats();
     log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
     debug_assert_eq!(completed, pending);
 
