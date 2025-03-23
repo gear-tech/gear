@@ -34,12 +34,6 @@ mod mirror_abi {
 }
 
 sol!(
-    #[sol(rpc)]
-    IMirrorProxy,
-    "MirrorProxy.json"
-);
-
-sol!(
     #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IRouter,

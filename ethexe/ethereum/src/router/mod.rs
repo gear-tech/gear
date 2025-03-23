@@ -255,15 +255,6 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn mirror_proxy_impl(&self) -> Result<LocalAddress> {
-        self.instance
-            .mirrorProxyImpl()
-            .call()
-            .await
-            .map(|res| LocalAddress(res._0.into()))
-            .map_err(Into::into)
-    }
-
     pub async fn wvara_address(&self) -> Result<Address> {
         self.instance
             .wrappedVara()
