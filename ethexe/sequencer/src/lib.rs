@@ -47,6 +47,8 @@ pub mod agro;
 pub mod bp;
 mod producer;
 mod verifier;
+mod participant;
+mod utils;
 
 #[cfg(test)]
 mod tests;

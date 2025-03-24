@@ -1,14 +1,17 @@
 use anyhow::anyhow;
 use ethexe_common::SimpleBlockData;
-use ethexe_signer::{Address, ToDigest};
+use ethexe_signer::{Address, SignedData, ToDigest};
 use gprimitives::H256;
 
-use crate::bp::{ControlError, ControlEvent, SignedProducerBlock};
+use crate::{
+    bp::{ControlError, ControlEvent, SignedProducerBlock},
+    utils::BatchCommitmentValidationRequest,
+};
 
 pub struct Verifier {
-    validators: Vec<Address>,
     producer: Address,
     block: SimpleBlockData,
+    earlier_validation_request: Option<BatchCommitmentValidationRequest>,
     state: VerifierState,
 }
 
@@ -22,13 +25,11 @@ enum VerifierState {
         block_hash: H256,
         parent_hash: Option<H256>,
     },
-    WaitingForValidationRequest,
 }
 
 impl Verifier {
     pub fn new(
         block: SimpleBlockData,
-        validators: Vec<Address>,
         producer: Address,
         received_producer_blocks: Vec<SignedProducerBlock>,
     ) -> Result<(Self, Vec<ControlEvent>), ControlError> {
@@ -37,15 +38,15 @@ impl Verifier {
         if let Some(producer_block) = received_producer_blocks.into_iter().find(|block| {
             block
                 .ecdsa_signature
-                .recover_from_digest(block.block.to_digest())
-                .map(|pk| pk.to_address() == producer)
+                .verify_address(producer, block.block.to_digest())
+                .map(|_| true)
                 .unwrap_or(false)
         }) {
             let mut verifier = Verifier {
-                validators,
                 producer,
                 block,
                 state: VerifierState::WaitingForProducerBlock,
+                earlier_validation_request: None,
             };
             verifier
                 .receive_block_from_producer(producer_block)
@@ -53,10 +54,10 @@ impl Verifier {
         } else {
             Ok((
                 Verifier {
-                    validators,
                     producer,
                     block,
                     state: VerifierState::WaitingParentComputed { parent_hash },
+                    earlier_validation_request: None,
                 },
                 vec![ControlEvent::ComputeBlock(parent_hash)],
             ))
@@ -70,11 +71,10 @@ impl Verifier {
         // Verify sender is current block producer
         signed
             .ecdsa_signature
-            .recover_from_digest(signed.block.to_digest())?
-            .to_address()
-            .eq(&self.producer)
-            .then_some(())
-            .ok_or_else(|| ControlError::Warning(anyhow!("Received block from wrong producer")))?;
+            .verify_address(self.producer, signed.block.to_digest())
+            .map_err(|e| {
+                ControlError::Warning(anyhow!("Received block is not signed by the producer: {e}"))
+            })?;
 
         let parent_hash_in_computation = match &self.state {
             VerifierState::WaitingParentComputed { parent_hash } => Some(*parent_hash),
@@ -93,15 +93,15 @@ impl Verifier {
         Ok(vec![ControlEvent::ComputeProducerBlock(signed.block)])
     }
 
-    pub fn receive_computed_block(&mut self, computed_block: H256) -> Result<(), ControlError> {
+    /// Returns whether the received block is a computed block from the producer
+    pub fn receive_computed_block(&mut self, computed_block: H256) -> Result<bool, ControlError> {
         match &mut self.state {
             VerifierState::WaitingProducerBlockComputed {
                 block_hash,
                 parent_hash,
             } => {
                 if computed_block == *block_hash {
-                    self.state = VerifierState::WaitingForValidationRequest;
-                    Ok(())
+                    Ok(true)
                 } else if Some(computed_block) == *parent_hash {
                     Err(ControlError::EventSkipped)
                 } else {
@@ -115,7 +115,7 @@ impl Verifier {
             VerifierState::WaitingParentComputed { parent_hash } => {
                 if computed_block == *parent_hash {
                     self.state = VerifierState::WaitingForProducerBlock;
-                    Ok(())
+                    Ok(false)
                 } else {
                     Err(ControlError::Warning(anyhow!(
                         "Received computed block {} is different from the expected parent hash {}",
@@ -123,10 +123,41 @@ impl Verifier {
                         parent_hash
                     )))
                 }
-            },
+            }
             _ => Err(ControlError::Warning(anyhow!(
                 "Received computed block in unexpected state"
             ))),
         }
+    }
+
+    pub fn receive_validation_request(
+        &mut self,
+        request: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<(), ControlError> {
+        request.verify_address(self.producer).map_err(|e| {
+            ControlError::Warning(anyhow!(
+                "Received validation request is not signed by the producer: {e}"
+            ))
+        })?;
+
+        // TODO +_+_+: check also that request is for the current block
+
+        if self.earlier_validation_request.is_some() {
+            return Err(ControlError::Warning(anyhow!(
+                "Received second validation request"
+            )));
+        }
+
+        self.earlier_validation_request = Some(request.into_parts().0);
+
+        Ok(())
+    }
+
+    pub fn producer(&self) -> Address {
+        self.producer
+    }
+
+    pub fn take_earlier_validation_request(&mut self) -> Option<BatchCommitmentValidationRequest> {
+        self.earlier_validation_request.take()
     }
 }

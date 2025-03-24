@@ -18,7 +18,7 @@
 
 //! Secp256k1 signature types and utilities.
 
-use crate::{Digest, PrivateKey, PublicKey};
+use crate::{Address, Digest, PrivateKey, PublicKey, ToDigest};
 use anyhow::{Error, Result};
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::{
@@ -123,6 +123,14 @@ impl Signature {
             .verify_ecdsa(&message, &signature.to_standard(), &secp256k1_public_key)
             .map_err(Into::into)
     }
+
+    pub fn verify_address(&self, address: Address, digest: Digest) -> Result<()> {
+        let public_key = self.recover_from_digest(digest)?;
+        if public_key.to_address() != address {
+            anyhow::bail!("Verification failed: public key does not match the address");
+        }
+        self.verify(public_key, digest)
+    }
 }
 
 impl From<RawSignature> for Signature {
@@ -177,3 +185,78 @@ impl TryFrom<Signature> for RecoverableSignature {
         .map_err(Into::into)
     }
 }
+
+#[derive(Clone, Encode, Decode, PartialEq, Eq)]
+pub struct SignedData<T: Sized> {
+    data: T,
+    signature: Signature,
+}
+
+impl<T: ToDigest + Sized> SignedData<T> {
+    pub fn new(data: T, signature: Signature) -> Self {
+        Self { data, signature }
+    }
+
+    /// Verify the signature with public key recovery from the signature.
+    pub fn verify_with_public_key_recover(&self) -> Result<()> {
+        self.signature
+            .verify_with_public_key_recover(self.data.to_digest())
+    }
+
+    /// Recovers public key which was used to create the signature.
+    pub fn recover(&self) -> Result<PublicKey> {
+        self.signature.recover_from_digest(self.data.to_digest())
+    }
+
+    /// Verifies that signed data is signed by the public key.
+    pub fn verify(&self, public_key: PublicKey) -> Result<()> {
+        self.signature.verify(public_key, self.data.to_digest())
+    }
+
+    /// Verifies that signed data is signed by the public key and the address matches the public key.
+    pub fn verify_address(&self, address: Address) -> Result<()> {
+        self.signature
+            .verify_address(address, self.data.to_digest())
+    }
+
+    pub fn data(&self) -> &T {
+        &self.data
+    }
+
+    pub fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    pub fn into_parts(self) -> (T, Signature) {
+        (self.data, self.signature)
+    }
+}
+
+// impl SignedData<Digest> {
+//     pub fn new_from_digest(data: Digest, signature: Signature) -> Self {
+//         Self { data, signature }
+//     }
+
+//     /// Verify the signature with public key recovery from the signature.
+//     pub fn verify_with_public_key_recover(&self) -> Result<()> {
+//         self.signature.verify_with_public_key_recover(self.data)
+//     }
+
+//     /// Recovers public key which was used to create the signature.
+//     pub fn recover(&self) -> Result<PublicKey> {
+//         self.signature.recover_from_digest(self.data)
+//     }
+
+//     /// Verifies that signed data is signed by the public key.
+//     pub fn verify(&self, public_key: PublicKey) -> Result<()> {
+//         self.signature.verify(public_key, self.data)
+//     }
+
+//     pub fn data(&self) -> &Digest {
+//         &self.data
+//     }
+
+//     pub fn into_parts(self) -> (Digest, Signature) {
+//         (self.data, self.signature)
+//     }
+// }

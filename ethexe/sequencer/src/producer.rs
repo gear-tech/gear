@@ -1,11 +1,8 @@
-use crate::{
-    agro::SignedCommitmentsBatch,
-    bp::{ControlError, ControlEvent, ProducerBlock, SignedProducerBlock},
-};
+use crate::bp::{ControlError, ControlEvent, ProducerBlock, SignedProducerBlock};
 use anyhow::anyhow;
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
-    gear::{BlockCommitment, CodeCommitment},
+    gear::{BatchCommitment, BlockCommitment, CodeCommitment},
     SimpleBlockData,
 };
 use ethexe_db::Database;
@@ -74,7 +71,7 @@ impl Producer {
     pub fn receive_computed_block(
         &mut self,
         computed_block: H256,
-    ) -> Result<Option<SignedCommitmentsBatch>, ControlError> {
+    ) -> Result<Option<BatchCommitment>, ControlError> {
         match &mut self.state {
             ProducerState::CollectOffChainTransactions => Err(ControlError::Common(anyhow!(
                 "CollectOffChainTransactions is not supported"
@@ -97,16 +94,18 @@ impl Producer {
     fn aggregate_commitments_for_block(
         &self,
         block_hash: H256,
-    ) -> Result<Option<SignedCommitmentsBatch>, ControlError> {
+    ) -> Result<Option<BatchCommitment>, ControlError> {
         let block_commitments = self.aggregate_block_commitments_for_block(block_hash)?;
         let code_commitments = self.aggregate_code_commitments_for_block(block_hash)?;
-        SignedCommitmentsBatch::new(
-            block_commitments,
-            code_commitments,
-            &self.signer,
-            self.pub_key,
+
+        Ok(
+            (!block_commitments.is_empty() || !code_commitments.is_empty()).then_some(
+                BatchCommitment {
+                    block_commitments,
+                    code_commitments,
+                },
+            ),
         )
-        .map_err(Into::into)
     }
 
     fn aggregate_block_commitments_for_block(
@@ -117,11 +116,6 @@ impl Producer {
             .db
             .block_commitment_queue(block_hash)
             .ok_or_else(|| anyhow!("Block {block_hash} is not in storage"))?;
-
-        if commitments_queue.is_empty() {
-            // Nothing to commit
-            return Ok(vec![]);
-        }
 
         let mut commitments = Vec::new();
 

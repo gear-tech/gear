@@ -19,49 +19,10 @@
 //! Abstract commitment aggregator.
 
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{BlockCommitment, CodeCommitment};
 use ethexe_signer::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode};
 use std::{collections::BTreeMap, ops::Deref};
-
-pub struct SignedCommitmentsBatch {
-    blocks: Vec<BlockCommitment>,
-    codes: Vec<CodeCommitment>,
-    signature: Signature,
-}
-
-impl SignedCommitmentsBatch {
-    pub fn new(
-        blocks: Vec<BlockCommitment>,
-        codes: Vec<CodeCommitment>,
-        signer: &Signer,
-        public_key: PublicKey,
-    ) -> Result<Option<Self>> {
-        let mut digests = Vec::new();
-
-        if !blocks.is_empty() {
-            digests.push(blocks.to_digest());
-        }
-
-        if !codes.is_empty() {
-            digests.push(codes.to_digest());
-        }
-
-        if digests.is_empty() {
-            return Ok(None);
-        }
-
-        let digest = digests.iter().collect();
-        let signature = signer.sign_digest(public_key, digest)?;
-
-        Ok(Some(Self {
-            blocks,
-            codes,
-            signature,
-        }))
-    }
-}
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedCommitments<D: ToDigest> {

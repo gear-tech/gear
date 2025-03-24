@@ -7,14 +7,22 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::{agro::SignedCommitmentsBatch, producer::Producer, verifier::Verifier};
+use crate::{
+    participant::Participant,
+    producer::Producer,
+    utils::{
+        BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
+        MultisignedCommitmentsBatch,
+    },
+    verifier::Verifier,
+};
 use anyhow::anyhow;
 use ethexe_common::SimpleBlockData;
 use ethexe_db::Database;
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::{
     sha3::{digest::Update, Keccak256},
-    PublicKey, Signature, Signer, ToDigest,
+    PublicKey, Signature, SignedData, Signer, ToDigest,
 };
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
@@ -28,6 +36,10 @@ pub trait ControlService: Stream<Item = ControlEvent> + FusedStream {
         block: SignedProducerBlock,
     ) -> Result<(), ControlError>;
     fn receive_computed_block(&mut self, block_hash: H256) -> Result<(), ControlError>;
+    fn receive_validation_request(
+        &mut self,
+        signed_batch: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<(), ControlError>;
     fn is_block_producer(&self) -> anyhow::Result<bool>;
 }
 
@@ -35,7 +47,7 @@ pub trait ControlService: Stream<Item = ControlEvent> + FusedStream {
 pub struct ProducerBlock {
     pub block_hash: H256,
     pub gas_allowance: Option<u64>,
-    // +_+_+ consider. Maybe need to share off-chain transactions data.
+    // +_+_+ consider. Maybe need to share off-chain transactions data instead of only hashes.
     pub off_chain_transactions: Vec<H256>,
 }
 
@@ -59,7 +71,8 @@ pub enum ControlEvent {
     ComputeBlock(H256),
     ComputeProducerBlock(ProducerBlock),
     PublishProducerBlock(SignedProducerBlock),
-    RequestValidation(SignedCommitmentsBatch),
+    PublishValidationRequest(SignedData<BatchCommitmentValidationRequest>),
+    PublishValidationReply(BatchCommitmentValidationReply),
 }
 
 pub struct SignedProducerBlock {
@@ -119,6 +132,13 @@ impl ControlService for SimpleConnectService {
         Ok(())
     }
 
+    fn receive_validation_request(
+        &mut self,
+        _signed_batch: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<(), ControlError> {
+        Ok(())
+    }
+
     fn is_block_producer(&self) -> Result<bool, anyhow::Error> {
         Ok(false)
     }
@@ -161,8 +181,6 @@ enum State {
 }
 
 struct Coordinator {}
-
-struct Participant {}
 
 struct ChainHeadReceived {
     block: SimpleBlockData,
@@ -239,12 +257,8 @@ impl ControlService for ValidatorService {
             self.state = State::Producer(producer);
             self.output.extend(events);
         } else {
-            let (verifier, events) = Verifier::new(
-                block,
-                data.validators,
-                producer,
-                mem::take(&mut state.producer_blocks),
-            )?;
+            let (verifier, events) =
+                Verifier::new(block, producer, mem::take(&mut state.producer_blocks))?;
             self.output.extend(events);
             self.state = State::Verifier(verifier);
         }
@@ -282,17 +296,24 @@ impl ControlService for ValidatorService {
             State::Producer(_) => Err(ControlError::Warning(anyhow!(
                 "Received producer block in producer mode"
             ))),
-            State::Coordinator(coordinator) => todo!(),
-            State::Participant(participant) => todo!(),
+            _ => Err(ControlError::Warning(anyhow!(
+                "Received producer block in unexpected state"
+            ))),
         }
     }
 
     fn receive_computed_block(&mut self, computed_block: H256) -> Result<(), ControlError> {
         match &mut self.state {
             State::Producer(producer) => {
-                if let Some(signed_batch) = producer.receive_computed_block(computed_block)? {
+                if let Some(batch) = producer.receive_computed_block(computed_block)? {
+                    let (multisigned_batch, validation_request) =
+                        MultisignedCommitmentsBatch::new_with_validation_request(
+                            batch,
+                            &self.signer,
+                            self.pub_key,
+                        )?;
                     self.output
-                        .push_back(ControlEvent::RequestValidation(signed_batch));
+                        .push_back(ControlEvent::PublishValidationRequest(validation_request));
                     // +_+_+
                     self.state = State::Coordinator(Coordinator {});
                 } else {
@@ -300,9 +321,49 @@ impl ControlService for ValidatorService {
                     self.state = State::Initial;
                 }
             }
-            State::Verifier(verifier) => verifier.receive_computed_block(computed_block)?,
+            State::Verifier(verifier) => {
+                if verifier.receive_computed_block(computed_block)? {
+                    let (participant, events) = Participant::new(
+                        self.pub_key,
+                        self.db.clone(),
+                        self.signer.clone(),
+                        verifier,
+                    )?;
+
+                    self.output.extend(events);
+
+                    match participant {
+                        Some(participant) => self.state = State::Participant(participant),
+                        None => self.state = State::Initial,
+                    }
+                }
+            }
             _ => Err(ControlError::Warning(anyhow!(
                 "Received computed block in unexpected state"
+            )))?,
+        }
+
+        Ok(())
+    }
+
+    fn receive_validation_request(
+        &mut self,
+        signed_request: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<(), ControlError> {
+        match &mut self.state {
+            State::Participant(participant) => {
+                let events = participant.receive_validation_request(signed_request)?;
+                self.output.extend(events);
+                self.state = State::Initial;
+            }
+            State::Verifier(verifier) => {
+                verifier.receive_validation_request(signed_request)?;
+            }
+            State::Coordinator(_) => Err(ControlError::Warning(anyhow!(
+                "Received validation request in coordinator mode"
+            )))?,
+            _ => Err(ControlError::Warning(anyhow!(
+                "Received validation request in unexpected state"
             )))?,
         }
 

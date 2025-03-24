@@ -33,7 +33,7 @@ mod signature;
 pub use address::Address;
 pub use digest::{Digest, ToDigest};
 pub use sha3;
-pub use signature::Signature;
+pub use signature::{Signature, SignedData};
 
 use anyhow::{anyhow, bail, Error, Result};
 use parity_scale_codec::{Decode, Encode};
@@ -201,6 +201,15 @@ impl Signer {
     /// Create a ECDSA recoverable signature for the raw bytes data.
     pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
         self.sign_digest(public_key, data.to_digest())
+    }
+
+    pub fn create_signed_data<T: ToDigest + Sized>(
+        &self,
+        public_key: PublicKey,
+        data: T,
+    ) -> Result<SignedData<T>> {
+        self.sign(public_key, data.to_digest().as_ref())
+            .map(|signature| SignedData::new(data, signature))
     }
 
     /// Create a ECDSA recoverable signature for the raw bytes data with
