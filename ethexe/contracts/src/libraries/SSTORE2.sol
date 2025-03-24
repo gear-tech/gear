@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity >=0.8.0;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.28;
 
 /// @notice Read and write to persistent storage at a fraction of the cost.
 /// @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/utils/SSTORE2.sol)
@@ -34,8 +34,7 @@ library SSTORE2 {
             runtimeCode // The bytecode we want the contract to have after deployment. Capped at 1 byte less than the code size limit.
         );
 
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             // Deploy a new contract with the generated creation code.
             // We start 32 bytes into the code to avoid copying the byte length.
             pointer := create(0, add(creationCode, 32), mload(creationCode))
@@ -72,8 +71,7 @@ library SSTORE2 {
     //////////////////////////////////////////////////////////////*/
 
     function readBytecode(address pointer, uint256 start, uint256 size) private view returns (bytes memory data) {
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             // Get a pointer to some free memory.
             data := mload(0x40)
 

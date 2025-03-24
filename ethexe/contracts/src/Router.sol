@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {Clones} from "./libraries/Clones.sol";
 import {Gear} from "./libraries/Gear.sol";
 import {SSTORE2} from "./libraries/SSTORE2.sol";
-import {Secp256k1} from "frost-secp256k1-evm/utils/cryptography/Secp256k1.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
-import {IMirrorDecoder} from "./IMirrorDecoder.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -26,7 +24,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function initialize(
         address _owner,
         address _mirror,
-        address _mirrorProxy,
         address _wrappedVara,
         uint256 _eraDuration,
         uint256 _electionDuration,
@@ -49,7 +46,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
 
         router.genesisBlock = Gear.newGenesis();
-        router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
+        router.implAddresses = Gear.AddressBook(_mirror, _wrappedVara);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
@@ -119,10 +116,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     function mirrorImpl() public view returns (address) {
         return _router().implAddresses.mirror;
-    }
-
-    function mirrorProxyImpl() public view returns (address) {
-        return _router().implAddresses.mirrorProxy;
     }
 
     function wrappedVara() public view returns (address) {
@@ -258,14 +251,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return mirror;
     }
 
-    function createProgramWithDecoder(address _decoderImpl, bytes32 _codeId, bytes32 _salt)
+    function createProgramWithAbiInterface(bytes32 _codeId, bytes32 _salt, address _abiInterface)
         external
         returns (address)
     {
         address mirror = _createProgram(_codeId, _salt);
-        address decoder = _createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)), mirror);
 
-        IMirror(mirror).initialize(msg.sender, decoder);
+        IMirror(mirror).initialize(msg.sender, _abiInterface);
 
         return mirror;
     }
@@ -390,8 +382,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
-        address actorId =
-            Clones.cloneDeterministic(router.implAddresses.mirrorProxy, keccak256(abi.encodePacked(_codeId, _salt)));
+        address actorId = Clones.cloneDeterministic(address(this), keccak256(abi.encodePacked(_codeId, _salt)));
 
         router.protocolData.programs[actorId] = _codeId;
         router.protocolData.programsCount++;
@@ -399,14 +390,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         emit ProgramCreated(actorId, _codeId);
 
         return actorId;
-    }
-
-    function _createDecoder(address _implementation, bytes32 _salt, address _mirror) private returns (address) {
-        address decoder = Clones.cloneDeterministic(_implementation, _salt);
-
-        IMirrorDecoder(decoder).initialize(_mirror);
-
-        return decoder;
     }
 
     function _commitBlock(Storage storage router, Gear.BlockCommitment calldata _blockCommitment)

@@ -5,6 +5,8 @@ out = "out"
 libs = ["lib"]
 evm_version = "cancun"
 optimizer = true
+bytecode_hash = "none"
+cbor_metadata = false
 # Required for OpenZeppelin Foundry Upgrades https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
 ffi = true
 ast = true
@@ -13,8 +15,8 @@ extra_output = ["storageLayout"]
 # Some warnings should be omitted
 ignored_warnings_from = [
     # Warning (3628): This contract has a payable fallback function, but no receive ether function
+    "src/Mirror.sol",
     "src/MirrorProxy.sol",
-    "lib/",
 ]
 # Enable new EVM codegen
 via_ir = true
