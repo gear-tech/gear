@@ -589,8 +589,5 @@ parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-w
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
 wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
 
-# TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
-blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross-compilation-v1.5.4" }
-
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.225", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.225" }

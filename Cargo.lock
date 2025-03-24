@@ -1953,8 +1953,9 @@ dependencies = [
 
 [[package]]
 name = "blake3"
-version = "1.5.4"
-source = "git+https://github.com/gear-tech/BLAKE3?branch=clang-cl-cross-compilation-v1.5.4#1dd5c968e8f1bf47306edaef63144b13a1d0867b"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b17679a8d69b6d7fd9cd9801a536cec9fa5e5970b69f9d4747f70b39b031f5e7"
 dependencies = [
  "arrayref",
  "arrayvec 0.7.4",
