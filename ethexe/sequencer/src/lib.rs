@@ -45,6 +45,8 @@ use std::{
 
 pub mod agro;
 pub mod bp;
+pub mod connect;
+pub mod validator;
 mod producer;
 mod verifier;
 mod participant;

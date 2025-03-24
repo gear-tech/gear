@@ -1,9 +1,9 @@
-use crate::bp::{ControlError, ControlEvent, ProducerBlock, SignedProducerBlock};
+use crate::bp::{ControlError, ControlEvent};
 use anyhow::anyhow;
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
-    SimpleBlockData,
+    ProducerBlock, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_signer::{Address, PublicKey, Signer, ToDigest};
@@ -52,18 +52,15 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        let ecdsa_signature = producer
+        let signed_block = producer
             .signer
-            .sign_digest(producer.pub_key, block.to_digest())?;
+            .create_signed_data(producer.pub_key, block)?;
 
         Ok((
             producer,
             vec![
-                ControlEvent::ComputeProducerBlock(block.clone()),
-                ControlEvent::PublishProducerBlock(SignedProducerBlock {
-                    block,
-                    ecdsa_signature,
-                }),
+                ControlEvent::ComputeProducerBlock(signed_block.data().clone()),
+                ControlEvent::PublishProducerBlock(signed_block),
             ],
         ))
     }
@@ -73,7 +70,7 @@ impl Producer {
         computed_block: H256,
     ) -> Result<Option<BatchCommitment>, ControlError> {
         match &mut self.state {
-            ProducerState::CollectOffChainTransactions => Err(ControlError::Common(anyhow!(
+            ProducerState::CollectOffChainTransactions => Err(ControlError::Fatal(anyhow!(
                 "CollectOffChainTransactions is not supported"
             ))),
             ProducerState::WaitingBlockComputed(block_hash) => {

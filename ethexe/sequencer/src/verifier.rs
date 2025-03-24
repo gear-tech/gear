@@ -1,10 +1,10 @@
 use anyhow::anyhow;
-use ethexe_common::SimpleBlockData;
-use ethexe_signer::{Address, SignedData, ToDigest};
+use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_signer::{Address, SignedData};
 use gprimitives::H256;
 
 use crate::{
-    bp::{ControlError, ControlEvent, SignedProducerBlock},
+    bp::{ControlError, ControlEvent},
     utils::BatchCommitmentValidationRequest,
 };
 
@@ -31,14 +31,13 @@ impl Verifier {
     pub fn new(
         block: SimpleBlockData,
         producer: Address,
-        received_producer_blocks: Vec<SignedProducerBlock>,
+        received_producer_blocks: Vec<SignedData<ProducerBlock>>,
     ) -> Result<(Self, Vec<ControlEvent>), ControlError> {
         let parent_hash = block.header.parent_hash;
 
-        if let Some(producer_block) = received_producer_blocks.into_iter().find(|block| {
-            block
-                .ecdsa_signature
-                .verify_address(producer, block.block.to_digest())
+        if let Some(producer_block) = received_producer_blocks.into_iter().find(|signed| {
+            signed
+                .verify_address(producer)
                 .map(|_| true)
                 .unwrap_or(false)
         }) {
@@ -66,12 +65,11 @@ impl Verifier {
 
     pub fn receive_block_from_producer(
         &mut self,
-        signed: SignedProducerBlock,
+        signed: SignedData<ProducerBlock>,
     ) -> Result<Vec<ControlEvent>, ControlError> {
         // Verify sender is current block producer
         signed
-            .ecdsa_signature
-            .verify_address(self.producer, signed.block.to_digest())
+            .verify_address(self.producer)
             .map_err(|e| {
                 ControlError::Warning(anyhow!("Received block is not signed by the producer: {e}"))
             })?;
@@ -87,10 +85,12 @@ impl Verifier {
         };
 
         self.state = VerifierState::WaitingProducerBlockComputed {
-            block_hash: signed.block.block_hash,
+            block_hash: signed.data().block_hash,
             parent_hash: parent_hash_in_computation,
         };
-        Ok(vec![ControlEvent::ComputeProducerBlock(signed.block)])
+
+        let (block, _) = signed.into_parts();
+        Ok(vec![ControlEvent::ComputeProducerBlock(block)])
     }
 
     /// Returns whether the received block is a computed block from the producer
