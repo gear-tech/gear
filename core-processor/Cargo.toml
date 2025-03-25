@@ -29,6 +29,9 @@ parity-scale-codec = { workspace = true, features = ["derive"] }
 [dev-dependencies]
 env_logger.workspace = true
 enum-iterator.workspace = true
+gear-lazy-pages.workspace = true
+gear-lazy-pages-native-interface.workspace = true
+demo-fungible-token.workspace = true
 
 [features]
 default = ["std"]

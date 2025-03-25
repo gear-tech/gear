@@ -525,7 +525,7 @@ where
     }
 }
 
-impl<EnvExt> Environment<'_, EnvExt, SuccessExecution>
+impl<'a, EnvExt> Environment<'a, EnvExt, SuccessExecution>
 where
     EnvExt: BackendExternalities + Send + 'static,
     EnvExt::UnrecoverableError: BackendSyscallError,
@@ -534,6 +534,33 @@ where
 {
     pub fn report(self) -> BackendReport<EnvExt> {
         self.report_impl()
+    }
+
+    pub fn set_ext(
+        self,
+        ext: EnvExt,
+    ) -> Result<Environment<'a, EnvExt, ReadyToExecute>, EnvironmentError> {
+        let Self {
+            instance,
+            entries,
+            mut store,
+            memory,
+            code,
+            ..
+        } = self;
+
+        let state = store_host_state_mut(&mut store);
+        state.ext = ext;
+
+        Ok(Environment {
+            instance,
+            entries,
+            store,
+            memory,
+            code,
+            execution_result: None,
+            _phantom: PhantomData,
+        })
     }
 }
 
