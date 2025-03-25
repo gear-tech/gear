@@ -30,7 +30,7 @@ service = { workspace = true, features = ["vara-native"] }
 sc-block-builder.workspace = true
 sc-client-api.workspace = true
 sc-proposer-metrics.workspace = true
-sc-service = { workspace = true, features = [ "test-helpers", "rocksdb" ] }
+sc-service = { workspace = true, features = [ "rocksdb" ] }
 sc-telemetry.workspace = true
 sc-transaction-pool.workspace = true
 sc-transaction-pool-api.workspace = true
