@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::MockBlobReader;
 use alloy::node_bindings::Anvil;
 use ethexe_db::{Database, MemDb};
 use ethexe_ethereum::Ethereum;
@@ -82,12 +81,12 @@ async fn test_deployment() -> Result<()> {
     )
     .await?;
 
-    let blobs_reader = Arc::new(MockBlobReader::new(Duration::from_secs(1)));
+    let blobs_reader = Arc::new(MockBlobReader::new());
 
     let router_address = ethereum.router().address();
 
     let db = MemDb::default();
-    let database = Database::from_one(&db, router_address.0);
+    let database = Database::from_one(&db);
 
     let mut observer = ObserverService::new(
         &EthereumConfig {
@@ -145,15 +144,9 @@ async fn test_deployment() -> Result<()> {
     assert!(matches!(event, ObserverEvent::BlockSynced(..)));
 
     let event = observer_next().await;
-    assert!(matches!(
-        event,
-        ObserverEvent::Blob {
-            code_id,
-            code,
-            ..
-        }
-        if code_id == request_code_id && code == wasm
-    ));
+    assert!(
+        matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm)
+    );
 
     let wat = "(module)";
     let wasm = wat2wasm(wat);
@@ -166,15 +159,9 @@ async fn test_deployment() -> Result<()> {
     assert!(matches!(event, ObserverEvent::BlockSynced(..)));
 
     let event = observer_next().await;
-    assert!(matches!(
-        event,
-        ObserverEvent::Blob {
-            code_id,
-            code,
-            ..
-        }
-        if code_id == request_code_id && code == wasm
-    ));
+    assert!(
+        matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm)
+    );
 
     Ok(())
 }

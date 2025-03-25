@@ -1,33 +1,36 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
-import {IMirrorProxy} from "./IMirrorProxy.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
-import {IMirrorDecoder} from "./IMirrorDecoder.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Gear} from "./libraries/Gear.sol";
 
 contract Mirror is IMirror {
-    address public decoder;
+    address public immutable router;
+
     address public inheritor;
     /// @dev This nonce is the source for message ids unique generations. Must be bumped on each send. Zeroed nonce is always represent init message by eligible account.
     address public initializer;
     bytes32 public stateHash;
     uint256 public nonce;
 
+    constructor(address _router) {
+        router = _router;
+    }
+
     /// @dev Only the router can call functions marked with this modifier.
     modifier onlyRouter() {
-        require(msg.sender == router(), "caller is not the router");
+        require(msg.sender == router, "caller is not the router");
         _;
     }
 
     /// @dev Non-zero value must be transferred from source to router in functions marked with this modifier.
     modifier retrievingValue(uint128 value) {
         if (value != 0) {
-            address routerAddr = router();
-            bool success = _wvara(routerAddr).transferFrom(_source(), routerAddr, value);
+            bool success = _wvara(router).transferFrom(msg.sender, router, value);
             require(success, "failed to transfer non-zero amount of WVara from source to router");
         }
         _;
@@ -49,7 +52,7 @@ contract Mirror is IMirror {
     /// @dev Functions marked with this modifier can be called only after the initializer has created the init message or from the initializer (first access).
     modifier whenInitMessageCreatedOrFromInitializer() {
         require(
-            nonce > 0 || _source() == initializer,
+            nonce > 0 || msg.sender == initializer,
             "initializer hasn't created init message yet; and source is not initializer"
         );
         _;
@@ -61,16 +64,10 @@ contract Mirror is IMirror {
         _;
     }
 
-    /* Operational functions */
-
-    function router() public view returns (address) {
-        return IMirrorProxy(address(this)).router();
-    }
-
     /* Primary Gear logic */
 
     function sendMessage(bytes calldata _payload, uint128 _value)
-        external
+        public
         whileActive
         whenInitMessageCreatedOrFromInitializer
         retrievingValue(_value)
@@ -78,7 +75,7 @@ contract Mirror is IMirror {
     {
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
 
-        emit MessageQueueingRequested(id, _source(), _payload, _value);
+        emit MessageQueueingRequested(id, msg.sender, _payload, _value);
 
         return id;
     }
@@ -89,11 +86,11 @@ contract Mirror is IMirror {
         whenInitMessageCreated
         retrievingValue(_value)
     {
-        emit ReplyQueueingRequested(_repliedTo, _source(), _payload, _value);
+        emit ReplyQueueingRequested(_repliedTo, msg.sender, _payload, _value);
     }
 
     function claimValue(bytes32 _claimedId) external whenInitMessageCreated {
-        emit ValueClaimingRequested(_claimedId, _source());
+        emit ValueClaimingRequested(_claimedId, msg.sender);
     }
 
     function executableBalanceTopUp(uint128 _value) external whileActive retrievingValue(_value) {
@@ -101,18 +98,22 @@ contract Mirror is IMirror {
     }
 
     function transferLockedValueToInheritor() public whenTerminated {
-        uint256 balance = _wvara(router()).balanceOf(address(this));
+        uint256 balance = _wvara(router).balanceOf(address(this));
         _transferValue(inheritor, uint128(balance));
     }
 
     /* Router-driven state and funds management */
 
-    function initialize(address _initializer, address _decoder) public onlyRouter {
+    function initialize(address _initializer, address _abiInterface) public onlyRouter {
         require(initializer == address(0), "initializer could only be set once");
-        require(decoder == address(0), "initializer could only be set once");
+        StorageSlot.AddressSlot storage implementationSlot =
+            StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT);
+        require(implementationSlot.value == address(0), "abi interface could only be set once");
 
         initializer = _initializer;
-        decoder = _decoder;
+        if (_abiInterface != address(0)) {
+            implementationSlot.value = _abiInterface;
+        }
     }
 
     // NOTE (breathx): value to receive should be already handled in router.
@@ -171,47 +172,12 @@ contract Mirror is IMirror {
 
     /// @dev Value never sent since goes to mailbox.
     function _sendMailboxedMessage(Gear.Message calldata _message) private {
-        if (decoder != address(0)) {
-            bytes memory callData = abi.encodeWithSelector(
-                IMirrorDecoder.onMessageSent.selector,
-                _message.id,
-                _message.destination,
-                _message.payload,
-                _message.value
-            );
-
-            // Result is ignored here.
-            (bool success,) = decoder.call{gas: 500_000}(callData);
-
-            if (success) {
-                return;
-            }
-        }
-
         emit Message(_message.id, _message.destination, _message.payload, _message.value);
     }
 
     /// @dev Non-zero value always sent since never goes to mailbox.
     function _sendReplyMessage(Gear.Message calldata _message) private {
         _transferValue(_message.destination, _message.value);
-
-        if (decoder != address(0)) {
-            bytes memory callData = abi.encodeWithSelector(
-                IMirrorDecoder.onReplySent.selector,
-                _message.destination,
-                _message.payload,
-                _message.value,
-                _message.replyDetails.to,
-                _message.replyDetails.code
-            );
-
-            // Result is ignored here.
-            (bool success,) = decoder.call{gas: 500_000}(callData);
-
-            if (success) {
-                return;
-            }
-        }
 
         emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
     }
@@ -256,18 +222,29 @@ contract Mirror is IMirror {
         return IWrappedVara(wvaraAddr);
     }
 
-    function _source() private view returns (address) {
-        if (msg.sender == decoder) {
-            return tx.origin;
-        } else {
-            return msg.sender;
+    function _transferValue(address destination, uint128 value) private {
+        if (value != 0) {
+            bool success = _wvara(router).transfer(destination, value);
+            require(success, "failed to transfer WVara");
         }
     }
 
-    function _transferValue(address destination, uint128 value) private {
-        if (value != 0) {
-            bool success = _wvara(router()).transfer(destination, value);
-            require(success, "failed to transfer WVara");
+    fallback() external payable {
+        StorageSlot.AddressSlot storage implementationSlot =
+            StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT);
+        address _abiInterface = implementationSlot.value;
+
+        if (_abiInterface != address(0)) {
+            require(msg.data.length >= 0x24);
+
+            uint256 value;
+            assembly ("memory-safe") {
+                value := calldataload(0x04)
+            }
+
+            sendMessage(msg.data, uint128(value));
+        } else {
+            revert();
         }
     }
 }
