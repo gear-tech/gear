@@ -6,7 +6,7 @@ use ethexe_common::{
     ProducerBlock, SimpleBlockData,
 };
 use ethexe_db::Database;
-use ethexe_signer::{Address, PublicKey, Signer, ToDigest};
+use ethexe_signer::{Address, PublicKey, Signer};
 use gprimitives::H256;
 
 pub struct Producer {
@@ -85,6 +85,16 @@ impl Producer {
                 self.aggregate_commitments_for_block(computed_block)
             }
         }
+    }
+
+    pub fn into_parts(self) -> (PublicKey, Signer, Database, Vec<Address>, SimpleBlockData) {
+        (
+            self.pub_key,
+            self.signer,
+            self.db,
+            self.validators,
+            self.block,
+        )
     }
 
     // TODO (gsobol): make test for this method

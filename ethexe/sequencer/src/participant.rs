@@ -7,7 +7,7 @@ use crate::{
     verifier::Verifier,
 };
 use anyhow::{anyhow, ensure};
-use ethexe_common::gear::CodeCommitment;
+use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database, OnChainStorage};
 use ethexe_signer::{Address, Digest, PublicKey, SignedData, Signer, ToDigest};
 use gprimitives::H256;
@@ -17,12 +17,13 @@ pub struct Participant {
     producer: Address,
     db: Database,
     signer: Signer,
+    #[allow(unused)]
     state: State,
 }
 
 enum State {
-    // +_+_+ we should wait for special block only
-    WaitingForValidationRequest,
+    #[allow(unused)]
+    WaitingForValidationRequest(SimpleBlockData),
 }
 
 impl Participant {
@@ -30,19 +31,19 @@ impl Participant {
         pub_key: PublicKey,
         db: Database,
         signer: Signer,
-        verifier: &mut Verifier,
+        verifier: Verifier,
     ) -> Result<(Option<Self>, Vec<ControlEvent>), ControlError> {
-        let producer = verifier.producer();
+        let (producer, block, request) = verifier.into_parts();
 
         let mut participant = Self {
             pub_key,
             producer,
             db,
             signer,
-            state: State::WaitingForValidationRequest,
+            state: State::WaitingForValidationRequest(block),
         };
 
-        if let Some(request) = verifier.take_earlier_validation_request() {
+        if let Some(request) = request {
             let reply = participant.receive_validation_request_inner(request)?;
 
             Ok((None, vec![ControlEvent::PublishValidationReply(reply)]))

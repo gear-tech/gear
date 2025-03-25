@@ -1,11 +1,18 @@
-use crate::{bp::{ControlError, ControlEvent, ControlService}, utils::BatchCommitmentValidationRequest};
+use crate::{
+    bp::{ControlError, ControlEvent, ControlService},
+    utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
+};
 use anyhow::anyhow;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::SignedData;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
-use std::{collections::VecDeque, pin::Pin, task::{Context, Poll}};
+use std::{
+    collections::VecDeque,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 pub struct SimpleConnectService {
     block: Option<SimpleBlockData>,
@@ -62,6 +69,13 @@ impl ControlService for SimpleConnectService {
     fn receive_validation_request(
         &mut self,
         _signed_batch: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<(), ControlError> {
+        Ok(())
+    }
+
+    fn receive_validation_reply(
+        &mut self,
+        _reply: BatchCommitmentValidationReply,
     ) -> Result<(), ControlError> {
         Ok(())
     }

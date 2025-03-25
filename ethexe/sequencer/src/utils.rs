@@ -82,13 +82,13 @@ pub struct BatchCommitmentValidationReply {
 //     }
 // }
 
-pub struct MultisignedCommitmentsBatch {
+pub struct MultisignedBatchCommitment {
     batch: BatchCommitment,
     batch_digest: Digest,
     signatures: BTreeMap<Address, Signature>,
 }
 
-impl MultisignedCommitmentsBatch {
+impl MultisignedBatchCommitment {
     pub fn new_with_validation_request(
         batch: BatchCommitment,
         signer: &Signer,
@@ -130,6 +130,10 @@ impl MultisignedCommitmentsBatch {
         self.signatures.insert(origin, signature);
 
         Ok(())
+    }
+
+    pub fn signatures(&self) -> &BTreeMap<Address, Signature> {
+        &self.signatures
     }
 
     pub fn into_parts(self) -> (BatchCommitment, BTreeMap<Address, Signature>) {

@@ -19,6 +19,10 @@ pub trait ControlService: Stream<Item = ControlEvent> + FusedStream {
         &mut self,
         signed_batch: SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<(), ControlError>;
+    fn receive_validation_reply(
+        &mut self,
+        reply: BatchCommitmentValidationReply,
+    ) -> Result<(), ControlError>;
     fn is_block_producer(&self) -> anyhow::Result<bool>;
 }
 
@@ -36,4 +40,5 @@ pub enum ControlEvent {
     PublishProducerBlock(SignedData<ProducerBlock>),
     PublishValidationRequest(SignedData<BatchCommitmentValidationRequest>),
     PublishValidationReply(BatchCommitmentValidationReply),
+    SubmissionResult(Result<H256, ControlError>),
 }

@@ -153,11 +153,7 @@ impl Verifier {
         Ok(())
     }
 
-    pub fn producer(&self) -> Address {
-        self.producer
-    }
-
-    pub fn take_earlier_validation_request(&mut self) -> Option<BatchCommitmentValidationRequest> {
-        self.earlier_validation_request.take()
+    pub fn into_parts(self) -> (Address, SimpleBlockData, Option<BatchCommitmentValidationRequest>) {
+        (self.producer, self.block, self.earlier_validation_request)
     }
 }
