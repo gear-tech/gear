@@ -201,6 +201,8 @@ ark-scale = { version = "0.0.12", default-features = false }
 sha2 = { version = "0.10.8", default-features = false }
 arrayvec = { version = "0.7.4", default-features = false }
 indexmap = { version = "2.2.6", default-features = false }
+tracing = { version = "0.1.40", default-features = false }
+tracing-subscriber = "0.3.18"
 
 # Published deps
 #
@@ -525,9 +527,7 @@ thousands = "0.2.0"                                          # utils/regression-
 toml = "0.8.14"                                              # utils/wasm-builder
 tower = "0.4.13"                                             # ethexe/rpc
 tower-http = "0.5.2"                                         # ethexe/rpc
-tracing = "0.1.40"                                           # utils/node-loader
 tracing-appender = "0.2"                                     # utils/node-loader
-tracing-subscriber = "0.3.18"                                # utils/node-loader
 trybuild = "1"                                               # gstd/codegen
 wasm-opt = "0.116"                                           # utils/wasm-builder
 wasmprinter = "0.225"                                        # utils/wasm-gen
