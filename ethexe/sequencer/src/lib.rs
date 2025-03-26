@@ -52,6 +52,7 @@ mod verifier;
 mod participant;
 mod utils;
 mod coordinator;
+mod initial;
 
 #[cfg(test)]
 mod tests;

@@ -46,9 +46,9 @@ impl Producer {
 
         let block = ProducerBlock {
             block_hash,
-            // +_+_+ set gas allowance here
+            // TODO +_+_+: set gas allowance here
             gas_allowance: Some(3_000_000_000_000),
-            // +_+_+ append off-chain transactions
+            // TODO +_+_+: append off-chain transactions
             off_chain_transactions: Vec::new(),
         };
 
@@ -176,7 +176,7 @@ impl Producer {
             .into_iter()
             .filter_map(|code_id| {
                 let Some(code_info) = self.db.code_blob_info(code_id) else {
-                    // +_+_+ fix this
+                    // TODO +_+_+: this must be an error
                     return None;
                 };
                 self.db.code_valid(code_id).map(|valid| CodeCommitment {

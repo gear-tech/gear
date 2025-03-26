@@ -4,7 +4,6 @@ use crate::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         BlockCommitmentValidationRequest,
     },
-    verifier::Verifier,
 };
 use anyhow::{anyhow, ensure};
 use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
@@ -29,26 +28,17 @@ enum State {
 impl Participant {
     pub fn new(
         pub_key: PublicKey,
+        producer: Address,
+        block: SimpleBlockData,
         db: Database,
         signer: Signer,
-        verifier: Verifier,
-    ) -> Result<(Option<Self>, Vec<ControlEvent>), ControlError> {
-        let (producer, block, request) = verifier.into_parts();
-
-        let mut participant = Self {
+    ) -> Self {
+        Self {
             pub_key,
             producer,
             db,
             signer,
             state: State::WaitingForValidationRequest(block),
-        };
-
-        if let Some(request) = request {
-            let reply = participant.receive_validation_request_inner(request)?;
-
-            Ok((None, vec![ControlEvent::PublishValidationReply(reply)]))
-        } else {
-            Ok((Some(participant), Vec::new()))
         }
     }
 
@@ -62,7 +52,14 @@ impl Participant {
             ))
         })?;
 
-        self.receive_validation_request_inner(request.into_parts().0)
+        self.receive_validation_request_no_sign(request.into_parts().0)
+    }
+
+    pub fn receive_validation_request_no_sign(
+        &mut self,
+        request: BatchCommitmentValidationRequest,
+    ) -> Result<Vec<ControlEvent>, ControlError> {
+        self.receive_validation_request_inner(request)
             .map(|reply| vec![ControlEvent::PublishValidationReply(reply)])
     }
 

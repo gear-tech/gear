@@ -1,6 +1,7 @@
 use crate::{
     bp::{ControlError, ControlEvent, ControlService},
     coordinator::Coordinator,
+    initial::{Initial, Unformed},
     participant::Participant,
     producer::Producer,
     utils::{
@@ -36,11 +37,9 @@ pub struct ValidatorService {
     output: VecDeque<ControlEvent>,
 }
 
-#[derive(Default)]
 enum State {
-    #[default]
-    Initial,
-    NewChainHeadReceived(ChainHeadReceived),
+    Initial(Initial),
+    Unformed(Unformed),
     Producer(Producer),
     Verifier(Verifier),
     Coordinator(Coordinator),
@@ -48,9 +47,10 @@ enum State {
     Submitting(BoxFuture<'static, anyhow::Result<H256>>),
 }
 
-pub struct ChainHeadReceived {
-    block: SimpleBlockData,
-    producer_blocks: Vec<SignedData<ProducerBlock>>,
+impl Default for State {
+    fn default() -> Self {
+        Self::Initial(Initial::default())
+    }
 }
 
 pub struct ValidatorConfig {
@@ -91,46 +91,49 @@ impl ValidatorService {
     const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
         (slot % validators_amount as u64) as usize
     }
+
+    fn producer_for(&self, timestamp: u64, validators: &[Address]) -> Address {
+        let slot = timestamp / self.slot_duration.as_secs();
+        let index = Self::block_producer_index(validators.len(), slot);
+        validators
+            .get(index)
+            .cloned()
+            .unwrap_or_else(|| unreachable!("index must be valid"))
+    }
 }
 
 impl ControlService for ValidatorService {
+    // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) {
-        // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
-        self.state = State::NewChainHeadReceived(ChainHeadReceived {
-            block,
-            producer_blocks: Vec::new(),
-        });
+        let state = mem::take(&mut self.state);
+        self.state = match state {
+            State::Initial(initial) => State::Unformed(initial.into_unformed(block)),
+            _ => State::Unformed(Initial::default().into_unformed(block)),
+        };
     }
 
-    /// Returns whether synced block is previously received chain head.
     fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<(), ControlError> {
-        let state = match &mut self.state {
-            State::NewChainHeadReceived(state) => state,
-            _ => {
-                return Err(ControlError::Warning(anyhow!(
-                    "Received unexpected synced block {}",
-                    data.block_hash
-                )))
-            }
+        let State::Unformed(state) = &mut self.state else {
+            return Err(ControlError::Warning(anyhow!(
+                "Received unexpected synced block {}",
+                data.block_hash
+            )));
         };
 
-        let block = state.block.clone();
-
-        if data.block_hash != block.hash {
+        if data.block_hash != state.block().hash {
             return Err(ControlError::Warning(anyhow!(
                 "Received synced block {} is different from the expected block hash {}",
                 data.block_hash,
-                block.hash
+                state.block().hash
             )));
         }
 
-        let slot = block.header.timestamp / self.slot_duration.as_secs();
-        let index = Self::block_producer_index(data.validators.len(), slot);
-        let producer = data
-            .validators
-            .get(index)
-            .cloned()
-            .unwrap_or_else(|| unreachable!("index must be valid"));
+        let State::Unformed(state) = mem::take(&mut self.state) else {
+            unreachable!("state must be Unformed");
+        };
+        let (block, blocks, requests) = state.into_parts();
+
+        let producer = self.producer_for(block.header.timestamp, &data.validators);
 
         if self.pub_key.to_address() == producer {
             let (producer, events) = Producer::new(
@@ -143,11 +146,18 @@ impl ControlService for ValidatorService {
             self.state = State::Producer(producer);
             self.output.extend(events);
         } else {
-            let (verifier, events) =
-                Verifier::new(block, producer, mem::take(&mut state.producer_blocks))?;
+            let (verifier, events) = Verifier::new(block, producer, blocks)?;
             self.output.extend(events);
             self.state = State::Verifier(verifier);
         }
+
+        if let State::Verifier(verifier) = &mut self.state {
+            if !requests.is_empty() {
+                verifier
+                    .receive_validation_requests(requests)
+                    .map_err(ControlError::Warning)?;
+            }
+        };
 
         Ok(())
     }
@@ -157,30 +167,20 @@ impl ControlService for ValidatorService {
         signed: SignedData<ProducerBlock>,
     ) -> Result<(), ControlError> {
         match &mut self.state {
-            State::Initial => {
-                // +_+_+: collect producer blocks in this state.
-                Err(ControlError::EventSkipped)?;
+            State::Initial(initial) => {
+                initial.receive_block_from_producer(signed);
             }
-            State::NewChainHeadReceived(state) => {
-                if signed.data().block_hash != state.block.hash {
-                    Err(ControlError::Warning(anyhow!(
-                        "Received block {} is different from the expected block hash {}",
-                        signed.data().block_hash,
-                        state.block.hash
-                    )))?;
-                }
-
-                // Wait for the block to be synced.
-                state.producer_blocks.push(signed);
+            State::Unformed(unformed) => {
+                unformed.receive_block_from_producer(signed);
             }
             State::Verifier(verifier) => {
                 let events = verifier.receive_block_from_producer(signed)?;
                 self.output.extend(events);
             }
-            State::Producer(_) => Err(ControlError::Warning(anyhow!(
-                "Received producer block in producer mode"
-            )))?,
-            _ => Err(ControlError::Warning(anyhow!(
+            State::Producer(_) | State::Coordinator(_) | State::Submitting(_) => Err(
+                ControlError::Warning(anyhow!("Received producer block, but I'm producer")),
+            )?,
+            State::Participant(_) => Err(ControlError::Warning(anyhow!(
                 "Received producer block in unexpected state"
             )))?,
         }
@@ -210,23 +210,35 @@ impl ControlService for ValidatorService {
                         unreachable!("state must be Verifier");
                     };
 
-                    // TODO: it's a bug fix me
-                    let (participant, events) = Participant::new(
+                    let (producer, block, request) = verifier.into_parts();
+
+                    let participant = Participant::new(
                         self.pub_key,
+                        producer,
+                        block,
                         self.db.clone(),
                         self.signer.clone(),
-                        verifier,
-                    )?;
+                    );
 
-                    self.output.extend(events);
+                    self.state = State::Participant(participant);
 
-                    match participant {
-                        Some(participant) => self.state = State::Participant(participant),
-                        None => self.state = State::Initial,
+                    let State::Participant(participant) = &mut self.state else {
+                        unreachable!("state must be Participant");
+                    };
+
+                    if let Some(request) = request {
+                        // TODO +_+_+: whether we should stay as participant in case of error here?
+                        let events = participant.receive_validation_request_no_sign(request)?;
+                        self.output.extend(events);
+                        self.state = State::default();
                     }
                 }
             }
-            _ => Err(ControlError::Warning(anyhow!(
+            State::Initial(_)
+            | State::Unformed(_)
+            | State::Coordinator(_)
+            | State::Participant(_)
+            | State::Submitting(_) => Err(ControlError::Warning(anyhow!(
                 "Received computed block in unexpected state"
             )))?,
         }
@@ -239,28 +251,26 @@ impl ControlService for ValidatorService {
         signed_request: SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<(), ControlError> {
         match &mut self.state {
+            State::Initial(initial) => {
+                initial.receive_validation_request(signed_request);
+            }
+            State::Unformed(unformed) => {
+                unformed.receive_validation_request(signed_request);
+            }
             State::Participant(participant) => {
                 let events = participant.receive_validation_request(signed_request)?;
                 self.output.extend(events);
-                self.state = State::Initial;
+                self.state = State::default();
             }
             State::Verifier(verifier) => {
-                verifier.receive_validation_request(signed_request)?;
+                verifier.receive_validation_requests(vec![signed_request])?;
             }
-            State::Coordinator(_) => Err(ControlError::Warning(anyhow!(
-                "Received validation request in coordinator mode"
-            )))?,
-            _ => Err(ControlError::Warning(anyhow!(
-                "Received validation request in unexpected state"
-            )))?,
+            State::Coordinator(_) | State::Producer(_) | State::Submitting(_) => Err(
+                ControlError::Warning(anyhow!("Received validation request, but I'm producer")),
+            )?,
         }
 
         Ok(())
-    }
-
-    fn is_block_producer(&self) -> anyhow::Result<bool> {
-        // +_+_+
-        todo!()
     }
 
     fn receive_validation_reply(
@@ -287,12 +297,20 @@ impl ControlService for ValidatorService {
             State::Participant(_) => Err(ControlError::Warning(anyhow!(
                 "Received validation reply in participant mode"
             )))?,
-            State::Initial | State::Producer(_) | State::NewChainHeadReceived(_) => Err(
+            State::Initial(_) | State::Unformed(_) | State::Producer(_) => Err(
                 ControlError::Warning(anyhow!("Received validation reply in unexpected state")),
             )?,
         }
 
         Ok(())
+    }
+
+    fn is_block_producer(&self) -> anyhow::Result<bool> {
+        match &self.state {
+            State::Producer(_) | State::Coordinator(_) | State::Submitting(_) => Ok(true),
+            State::Verifier(_) | State::Participant(_) => Ok(false),
+            State::Initial(_) | State::Unformed(_) => Err(anyhow!("Is not known yet")),
+        }
     }
 }
 

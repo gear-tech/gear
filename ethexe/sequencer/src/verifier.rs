@@ -38,7 +38,7 @@ impl Verifier {
         if let Some(producer_block) = received_producer_blocks.into_iter().find(|signed| {
             signed
                 .verify_address(producer)
-                .map(|_| true)
+                .map(|_| signed.data().block_hash == block.hash)
                 .unwrap_or(false)
         }) {
             let mut verifier = Verifier {
@@ -68,11 +68,9 @@ impl Verifier {
         signed: SignedData<ProducerBlock>,
     ) -> Result<Vec<ControlEvent>, ControlError> {
         // Verify sender is current block producer
-        signed
-            .verify_address(self.producer)
-            .map_err(|e| {
-                ControlError::Warning(anyhow!("Received block is not signed by the producer: {e}"))
-            })?;
+        signed.verify_address(self.producer).map_err(|e| {
+            ControlError::Warning(anyhow!("Received block is not signed by the producer: {e}"))
+        })?;
 
         let parent_hash_in_computation = match &self.state {
             VerifierState::WaitingParentComputed { parent_hash } => Some(*parent_hash),
@@ -130,22 +128,25 @@ impl Verifier {
         }
     }
 
-    pub fn receive_validation_request(
+    pub fn receive_validation_requests(
         &mut self,
-        request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<(), ControlError> {
-        request.verify_address(self.producer).map_err(|e| {
-            ControlError::Warning(anyhow!(
-                "Received validation request is not signed by the producer: {e}"
-            ))
-        })?;
-
+        request: Vec<SignedData<BatchCommitmentValidationRequest>>,
+    ) -> Result<(), anyhow::Error> {
         // TODO +_+_+: check also that request is for the current block
 
+        let Some(request) = request.into_iter().find(|signed| {
+            signed
+                .verify_address(self.producer)
+                .map(|_| true)
+                .unwrap_or(false)
+        }) else {
+            return Err(anyhow!(
+                "Received validation requests is not signed by the producer"
+            ));
+        };
+
         if self.earlier_validation_request.is_some() {
-            return Err(ControlError::Warning(anyhow!(
-                "Received second validation request"
-            )));
+            return Err(anyhow!("Received second validation request"));
         }
 
         self.earlier_validation_request = Some(request.into_parts().0);
@@ -153,7 +154,13 @@ impl Verifier {
         Ok(())
     }
 
-    pub fn into_parts(self) -> (Address, SimpleBlockData, Option<BatchCommitmentValidationRequest>) {
+    pub fn into_parts(
+        self,
+    ) -> (
+        Address,
+        SimpleBlockData,
+        Option<BatchCommitmentValidationRequest>,
+    ) {
         (self.producer, self.block, self.earlier_validation_request)
     }
 }

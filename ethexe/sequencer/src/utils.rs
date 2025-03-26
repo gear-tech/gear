@@ -141,4 +141,4 @@ impl MultisignedBatchCommitment {
     }
 }
 
-// +_+_+ make test that signature for CommitmentsBatchValidationRequest is suitable for CommitmentsBatch as well
+// TODO +_+_+: make test that signature for CommitmentsBatchValidationRequest is suitable for CommitmentsBatch as well
