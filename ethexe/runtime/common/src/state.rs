@@ -27,6 +27,7 @@ use alloc::{
 use anyhow::{anyhow, Result};
 use core::{
     any::Any,
+    cmp::Ordering,
     marker::PhantomData,
     mem,
     ops::{Index, IndexMut},
@@ -48,6 +49,7 @@ use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
 
 /// 3h validity in mailbox for 12s blocks.
+// TODO (breathx): WITHIN THE PR
 pub const MAILBOX_VALIDITY: u32 = 54_000;
 
 mod private {
@@ -58,6 +60,7 @@ mod private {
     impl Sealed for Allocations {}
     impl Sealed for DispatchStash {}
     impl Sealed for Mailbox {}
+    impl Sealed for UserMailbox {}
     impl Sealed for MemoryPages {}
     impl Sealed for MemoryPagesRegion {}
     impl Sealed for MessageQueue {}
@@ -140,9 +143,7 @@ impl PayloadLookup {
     }
 }
 
-#[derive(
-    Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::DebugCustom, derive_more::Display,
-)]
+#[derive(Encode, Decode, derive_more::Into, derive_more::DebugCustom, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[debug(fmt = "HashOf<{}>({hash:?})", "private::shortname::<S>()")]
 #[display(fmt = "{hash}")]
@@ -152,6 +153,26 @@ pub struct HashOf<S: Sealed + 'static> {
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
     _phantom: PhantomData<S>,
+}
+
+impl<S: Sealed> PartialEq for HashOf<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash.eq(&other.hash)
+    }
+}
+
+impl<S: Sealed> Eq for HashOf<S> {}
+
+impl<S: Sealed> PartialOrd for HashOf<S> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<S: Sealed> Ord for HashOf<S> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.hash.cmp(&other.hash)
+    }
 }
 
 impl<S: Sealed> Clone for HashOf<S> {
@@ -172,7 +193,7 @@ impl<S: Sealed> HashOf<S> {
         }
     }
 
-    pub fn hash(&self) -> H256 {
+    pub fn hash(self) -> H256 {
         self.hash
     }
 }
@@ -220,23 +241,27 @@ impl<S: Sealed> MaybeHashOf<S> {
         self.0.is_none()
     }
 
-    pub fn hash(&self) -> Option<HashOf<S>> {
+    pub fn hash(self) -> Option<H256> {
+        self.to_inner().map(HashOf::hash)
+    }
+
+    pub fn to_inner(self) -> Option<HashOf<S>> {
         self.0
     }
 
-    pub fn with_hash<T>(&self, f: impl FnOnce(HashOf<S>) -> T) -> Option<T> {
-        self.hash().map(f)
+    pub fn map<T>(&self, f: impl FnOnce(HashOf<S>) -> T) -> Option<T> {
+        self.to_inner().map(f)
     }
 
-    pub fn with_hash_or_default<T: Default>(&self, f: impl FnOnce(HashOf<S>) -> T) -> T {
-        self.with_hash(f).unwrap_or_default()
+    pub fn map_or_default<T: Default>(&self, f: impl FnOnce(HashOf<S>) -> T) -> T {
+        self.map(f).unwrap_or_default()
     }
 
-    pub fn with_hash_or_default_fallible<T: Default>(
+    pub fn try_map_or_default<T: Default>(
         &self,
         f: impl FnOnce(HashOf<S>) -> Result<T>,
     ) -> Result<T> {
-        self.with_hash(f).unwrap_or_else(|| Ok(Default::default()))
+        self.map(f).unwrap_or_else(|| Ok(Default::default()))
     }
 
     pub fn replace(&mut self, other: Option<Self>) {
@@ -254,7 +279,7 @@ impl<S: Sealed + 'static> From<HashOf<S>> for MaybeHashOf<S> {
 
 impl MaybeHashOf<Allocations> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Allocations> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_allocations(hash).ok_or(anyhow!(
                 "failed to read ['Allocations'] from storage by hash"
             ))
@@ -278,7 +303,7 @@ impl MaybeHashOf<Allocations> {
 
 impl MaybeHashOf<DispatchStash> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<DispatchStash> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_stash(hash).ok_or(anyhow!(
                 "failed to read ['DispatchStash'] from storage by hash"
             ))
@@ -302,7 +327,7 @@ impl MaybeHashOf<DispatchStash> {
 
 impl MaybeHashOf<Mailbox> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Mailbox> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage
                 .read_mailbox(hash)
                 .ok_or(anyhow!("failed to read ['Mailbox'] from storage by hash"))
@@ -324,9 +349,19 @@ impl MaybeHashOf<Mailbox> {
     }
 }
 
+impl MaybeHashOf<UserMailbox> {
+    pub fn query<S: Storage>(&self, storage: &S) -> Result<UserMailbox> {
+        self.try_map_or_default(|hash| {
+            storage.read_user_mailbox(hash).ok_or(anyhow!(
+                "failed to read ['UserMailbox'] from storage by hash"
+            ))
+        })
+    }
+}
+
 impl MaybeHashOf<MemoryPages> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MemoryPages> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_pages(hash).ok_or(anyhow!(
                 "failed to read ['MemoryPages'] from storage by hash"
             ))
@@ -350,7 +385,7 @@ impl MaybeHashOf<MemoryPages> {
 
 impl MaybeHashOf<MessageQueue> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage.read_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
             ))
@@ -374,7 +409,7 @@ impl MaybeHashOf<MessageQueue> {
 
 impl MaybeHashOf<Payload> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Payload> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage
                 .read_payload(hash)
                 .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash"))
@@ -386,7 +421,7 @@ impl MaybeHashOf<Payload> {
 
 impl MaybeHashOf<Waitlist> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Waitlist> {
-        self.with_hash_or_default_fallible(|hash| {
+        self.try_map_or_default(|hash| {
             storage
                 .read_waitlist(hash)
                 .ok_or(anyhow!("failed to read ['Waitlist'] from storage by hash"))
@@ -640,12 +675,12 @@ impl Dispatch {
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct ValueWithExpiry<T> {
+pub struct Expiring<T> {
     pub value: T,
     pub expiry: u32,
 }
 
-impl<T> From<(T, u32)> for ValueWithExpiry<T> {
+impl<T> From<(T, u32)> for Expiring<T> {
     fn from((value, expiry): (T, u32)) -> Self {
         Self { value, expiry }
     }
@@ -680,7 +715,7 @@ impl MessageQueue {
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Waitlist {
-    inner: BTreeMap<MessageId, ValueWithExpiry<Dispatch>>,
+    inner: BTreeMap<MessageId, Expiring<Dispatch>>,
     #[into(ignore)]
     #[codec(skip)]
     changed: bool,
@@ -692,7 +727,7 @@ impl Waitlist {
 
         let r = self.inner.insert(
             message_id,
-            ValueWithExpiry {
+            Expiring {
                 value: dispatch,
                 expiry,
             },
@@ -700,7 +735,7 @@ impl Waitlist {
         debug_assert!(r.is_none())
     }
 
-    pub fn wake(&mut self, message_id: &MessageId) -> Option<ValueWithExpiry<Dispatch>> {
+    pub fn wake(&mut self, message_id: &MessageId) -> Option<Expiring<Dispatch>> {
         self.inner
             .remove(message_id)
             .inspect(|_| self.changed = true)
@@ -711,20 +746,20 @@ impl Waitlist {
             .then(|| MaybeHashOf((!self.inner.is_empty()).then(|| storage.write_waitlist(self))))
     }
 
-    pub fn into_inner(self) -> BTreeMap<MessageId, ValueWithExpiry<Dispatch>> {
+    pub fn into_inner(self) -> BTreeMap<MessageId, Expiring<Dispatch>> {
         self.into()
     }
 }
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct DispatchStash(BTreeMap<MessageId, ValueWithExpiry<(Dispatch, Option<ActorId>)>>);
+pub struct DispatchStash(BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>);
 
 impl DispatchStash {
     pub fn add_to_program(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
         let r = self.0.insert(
             message_id,
-            ValueWithExpiry {
+            Expiring {
                 value: (dispatch, None),
                 expiry,
             },
@@ -741,7 +776,7 @@ impl DispatchStash {
     ) {
         let r = self.0.insert(
             message_id,
-            ValueWithExpiry {
+            Expiring {
                 value: (dispatch, Some(user_id)),
                 expiry,
             },
@@ -750,7 +785,7 @@ impl DispatchStash {
     }
 
     pub fn remove_to_program(&mut self, message_id: &MessageId) -> Dispatch {
-        let ValueWithExpiry {
+        let Expiring {
             value: (dispatch, user_id),
             ..
         } = self
@@ -766,7 +801,7 @@ impl DispatchStash {
     }
 
     pub fn remove_to_user(&mut self, message_id: &MessageId) -> (Dispatch, ActorId) {
-        let ValueWithExpiry {
+        let Expiring {
             value: (dispatch, user_id),
             ..
         } = self
@@ -785,43 +820,120 @@ impl DispatchStash {
     }
 }
 
-// TODO (breathx): consider here LocalMailbox for each user.
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct MailboxMessage {
+    pub payload: PayloadLookup,
+    pub value: Value,
+    pub origin: Origin,
+}
+
+impl MailboxMessage {
+    pub fn new(payload: PayloadLookup, value: Value, origin: Origin) -> Self {
+        Self {
+            payload,
+            value,
+            origin,
+        }
+    }
+}
+
+impl From<Dispatch> for MailboxMessage {
+    fn from(dispatch: Dispatch) -> Self {
+        Self {
+            payload: dispatch.payload,
+            value: dispatch.value,
+            origin: dispatch.origin,
+        }
+    }
+}
+
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct UserMailbox(BTreeMap<MessageId, Expiring<MailboxMessage>>);
+
+impl UserMailbox {
+    fn add(&mut self, message_id: MessageId, message: MailboxMessage, expiry: u32) {
+        let r = self.0.insert(message_id, (message, expiry).into());
+        debug_assert!(r.is_none())
+    }
+
+    fn remove(&mut self, message_id: MessageId) -> Option<Expiring<MailboxMessage>> {
+        self.0.remove(&message_id)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
+        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
+    }
+}
+
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mailbox {
-    inner: BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>>,
+    inner: BTreeMap<ActorId, HashOf<UserMailbox>>,
     #[into(ignore)]
     #[codec(skip)]
     changed: bool,
 }
 
 impl Mailbox {
-    pub fn add(&mut self, user_id: ActorId, message_id: MessageId, value: Value, expiry: u32) {
-        self.changed = true;
-
-        let r = self
-            .inner
-            .entry(user_id)
-            .or_default()
-            .insert(message_id, ValueWithExpiry { value, expiry });
-        debug_assert!(r.is_none())
-    }
-
-    pub fn remove(
+    pub fn add_and_store_user_mailbox<S: Storage>(
         &mut self,
+        storage: &S,
         user_id: ActorId,
         message_id: MessageId,
-    ) -> Option<ValueWithExpiry<u128>> {
-        let local_mailbox = self.inner.get_mut(&user_id)?;
-        let claimed_value = local_mailbox.remove(&message_id)?;
-
+        message: MailboxMessage,
+        expiry: u32,
+    ) {
         self.changed = true;
 
-        if local_mailbox.is_empty() {
-            self.inner.remove(&user_id);
+        let maybe_hash: MaybeHashOf<UserMailbox> = self.inner.get(&user_id).cloned().into();
+
+        let mut mailbox = maybe_hash
+            .query(storage)
+            .expect("failed to query user mailbox");
+
+        mailbox.add(message_id, message, expiry);
+
+        let hash = storage.write_user_mailbox(mailbox);
+
+        let _ = self.inner.insert(user_id, hash);
+    }
+
+    pub fn remove_and_store_user_mailbox<S: Storage>(
+        &mut self,
+        storage: &S,
+        user_id: ActorId,
+        message_id: MessageId,
+    ) -> Option<Expiring<MailboxMessage>> {
+        let maybe_hash: MaybeHashOf<UserMailbox> = self.inner.get(&user_id).cloned().into();
+
+        let mut mailbox = maybe_hash
+            .query(storage)
+            .expect("failed to query user mailbox");
+
+        let value = mailbox.remove(message_id);
+
+        if value.is_some() {
+            self.changed = true;
+
+            if mailbox.is_empty() {
+                self.inner.remove(&user_id);
+            } else {
+                let hash = mailbox
+                    .store(storage)
+                    .to_inner()
+                    .expect("failed to store user mailbox");
+
+                self.inner.insert(user_id, hash);
+            }
         }
 
-        Some(claimed_value)
+        value
     }
 
     pub fn store<S: Storage>(self, storage: &S) -> Option<MaybeHashOf<Self>> {
@@ -829,8 +941,24 @@ impl Mailbox {
             .then(|| MaybeHashOf((!self.inner.is_empty()).then(|| storage.write_mailbox(self))))
     }
 
-    pub fn into_inner(self) -> BTreeMap<ActorId, BTreeMap<MessageId, ValueWithExpiry<Value>>> {
-        self.into()
+    pub fn into_values<S: Storage>(
+        self,
+        storage: &S,
+    ) -> BTreeMap<ActorId, BTreeMap<MessageId, Expiring<MailboxMessage>>> {
+        self.inner
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    storage
+                        .read_user_mailbox(v)
+                        .expect("failed to read user mailbox from store")
+                        .0
+                        .into_iter()
+                        .collect(),
+                )
+            })
+            .collect()
     }
 }
 
@@ -927,7 +1055,7 @@ impl MemoryPages {
         for (region_idx, region) in updated_regions {
             let region_hash = region
                 .store(storage)
-                .hash()
+                .to_inner()
                 .expect("infallible; pages are only appended here, none are removed");
 
             self[region_idx] = region_hash.into();
@@ -968,7 +1096,7 @@ impl MemoryPages {
         }
 
         for (region_idx, region) in updated_regions {
-            if let Some(region_hash) = region.store(storage).hash() {
+            if let Some(region_hash) = region.store(storage).to_inner() {
                 self[region_idx] = region_hash.into();
             }
         }
@@ -1063,6 +1191,12 @@ pub trait Storage {
 
     /// Writes mailbox and returns its hash.
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox>;
+
+    /// Reads user mailbox and returns its hash.
+    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox>;
+
+    /// Writes user mailbox and returns its hash.
+    fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox>;
 
     /// Reads memory pages by pages hash.
     fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;

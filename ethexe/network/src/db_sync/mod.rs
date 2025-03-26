@@ -45,6 +45,7 @@ use libp2p::{
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt,
     task::{Context, Poll},
     time::Duration,
 };
@@ -58,10 +59,27 @@ pub struct RequestId(u64);
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct ResponseId(u64);
 
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode)]
 pub enum Request {
     DataForHashes(BTreeSet<H256>),
     ProgramIds,
+}
+
+impl fmt::Debug for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Request::DataForHashes(set) => {
+                if f.alternate() {
+                    f.debug_tuple("DataForHashes").field(&set).finish()
+                } else {
+                    f.debug_tuple("DataForHashes")
+                        .field(&format_args!("{} keys", set.len()))
+                        .finish()
+                }
+            }
+            Request::ProgramIds => f.debug_tuple("ProgramIds").finish(),
+        }
+    }
 }
 
 impl Request {
@@ -92,12 +110,37 @@ enum ResponseValidationError {
     DataHashMismatch,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode)]
 pub enum Response {
     /// Key (hash) - value (bytes) data
     DataForHashes(BTreeMap<H256, Vec<u8>>),
     /// All existing programs
     ProgramIds(BTreeSet<ProgramId>),
+}
+
+impl fmt::Debug for Response {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Response::DataForHashes(data) => {
+                if f.alternate() {
+                    f.debug_tuple("DataForHashes").field(&data).finish()
+                } else {
+                    f.debug_tuple("DataForHashes")
+                        .field(&format_args!("{} entries", data.len()))
+                        .finish()
+                }
+            }
+            Response::ProgramIds(ids) => {
+                if f.alternate() {
+                    f.debug_tuple("ProgramIds").field(&ids).finish()
+                } else {
+                    f.debug_tuple("ProgramIds")
+                        .field(&format_args!("{} entries", ids.len()))
+                        .finish()
+                }
+            }
+        }
+    }
 }
 
 impl Response {
@@ -612,7 +655,7 @@ mod tests {
     use std::{iter, mem};
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let db = Database::from_one(&MemDb::default());
         let behaviour = Behaviour::new(config, peer_score::Handle::new_test(), db.clone());
         let mut swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;

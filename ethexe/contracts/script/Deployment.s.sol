@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {Mirror} from "../src/Mirror.sol";
-import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {Gear} from "../src/libraries/Gear.sol";
 import {Router} from "../src/Router.sol";
 import {Script, console} from "forge-std/Script.sol";
@@ -16,7 +15,6 @@ contract DeploymentScript is Script {
     WrappedVara public wrappedVara;
     Router public router;
     Mirror public mirror;
-    MirrorProxy public mirrorProxy;
 
     function setUp() public {}
 
@@ -37,7 +35,6 @@ contract DeploymentScript is Script {
         );
 
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
-        address mirrorProxyAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
 
         router = Router(
             Upgrades.deployTransparentProxy(
@@ -48,7 +45,6 @@ contract DeploymentScript is Script {
                     (
                         deployerAddress,
                         mirrorAddress,
-                        mirrorProxyAddress,
                         address(wrappedVara),
                         1 days,
                         2 hours,
@@ -60,8 +56,7 @@ contract DeploymentScript is Script {
                 )
             )
         );
-        mirror = new Mirror();
-        mirrorProxy = new MirrorProxy(address(router));
+        mirror = new Mirror(address(router));
 
         wrappedVara.approve(address(router), type(uint256).max);
 
@@ -69,15 +64,13 @@ contract DeploymentScript is Script {
         router.lookupGenesisHash();
 
         vm.assertEq(router.mirrorImpl(), address(mirror));
-        vm.assertEq(router.mirrorProxyImpl(), address(mirrorProxy));
-        vm.assertEq(mirrorProxy.router(), address(router));
         vm.assertNotEq(router.genesisBlockHash(), bytes32(0));
 
         vm.stopBroadcast();
 
         printContractInfo("Router", address(router), Upgrades.getImplementationAddress(address(router)));
         printContractInfo("WVara", address(wrappedVara), Upgrades.getImplementationAddress(address(wrappedVara)));
-        printContractInfo("Mirror", mirrorProxyAddress, mirrorAddress);
+        printContractInfo("Mirror", mirrorAddress, address(0));
     }
 
     function printContractInfo(string memory contractName, address contractAddress, address expectedImplementation)
@@ -87,24 +80,28 @@ contract DeploymentScript is Script {
         console.log("================================================================================================");
         console.log("[ CONTRACT  ]", contractName);
         console.log("[ ADDRESS   ]", contractAddress);
-        console.log("[ IMPL ADDR ]", expectedImplementation);
-        console.log(
-            "[ PROXY VERIFICATION ] Click \"Is this a proxy?\" on Etherscan to be able read and write as proxy."
-        );
-        console.log("                       Alternatively, run the following curl request.");
-        console.log("```");
-        console.log("curl --request POST 'https://api-holesky.etherscan.io/api' \\");
-        console.log("   --header 'Content-Type: application/x-www-form-urlencoded' \\");
-        console.log("   --data-urlencode 'module=contract' \\");
-        console.log("   --data-urlencode 'action=verifyproxycontract' \\");
-        console.log(string.concat("   --data-urlencode 'address=", uint160(contractAddress).toHexString(), "' \\"));
-        console.log(
-            string.concat(
-                "   --data-urlencode 'expectedimplementation=", uint160(expectedImplementation).toHexString(), "' \\"
-            )
-        );
-        console.log("   --data-urlencode \"apikey=$ETHERSCAN_API_KEY\"");
-        console.log("```");
+        if (expectedImplementation != address(0)) {
+            console.log("[ IMPL ADDR ]", expectedImplementation);
+            console.log(
+                "[ PROXY VERIFICATION ] Click \"Is this a proxy?\" on Etherscan to be able read and write as proxy."
+            );
+            console.log("                       Alternatively, run the following curl request.");
+            console.log("```");
+            console.log("curl --request POST 'https://api-holesky.etherscan.io/api' \\");
+            console.log("   --header 'Content-Type: application/x-www-form-urlencoded' \\");
+            console.log("   --data-urlencode 'module=contract' \\");
+            console.log("   --data-urlencode 'action=verifyproxycontract' \\");
+            console.log(string.concat("   --data-urlencode 'address=", uint160(contractAddress).toHexString(), "' \\"));
+            console.log(
+                string.concat(
+                    "   --data-urlencode 'expectedimplementation=",
+                    uint160(expectedImplementation).toHexString(),
+                    "' \\"
+                )
+            );
+            console.log("   --data-urlencode \"apikey=$ETHERSCAN_API_KEY\"");
+            console.log("```");
+        }
         console.log("================================================================================================");
     }
 }
