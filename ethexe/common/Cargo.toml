@@ -13,13 +13,19 @@ gprimitives.workspace = true
 parity-scale-codec.workspace = true
 hex.workspace = true
 anyhow.workspace = true
-serde = { workspace = true, optional = true }
 roast-secp256k1-evm.workspace = true
+log.workspace = true
+
+serde = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["time"], optional = true }
+futures = { workspace = true, optional = true }
 
 [features]
 default = ["std"]
 std = [
     "gear-core/std",
     "gprimitives/serde",
-    "serde"
+    "serde",
+    "tokio",
+    "futures"
 ]

@@ -15,6 +15,7 @@ ethexe-observer.workspace = true
 ethexe-processor.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
+ethexe-runtime.workspace = true
 ethexe-db.workspace = true
 gprimitives.workspace = true
 
