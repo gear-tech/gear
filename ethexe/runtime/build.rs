@@ -16,10 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(feature = "std")]
+fn skip_build_on_intellij_sync() {
+    // Intellij Rust uses rustc wrapper during project sync
+    let is_intellij = std::env::var("RUSTC_WRAPPER")
+        .unwrap_or_default()
+        .contains("intellij");
+    if is_intellij {
+        unsafe { std::env::set_var("SKIP_WASM_BUILD", "1") }
+    }
+}
+
 fn main() {
     #[cfg(feature = "std")]
-    substrate_wasm_builder::WasmBuilder::new()
-        .with_current_project()
-        .disable_runtime_version_section_check()
-        .build();
+    {
+        skip_build_on_intellij_sync();
+        substrate_wasm_builder::WasmBuilder::new()
+            .with_current_project()
+            .disable_runtime_version_section_check()
+            .build();
+    }
 }
