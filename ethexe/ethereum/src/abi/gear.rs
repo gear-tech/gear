@@ -62,9 +62,8 @@ impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
             verifiableSecretSharingCommitment: Bytes::copy_from_slice(
                 &value
                     .verifiable_secret_sharing_commitment
-                    .serialize()
-                    .expect("Could not serialize `VerifiableSecretSharingCommitment<C>`")
-                    .concat(),
+                    .serialize_whole()
+                    .expect("Could not serialize `VerifiableSecretSharingCommitment<C>`"),
             ),
             validators: value
                 .validators

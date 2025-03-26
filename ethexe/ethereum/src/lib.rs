@@ -178,7 +178,7 @@ impl Ethereum {
                     })
                     .into(),
                     _verifiableSecretSharingCommitment: Bytes::copy_from_slice(
-                        &verifiable_secret_sharing_commitment.serialize()?.concat(),
+                        &verifiable_secret_sharing_commitment.serialize_whole()?,
                     ),
                     _validators: validators,
                 }

@@ -85,7 +85,7 @@ async fn basics() {
     let eth_cfg = EthereumConfig {
         rpc: "wss://reth-rpc.gear-tech.io".into(),
         beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
-        router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
+        router_address: "0x5AEC56208a3862C33c4b5b02073aAD4e29DdB1b8"
             .parse()
             .expect("infallible"),
         block_time: Duration::from_secs(12),
@@ -1154,7 +1154,7 @@ mod utils {
     use gear_core::message::ReplyCode;
     use rand::{rngs::StdRng, SeedableRng};
     use roast_secp256k1_evm::frost::{
-        keys::{self, IdentifierList, PublicKeyPackage},
+        keys::{self, IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
         Identifier, SigningKey,
     };
     use std::{
@@ -1264,6 +1264,10 @@ mod utils {
         pub sender_id: ActorId,
         pub threshold: u64,
         pub block_time: Duration,
+        pub max_signers: u16,
+        pub min_signers: u16,
+        pub public_key_package: PublicKeyPackage,
+        pub commitment: VerifiableSecretSharingCommitment,
         pub continuous_block_generation: bool,
 
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -1390,7 +1394,7 @@ mod utils {
                     validators.iter().map(|k| k.to_address()).collect(),
                     signer.clone(),
                     sender_address,
-                    verifiable_secret_sharing_commitment,
+                    verifiable_secret_sharing_commitment.clone(),
                 )
                 .await?
             };
@@ -1464,6 +1468,10 @@ mod utils {
                 sender_id: ActorId::from(H160::from(sender_address.0)),
                 threshold,
                 block_time,
+                max_signers,
+                min_signers,
+                public_key_package: public_key_package1,
+                commitment: verifiable_secret_sharing_commitment.clone(),
                 continuous_block_generation,
                 broadcaster,
                 db,
@@ -1515,6 +1523,10 @@ mod utils {
                 network_address,
                 network_bootstrap_address,
                 service_rpc_config,
+                max_signers: self.max_signers,
+                min_signers: self.min_signers,
+                public_key_package: self.public_key_package.clone(),
+                commitment: self.commitment.clone(),
             }
         }
 
@@ -1916,6 +1928,10 @@ mod utils {
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
         service_rpc_config: Option<RpcConfig>,
+        max_signers: u16,
+        min_signers: u16,
+        public_key_package: PublicKeyPackage,
+        commitment: VerifiableSecretSharingCommitment,
     }
 
     impl Node {
@@ -1957,6 +1973,9 @@ mod utils {
                             validators: self.validators.clone(),
                             threshold: self.threshold,
                             block_time: self.block_time,
+                            max_signers: self.max_signers,
+                            min_signers: self.min_signers,
+                            public_key_package: self.public_key_package.clone(),
                         },
                         self.signer.clone(),
                         Box::new(self.db.clone()),
@@ -1975,7 +1994,9 @@ mod utils {
                         &ethexe_validator::Config {
                             pub_key,
                             pub_key_session,
+                            block_time: self.block_time,
                             router_address: self.eth_cfg.router_address,
+                            commitment: self.commitment.clone(),
                         },
                         self.db.clone(),
                         self.signer.clone(),

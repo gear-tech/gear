@@ -20,27 +20,46 @@ use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     gear::{BlockCommitment, CodeCommitment},
+    RoastData,
 };
 use ethexe_db::Database;
 use ethexe_sequencer::agro::{self, AggregatedCommitments};
 use ethexe_signer::{
     sha3::{self, Digest as _},
-    Address, Digest, PublicKey, Signature, Signer, ToDigest,
+    Address, Digest, PrivateKey, PublicKey, Signature, Signer, ToDigest,
 };
-use gprimitives::H256;
+use gprimitives::{ActorId, H256};
 use parity_scale_codec::{Decode, Encode};
+use roast_secp256k1_evm::{
+    frost::{
+        keys::{KeyPackage, SecretShare, SigningShare, VerifiableSecretSharingCommitment},
+        Identifier, SigningPackage,
+    },
+    Signer as RoastSigner,
+};
+use std::{
+    collections::BTreeSet,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 pub struct Validator {
     db: Database,
     pub_key: PublicKey,
     pub_key_session: PublicKey,
+    block_time: Duration,
     signer: Signer,
+    identifier: Identifier,
+    roast_signer: RoastSigner,
     router_address: Address,
+    last_request_commitments_validation: u128,
+    last_batch_commitment_digest: Digest,
 }
 
 pub struct Config {
     pub pub_key: PublicKey,
     pub pub_key_session: PublicKey,
+    pub block_time: Duration,
+    pub commitment: VerifiableSecretSharingCommitment,
     pub router_address: Address,
 }
 
@@ -95,12 +114,37 @@ impl ToDigest for BlockCommitmentValidationRequest {
 
 impl Validator {
     pub fn new(config: &Config, db: Database, signer: Signer) -> Self {
+        let &Config {
+            pub_key,
+            pub_key_session,
+            block_time,
+            router_address,
+            ref commitment,
+        } = config;
+
+        let identifier = Identifier::deserialize(&ActorId::from(pub_key.to_address()).into_bytes())
+            .expect("invalid identifier");
+        let PrivateKey(private_key) = signer
+            .get_private_key(pub_key_session)
+            .expect("session private key not found");
+        let signing_share = SigningShare::deserialize(&private_key).expect("invalid signing share");
+        let secret_share = SecretShare::new(identifier, signing_share, commitment.clone());
+        let key_package = KeyPackage::try_from(secret_share).expect("invalid key package");
+
+        let mut rng = rand::thread_rng();
+        let roast_signer = RoastSigner::new(key_package, &mut rng);
+
         Self {
             db,
+            pub_key,
+            pub_key_session,
+            block_time,
             signer,
-            pub_key: config.pub_key,
-            pub_key_session: config.pub_key_session,
-            router_address: config.router_address,
+            identifier,
+            roast_signer,
+            router_address,
+            last_request_commitments_validation: 0,
+            last_batch_commitment_digest: Digest::from([0; 32]),
         }
     }
 
@@ -186,7 +230,17 @@ impl Validator {
         &mut self,
         codes_requests: impl IntoIterator<Item = CodeCommitment>,
         blocks_requests: impl IntoIterator<Item = BlockCommitmentValidationRequest>,
-    ) -> Result<(Digest, Signature)> {
+    ) -> Result<(RoastData, Signature)> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("failed to get time")
+            .as_millis();
+        let validation_round = (self.block_time / 4).as_millis();
+
+        if now < self.last_request_commitments_validation + validation_round {
+            return Err(anyhow!("Too frequent requests"));
+        }
+
         let mut code_commitment_digests = Vec::new();
 
         for code_request in codes_requests {
@@ -207,17 +261,73 @@ impl Validator {
 
         let block_commitments_digest: Digest = block_commitment_digests.iter().collect();
 
-        let batch_commitment_digest = [code_commitments_digest, block_commitments_digest]
+        let batch_commitment_digest: Digest = [code_commitments_digest, block_commitments_digest]
             .iter()
             .collect();
+        let batch_commitment_digest =
+            agro::to_router_digest(batch_commitment_digest, self.router_address);
 
-        agro::sign_commitments_digest(
-            batch_commitment_digest,
+        let roast_data = RoastData {
+            signature_share: None,
+            signing_commitments: self.roast_signer.signing_commitments(),
+        };
+        let roast_data_digest = roast_data.to_digest();
+
+        let ret = agro::sign_roast_data_digest(
+            roast_data_digest,
             &self.signer,
             self.pub_key,
             self.router_address,
         )
-        .map(|signature| (batch_commitment_digest, signature))
+        .map(|signature| (roast_data, signature));
+
+        self.last_request_commitments_validation = now;
+        self.last_batch_commitment_digest = batch_commitment_digest;
+
+        ret
+    }
+
+    pub fn handle_session_start(
+        &mut self,
+        signers: BTreeSet<Identifier>,
+        signing_package: SigningPackage,
+    ) -> Result<(RoastData, Signature)> {
+        if !signers.contains(&self.identifier) {
+            return Err(anyhow!("This node is not in the list of signers"));
+        }
+
+        // TODO: maybe check len of signers == min_signers
+        // TODO: maybe check that signers are validators
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("failed to get time")
+            .as_millis();
+        let validation_round = (self.block_time / 4).as_millis();
+
+        if now >= self.last_request_commitments_validation + validation_round {
+            return Err(anyhow!("Validation round ended"));
+        }
+
+        if signing_package.message() != self.last_batch_commitment_digest.as_ref() {
+            return Err(anyhow!("Incorrect batch commitment digest"));
+        }
+
+        let mut rng = rand::thread_rng();
+
+        let roast_data = RoastData {
+            signature_share: Some(self.roast_signer.receive(&signing_package, &mut rng)?),
+            signing_commitments: self.roast_signer.signing_commitments(),
+        };
+        let roast_data_digest = roast_data.to_digest();
+
+        agro::sign_roast_data_digest(
+            roast_data_digest,
+            &self.signer,
+            self.pub_key,
+            self.router_address,
+        )
+        .map(|signature| (roast_data, signature))
     }
 
     fn validate_code_commitment<DB1: OnChainStorage + CodesStorage>(

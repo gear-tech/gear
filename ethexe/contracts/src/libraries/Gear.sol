@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IRouter} from "../IRouter.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 library Gear {
-    using ECDSA for bytes32;
     using MessageHashUtils for address;
 
     // 2.5 * 10^9 of gear gas.
@@ -134,11 +132,6 @@ library Gear {
         uint128 value;
     }
 
-    enum SignatureType {
-        FROST,
-        ECDSA
-    }
-
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
@@ -221,18 +214,20 @@ library Gear {
     function validateSignatures(
         IRouter.Storage storage router,
         bytes32 _dataHash,
-        Gear.SignatureType _signatureType,
-        bytes[] calldata _signatures
+        uint256 _signatureRX,
+        uint256 _signatureRY,
+        uint256 _signatureZ
     ) internal view returns (bool) {
-        return validateSignaturesAt(router, _dataHash, _signatureType, _signatures, block.timestamp);
+        return validateSignaturesAt(router, _dataHash, _signatureRX, _signatureRY, _signatureZ, block.timestamp);
     }
 
     /// @dev Validates signatures of the given data hash at the given timestamp.
     function validateSignaturesAt(
         IRouter.Storage storage router,
         bytes32 _dataHash,
-        SignatureType _signatureType,
-        bytes[] calldata _signatures,
+        uint256 _signatureRX,
+        uint256 _signatureRY,
+        uint256 _signatureZ,
         uint256 ts
     ) internal view returns (bool) {
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
@@ -255,58 +250,14 @@ library Gear {
         Validators storage validators = validatorsAt(router, ts);
         bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(_dataHash));
 
-        if (_signatureType == SignatureType.FROST) {
-            require(_signatures.length == 1, "FROST signature must be single");
-
-            bytes memory _signature = _signatures[0];
-            require(_signature.length == 96, "FROST signature length must be 96 bytes");
-
-            uint256 _signatureRX;
-            uint256 _signatureRY;
-            uint256 _signatureZ;
-
-            assembly ("memory-safe") {
-                _signatureRX := mload(add(_signature, 0x20))
-                _signatureRY := mload(add(_signature, 0x40))
-                _signatureZ := mload(add(_signature, 0x60))
-            }
-
-            // extra security check (`FROST.verifySignature()` does not check public key validity)
-            require(
-                FROST.isValidPublicKey(validators.aggregatedPublicKey.x, validators.aggregatedPublicKey.y),
-                "FROST aggregated public key is invalid"
-            );
-
-            return FROST.verifySignature(
-                validators.aggregatedPublicKey.x,
-                validators.aggregatedPublicKey.y,
-                _signatureRX,
-                _signatureRY,
-                _signatureZ,
-                _messageHash
-            );
-        } else if (_signatureType == SignatureType.ECDSA) {
-            uint256 threshold =
-                validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
-
-            uint256 validSignatures = 0;
-
-            for (uint256 i = 0; i < _signatures.length; i++) {
-                bytes calldata signature = _signatures[i];
-
-                address validator = _messageHash.recover(signature);
-
-                if (validators.map[validator]) {
-                    if (++validSignatures == threshold) {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        return false;
+        return FROST.verifySignature(
+            validators.aggregatedPublicKey.x,
+            validators.aggregatedPublicKey.y,
+            _signatureRX,
+            _signatureRY,
+            _signatureZ,
+            _messageHash
+        );
     }
 
     function currentEraValidators(IRouter.Storage storage router) internal view returns (Validators storage) {

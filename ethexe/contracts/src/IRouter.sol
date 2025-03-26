@@ -117,13 +117,15 @@ interface IRouter {
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
     function commitBatch(
         Gear.BatchCommitment calldata batchCommitment,
-        Gear.SignatureType signatureType,
-        bytes[] calldata signatures
+        uint256 signatureRX,
+        uint256 signatureRY,
+        uint256 signatureZ
     ) external;
     /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(
         Gear.ValidatorsCommitment memory validatorsCommitment,
-        Gear.SignatureType signatureType,
-        bytes[] calldata signatures
+        uint256 signatureRX,
+        uint256 signatureRY,
+        uint256 signatureZ
     ) external;
 }
