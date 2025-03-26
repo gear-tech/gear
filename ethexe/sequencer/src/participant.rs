@@ -64,7 +64,7 @@ impl Participant {
     }
 
     fn receive_validation_request_inner(
-        &mut self,
+        &self,
         request: BatchCommitmentValidationRequest,
     ) -> Result<BatchCommitmentValidationReply, ControlError> {
         let digest = request.to_digest();

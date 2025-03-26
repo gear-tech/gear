@@ -36,6 +36,14 @@ pub struct Unformed {
 }
 
 impl Unformed {
+    pub fn new(block: SimpleBlockData) -> Self {
+        Self {
+            block,
+            producer_blocks: Vec::new(),
+            validation_requests: Vec::new(),
+        }
+    }
+
     pub fn receive_block_from_producer(&mut self, pb: SignedData<ProducerBlock>) {
         self.producer_blocks.push(pb);
     }
@@ -45,6 +53,10 @@ impl Unformed {
         request: SignedData<BatchCommitmentValidationRequest>,
     ) {
         self.validation_requests.push(request);
+    }
+
+    pub fn with_new_chain_head(self, block: SimpleBlockData) -> Self {
+        Unformed { block, ..self }
     }
 
     pub fn into_parts(

@@ -31,7 +31,7 @@ impl Producer {
         db: Database,
         validators: Vec<Address>,
         block: SimpleBlockData,
-    ) -> Result<(Self, Vec<ControlEvent>), ControlError> {
+    ) -> Result<(Self, Vec<ControlEvent>), anyhow::Error> {
         let block_hash = block.hash;
 
         let producer = Self {
@@ -87,14 +87,8 @@ impl Producer {
         }
     }
 
-    pub fn into_parts(self) -> (PublicKey, Signer, Database, Vec<Address>, SimpleBlockData) {
-        (
-            self.pub_key,
-            self.signer,
-            self.db,
-            self.validators,
-            self.block,
-        )
+    pub fn into_parts(self) -> (Vec<Address>, SimpleBlockData) {
+        (self.validators, self.block)
     }
 
     // TODO (gsobol): make test for this method

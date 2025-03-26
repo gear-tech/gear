@@ -1,11 +1,10 @@
 use crate::{
     bp::{ControlError, ControlEvent},
-    producer::Producer,
     utils::{BatchCommitmentValidationReply, MultisignedBatchCommitment},
 };
 use anyhow::anyhow;
 use ethexe_common::gear::BatchCommitment;
-use ethexe_signer::Address;
+use ethexe_signer::{Address, PublicKey, Signer};
 use std::collections::BTreeSet;
 
 pub struct Coordinator {
@@ -16,12 +15,12 @@ pub struct Coordinator {
 
 impl Coordinator {
     pub fn new(
+        pub_key: PublicKey,
+        validators: Vec<Address>,
         batch: BatchCommitment,
-        producer: Producer,
         threshold: u64,
+        signer: Signer,
     ) -> Result<(Self, Vec<ControlEvent>), anyhow::Error> {
-        let (pub_key, signer, _, validators, _) = producer.into_parts();
-
         let (multisigned_batch, validation_request) =
             MultisignedBatchCommitment::new_with_validation_request(batch, &signer, pub_key)?;
 

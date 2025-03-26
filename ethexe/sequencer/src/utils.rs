@@ -1,12 +1,10 @@
-use std::collections::BTreeMap;
 use anyhow::Result;
 use ethexe_common::gear::{BatchCommitment, BlockCommitment, CodeCommitment};
 use ethexe_signer::{
     sha3::digest::Update, Address, Digest, PublicKey, Signature, SignedData, Signer, ToDigest,
 };
 use gprimitives::H256;
-
-// pub type SignedCommitmentsBatch = SignedData<BatchCommitment>;
+use std::collections::BTreeMap;
 
 // +_+_+ we should use RouterSigner instead of Signer
 
@@ -76,12 +74,6 @@ pub struct BatchCommitmentValidationReply {
     pub signature: Signature,
 }
 
-// impl BatchCommitmentValidationReply {
-//     pub fn new(digest: Digest, signature: Signature) -> Self {
-//         Self { digest, signature }
-//     }
-// }
-
 pub struct MultisignedBatchCommitment {
     batch: BatchCommitment,
     batch_digest: Digest,
@@ -123,7 +115,7 @@ impl MultisignedBatchCommitment {
             anyhow::bail!("Invalid digest");
         }
 
-        let origin = reply.signature.recover_from_digest(digest)?.to_address();
+        let origin = signature.recover_from_digest(digest)?.to_address();
 
         check_origin(origin)?;
 

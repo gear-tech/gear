@@ -32,45 +32,58 @@ impl Verifier {
         block: SimpleBlockData,
         producer: Address,
         received_producer_blocks: Vec<SignedData<ProducerBlock>>,
-    ) -> Result<(Self, Vec<ControlEvent>), ControlError> {
-        let parent_hash = block.header.parent_hash;
+        received_validation_requests: Vec<SignedData<BatchCommitmentValidationRequest>>,
+    ) -> Result<(Self, Vec<ControlEvent>), anyhow::Error> {
+        let producer_block = received_producer_blocks.into_iter().find_map(|signed| {
+            signed.verify_address(producer).ok().and_then(|_| {
+                (signed.data().block_hash == block.hash).then_some(signed.into_parts().0)
+            })
+        });
 
-        if let Some(producer_block) = received_producer_blocks.into_iter().find(|signed| {
-            signed
-                .verify_address(producer)
-                .map(|_| signed.data().block_hash == block.hash)
-                .unwrap_or(false)
-        }) {
-            let mut verifier = Verifier {
+        let earlier_validation_request =
+            received_validation_requests.into_iter().find_map(|signed| {
+                signed
+                    .verify_address(producer)
+                    .ok()
+                    .map(|_| signed.into_parts().0)
+            });
+
+        let (state, events) = if let Some(pb) = producer_block {
+            (
+                VerifierState::WaitingProducerBlockComputed {
+                    block_hash: block.hash,
+                    parent_hash: None,
+                },
+                vec![ControlEvent::ComputeProducerBlock(pb)],
+            )
+        } else {
+            let parent_hash = block.header.parent_hash;
+            (
+                VerifierState::WaitingParentComputed { parent_hash },
+                vec![ControlEvent::ComputeBlock(parent_hash)],
+            )
+        };
+
+        Ok((
+            Self {
                 producer,
                 block,
-                state: VerifierState::WaitingForProducerBlock,
-                earlier_validation_request: None,
-            };
-            verifier
-                .receive_block_from_producer(producer_block)
-                .map(|events| (verifier, events))
-        } else {
-            Ok((
-                Verifier {
-                    producer,
-                    block,
-                    state: VerifierState::WaitingParentComputed { parent_hash },
-                    earlier_validation_request: None,
-                },
-                vec![ControlEvent::ComputeBlock(parent_hash)],
-            ))
-        }
+                earlier_validation_request,
+                state,
+            },
+            events,
+        ))
     }
 
     pub fn receive_block_from_producer(
         &mut self,
         signed: SignedData<ProducerBlock>,
     ) -> Result<Vec<ControlEvent>, ControlError> {
-        // Verify sender is current block producer
         signed.verify_address(self.producer).map_err(|e| {
             ControlError::Warning(anyhow!("Received block is not signed by the producer: {e}"))
         })?;
+
+        let (block, _) = signed.into_parts();
 
         let parent_hash_in_computation = match &self.state {
             VerifierState::WaitingParentComputed { parent_hash } => Some(*parent_hash),
@@ -83,11 +96,10 @@ impl Verifier {
         };
 
         self.state = VerifierState::WaitingProducerBlockComputed {
-            block_hash: signed.data().block_hash,
+            block_hash: block.block_hash,
             parent_hash: parent_hash_in_computation,
         };
 
-        let (block, _) = signed.into_parts();
         Ok(vec![ControlEvent::ComputeProducerBlock(block)])
     }
 
@@ -128,25 +140,20 @@ impl Verifier {
         }
     }
 
-    pub fn receive_validation_requests(
+    pub fn receive_validation_request(
         &mut self,
-        request: Vec<SignedData<BatchCommitmentValidationRequest>>,
-    ) -> Result<(), anyhow::Error> {
-        // TODO +_+_+: check also that request is for the current block
-
-        let Some(request) = request.into_iter().find(|signed| {
-            signed
-                .verify_address(self.producer)
-                .map(|_| true)
-                .unwrap_or(false)
-        }) else {
-            return Err(anyhow!(
-                "Received validation requests is not signed by the producer"
-            ));
-        };
+        request: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<(), ControlError> {
+        request.verify_address(self.producer).map_err(|e| {
+            ControlError::Warning(anyhow!(
+                "Received validation request is not signed by the producer: {e}"
+            ))
+        })?;
 
         if self.earlier_validation_request.is_some() {
-            return Err(anyhow!("Received second validation request"));
+            return Err(ControlError::Warning(anyhow!(
+                "Received second validation request"
+            )));
         }
 
         self.earlier_validation_request = Some(request.into_parts().0);
