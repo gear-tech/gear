@@ -30,10 +30,7 @@ use parity_scale_codec::Encode;
 use primitive_types::H256;
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 const SUCCESS_ACTOR_ID: [u8; 32] =

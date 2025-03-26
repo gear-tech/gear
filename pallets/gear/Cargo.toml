@@ -22,7 +22,7 @@ log.workspace = true
 primitive-types = { workspace = true, features = ["scale-info"] }
 gear-wasm-instrument.workspace = true
 derive_more.workspace = true
-env_logger = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 scopeguard.workspace = true
 
 # Internal deps
@@ -137,7 +137,7 @@ rand.workspace = true
 default = ['std']
 std = [
     "parity-scale-codec/std",
-    "env_logger",
+    "tracing-subscriber",
     "log/std",
     "common/std",
     "frame-benchmarking?/std",

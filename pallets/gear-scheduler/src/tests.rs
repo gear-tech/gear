@@ -32,10 +32,7 @@ type WaitlistOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Waitl
 type TaskPoolOf<T> = <<T as pallet_gear::Config>::Scheduler as Scheduler>::TaskPool;
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 const DEFAULT_GAS: u64 = 1_000_000;

@@ -98,10 +98,7 @@ async fn harmless_upload() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn alloc_zero_pages() -> anyhow::Result<()> {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
     log::info!("Begin");
     let wat_code = r#"
         (module

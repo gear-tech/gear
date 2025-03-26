@@ -22,12 +22,13 @@ gsys.workspace = true
 
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
+tracing.workspace = true
 derive_more.workspace = true
 actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 enum-iterator.workspace = true
 
 [features]
