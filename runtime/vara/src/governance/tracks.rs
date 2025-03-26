@@ -49,10 +49,10 @@ const SUP_BRIDGE_ADMIN: Curve = Curve::make_linear(14, 28, percent(10), percent(
 const APP_BRIDGE_PAUSER: Curve = Curve::make_linear(
     6,           // Period delay
     28,          // Period length
-    percent(60), // Start approval
-    percent(90), // End approval
+    percent(75), // Start approval
+    percent(75), // End approval
 );
-const SUP_BRIDGE_PAUSER: Curve = Curve::make_reciprocal(4, 28, percent(1), percent(0), percent(30));
+const SUP_BRIDGE_PAUSER: Curve = Curve::make_linear(14, 28, percent(10), percent(10));
 const APP_FELLOWSHIP_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_FELLOWSHIP_ADMIN: Curve =
     Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
@@ -286,10 +286,10 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
             name: "bridge_pauser",
             max_deciding: 5,
             decision_deposit: 50_000 * ECONOMIC_UNITS,
-            prepare_period: 15 * MINUTES,
-            decision_period: 3 * DAYS,
-            confirm_period: 1 * HOURS,
-            min_enactment_period: 10 * MINUTES,
+            prepare_period: 3 * MINUTES,
+            decision_period: 12 * HOURS,
+            confirm_period: 1 * MILLISECS_PER_BLOCK as BlockNumber,
+            min_enactment_period: 1 * MILLISECS_PER_BLOCK as BlockNumber,
             min_approval: APP_BRIDGE_PAUSER,
             min_support: SUP_BRIDGE_PAUSER,
         },
