@@ -1,12 +1,10 @@
 use anyhow::Result;
 use ethexe_common::gear::{BatchCommitment, BlockCommitment, CodeCommitment};
 use ethexe_signer::{
-    sha3::digest::Update, Address, Digest, PublicKey, Signature, SignedData, Signer, ToDigest,
+    sha3::digest::Update, Address, ContractSignature, ContractSigner, Digest, PublicKey, ToDigest,
 };
 use gprimitives::H256;
 use std::collections::BTreeMap;
-
-// +_+_+ we should use RouterSigner instead of Signer
 
 pub struct BatchCommitmentValidationRequest {
     pub blocks: Vec<BlockCommitmentValidationRequest>,
@@ -71,37 +69,30 @@ impl ToDigest for BlockCommitmentValidationRequest {
 
 pub struct BatchCommitmentValidationReply {
     pub digest: Digest,
-    pub signature: Signature,
+    pub signature: ContractSignature,
 }
 
 pub struct MultisignedBatchCommitment {
     batch: BatchCommitment,
     batch_digest: Digest,
-    signatures: BTreeMap<Address, Signature>,
+    signatures: BTreeMap<Address, ContractSignature>,
 }
 
 impl MultisignedBatchCommitment {
-    pub fn new_with_validation_request(
+    pub fn new(
         batch: BatchCommitment,
-        signer: &Signer,
+        signer: &ContractSigner,
         pub_key: PublicKey,
-    ) -> Result<(Self, SignedData<BatchCommitmentValidationRequest>)> {
-        let request = BatchCommitmentValidationRequest::from(&batch);
-        let batch_digest = request.to_digest();
-        let signed_request = signer.create_signed_data(pub_key, request)?;
-        let signatures: BTreeMap<_, _> =
-            [(pub_key.to_address(), signed_request.signature().clone())]
-                .into_iter()
-                .collect();
+    ) -> Result<Self> {
+        let batch_digest = batch.to_digest();
+        let signature = signer.sign_digest(pub_key, batch_digest)?;
+        let signatures: BTreeMap<_, _> = [(pub_key.to_address(), signature)].into_iter().collect();
 
-        Ok((
-            Self {
-                batch,
-                batch_digest,
-                signatures,
-            },
-            signed_request,
-        ))
+        Ok(Self {
+            batch,
+            batch_digest,
+            signatures,
+        })
     }
 
     pub fn accept_batch_commitment_validation_reply(
@@ -115,7 +106,7 @@ impl MultisignedBatchCommitment {
             anyhow::bail!("Invalid digest");
         }
 
-        let origin = signature.recover_from_digest(digest)?.to_address();
+        let origin = signature.recover(digest)?.to_address();
 
         check_origin(origin)?;
 
@@ -124,11 +115,11 @@ impl MultisignedBatchCommitment {
         Ok(())
     }
 
-    pub fn signatures(&self) -> &BTreeMap<Address, Signature> {
+    pub fn signatures(&self) -> &BTreeMap<Address, ContractSignature> {
         &self.signatures
     }
 
-    pub fn into_parts(self) -> (BatchCommitment, BTreeMap<Address, Signature>) {
+    pub fn into_parts(self) -> (BatchCommitment, BTreeMap<Address, ContractSignature>) {
         (self.batch, self.signatures)
     }
 }

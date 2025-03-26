@@ -21,7 +21,7 @@ enum VerifierState {
     },
     WaitingForProducerBlock,
     WaitingProducerBlockComputed {
-        // TODO +_+_+: change this to block digest when off-chain transactions added
+        // TODO +_+_+: change this to producer-block digest when off-chain transactions added
         block_hash: H256,
         parent_hash: Option<H256>,
     },

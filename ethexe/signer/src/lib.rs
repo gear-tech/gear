@@ -26,11 +26,13 @@
 //! machinery used is wrapped in the crate's types.
 
 mod address;
+mod contract;
 mod digest;
 mod signature;
 
 // Exports
 pub use address::Address;
+pub use contract::{ContractSignature, ContractSigner};
 pub use digest::{Digest, ToDigest};
 pub use sha3;
 pub use signature::{Signature, SignedData};
@@ -179,6 +181,10 @@ impl Signer {
         Self {
             key_store: temp_dir.into_path(),
         }
+    }
+
+    pub fn contract_signer(&self, contract_address: Address) -> ContractSigner {
+        ContractSigner::new(self.clone(), contract_address)
     }
 
     /// Create a ECDSA recoverable signature with `Electrum` notation for the `v` value.

@@ -1,6 +1,9 @@
 use crate::{
     bp::{ControlError, ControlEvent},
-    utils::{BatchCommitmentValidationReply, MultisignedBatchCommitment},
+    utils::{
+        BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
+        MultisignedBatchCommitment,
+    },
 };
 use anyhow::anyhow;
 use ethexe_common::gear::BatchCommitment;
@@ -17,12 +20,18 @@ impl Coordinator {
     pub fn new(
         pub_key: PublicKey,
         validators: Vec<Address>,
-        batch: BatchCommitment,
         threshold: u64,
+        router_address: Address,
+        batch: BatchCommitment,
         signer: Signer,
     ) -> Result<(Self, Vec<ControlEvent>), anyhow::Error> {
-        let (multisigned_batch, validation_request) =
-            MultisignedBatchCommitment::new_with_validation_request(batch, &signer, pub_key)?;
+        let validation_request = BatchCommitmentValidationRequest::from(&batch);
+        let signed_validation_request = signer.create_signed_data(pub_key, validation_request)?;
+        let multisigned_batch = MultisignedBatchCommitment::new(
+            batch,
+            &signer.contract_signer(router_address),
+            pub_key,
+        )?;
 
         Ok((
             Self {
@@ -30,7 +39,9 @@ impl Coordinator {
                 validators: validators.into_iter().collect(),
                 threshold,
             },
-            vec![ControlEvent::PublishValidationRequest(validation_request)],
+            vec![ControlEvent::PublishValidationRequest(
+                signed_validation_request,
+            )],
         ))
     }
 

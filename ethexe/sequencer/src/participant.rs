@@ -8,14 +8,14 @@ use crate::{
 use anyhow::{anyhow, ensure};
 use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database, OnChainStorage};
-use ethexe_signer::{Address, Digest, PublicKey, SignedData, Signer, ToDigest};
+use ethexe_signer::{Address, ContractSigner, Digest, PublicKey, SignedData, Signer, ToDigest};
 use gprimitives::H256;
 
 pub struct Participant {
     pub_key: PublicKey,
     producer: Address,
     db: Database,
-    signer: Signer,
+    signer: ContractSigner,
     #[allow(unused)]
     state: State,
 }
@@ -28,6 +28,7 @@ enum State {
 impl Participant {
     pub fn new(
         pub_key: PublicKey,
+        router_address: Address,
         producer: Address,
         block: SimpleBlockData,
         db: Database,
@@ -37,7 +38,7 @@ impl Participant {
             pub_key,
             producer,
             db,
-            signer,
+            signer: signer.contract_signer(router_address),
             state: State::WaitingForValidationRequest(block),
         }
     }
@@ -52,10 +53,10 @@ impl Participant {
             ))
         })?;
 
-        self.receive_validation_request_no_sign(request.into_parts().0)
+        self.receive_validation_request_unsigned(request.into_parts().0)
     }
 
-    pub fn receive_validation_request_no_sign(
+    pub fn receive_validation_request_unsigned(
         &mut self,
         request: BatchCommitmentValidationRequest,
     ) -> Result<Vec<ControlEvent>, ControlError> {

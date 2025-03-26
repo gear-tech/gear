@@ -29,6 +29,7 @@ use std::{
 pub struct ValidatorService {
     slot_duration: Duration,
     threshold: u64,
+    router_address: Address,
     pub_key: PublicKey,
     signer: Signer,
     db: Database,
@@ -78,6 +79,7 @@ impl ValidatorService {
         Ok(Self {
             slot_duration: config.slot_duration,
             threshold: config.threshold,
+            router_address: config.router_address,
             pub_key: config.pub_key,
             signer,
             db,
@@ -196,8 +198,9 @@ impl ControlService for ValidatorService {
                     let (coordinator, events) = Coordinator::new(
                         self.pub_key,
                         validators,
-                        batch,
                         self.threshold,
+                        self.router_address,
+                        batch,
                         self.signer.clone(),
                     )?;
 
@@ -215,6 +218,7 @@ impl ControlService for ValidatorService {
 
                     let participant = Participant::new(
                         self.pub_key,
+                        self.router_address,
                         producer,
                         block,
                         self.db.clone(),
@@ -228,7 +232,7 @@ impl ControlService for ValidatorService {
                     };
 
                     if let Some(request) = request {
-                        let events = participant.receive_validation_request_no_sign(request)?;
+                        let events = participant.receive_validation_request_unsigned(request)?;
                         self.output.extend(events);
                         self.state = State::default();
                     }

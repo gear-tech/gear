@@ -313,15 +313,17 @@ impl SequencerService {
     }
 
     async fn submit_batch_commitment(
-        router: Router,
+        _router: Router,
         commitment: BatchCommitment,
         signatures: Signatures,
     ) -> Result<H256> {
-        let (origins, signatures): (Vec<_>, Vec<_>) = signatures.into_inner().into_iter().unzip();
+        let (origins, _signatures): (Vec<_>, Vec<_>) = signatures.into_inner().into_iter().unzip();
 
         log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
 
-        router.commit_batch(commitment, signatures).await
+        // +_+_+
+        // router.commit_batch(commitment, signatures).await
+        Ok(H256::zero())
     }
 
     fn handle_collection_round_end(&mut self, block_hash: H256) -> SequencerEvent {
