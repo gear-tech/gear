@@ -78,7 +78,7 @@ pub mod pallet {
     type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
     type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
     pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
-    type GearBuiltin<T> = pallet_gear_builtin::Pallet<T>;
+    pub(crate) type GearBuiltin<T> = pallet_gear_builtin::Pallet<T>;
 
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -188,11 +188,11 @@ pub mod pallet {
 
     /// Type containing info of amount of fee and refund for account.
     #[derive(MaxEncodedLen, Encode, Decode, TypeInfo, Default)]
-    struct AccountFee<Balance> {
+    pub(crate) struct AccountFee<Balance> {
         /// Fee charged for message inclusion in the queue.
-        fee: Balance,
+        pub(crate) fee: Balance,
         /// Refund for the remaining value.
-        refund: Balance,
+        pub(crate) refund: Balance,
     }
 
     /// Lifecycle storage.
@@ -270,7 +270,8 @@ pub mod pallet {
     ///
     /// Private storage that keeps account fee and refund details.
     #[pallet::storage]
-    type AccountsFee<T> = StorageMap<_, Identity, AccountIdOf<T>, AccountFee<BalanceOf<T>>>;
+    pub(crate) type AccountsFee<T> =
+        StorageMap<_, Identity, AccountIdOf<T>, AccountFee<BalanceOf<T>>>;
 
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
@@ -401,7 +402,9 @@ pub mod pallet {
             Ok(())
         }
 
-        fn transfer_fees() {
+        pub(crate) fn transfer_fees() -> Weight {
+            let mut fee_transferred_cnt = 0u32;
+
             AccountsFee::<T>::iter().for_each(|(account_id, account_fee)| {
                 let mut fee = account_fee.fee;
                 let refund = account_fee.refund;
@@ -445,7 +448,10 @@ pub mod pallet {
                 });
 
                 AccountsFee::<T>::remove(account_id);
+                fee_transferred_cnt += 1;
             });
+
+            <T as Config>::WeightInfo::transfer_fees(fee_transferred_cnt)
         }
 
         pub(crate) fn queue_message(
@@ -552,7 +558,7 @@ pub mod pallet {
                     QueueMerkleRoot::<T>::put(H256::zero());
 
                     // Transfer fees to treasury and refund to users.
-                    Self::transfer_fees();
+                    weight = weight.saturating_add(Self::transfer_fees());
 
                     // Depositing event about clearing the bridge.
                     Self::deposit_event(Event::<T>::BridgeCleared);

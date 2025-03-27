@@ -18,19 +18,19 @@
 
 //! Benchmarks for Pallet Gear Eth Bridge.
 
-use crate::{Call, Config, Pallet};
+use crate::{Call, Config, GearBuiltin, Pallet, ETH_BRIDGE_BUILTIN_ID};
 use common::{benchmarking, Origin};
 use frame_benchmarking::benchmarks;
 use frame_support::traits::Currency as _;
 use frame_system::RawOrigin;
-use sp_runtime::traits::Get;
+use sp_runtime::traits::{Get, UniqueSaturatedInto};
 use sp_std::vec;
 
 #[cfg(test)]
 use crate::mock;
 
 benchmarks! {
-    where_clause { where T::AccountId: Origin }
+    where_clause { where T::AccountId: Origin}
 
     pause {
         // Initially pallet is uninitialized so we hack it for benchmarks.
@@ -68,6 +68,37 @@ benchmarks! {
     verify {
         assert!(!crate::Queue::<T>::get().is_empty());
     }
+
+   transfer_fees {
+        let c in 0 .. (T::QueueCapacity::get() - T::QueueFeeThreshold::get());
+
+        crate::Initialized::<T>::put(true);
+
+        let fee = T::MessageFee::get();
+        // For test purposes we set refund to be equal to fee.
+        let refund = T::MessageFee::get();
+        let builtin_id = T::AccountId::from_origin(
+            GearBuiltin::<T>::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into(),
+        );
+        let _ = crate::CurrencyOf::<T>::deposit_creating(
+            &builtin_id,
+            (fee + refund) * (T::QueueCapacity::get() - T::QueueFeeThreshold::get()).unique_saturated_into(),
+        );
+
+        for idx in 0..c {
+            let origin = benchmarking::account::<T::AccountId>("origin", idx, 0);
+            crate::AccountsFee::<T>::insert(origin, crate::AccountFee {
+                fee,
+                refund,
+            });
+        }
+   }: {
+        let _ = Pallet::<T>::transfer_fees();
+   }
+   verify {
+        // Assert that all fees are transferred.
+        assert_eq!(crate::AccountsFee::<T>::iter().count(), 0);
+   }
 
     impl_benchmark_test_suite!(Pallet, mock::new_test_ext(), mock::Test);
 }
