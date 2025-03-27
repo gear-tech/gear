@@ -11273,7 +11273,6 @@ dependencies = [
 name = "pallet-gear-payment"
 version = "1.7.1"
 dependencies = [
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",

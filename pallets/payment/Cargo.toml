@@ -30,7 +30,6 @@ pallet-balances.workspace = true
 pallet-transaction-payment.workspace = true
 
 [dev-dependencies]
-env_logger.workspace = true
 common = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 sp-io = { workspace = true, features = ["std"] }
