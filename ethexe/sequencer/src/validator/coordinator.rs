@@ -1,9 +1,9 @@
 use crate::{
-    bp::{ControlError, ControlEvent},
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         MultisignedBatchCommitment,
     },
+    ControlError, ControlEvent,
 };
 use anyhow::anyhow;
 use ethexe_common::gear::BatchCommitment;
@@ -54,7 +54,7 @@ impl Coordinator {
                 self.validators
                     .contains(&addr)
                     .then_some(())
-                    .ok_or_else(|| anyhow!("Receive validation reply not from validator"))
+                    .ok_or_else(|| anyhow!("Received validation reply is not from validator"))
             })
             .map_err(|e| ControlError::Warning(anyhow!("Validation rejected: {e}")))?;
 

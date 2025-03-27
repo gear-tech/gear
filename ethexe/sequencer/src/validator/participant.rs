@@ -1,9 +1,9 @@
 use crate::{
-    bp::{ControlError, ControlEvent},
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         BlockCommitmentValidationRequest,
     },
+    ControlError, ControlEvent,
 };
 use anyhow::{anyhow, ensure};
 use ethexe_common::{gear::CodeCommitment, SimpleBlockData};

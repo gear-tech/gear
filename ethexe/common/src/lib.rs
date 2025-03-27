@@ -34,6 +34,7 @@ use alloc::vec::Vec;
 use db::BlockHeader;
 use events::BlockEvent;
 use gprimitives::H256;
+use parity_scale_codec::{Decode, Encode};
 
 pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     let [_, _, b1, b2, b3, b4, b5, b6] = val.to_be_bytes();
@@ -64,7 +65,7 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct ProducerBlock {
     pub block_hash: H256,
     pub gas_allowance: Option<u64>,

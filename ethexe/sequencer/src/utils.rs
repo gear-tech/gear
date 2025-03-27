@@ -4,8 +4,10 @@ use ethexe_signer::{
     sha3::digest::Update, Address, ContractSignature, ContractSigner, Digest, PublicKey, ToDigest,
 };
 use gprimitives::H256;
+use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
 
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct BatchCommitmentValidationRequest {
     pub blocks: Vec<BlockCommitmentValidationRequest>,
     pub codes: Vec<CodeCommitment>,
@@ -35,7 +37,7 @@ impl ToDigest for BatchCommitmentValidationRequest {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct BlockCommitmentValidationRequest {
     pub block_hash: H256,
     pub block_timestamp: u64,
@@ -67,6 +69,7 @@ impl ToDigest for BlockCommitmentValidationRequest {
     }
 }
 
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct BatchCommitmentValidationReply {
     pub digest: Digest,
     pub signature: ContractSignature,
@@ -75,6 +78,7 @@ pub struct BatchCommitmentValidationReply {
 pub struct MultisignedBatchCommitment {
     batch: BatchCommitment,
     batch_digest: Digest,
+    router_address: Address,
     signatures: BTreeMap<Address, ContractSignature>,
 }
 
@@ -91,6 +95,7 @@ impl MultisignedBatchCommitment {
         Ok(Self {
             batch,
             batch_digest,
+            router_address: signer.contract_address(),
             signatures,
         })
     }
@@ -106,7 +111,7 @@ impl MultisignedBatchCommitment {
             anyhow::bail!("Invalid digest");
         }
 
-        let origin = signature.recover(digest)?.to_address();
+        let origin = signature.recover(self.router_address, digest)?.to_address();
 
         check_origin(origin)?;
 

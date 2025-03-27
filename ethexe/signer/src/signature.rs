@@ -186,7 +186,7 @@ impl TryFrom<Signature> for RecoverableSignature {
     }
 }
 
-#[derive(Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct SignedData<T: Sized> {
     data: T,
     signature: Signature,

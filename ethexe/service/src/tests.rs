@@ -42,7 +42,6 @@ use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
-use ethexe_validator::Validator;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -127,13 +126,9 @@ async fn ping() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
+
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
         .await
@@ -213,12 +208,7 @@ async fn uninitialized_program() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -373,12 +363,7 @@ async fn mailbox() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -595,12 +580,7 @@ async fn incoming_transfers() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -704,12 +684,7 @@ async fn ping_reorg() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_pub_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_pub_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -814,12 +789,7 @@ async fn ping_deep_sync() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_pub_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_pub_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -881,41 +851,32 @@ async fn multiple_validators() {
     utils::init_logger();
 
     let config = TestEnvConfig {
-        validators: ValidatorsConfig::Generated(3),
+        validators: ValidatorsConfig::PreDefined(3),
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
 
-    log::info!("📗 Starting sequencer");
-    let sequencer_pub_key = env.wallets.next();
-    let mut sequencer = env.new_node(
-        NodeConfig::named("sequencer")
-            .sequencer(sequencer_pub_key)
-            .network(None, None),
-    );
-    sequencer.start_service().await;
-
     log::info!("📗 Starting validator 0");
     let mut validator0 = env.new_node(
         NodeConfig::named("validator-0")
-            .validator(env.validators[0], env.validator_session_public_keys[0])
-            .network(None, sequencer.multiaddr.clone()),
+            .validator(env.validators[0])
+            .network(None, None),
     );
     validator0.start_service().await;
 
     log::info!("📗 Starting validator 1");
     let mut validator1 = env.new_node(
         NodeConfig::named("validator-1")
-            .validator(env.validators[1], env.validator_session_public_keys[1])
-            .network(None, sequencer.multiaddr.clone()),
+            .validator(env.validators[1])
+            .network(None, validator0.multiaddr.clone()),
     );
     validator1.start_service().await;
 
     log::info!("📗 Starting validator 2");
     let mut validator2 = env.new_node(
         NodeConfig::named("validator-2")
-            .validator(env.validators[2], env.validator_session_public_keys[2])
-            .network(None, sequencer.multiaddr.clone()),
+            .validator(env.validators[2])
+            .network(None, validator0.multiaddr.clone()),
     );
     validator2.start_service().await;
 
@@ -1027,8 +988,8 @@ async fn multiple_validators() {
     // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
     let mut validator2 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[2], env.validator_session_public_keys[2])
-            .network(None, sequencer.multiaddr.clone())
+            .validator(env.validators[2])
+            .network(None, validator0.multiaddr.clone())
             .db(validator2.db),
     );
 
@@ -1047,7 +1008,7 @@ async fn tx_pool_gossip() {
     utils::init_logger();
 
     let test_env_config = TestEnvConfig {
-        validators: ValidatorsConfig::Generated(2),
+        validators: ValidatorsConfig::PreDefined(2),
         ..Default::default()
     };
 
@@ -1057,7 +1018,7 @@ async fn tx_pool_gossip() {
     log::info!("📗 Starting node 0");
     let mut node0 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[0], env.validator_session_public_keys[0])
+            .validator(env.validators[0])
             .service_rpc(9505)
             .network(None, None),
     );
@@ -1066,7 +1027,7 @@ async fn tx_pool_gossip() {
     log::info!("📗 Starting node 1");
     let mut node1 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[1], env.validator_session_public_keys[1])
+            .validator(env.validators[1])
             .network(None, node0.multiaddr.clone()),
     );
     node1.start_service().await;
@@ -1147,8 +1108,8 @@ mod utils {
     use ethexe_network::{export::Multiaddr, NetworkEvent};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
-    use ethexe_sequencer::{SequencerConfig, SequencerService};
-    use ethexe_signer::PrivateKey;
+    use ethexe_sequencer::{ControlService, SimpleConnectService, ValidatorService};
+    use ethexe_signer::{PrivateKey, PublicKey};
     use ethexe_tx_pool::TxPoolService;
     use futures::{FutureExt, StreamExt};
     use gear_core::message::ReplyCode;
@@ -1253,14 +1214,14 @@ mod utils {
 
     pub struct TestEnv {
         pub eth_cfg: EthereumConfig,
+        #[allow(unused)]
         pub wallets: Wallets,
         pub blob_reader: Arc<MockBlobReader>,
         pub provider: RootProvider,
         pub ethereum: Ethereum,
         pub router_query: RouterQuery,
         pub signer: Signer,
-        pub validators: Vec<ethexe_signer::PublicKey>,
-        pub validator_session_public_keys: Vec<ethexe_signer::PublicKey>,
+        pub validators: Vec<ValidatorConfig>,
         pub sender_id: ActorId,
         pub threshold: u64,
         pub block_time: Duration,
@@ -1314,9 +1275,9 @@ mod utils {
             };
 
             let validators: Vec<_> = match validators {
-                ValidatorsConfig::Generated(amount) => (0..amount)
-                    .map(|_| signer.generate_key().unwrap())
-                    .collect(),
+                ValidatorsConfig::PreDefined(amount) => {
+                    (0..amount).map(|_| wallets.next()).collect()
+                }
                 ValidatorsConfig::Custom(keys) => keys
                     .iter()
                     .map(|k| {
@@ -1451,6 +1412,15 @@ mod utils {
             };
             let threshold = router_query.threshold().await?;
 
+            let validators = validators
+                .into_iter()
+                .zip(validator_session_public_keys.iter())
+                .map(|(public_key, session_public_key)| ValidatorConfig {
+                    public_key,
+                    session_public_key: *session_public_key,
+                })
+                .collect();
+
             Ok(TestEnv {
                 eth_cfg,
                 wallets,
@@ -1460,7 +1430,6 @@ mod utils {
                 router_query,
                 signer,
                 validators,
-                validator_session_public_keys,
                 sender_id: ActorId::from(H160::from(sender_address.0)),
                 threshold,
                 block_time,
@@ -1476,9 +1445,7 @@ mod utils {
             let NodeConfig {
                 name,
                 db,
-                sequencer_public_key,
-                validator_public_key,
-                validator_session_public_key,
+                validator_config,
                 network,
                 rpc: service_rpc_config,
             } = config;
@@ -1505,13 +1472,10 @@ mod utils {
                 receiver: None,
                 blob_reader: self.blob_reader.clone(),
                 signer: self.signer.clone(),
-                validators: self.validators.iter().map(|k| k.to_address()).collect(),
                 threshold: self.threshold,
                 block_time: self.block_time,
                 running_service_handle: None,
-                sequencer_public_key,
-                validator_public_key,
-                validator_session_public_key,
+                validator_config,
                 network_address,
                 network_bootstrap_address,
                 service_rpc_config,
@@ -1738,8 +1702,8 @@ mod utils {
     }
 
     pub enum ValidatorsConfig {
-        /// Auto generate validators, amount of validators is provided.
-        Generated(usize),
+        /// Take validator addresses from provided wallet, amount of validators is provided.
+        PreDefined(usize),
         /// Custom validator eth-addresses in hex string format.
         #[allow(unused)]
         Custom(Vec<String>),
@@ -1765,7 +1729,7 @@ mod utils {
     impl Default for TestEnvConfig {
         fn default() -> Self {
             Self {
-                validators: ValidatorsConfig::Generated(1),
+                validators: ValidatorsConfig::PreDefined(1),
                 block_time: Duration::from_secs(1),
                 rpc_url: None,
                 wallets: None,
@@ -1782,12 +1746,8 @@ mod utils {
         pub name: Option<String>,
         /// Database, if not provided, will be created with MemDb.
         pub db: Option<Database>,
-        /// Sequencer public key, if provided then new node starts as sequencer.
-        pub sequencer_public_key: Option<ethexe_signer::PublicKey>,
-        /// Validator public key, if provided then new node starts as validator.
-        pub validator_public_key: Option<ethexe_signer::PublicKey>,
-        /// Validator public key of session, if provided then new node starts as validator.
-        pub validator_session_public_key: Option<ethexe_signer::PublicKey>,
+        /// Validator configuration, if provided then new node starts as validator.
+        pub validator_config: Option<ValidatorConfig>,
         /// Network configuration, if provided then new node starts with network.
         pub network: Option<NodeNetworkConfig>,
         /// RPC configuration, if provided then new node starts with RPC service.
@@ -1807,18 +1767,8 @@ mod utils {
             self
         }
 
-        pub fn sequencer(mut self, sequencer_public_key: ethexe_signer::PublicKey) -> Self {
-            self.sequencer_public_key = Some(sequencer_public_key);
-            self
-        }
-
-        pub fn validator(
-            mut self,
-            validator_public_key: ethexe_signer::PublicKey,
-            validator_session_public_key: ethexe_signer::PublicKey,
-        ) -> Self {
-            self.validator_public_key = Some(validator_public_key);
-            self.validator_session_public_key = Some(validator_session_public_key);
+        pub fn validator(mut self, config: ValidatorConfig) -> Self {
+            self.validator_config = Some(config);
             self
         }
 
@@ -1846,6 +1796,14 @@ mod utils {
         }
     }
 
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub struct ValidatorConfig {
+        /// Validator public key.
+        pub public_key: PublicKey,
+        /// Validator session public key.
+        pub session_public_key: PublicKey,
+    }
+
     #[derive(Default)]
     pub struct NodeNetworkConfig {
         /// Network address, if not provided, will be generated by test env.
@@ -1856,7 +1814,7 @@ mod utils {
 
     /// Provides access to hardcoded anvil wallets or custom set wallets.
     pub struct Wallets {
-        wallets: Vec<ethexe_signer::PublicKey>,
+        wallets: Vec<PublicKey>,
         next_wallet: usize,
     }
 
@@ -1888,7 +1846,7 @@ mod utils {
             }
         }
 
-        pub fn next(&mut self) -> ethexe_signer::PublicKey {
+        pub fn next(&mut self) -> PublicKey {
             let pub_key = self.wallets.get(self.next_wallet).expect("No more wallets");
             self.next_wallet += 1;
             *pub_key
@@ -1906,13 +1864,10 @@ mod utils {
         blob_reader: Arc<MockBlobReader>,
         router_query: RouterQuery,
         signer: Signer,
-        validators: Vec<ethexe_signer::Address>,
         threshold: u64,
         block_time: Duration,
         running_service_handle: Option<NamedJoinHandle<Result<()>>>,
-        sequencer_public_key: Option<ethexe_signer::PublicKey>,
-        validator_public_key: Option<ethexe_signer::PublicKey>,
-        validator_session_public_key: Option<ethexe_signer::PublicKey>,
+        validator_config: Option<ValidatorConfig>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
         service_rpc_config: Option<RpcConfig>,
@@ -1947,40 +1902,27 @@ mod utils {
                 network
             });
 
-            let sequencer = match self.sequencer_public_key.as_ref() {
-                Some(key) => Some(
-                    SequencerService::new(
-                        &SequencerConfig {
-                            ethereum_rpc: self.eth_cfg.rpc.clone(),
-                            sign_tx_public: *key,
-                            router_address: self.eth_cfg.router_address,
-                            validators: self.validators.clone(),
-                            threshold: self.threshold,
-                            block_time: self.block_time,
-                        },
-                        self.signer.clone(),
-                        Box::new(self.db.clone()),
+            let control: Pin<Box<dyn ControlService>> =
+                if let Some(config) = self.validator_config.as_ref() {
+                    Box::pin(
+                        ValidatorService::new(
+                            self.signer.clone(),
+                            self.db.clone(),
+                            ethexe_sequencer::ValidatorConfig {
+                                ethereum_rpc: self.eth_cfg.rpc.clone(),
+                                pub_key: config.public_key,
+                                router_address: self.eth_cfg.router_address,
+                                threshold: self.threshold,
+                                slot_duration: self.block_time,
+                            },
+                        )
+                        .await
+                        .unwrap(),
                     )
-                    .await
-                    .unwrap(),
-                ),
-                None => None,
-            };
+                } else {
+                    Box::pin(SimpleConnectService::new())
+                };
 
-            let validator = self
-                .validator_public_key
-                .zip(self.validator_session_public_key)
-                .map(|(pub_key, pub_key_session)| {
-                    Validator::new(
-                        &ethexe_validator::Config {
-                            pub_key,
-                            pub_key_session,
-                            router_address: self.eth_cfg.router_address,
-                        },
-                        self.db.clone(),
-                        self.signer.clone(),
-                    )
-                });
             let (sender, receiver) = broadcast::channel(2048);
 
             let observer = ObserverService::new(
@@ -2008,9 +1950,8 @@ mod utils {
                 processor,
                 self.signer.clone(),
                 tx_pool_service,
+                control,
                 network,
-                sequencer,
-                validator,
                 None,
                 rpc,
                 Some(sender),

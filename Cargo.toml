@@ -299,7 +299,6 @@ ethexe-sequencer = { path = "ethexe/sequencer", default-features = false }
 ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
 ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
 ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
-ethexe-validator = { path = "ethexe/validator", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common", default-features = false }
 ethexe-tx-pool = { path = "ethexe/tx-pool", default-features = false }

@@ -1,6 +1,6 @@
 use crate::{
-    bp::{ControlError, ControlEvent, ControlService},
     utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
+    ControlError, ControlEvent, ControlService,
 };
 use anyhow::anyhow;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
@@ -29,6 +29,10 @@ impl SimpleConnectService {
 }
 
 impl ControlService for SimpleConnectService {
+    fn role(&self) -> String {
+        "Connect".to_string()
+    }
+
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) {
         self.block = Some(block);
     }

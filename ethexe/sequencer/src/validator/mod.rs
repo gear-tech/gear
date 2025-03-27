@@ -1,16 +1,18 @@
+mod coordinator;
+mod initial;
+mod participant;
+mod producer;
+mod verifier;
+
 use crate::{
-    bp::{ControlError, ControlEvent, ControlService},
-    coordinator::Coordinator,
-    initial::{Initial, Unformed},
-    participant::Participant,
-    producer::Producer,
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         MultisignedBatchCommitment,
     },
-    verifier::Verifier,
+    ControlError, ControlEvent, ControlService,
 };
 use anyhow::anyhow;
+use coordinator::Coordinator;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_db::Database;
 use ethexe_ethereum::{router::Router, Ethereum};
@@ -18,6 +20,9 @@ use ethexe_observer::BlockSyncedData;
 use ethexe_signer::{Address, PublicKey, SignedData, Signer};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::H256;
+use initial::{Initial, Unformed};
+use participant::Participant;
+use producer::Producer;
 use std::{
     collections::VecDeque,
     mem,
@@ -25,6 +30,7 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
+use verifier::Verifier;
 
 pub struct ValidatorService {
     slot_duration: Duration,
@@ -105,6 +111,10 @@ impl ValidatorService {
 }
 
 impl ControlService for ValidatorService {
+    fn role(&self) -> String {
+        format!("Validator ({:?})", self.pub_key.to_address())
+    }
+
     // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) {
         let state = mem::take(&mut self.state);
@@ -319,17 +329,21 @@ impl ControlService for ValidatorService {
 }
 
 impl Stream for ValidatorService {
+    // TODO +_+_+: return result
     type Item = ControlEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let State::Submitting(future) = &mut self.state {
             match future.poll_unpin(_cx) {
-                Poll::Ready(result) => {
-                    self.output
-                        .push_back(ControlEvent::SubmissionResult(result.map_err(|e| {
-                            ControlError::Warning(anyhow!("Failed to submit batch commitment: {e}"))
-                        })));
-                }
+                Poll::Ready(result) => match result {
+                    Ok(hash) => {
+                        self.output
+                            .push_back(ControlEvent::CommitmentSubmitted(hash));
+                    }
+                    Err(e) => {
+                        log::error!("Failed to submit batch commitment: {e}");
+                    }
+                },
                 Poll::Pending => return Poll::Pending,
             }
         }

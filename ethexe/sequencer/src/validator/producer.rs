@@ -1,4 +1,4 @@
-use crate::bp::{ControlError, ControlEvent};
+use crate::{ControlError, ControlEvent};
 use anyhow::anyhow;
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
@@ -170,7 +170,7 @@ impl Producer {
             .into_iter()
             .filter_map(|code_id| {
                 let Some(code_info) = self.db.code_blob_info(code_id) else {
-                    // TODO +_+_+: this must be an error
+                    // TODO +_+_+: this must be a fatal error
                     return None;
                 };
                 self.db.code_valid(code_id).map(|valid| CodeCommitment {

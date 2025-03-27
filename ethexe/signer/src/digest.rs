@@ -21,9 +21,12 @@
 //! Implements `ToDigest` hashing for ethexe common types.
 
 use core::fmt;
-use ethexe_common::{gear::{
-    BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
-}, ProducerBlock};
+use ethexe_common::{
+    gear::{
+        BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+    },
+    ProducerBlock,
+};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 

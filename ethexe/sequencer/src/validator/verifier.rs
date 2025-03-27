@@ -1,12 +1,8 @@
+use crate::{utils::BatchCommitmentValidationRequest, ControlError, ControlEvent};
 use anyhow::anyhow;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_signer::{Address, SignedData};
 use gprimitives::H256;
-
-use crate::{
-    bp::{ControlError, ControlEvent},
-    utils::BatchCommitmentValidationRequest,
-};
 
 pub struct Verifier {
     producer: Address,

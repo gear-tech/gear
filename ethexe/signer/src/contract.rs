@@ -1,5 +1,6 @@
 use crate::{Address, Digest, PublicKey, Signature, Signer, ToDigest};
 use anyhow::Result;
+use parity_scale_codec::{Decode, Encode};
 
 pub struct ContractSigner {
     signer: Signer,
@@ -20,10 +21,7 @@ impl ContractSigner {
                 public_key,
                 to_contract_digest(digest, self.contract_address),
             )
-            .map(|signature| ContractSignature {
-                signature,
-                contract_address: self.contract_address,
-            })
+            .map(|signature| ContractSignature { signature })
     }
 
     pub fn sign_data<T: ToDigest>(
@@ -33,25 +31,30 @@ impl ContractSigner {
     ) -> Result<ContractSignature> {
         self.sign_digest(public_key, data.to_digest())
     }
+
+    pub fn contract_address(&self) -> Address {
+        self.contract_address
+    }
 }
 
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct ContractSignature {
     signature: Signature,
-    contract_address: Address,
 }
 
 impl ContractSignature {
-    pub fn recover(&self, digest: Digest) -> Result<PublicKey> {
+    pub fn recover(&self, contract_address: Address, digest: Digest) -> Result<PublicKey> {
         self.signature
-            .recover_from_digest(to_contract_digest(digest, self.contract_address))
+            .recover_from_digest(to_contract_digest(digest, contract_address))
     }
 
-    pub fn verify_address(&self, address: Address, digest: Digest) -> Result<()> {
-        if self
-            .recover(to_contract_digest(digest, self.contract_address))?
-            .to_address()
-            != address
-        {
+    pub fn verify_address(
+        &self,
+        contract_address: Address,
+        address: Address,
+        digest: Digest,
+    ) -> Result<()> {
+        if self.recover(contract_address, digest)?.to_address() != address {
             anyhow::bail!("Invalid signature");
         }
 

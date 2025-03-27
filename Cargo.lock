@@ -4863,7 +4863,6 @@ dependencies = [
  "ethexe-service-utils",
  "ethexe-signer",
  "ethexe-tx-pool",
- "ethexe-validator",
  "futures",
  "futures-timer",
  "gear-core",
@@ -4926,23 +4925,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "tokio",
-]
-
-[[package]]
-name = "ethexe-validator"
-version = "1.7.1"
-dependencies = [
- "anyhow",
- "ethexe-common",
- "ethexe-db",
- "ethexe-sequencer",
- "ethexe-signer",
- "futures",
- "gprimitives",
- "log",
- "parity-scale-codec",
- "rand 0.8.5",
- "static_init",
 ]
 
 [[package]]
