@@ -4846,7 +4846,6 @@ dependencies = [
  "demo-ping",
  "derive_more 0.99.18",
  "directories",
- "env_logger",
  "ethexe-common",
  "ethexe-compute",
  "ethexe-db",
@@ -7123,7 +7122,6 @@ dependencies = [
  "demo-piggy-bank",
  "demo-ping",
  "derive_more 0.99.18",
- "env_logger",
  "etc",
  "gear-common",
  "gear-core",
@@ -7141,6 +7139,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "tracing-subscriber",
 ]
 
 [[package]]

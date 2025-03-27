@@ -1138,7 +1138,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         let program_id = self.program_id()?;
         let message_id = self.message_id()?;
 
-        tracing::debug!(target: "gwasm", "DEBUG: [handle({message_id:.2?})] {program_id:.2?}: {data}");
+        tracing::debug!(target: "gwasm", ?program_id, ?message_id, "{data}");
 
         Ok(())
     }

@@ -27,7 +27,6 @@ gprimitives.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
 log.workspace = true
-env_logger.workspace = true
 directories.workspace = true
 anyhow.workspace = true
 alloy.workspace = true

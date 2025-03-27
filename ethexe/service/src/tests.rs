@@ -1162,7 +1162,7 @@ mod utils {
     };
     use tokio::sync::broadcast::{self, Receiver, Sender};
     use tracing::Instrument;
-    use tracing_subscriber::{util::SubscriberInitExt, EnvFilter};
+    use tracing_subscriber::EnvFilter;
 
     pub fn init_logger() {
         let _ = tracing_subscriber::fmt()
