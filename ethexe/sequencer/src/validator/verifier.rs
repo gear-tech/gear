@@ -178,8 +178,7 @@ impl Verifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::db::BlockHeader;
-    use ethexe_signer::{PrivateKey, PublicKey, Signer};
+    use crate::test_utils::*;
 
     #[test]
     fn new_empty() {
@@ -406,7 +405,9 @@ mod tests {
         let (_, signed_request) = mock_validation_request(&signer, producer);
 
         // Test receiving a valid validation request
-        verifier.receive_validation_request(signed_request.clone()).unwrap();
+        verifier
+            .receive_validation_request(signed_request.clone())
+            .unwrap();
         assert!(verifier.earlier_validation_request.is_some());
 
         // Test receiving a second validation request
@@ -494,61 +495,5 @@ mod tests {
 
         // Attempt to call into_parts while the state is not final
         let _ = verifier.into_parts();
-    }
-
-    fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
-        let signer = Signer::tmp();
-        let private_keys: Vec<_> = (0..amount).map(|i| PrivateKey([i + 1; 32])).collect();
-        let public_keys = private_keys
-            .iter()
-            .map(|&key| signer.add_key(key).unwrap())
-            .collect();
-        (signer, private_keys, public_keys)
-    }
-
-    fn mock_simple_block_data() -> SimpleBlockData {
-        let block_hash = H256::random();
-        let parent_hash = H256::random();
-        SimpleBlockData {
-            hash: block_hash,
-            header: BlockHeader {
-                height: 43,
-                timestamp: 120,
-                parent_hash,
-            },
-        }
-    }
-
-    fn mock_producer_block(
-        signer: &Signer,
-        producer: PublicKey,
-        block_hash: H256,
-    ) -> (ProducerBlock, SignedData<ProducerBlock>) {
-        let pb = ProducerBlock {
-            block_hash,
-            gas_allowance: Some(100),
-            off_chain_transactions: vec![],
-        };
-
-        let signed_pb = signer.create_signed_data(producer, pb.clone()).unwrap();
-
-        (pb, signed_pb)
-    }
-
-    fn mock_validation_request(
-        signer: &Signer,
-        public_key: PublicKey,
-    ) -> (
-        BatchCommitmentValidationRequest,
-        SignedData<BatchCommitmentValidationRequest>,
-    ) {
-        let request = BatchCommitmentValidationRequest {
-            blocks: vec![],
-            codes: vec![],
-        };
-        let signed = signer
-            .create_signed_data(public_key, request.clone())
-            .unwrap();
-        (request, signed)
     }
 }

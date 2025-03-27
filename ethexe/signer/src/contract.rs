@@ -27,7 +27,7 @@ impl ContractSigner {
     pub fn sign_data<T: ToDigest>(
         &self,
         public_key: PublicKey,
-        data: T,
+        data: &T,
     ) -> Result<ContractSignature> {
         self.sign_digest(public_key, data.to_digest())
     }
@@ -37,7 +37,7 @@ impl ContractSigner {
     }
 }
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct ContractSignature {
     signature: Signature,
 }

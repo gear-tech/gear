@@ -28,12 +28,8 @@ impl From<&BatchCommitment> for BatchCommitmentValidationRequest {
 
 impl ToDigest for BatchCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut ethexe_signer::sha3::Keccak256) {
-        self.blocks
-            .iter()
-            .for_each(|block| block.update_hasher(hasher));
-        self.codes
-            .iter()
-            .for_each(|code| code.update_hasher(hasher));
+        hasher.update(self.codes.to_digest().as_ref());
+        hasher.update(self.blocks.to_digest().as_ref());
     }
 }
 
@@ -129,4 +125,157 @@ impl MultisignedBatchCommitment {
     }
 }
 
-// TODO +_+_+: make test that signature for CommitmentsBatchValidationRequest is suitable for CommitmentsBatch as well
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils;
+
+    #[test]
+    fn multisigned_batch_commitment_creation() {
+        let batch = BatchCommitment {
+            block_commitments: vec![],
+            code_commitments: vec![],
+        };
+
+        let (signer, _, public_keys) = test_utils::init_signer_with_keys(1);
+        let signer = signer.contract_signer(Address([42; 20]));
+        let pub_key = public_keys[0];
+
+        let multisigned_batch = MultisignedBatchCommitment::new(batch.clone(), &signer, pub_key)
+            .expect("Failed to create multisigned batch commitment");
+
+        assert_eq!(multisigned_batch.batch, batch);
+        assert_eq!(multisigned_batch.signatures.len(), 1);
+    }
+
+    #[test]
+    fn accept_batch_commitment_validation_reply() {
+        let batch = BatchCommitment {
+            block_commitments: vec![],
+            code_commitments: vec![],
+        };
+
+        let (signer, _, public_keys) = test_utils::init_signer_with_keys(2);
+        let signer = signer.contract_signer(Address([42; 20]));
+        let pub_key = public_keys[0];
+
+        let mut multisigned_batch =
+            MultisignedBatchCommitment::new(batch, &signer, pub_key).unwrap();
+
+        let other_pub_key = public_keys[1];
+        let reply = BatchCommitmentValidationReply {
+            digest: multisigned_batch.batch_digest,
+            signature: signer
+                .sign_digest(other_pub_key, multisigned_batch.batch_digest)
+                .unwrap(),
+        };
+
+        multisigned_batch
+            .accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()))
+            .expect("Failed to accept batch commitment validation reply");
+
+        assert_eq!(multisigned_batch.signatures.len(), 2);
+
+        // Attempt to add the same reply again
+        multisigned_batch
+            .accept_batch_commitment_validation_reply(reply, |_| Ok(()))
+            .expect("Failed to accept batch commitment validation reply");
+
+        // Ensure the number of signatures has not increased
+        assert_eq!(multisigned_batch.signatures.len(), 2);
+    }
+
+    #[test]
+    fn reject_validation_reply_with_incorrect_digest() {
+        let batch = BatchCommitment {
+            block_commitments: vec![],
+            code_commitments: vec![],
+        };
+
+        let (signer, _, public_keys) = test_utils::init_signer_with_keys(1);
+        let signer = signer.contract_signer(Address([42; 20]));
+        let pub_key = public_keys[0];
+
+        let mut multisigned_batch =
+            MultisignedBatchCommitment::new(batch, &signer, pub_key).unwrap();
+
+        let incorrect_digest = [1, 2, 3].as_slice().to_digest();
+        let reply = BatchCommitmentValidationReply {
+            digest: incorrect_digest,
+            signature: signer.sign_digest(pub_key, incorrect_digest).unwrap(),
+        };
+
+        let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| Ok(()));
+        assert!(result.is_err());
+        assert_eq!(multisigned_batch.signatures.len(), 1);
+    }
+
+    #[test]
+    fn check_origin_closure_behavior() {
+        let batch = BatchCommitment {
+            block_commitments: vec![],
+            code_commitments: vec![],
+        };
+
+        let (signer, _, public_keys) = test_utils::init_signer_with_keys(2);
+        let signer = signer.contract_signer(Address([42; 20]));
+        let pub_key = public_keys[0];
+
+        let mut multisigned_batch =
+            MultisignedBatchCommitment::new(batch, &signer, pub_key).unwrap();
+
+        let other_pub_key = public_keys[1];
+        let reply = BatchCommitmentValidationReply {
+            digest: multisigned_batch.batch_digest,
+            signature: signer
+                .sign_digest(other_pub_key, multisigned_batch.batch_digest)
+                .unwrap(),
+        };
+
+        // Case 1: check_origin allows the origin
+        let result =
+            multisigned_batch.accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()));
+        assert!(result.is_ok());
+        assert_eq!(multisigned_batch.signatures.len(), 2);
+
+        // Case 2: check_origin rejects the origin
+        let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| {
+            anyhow::bail!("Origin not allowed")
+        });
+        assert!(result.is_err());
+        assert_eq!(multisigned_batch.signatures.len(), 2);
+    }
+
+    #[test]
+    fn signature_compatibility_between_validation_request_and_batch_commitment() {
+        let batch = BatchCommitment {
+            block_commitments: vec![],
+            code_commitments: vec![CodeCommitment {
+                id: H256::random().into(),
+                timestamp: 123,
+                valid: false,
+            }],
+        };
+        let batch_validation_request = BatchCommitmentValidationRequest::from(&batch);
+        assert_eq!(batch.to_digest(), batch_validation_request.to_digest());
+
+        let contract_address = Address([42; 20]);
+        let (signer, _, public_keys) = test_utils::init_signer_with_keys(1);
+        let signer = signer.contract_signer(contract_address);
+        let public_key = public_keys[0];
+
+        let batch_signature = signer.sign_data(public_key, &batch).unwrap();
+        let validation_request_signature = signer
+            .sign_data(public_key, &batch_validation_request)
+            .unwrap();
+        assert_eq!(batch_signature, validation_request_signature);
+
+        let pk1 = batch_signature
+            .recover(contract_address, batch.to_digest())
+            .unwrap();
+        let pk2 = validation_request_signature
+            .recover(contract_address, batch_validation_request.to_digest())
+            .unwrap();
+        assert_eq!(pk1, pk2);
+    }
+}
