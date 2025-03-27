@@ -31,7 +31,6 @@ sp-std.workspace = true
 sp-io.workspace = true
 sp-runtime.workspace = true
 pallet-balances.workspace = true
-pallet-authorship.workspace = true
 
 [dev-dependencies]
 env_logger.workspace = true
@@ -65,7 +64,6 @@ std = [
 	"sp-core/std",
 	"sp-runtime/std",
 	"pallet-balances/std",
-	"pallet-authorship/std",
 	"primitive-types/std",
 	"pallet-gear/std",
 	"test-syscalls/std",

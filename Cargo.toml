@@ -551,6 +551,9 @@ wasm-encoder = { version = "0.225", default-features = false, features = ["wasmp
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
 
+[workspace.metadata.cargo-machete]
+ignored = ["frame-benchmarking", "frame-system-benchmarking", "parity-scale-codec", "scale-info"]
+
 [profile.dev.package.corosensei]
 opt-level = 3
 

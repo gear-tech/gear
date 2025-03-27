@@ -18,10 +18,7 @@ gprimitives.workspace = true
 
 log.workspace = true
 anyhow.workspace = true
-futures.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
-
-static_init = "1.0.3"
 
 [dev-dependencies]
 rand.workspace = true

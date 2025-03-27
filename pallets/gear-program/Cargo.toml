@@ -15,9 +15,6 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
-primitive-types = { workspace = true, features = ["scale-info"] }
-log.workspace = true
-hashbrown.workspace = true
 
 # Internal deps
 common.workspace = true
@@ -49,16 +46,12 @@ wat.workspace = true
 [features]
 default = ['std']
 std = [
-	"log/std",
-	"parity-scale-codec/std",
 	"common/std",
 	"frame-support/std",
 	"frame-system/std",
-	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
 	"sp-core/std",
 	"sp-runtime/std",
-	"primitive-types/std",
 ]
 try-runtime = ["frame-support/try-runtime"]
