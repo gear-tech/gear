@@ -193,7 +193,7 @@ pub struct SignedData<T: Sized> {
 }
 
 impl<T: ToDigest + Sized> SignedData<T> {
-    pub fn new(data: T, signature: Signature) -> Self {
+    pub(crate) fn new(data: T, signature: Signature) -> Self {
         Self { data, signature }
     }
 

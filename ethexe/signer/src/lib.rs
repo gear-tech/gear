@@ -214,7 +214,7 @@ impl Signer {
         public_key: PublicKey,
         data: T,
     ) -> Result<SignedData<T>> {
-        self.sign(public_key, data.to_digest().as_ref())
+        self.sign_digest(public_key, data.to_digest())
             .map(|signature| SignedData::new(data, signature))
     }
 
@@ -458,5 +458,22 @@ mod tests {
             .expect("Failed to recover public key");
 
         assert_eq!(recovered_public_key, public_key);
+    }
+
+    #[test]
+    fn signed_data() {
+        let signer = Signer::tmp();
+
+        let private_key = PrivateKey([1; 32]);
+        let public_key = signer.add_key(private_key).unwrap();
+
+        let signed_data = signer
+            .create_signed_data(public_key, b"hello world".as_slice())
+            .expect("Failed to create signed data");
+
+        signed_data.verify(public_key).unwrap();
+        signed_data.verify_address(public_key.to_address()).unwrap();
+        assert_eq!(signed_data.recover().unwrap(), public_key);
+        signed_data.verify_with_public_key_recover().unwrap();
     }
 }

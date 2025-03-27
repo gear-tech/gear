@@ -65,7 +65,7 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ProducerBlock {
     pub block_hash: H256,
     pub gas_allowance: Option<u64>,

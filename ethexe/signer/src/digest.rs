@@ -116,6 +116,12 @@ impl ToDigest for [u8] {
     }
 }
 
+impl<T: ToDigest + ?Sized> ToDigest for &T {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        (*self).update_hasher(hasher);
+    }
+}
+
 impl ToDigest for CodeCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
