@@ -1140,16 +1140,17 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub BankAddress: AccountId = BANK_ADDRESS.into();
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
-    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
-    pub SplitTxFeeRatio: Option<u32> = None;
+    pub const TreasuryGasFeeShare: Percent = Percent::one();
+    pub const TreasuryTxFeeShare: Percent = Percent::one();
 }
 
 impl pallet_gear_bank::Config for Runtime {
     type Currency = Balances;
     type BankAddress = BankAddress;
     type GasMultiplier = GasMultiplier;
-    type SplitGasFeeRatio = SplitGasFeeRatio;
-    type SplitTxFeeRatio = SplitTxFeeRatio;
+    type TreasuryAddress = TreasuryAccount;
+    type TreasuryGasFeeShare = TreasuryGasFeeShare;
+    type TreasuryTxFeeShare = TreasuryTxFeeShare;
 }
 
 impl pallet_gear::Config for Runtime {

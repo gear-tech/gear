@@ -47,9 +47,8 @@ pub enum ComputeEvent {
     CodeProcessed(CodeCommitment),
 }
 
-// TODO (gsobol): add state monitoring in prometheus
-// TODO (gsobol): append off-chain transactions handling
-// TODO (gsobol) asap: add tests for compute service
+// TODO #4548: add state monitoring in prometheus
+// TODO #4549: add tests for compute service
 pub struct ComputeService {
     db: Database,
     processor: Processor,
@@ -93,7 +92,7 @@ impl FusedStream for ComputeService {
 }
 
 impl ComputeService {
-    // TODO (gsobol): consider to create Processor inside ComputeService
+    // TODO #4550: consider to create Processor inside ComputeService
     pub fn new(db: Database, processor: Processor) -> Self {
         Self {
             db,
@@ -173,7 +172,7 @@ impl ChainHeadProcessContext {
 
         let parent = header.parent_hash;
 
-        if !self.db.block_end_state_is_valid(parent).unwrap_or(false) {
+        if !self.db.block_computed(parent) {
             unreachable!("Parent block {parent} must be computed before the current one {block}",);
         }
 
@@ -200,8 +199,6 @@ impl ChainHeadProcessContext {
             })
             .collect();
 
-        self.db.set_block_is_empty(block, outcomes.is_empty());
-
         if !outcomes.is_empty() {
             commitments_queue.push_back(block);
         }
@@ -209,12 +206,12 @@ impl ChainHeadProcessContext {
 
         self.db.set_block_outcome(block, outcomes);
 
-        // TODO (gsobol): move set_program_states here from processor
+        // TODO #4551: move set_program_states here from processor
 
         // Set block as valid - means state db has all states for the end of the block
-        self.db.set_block_end_state_is_valid(block, true);
+        self.db.set_block_computed(block);
 
-        self.db.set_latest_valid_block(block, header);
+        self.db.set_latest_computed_block(block, header);
 
         Ok(())
     }
@@ -225,44 +222,53 @@ impl ChainHeadProcessContext {
         parent: H256,
         events: impl Iterator<Item = &'a BlockEvent>,
     ) -> Result<VecDeque<H256>> {
-        // Propagate program state hashes
-        let state_hashes = db
-            .block_end_program_states(parent)
-            .ok_or_else(|| anyhow!("program states not found for computed block {parent}"))?;
-        db.set_block_start_program_states(block, state_hashes);
-
-        // Propagate scheduled tasks
-        let schedule = db
-            .block_end_schedule(parent)
-            .ok_or_else(|| anyhow!("scheduled tasks not found for computed block {parent}"))?;
-        db.set_block_start_schedule(block, schedule);
-
         // Propagate prev commitment (prev not empty block hash or zero for genesis).
         if db
-            .block_is_empty(parent)
+            .block_outcome_is_empty(parent)
             .ok_or_else(|| anyhow!("emptiness not found for computed block {parent}"))?
         {
             let parent_prev_commitment = db
-                .previous_committed_block(parent)
+                .previous_not_empty_block(parent)
                 .ok_or_else(|| anyhow!("prev commitment not found for computed block {parent}"))?;
-            db.set_previous_committed_block(block, parent_prev_commitment);
+            db.set_previous_not_empty_block(block, parent_prev_commitment);
         } else {
-            db.set_previous_committed_block(block, parent);
+            db.set_previous_not_empty_block(block, parent);
+        }
+
+        let mut committed_blocks_in_current = BTreeSet::new();
+        let mut validated_codes_in_current = BTreeSet::new();
+        let mut requested_codes_in_current = Vec::new();
+
+        for event in events {
+            match event {
+                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
+                    committed_blocks_in_current.insert(*hash);
+                }
+                BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
+                    validated_codes_in_current.insert(*code_id);
+                }
+                BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
+                    requested_codes_in_current.push(*code_id);
+                }
+                _ => {}
+            }
         }
 
         // Propagate `wait for commitment` blocks queue
-        let mut queue = db
+        let mut blocks_queue = db
             .block_commitment_queue(parent)
             .ok_or_else(|| anyhow!("commitment queue not found for computed block {parent}"))?;
-        let committed_blocks_in_current: BTreeSet<_> = events
-            .filter_map(|event| match event {
-                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => Some(*hash),
-                _ => None,
-            })
-            .collect();
-        queue.retain(|hash| !committed_blocks_in_current.contains(hash));
+        blocks_queue.retain(|hash| !committed_blocks_in_current.contains(hash));
 
-        Ok(queue)
+        // Propagate `wait for code validation` blocks queue
+        let mut codes_queue = db
+            .block_codes_queue(parent)
+            .ok_or_else(|| anyhow!("codes queue not found for computed block {parent}"))?;
+        codes_queue.retain(|code_id| !validated_codes_in_current.contains(code_id));
+        codes_queue.extend(requested_codes_in_current);
+        db.set_block_codes_queue(block, codes_queue);
+
+        Ok(blocks_queue)
     }
 
     /// Collect a chain of blocks from the head to the last not computed block.
@@ -272,7 +278,7 @@ impl ChainHeadProcessContext {
     ) -> Result<Vec<SimpleBlockData>> {
         let mut block = head;
         let mut chain = vec![];
-        while !db.block_end_state_is_valid(block).unwrap_or(false) {
+        while !db.block_computed(block) {
             if !db.block_is_synced(block) {
                 return Err(anyhow!("Block {block} is not synced, but must be"));
             }
@@ -291,5 +297,60 @@ impl ChainHeadProcessContext {
         }
 
         Ok(chain)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_codes_queue_propagation() {
+        let db = Database::memory();
+
+        // Prepare test data
+        let parent_block = H256::random();
+        let current_block = H256::random();
+        let code_id_1 = H256::random().into();
+        let code_id_2 = H256::random().into();
+
+        // Simulate parent block with a codes queue
+        let mut parent_codes_queue = VecDeque::new();
+        parent_codes_queue.push_back(code_id_1);
+        db.set_block_codes_queue(parent_block, parent_codes_queue.clone());
+        db.set_block_outcome(parent_block, Default::default());
+        db.set_previous_not_empty_block(parent_block, H256::random());
+        db.set_block_commitment_queue(parent_block, Default::default());
+
+        // Simulate events for the current block
+        let events = vec![
+            BlockEvent::Router(RouterEvent::CodeGotValidated {
+                code_id: code_id_1,
+                valid: true,
+            }),
+            BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                code_id: code_id_2,
+                timestamp: 0,
+                tx_hash: H256::random(),
+            }),
+        ];
+        db.set_block_events(current_block, &events);
+
+        // Propagate data from parent
+        ChainHeadProcessContext::propagate_data_from_parent(
+            &db,
+            current_block,
+            parent_block,
+            db.block_events(current_block).unwrap().iter(),
+        )
+        .unwrap();
+
+        // Check for parent
+        let codes_queue = db.block_codes_queue(parent_block).unwrap();
+        assert_eq!(codes_queue, parent_codes_queue);
+
+        // Check for current block
+        let codes_queue = db.block_codes_queue(current_block).unwrap();
+        assert_eq!(codes_queue, VecDeque::from(vec![code_id_2]));
     }
 }

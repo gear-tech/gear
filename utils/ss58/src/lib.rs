@@ -73,7 +73,7 @@ const ADDRESS_LEN_RANGE: RangeInclusive<usize> = MIN_ADDRESS_LEN..=MAX_ADDRESS_L
 /// base58 encoding.
 const fn base58_max_encoded_len(len: usize) -> usize {
     // log_2(256) / log_2(58) ≈ 1.37.  Assume 1.5 for easier calculation.
-    len + (len + 1) / 2
+    len + len.div_ceil(2)
 }
 
 /// Maximum address length in base58 encoding.

@@ -16,29 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{abi::IMirror, AlloyProvider, AlloyTransport, TryGetReceipt};
+use crate::{abi::IMirror, AlloyProvider, TryGetReceipt};
 use alloy::{
     primitives::{Address, U256},
     providers::{Provider, ProviderBuilder, RootProvider},
-    transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
 use ethexe_signer::Address as LocalAddress;
 use events::signatures;
 use gprimitives::{MessageId, H256};
-use std::sync::Arc;
 
 pub mod events;
 
-type InstanceProvider = Arc<AlloyProvider>;
-type Instance = IMirror::IMirrorInstance<AlloyTransport, InstanceProvider>;
-
-type QueryInstance = IMirror::IMirrorInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
+type Instance = IMirror::IMirrorInstance<(), AlloyProvider>;
+type QueryInstance = IMirror::IMirrorInstance<(), RootProvider>;
 
 pub struct Mirror(Instance);
 
 impl Mirror {
-    pub(crate) fn new(address: Address, provider: InstanceProvider) -> Self {
+    pub(crate) fn new(address: Address, provider: AlloyProvider) -> Self {
         Self(Instance::new(address, provider))
     }
 
@@ -49,7 +45,7 @@ impl Mirror {
     pub fn query(&self) -> MirrorQuery {
         MirrorQuery(QueryInstance::new(
             *self.0.address(),
-            Arc::new(self.0.provider().root().clone()),
+            self.0.provider().root().clone(),
         ))
     }
 
@@ -115,7 +111,7 @@ pub struct MirrorQuery(QueryInstance);
 
 impl MirrorQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = Arc::new(ProviderBuilder::new().on_builtin(rpc_url).await?);
+        let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self(QueryInstance::new(
             Address::new(router_address.0),
@@ -153,15 +149,6 @@ impl MirrorQuery {
     pub async fn router(&self) -> Result<LocalAddress> {
         self.0
             .router()
-            .call()
-            .await
-            .map(|res| LocalAddress(res._0.into()))
-            .map_err(Into::into)
-    }
-
-    pub async fn decoder(&self) -> Result<LocalAddress> {
-        self.0
-            .decoder()
             .call()
             .await
             .map(|res| LocalAddress(res._0.into()))

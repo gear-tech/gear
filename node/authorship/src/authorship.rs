@@ -269,7 +269,7 @@ where
             parent_hash
         );
 
-        let proposer = Proposer::<_, _, _, PR> {
+        Proposer::<_, _, _, PR> {
             spawn_handle: self.spawn_handle.clone(),
             client: self.client.clone(),
             parent_hash,
@@ -285,9 +285,7 @@ where
             dispatch_ratio: self.dispatch_ratio,
             _phantom: PhantomData,
             include_proof_in_block_size_estimation: self.include_proof_in_block_size_estimation,
-        };
-
-        proposer
+        }
     }
 }
 

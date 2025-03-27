@@ -29,11 +29,12 @@ pub use gear_ss58::Ss58Address;
 pub use nonzero_u256::NonZeroU256;
 pub use primitive_types::{H160, H256, U256};
 
+pub mod utils;
+
 mod macros;
 mod nonzero_u256;
 #[cfg(feature = "ethexe")]
 mod sol_types;
-mod utils;
 
 use core::{
     fmt,
@@ -149,7 +150,7 @@ impl TryInto<H160> for ActorId {
 
 impl fmt::Display for ActorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let byte_array = utils::ByteArray(&self.0);
+        let byte_array = utils::ByteSliceFormatter::Array(&self.0);
 
         let is_alternate = f.alternate();
         if is_alternate {
@@ -178,7 +179,7 @@ impl fmt::Display for ActorId {
             let address_str = address.as_str();
 
             let len = address.as_str().len();
-            let median = (len + 1) / 2;
+            let median = len.div_ceil(2);
 
             let mut e1 = median;
             let mut s2 = median;
