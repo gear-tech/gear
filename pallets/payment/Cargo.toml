@@ -25,10 +25,12 @@ frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 sp-std.workspace = true
 sp-runtime.workspace = true
+pallet-authorship.workspace = true
 pallet-balances.workspace = true
 pallet-transaction-payment.workspace = true
 
 [dev-dependencies]
+env_logger.workspace = true
 common = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 sp-io = { workspace = true, features = ["std"] }
@@ -45,14 +47,17 @@ pallet-gear-voucher = { workspace = true, features = ["std"] }
 [features]
 default = ['std']
 std = [
+	"parity-scale-codec/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-support-test/std",
 	"frame-system/std",
+	"scale-info/std",
 	"sp-std/std",
 	"sp-runtime/std",
 	"pallet-balances/std",
 	"pallet-transaction-payment/std",
+	"pallet-authorship/std",
 	"pallet-gear/std",
 	"pallet-gear-gas/std",
 	"pallet-gear-messenger/std",
