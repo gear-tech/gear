@@ -14,6 +14,7 @@ use std::{
     task::{Context, Poll},
 };
 
+#[derive(Debug, Default)]
 pub struct SimpleConnectService {
     block: Option<SimpleBlockData>,
     output: VecDeque<ControlEvent>,
@@ -21,10 +22,7 @@ pub struct SimpleConnectService {
 
 impl SimpleConnectService {
     pub fn new() -> Self {
-        Self {
-            block: None,
-            output: VecDeque::new(),
-        }
+        Self::default()
     }
 }
 

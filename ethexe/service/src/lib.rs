@@ -598,7 +598,6 @@ impl Service {
     }
 }
 
-#[must_use]
 fn handle_control_result(result: Result<(), ControlError>) -> Result<()> {
     match result {
         Err(ControlError::Warning(e)) => {

@@ -8,10 +8,11 @@ pub struct Verifier {
     producer: Address,
     block: SimpleBlockData,
     earlier_validation_request: Option<BatchCommitmentValidationRequest>,
-    state: VerifierState,
+    state: State,
 }
 
-enum VerifierState {
+#[allow(clippy::enum_variant_names)]
+enum State {
     WaitingParentComputed {
         parent_hash: H256,
     },
@@ -46,7 +47,7 @@ impl Verifier {
 
         let (state, events) = if let Some(pb) = producer_block {
             (
-                VerifierState::WaitingProducerBlockComputed {
+                State::WaitingProducerBlockComputed {
                     block_hash: block.hash,
                     parent_hash: None,
                 },
@@ -55,7 +56,7 @@ impl Verifier {
         } else {
             let parent_hash = block.header.parent_hash;
             (
-                VerifierState::WaitingParentComputed { parent_hash },
+                State::WaitingParentComputed { parent_hash },
                 vec![ControlEvent::ComputeBlock(parent_hash)],
             )
         };
@@ -82,8 +83,8 @@ impl Verifier {
         let (block, _) = signed.into_parts();
 
         let parent_hash_in_computation = match &self.state {
-            VerifierState::WaitingParentComputed { parent_hash } => Some(*parent_hash),
-            VerifierState::WaitingForProducerBlock => None,
+            State::WaitingParentComputed { parent_hash } => Some(*parent_hash),
+            State::WaitingForProducerBlock => None,
             _ => {
                 return Err(ControlError::Warning(anyhow!(
                     "Received not waited producer block"
@@ -91,7 +92,7 @@ impl Verifier {
             }
         };
 
-        self.state = VerifierState::WaitingProducerBlockComputed {
+        self.state = State::WaitingProducerBlockComputed {
             block_hash: block.block_hash,
             parent_hash: parent_hash_in_computation,
         };
@@ -102,7 +103,7 @@ impl Verifier {
     /// Returns whether the received block is a computed block from the producer
     pub fn receive_computed_block(&mut self, computed_block: H256) -> Result<bool, ControlError> {
         match &mut self.state {
-            VerifierState::WaitingProducerBlockComputed {
+            State::WaitingProducerBlockComputed {
                 block_hash,
                 parent_hash,
             } => {
@@ -118,9 +119,9 @@ impl Verifier {
                     )))
                 }
             }
-            VerifierState::WaitingParentComputed { parent_hash } => {
+            State::WaitingParentComputed { parent_hash } => {
                 if computed_block == *parent_hash {
-                    self.state = VerifierState::WaitingForProducerBlock;
+                    self.state = State::WaitingForProducerBlock;
                     Ok(false)
                 } else {
                     Err(ControlError::Warning(anyhow!(
