@@ -28,7 +28,6 @@ parking_lot.workspace = true
 primitive-types = { workspace = true, features = ["scale-info"] }
 rand = { workspace = true, features = ["small_rng"] }
 reqwest.workspace = true
-subxt.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
 tracing.workspace = true

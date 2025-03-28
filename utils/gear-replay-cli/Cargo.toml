@@ -13,7 +13,6 @@ path = "src/main.rs"
 # Internal
 gear-runtime-interface.workspace = true
 runtime-primitives.workspace = true
-vara-runtime = { workspace = true, optional = true, features = ["dev"] }
 service = { workspace = true, optional = true }
 
 # Substrate Primitives
@@ -28,12 +27,8 @@ sp-state-machine.workspace = true
 
 # Substrate client
 sc-executor.workspace = true
-sc-executor-common.workspace = true
 sc-cli.workspace = true
 sc-tracing.workspace = true
-
-# Substrate other
-frame-system.workspace = true
 frame-remote-externalities.workspace = true
 substrate-rpc-client.workspace = true
 
@@ -58,16 +53,12 @@ std = [
     "sp-keystore/std",
     "sp-externalities/std",
     "sc-executor/std",
-    "frame-system/std",
     "gear-runtime-interface/std",
-    "vara-runtime?/std",
 ]
 always-wasm = []
 vara-native = [
-    "vara-runtime",
     "service/vara-native",
 ]
 try-runtime = [
-    "vara-runtime?/try-runtime",
     "service/try-runtime",
 ]
