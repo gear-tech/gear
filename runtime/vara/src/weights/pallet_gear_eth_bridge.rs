@@ -23,6 +23,8 @@
 //! WORST CASE MAP SIZE: `1000000`
 //! CPU: `Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz`
 //! EXECUTION: , WASM-EXECUTION: Compiled, CHAIN: Some("vara-dev"), DB CACHE: 1024
+//! 
+//! NOTE(romanm): Mannualy updated 27-03-2025, added `transfer_fees` weight function.
 
 // Executed Command:
 // ./target/production/gear benchmark pallet --chain=vara-dev --steps=50 --repeat=20 --pallet=pallet_gear_eth_bridge --extrinsic=* --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear_eth_bridge.rs --template=.maintain/frame-weight-template.hbs
@@ -41,6 +43,7 @@ pub trait WeightInfo {
     fn pause() -> Weight;
     fn unpause() -> Weight;
     fn send_eth_message() -> Weight;
+    fn transfer_fees(c: u32, ) -> Weight;
 }
 
 /// Weights for pallet_gear_eth_bridge using the Gear node and recommended hardware.
@@ -73,6 +76,21 @@ impl<T: frame_system::Config> pallet_gear_eth_bridge::WeightInfo for SubstrateWe
             .saturating_add(T::DbWeight::get().reads(4_u64))
             .saturating_add(T::DbWeight::get().writes(3_u64))
     }
+    /// The range of component `c` is `[0, 1024]`.
+    fn transfer_fees(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `687 + c * (69 ±0)`
+        //  Estimated: `6196 + c * (2603 ±0)`
+        // Minimum execution time: 2_525_000 picoseconds.
+        Weight::from_parts(2_565_000, 6196)
+            // Standard Error: 52_821
+            .saturating_add(Weight::from_parts(63_025_875, 0).saturating_mul(c.into()))
+            .saturating_add(T::DbWeight::get().reads(3_u64))
+            .saturating_add(T::DbWeight::get().reads((2_u64).saturating_mul(c.into())))
+            .saturating_add(T::DbWeight::get().writes(2_u64))
+            .saturating_add(T::DbWeight::get().writes((2_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 2603).saturating_mul(c.into()))
+    }
 }
 
 // For backwards compatibility and tests
@@ -103,5 +121,20 @@ impl WeightInfo for () {
         Weight::from_parts(93_589_000, 67023)
             .saturating_add(RocksDbWeight::get().reads(4_u64))
             .saturating_add(RocksDbWeight::get().writes(3_u64))
+    }
+    /// The range of component `c` is `[0, 1024]`.
+    fn transfer_fees(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `687 + c * (69 ±0)`
+        //  Estimated: `6196 + c * (2603 ±0)`
+        // Minimum execution time: 2_525_000 picoseconds.
+        Weight::from_parts(2_565_000, 6196)
+            // Standard Error: 52_821
+            .saturating_add(Weight::from_parts(63_025_875, 0).saturating_mul(c.into()))
+            .saturating_add(RocksDbWeight::get().reads(3_u64))
+            .saturating_add(RocksDbWeight::get().reads((2_u64).saturating_mul(c.into())))
+            .saturating_add(RocksDbWeight::get().writes(2_u64))
+            .saturating_add(RocksDbWeight::get().writes((2_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 2603).saturating_mul(c.into()))
     }
 }
