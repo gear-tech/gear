@@ -14,6 +14,12 @@ pub struct Coordinator {
     multisigned_batch: MultisignedBatchCommitment,
     validators: BTreeSet<Address>,
     threshold: u64,
+    state: State,
+}
+
+enum State {
+    WaitingForValidationReplies,
+    Final,
 }
 
 impl Coordinator {
@@ -33,22 +39,37 @@ impl Coordinator {
             pub_key,
         )?;
 
-        Ok((
-            Self {
-                multisigned_batch,
-                validators: validators.into_iter().collect(),
-                threshold,
-            },
-            vec![ControlEvent::PublishValidationRequest(
-                signed_validation_request,
-            )],
-        ))
+        if threshold == 1 {
+            Ok((
+                Self {
+                    multisigned_batch,
+                    validators: validators.into_iter().collect(),
+                    threshold,
+                    state: State::Final,
+                },
+                vec![],
+            ))
+        } else {
+            Ok((
+                Self {
+                    multisigned_batch,
+                    validators: validators.into_iter().collect(),
+                    threshold,
+                    state: State::WaitingForValidationReplies,
+                },
+                vec![ControlEvent::PublishValidationRequest(
+                    signed_validation_request,
+                )],
+            ))
+        }
     }
 
     pub fn receive_validation_reply(
         &mut self,
         reply: BatchCommitmentValidationReply,
-    ) -> Result<bool, ControlError> {
+    ) -> Result<(), ControlError> {
+        // NOTE: receiving in the final state also allowed
+
         self.multisigned_batch
             .accept_batch_commitment_validation_reply(reply, |addr| {
                 self.validators
@@ -58,10 +79,22 @@ impl Coordinator {
             })
             .map_err(|e| ControlError::Warning(anyhow!("Validation rejected: {e}")))?;
 
-        Ok(self.multisigned_batch.signatures().len() as u64 >= self.threshold)
+        if self.multisigned_batch.signatures().len() as u64 >= self.threshold {
+            self.state = State::Final;
+        }
+
+        Ok(())
+    }
+
+    pub fn is_final(&self) -> bool {
+        matches!(self.state, State::Final)
     }
 
     pub fn into_multisigned_batch_commitment(self) -> MultisignedBatchCommitment {
+        if !self.is_final() {
+            unreachable!("Coordinator is not in the final state: wrong Coordinator usage");
+        }
+
         self.multisigned_batch
     }
 }

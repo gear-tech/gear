@@ -19,6 +19,7 @@
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
+use ethexe_common::ProducerBlock;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
@@ -78,10 +79,15 @@ pub struct Service {
 }
 
 // TODO #4176: consider to move this to another module
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, derive_more::From)]
 pub enum NetworkMessage {
+    #[from]
+    ProducerBlock(SignedData<ProducerBlock>),
+    #[from]
     RequestBatchValidation(SignedData<BatchCommitmentValidationRequest>),
+    #[from]
     ApproveBatch(BatchCommitmentValidationReply),
+    #[from]
     OffchainTransaction {
         transaction: SignedOffchainTransaction,
     },
@@ -364,8 +370,8 @@ impl Service {
                             block_data.header.parent_hash,
                         );
 
-                        control.as_mut().receive_new_chain_head(block_data);
-                        // control.receive_new_chain_head(block_data);
+                        // control.as_mut().receive_new_chain_head(block_data);
+                        control.receive_new_chain_head(block_data);
                     }
                     ObserverEvent::BlockSynced(data) => {
                         // NOTE: Observer guarantees that, if this event is emitted,
@@ -389,6 +395,7 @@ impl Service {
                 },
                 Event::Compute(event) => match event {
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
+                        log::warn!("KEK");
                         handle_control_result(control.receive_computed_block(block_hash))?;
                     }
                     ComputeEvent::CodeProcessed(_) => {
@@ -413,6 +420,11 @@ impl Service {
                             };
 
                             match message {
+                                NetworkMessage::ProducerBlock(block) => {
+                                    handle_control_result(
+                                        control.receive_block_from_producer(block),
+                                    )?;
+                                }
                                 NetworkMessage::RequestBatchValidation(request) => {
                                     handle_control_result(
                                         control.receive_validation_request(request),
@@ -514,21 +526,21 @@ impl Service {
                                 continue;
                             };
 
-                            n.publish_message(block.encode());
+                            n.publish_message(NetworkMessage::from(block).encode());
                         }
                         ControlEvent::PublishValidationRequest(request) => {
                             let Some(n) = network.as_mut() else {
                                 continue;
                             };
 
-                            n.publish_message(request.encode());
+                            n.publish_message(NetworkMessage::from(request).encode());
                         }
                         ControlEvent::PublishValidationReply(reply) => {
                             let Some(n) = network.as_mut() else {
                                 continue;
                             };
 
-                            n.publish_message(reply.encode());
+                            n.publish_message(NetworkMessage::from(reply).encode());
                         }
                         ControlEvent::CommitmentSubmitted(tx) => {
                             log::info!("Commitment submitted, tx: {tx}");

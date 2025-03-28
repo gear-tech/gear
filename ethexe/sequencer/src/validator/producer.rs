@@ -55,13 +55,13 @@ impl Producer {
 
         let signed_block = producer
             .signer
-            .create_signed_data(producer.pub_key, block)?;
+            .create_signed_data(producer.pub_key, block.clone())?;
 
         Ok((
             producer,
             vec![
-                ControlEvent::ComputeProducerBlock(signed_block.data().clone()),
                 ControlEvent::PublishProducerBlock(signed_block),
+                ControlEvent::ComputeProducerBlock(block),
             ],
         ))
     }
@@ -337,8 +337,7 @@ mod tests {
             Producer::new(pub_key, signer, db.clone(), validators, block.clone()).unwrap();
 
         let (block1_hash, block2_hash) = (H256::random(), H256::random());
-        let (block1, _) =
-            prepare_mock_block_commitment(&db, block1_hash, block1_hash, block2_hash);
+        let (block1, _) = prepare_mock_block_commitment(&db, block1_hash, block1_hash, block2_hash);
 
         // Simulate a block in the queue that is not computed
         db.set_block_commitment_queue(block.hash, [block1.hash, block2_hash].into_iter().collect());
@@ -501,8 +500,14 @@ mod tests {
         let validators = vec![Address([1; 20]), Address([2; 20])];
         let block = mock_simple_block_data();
 
-        let (mut producer, _) =
-            Producer::new(pub_key, signer, db.clone(), validators.clone(), block.clone()).unwrap();
+        let (mut producer, _) = Producer::new(
+            pub_key,
+            signer,
+            db.clone(),
+            validators.clone(),
+            block.clone(),
+        )
+        .unwrap();
 
         // Simulate the producer reaching the final state
         producer.state = ProducerState::Final;
@@ -522,8 +527,7 @@ mod tests {
         let validators = vec![Address([1; 20]), Address([2; 20])];
         let block = mock_simple_block_data();
 
-        let (producer, _) =
-            Producer::new(pub_key, signer, db.clone(), validators, block).unwrap();
+        let (producer, _) = Producer::new(pub_key, signer, db.clone(), validators, block).unwrap();
 
         // Attempt to call into_parts without reaching the final state
         let _ = producer.into_parts();

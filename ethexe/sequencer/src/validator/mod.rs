@@ -194,9 +194,13 @@ impl ControlService for ValidatorService {
     }
 
     fn receive_computed_block(&mut self, computed_block: H256) -> Result<(), ControlError> {
+        log::warn!("Received computed block: {computed_block}");
         match &mut self.state {
             State::Producer(producer) => {
+                log::warn!("Received computed block in producer mode");
                 let batch = producer.receive_computed_block(computed_block)?;
+
+                log::warn!("batch is {batch:?}");
 
                 let State::Producer(producer) = mem::take(&mut self.state) else {
                     unreachable!("state must be Producer");
@@ -213,9 +217,18 @@ impl ControlService for ValidatorService {
                         batch,
                         self.signer.clone(),
                     )?;
-
                     self.output.extend(events);
-                    self.state = State::Coordinator(coordinator);
+
+                    if !coordinator.is_final() {
+                        self.state = State::Coordinator(coordinator);
+                        return Ok(());
+                    }
+
+                    let batch = coordinator.into_multisigned_batch_commitment();
+
+                    self.state = State::Submitting(
+                        submit_batch_commitment(self.ethereum.router(), batch).boxed(),
+                    );
                 }
             }
             State::Verifier(verifier) => {
@@ -293,7 +306,9 @@ impl ControlService for ValidatorService {
     ) -> Result<(), ControlError> {
         match &mut self.state {
             State::Coordinator(coordinator) => {
-                if !coordinator.receive_validation_reply(reply)? {
+                coordinator.receive_validation_reply(reply)?;
+
+                if !coordinator.is_final() {
                     return Ok(());
                 }
 

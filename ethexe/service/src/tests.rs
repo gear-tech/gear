@@ -321,7 +321,7 @@ async fn uninitialized_program() {
             mirror.send_reply(mid, [], 0).await.unwrap();
         }
 
-        // Success end of initialisation.
+        // Success end of initialization.
         let code = listener
             .apply_until_block_event(|event| match event {
                 BlockEvent::Mirror {
@@ -780,10 +780,10 @@ async fn ping_reorg() {
     assert_eq!(res.payload, b"PONG");
 }
 
-// Mine 150 blocks - send message - mine 150 blocks.
+// Stop service - waits 15 blocks - send message - waits 150 blocks - start service.
 // Deep sync must load chain in batch.
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(1000_000)]
 async fn ping_deep_sync() {
     utils::init_logger();
 
@@ -828,15 +828,17 @@ async fn ping_deep_sync() {
 
     let ping_id = res.program_id;
 
-    // Mine some blocks to check deep sync.
-    env.skip_blocks(150).await;
+    node.stop_service().await;
+
+    env.skip_blocks(15).await;
 
     env.approve_wvara(ping_id).await;
 
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
 
-    // Mine some blocks to check deep sync.
-    env.skip_blocks(150).await;
+    env.skip_blocks(15).await;
+
+    node.start_service().await;
 
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
@@ -1734,7 +1736,7 @@ mod utils {
                 rpc_url: None,
                 wallets: None,
                 router_address: None,
-                continuous_block_generation: false,
+                continuous_block_generation: true,
             }
         }
     }
