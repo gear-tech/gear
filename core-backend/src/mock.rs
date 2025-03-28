@@ -410,7 +410,7 @@ mod with_std_feature {
             self.lock().size()
         }
 
-        fn write(&self, _ctx: &mut Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        fn write(&self, _ctx: &Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
             self.lock().write(offset, buffer)
         }
 

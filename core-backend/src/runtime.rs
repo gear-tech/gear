@@ -23,7 +23,9 @@ use crate::{
         ActorTerminationReason, BackendAllocSyscallError, RunFallibleError, TrapExplanation,
         UndefinedTerminationReason,
     },
-    memory::{BackendMemory, ExecutorMemory, MemoryAccessRegistry},
+    memory::{
+        BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessIo, MemoryAccessRegistry,
+    },
     state::{HostState, State},
     BackendExternalities,
 };
@@ -31,8 +33,12 @@ use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{AsContextExt, HostError};
 use gear_wasm_instrument::SyscallName;
 
+pub(crate) type MemoryAccessIoOption<Caller> =
+    Option<Result<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError>>;
+
 pub(crate) struct CallerWrap<'a, Caller> {
     pub caller: &'a mut Caller,
+    pub io: MemoryAccessIoOption<Caller>,
 }
 
 impl<'a, Caller, Ext, Mem> CallerWrap<'a, Caller>
@@ -41,7 +47,7 @@ where
     Mem: 'static,
 {
     pub fn new(caller: &'a mut Caller) -> Self {
-        Self { caller }
+        Self { caller, io: None }
     }
 
     #[track_caller]
@@ -70,6 +76,23 @@ where
 
     pub fn ext_mut(&mut self) -> &mut Ext {
         &mut self.state_mut().ext
+    }
+
+    pub fn set_io(
+        &mut self,
+        io: Result<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError>,
+    ) {
+        self.io = Some(io);
+    }
+
+    pub fn io_ref(
+        &self,
+    ) -> Result<&MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError> {
+        match &self.io {
+            Some(Ok(io)) => Ok(io),
+            Some(Err(err)) => Err(err.clone()),
+            None => Err(MemoryAccessError::ManagerError),
+        }
     }
 }
 
@@ -120,7 +143,7 @@ where
                 // TODO: move above or make normal process memory access.
                 let mut registry = MemoryAccessRegistry::default();
                 let write_res = registry.register_write_as::<R>(res_ptr);
-                let mut io = registry.pre_process(ctx)?;
+                let io = registry.pre_process(ctx)?;
                 io.write_as(ctx, write_res, R::from(res))
                     .map_err(Into::into)
             },
