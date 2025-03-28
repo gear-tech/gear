@@ -145,7 +145,7 @@ pub trait SandboxMemory<T>: Sized + Clone {
     /// Write a memory area at the address `ptr` with contents of the provided slice `buf`.
     ///
     /// Returns `Err` if the range is out-of-bounds.
-    fn write<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
+    fn write<Context>(&self, ctx: &Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
         Context: AsContextExt<State = T>;
 

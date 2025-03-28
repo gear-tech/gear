@@ -75,7 +75,7 @@ where
         })
     }
 
-    fn write(&self, ctx: &mut Caller, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+    fn write(&self, ctx: &Caller, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
         self.inner
             .write(ctx, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
@@ -285,7 +285,7 @@ where
 {
     pub(crate) fn read(
         &self,
-        ctx: &mut CallerWrap<Context>,
+        ctx: &CallerWrap<Context>,
         read: WasmMemoryRead,
     ) -> Result<Vec<u8>, MemoryAccessError> {
         let buff = if read.size == 0 {
@@ -300,7 +300,7 @@ where
 
     pub(crate) fn read_as<T: Sized>(
         &self,
-        ctx: &mut CallerWrap<Context>,
+        ctx: &CallerWrap<Context>,
         read: WasmMemoryReadAs<T>,
     ) -> Result<T, MemoryAccessError> {
         let mut buf = MaybeUninit::<T>::uninit();
@@ -327,7 +327,7 @@ where
 
     pub(crate) fn read_decoded<T: Decode + MaxEncodedLen>(
         &self,
-        ctx: &mut CallerWrap<Context>,
+        ctx: &CallerWrap<Context>,
         read: WasmMemoryReadDecoded<T>,
     ) -> Result<T, MemoryAccessError> {
         let size = T::max_encoded_len();
@@ -343,8 +343,8 @@ where
     }
 
     pub(crate) fn write(
-        &mut self,
-        ctx: &mut CallerWrap<Context>,
+        &self,
+        ctx: &CallerWrap<Context>,
         write: WasmMemoryWrite,
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
@@ -371,8 +371,8 @@ where
     }
 
     pub(crate) fn write_as<T: Sized>(
-        &mut self,
-        ctx: &mut CallerWrap<Context>,
+        &self,
+        ctx: &CallerWrap<Context>,
         write: WasmMemoryWriteAs<T>,
         obj: T,
     ) -> Result<(), MemoryAccessError> {
@@ -523,7 +523,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read(0, 0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read(&mut caller_wrap, read).unwrap();
+        io.read(&caller_wrap, read).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
@@ -537,7 +537,7 @@ mod tests {
         let read = registry.register_read_as::<ZeroSizeStruct>(0);
 
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_as(&mut caller_wrap, read).unwrap();
+        io.read_as(&caller_wrap, read).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
@@ -550,7 +550,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<ZeroSizeStruct>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_decoded(&mut caller_wrap, read).unwrap();
+        io.read_decoded(&caller_wrap, read).unwrap();
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
 
@@ -563,7 +563,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read(0, 10);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read(&mut caller_wrap, read).unwrap();
+        io.read(&caller_wrap, read).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 1);
     }
@@ -575,13 +575,13 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let buffer = &[5u8; 10];
-        memory.write(&mut (), 0, buffer).unwrap();
+        memory.write(&(), 0, buffer).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read(0, 10);
 
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        let vec = io.read(&mut caller_wrap, read).unwrap();
+        let vec = io.read(&caller_wrap, read).unwrap();
         assert_eq!(vec.as_slice(), &[5u8; 10]);
     }
 
@@ -598,12 +598,12 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let encoded = MockEncodeData { data: 1234 }.encode();
-        memory.write(&mut (), 0, &encoded).unwrap();
+        memory.write(&(), 0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        let data: u64 = io.read_decoded(&mut caller_wrap, read).unwrap();
+        let data: u64 = io.read_decoded(&caller_wrap, read).unwrap();
         assert_eq!(data, 1234u64);
     }
 
@@ -633,12 +633,12 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let encoded = alloc::vec![7u8; WasmPage::SIZE as usize];
-        memory.write(&mut (), 0, &encoded).unwrap();
+        memory.write(&(), 0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<InvalidDecode>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_decoded::<InvalidDecode>(&mut caller_wrap, read)
+        io.read_decoded::<InvalidDecode>(&caller_wrap, read)
             .unwrap_err();
     }
 
@@ -651,7 +651,7 @@ mod tests {
         let _read = registry.register_read_decoded::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.read_decoded::<u64>(
-            &mut caller_wrap,
+            &caller_wrap,
             WasmMemoryReadDecoded {
                 ptr: u32::MAX,
                 _phantom: PhantomData,
@@ -668,12 +668,12 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let encoded = 1234u64.to_le_bytes();
-        memory.write(&mut (), 0, &encoded).unwrap();
+        memory.write(&(), 0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_as::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        let decoded = io.read_as::<u64>(&mut caller_wrap, read).unwrap();
+        let decoded = io.read_as::<u64>(&caller_wrap, read).unwrap();
         assert_eq!(decoded, 1234);
     }
 
@@ -687,7 +687,7 @@ mod tests {
         let _read = registry.register_read_as::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.read_as::<u128>(
-            &mut caller_wrap,
+            &caller_wrap,
             WasmMemoryReadAs {
                 ptr: u32::MAX,
                 _phantom: PhantomData,
@@ -703,8 +703,8 @@ mod tests {
 
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write(0, 0);
-        let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write(&mut caller_wrap, write, &[]).unwrap();
+        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
+        io.write(&caller_wrap, write, &[]).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
     }
@@ -716,9 +716,8 @@ mod tests {
 
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write_as::<ZeroSizeStruct>(0);
-        let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write_as(&mut caller_wrap, write, ZeroSizeStruct)
-            .unwrap();
+        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
+        io.write_as(&caller_wrap, write, ZeroSizeStruct).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
     }
@@ -731,8 +730,8 @@ mod tests {
 
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write(0, 10);
-        let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write(&mut caller_wrap, write, &[]).unwrap();
+        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
+        io.write(&caller_wrap, write, &[]).unwrap();
     }
 
     #[test]
@@ -743,9 +742,9 @@ mod tests {
 
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write(0, 10);
-        let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
+        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         let buffer = [0u8; 10];
-        io.write(&mut caller_wrap, write, &buffer).unwrap();
+        io.write(&caller_wrap, write, &buffer).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 1);
     }
@@ -759,9 +758,9 @@ mod tests {
 
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write(0, 10);
-        let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
+        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         let buffer = [0u8; 20];
-        io.write(&mut caller_wrap, write, &buffer).unwrap();
+        io.write(&caller_wrap, write, &buffer).unwrap();
     }
 
     #[test]
@@ -772,8 +771,8 @@ mod tests {
 
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write_as::<u32>(0);
-        let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write_as(&mut caller_wrap, write, 0).unwrap();
+        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
+        io.write_as(&caller_wrap, write, 0).unwrap();
     }
 
     #[test]
@@ -784,9 +783,9 @@ mod tests {
 
         let mut registry = MemoryAccessRegistry::default();
         let _write = registry.register_write_as::<u8>(0);
-        let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
+        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.write_as(
-            &mut caller_wrap,
+            &caller_wrap,
             WasmMemoryWriteAs {
                 ptr: 0,
                 _phantom: PhantomData,
@@ -804,9 +803,9 @@ mod tests {
 
         let mut registry = MemoryAccessRegistry::default();
         let _write = registry.register_write_as::<u8>(0);
-        let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
+        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.write_as(
-            &mut caller_wrap,
+            &caller_wrap,
             WasmMemoryWriteAs {
                 ptr: WasmPage::SIZE,
                 _phantom: PhantomData,

@@ -208,7 +208,7 @@ pub trait Memory<Context> {
     fn size(&self, ctx: &Context) -> WasmPagesAmount;
 
     /// Set memory region at specific pointer.
-    fn write(&self, ctx: &mut Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError>;
+    fn write(&self, ctx: &Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError>;
 
     /// Reads memory contents at the given offset into a buffer.
     fn read(&self, ctx: &Context, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError>;
@@ -533,7 +533,7 @@ mod tests {
             self.0.get()
         }
 
-        fn write(&self, _ctx: &mut (), _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
+        fn write(&self, _ctx: &(), _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
             unimplemented!()
         }
 
