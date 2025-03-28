@@ -551,6 +551,18 @@ wasm-encoder = { version = "0.225", default-features = false, features = ["wasmp
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
 
+[workspace.metadata.cargo-machete]
+ignored = [
+    # used inside macros or provide macros
+    "frame-benchmarking",
+    "frame-system-benchmarking",
+    "parity-scale-codec",
+    "scale-info",
+    "pallet-authorship",
+    # unsupported name by `cargo-machete`
+    "sha-1"
+]
+
 [profile.dev.package.corosensei]
 opt-level = 3
 
