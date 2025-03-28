@@ -297,9 +297,6 @@ impl Service {
             sender,
         } = self;
 
-        // +_+_+ remove
-        // let mut control: Pin<&mut dyn ControlService> = control.as_mut();
-
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
 
@@ -326,7 +323,7 @@ impl Service {
         loop {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
-                event = control.select_next_some() => event.into(),
+                event = control.select_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
@@ -370,7 +367,6 @@ impl Service {
                             block_data.header.parent_hash,
                         );
 
-                        // control.as_mut().receive_new_chain_head(block_data);
                         control.receive_new_chain_head(block_data);
                     }
                     ObserverEvent::BlockSynced(data) => {
@@ -395,7 +391,6 @@ impl Service {
                 },
                 Event::Compute(event) => match event {
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
-                        log::warn!("KEK");
                         handle_control_result(control.receive_computed_block(block_hash))?;
                     }
                     ComputeEvent::CodeProcessed(_) => {
@@ -544,6 +539,9 @@ impl Service {
                         }
                         ControlEvent::CommitmentSubmitted(tx) => {
                             log::info!("Commitment submitted, tx: {tx}");
+                        }
+                        ControlEvent::Warning(msg) => {
+                            log::warn!("Control service warning: {msg}");
                         }
                     }
                 }

@@ -88,11 +88,11 @@ impl ControlService for SimpleConnectService {
 }
 
 impl Stream for SimpleConnectService {
-    type Item = ControlEvent;
+    type Item = anyhow::Result<ControlEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(event) = self.output.pop_front() {
-            Poll::Ready(Some(event))
+            Poll::Ready(Some(Ok(event)))
         } else {
             Poll::Pending
         }

@@ -95,6 +95,66 @@ impl ValidatorService {
         })
     }
 
+    fn poll_state(&mut self, cx: &mut Context<'_>) -> anyhow::Result<Vec<ControlEvent>> {
+        let mut events = Vec::new();
+        loop {
+            match &mut self.state {
+                State::Producer(producer) if producer.is_final() => {
+                    let State::Producer(producer) = mem::take(&mut self.state) else {
+                        unreachable!("state must be Producer");
+                    };
+
+                    let (validators, _, batch) = producer.into_parts();
+
+                    if let Some(batch) = batch {
+                        let (coordinator, new_events) = Coordinator::new(
+                            self.pub_key,
+                            validators,
+                            self.threshold,
+                            self.router_address,
+                            batch,
+                            self.signer.clone(),
+                        )?;
+
+                        self.state = State::Coordinator(coordinator);
+
+                        events.extend(new_events);
+                    }
+                }
+                State::Producer(producer) => {
+                    let new_events = match producer.poll_unpin(cx) {
+                        Poll::Ready(res) => res?,
+                        Poll::Pending => return Ok(events),
+                    };
+
+                    events.extend(new_events);
+                }
+                State::Coordinator(coordinator) if coordinator.is_final() => {
+                    let State::Coordinator(coordinator) = mem::take(&mut self.state) else {
+                        unreachable!("state must be Coordinator");
+                    };
+
+                    let batch = coordinator.into_multisigned_batch_commitment();
+
+                    self.state = State::Submitting(
+                        submit_batch_commitment(self.ethereum.router(), batch).boxed(),
+                    );
+                }
+                State::Coordinator(_coordinator) => {
+                    return Ok(events);
+                }
+                State::Submitting(future) => match future.poll_unpin(cx) {
+                    Poll::Ready(res) => {
+                        let event = res.map(ControlEvent::CommitmentSubmitted)?;
+                        events.push(event);
+                    }
+                    Poll::Pending => return Ok(events),
+                },
+                _ => return Ok(events),
+            }
+        }
+    }
+
     // TODO #4553: temporary implementation - next slot is the next validator in the list.
     const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
         (slot % validators_amount as u64) as usize
@@ -149,15 +209,14 @@ impl ControlService for ValidatorService {
         let producer = self.producer_for(block.header.timestamp, &data.validators);
 
         if self.pub_key.to_address() == producer {
-            let (producer, events) = Producer::new(
+            self.state = State::Producer(Producer::new(
                 self.pub_key,
                 self.signer.clone(),
                 self.db.clone(),
+                self.slot_duration,
                 data.validators,
                 block,
-            )?;
-            self.state = State::Producer(producer);
-            self.output.extend(events);
+            ));
         } else {
             let (verifier, events) = Verifier::new(block, producer, blocks, requests)?;
             self.output.extend(events);
@@ -194,42 +253,10 @@ impl ControlService for ValidatorService {
     }
 
     fn receive_computed_block(&mut self, computed_block: H256) -> Result<(), ControlError> {
-        log::warn!("Received computed block: {computed_block}");
         match &mut self.state {
             State::Producer(producer) => {
-                log::warn!("Received computed block in producer mode");
-                let batch = producer.receive_computed_block(computed_block)?;
-
-                log::warn!("batch is {batch:?}");
-
-                let State::Producer(producer) = mem::take(&mut self.state) else {
-                    unreachable!("state must be Producer");
-                };
-
-                if let Some(batch) = batch {
-                    let (validators, _block) = producer.into_parts();
-
-                    let (coordinator, events) = Coordinator::new(
-                        self.pub_key,
-                        validators,
-                        self.threshold,
-                        self.router_address,
-                        batch,
-                        self.signer.clone(),
-                    )?;
-                    self.output.extend(events);
-
-                    if !coordinator.is_final() {
-                        self.state = State::Coordinator(coordinator);
-                        return Ok(());
-                    }
-
-                    let batch = coordinator.into_multisigned_batch_commitment();
-
-                    self.state = State::Submitting(
-                        submit_batch_commitment(self.ethereum.router(), batch).boxed(),
-                    );
-                }
+                let events = producer.receive_computed_block(computed_block)?;
+                self.output.extend(events);
             }
             State::Verifier(verifier) => {
                 if verifier.receive_computed_block(computed_block)? {
@@ -345,26 +372,18 @@ impl ControlService for ValidatorService {
 
 impl Stream for ValidatorService {
     // TODO +_+_+: return result
-    type Item = ControlEvent;
+    type Item = anyhow::Result<ControlEvent>;
 
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let State::Submitting(future) = &mut self.state {
-            match future.poll_unpin(_cx) {
-                Poll::Ready(result) => match result {
-                    Ok(hash) => {
-                        self.output
-                            .push_back(ControlEvent::CommitmentSubmitted(hash));
-                    }
-                    Err(e) => {
-                        log::error!("Failed to submit batch commitment: {e}");
-                    }
-                },
-                Poll::Pending => return Poll::Pending,
-            }
-        }
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let events = match self.poll_state(cx) {
+            Ok(events) => events,
+            Err(err) => return Poll::Ready(Some(Err(err))),
+        };
+
+        self.output.extend(events);
 
         if let Some(event) = self.output.pop_front() {
-            Poll::Ready(Some(event))
+            Poll::Ready(Some(Ok(event)))
         } else {
             Poll::Pending
         }
