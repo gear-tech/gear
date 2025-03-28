@@ -221,7 +221,7 @@ impl Future for Producer {
                 timer.poll_unpin(cx).map(|_| self.create_producer_block())
             }
             ProducerState::WaitingBlockComputed(_) => Poll::Pending,
-            ProducerState::Final(_) => Poll::Ready(Ok(vec![])),
+            ProducerState::Final(_) => unreachable!("Producer is in the final state"),
         }
     }
 }

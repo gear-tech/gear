@@ -120,6 +120,10 @@ impl MultisignedBatchCommitment {
         &self.signatures
     }
 
+    pub fn batch(&self) -> &BatchCommitment {
+        &self.batch
+    }
+
     pub fn into_parts(self) -> (BatchCommitment, BTreeMap<Address, ContractSignature>) {
         (self.batch, self.signatures)
     }

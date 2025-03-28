@@ -107,7 +107,7 @@ impl ValidatorService {
                     let (validators, _, batch) = producer.into_parts();
 
                     if let Some(batch) = batch {
-                        let (coordinator, new_events) = Coordinator::new(
+                        let coordinator = Coordinator::new(
                             self.pub_key,
                             validators,
                             self.threshold,
@@ -117,8 +117,6 @@ impl ValidatorService {
                         )?;
 
                         self.state = State::Coordinator(coordinator);
-
-                        events.extend(new_events);
                     }
                 }
                 State::Producer(producer) => {
@@ -140,8 +138,13 @@ impl ValidatorService {
                         submit_batch_commitment(self.ethereum.router(), batch).boxed(),
                     );
                 }
-                State::Coordinator(_coordinator) => {
-                    return Ok(events);
+                State::Coordinator(coordinator) => {
+                    let new_events = match coordinator.poll_unpin(cx) {
+                        Poll::Ready(res) => res?,
+                        Poll::Pending => return Ok(events),
+                    };
+
+                    events.extend(new_events);
                 }
                 State::Submitting(future) => match future.poll_unpin(cx) {
                     Poll::Ready(res) => {
@@ -334,20 +337,6 @@ impl ControlService for ValidatorService {
         match &mut self.state {
             State::Coordinator(coordinator) => {
                 coordinator.receive_validation_reply(reply)?;
-
-                if !coordinator.is_final() {
-                    return Ok(());
-                }
-
-                let State::Coordinator(coordinator) = mem::take(&mut self.state) else {
-                    unreachable!("state must be Coordinator");
-                };
-
-                let batch = coordinator.into_multisigned_batch_commitment();
-
-                self.state = State::Submitting(
-                    submit_batch_commitment(self.ethereum.router(), batch).boxed(),
-                );
             }
             State::Verifier(_) | State::Submitting(_) => Err(ControlError::EventSkipped)?,
             State::Participant(_) => Err(ControlError::Warning(anyhow!(
