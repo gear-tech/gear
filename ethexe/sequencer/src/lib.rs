@@ -57,7 +57,10 @@ pub enum ControlEvent {
 #[cfg(test)]
 mod test_utils {
     use crate::BatchCommitmentValidationRequest;
-    use ethexe_common::{ProducerBlock, SimpleBlockData};
+    use ethexe_common::{
+        gear::{CodeCommitment, Message, StateTransition},
+        ProducerBlock, SimpleBlockData,
+    };
     use ethexe_db::BlockHeader;
     use ethexe_signer::{PrivateKey, PublicKey, SignedData, Signer};
     use gprimitives::H256;
@@ -116,5 +119,30 @@ mod test_utils {
             .create_signed_data(public_key, request.clone())
             .unwrap();
         (request, signed)
+    }
+
+    pub fn mock_code_commitment() -> CodeCommitment {
+        CodeCommitment {
+            id: H256::random().into(),
+            timestamp: 123,
+            valid: true,
+        }
+    }
+
+    pub fn mock_state_transition() -> StateTransition {
+        StateTransition {
+            actor_id: H256::random().into(),
+            new_state_hash: H256::random().into(),
+            inheritor: H256::random().into(),
+            value_to_receive: 123,
+            value_claims: vec![],
+            messages: vec![Message {
+                id: H256::random().into(),
+                destination: H256::random().into(),
+                payload: b"Hello, World!".to_vec(),
+                value: 0,
+                reply_details: None,
+            }],
+        }
     }
 }

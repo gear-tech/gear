@@ -166,7 +166,7 @@ impl Participant {
             ));
         }
 
-        // TODO +_+_+: rename max_distance and make it configurable
+        // TODO: #4579 rename max_distance and make it configurable
         if !Self::verify_is_predecessor(db, allowed_predecessor_block, block_hash, None)? {
             return Err(anyhow!(
                 "{block_hash} is not a predecessor of {allowed_predecessor_block}"
