@@ -116,12 +116,13 @@ pallet-gear-eth-bridge-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
 gbuiltin-proxy.workspace = true
 
+
 [dev-dependencies]
+gear-core.workspace = true
 sp-io.workspace = true
 sp-keyring.workspace = true
 env_logger.workspace = true
 wat.workspace = true
-gear-core.workspace = true
 gear-wasm-instrument.workspace = true
 
 [build-dependencies]

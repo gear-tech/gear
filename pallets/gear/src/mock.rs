@@ -105,14 +105,11 @@ parameter_types! {
 parameter_types! {
     // Match the default `max_block` set in frame_system::limits::BlockWeights::with_sensible_defaults()
     pub const BlockGasLimit: u64 = MAX_BLOCK;
-    pub const OutgoingLimit: u32 = 1024;
-    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
     pub ReserveThreshold: BlockNumber = 1;
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const PerformanceMultiplier: u32 = 100;
 }
 
 thread_local! {

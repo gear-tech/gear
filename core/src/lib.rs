@@ -29,6 +29,7 @@ extern crate alloc;
 
 pub mod buffer;
 pub mod code;
+pub mod constants;
 pub mod costs;
 pub mod env;
 pub mod env_vars;

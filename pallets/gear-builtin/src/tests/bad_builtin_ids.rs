@@ -73,15 +73,12 @@ common::impl_pallet_staking!(Test);
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
-    pub const OutgoingLimit: u32 = 1024;
-    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
     pub ReserveThreshold: BlockNumber = 1;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 12_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
 }
