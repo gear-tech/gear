@@ -11638,6 +11638,8 @@ pub mod storage {
         ClearTimer,
         MessageNonce,
         QueueChanged,
+        BridgeAdmin,
+        BridgePauser,
     }
     impl StorageInfo for GearEthBridgeStorage {
         const PALLET: &'static str = "GearEthBridge";
@@ -11652,6 +11654,8 @@ pub mod storage {
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
+                Self::BridgeAdmin => "BridgeAdmin",
+                Self::BridgePauser => "BridgePauser",
             }
         }
     }

@@ -27,6 +27,9 @@ use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use pallet_staking::WeightInfo as _;
 use sp_runtime::AccountId32;
 
+#[cfg(feature = "dev")]
+use sp_runtime::traits::AccountIdConversion;
+
 mod utils;
 
 use utils::*;
@@ -75,6 +78,28 @@ fn bridge_session_timer_is_correct() {
     assert_eq!(
         <Runtime as pallet_staking::Config>::SessionsPerEra::get(),
         6
+    );
+}
+
+#[cfg(feature = "dev")]
+#[test]
+fn bridge_accounts_check() {
+    // # SAFETY: Do not change bridge pallet id without check of
+    // correct integration with already running network.
+    //
+    // Change of the pallet id will require migrating `pallet-gear-eth-bridge`'s
+    // `BridgeAdminAccountId` and `BridgePauserAccountId`.
+    let original_pallet_id = PalletId(*b"py/gethb");
+    let admin_account: AccountId = original_pallet_id.into_sub_account_truncating("bridge_admin");
+    let pauser_account: AccountId = original_pallet_id.into_sub_account_truncating("bridge_pauser");
+
+    assert_eq!(
+        pallet_gear_eth_bridge::Pallet::<Runtime>::bridge_admin_account_id(),
+        admin_account,
+    );
+    assert_eq!(
+        pallet_gear_eth_bridge::Pallet::<Runtime>::bridge_pauser_account_id(),
+        pauser_account,
     );
 }
 
