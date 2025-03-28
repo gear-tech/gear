@@ -840,6 +840,8 @@ async fn ping_deep_sync() {
 
     node.start_service().await;
 
+    env.force_new_block().await;
+
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.payload, b"PONG");
@@ -854,6 +856,7 @@ async fn multiple_validators() {
 
     let config = TestEnvConfig {
         validators: ValidatorsConfig::PreDefined(3),
+        continuous_block_generation: true,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
@@ -1736,7 +1739,7 @@ mod utils {
                 rpc_url: None,
                 wallets: None,
                 router_address: None,
-                continuous_block_generation: true,
+                continuous_block_generation: false,
             }
         }
     }
