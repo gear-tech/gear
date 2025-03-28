@@ -17,7 +17,6 @@ derive_more.workspace = true
 enum-iterator.workspace = true
 wasmparser.workspace = true
 wasm-encoder.workspace = true
-indexmap.workspace = true
 log.workspace = true
 
 [dev-dependencies]
@@ -30,4 +29,4 @@ diff = "0.1.13"
 
 [features]
 default = ["std"]
-std = ["wasmparser/std", "wasm-encoder/std", "indexmap/std"]
+std = ["wasmparser/std", "wasm-encoder/std"]
