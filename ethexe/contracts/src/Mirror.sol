@@ -314,7 +314,12 @@ contract Mirror is IMirror {
                 value := calldataload(0x04)
             }
 
-            sendMessage(msg.data, uint128(value));
+            bytes32 messageId = sendMessage(msg.data, uint128(value));
+
+            assembly ("memory-safe") {
+                mstore(0x00, messageId)
+                return(0x00, 0x20)
+            }
         } else {
             revert();
         }
