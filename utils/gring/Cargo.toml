@@ -32,7 +32,7 @@ clap = { workspace = true, features = ["derive"], optional = true }
 colored = { workspace = true, optional = true }
 dirs = { workspace = true, optional = true }
 hex = { workspace = true, features = ["std"], optional = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"], optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 
 [features]
 default = ["cli"]
