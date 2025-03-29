@@ -17,6 +17,7 @@ import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {IMirror, Mirror} from "../src/Mirror.sol";
 import {IRouter, Router} from "../src/Router.sol";
+import {IMiddleware} from "../src/IMiddleware.sol";
 import {Middleware} from "../src/Middleware.sol";
 import {Gear} from "../src/libraries/Gear.sol";
 
@@ -67,7 +68,7 @@ contract Base is POCBaseTest {
         SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
         super.setUp();
 
-        Middleware.Config memory cfg = Middleware.Config({
+        Middleware.InitParams memory cfg = IMiddleware.InitParams({
             eraDuration: eraDuration,
             minVaultEpochDuration: eraDuration * 2,
             operatorGracePeriod: eraDuration * 2,
@@ -89,8 +90,7 @@ contract Base is POCBaseTest {
 
             // TODO: add real addresses for testing associated functions
             operatorRewards: address(0),
-            operatorRewardsFactory: address(0),
-            router: address(router)
+            operatorRewardsFactory: address(0)
         });
 
         middleware = new Middleware(cfg);
@@ -176,7 +176,7 @@ contract Base is POCBaseTest {
             middleware.registerVault(_vault);
             operatorVaultOptInService.optIn(_vault);
             IOperatorSpecificDelegator(IVault(_vault).delegator()).setNetworkLimit(
-                middleware.subnetwork(), type(uint256).max
+                middleware.SUBNETWORK(), type(uint256).max
             );
         }
         vm.stopPrank();

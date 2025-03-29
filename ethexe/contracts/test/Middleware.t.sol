@@ -18,6 +18,7 @@ import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.s
 import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
 
 import {Middleware} from "../src/Middleware.sol";
+import {IMiddleware} from "../src/IMiddleware.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 import {Base} from "./Base.t.sol";
@@ -59,7 +60,7 @@ contract MiddlewareTest is Base {
 
         vm.warp(vm.getBlockTimestamp() + 1000);
 
-        vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
+        vm.expectRevert(abi.encodeWithSelector(IMiddleware.IncorrectTimestamp.selector));
         middleware.makeElectionAt(uint48(vm.getBlockTimestamp()), 10);
 
         vm.expectRevert();
@@ -132,12 +133,12 @@ contract MiddlewareTest is Base {
         // Try to register another operator without registering it in symbiotic
         vm.startPrank(address(0x2));
         {
-            vm.expectRevert(abi.encodeWithSelector(Middleware.OperatorDoesNotExist.selector));
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorDoesNotExist.selector));
             middleware.registerOperator();
 
             // Try to register operator without opting in network
             sym.operatorRegistry().registerOperator();
-            vm.expectRevert(abi.encodeWithSelector(Middleware.OperatorDoesNotOptIn.selector));
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorDoesNotOptIn.selector));
             middleware.registerOperator();
 
             // Now must be possible to register operator
@@ -158,7 +159,7 @@ contract MiddlewareTest is Base {
             middleware.disableOperator();
 
             // Try to unregister operator - failed because operator is not disabled for enough time
-            vm.expectRevert(abi.encodeWithSelector(Middleware.OperatorGracePeriodNotPassed.selector));
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorGracePeriodNotPassed.selector));
             middleware.unregisterOperator(address(0x2));
         }
         vm.stopPrank();
@@ -166,7 +167,7 @@ contract MiddlewareTest is Base {
         // Wait for grace period and unregister operator from other address
         vm.startPrank(address(0x3));
         {
-            vm.warp(vm.getBlockTimestamp() + middleware.operatorGracePeriod());
+            vm.warp(vm.getBlockTimestamp() + middleware.OPERATOR_GRACE_PERIOD());
             middleware.unregisterOperator(address(0x2));
         }
         vm.stopPrank();
@@ -191,17 +192,17 @@ contract MiddlewareTest is Base {
         middleware.registerVault(vault);
 
         // Try to register unknown vault
-        vm.expectRevert(abi.encodeWithSelector(Middleware.NotKnownVault.selector));
+        vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotKnownVault.selector));
         middleware.registerVault(address(0xdead));
 
         // Try to register vault with wrong epoch duration
         address vault2 = newVault(eraDuration, _operator);
-        vm.expectRevert(abi.encodeWithSelector(Middleware.VaultWrongEpochDuration.selector));
+        vm.expectRevert(abi.encodeWithSelector(IMiddleware.VaultWrongEpochDuration.selector));
         middleware.registerVault(vault2);
 
         // Try to register vault with unknown collateral
         address vault3 = address(sym.vault1());
-        vm.expectRevert(abi.encodeWithSelector(Middleware.UnknownCollateral.selector));
+        vm.expectRevert(abi.encodeWithSelector(IMiddleware.UnknownCollateral.selector));
         middleware.registerVault(vault3);
 
         // Try to enable vault once more
@@ -216,17 +217,17 @@ contract MiddlewareTest is Base {
         vm.startPrank(address(0xdead));
         {
             // Try to enable vault not from vault owner
-            vm.expectRevert(abi.encodeWithSelector(Middleware.NotVaultOwner.selector));
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
             middleware.enableVault(vault);
 
             // Try to disable vault not from vault owner
-            vm.expectRevert(abi.encodeWithSelector(Middleware.NotVaultOwner.selector));
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
             middleware.disableVault(vault);
         }
         vm.stopPrank();
 
         // Try to unregister vault - failed because vault is not disabled for enough time
-        vm.expectRevert(abi.encodeWithSelector(Middleware.VaultGracePeriodNotPassed.selector));
+        vm.expectRevert(abi.encodeWithSelector(IMiddleware.VaultGracePeriodNotPassed.selector));
         middleware.unregisterVault(vault);
 
         // Wait for grace period and unregister vault
@@ -335,7 +336,7 @@ contract MiddlewareTest is Base {
         // Try to get stake for too old timestamp
         uint48 ts = uint48(vm.getBlockTimestamp());
         vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
-        vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
+        vm.expectRevert(abi.encodeWithSelector(IMiddleware.IncorrectTimestamp.selector));
         middleware.getOperatorStakeAt(operator1, ts);
     }
 
@@ -343,7 +344,7 @@ contract MiddlewareTest is Base {
         (address operator1,,,,,) = prepareTwoOperators();
 
         // Try to get stake for current timestamp
-        vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
+        vm.expectRevert(abi.encodeWithSelector(IMiddleware.IncorrectTimestamp.selector));
         middleware.getOperatorStakeAt(operator1, uint48(vm.getBlockTimestamp()));
     }
 
@@ -351,7 +352,7 @@ contract MiddlewareTest is Base {
         (address operator1,,,,,) = prepareTwoOperators();
 
         // Try to get stake for future timestamp
-        vm.expectRevert(abi.encodeWithSelector(Middleware.IncorrectTimestamp.selector));
+        vm.expectRevert(abi.encodeWithSelector(IMiddleware.IncorrectTimestamp.selector));
         middleware.getOperatorStakeAt(operator1, uint48(vm.getBlockTimestamp() + 1));
     }
 
@@ -387,7 +388,7 @@ contract MiddlewareTest is Base {
         // Try to request slash from unknown operator
         vm.warp(vm.getBlockTimestamp() + 1);
         requestSlash(
-            address(0xdead), uint48(vm.getBlockTimestamp() - 1), vault1, 100, Middleware.NotRegisteredOperator.selector
+            address(0xdead), uint48(vm.getBlockTimestamp() - 1), vault1, 100, IMiddleware.NotRegisteredOperator.selector
         );
     }
 
@@ -396,7 +397,7 @@ contract MiddlewareTest is Base {
 
         // Try to request slash from unknown vault
         requestSlash(
-            operator1, uint48(vm.getBlockTimestamp() - 1), address(0xdead), 100, Middleware.NotRegisteredVault.selector
+            operator1, uint48(vm.getBlockTimestamp() - 1), address(0xdead), 100, IMiddleware.NotRegisteredVault.selector
         );
     }
 
@@ -424,11 +425,11 @@ contract MiddlewareTest is Base {
 
         // Try request slashes for one operator, but 2 vaults
         Middleware.VaultSlashData[] memory vaults = new Middleware.VaultSlashData[](2);
-        vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
-        vaults[1] = Middleware.VaultSlashData({vault: vault2, amount: 20});
+        vaults[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 10});
+        vaults[1] = IMiddleware.VaultSlashData({vault: vault2, amount: 20});
 
         Middleware.SlashData[] memory slashes = new Middleware.SlashData[](1);
-        slashes[0] = Middleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
+        slashes[0] = IMiddleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
 
         requestSlash(slashes, IVetoSlasher.InsufficientSlash.selector);
 
@@ -439,8 +440,8 @@ contract MiddlewareTest is Base {
         vm.warp(vm.getBlockTimestamp() + 1);
 
         // Request slashes with correct vaults
-        vaults[1] = Middleware.VaultSlashData({vault: vault3, amount: 30});
-        slashes[0] = Middleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
+        vaults[1] = IMiddleware.VaultSlashData({vault: vault3, amount: 30});
+        slashes[0] = IMiddleware.SlashData({operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: vaults});
         requestSlash(slashes, 0);
     }
 
@@ -449,18 +450,18 @@ contract MiddlewareTest is Base {
 
         // Request slashes for 2 operators with corresponding vaults
         Middleware.VaultSlashData[] memory operator1_vaults = new Middleware.VaultSlashData[](1);
-        operator1_vaults[0] = Middleware.VaultSlashData({vault: vault1, amount: 10});
+        operator1_vaults[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 10});
 
         Middleware.VaultSlashData[] memory operator2_vaults = new Middleware.VaultSlashData[](1);
-        operator2_vaults[0] = Middleware.VaultSlashData({vault: vault2, amount: 20});
+        operator2_vaults[0] = IMiddleware.VaultSlashData({vault: vault2, amount: 20});
 
         Middleware.SlashData[] memory slashes = new Middleware.SlashData[](2);
-        slashes[0] = Middleware.SlashData({
+        slashes[0] = IMiddleware.SlashData({
             operator: operator1,
             ts: uint48(vm.getBlockTimestamp() - 1),
             vaults: operator1_vaults
         });
-        slashes[1] = Middleware.SlashData({
+        slashes[1] = IMiddleware.SlashData({
             operator: operator2,
             ts: uint48(vm.getBlockTimestamp() - 1),
             vaults: operator2_vaults
@@ -504,7 +505,7 @@ contract MiddlewareTest is Base {
         uint256 slashIndex = requestSlash(operator1, uint48(vm.getBlockTimestamp() - 1), vault1, 100, 0);
 
         // Try to execute slash for unknown vault
-        vm.expectRevert(Middleware.NotRegisteredVault.selector);
+        vm.expectRevert(IMiddleware.NotRegisteredVault.selector);
         executeSlash(address(0xdead), slashIndex);
     }
 
@@ -531,7 +532,7 @@ contract MiddlewareTest is Base {
 
     function executeSlash(address vault, uint256 index) private {
         Middleware.SlashIdentifier[] memory slashes = new Middleware.SlashIdentifier[](1);
-        slashes[0] = Middleware.SlashIdentifier({vault: vault, index: index});
+        slashes[0] = IMiddleware.SlashIdentifier({vault: vault, index: index});
 
         vm.startPrank(admin);
         {
@@ -545,16 +546,16 @@ contract MiddlewareTest is Base {
         returns (uint256 slashIndex)
     {
         Middleware.VaultSlashData[] memory vaults = new Middleware.VaultSlashData[](1);
-        vaults[0] = Middleware.VaultSlashData({vault: vault, amount: amount});
+        vaults[0] = IMiddleware.VaultSlashData({vault: vault, amount: amount});
 
         Middleware.SlashData[] memory slashes = new Middleware.SlashData[](1);
-        slashes[0] = Middleware.SlashData({operator: operator, ts: ts, vaults: vaults});
+        slashes[0] = IMiddleware.SlashData({operator: operator, ts: ts, vaults: vaults});
 
         slashIndex = requestSlash(slashes, err)[0];
         assertNotEq(slashIndex, type(uint256).max);
     }
 
-    function requestSlash(Middleware.SlashData[] memory slashes, bytes4 err)
+    function requestSlash(IMiddleware.SlashData[] memory slashes, bytes4 err)
         private
         returns (uint256[] memory slashIndexes)
     {

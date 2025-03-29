@@ -452,6 +452,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return keccak256(transitionsHashes);
     }
 
+    function _commitRewards(Storage storage router, Gear.RewardsCommitment calldata _rewardsCommitment) private {
+        // TODO:
+    }
+
     function _resetValidators(
         Gear.Validators storage _validators,
         Gear.AggregatedPublicKey memory _newAggregatedPublicKey,

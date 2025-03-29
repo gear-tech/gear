@@ -72,4 +72,9 @@ library MapWithTimeData {
     {
         (,, data) = toInner(self.get(addr));
     }
+
+    function isEnable(EnumerableMap.AddressToUintMap storage self, address addr) internal view returns (bool) {
+        (uint48 enabledTime, uint48 disabledTime,) = toInner(self.get(addr));
+        return enabledTime != 0 && disabledTime == 0;
+    }
 }
