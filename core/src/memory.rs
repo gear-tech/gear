@@ -548,7 +548,7 @@ mod tests {
 
     #[test]
     fn page_buf() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt::try_init();
 
         let mut data = PageBufInner::filled_with(199u8);
         data.inner_mut()[1] = 2;
@@ -599,7 +599,7 @@ mod tests {
 
     #[test]
     fn alloc() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt::try_init();
 
         let mut ctx = AllocationsContext::try_new(
             256.into(),
@@ -952,7 +952,7 @@ mod tests {
                 mem_params in combined_memory_params(),
                 actions in actions(),
             ) {
-                let _ = env_logger::try_init();
+                let _ = tracing_subscriber::fmt::try_init();
 
                 let MemoryParams{max_pages, mem_size, static_pages, allocations} = mem_params;
                 let mut ctx = AllocationsContext::try_new(mem_size, allocations, static_pages, None, max_pages).unwrap();

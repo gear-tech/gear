@@ -20,13 +20,13 @@
 
 use clap::Parser;
 use color_eyre::{eyre::eyre, Result};
-use env_logger::{Builder, Env};
 use gclient::{
     ext::sp_core::{self, crypto::Ss58Codec, sr25519::Pair, Pair as _},
     GearApi,
 };
 use gring::Keyring;
 use gsdk::Api;
+use tracing_subscriber::EnvFilter;
 
 /// Command line gear program application abstraction.
 ///
@@ -148,12 +148,15 @@ pub trait App: Parser + Sync {
             _ => "trace".into(),
         };
 
-        let mut builder = Builder::from_env(Env::default().default_filter_or(filter));
-        builder
-            .format_target(false)
-            .format_module_path(false)
-            .format_timestamp(None);
-        builder.try_init()?;
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                EnvFilter::builder()
+                    .with_default_directive(filter.parse()?)
+                    .from_env_lossy(),
+            )
+            .without_time()
+            .try_init()
+            .map_err(|e| eyre!("{e}"))?;
 
         self.exec()
             .await

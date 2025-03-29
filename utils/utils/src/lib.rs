@@ -76,10 +76,7 @@ pub fn now_duration() -> Duration {
 /// Does not show
 /// - module path
 pub fn init_default_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 /// Stores one memory page dump as the hex string.

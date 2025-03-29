@@ -20,6 +20,7 @@ use anyhow::{ensure, Context};
 use gear_core::code::{Code, TryNewCodeConfig};
 use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
 use std::{env, fs};
+use tracing_subscriber::EnvFilter;
 use wasmer::{
     Exports, Extern, Function, FunctionEnv, Imports, Instance, Memory, MemoryType, Module,
     RuntimeError, Singlepass, Store,
@@ -27,7 +28,13 @@ use wasmer::{
 use wasmer_types::{FunctionType, TrapCode, Type};
 
 fn main() -> anyhow::Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive("info".parse()?)
+                .from_env_lossy(),
+        )
+        .init();
 
     let schedule = vara_runtime::Schedule::get();
     let inf_recursion = fs::read_to_string("examples/wat/spec/inf_recursion.wat")

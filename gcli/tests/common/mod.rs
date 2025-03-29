@@ -24,6 +24,7 @@ use std::{
     iter::IntoIterator,
     process::{Command, Output},
 };
+use tracing_subscriber::EnvFilter;
 
 mod app;
 mod args;
@@ -64,7 +65,10 @@ pub fn dev() -> Result<NodeInstance> {
 /// Init env logger
 #[allow(dead_code)]
 pub fn init_logger() {
-    let _ = env_logger::builder().is_test(true).try_init();
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_test_writer()
+        .try_init();
 }
 
 /// Login as //Alice

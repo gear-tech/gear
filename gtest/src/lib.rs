@@ -241,10 +241,10 @@
 //! let prog = sys.get_program(105).unwrap();
 //! ```
 //!
-//! ## Initialization of styled `env_logger`
+//! ## Initialization of styled `tracing-subscriber`
 //!
-//! Initialization of styled `env_logger` to print logs (only from `gwasm` by
-//! default) into stdout:
+//! Initialization of styled `tracing-subscriber` to
+//! print logs (only from gwasm` by default) into stdout:
 //!
 //! ```no_run
 //! # let sys = gtest::System::new();

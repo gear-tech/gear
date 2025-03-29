@@ -27,10 +27,7 @@ pub fn default_account<T: Origin>() -> T {
 
 #[cfg(feature = "std")]
 pub fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 /// Gets next message id, but doesn't remain changed the state of the nonces

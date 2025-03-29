@@ -46,10 +46,7 @@ const ACTOR_ID: [u8; 32] =
     hex_literal::hex!("6b6e292c382945e80bf51af2ba7fe9f458dcff81ae6075c46f9095e1bbecdc37");
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 fn get_gas_info(builtin_id: ProgramId, payload: Vec<u8>) -> GasInfo {
