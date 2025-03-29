@@ -20,7 +20,6 @@ gear-wasm-instrument.workspace = true
 gear-lazy-pages-common.workspace = true
 gsys.workspace = true
 log.workspace = true
-tracing.workspace = true
 derive_more.workspace = true
 actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }

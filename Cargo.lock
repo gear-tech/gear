@@ -6170,7 +6170,6 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
- "tracing",
  "tracing-subscriber",
 ]
 
