@@ -9,7 +9,6 @@ repository.workspace = true
 
 [dependencies]
 gstd.workspace = true
-parity-scale-codec.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
@@ -19,5 +18,5 @@ gtest.workspace = true
 
 [features]
 debug = ["gstd/debug"]
-std = ["parity-scale-codec/std"]
+std = []
 default = ["std"]

@@ -14,5 +14,4 @@ rust-version.workspace = true
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages.workspace = true
-gear-wasm-instrument.workspace = true
 log.workspace = true

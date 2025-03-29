@@ -9,12 +9,11 @@ repository.workspace = true
 
 [dependencies]
 gstd.workspace = true
-gcore.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
 
 [features]
-debug = ["gstd/debug", "gcore/debug"]
+debug = ["gstd/debug"]
 default = ["std"]
 std = []
