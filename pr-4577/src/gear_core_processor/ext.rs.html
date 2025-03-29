@@ -3498,7 +3498,7 @@
         <span class="kw">let </span>program_id = <a class="self" href="#1137">self</a>.program_id()<span class="question-mark">?</span>;
         <span class="kw">let </span>message_id = <a class="self" href="#1137">self</a>.message_id()<span class="question-mark">?</span>;
 
-        <span class="macro">tracing::debug!</span>(target: <span class="string">"gwasm"</span>, <span class="question-mark">?</span>program_id, <span class="question-mark">?</span>message_id, <span class="string">"{data}"</span>);
+        <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(target: <span class="string">"gwasm"</span>, <span class="string">"[handle({message_id:.2?})] {program_id:.2?}: {data}"</span>);
 
         <span class="prelude-val">Ok</span>(())
     }
