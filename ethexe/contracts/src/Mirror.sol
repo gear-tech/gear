@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {ICallbacks} from "./ICallbacks.sol";
 import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
@@ -251,7 +252,28 @@ contract Mirror is IMirror {
     function _sendReplyMessage(Gear.Message calldata _message) private {
         _transferValue(_message.destination, _message.value);
 
-        emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
+        if (_message.destination.code.length > 0) {
+            bytes4 replyCode = _message.replyDetails.code;
+            uint8 replyCodeDiscriminant = uint8(bytes1(replyCode));
+
+            bytes memory payload;
+
+            if (replyCodeDiscriminant == 0) {
+                /* gear_core::message::ReplyCode::Success = 0 */
+                payload = _message.payload;
+            } else {
+                /* gear_core::message::ReplyCode::{Error = 1, Unsupported = 255} */
+                payload = abi.encodeWithSelector(ICallbacks.errorReply.selector, _message.id, replyCode);
+            }
+
+            (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
+
+            if (success) {
+                return;
+            }
+        } else {
+            emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
+        }
     }
 
     function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32) {
