@@ -14,11 +14,7 @@ jsonrpsee = { workspace = true, features = ["server", "macros"] }
 sp-api.workspace = true
 sp-blockchain.workspace = true
 sp-core.workspace = true
-sp-rpc.workspace = true
 sp-runtime.workspace = true
-
-# Local packages
-gear-core = { workspace = true, features = ["std"] }
 gear-core-errors = { workspace = true, features = ["codec"] }
 gear-common.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true

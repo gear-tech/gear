@@ -1627,7 +1627,7 @@ mod utils {
             let router_query = router.query();
             let router_address = router.address();
 
-            let blob_reader = Arc::new(MockBlobReader::new(block_time));
+            let blob_reader = Arc::new(MockBlobReader::new());
 
             let db = Database::from_one(&MemDb::default());
 
