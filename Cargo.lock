@@ -4582,12 +4582,15 @@ dependencies = [
 name = "ethexe-common"
 version = "1.7.1"
 dependencies = [
+ "futures",
  "gear-core",
  "gprimitives",
  "hex",
+ "log",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -4598,6 +4601,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
+ "ethexe-runtime",
  "futures",
  "gprimitives",
  "tokio",
@@ -4646,7 +4650,9 @@ version = "1.7.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "derive_more 0.99.18",
  "env_logger",
+ "ethexe-common",
  "ethexe-db",
  "ethexe-signer",
  "futures",
@@ -4809,6 +4815,7 @@ dependencies = [
  "anyhow",
  "demo-async",
  "demo-async-init",
+ "demo-mul-by-const",
  "demo-ping",
  "derive_more 0.99.18",
  "env_logger",
@@ -4821,6 +4828,7 @@ dependencies = [
  "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
+ "ethexe-runtime",
  "ethexe-runtime-common",
  "ethexe-sequencer",
  "ethexe-service-utils",
@@ -4847,8 +4855,6 @@ name = "ethexe-service-utils"
 version = "1.7.1"
 dependencies = [
  "futures",
- "log",
- "tokio",
 ]
 
 [[package]]
