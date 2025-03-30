@@ -15,7 +15,6 @@ ethexe-db.workspace = true
 ethexe-common.workspace = true
 
 gprimitives = { workspace = true, features = ["codec"] }
-gear-core.workspace = true
 
 tokio = { workspace = true, features = ["macros", "sync"] }
 anyhow.workspace = true
