@@ -949,6 +949,40 @@ mod tests {
     }
 
     #[test]
+    fn test_program_ids() {
+        let db = Database::memory();
+
+        let program_id_1 = ProgramId::from(H256::random());
+        let program_id_2 = ProgramId::from(H256::random());
+        let program_id_3 = ProgramId::from(H256::random());
+
+        let code_id_1 = CodeId::from(H256::random());
+        let code_id_2 = CodeId::from(H256::random());
+        let code_id_3 = CodeId::from(H256::random());
+
+        // Add some program IDs
+        db.set_program_code_id(program_id_1, code_id_1);
+        db.set_program_code_id(program_id_2, code_id_2);
+        db.set_program_code_id(program_id_3, code_id_3);
+
+        // Retrieve all program IDs
+        let retrieved_ids = db.program_ids();
+
+        // Check if the retrieved set contains all added IDs and has the correct size
+        let mut expected_ids = BTreeSet::new();
+        expected_ids.insert(program_id_1);
+        expected_ids.insert(program_id_2);
+        expected_ids.insert(program_id_3);
+
+        assert_eq!(retrieved_ids.len(), 3);
+        assert_eq!(retrieved_ids, expected_ids);
+
+        // Test with an empty database
+        let empty_db = Database::memory();
+        assert!(empty_db.program_ids().is_empty());
+    }
+
+    #[test]
     fn test_instrumented_code() {
         let db = Database::memory();
 
