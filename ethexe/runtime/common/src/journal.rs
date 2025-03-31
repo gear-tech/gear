@@ -1,6 +1,7 @@
 use crate::{
     state::{
-        ActiveProgram, Dispatch, Program, ProgramState, Storage, ValueWithExpiry, MAILBOX_VALIDITY,
+        ActiveProgram, Dispatch, Expiring, MailboxMessage, Program, ProgramState, Storage,
+        MAILBOX_VALIDITY,
     },
     TransitionController,
 };
@@ -95,13 +96,21 @@ impl<S: Storage> Handler<'_, S> {
                         ),
                     );
 
+                    // TODO (breathx): remove allocation
+                    let payload = storage
+                        .write_payload_raw(dispatch.payload_bytes().to_vec())
+                        .expect("failed to write payload");
+
+                    let message = MailboxMessage::new(payload, dispatch.value(), dispatch_origin);
+
                     state.mailbox_hash.modify_mailbox(storage, |mailbox| {
-                        mailbox.add(
+                        mailbox.add_and_store_user_mailbox(
+                            storage,
                             dispatch.destination(),
                             dispatch.id(),
-                            dispatch.value(),
+                            message,
                             expiry,
-                        );
+                        )
                     });
 
                     transitions.modify_transition(dispatch.source(), |transition| {
@@ -249,7 +258,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, transitions| {
-                let Some(ValueWithExpiry {
+                let Some(Expiring {
                     value: dispatch,
                     expiry,
                 }) = state

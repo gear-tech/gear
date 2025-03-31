@@ -20,18 +20,17 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage},
-    events::{BlockEvent, BlockRequestEvent, RouterRequestEvent},
-    gear::{BlockCommitment, CodeCommitment, StateTransition},
-    BlockData,
+    db::{BlockMetaStorage, OnChainStorage},
+    events::{BlockEvent, RouterEvent},
+    gear::CodeCommitment,
+    SimpleBlockData,
 };
-use ethexe_db::{CodeInfo, Database};
-use ethexe_observer::Query;
+use ethexe_db::Database;
 use ethexe_processor::{LocalOutcome, Processor};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
 use std::{
-    collections::VecDeque,
+    collections::{BTreeSet, VecDeque},
     pin::Pin,
     task::{Context, Poll},
 };
@@ -39,9 +38,7 @@ use tokio::task::JoinSet;
 
 #[derive(Debug, Clone)]
 pub struct BlockProcessed {
-    pub chain_head: H256,
-    // TODO (gsobol): remove commitments, this must be handled by validator if needed
-    pub commitments: Vec<BlockCommitment>,
+    pub block_hash: H256,
 }
 
 #[derive(Debug, Clone)]
@@ -50,14 +47,12 @@ pub enum ComputeEvent {
     CodeProcessed(CodeCommitment),
 }
 
-// TODO (gsobol): add state monitoring in prometheus
-// TODO (gsobol): append off-chain transactions handling
-// TODO (gsobol) asap: add tests for compute service
+// TODO #4548: add state monitoring in prometheus
+// TODO #4549: add tests for compute service
 pub struct ComputeService {
     db: Database,
     processor: Processor,
-    query: Query,
-    blocks_queue: VecDeque<BlockData>,
+    blocks_queue: VecDeque<H256>,
     process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
     process_codes: JoinSet<Result<CodeCommitment>>,
 }
@@ -71,7 +66,6 @@ impl Stream for ComputeService {
                 ChainHeadProcessContext {
                     db: self.db.clone(),
                     processor: self.processor.clone(),
-                    query: self.query.clone(),
                 }
                 .process(block)
                 .boxed()
@@ -98,12 +92,11 @@ impl FusedStream for ComputeService {
 }
 
 impl ComputeService {
-    // TODO (gsobol): consider to create Processor inside ComputeService
-    pub fn new(db: Database, processor: Processor, query: Query) -> Self {
+    // TODO #4550: consider to create Processor inside ComputeService
+    pub fn new(db: Database, processor: Processor) -> Self {
         Self {
             db,
             processor,
-            query,
             blocks_queue: VecDeque::new(),
             process_block: Default::default(),
             process_codes: Default::default(),
@@ -111,11 +104,6 @@ impl ComputeService {
     }
 
     pub fn receive_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
-        log::info!(
-            "🔢 receive a code blob, code_id {code_id}, code size {}",
-            code.len()
-        );
-
         let mut processor = self.processor.clone();
         self.process_codes.spawn_blocking(move || {
             let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
@@ -127,19 +115,11 @@ impl ComputeService {
         });
     }
 
-    pub fn receive_chain_head(&mut self, block: BlockData) {
-        log::info!(
-            "📦 receive a chain head, height {}, hash {}, parent hash {}",
-            block.header.height,
-            block.hash,
-            block.header.parent_hash
-        );
-
+    pub fn receive_synced_head(&mut self, block: H256) {
         if self.process_block.is_none() {
             let context = ChainHeadProcessContext {
                 db: self.db.clone(),
                 processor: self.processor.clone(),
-                query: self.query.clone(),
             };
 
             self.process_block = Some(Box::pin(context.process(block)));
@@ -152,71 +132,64 @@ impl ComputeService {
 struct ChainHeadProcessContext {
     db: Database,
     processor: Processor,
-    query: Query,
 }
 
 impl ChainHeadProcessContext {
-    // TODO: remove this function.
-    // This is a temporary solution to download absent codes from already processed blocks.
-    async fn process_uploaded_codes_for_block(&mut self, block_hash: H256) -> Result<()> {
-        let events = self.query.get_block_request_events(block_hash).await?;
+    async fn process(mut self, head: H256) -> Result<BlockProcessed> {
+        let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
-        for event in events {
-            match event {
-                BlockRequestEvent::Router(RouterRequestEvent::CodeValidationRequested {
-                    code_id,
-                    timestamp,
-                    tx_hash,
-                }) => {
-                    self.db
-                        .set_code_info(code_id, CodeInfo { timestamp, tx_hash });
+        // Bypass the chain in reverse order (from the oldest to the newest) and compute each block.
+        for block_data in chain.into_iter().rev() {
+            self.process_one_block(block_data).await?;
+        }
+
+        Ok(BlockProcessed { block_hash: head })
+    }
+
+    async fn process_one_block(&mut self, block_data: SimpleBlockData) -> Result<()> {
+        let SimpleBlockData {
+            hash: block,
+            header,
+        } = block_data;
+
+        let events = OnChainStorage::block_events(&self.db, block)
+            .ok_or_else(|| anyhow!("events not found for synced block {block}"))?;
+
+        for event in &events {
+            if let BlockEvent::Router(RouterEvent::CodeGotValidated {
+                code_id,
+                valid: true,
+            }) = event
+            {
+                use ethexe_common::db::CodesStorage;
+                if self.db.instrumented_code(0, *code_id).is_none() {
+                    let code = CodesStorage::original_code(&self.db, *code_id)
+                        .ok_or_else(|| anyhow!("code not found for validated code {code_id}"))?;
+                    self.processor.process_upload_code(*code_id, &code)?;
                 }
-                BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
-                    code_id, ..
-                }) => {
-                    if self.db.original_code(code_id).is_some() {
-                        continue;
-                    }
-
-                    log::debug!("📥 downloading absent code: {code_id}");
-
-                    let CodeInfo { timestamp, tx_hash } = self
-                        .db
-                        .code_info(code_id)
-                        .ok_or_else(|| anyhow!("Code info not found for code {code_id}"))?;
-
-                    let code = self
-                        .query
-                        .download_code(code_id, timestamp, tx_hash)
-                        .await?;
-
-                    self.processor
-                        .process_upload_code(code_id, code.as_slice())?;
-                }
-                _ => continue,
             }
         }
 
-        Ok(())
-    }
+        let parent = header.parent_hash;
 
-    async fn process_one_block(&mut self, block_hash: H256) -> Result<Vec<StateTransition>> {
-        if let Some(transitions) = self.db.block_outcome(block_hash) {
-            return Ok(transitions);
+        if !self.db.block_computed(parent) {
+            unreachable!("Parent block {parent} must be computed before the current one {block}",);
         }
 
-        self.query.propagate_meta_for_block(block_hash).await?;
+        let mut commitments_queue =
+            Self::propagate_data_from_parent(&self.db, block, parent, events.iter())?;
 
-        self.process_uploaded_codes_for_block(block_hash).await?;
-
-        let block_request_events = self.query.get_block_request_events(block_hash).await?;
+        let block_request_events = events
+            .into_iter()
+            .filter_map(|event| event.to_request())
+            .collect();
 
         let block_outcomes = self
             .processor
-            .process_block_events(block_hash, block_request_events)
+            .process_block_events(block, block_request_events)
             .await?;
 
-        let transition_outcomes: Vec<_> = block_outcomes
+        let outcomes: Vec<_> = block_outcomes
             .into_iter()
             .map(|outcome| {
                 if let LocalOutcome::Transition(transition) = outcome {
@@ -227,72 +200,158 @@ impl ChainHeadProcessContext {
             })
             .collect();
 
-        self.db
-            .set_block_is_empty(block_hash, transition_outcomes.is_empty());
-        if !transition_outcomes.is_empty() {
-            // Not empty blocks must be committed,
-            // so append it to the `wait for commitment` queue.
-            let mut queue = self
-                .db
-                .block_commitment_queue(block_hash)
-                .ok_or_else(|| anyhow!("Commitment queue is not found for block"))?;
-            queue.push_back(block_hash);
-            self.db.set_block_commitment_queue(block_hash, queue);
+        if !outcomes.is_empty() {
+            commitments_queue.push_back(block);
         }
+        self.db.set_block_commitment_queue(block, commitments_queue);
 
-        self.db
-            .set_block_outcome(block_hash, transition_outcomes.clone());
+        self.db.set_block_outcome(block, outcomes);
+
+        // TODO #4551: move set_program_states here from processor
 
         // Set block as valid - means state db has all states for the end of the block
-        self.db.set_block_end_state_is_valid(block_hash, true);
+        self.db.set_block_computed(block);
 
-        let header = self.db.block_header(block_hash).expect("must be set; qed");
-        self.db.set_latest_valid_block(block_hash, header);
+        self.db.set_latest_computed_block(block, header);
 
-        Ok(transition_outcomes)
+        Ok(())
     }
 
-    async fn process(mut self, head: BlockData) -> Result<BlockProcessed> {
-        self.db.set_block_events(
-            head.hash,
-            head.events
-                .into_iter()
-                .flat_map(BlockEvent::to_request)
-                .collect(),
-        );
-        self.db.set_block_header(head.hash, head.header);
-
-        let last_committed_chain = self.query.get_last_committed_chain(head.hash).await?;
-
-        let mut commitments = vec![];
-        for block_hash in last_committed_chain.into_iter().rev() {
-            let transitions = self.process_one_block(block_hash).await?;
-
-            if transitions.is_empty() {
-                // Skip empty blocks
-                continue;
-            }
-
-            let header = self
-                .db
-                .block_header(block_hash)
-                .ok_or_else(|| anyhow!("header not found, but must exist"))?;
-
-            commitments.push(BlockCommitment {
-                hash: block_hash,
-                timestamp: header.timestamp,
-                previous_committed_block: self
-                    .db
-                    .previous_committed_block(block_hash)
-                    .ok_or_else(|| anyhow!("Prev commitment not found"))?,
-                predecessor_block: head.hash,
-                transitions,
-            });
+    fn propagate_data_from_parent<'a>(
+        db: &Database,
+        block: H256,
+        parent: H256,
+        events: impl Iterator<Item = &'a BlockEvent>,
+    ) -> Result<VecDeque<H256>> {
+        // Propagate prev commitment (prev not empty block hash or zero for genesis).
+        if db
+            .block_outcome_is_empty(parent)
+            .ok_or_else(|| anyhow!("emptiness not found for computed block {parent}"))?
+        {
+            let parent_prev_commitment = db
+                .previous_not_empty_block(parent)
+                .ok_or_else(|| anyhow!("prev commitment not found for computed block {parent}"))?;
+            db.set_previous_not_empty_block(block, parent_prev_commitment);
+        } else {
+            db.set_previous_not_empty_block(block, parent);
         }
 
-        Ok(BlockProcessed {
-            chain_head: head.hash,
-            commitments,
-        })
+        let mut committed_blocks_in_current = BTreeSet::new();
+        let mut validated_codes_in_current = BTreeSet::new();
+        let mut requested_codes_in_current = Vec::new();
+
+        for event in events {
+            match event {
+                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
+                    committed_blocks_in_current.insert(*hash);
+                }
+                BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
+                    validated_codes_in_current.insert(*code_id);
+                }
+                BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
+                    requested_codes_in_current.push(*code_id);
+                }
+                _ => {}
+            }
+        }
+
+        // Propagate `wait for commitment` blocks queue
+        let mut blocks_queue = db
+            .block_commitment_queue(parent)
+            .ok_or_else(|| anyhow!("commitment queue not found for computed block {parent}"))?;
+        blocks_queue.retain(|hash| !committed_blocks_in_current.contains(hash));
+
+        // Propagate `wait for code validation` blocks queue
+        let mut codes_queue = db
+            .block_codes_queue(parent)
+            .ok_or_else(|| anyhow!("codes queue not found for computed block {parent}"))?;
+        codes_queue.retain(|code_id| !validated_codes_in_current.contains(code_id));
+        codes_queue.extend(requested_codes_in_current);
+        db.set_block_codes_queue(block, codes_queue);
+
+        Ok(blocks_queue)
+    }
+
+    /// Collect a chain of blocks from the head to the last not computed block.
+    fn collect_not_computed_blocks_chain(
+        db: &Database,
+        head: H256,
+    ) -> Result<Vec<SimpleBlockData>> {
+        let mut block = head;
+        let mut chain = vec![];
+        while !db.block_computed(block) {
+            if !db.block_is_synced(block) {
+                return Err(anyhow!("Block {block} is not synced, but must be"));
+            }
+
+            let header = OnChainStorage::block_header(db, block)
+                .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
+
+            let parent = header.parent_hash;
+
+            chain.push(SimpleBlockData {
+                hash: block,
+                header,
+            });
+
+            block = parent;
+        }
+
+        Ok(chain)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_codes_queue_propagation() {
+        let db = Database::memory();
+
+        // Prepare test data
+        let parent_block = H256::random();
+        let current_block = H256::random();
+        let code_id_1 = H256::random().into();
+        let code_id_2 = H256::random().into();
+
+        // Simulate parent block with a codes queue
+        let mut parent_codes_queue = VecDeque::new();
+        parent_codes_queue.push_back(code_id_1);
+        db.set_block_codes_queue(parent_block, parent_codes_queue.clone());
+        db.set_block_outcome(parent_block, Default::default());
+        db.set_previous_not_empty_block(parent_block, H256::random());
+        db.set_block_commitment_queue(parent_block, Default::default());
+
+        // Simulate events for the current block
+        let events = vec![
+            BlockEvent::Router(RouterEvent::CodeGotValidated {
+                code_id: code_id_1,
+                valid: true,
+            }),
+            BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                code_id: code_id_2,
+                timestamp: 0,
+                tx_hash: H256::random(),
+            }),
+        ];
+        db.set_block_events(current_block, &events);
+
+        // Propagate data from parent
+        ChainHeadProcessContext::propagate_data_from_parent(
+            &db,
+            current_block,
+            parent_block,
+            db.block_events(current_block).unwrap().iter(),
+        )
+        .unwrap();
+
+        // Check for parent
+        let codes_queue = db.block_codes_queue(parent_block).unwrap();
+        assert_eq!(codes_queue, parent_codes_queue);
+
+        // Check for current block
+        let codes_queue = db.block_codes_queue(current_block).unwrap();
+        assert_eq!(codes_queue, VecDeque::from(vec![code_id_2]));
     }
 }

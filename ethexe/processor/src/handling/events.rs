@@ -23,7 +23,7 @@ use ethexe_common::{
     gear::{Origin, ValueClaim},
 };
 use ethexe_db::{CodesStorage, ScheduledTask};
-use ethexe_runtime_common::state::{Dispatch, PayloadLookup, ValueWithExpiry};
+use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
 use gear_core::{ids::ProgramId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
@@ -105,12 +105,16 @@ impl ProcessingHandler {
                 value,
             } => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
-                    let Some(ValueWithExpiry {
-                        value: claimed_value,
+                    let Some(Expiring {
+                        value:
+                            MailboxMessage {
+                                value: claimed_value,
+                                ..
+                            },
                         expiry,
-                    }) = state
-                        .mailbox_hash
-                        .modify_mailbox(storage, |mailbox| mailbox.remove(source, replied_to))
+                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                        mailbox.remove_and_store_user_mailbox(storage, source, replied_to)
+                    })
                     else {
                         return Ok(());
                     };
@@ -146,17 +150,25 @@ impl ProcessingHandler {
             }
             MirrorRequestEvent::ValueClaimingRequested { claimed_id, source } => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
-                    let Some(ValueWithExpiry { value, expiry }) = state
-                        .mailbox_hash
-                        .modify_mailbox(storage, |mailbox| mailbox.remove(source, claimed_id))
+                    let Some(Expiring {
+                        value:
+                            MailboxMessage {
+                                value: claimed_value,
+                                ..
+                            },
+                        expiry,
+                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                        mailbox.remove_and_store_user_mailbox(storage, source, claimed_id)
+                    })
                     else {
                         return Ok(());
                     };
+
                     transitions.modify_transition(actor_id, |transition| {
                         transition.claims.push(ValueClaim {
                             message_id: claimed_id,
                             destination: source,
-                            value,
+                            value: claimed_value,
                         });
                     });
 

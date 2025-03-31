@@ -766,8 +766,6 @@ mod util {
         pub const PerformanceMultiplier: u32 = 100;
         pub const BankAddress: AccountId = 15082001;
         pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
-        pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
-        pub SplitTxFeeRatio: Option<u32> = None;
     }
 
     pub struct TestSessionHandler;

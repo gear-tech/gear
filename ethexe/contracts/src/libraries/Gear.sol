@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
@@ -36,7 +36,6 @@ library Gear {
 
     struct AddressBook {
         address mirror;
-        address mirrorProxy;
         address wrappedVara;
     }
 

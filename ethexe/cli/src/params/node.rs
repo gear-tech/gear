@@ -77,10 +77,10 @@ pub struct NodeParams {
 
 impl NodeParams {
     /// Default max allowed height diff from head for sync directly from Ethereum.
-    pub const DEFAULT_MAX_DEPTH: NonZero<u32> = unsafe { NonZero::new_unchecked(100_000) };
+    pub const DEFAULT_MAX_DEPTH: NonZero<u32> = NonZero::new(100_000).unwrap();
 
     /// Default amount of virtual threads to use for programs processing.
-    pub const DEFAULT_VIRTUAL_THREADS: NonZero<u8> = unsafe { NonZero::new_unchecked(16) };
+    pub const DEFAULT_VIRTUAL_THREADS: NonZero<u8> = NonZero::new(16).unwrap();
 
     /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
@@ -98,7 +98,7 @@ impl NodeParams {
                 .with_context(|| "invalid `validator` key")?,
             validator_session: ConfigPublicKey::new(&self.validator_session)
                 .with_context(|| "invalid `validator-session` key")?,
-            max_commitment_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
+            eth_max_sync_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
             virtual_threads: self
                 .virtual_threads
                 .unwrap_or(Self::DEFAULT_VIRTUAL_THREADS)

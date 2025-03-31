@@ -18,23 +18,32 @@
 
 use crate::*;
 use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent};
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, ScheduledTask};
-use ethexe_runtime_common::state::ValueWithExpiry;
+use ethexe_db::{
+    BlockHeader, BlockMetaStorage, CodesStorage, MemDb, OnChainStorage, ScheduledTask,
+};
+use ethexe_runtime_common::state::Expiring;
 use gear_core::ids::{prelude::CodeIdExt, ProgramId};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use std::collections::{BTreeMap, BTreeSet};
 use utils::*;
 
+fn init_genesis_block(processor: &mut Processor) -> H256 {
+    let block_hash = init_new_block(processor, Default::default());
+
+    processor
+        .db
+        .set_block_program_states(block_hash, Default::default());
+    processor
+        .db
+        .set_block_schedule(block_hash, Default::default());
+
+    block_hash
+}
+
 fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
     let chain_head = H256::random();
     processor.db.set_block_header(chain_head, meta);
-    processor
-        .db
-        .set_block_start_program_states(chain_head, Default::default());
-    processor
-        .db
-        .set_block_start_schedule(chain_head, Default::default());
     processor.creator.set_chain_head(chain_head);
     chain_head
 }
@@ -44,44 +53,15 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
     let parent_block_header = processor.db.block_header(parent_hash).unwrap_or_default();
     let height = parent_block_header.height + 1;
     let timestamp = parent_block_header.timestamp + 12;
-    let chain_head = init_new_block(
+
+    init_new_block(
         processor,
         BlockHeader {
             height,
             timestamp,
             parent_hash,
         },
-    );
-
-    let parent_out_program_hashes = processor
-        .db
-        .block_end_program_states(parent_hash)
-        .unwrap_or_else(|| {
-            if parent_hash.is_zero() {
-                Default::default()
-            } else {
-                panic!("process block events before new block; start states not found")
-            }
-        });
-    processor
-        .db
-        .set_block_start_program_states(chain_head, parent_out_program_hashes);
-
-    let parent_out_schedule = processor
-        .db
-        .block_end_schedule(parent_hash)
-        .unwrap_or_else(|| {
-            if parent_hash.is_zero() {
-                Default::default()
-            } else {
-                panic!("process block events before new block; start schedule not found")
-            }
-        });
-    processor
-        .db
-        .set_block_start_schedule(chain_head, parent_out_schedule);
-
-    chain_head
+    )
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -89,10 +69,11 @@ async fn process_observer_event() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
-        .expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
-    let ch0 = init_new_block_from_parent(&mut processor, Default::default());
+    let parent = init_genesis_block(&mut processor);
+    let ch0 = init_new_block_from_parent(&mut processor, parent);
 
     let code = demo_ping::WASM_BINARY.to_vec();
     let code_id = CodeId::generate(&code);
@@ -165,10 +146,10 @@ fn handle_new_code_valid() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
-        .expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
-    init_new_block(&mut processor, Default::default());
+    init_genesis_block(&mut processor);
 
     let (code_id, original_code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
     let original_code_len = original_code.len();
@@ -180,7 +161,7 @@ fn handle_new_code_valid() {
         .is_none());
 
     let calculated_id = processor
-        .handle_new_code(original_code.clone())
+        .handle_new_code(&original_code)
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
@@ -209,10 +190,10 @@ fn handle_new_code_invalid() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default()))
-        .expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::from_one(&db)).expect("failed to create processor");
 
-    init_new_block(&mut processor, Default::default());
+    init_genesis_block(&mut processor);
 
     let (code_id, original_code) = utils::wat_to_wasm(utils::INVALID_PROGRAM);
 
@@ -223,7 +204,7 @@ fn handle_new_code_invalid() {
         .is_none());
 
     assert!(processor
-        .handle_new_code(original_code.clone())
+        .handle_new_code(&original_code)
         .expect("failed to call runtime api")
         .is_none());
 
@@ -239,9 +220,10 @@ async fn ping_pong() {
     init_logger();
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
-    let ch0 = init_new_block(&mut processor, Default::default());
+    let parent = init_genesis_block(&mut processor);
+    let ch0 = init_new_block_from_parent(&mut processor, parent);
 
     let user_id = ActorId::from(10);
     let actor_id = ProgramId::from(0x10000);
@@ -317,9 +299,10 @@ async fn async_and_ping() {
     let user_id = ActorId::from(10);
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
-    let ch0 = init_new_block(&mut processor, Default::default());
+    let parent = init_genesis_block(&mut processor);
+    let ch0 = init_new_block_from_parent(&mut processor, parent);
 
     let ping_id = ProgramId::from(0x10000000);
     let async_id = ProgramId::from(0x20000000);
@@ -454,16 +437,10 @@ async fn many_waits() {
     let (_, code) = wat_to_wasm(wat);
 
     let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db, Default::default())).unwrap();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
 
-    let ch0 = init_new_block(
-        &mut processor,
-        BlockHeader {
-            height: 1,
-            timestamp: 1,
-            parent_hash: Default::default(),
-        },
-    );
+    let parent = init_genesis_block(&mut processor);
+    let ch0 = init_new_block_from_parent(&mut processor, parent);
 
     let code_id = processor
         .handle_new_code(code)
@@ -536,35 +513,36 @@ async fn many_waits() {
     );
 
     let (_outcomes, states, schedule) = handler.transitions.finalize();
-    processor.db.set_block_end_program_states(ch0, states);
-    processor.db.set_block_end_schedule(ch0, schedule);
+    processor.db.set_block_program_states(ch0, states);
+    processor.db.set_block_schedule(ch0, schedule);
 
-    let mut parent = ch0;
+    let mut block = ch0;
     for _ in 0..9 {
-        parent = init_new_block_from_parent(&mut processor, parent);
-        let states = processor.db.block_start_program_states(parent).unwrap();
-        processor.db.set_block_end_program_states(parent, states);
-        let schedule = processor.db.block_start_schedule(parent).unwrap();
-        processor.db.set_block_end_schedule(parent, schedule);
+        let parent = block;
+        block = init_new_block_from_parent(&mut processor, parent);
+        let states = processor.db.block_program_states(parent).unwrap();
+        processor.db.set_block_program_states(block, states);
+        let schedule = processor.db.block_schedule(parent).unwrap();
+        processor.db.set_block_schedule(block, schedule);
     }
 
-    let ch11 = init_new_block_from_parent(&mut processor, parent);
+    let ch11 = init_new_block_from_parent(&mut processor, block);
 
-    let states = processor.db.block_start_program_states(ch11).unwrap();
-    let schedule = processor.db.block_start_schedule(ch11).unwrap();
+    let states = processor.db.block_program_states(block).unwrap();
+    let schedule = processor.db.block_schedule(block).unwrap();
 
     // Reproducibility test.
     {
         let mut expected_schedule = BTreeMap::<_, BTreeSet<_>>::new();
 
-        for (pid, state) in &states {
-            let state = processor.db.read_state(state.hash).unwrap();
-            let waitlist_hash = state.waitlist_hash.with_hash(|h| h).unwrap();
+        for (pid, state_hash) in &states {
+            let state = processor.db.read_state(state_hash.hash).unwrap();
+            let waitlist_hash = state.waitlist_hash.to_inner().unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
 
             for (
                 mid,
-                ValueWithExpiry {
+                Expiring {
                     value: dispatch,
                     expiry,
                 },

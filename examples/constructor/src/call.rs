@@ -152,7 +152,7 @@ mod wasm {
                 panic!("Call <{self:?}> couldn't be called after no-output call <{call:?}>")
             });
 
-            let value = extra_encode.then(|| value.encode()).unwrap_or(value);
+            let value = if extra_encode { value.encode() } else { value };
 
             debug!(
                 "\t[CONSTRUCTOR] >> Storing {key:?}: {:?}",
