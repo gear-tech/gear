@@ -425,6 +425,11 @@ impl Service {
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
                         if let Some(s) = sequencer.as_mut() {
                             s.on_new_head(block_hash)?
+                        } else {
+                            // HACK: Force validators to wait for some time, ensuring that the sequencer processes the block first.
+                            // This fixes a deadlock in tests.
+                            #[cfg(test)]
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         }
 
                         if let Some(v) = validator.as_mut() {
