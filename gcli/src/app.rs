@@ -26,6 +26,7 @@ use gclient::{
 };
 use gring::Keyring;
 use gsdk::Api;
+use std::env;
 use tracing_subscriber::EnvFilter;
 
 /// Command line gear program application abstraction.
@@ -141,19 +142,19 @@ pub trait App: Parser + Sync {
         sp_core::crypto::set_default_ss58_version(runtime_primitives::VARA_SS58_PREFIX.into());
 
         let name = Self::command().get_name().to_string();
-        let filter = match self.verbose() {
-            0 => format!("{name}=info,gsdk=info"),
-            1 => format!("{name}=debug,gsdk=debug"),
-            2 => "debug".into(),
-            _ => "trace".into(),
+        let filter = if env::var(EnvFilter::DEFAULT_ENV).is_ok() {
+            EnvFilter::builder().from_env_lossy()
+        } else {
+            match self.verbose() {
+                0 => format!("{name}=info,gsdk=info").into(),
+                1 => format!("{name}=debug,gsdk=debug").into(),
+                2 => "debug".into(),
+                _ => "trace".into(),
+            }
         };
 
         tracing_subscriber::fmt()
-            .with_env_filter(
-                EnvFilter::builder()
-                    .with_default_directive(filter.parse()?)
-                    .from_env_lossy(),
-            )
+            .with_env_filter(filter)
             .without_time()
             .try_init()
             .map_err(|e| eyre!("{e}"))?;

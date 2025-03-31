@@ -18,6 +18,7 @@
 
 //! Common utils for integration tests
 pub use self::{args::Args, node::NodeExec, result::Result};
+use anyhow::Context;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::{
@@ -59,6 +60,7 @@ pub fn dev() -> Result<NodeInstance> {
     login_as_alice()?;
     Node::from_path(env::node_bin())?
         .spawn()
+        .context("failed to spawn node")
         .map_err(Into::into)
 }
 
