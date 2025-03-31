@@ -18,7 +18,6 @@ workspace = true
 [dependencies]
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
-derive_more.workspace = true
 enum-iterator.workspace = true
 
 # Internal deps

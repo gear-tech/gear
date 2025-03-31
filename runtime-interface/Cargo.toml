@@ -18,8 +18,6 @@ gear-sandbox-interface.workspace = true
 sp-io.workspace = true
 sp-runtime-interface = { workspace = true, default-features = false }
 sp-std.workspace = true
-
-byteorder.workspace = true
 codec = { workspace = true }
 log = { workspace = true, optional = true }
 
@@ -42,8 +40,6 @@ std = [
 	"sp-io/std",
 	"sp-std/std",
 	"sp-runtime-interface/std",
-
-	"byteorder/std",
 	"codec/std",
 	"log",
 
