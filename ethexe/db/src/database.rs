@@ -376,7 +376,6 @@ impl CodesStorage for Database {
     }
 
     // TODO (gsobol): consider to move to another place
-    // TODO #4559: test this method
     fn program_ids(&self) -> BTreeSet<ProgramId> {
         let key_prefix = Key::ProgramToCodeId(Default::default()).prefix();
         self.kv
