@@ -81,7 +81,7 @@ async fn test_deployment() -> Result<()> {
     )
     .await?;
 
-    let blobs_reader = Arc::new(MockBlobReader::new());
+    let blobs_reader = MockBlobReader::new();
 
     let router_address = ethereum.router().address();
 
@@ -97,7 +97,7 @@ async fn test_deployment() -> Result<()> {
         },
         u32::MAX,
         database,
-        Some(blobs_reader.clone()),
+        blobs_reader.clone_box(),
     )
     .await
     .expect("failed to create observer");
