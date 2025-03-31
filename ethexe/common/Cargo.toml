@@ -12,7 +12,6 @@ gear-core.workspace = true
 gprimitives.workspace = true
 parity-scale-codec.workspace = true
 hex.workspace = true
-anyhow.workspace = true
 serde = { workspace = true, optional = true }
 roast-secp256k1-evm.workspace = true
 

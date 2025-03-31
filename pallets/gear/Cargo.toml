@@ -59,7 +59,6 @@ gear-sandbox = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
-sp-consensus-slots = { workspace = true, optional = true }
 test-syscalls = { workspace = true, optional = true }
 demo-read-big-state = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
@@ -186,7 +185,6 @@ runtime-benchmarks = [
     "gear-core-backend/mock",
     "gear-core-errors/codec",
     "gear-sandbox",
-    "sp-consensus-slots",
     "sp-consensus-babe",
     "rand",
     "rand_pcg",

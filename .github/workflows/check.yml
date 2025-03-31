@@ -11,6 +11,12 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
+  unused-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bnjbvr/cargo-machete@main
+
   linux:
     runs-on: [kuberunner, github-runner-01]
     env:
