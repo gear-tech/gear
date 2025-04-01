@@ -92,11 +92,17 @@ impl From<u32> for SyscallReturnValue {
 
 pub(crate) trait SyscallContext: Sized + Copy {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError>;
+
+    fn gas(&self) -> Option<Gas>;
 }
 
 impl SyscallContext for () {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError> {
         Ok(((), args))
+    }
+
+    fn gas(&self) -> Option<Gas> {
+        None
     }
 }
 
@@ -166,12 +172,14 @@ macro_rules! impl_syscall_builder {
 
                 let mut registry: Option<MemoryAccessRegistry<Caller>> = None;
 
-                let mut index = 0;
                 $(
                     if $generic::REQUIRES_MEMORY_MANAGER && registry.is_none() {
                         registry = Some(MemoryAccessRegistry::default());
                     }
+                )+
 
+                let mut index = 0;
+                $(
                     let args_count = $generic::REQUIRED_ARGS;
                     let args_slice = &args[index..index + args_count];
                     let $generic = $generic::pre_process(&mut registry, args_slice).map_err(|_| HostError)?;
@@ -249,6 +257,10 @@ impl SyscallContext for FallibleSyscallContext {
         let res_ptr: u32 = SyscallValue(*res_ptr).try_into()?;
         Ok((FallibleSyscallContext { gas, res_ptr }, args))
     }
+
+    fn gas(&self) -> Option<Gas> {
+        Some(self.gas)
+    }
 }
 
 /// Fallible syscall that calls [`CallerWrap::run_fallible`] underneath.
@@ -285,9 +297,9 @@ where
         syscall_name: SyscallName,
     ) -> Result<(Gas, ()), HostError> {
         let Self { token, f, .. } = self;
-        let FallibleSyscallContext { gas, res_ptr } = context;
+        let FallibleSyscallContext { res_ptr, .. } = context;
         caller.check_func_forbiddenness(syscall_name)?;
-        caller.run_fallible::<T, _, E>(gas, res_ptr, token, f)
+        caller.run_fallible::<T, _, E>(res_ptr, token, f)
     }
 }
 
@@ -302,6 +314,10 @@ impl SyscallContext for InfallibleSyscallContext {
         let (gas, args) = args.split_first().ok_or(HostError)?;
         let gas: Gas = SyscallValue(*gas).try_into()?;
         Ok((Self { gas }, args))
+    }
+
+    fn gas(&self) -> Option<Gas> {
+        Some(self.gas)
     }
 }
 
@@ -329,13 +345,12 @@ where
     fn execute(
         self,
         caller: &mut CallerWrap<Caller>,
-        ctx: Self::Context,
+        _ctx: Self::Context,
         syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
         let Self { token, f } = self;
-        let InfallibleSyscallContext { gas } = ctx;
         caller.check_func_forbiddenness(syscall_name)?;
-        caller.run_any::<T, _>(gas, token, f)
+        caller.run_any::<T, _>(token, f)
     }
 }
 
@@ -369,9 +384,17 @@ where
 
         let (ctx, args) = Call::Context::from_args(args)?;
 
+        if ctx.gas().is_some() {
+            caller
+                .state_mut()
+                .ext
+                .decrease_current_counter_to(ctx.gas().unwrap());
+        }
+
         let syscall = builder.build(&mut caller, args)?;
 
         let (gas, value) = syscall.execute(&mut caller, ctx, syscall_name)?;
+
         let value = value.into();
 
         Ok(WasmReturnValue {

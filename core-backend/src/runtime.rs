@@ -102,12 +102,10 @@ where
     Ext: BackendExternalities + 'static,
 {
     #[track_caller]
-    pub fn run_any<U, F>(&mut self, gas: u64, token: CostToken, f: F) -> Result<(u64, U), HostError>
+    pub fn run_any<U, F>(&mut self, token: CostToken, f: F) -> Result<(u64, U), HostError>
     where
         F: FnOnce(&mut Self) -> Result<U, UndefinedTerminationReason>,
     {
-        self.state_mut().ext.decrease_current_counter_to(gas);
-
         let run = || {
             self.state_mut().ext.charge_gas_for_token(token)?;
             f(self)
@@ -124,7 +122,6 @@ where
     #[track_caller]
     pub fn run_fallible<U: Sized, F, R>(
         &mut self,
-        gas: u64,
         res_ptr: u32,
         token: CostToken,
         f: F,
@@ -134,7 +131,6 @@ where
         R: From<Result<U, u32>> + Sized,
     {
         self.run_any(
-            gas,
             token,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
                 let res = f(ctx);
