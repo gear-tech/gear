@@ -148,11 +148,51 @@ impl ValidatorService {
                 }
                 State::Submitting(future) => match future.poll_unpin(cx) {
                     Poll::Ready(res) => {
-                        let event = res.map(ControlEvent::CommitmentSubmitted)?;
+                        let event = match res {
+                            Ok(hash) => ControlEvent::CommitmentSubmitted(hash),
+                            Err(err) => ControlEvent::Warning(format!(
+                                "Failed to submit batch commitment: {err:?}",
+                            )),
+                        };
                         events.push(event);
+
+                        self.state = State::default();
                     }
                     Poll::Pending => return Ok(events),
                 },
+                State::Verifier(verifier) if verifier.is_final() => {
+                    let State::Verifier(verifier) = mem::take(&mut self.state) else {
+                        unreachable!("state must be Verifier");
+                    };
+
+                    let (producer, block, request) = verifier.into_parts();
+
+                    let mut participant = Participant::new(
+                        self.pub_key,
+                        self.router_address,
+                        producer,
+                        block,
+                        self.db.clone(),
+                        self.signer.clone(),
+                    );
+
+                    if let Some(request) = request {
+                        let new_events = participant
+                            .receive_validation_request_unsigned(request)
+                            .unwrap();
+                        events.extend(new_events);
+                    }
+
+                    self.state = State::Participant(participant);
+                }
+                State::Verifier(verifier) => {
+                    let new_events = match verifier.poll_unpin(cx) {
+                        Poll::Ready(res) => res?,
+                        Poll::Pending => return Ok(events),
+                    };
+
+                    events.extend(new_events);
+                }
                 _ => return Ok(events),
             }
         }
@@ -221,8 +261,7 @@ impl ControlService for ValidatorService {
                 block,
             ));
         } else {
-            let (verifier, events) = Verifier::new(block, producer, blocks, requests)?;
-            self.output.extend(events);
+            let verifier = Verifier::new(block, producer, blocks, requests);
             self.state = State::Verifier(verifier);
         }
 
@@ -241,7 +280,7 @@ impl ControlService for ValidatorService {
                 unformed.receive_block_from_producer(signed);
             }
             State::Verifier(verifier) => {
-                let events = verifier.receive_block_from_producer(signed)?;
+                let events = verifier.receive_block_from_producer(signed);
                 self.output.extend(events);
             }
             State::Producer(_) | State::Coordinator(_) | State::Submitting(_) => Err(
@@ -262,34 +301,8 @@ impl ControlService for ValidatorService {
                 self.output.extend(events);
             }
             State::Verifier(verifier) => {
-                if verifier.receive_computed_block(computed_block)? {
-                    let State::Verifier(verifier) = mem::take(&mut self.state) else {
-                        unreachable!("state must be Verifier");
-                    };
-
-                    let (producer, block, request) = verifier.into_parts();
-
-                    let participant = Participant::new(
-                        self.pub_key,
-                        self.router_address,
-                        producer,
-                        block,
-                        self.db.clone(),
-                        self.signer.clone(),
-                    );
-
-                    self.state = State::Participant(participant);
-
-                    let State::Participant(participant) = &mut self.state else {
-                        unreachable!("state must be Participant");
-                    };
-
-                    if let Some(request) = request {
-                        let events = participant.receive_validation_request_unsigned(request)?;
-                        self.output.extend(events);
-                        self.state = State::default();
-                    }
-                }
+                let events = verifier.receive_computed_block(computed_block);
+                self.output.extend(events);
             }
             State::Initial(_)
             | State::Unformed(_)
@@ -320,7 +333,8 @@ impl ControlService for ValidatorService {
                 self.state = State::default();
             }
             State::Verifier(verifier) => {
-                verifier.receive_validation_request(signed_request)?;
+                let events = verifier.receive_validation_request(signed_request);
+                self.output.extend(events);
             }
             State::Coordinator(_) | State::Producer(_) | State::Submitting(_) => Err(
                 ControlError::Warning(anyhow!("Received validation request, but I'm producer")),
@@ -360,7 +374,6 @@ impl ControlService for ValidatorService {
 }
 
 impl Stream for ValidatorService {
-    // TODO +_+_+: return result
     type Item = anyhow::Result<ControlEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

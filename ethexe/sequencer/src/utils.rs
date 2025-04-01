@@ -7,7 +7,7 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitmentValidationRequest {
     pub blocks: Vec<BlockCommitmentValidationRequest>,
     pub codes: Vec<CodeCommitment>,
@@ -33,7 +33,7 @@ impl ToDigest for BatchCommitmentValidationRequest {
     }
 }
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct BlockCommitmentValidationRequest {
     pub block_hash: H256,
     pub block_timestamp: u64,
