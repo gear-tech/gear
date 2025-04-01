@@ -18,12 +18,16 @@
 
 //! Track configurations for governance.
 
+#![allow(clippy::identity_op)]
+
 use super::*;
 
 const fn percent(x: i32) -> sp_runtime::FixedI64 {
     sp_runtime::FixedI64::from_rational(x as u128, 100)
 }
+
 use pallet_referenda::Curve;
+
 const APP_ROOT: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
 const SUP_ROOT: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
 const APP_STAKING_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
@@ -31,6 +35,21 @@ const SUP_STAKING_ADMIN: Curve =
     Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_TREASURER: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
 const SUP_TREASURER: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
+const APP_BRIDGE_ADMIN: Curve = Curve::make_reciprocal(
+    8,            // Period delay (blocks)
+    28,           // Period length (blocks)
+    percent(85),  // Initial approval
+    percent(60),  // Final approval
+    percent(100), // Max approval
+);
+const SUP_BRIDGE_ADMIN: Curve = Curve::make_linear(14, 28, percent(10), percent(30));
+const APP_BRIDGE_PAUSER: Curve = Curve::make_linear(
+    6,           // Period delay (blocks)
+    28,          // Period length (blocks)
+    percent(75), // Start approval
+    percent(75), // End approval
+);
+const SUP_BRIDGE_PAUSER: Curve = Curve::make_linear(14, 28, percent(10), percent(10));
 const APP_FELLOWSHIP_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_FELLOWSHIP_ADMIN: Curve =
     Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
@@ -61,7 +80,7 @@ const APP_WHITELISTED_CALLER: Curve =
 const SUP_WHITELISTED_CALLER: Curve =
     Curve::make_reciprocal(1, 28, percent(20), percent(5), percent(50));
 
-const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 13] = [
+const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15] = [
     (
         0,
         pallet_referenda::TrackInfo {
@@ -244,9 +263,88 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 13
             min_support: SUP_BIG_SPENDER,
         },
     ),
+    (
+        40,
+        pallet_referenda::TrackInfo {
+            name: "bridge_admin",
+            max_deciding: 3,
+            decision_deposit: 100_000 * ECONOMIC_UNITS,
+            prepare_period: 4 * HOURS,
+            decision_period: 14 * DAYS,
+            confirm_period: 6 * HOURS,
+            min_enactment_period: 1 * HOURS,
+            min_approval: APP_BRIDGE_ADMIN,
+            min_support: SUP_BRIDGE_ADMIN,
+        },
+    ),
+    (
+        41,
+        pallet_referenda::TrackInfo {
+            name: "bridge_pauser",
+            max_deciding: 5,
+            decision_deposit: 25_000 * ECONOMIC_UNITS,
+            prepare_period: 3 * MINUTES,
+            decision_period: 12 * HOURS,
+            confirm_period: 1,
+            min_enactment_period: 1,
+            min_approval: APP_BRIDGE_PAUSER,
+            min_support: SUP_BRIDGE_PAUSER,
+        },
+    ),
 ];
 
 pub struct TracksInfo;
+
+#[cfg(feature = "dev")]
+impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
+    type Id = u16;
+    type RuntimeOrigin = <RuntimeOrigin as frame_support::traits::OriginTrait>::PalletsOrigin;
+    fn tracks() -> &'static [(Self::Id, pallet_referenda::TrackInfo<Balance, BlockNumber>)] {
+        &TRACKS_DATA[..]
+    }
+    fn track_for(id: &Self::RuntimeOrigin) -> Result<Self::Id, ()> {
+        if let Ok(system_origin) = frame_system::RawOrigin::try_from(id.clone()) {
+            match system_origin {
+                frame_system::RawOrigin::Root => Ok(0),
+                frame_system::RawOrigin::Signed(signer) => {
+                    if signer == GearEthBridgeAdminAccount::get() {
+                        // bridge_admin
+                        Ok(40)
+                    } else if signer == GearEthBridgePauserAccount::get() {
+                        // bridge_pauser
+                        Ok(41)
+                    } else {
+                        Err(())
+                    }
+                }
+                _ => Err(()),
+            }
+        } else if let Ok(custom_origin) = origins::Origin::try_from(id.clone()) {
+            match custom_origin {
+                origins::Origin::WhitelistedCaller => Ok(1),
+                // General admin
+                origins::Origin::StakingAdmin => Ok(10),
+                origins::Origin::Treasurer => Ok(11),
+                origins::Origin::FellowshipAdmin => Ok(12),
+                origins::Origin::GeneralAdmin => Ok(13),
+                // Referendum admins
+                origins::Origin::ReferendumCanceller => Ok(20),
+                origins::Origin::ReferendumKiller => Ok(21),
+                // Limited treasury spenders
+                origins::Origin::SmallTipper => Ok(30),
+                origins::Origin::BigTipper => Ok(31),
+                origins::Origin::SmallSpender => Ok(32),
+                origins::Origin::MediumSpender => Ok(33),
+                origins::Origin::BigSpender => Ok(34),
+                _ => Err(()),
+            }
+        } else {
+            Err(())
+        }
+    }
+}
+
+#[cfg(not(feature = "dev"))]
 impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
     type Id = u16;
     type RuntimeOrigin = <RuntimeOrigin as frame_support::traits::OriginTrait>::PalletsOrigin;
