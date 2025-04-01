@@ -90,7 +90,7 @@ fn bridge_accounts_check() {
     // Change of the pallet id will require migrating `pallet-gear-eth-bridge`'s
     // `BridgeAdmin` and `BridgePauser` constants if they are derived from it.
     // We explicitly use the *original* intended PalletId here for the check.
-    let original_pallet_id = PalletId(*b"py/gethb"); 
+    let original_pallet_id = PalletId(*b"py/gethb");
     let expected_admin_account: AccountId =
         original_pallet_id.into_sub_account_truncating("bridge_admin");
     let expected_pauser_account: AccountId =

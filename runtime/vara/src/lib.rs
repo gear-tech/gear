@@ -61,8 +61,8 @@ use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
-        AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
-        IdentityLookup, NumberFor, One, SignedExtension,
+        AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
+        DispatchInfoOf, Dispatchable, IdentityLookup, NumberFor, One, SignedExtension,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
@@ -71,7 +71,6 @@ use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
 };
-use sp_runtime::traits::AccountIdConversion;
 use sp_version::RuntimeVersion;
 
 #[cfg(not(feature = "dev"))]
