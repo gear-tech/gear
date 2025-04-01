@@ -161,7 +161,7 @@ parameter_types! {
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
 }
 
 pallet_gear_bank::impl_config!(Test);
