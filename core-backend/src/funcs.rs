@@ -32,10 +32,7 @@ use crate::{
     state::HostState,
     BackendExternalities,
 };
-use alloc::{
-    format,
-    string::{String, ToString},
-};
+use alloc::{format, string::String};
 use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::marker::PhantomData;
 use gear_core::{
@@ -1112,9 +1109,7 @@ where
             let io = registry.pre_process(ctx)?;
             let data = io.read(ctx, read_data).unwrap_or_default();
 
-            let s = String::from_utf8_lossy(&data).to_string();
-
-            Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
+            Err(ActorTerminationReason::Trap(TrapExplanation::Panic(data.into())).into())
         })
     }
 

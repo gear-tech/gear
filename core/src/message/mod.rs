@@ -42,8 +42,9 @@ pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
 pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
+use crate::str::LimitedStr;
 use alloc::{string::String, vec::Vec};
-use core::fmt::Display;
+use core::fmt::{Debug, Display};
 use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
     scale::{Decode, Encode},
@@ -83,6 +84,57 @@ impl Payload {
     pub fn len_u32(&self) -> u32 {
         // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
         self.inner().len() as u32
+    }
+}
+
+/// Buffer which size cannot be bigger then max allowed payload size.
+#[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct PanicBuffer(Payload);
+
+impl PanicBuffer {
+    fn as_limited_str(&self) -> Option<LimitedStr> {
+        let s = core::str::from_utf8(self.0.inner()).ok()?;
+        LimitedStr::try_from(s).ok()
+    }
+}
+
+impl<T> From<T> for PanicBuffer
+where
+    T: AsRef<[u8]>,
+{
+    fn from(value: T) -> Self {
+        let value = value.as_ref();
+        let upper_bound = value.len().min(MAX_PAYLOAD_SIZE);
+        Payload::try_from(&value.as_ref()[..upper_bound])
+            .map(Self)
+            .unwrap_or_else(|PayloadSizeError| unreachable!("payload size is always limited"))
+    }
+}
+
+impl From<LimitedStr<'_>> for PanicBuffer {
+    fn from(value: LimitedStr) -> Self {
+        Self::from(value.as_str())
+    }
+}
+
+impl Display for PanicBuffer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Some(s) = self.as_limited_str() {
+            Display::fmt(&s, f)
+        } else {
+            Display::fmt(&self.0, f)
+        }
+    }
+}
+
+impl Debug for PanicBuffer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Some(s) = self.as_limited_str() {
+            Debug::fmt(s.as_str(), f)
+        } else {
+            Debug::fmt(&self.0, f)
+        }
     }
 }
 
@@ -247,4 +299,28 @@ pub struct ReplyInfo {
     pub value: u128,
     /// Reply code of the reply.
     pub code: ReplyCode,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::format;
+
+    #[test]
+    fn panic_buffer_debug() {
+        let buf = PanicBuffer::from("Hello, world!");
+        assert_eq!(format!("{:?}", buf), r#""Hello, world!""#);
+
+        let buf = PanicBuffer::from(b"\xE0\x80\x80");
+        assert_eq!(format!("{:?}", buf), "0xe08080");
+    }
+
+    #[test]
+    fn panic_buffer_display() {
+        let buf = PanicBuffer::from("Hello, world!");
+        assert_eq!(format!("{}", buf), "Hello, world!");
+
+        let buf = PanicBuffer::from(b"\xE0\x80\x80");
+        assert_eq!(format!("{}", buf), "0xe08080");
+    }
 }

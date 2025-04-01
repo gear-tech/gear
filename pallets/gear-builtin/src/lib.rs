@@ -112,7 +112,7 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
                 TrapExplanation::Panic("Message decoding error".to_string().into()),
             ),
             BuiltinActorError::Custom(e) => {
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e))
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
             }
             BuiltinActorError::GasAllowanceExceeded => {
                 unreachable!("Never supposed to be converted to error reply reason")
