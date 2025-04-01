@@ -143,7 +143,7 @@ pub trait App: Parser + Sync {
 
         let name = Self::command().get_name().to_string();
         let filter = if env::var(EnvFilter::DEFAULT_ENV).is_ok() {
-            EnvFilter::builder().from_env_lossy()
+            EnvFilter::from_default_env()
         } else {
             match self.verbose() {
                 0 => format!("{name}=info,gsdk=info").into(),

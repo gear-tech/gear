@@ -143,13 +143,13 @@ impl System {
 
     /// Init logger with `default_filter` as default filter.
     pub fn init_logger_with_default_filter<'a>(&self, default_filter: impl Into<Cow<'a, str>>) {
-        let default_directive = default_filter.into().parse().unwrap_or_default();
+        let filter = if env::var(EnvFilter::DEFAULT_ENV).is_ok() {
+            EnvFilter::from_default_env()
+        } else {
+            EnvFilter::new(default_filter)
+        };
         let _ = tracing_subscriber::fmt()
-            .with_env_filter(
-                EnvFilter::builder()
-                    .with_default_directive(default_directive)
-                    .from_env_lossy(),
-            )
+            .with_env_filter(filter)
             .without_time()
             .with_thread_names(true)
             .try_init();
