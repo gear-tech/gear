@@ -1,14 +1,14 @@
 [workspace.package]
 version = "1.7.1"
 authors = ["Gear Technologies"]
-edition = "2021"
+edition = "2024"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.84"
+rust-version = "1.85"
 
 [workspace]
-resolver = "2"
+resolver = "3"
 
 default-members = ["node/cli"]
 
@@ -111,7 +111,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = "0.9.1"
+alloy = "0.12.4"
 alloy-primitives = { version = "0.8", default-features = false }
 alloy-sol-types = { version = "0.8", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
@@ -124,7 +124,7 @@ byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
-cargo_metadata = "0.19.1"
+cargo_metadata = "0.19.2"
 clap = "4.5.8"
 codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false }
 color-eyre = "0.6.3"
@@ -551,6 +551,18 @@ wasm-encoder = { version = "0.225", default-features = false, features = ["wasmp
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
 
+[workspace.metadata.cargo-machete]
+ignored = [
+    # used inside macros or provide macros
+    "frame-benchmarking",
+    "frame-system-benchmarking",
+    "parity-scale-codec",
+    "scale-info",
+    "pallet-authorship",
+    # unsupported name by `cargo-machete`
+    "sha-1"
+]
+
 [profile.dev.package.corosensei]
 opt-level = 3
 
@@ -588,9 +600,6 @@ debug = true
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
 wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
-
-# TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
-blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "clang-cl-cross-compilation-v1.5.4" }
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.225", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.225" }

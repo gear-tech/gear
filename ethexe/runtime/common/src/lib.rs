@@ -110,7 +110,7 @@ where
 
     log::trace!("Processing next message for program {program_id}");
 
-    let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
+    let mut queue = program_state.queue_hash.map_or_default(|hash| {
         ri.storage()
             .read_queue(hash)
             .expect("Cannot get message queue")
@@ -250,7 +250,7 @@ where
     }
 
     // TODO: support normal allocations len #4068
-    let allocations = active_state.allocations_hash.with_hash_or_default(|hash| {
+    let allocations = active_state.allocations_hash.map_or_default(|hash| {
         ri.storage()
             .read_allocations(hash)
             .expect("Cannot get allocations")

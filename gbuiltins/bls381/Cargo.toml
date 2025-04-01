@@ -12,7 +12,6 @@ rust-version.workspace = true
 
 [dependencies]
 codec = { workspace = true, features = ["derive"] }
-derive_more.workspace = true
 ark-bls12-381 = { workspace = true, features = ["curve"] }
 ark-ec.workspace = true
 ark-ff.workspace = true

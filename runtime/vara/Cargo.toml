@@ -11,6 +11,9 @@ build = "build.rs"
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
+[package.metadata.cargo-machete]
+ignored = ["sp-storage", "sp-block-builder", "sp-transaction-pool", "sp-offchain", "sp-inherents", "frame-system-rpc-runtime-api", "pallet-gear-rpc-runtime-api"]
+
 [lints]
 workspace = true
 
@@ -73,7 +76,6 @@ sp-core.workspace = true
 sp-externalities = { workspace = true, optional = true }
 sp-genesis-builder.workspace = true
 sp-inherents.workspace = true
-sp-npos-elections.workspace = true
 sp-offchain.workspace = true
 sp-runtime.workspace = true
 sp-session.workspace = true
@@ -91,7 +93,6 @@ pallet-transaction-payment-rpc-runtime-api.workspace = true
 # Used for runtime benchmarking
 frame-benchmarking = { workspace = true, optional = true }
 frame-system-benchmarking = { workspace = true, optional = true }
-hex-literal = { workspace = true, optional = true }
 
 # Internal deps
 common.workspace = true
@@ -113,7 +114,6 @@ pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 pallet-gear-builtin-rpc-runtime-api.workspace = true
 pallet-gear-eth-bridge-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
-gbuiltin-staking.workspace = true
 gbuiltin-proxy.workspace = true
 
 [dev-dependencies]
@@ -203,7 +203,6 @@ std = [
 	"sp-core/std",
 	"sp-externalities",
 	"sp-inherents/std",
-	"sp-npos-elections/std",
 	"sp-offchain/std",
 	"sp-runtime/std",
 	"sp-session/std",
@@ -221,7 +220,6 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-system-benchmarking/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
-	"hex-literal",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",

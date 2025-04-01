@@ -16,12 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Provider;
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
     eips::eip4844::kzg_to_versioned_hash,
-    providers::{Provider as _, ProviderBuilder},
-    rpc::types::{beacon::sidecar::BeaconBlobBundle, eth::BlockTransactionsKind},
+    providers::{Provider as _, ProviderBuilder, RootProvider},
+    rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -44,7 +43,7 @@ pub trait BlobReader: Send + Sync {
 
 #[derive(Clone)]
 pub struct ConsensusLayerBlobReader {
-    provider: Provider,
+    provider: RootProvider,
     http_client: Client,
     ethereum_beacon_rpc: String,
     beacon_block_time: Duration,
@@ -57,7 +56,7 @@ impl ConsensusLayerBlobReader {
         beacon_block_time: Duration,
     ) -> Result<Self> {
         Ok(Self {
-            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
+            provider: ProviderBuilder::default().connect(ethereum_rpc).await?,
             http_client: Client::new(),
             ethereum_beacon_rpc: ethereum_beacon_rpc.into(),
             beacon_block_time,
@@ -97,7 +96,7 @@ impl BlobReader for ConsensusLayerBlobReader {
             .ok_or_else(|| anyhow!("failed to get block hash"))?;
         let block = self
             .provider
-            .get_block_by_hash(block_hash, BlockTransactionsKind::Hashes)
+            .get_block_by_hash(block_hash)
             .await?
             .ok_or_else(|| anyhow!("failed to get block"))?;
         let slot =
@@ -141,20 +140,23 @@ impl BlobReader for ConsensusLayerBlobReader {
 #[derive(Clone)]
 pub struct MockBlobReader {
     transactions: Arc<RwLock<HashMap<H256, Vec<u8>>>>,
-    // TODO (gsobol): remove block_time here, because it's useless for mock
-    block_time: Duration,
 }
 
 impl MockBlobReader {
-    pub fn new(block_time: Duration) -> Self {
+    pub fn new() -> Self {
         Self {
             transactions: Arc::new(RwLock::new(HashMap::new())),
-            block_time,
         }
     }
 
     pub async fn add_blob_transaction(&self, tx_hash: H256, data: Vec<u8>) {
         self.transactions.write().await.insert(tx_hash, data);
+    }
+}
+
+impl Default for MockBlobReader {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -170,7 +172,6 @@ impl BlobReader for MockBlobReader {
                     if maybe_blob_data.is_some() || count >= attempts {
                         break maybe_blob_data;
                     } else {
-                        time::sleep(self.block_time).await;
                         count += 1;
                     }
                 }

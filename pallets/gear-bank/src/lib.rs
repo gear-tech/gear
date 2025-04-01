@@ -41,14 +41,51 @@ use frame_support::traits::{
 
 #[macro_export]
 macro_rules! impl_config {
-    ($runtime:ty) => {
+    ($( $tokens:tt )*) => {
+        #[allow(dead_code)]
+        type GearBankConfigTreasuryAddress = ();
+        #[allow(dead_code)]
+        type GearBankConfigTreasuryGasFeeShare = ();
+        #[allow(dead_code)]
+        type GearBankConfigTreasuryTxFeeShare = ();
+
+        mod pallet_tests_gear_bank_config_impl {
+            use super::*;
+
+            $crate::impl_config_inner!($( $tokens )*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_config_inner {
+    ($runtime:ty$(,)?) => {
         impl pallet_gear_bank::Config for $runtime {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
-            type SplitGasFeeRatio = SplitGasFeeRatio;
-            type SplitTxFeeRatio = SplitTxFeeRatio;
+            type TreasuryAddress = GearBankConfigTreasuryAddress;
+            type TreasuryGasFeeShare = GearBankConfigTreasuryGasFeeShare;
+            type TreasuryTxFeeShare = GearBankConfigTreasuryTxFeeShare;
         }
+    };
+
+    ($runtime:ty, TreasuryAddress = $treasury_address:ty $(, $( $rest:tt )*)?) => {
+        type GearBankConfigTreasuryAddress = $treasury_address;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, TreasuryGasFeeShare = $treasury_gas_fee_share:ty $(, $( $rest:tt )*)?) => {
+        type GearBankConfigTreasuryGasFeeShare = $treasury_gas_fee_share;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, TreasuryTxFeeShare = $treasury_tx_fee_share:ty $(, $( $rest:tt )*)?) => {
+        type GearBankConfigTreasuryTxFeeShare = $treasury_tx_fee_share;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
 }
 
@@ -80,7 +117,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::{traits::Zero, Perbill};
+    use sp_runtime::{traits::Zero, Percent};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -95,18 +132,23 @@ pub mod pallet {
             + LockableCurrency<AccountIdOf<Self>>
             + fungible::Unbalanced<AccountIdOf<Self>, Balance = BalanceOf<Self>>;
 
-        #[pallet::constant]
         /// Bank account address, that will keep all reserved funds.
+        #[pallet::constant]
         type BankAddress: Get<AccountIdOf<Self>>;
 
-        #[pallet::constant]
         /// Gas price converter.
+        #[pallet::constant]
         type GasMultiplier: Get<GasMultiplier<Self>>;
 
-        type SplitGasFeeRatio: Get<Option<(Perbill, AccountIdOf<Self>)>>;
+        // TODO: consider making treasury related constant as storage items to support onchain updates #4058.
+        #[pallet::constant]
+        type TreasuryAddress: Get<AccountIdOf<Self>>;
 
-        /// The ratio of how much of the tx fees goes to the treasury
-        type SplitTxFeeRatio: Get<Option<u32>>;
+        #[pallet::constant]
+        type TreasuryGasFeeShare: Get<Percent>;
+
+        #[pallet::constant]
+        type TreasuryTxFeeShare: Get<Percent>;
     }
 
     // Funds pallets error.
@@ -225,28 +267,8 @@ pub mod pallet {
             while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
                 total = total.saturating_add(value);
 
-                if let Some((gas_split, split_dest)) = T::SplitGasFeeRatio::get() {
-                    // split value by `SplitGasFeeRatio`.
-                    let to_split = gas_split.mul_floor(value);
-                    let to_user = value - to_split;
-
-                    // Withdraw value to user.
-                    if let Err(e) = Self::withdraw(&account_id, to_user) {
-                        log::error!(
-                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                        );
-                    }
-
-                    // Withdraw value to `SplitGasFeeRatio` destination.
-                    if let Err(e) = Self::withdraw(&split_dest, to_split) {
-                        log::error!(
-                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                        );
-                    }
-                } else {
-                    let _ = Self::withdraw(&account_id, value).map_err(|e| log::error!(
-                                "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                            ));
+                if let Err(e) = Self::withdraw(&account_id, value) {
+                    log::error!("Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}");
                 }
             }
 
@@ -479,13 +501,32 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
+            let treasury = T::TreasuryAddress::get();
+            let treasury_share = T::TreasuryGasFeeShare::get() * value;
+
+            Self::withdraw_on_finalize(&treasury, treasury_share).unwrap_or_else(|e| {
+                let treasury_balance = Self::reducible_balance(&treasury);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::spend_gas_to: withdraw to TREASURY on finalize failed. \
+                    Spending gas from - {account_id:?}, value - {treasury_share:?}, TREASURY reducible balance {treasury_balance:?} \
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
+
+            let value = value - treasury_share;
             Self::withdraw_on_finalize(to, value).unwrap_or_else(|e| {
                 let to_balance = Self::reducible_balance(to);
                 let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
 
                 let err_msg = format!(
                     "pallet_gear_bank::spend_gas_to: withdraw on finalize failed. \
-                    Spending gas from - {account_id:?}, to - {to:?}, amount - {amount}, receiver reducible balance {to_balance:?} \
+                    Spending gas from - {account_id:?}, to - {to:?}, value - {value:?}, receiver reducible balance {to_balance:?} \
                     bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
                     Got error - {e:?}"
                 );

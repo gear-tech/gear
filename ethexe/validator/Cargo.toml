@@ -10,6 +10,7 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ethexe-db.workspace = true
 ethexe-signer.workspace = true
 ethexe-sequencer.workspace = true
 ethexe-common.workspace = true
@@ -17,11 +18,7 @@ gprimitives.workspace = true
 
 log.workspace = true
 anyhow.workspace = true
-futures.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 
-static_init = "1.0.3"
-
 [dev-dependencies]
-ethexe-db.workspace = true
 rand.workspace = true

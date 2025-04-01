@@ -42,10 +42,10 @@ struct Frame {
     /// from the current block.
     end_arity: u32,
 
-    /// Count of values which should be poped upon a branch to
+    /// Count of values which should be popped upon a branch to
     /// this frame.
     ///
-    /// This might be diffirent from `end_arity` since branch
+    /// This might be different from `end_arity` since branch
     /// to the loop header can't take any values.
     branch_arity: u32,
 
