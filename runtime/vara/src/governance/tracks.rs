@@ -47,8 +47,8 @@ const APP_BRIDGE_ADMIN: Curve = Curve::make_reciprocal(
 );
 const SUP_BRIDGE_ADMIN: Curve = Curve::make_linear(14, 28, percent(10), percent(30));
 const APP_BRIDGE_PAUSER: Curve = Curve::make_linear(
-    6,           // Period delay
-    28,          // Period length
+    6,           // Period delay (blocks)
+    28,          // Period length (blocks)
     percent(75), // Start approval
     percent(75), // End approval
 );
@@ -271,10 +271,10 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
         pallet_referenda::TrackInfo {
             name: "bridge_admin",
             max_deciding: 3,
-            decision_deposit: 250_000 * ECONOMIC_UNITS,
-            prepare_period: 4 * HOURS,  // Extended deliberation
-            decision_period: 14 * DAYS, // Longer than pauser
-            confirm_period: 6 * HOURS,  // Extended verification
+            decision_deposit: 100_000 * ECONOMIC_UNITS,
+            prepare_period: 4 * HOURS,
+            decision_period: 14 * DAYS,
+            confirm_period: 6 * HOURS,
             min_enactment_period: 1 * HOURS,
             min_approval: APP_BRIDGE_ADMIN,
             min_support: SUP_BRIDGE_ADMIN,
@@ -285,11 +285,11 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
         pallet_referenda::TrackInfo {
             name: "bridge_pauser",
             max_deciding: 5,
-            decision_deposit: 50_000 * ECONOMIC_UNITS,
+            decision_deposit: 25_000 * ECONOMIC_UNITS,
             prepare_period: 3 * MINUTES,
             decision_period: 12 * HOURS,
-            confirm_period: 1 * MILLISECS_PER_BLOCK as BlockNumber,
-            min_enactment_period: 1 * MILLISECS_PER_BLOCK as BlockNumber,
+            confirm_period: 1,
+            min_enactment_period: 1,
             min_approval: APP_BRIDGE_PAUSER,
             min_support: SUP_BRIDGE_PAUSER,
         },
