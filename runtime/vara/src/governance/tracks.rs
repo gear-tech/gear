@@ -306,19 +306,18 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
         if let Ok(system_origin) = frame_system::RawOrigin::try_from(id.clone()) {
             match system_origin {
                 frame_system::RawOrigin::Root => Ok(0),
+                frame_system::RawOrigin::Signed(signer) => {
+                    if signer == GearEthBridgeAdminAccount::get() {
+                        // bridge_admin
+                        Ok(40)
+                    } else if signer == GearEthBridgePauserAccount::get() {
+                        // bridge_pauser
+                        Ok(41)
+                    } else {
+                        Err(())
+                    }
+                }
                 _ => Err(()),
-            }
-        } else if let Ok(frame_system::RawOrigin::Signed(signer)) =
-            frame_system::RawOrigin::try_from(id.clone())
-        {
-            if signer == GearEthBridgeAdminAccount::get() {
-                // bridge_admin
-                return Ok(40);
-            } else if signer == GearEthBridgePauserAccount::get() {
-                // bridge_pauser
-                return Ok(41);
-            } else {
-                return Err(());
             }
         } else if let Ok(custom_origin) = origins::Origin::try_from(id.clone()) {
             match custom_origin {
