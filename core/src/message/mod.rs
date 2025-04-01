@@ -93,6 +93,11 @@ impl Payload {
 pub struct PanicBuffer(Payload);
 
 impl PanicBuffer {
+    /// Returns ref to the internal data.
+    pub fn inner(&self) -> &[u8] {
+        self.0.inner()
+    }
+
     fn as_limited_str(&self) -> Option<LimitedStr> {
         let s = core::str::from_utf8(self.0.inner()).ok()?;
         LimitedStr::try_from(s).ok()
@@ -106,7 +111,7 @@ where
     fn from(value: T) -> Self {
         let value = value.as_ref();
         let upper_bound = value.len().min(MAX_PAYLOAD_SIZE);
-        Payload::try_from(&value.as_ref()[..upper_bound])
+        Payload::try_from(&value[..upper_bound])
             .map(Self)
             .unwrap_or_else(|PayloadSizeError| unreachable!("payload size is always limited"))
     }
