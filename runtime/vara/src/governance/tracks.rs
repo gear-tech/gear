@@ -26,9 +26,6 @@ const fn percent(x: i32) -> sp_runtime::FixedI64 {
     sp_runtime::FixedI64::from_rational(x as u128, 100)
 }
 
-#[cfg(feature = "dev")]
-use pallet_gear_eth_bridge::{BridgeAdminAddress, BridgePauserAddress};
-
 use pallet_referenda::Curve;
 
 const APP_ROOT: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
@@ -314,10 +311,10 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
         } else if let Ok(frame_system::RawOrigin::Signed(signer)) =
             frame_system::RawOrigin::try_from(id.clone())
         {
-            if signer == BridgeAdminAddress::<Runtime>::get() {
+            if signer == GearEthBridgeAdminAccount::get() {
                 // bridge_admin
                 return Ok(40);
-            } else if signer == BridgePauserAddress::<Runtime>::get() {
+            } else if signer == GearEthBridgePauserAccount::get() {
                 // bridge_pauser
                 return Ok(41);
             } else {

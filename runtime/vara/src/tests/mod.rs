@@ -88,18 +88,24 @@ fn bridge_accounts_check() {
     // correct integration with already running network.
     //
     // Change of the pallet id will require migrating `pallet-gear-eth-bridge`'s
-    // `BridgeAdminAccountId` and `BridgePauserAccountId`.
-    let original_pallet_id = PalletId(*b"py/gethb");
-    let admin_account: AccountId = original_pallet_id.into_sub_account_truncating("bridge_admin");
-    let pauser_account: AccountId = original_pallet_id.into_sub_account_truncating("bridge_pauser");
+    // `BridgeAdmin` and `BridgePauser` constants if they are derived from it.
+    // We explicitly use the *original* intended PalletId here for the check.
+    let original_pallet_id = PalletId(*b"py/gethb"); 
+    let expected_admin_account: AccountId =
+        original_pallet_id.into_sub_account_truncating("bridge_admin");
+    let expected_pauser_account: AccountId =
+        original_pallet_id.into_sub_account_truncating("bridge_pauser");
 
+    // Check if the constants defined in lib.rs match the expected derived accounts.
     assert_eq!(
-        pallet_gear_eth_bridge::Pallet::<Runtime>::bridge_admin_account_id(),
-        admin_account,
+        GearEthBridgeAdminAccount::get(),
+        expected_admin_account,
+        "BridgeAdmin constant does not match expected derivation from PalletId"
     );
     assert_eq!(
-        pallet_gear_eth_bridge::Pallet::<Runtime>::bridge_pauser_account_id(),
-        pauser_account,
+        GearEthBridgePauserAccount::get(),
+        expected_pauser_account,
+        "BridgePauser constant does not match expected derivation from PalletId"
     );
 }
 

@@ -27,10 +27,10 @@ use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureSignedB
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
-use sp_core::{ed25519::Public, Get, H256};
+use sp_core::{ed25519::Public, H256};
 use sp_runtime::{
     impl_opaque_keys,
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
     BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
@@ -289,35 +289,34 @@ impl pallet_session::Config for Test {
     type WeightInfo = pallet_session::weights::SubstrateWeight<Test>;
 }
 
-pub struct BridgeAdmins<T>(sp_std::marker::PhantomData<T>);
-
-impl<T> SortedMembers<AccountId> for BridgeAdmins<T>
-where
-    T: pallet_gear_eth_bridge::Config,
-{
-    fn sorted_members() -> Vec<AccountId> {
-        vec![
-            pallet_gear_eth_bridge::BridgeAdminAddress::<Test>::get(),
-            pallet_gear_eth_bridge::BridgePauserAddress::<Test>::get(),
-        ]
-    }
-
-    fn count() -> usize {
-        2
-    }
-}
-
 parameter_types! {
     pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
+
+    pub MockBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
+    pub MockBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
+}
+
+pub struct MockBridgeControlAccounts;
+impl SortedMembers<AccountId> for MockBridgeControlAccounts {
+    fn sorted_members() -> Vec<AccountId> {
+        let mut members = vec![
+            MockBridgeAdminAccount::get(),
+            MockBridgePauserAccount::get(),
+        ];
+        members.sort();
+        members
+    }
 }
 
 impl pallet_gear_eth_bridge::Config for Test {
-    type ControlOrigin = EnsureSignedBy<BridgeAdmins<Test>, AccountId>;
+    type ControlOrigin = EnsureSignedBy<MockBridgeControlAccounts, AccountId>;
     type PalletId = GearEthBridgePalletId;
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
     type SessionsPerEra = SessionsPerEra;
+    type BridgeAdmin = MockBridgeAdminAccount;
+    type BridgePauser = MockBridgePauserAccount;
     type WeightInfo = ();
 }
 

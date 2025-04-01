@@ -57,8 +57,6 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-#[cfg(feature = "dev")]
-use sp_core::Get;
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
@@ -73,6 +71,7 @@ use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
 };
+use sp_runtime::traits::AccountIdConversion; // Added for into_sub_account_truncating
 use sp_version::RuntimeVersion;
 
 #[cfg(not(feature = "dev"))]
@@ -1241,38 +1240,39 @@ impl pallet_gear_builtin::Config for Runtime {
     type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
 }
 
-#[cfg(feature = "dev")]
-pub struct BridgeAdmins<T>(sp_std::marker::PhantomData<T>);
+parameter_types! {
+    pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
 
-#[cfg(feature = "dev")]
-impl<T> SortedMembers<AccountId> for BridgeAdmins<T>
-where
-    T: pallet_gear_eth_bridge::Config,
-{
-    fn sorted_members() -> Vec<AccountId> {
-        vec![
-            pallet_gear_eth_bridge::BridgeAdminAddress::<Runtime>::get(),
-            pallet_gear_eth_bridge::BridgePauserAddress::<Runtime>::get(),
-        ]
-    }
-
-    fn count() -> usize {
-        2
-    }
+    pub GearEthBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
+    pub GearEthBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
 }
 
-parameter_types! {
-    pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/getha");
+/// Provides the set of accounts allowed to control the Gear ETH Bridge (admin and pauser).
+#[cfg(feature = "dev")]
+pub struct GearEthBridgeControlAccounts;
+#[cfg(feature = "dev")]
+impl SortedMembers<AccountId> for GearEthBridgeControlAccounts {
+    fn sorted_members() -> Vec<AccountId> {
+        let mut members = vec![
+            GearEthBridgeAdminAccount::get(),
+            GearEthBridgePauserAccount::get(),
+        ];
+        // Ensure the list is sorted, as required by EnsureSignedBy
+        members.sort();
+        members
+    }
 }
 
 #[cfg(feature = "dev")]
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
-    type ControlOrigin = frame_system::EnsureSignedBy<BridgeAdmins<Runtime>, AccountId>;
+    type ControlOrigin = frame_system::EnsureSignedBy<GearEthBridgeControlAccounts, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;
+    type BridgeAdmin = GearEthBridgeAdminAccount;
+    type BridgePauser = GearEthBridgePauserAccount;
     type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
 }
 
