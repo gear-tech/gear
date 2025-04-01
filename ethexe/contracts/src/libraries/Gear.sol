@@ -63,8 +63,8 @@ library Gear {
     struct BatchCommitment {
         CodeCommitment[] codeCommitments;
         BlockCommitment[] blockCommitments;
-        //RewardsCommitment rewardsCommitment;
     }
+    //RewardsCommitment rewardsCommitment;
 
     struct RewardsCommitment {
         OperatorRewardsCommitment operators;

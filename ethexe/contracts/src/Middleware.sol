@@ -30,12 +30,12 @@ import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 // TODO (asap): document all functions and variables
-// TODO (asap): implement rewards distribution
 // TODO (asap): add validators commission
 // TODO: introduce common struct for address and balance/value
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
+// TODO: implement migreatable or upgreadable logic
 contract Middleware is IMiddleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
@@ -61,6 +61,8 @@ contract Middleware is IMiddleware {
     address public immutable NETWORK_REGISTRY;
     address public immutable NETWORK_OPT_IN;
     address public immutable MIDDLEWARE_SERVICE;
+
+    // TODO: think about multiple assets as collateral
     address public immutable COLLATERAL;
     address public immutable VETO_RESOLVER;
     bytes32 public immutable SUBNETWORK;
@@ -69,6 +71,7 @@ contract Middleware is IMiddleware {
     address public immutable OPERATOR_REWARDS_FACTORY;
     address public immutable STAKER_REWARDS_FACTORY;
 
+    // TODO: calculate better commission for admin fee
     uint256 public MAX_ADMIN_FEE = 1000;
 
     address public immutable ROUTER;
@@ -81,11 +84,8 @@ contract Middleware is IMiddleware {
     EnumerableMap.AddressToUintMap private operators;
     EnumerableMap.AddressToUintMap private pendingRewards;
 
-    // TODO: consider to remove this map
+    // vault -> (enableTime, disableTime, rewards)
     EnumerableMap.AddressToUintMap private vaults;
-
-    // vault -> rewards for stakers
-    EnumerableMap.AddressToAddressMap private vaultToRewards;
 
     constructor(InitParams memory params) {
         _validateInitParams(params);
@@ -111,9 +111,10 @@ contract Middleware is IMiddleware {
         NETWORK_OPT_IN = params.networkOptIn;
         MIDDLEWARE_SERVICE = params.middlewareService;
         COLLATERAL = params.collateral;
+        VETO_RESOLVER = params.vetoResolver;
+
         roleSlashRequester = params.roleSlashRequester;
         roleSlashExecutor = params.roleSlashExecutor;
-        VETO_RESOLVER = params.vetoResolver;
 
         SUBNETWORK = address(this).subnetwork(NETWORK_IDENTIFIER);
 
@@ -164,6 +165,10 @@ contract Middleware is IMiddleware {
     }
 
     function distributeOperatorRewards(Gear.OperatorRewardsCommitment memory _rewards) external _onlyRouter {
+        if (_rewards.token != COLLATERAL) {
+            revert UnknownCollateral();
+        }
+
         IDefaultOperatorRewards(OPERATOR_REWARDS).distributeRewards(
             ROUTER, _rewards.token, _rewards.amount, _rewards.root
         );
@@ -173,127 +178,47 @@ contract Middleware is IMiddleware {
         for (uint256 i = 0; i < _commitment.distribution.length; ++i) {
             Gear.StakerRewards memory stakerRewards = _commitment.distribution[i];
 
+            if (stakerRewards.token != COLLATERAL) {
+                revert UnknownCollateral();
+            }
+
             if (!vaults.isEnable(stakerRewards.vault)) {
                 // TODO: think about what to do with disabled vault
             }
 
-            (bool exists, address _rewards) = vaultToRewards.tryGet(stakerRewards.vault);
-            if (!exists) {
-                (bool _exists, uint256 amount) = pendingRewards.tryGet(stakerRewards.vault);
-                uint256 _pendingAmount = _exists ? amount + stakerRewards.amount : stakerRewards.amount;
-                pendingRewards.set(stakerRewards.vault, _pendingAmount);
-            } else {
-                (bool _exists, uint256 pendingAmount) = pendingRewards.tryGet(stakerRewards.vault);
-                uint256 rewardsAmount =
-                    _exists && pendingAmount > 0 ? pendingAmount + stakerRewards.amount : stakerRewards.amount;
-
-                // TODO: consider to add hints
-                bytes memory data = abi.encode(_commitment.timestamp, MAX_ADMIN_FEE, bytes(""), bytes(""));
-                if (IDefaultStakerRewardsFactory(STAKER_REWARDS_FACTORY).isEntity(_rewards)) {
-                    IDefaultStakerRewards(_rewards).distributeRewards(ROUTER, stakerRewards.token, rewardsAmount, data);
-                }
+            if (!vaults.contains(stakerRewards.vault)) {
+                _updatePendingRewards(stakerRewards.vault, stakerRewards.amount);
+                return;
             }
+
+            address rewards = address(vaults.getPinnedData(stakerRewards.vault));
+
+            (bool exists, uint256 pendingAmount) = pendingRewards.tryGet(stakerRewards.vault);
+            uint256 rewardsAmount = stakerRewards.amount;
+
+            if (exists) {
+                rewardsAmount += pendingAmount;
+                pendingRewards.remove(stakerRewards.vault);
+            }
+
+            // TODO: consider to add hints instead of bytes("")
+            bytes memory data = abi.encode(_commitment.timestamp, MAX_ADMIN_FEE, bytes(""), bytes(""));
+            IDefaultStakerRewards(rewards).distributeRewards(ROUTER, stakerRewards.token, rewardsAmount, data);
         }
     }
 
-    // TODO: check vault has enough stake
-    // TODO: consider to register both vault and rewards contract
-    // TODO: test vault admin modifier
-    function registerVault(address vault) external _vaultAdmin(vault) {
-        if (!IRegistry(VAULT_REGISTRY).isEntity(vault)) {
-            revert UnknownVault();
-        }
+    function registerVault(address _vault, address _rewards) external _vaultAdmin(_vault) {
+        _validateVault(_vault);
+        _validateStakerRewards(_vault, _rewards);
 
-        if (IMigratableEntity(vault).version() != ALLOWED_VAULT_IMPL_VERSION) {
-            revert IncompatibleVaultVersion();
-        }
-
-        uint48 vaultEpochDuration = IVault(vault).epochDuration();
-        if (vaultEpochDuration < MIN_VAULT_EPOCH_DURATION) {
-            revert VaultWrongEpochDuration();
-        }
-
-        if (IVault(vault).collateral() != COLLATERAL) {
-            revert UnknownCollateral();
-        }
-
-        if (!IVault(vault).isDelegatorInitialized()) {
-            revert DelegatorNotInitialized();
-        }
-
-        if (!IVault(vault).isSlasherInitialized()) {
-            revert SlasherNotInitialized();
-        }
-
-        IBaseDelegator delegator = IBaseDelegator(IVault(vault).delegator());
-        if (delegator.maxNetworkLimit(SUBNETWORK) != type(uint256).max) {
-            delegator.setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
-        }
-        _delegatorHookCheck(IBaseDelegator(delegator).hook());
-
-        address slasher = IVault(vault).slasher();
-        if (IEntity(slasher).TYPE() != VETO_SLASHER_IMPL_TYPE) {
-            revert IncompatibleSlasherType();
-        }
-        if (IVetoSlasher(slasher).isBurnerHook()) {
-            revert BurnerHookNotSupported();
-        }
-        uint48 vetoDuration = IVetoSlasher(slasher).vetoDuration();
-        if (vetoDuration < MIN_VETO_DURATION) {
-            revert VetoDurationTooShort();
-        }
-        if (vetoDuration + MIN_SLASH_EXECUTION_DELAY > vaultEpochDuration) {
-            revert VetoDurationTooLong();
-        }
-        if (IVetoSlasher(slasher).resolverSetEpochsDelay() > MAX_RESOLVER_SET_EPOCHS_DELAY) {
-            revert ResolverSetDelayTooLong();
-        }
-
-        address resolver = IVetoSlasher(slasher).resolver(SUBNETWORK, new bytes(0));
-        if (resolver == address(0)) {
-            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, VETO_RESOLVER, new bytes(0));
-        } else if (resolver != VETO_RESOLVER) {
-            // TODO: consider how to support this case
-            revert ResolverMismatch();
-        }
-
-        _burnerCheck(IVault(vault).burner());
+        vaults.append(_vault, uint160(_rewards));
     }
 
-    function registerStakerRewards(address vault, address rewards_) external _vaultAdmin(vault) {
-        if (!IRegistry(STAKER_REWARDS_FACTORY).isEntity(rewards_)) {
-            revert UnknownStakerRewards();
-        }
-
-        if (IDefaultStakerRewards(rewards_).VAULT() != vault) {
-            revert InvalidStakerRewardsVault();
-        }
-
-        if (!vaults.contains(vault)) {
-            revert NotRegisteredVault();
-        }
-
-        // TODO: maybe should add more checks
-        vaultToRewards.set(vault, rewards_);
-    }
-
-    function disableVault(address vault) external {
-        address vault_owner = address(vaults.getPinnedData(vault));
-
-        if (vault_owner != msg.sender) {
-            revert NotVaultOwner();
-        }
-
+    function disableVault(address vault) external _vaultAdmin(vault) {
         vaults.disable(vault);
     }
 
-    function enableVault(address vault) external {
-        address vault_owner = address(vaults.getPinnedData(vault));
-
-        if (vault_owner != msg.sender) {
-            revert NotVaultOwner();
-        }
-
+    function enableVault(address vault) external _vaultAdmin(vault) {
         vaults.enable(vault);
     }
 
@@ -428,6 +353,13 @@ contract Middleware is IMiddleware {
         }
     }
 
+    // Increase vault pending rewards by _amount
+    function _updatePendingRewards(address _vault, uint256 _amount) private {
+        (bool _exists, uint256 pendingAmount) = pendingRewards.tryGet(_vault);
+        uint256 pendingAmount_ = _exists ? pendingAmount + _amount : _amount;
+        pendingRewards.set(_vault, pendingAmount_);
+    }
+
     function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {
         for (uint256 i; i < vaults.length(); ++i) {
             (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = vaults.atWithTimes(i);
@@ -448,13 +380,6 @@ contract Middleware is IMiddleware {
     function _delegatorHookCheck(address hook) private pure {
         if (hook != address(0)) {
             revert UnsupportedHook();
-        }
-    }
-
-    // Supports only null burner for now
-    function _burnerCheck(address burner) private pure {
-        if (burner == address(0)) {
-            revert UnsupportedBurner();
         }
     }
 
@@ -497,6 +422,85 @@ contract Middleware is IMiddleware {
         // In order to be able to change resolver, we need to limit max delay in epochs.
         // `3` - is minimal number of epochs, which is symbiotic veto slasher impl restrictions.
         require(params.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
+    }
+
+    // TODO: check vault has enough stake
+    function _validateVault(address _vault) private {
+        if (!IRegistry(VAULT_REGISTRY).isEntity(_vault)) {
+            revert UnknownVault();
+        }
+
+        if (IMigratableEntity(_vault).version() != ALLOWED_VAULT_IMPL_VERSION) {
+            revert IncompatibleVaultVersion();
+        }
+
+        if (IVault(_vault).collateral() != COLLATERAL) {
+            revert UnknownCollateral();
+        }
+
+        /* Checking time */
+        uint48 vaultEpochDuration = IVault(_vault).epochDuration();
+        if (vaultEpochDuration < MIN_VAULT_EPOCH_DURATION) {
+            revert VaultWrongEpochDuration();
+        }
+
+        /* Validate delegator */
+        if (!IVault(_vault).isDelegatorInitialized()) {
+            revert DelegatorNotInitialized();
+        }
+        IBaseDelegator delegator = IBaseDelegator(IVault(_vault).delegator());
+        if (delegator.maxNetworkLimit(SUBNETWORK) != type(uint256).max) {
+            delegator.setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
+        }
+        _delegatorHookCheck(IBaseDelegator(delegator).hook());
+
+        /* Validate Slasher */
+        if (!IVault(_vault).isSlasherInitialized()) {
+            revert SlasherNotInitialized();
+        }
+
+        address slasher = IVault(_vault).slasher();
+        if (IEntity(slasher).TYPE() != VETO_SLASHER_IMPL_TYPE) {
+            revert IncompatibleSlasherType();
+        }
+
+        if (IVetoSlasher(slasher).isBurnerHook()) {
+            revert BurnerHookNotSupported();
+        }
+
+        uint48 vetoDuration = IVetoSlasher(slasher).vetoDuration();
+        if (vetoDuration < MIN_VETO_DURATION) {
+            revert VetoDurationTooShort();
+        }
+        if (vetoDuration + MIN_SLASH_EXECUTION_DELAY > vaultEpochDuration) {
+            revert VetoDurationTooLong();
+        }
+        if (IVetoSlasher(slasher).resolverSetEpochsDelay() > MAX_RESOLVER_SET_EPOCHS_DELAY) {
+            revert ResolverSetDelayTooLong();
+        }
+
+        address resolver = IVetoSlasher(slasher).resolver(SUBNETWORK, new bytes(0));
+        if (resolver == address(0)) {
+            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, VETO_RESOLVER, new bytes(0));
+        } else if (resolver != VETO_RESOLVER) {
+            // TODO: consider how to support this case
+            revert ResolverMismatch();
+        }
+
+        // TODO: consider allow transfer burned funds to ROUTER address
+        if (IVault(_vault).burner() == address(0)) {
+            revert UnsupportedBurner();
+        }
+    }
+
+    function _validateStakerRewards(address _vault, address _rewards) private view {
+        if (!IRegistry(STAKER_REWARDS_FACTORY).isEntity(_rewards)) {
+            revert UnknownStakerRewards();
+        }
+
+        if (IDefaultStakerRewards(_rewards).VAULT() != _vault) {
+            revert InvalidStakerRewardsVault();
+        }
     }
 
     // Timestamp must be always in the past, but not too far,

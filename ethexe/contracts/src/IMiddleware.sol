@@ -55,7 +55,6 @@ interface IMiddleware {
         address roleSlashRequester;
         address roleSlashExecutor;
         address vetoResolver;
-
         address operatorRewards;
         address operatorRewardsFactory;
         address stakerRewardsFactory;
@@ -76,6 +75,8 @@ interface IMiddleware {
         address vault;
         uint256 index;
     }
+
+    /* View functions */
 
     /**
      * @notice
@@ -197,6 +198,60 @@ interface IMiddleware {
      */
     function STAKER_REWARDS_FACTORY() external view returns (address);
 
+    /**
+     * @notice ...
+     */
+    function changeSlashRequester(address newRole) external;
+
+    /**
+     * @notice ...
+     */
+    function changeSlashExecutor(address newRole) external;
+
+    /* Operators managing */
+
+    /**
+     * @notice ...
+     */
+    function registerOperator() external;
+
+    /**
+     * @notice ...
+     */
+    function disableOperator() external;
+
+    /**
+     * @notice ...
+     */
+    function enableOperator() external;
+
+    /**
+     * @notice ...
+     */
+    function unregisterOperator(address operator) external;
+
+    /* Vaults managing */
+
+    /**
+     * @notice ...
+     */
+    function registerVault(address vault, address rewards) external;
+
+    /**
+     * @notice ...
+     */
+    function disableVault(address vault) external;
+
+    /**
+     * @notice ...
+     */
+    function enableVault(address vault) external;
+
+    /**
+     * @notice ...
+     */
+    function unregisterVault(address vault) external;
+
     /* Rewards distribution logic */
 
     /**
@@ -209,34 +264,23 @@ interface IMiddleware {
      */
     function distributeStakerRewards(Gear.StakerRewardsCommitment memory _rewards) external;
 
-    /* Other Functions */
-    function changeSlashRequester(address newRole) external;
-
-    function changeSlashExecutor(address newRole) external;
-
-    // TODO: Check that total stake is big enough
-    function registerOperator() external;
-
-    function disableOperator() external;
-
-    function enableOperator() external;
-
-    function unregisterOperator(address operator) external;
-
-    // TODO: check vault has enough stake
-    function registerVault(address vault) external;
-
-    function disableVault(address vault) external;
-
-    function enableVault(address vault) external;
-
-    function unregisterVault(address vault) external;
-
+    /**
+     * @notice ...
+     */
     function makeElectionAt(uint48 ts, uint256 maxValidators) external view returns (address[] memory);
 
+    /**
+     * @notice ...
+     */
     function getOperatorStakeAt(address operator, uint48 ts) external view returns (uint256 stake);
 
+    /**
+     * @notice ...
+     */
     function requestSlash(SlashData[] calldata data) external;
 
+    /**
+     * @notice ...
+     */
     function executeSlash(SlashIdentifier[] calldata slashes) external;
 }
