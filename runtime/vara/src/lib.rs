@@ -71,7 +71,7 @@ use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
 };
-use sp_runtime::traits::AccountIdConversion; // Added for into_sub_account_truncating
+use sp_runtime::traits::AccountIdConversion;
 use sp_version::RuntimeVersion;
 
 #[cfg(not(feature = "dev"))]
