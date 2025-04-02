@@ -168,6 +168,11 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
         &mut self.0
     }
 
+    /// Clones self into vector.
+    pub fn to_vec(&self) -> Vec<T> {
+        self.0.clone()
+    }
+
     /// Destruct limited vector and returns inner vector.
     pub fn into_vec(self) -> Vec<T> {
         self.0

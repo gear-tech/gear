@@ -87,18 +87,18 @@ impl Payload {
     }
 }
 
-/// Buffer which size cannot be bigger then max allowed payload size.
+/// Panic buffer which size cannot be bigger then max allowed payload size.
 #[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct PanicBuffer(Payload);
 
 impl PanicBuffer {
     /// Returns ref to the internal data.
-    pub fn inner(&self) -> &[u8] {
-        self.0.inner()
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_vec()
     }
 
-    fn as_limited_str(&self) -> Option<LimitedStr> {
+    fn to_limited_str(&self) -> Option<LimitedStr> {
         let s = core::str::from_utf8(self.0.inner()).ok()?;
         LimitedStr::try_from(s).ok()
     }
@@ -125,7 +125,7 @@ impl From<LimitedStr<'_>> for PanicBuffer {
 
 impl Display for PanicBuffer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if let Some(s) = self.as_limited_str() {
+        if let Some(s) = self.to_limited_str() {
             Display::fmt(&s, f)
         } else {
             Display::fmt(&self.0, f)
@@ -135,7 +135,7 @@ impl Display for PanicBuffer {
 
 impl Debug for PanicBuffer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if let Some(s) = self.as_limited_str() {
+        if let Some(s) = self.to_limited_str() {
             Debug::fmt(s.as_str(), f)
         } else {
             Debug::fmt(&self.0, f)

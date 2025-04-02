@@ -228,7 +228,7 @@ impl ProcessErrorCase {
         match self {
             ProcessErrorCase::ExecutionFailed(
                 reason @ ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(buf)),
-            ) => (reason.as_simple().into(), buf.inner().to_vec()),
+            ) => (reason.as_simple().into(), buf.to_vec()),
             this => {
                 let (reason, payload) = this.to_reason_and_payload_str();
                 (reason, payload.into_bytes())
