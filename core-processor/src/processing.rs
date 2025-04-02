@@ -28,7 +28,6 @@ use crate::{
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{
-    format,
     string::{String, ToString},
     vec::Vec,
 };
