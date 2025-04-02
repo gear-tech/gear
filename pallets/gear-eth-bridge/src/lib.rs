@@ -73,7 +73,7 @@ pub mod pallet {
     type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
     type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
     type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
-    type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
+    pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
     type GearBuiltin<T> = pallet_gear_builtin::Pallet<T>;
 
     /// Pallet Gear Eth Bridge's storage version.

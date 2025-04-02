@@ -1263,10 +1263,20 @@ impl SortedMembers<AccountId> for GearEthBridgeControlAccounts {
 }
 
 #[cfg(feature = "dev")]
+pub struct GearEthBridgeAdminAccounts;
+#[cfg(feature = "dev")]
+impl SortedMembers<AccountId> for GearEthBridgeAdminAccounts {
+    fn sorted_members() -> Vec<AccountId> {
+        vec![GearEthBridgeAdminAccount::get()]
+    }
+}
+
+#[cfg(feature = "dev")]
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
     type ControlOrigin = frame_system::EnsureSignedBy<GearEthBridgeControlAccounts, AccountId>;
+    type AdminOrigin = frame_system::EnsureSignedBy<GearEthBridgeAdminAccounts, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;

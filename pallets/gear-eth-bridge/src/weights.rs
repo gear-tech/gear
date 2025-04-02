@@ -23,6 +23,8 @@
 //! WORST CASE MAP SIZE: `1000000`
 //! CPU: `<UNKNOWN>`
 //! EXECUTION: , WASM-EXECUTION: Compiled, CHAIN: Some("vara-dev"), DB CACHE: 1024
+//!
+//! NOTE(romanm): Mannualy updated 02-04-2025, added `set_fee` weight function.
 
 // Executed Command:
 // ./target/release/gear benchmark pallet --chain=vara-dev --steps=50 --repeat=20 --pallet=pallet_gear_eth_bridge --extrinsic=* --heap-pages=4096 --output=./pallets/gear-eth-bridge/weights.rs --template=.maintain/frame-weight-template.hbs
@@ -40,6 +42,7 @@ use sp_std::marker::PhantomData;
 pub trait WeightInfo {
     fn pause() -> Weight;
     fn unpause() -> Weight;
+    fn set_fee() -> Weight;
     fn send_eth_message() -> Weight;
 }
 
@@ -62,6 +65,14 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 6_000_000 picoseconds.
         Weight::from_parts(7_000_000, 1486)
             .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(1_u64))
+    }
+    fn set_fee() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_003_000 picoseconds.
+        Weight::from_parts(2_164_000, 0)
             .saturating_add(T::DbWeight::get().writes(1_u64))
     }
     fn send_eth_message() -> Weight {
@@ -93,6 +104,14 @@ impl WeightInfo for () {
         // Minimum execution time: 6_000_000 picoseconds.
         Weight::from_parts(7_000_000, 1486)
             .saturating_add(RocksDbWeight::get().reads(2_u64))
+            .saturating_add(RocksDbWeight::get().writes(1_u64))
+    }
+    fn set_fee() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_003_000 picoseconds.
+        Weight::from_parts(2_164_000, 0)
             .saturating_add(RocksDbWeight::get().writes(1_u64))
     }
     fn send_eth_message() -> Weight {

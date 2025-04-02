@@ -18,9 +18,10 @@
 
 //! Benchmarks for Pallet Gear Eth Bridge.
 
-use crate::{Call, Config, Pallet};
+use crate::{Call, Config, CurrencyOf, Pallet};
 use common::{benchmarking, Origin};
 use frame_benchmarking::benchmarks;
+use frame_support::traits::Currency;
 use frame_system::RawOrigin;
 use sp_runtime::traits::Get;
 use sp_std::vec;
@@ -48,6 +49,13 @@ benchmarks! {
     }: _(RawOrigin::Root)
     verify {
         assert!(!crate::Paused::<T>::get());
+    }
+
+    set_fee {
+        let fee = CurrencyOf::<T>::minimum_balance();
+    } : _(RawOrigin::Root, fee)
+    verify {
+        assert_eq!(crate::TransportFee::<T>::get().unwrap(), CurrencyOf::<T>::minimum_balance());
     }
 
     send_eth_message {
