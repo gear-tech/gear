@@ -173,6 +173,7 @@ jobs:
             --blocktime 3000 \
             --checks all \
             --disable-spec-version-check \
+            --no-weight-warnings \
             snap -p vara_ci.snap
 
       - name: "Build: Production binaries"
