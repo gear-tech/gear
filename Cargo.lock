@@ -6116,7 +6116,6 @@ dependencies = [
  "numerated",
  "parity-scale-codec",
  "paste",
- "primitive-types",
  "proptest",
  "rand 0.8.5",
  "scale-info",
