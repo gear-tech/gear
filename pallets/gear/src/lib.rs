@@ -160,6 +160,10 @@ impl DebugInfo for () {
 
 #[frame_support::pallet]
 pub mod pallet {
+    use gear_core::constants::{
+        MAILBOX_THRESHOLD, OUTGOING_BYTES_LIMIT, OUTGOING_LIMIT, PERFORMANCE_MULTIPLIER,
+    };
+
     use super::*;
 
     #[pallet::config]
@@ -184,18 +188,6 @@ pub mod pallet {
         #[pallet::constant]
         type Schedule: Get<Schedule<Self>>;
 
-        /// The maximum amount of messages that can be produced in during all message executions.
-        #[pallet::constant]
-        type OutgoingLimit: Get<u32>;
-
-        /// The maximum amount of bytes in outgoing messages during message execution.
-        #[pallet::constant]
-        type OutgoingBytesLimit: Get<u32>;
-
-        /// Performance multiplier.
-        #[pallet::constant]
-        type PerformanceMultiplier: Get<Percent>;
-
         type DebugInfo: DebugInfo;
 
         /// Implementation of a storage for program binary codes.
@@ -207,16 +199,6 @@ pub mod pallet {
             Error = DispatchError,
             AccountId = Self::AccountId,
         >;
-
-        /// The minimal gas amount for message to be inserted in mailbox.
-        ///
-        /// This gas will be consuming as rent for storing and message will be available
-        /// for reply or claim, once gas ends, message removes.
-        ///
-        /// Messages with gas limit less than that minimum will not be added in mailbox,
-        /// but will be seen in events.
-        #[pallet::constant]
-        type MailboxThreshold: Get<u64>;
 
         /// Amount of reservations can exist for 1 program.
         #[pallet::constant]
@@ -1070,17 +1052,17 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
-                performance_multiplier: T::PerformanceMultiplier::get().into(),
+                performance_multiplier: Percent::new(PERFORMANCE_MULTIPLIER).into(),
                 forbidden_funcs: Default::default(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
                 costs: schedule.process_costs(),
                 existential_deposit: CurrencyOf::<T>::minimum_balance().unique_saturated_into(),
-                mailbox_threshold: T::MailboxThreshold::get(),
+                mailbox_threshold: MAILBOX_THRESHOLD,
                 max_reservations: T::ReservationsLimit::get(),
                 max_pages: schedule.limits.memory_pages.into(),
-                outgoing_limit: T::OutgoingLimit::get(),
-                outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
+                outgoing_limit: OUTGOING_LIMIT,
+                outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
             }
         }
 

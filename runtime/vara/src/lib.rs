@@ -1127,13 +1127,6 @@ parameter_types! {
     pub const ReservationCost: u64 = 100;
     pub const DispatchHoldCost: u64 = 100;
 
-    pub const OutgoingLimit: u32 = 1024;
-    // 64 MB, must be less than max runtime heap memory.
-    // NOTE: currently runtime heap memory is 1 GB (see https://shorturl.at/DET45)
-    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
-    pub const MailboxThreshold: u64 = 3000;
-
-    pub const PerformanceMultiplier: u32 = 100;
 }
 
 parameter_types! {
@@ -1158,13 +1151,9 @@ impl pallet_gear::Config for Runtime {
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
-    type OutgoingLimit = OutgoingLimit;
-    type OutgoingBytesLimit = OutgoingBytesLimit;
-    type PerformanceMultiplier = PerformanceMultiplier;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
-    type MailboxThreshold = MailboxThreshold;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
