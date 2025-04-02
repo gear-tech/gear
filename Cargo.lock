@@ -3603,6 +3603,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-panic-payload"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+]
+
+[[package]]
 name = "demo-piggy-bank"
 version = "0.1.0"
 dependencies = [
