@@ -263,7 +263,8 @@ contract Mirror is IMirror {
                 payload = _message.payload;
             } else {
                 /* gear_core::message::ReplyCode::{Error = 1, Unsupported = 255} */
-                payload = abi.encodeWithSelector(ICallbacks.errorReply.selector, _message.id, replyCode);
+                payload =
+                    abi.encodeWithSelector(ICallbacks.onErrorReply.selector, _message.id, _message.payload, replyCode);
             }
 
             (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
