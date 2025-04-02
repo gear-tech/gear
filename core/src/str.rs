@@ -69,6 +69,11 @@ impl<'a> LimitedStr<'a> {
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
     }
+
+    /// Return inner value.
+    pub fn into_inner(self) -> Cow<'a, str> {
+        self.0
+    }
 }
 
 /// The error type returned when a conversion from `&str` to [`LimitedStr`] fails.

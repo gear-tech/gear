@@ -518,7 +518,7 @@ impl ExtManager {
                 mock.debug(expl);
 
                 let err_reply_reason = ActorExecutionErrorReplyReason::Trap(
-                    TrapExplanation::Panic(LimitedStr::from_small_str(expl)),
+                    TrapExplanation::Panic(LimitedStr::from_small_str(expl).into()),
                 );
                 core_processor::process_execution_error(
                     dispatch,

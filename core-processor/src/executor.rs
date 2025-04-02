@@ -323,7 +323,7 @@ where
         reserve_for: Default::default(),
         random_data: Default::default(),
         system_reservation: Default::default(),
-        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
+        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(100),
         existential_deposit: Default::default(),
         mailbox_threshold: Default::default(),
         costs: Default::default(),

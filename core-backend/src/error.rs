@@ -21,8 +21,7 @@ use codec::{Decode, Encode};
 use gear_core::{
     gas::{ChargeError, CounterType},
     ids::ProgramId,
-    message::MessageWaitedType,
-    str::LimitedStr,
+    message::{MessageWaitedType, PanicBuffer},
 };
 use gear_core_errors::ExtError as FallibleExtError;
 
@@ -123,12 +122,12 @@ pub enum UnrecoverableExecutionError {
     InvalidDebugString,
     #[display(fmt = "Not enough gas for operation")]
     NotEnoughGas,
-    #[display(fmt = "Length is overflowed to read payload")]
-    TooBigReadLen,
     #[display(fmt = "Cannot take data in payload range from message with size")]
     ReadWrongRange,
     #[display(fmt = "Unsupported version of environment variables encountered")]
     UnsupportedEnvVarsVersion,
+    #[display(fmt = "Length is overflowed to read panic payload")]
+    PanicBufferIsTooBig,
 }
 
 /// Memory error in infallible syscall.
@@ -226,7 +225,7 @@ pub enum TrapExplanation {
     #[display(fmt = "Syscall unrecoverable error: {_0}")]
     UnrecoverableExt(UnrecoverableExtError),
     #[display(fmt = "Panic occurred: {_0}")]
-    Panic(LimitedStr<'static>),
+    Panic(PanicBuffer),
     #[display(fmt = "Stack limit exceeded")]
     StackLimitExceeded,
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]

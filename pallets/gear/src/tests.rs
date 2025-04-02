@@ -59,6 +59,7 @@ use gear_core::{
         WasmPage,
     },
     program::ActiveProgram,
+    str::LimitedStr,
     tasks::ScheduledTask,
 };
 use gear_core_backend::error::{
@@ -357,7 +358,9 @@ fn test_failing_delayed_reservation_send() {
         );
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                LimitedStr::from(error_text).into(),
+            )),
         );
 
         // Possibly sent message from reservation with a 1 block delay duration.
@@ -584,7 +587,9 @@ fn delayed_reservations_sending_validation() {
 
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                LimitedStr::from(error_text).into(),
+            )),
         );
 
         // II. After-wait sending can't appear if not enough gas limit in gas reservation.
@@ -621,7 +626,9 @@ fn delayed_reservations_sending_validation() {
 
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                LimitedStr::from(error_text).into(),
+            )),
         );
     });
 }
@@ -755,7 +762,9 @@ fn default_wait_lock_timeout() {
 
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                LimitedStr::from(error_text).into(),
+            )),
         );
     })
 }
@@ -8053,7 +8062,9 @@ fn test_create_program_with_exceeding_value() {
         );
         assert_failed(
             msg_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                LimitedStr::from(error_text).into(),
+            )),
         );
     })
 }
@@ -8138,7 +8149,9 @@ fn demo_constructor_works() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                LimitedStr::from(error_text).into(),
+            )),
         );
 
         let reply = maybe_any_last_message().expect("Should be");
@@ -9120,10 +9133,10 @@ fn mx_lock_ownership_exceedance() {
 
             let get_lock_ownership_exceeded_trap = |command_msg_id| {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                    format!(
+                    LimitedStr::from(format!(
                         "panicked with 'Message 0x{} has exceeded lock ownership time'",
                         hex::encode(command_msg_id)
-                    )
+                    ))
                     .into(),
                 ))
             };
@@ -16028,6 +16041,12 @@ pub(crate) mod utils {
         match error {
             AssertFailedError::Execution(error) => {
                 let mut expectations = error.to_string();
+
+                // userspace panic case passes panic payload without any formatting unlike other cases,
+                // so we strip the prefix
+                if let Some(s) = expectations.strip_prefix("Panic occurred: ") {
+                    expectations = s.to_string();
+                }
 
                 // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
                 // This check handles display of the error inside.
