@@ -61,7 +61,7 @@ impl ExtManager {
             {
                 TestActor::Initialized(program) => program,
                 TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
-                TestActor::Dormant => panic!("Actor {program_id} isn't dormant"),
+                TestActor::Dormant(_) => panic!("Actor {program_id} is dormant"),
             };
 
             match program {

@@ -99,7 +99,7 @@ impl JournalHandler for ExtManager {
                 actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
 
             if let TestActor::Initialized(Program::Genuine(program)) =
-                std::mem::replace(actor, TestActor::Dormant)
+                std::mem::replace(actor, TestActor::Dormant(Some(value_destination)))
             {
                 for (reservation_id, slot) in program.gas_reservation_map {
                     let slot = self.remove_gas_reservation_slot(reservation_id, slot);
@@ -113,8 +113,6 @@ impl JournalHandler for ExtManager {
                     );
                 }
             }
-
-            *actor = TestActor::Dormant
         });
 
         let value = Accounts::balance(id_exited);
@@ -319,7 +317,7 @@ impl JournalHandler for ExtManager {
         } else {
             log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             for (_, invalid_candidate_id) in candidates {
-                Actors::insert(invalid_candidate_id, TestActor::Dormant);
+                Actors::insert(invalid_candidate_id, TestActor::Dormant(None));
             }
         }
     }

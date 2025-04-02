@@ -36,7 +36,8 @@ use gear_core::{
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, Payload, ReplyMessage, StoredDispatch,
+        ContextSettings, DispatchKind, IncomingDispatch, Payload, PayloadSizeError, ReplyMessage,
+        StoredDispatch,
     },
     reservation::GasReservationState,
 };
@@ -45,6 +46,7 @@ use gear_core_backend::{
     BackendExternalities,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
+use parity_scale_codec::Encode;
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<Ext>(
@@ -201,42 +203,42 @@ where
 }
 
 enum ProcessErrorCase {
-    /// Message is not executable error.
-    NonExecutable,
+    /// Message is not executable.
+    NonExecutable {
+        /// Inheritor of a terminated/exited program.
+        inheritor: Option<ProgramId>,
+    },
     /// Error is considered as an execution failure.
     ExecutionFailed(ActorExecutionErrorReplyReason),
-    /// Message is executable, but it's execution failed due to re-instrumentation.
+    /// Message is executable, but its execution failed due to re-instrumentation.
     ReinstrumentationFailed,
 }
 
 impl ProcessErrorCase {
-    pub fn to_reason_and_payload_str(&self) -> (ErrorReplyReason, String) {
+    fn to_reason(&self) -> ErrorReplyReason {
         match self {
-            ProcessErrorCase::NonExecutable => {
-                let reason = ErrorReplyReason::InactiveActor;
-                (reason, reason.to_string())
-            }
-            ProcessErrorCase::ExecutionFailed(reason) => {
-                (reason.as_simple().into(), reason.to_string())
-            }
-            ProcessErrorCase::ReinstrumentationFailed => {
-                let err = ErrorReplyReason::ReinstrumentationFailure;
-                (err, err.to_string())
-            }
+            ProcessErrorCase::NonExecutable { .. } => ErrorReplyReason::InactiveActor,
+            ProcessErrorCase::ExecutionFailed(reason) => reason.as_simple().into(),
+            ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::ReinstrumentationFailure,
         }
     }
 
-    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, Option<Payload>) {
+    fn to_payload_str(&self) -> String {
         match self {
-            ProcessErrorCase::ExecutionFailed(
-                reason @ ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(buf)),
-            ) => (reason.as_simple().into(), Some(buf.inner().clone())),
-            this => {
-                let (reason, payload) = this.to_reason_and_payload_str();
-                let payload = payload.into_bytes().try_into().ok();
-                (reason, payload)
-            }
+            ProcessErrorCase::ExecutionFailed(reason) => reason.to_string(),
+            this => this.to_reason().to_string(),
         }
+    }
+
+    fn to_payload(&self) -> Result<Payload, PayloadSizeError> {
+        let payload = match self {
+            ProcessErrorCase::NonExecutable { inheritor } => inheritor.encode(),
+            ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
+                TrapExplanation::Panic(buf),
+            )) => return Ok(buf.inner().clone()),
+            this => this.to_payload_str().into_bytes(),
+        };
+        payload.try_into()
     }
 }
 
@@ -297,11 +299,12 @@ fn process_error(
     }
 
     if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-        let (err, err_payload) = case.to_reason_and_payload();
+        let err = case.to_reason();
+        let err_payload = case.to_payload();
 
         // Panic is impossible, unless error message is too large or [Payload] max size is too small.
-        let err_payload = err_payload.unwrap_or_else(|| {
-            let (_, err_payload) = case.to_reason_and_payload_str();
+        let err_payload = err_payload.unwrap_or_else(|PayloadSizeError| {
+            let err_payload = case.to_payload_str();
             let err_msg =
                 format!("process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}",
             );
@@ -332,7 +335,7 @@ fn process_error(
 
     let outcome = match case {
         ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
-            let (_, err_payload) = case.to_reason_and_payload_str();
+            let err_payload = case.to_payload_str();
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
                     program_id,
@@ -345,7 +348,7 @@ fn process_error(
                 },
             }
         }
-        ProcessErrorCase::NonExecutable => DispatchOutcome::NoExecution,
+        ProcessErrorCase::NonExecutable { .. } => DispatchOutcome::NoExecution,
     };
 
     journal.push(JournalNote::MessageDispatched {
@@ -394,7 +397,10 @@ pub fn process_reinstrumentation_error(
 }
 
 /// Helper function for journal creation in message no execution case.
-pub fn process_non_executable(context: ContextChargedForProgram) -> Vec<JournalNote> {
+pub fn process_non_executable(
+    context: ContextChargedForProgram,
+    inheritor: Option<ProgramId>,
+) -> Vec<JournalNote> {
     let ContextChargedForProgram {
         dispatch,
         gas_counter,
@@ -409,7 +415,7 @@ pub fn process_non_executable(context: ContextChargedForProgram) -> Vec<JournalN
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
-        ProcessErrorCase::NonExecutable,
+        ProcessErrorCase::NonExecutable { inheritor },
     )
 }
 

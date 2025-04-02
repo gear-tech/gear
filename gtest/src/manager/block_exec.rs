@@ -312,9 +312,9 @@ impl ExtManager {
 
             let actor = actor.unwrap_or_else(|| unreachable!("actor must exist for queue message"));
 
-            if actor.is_dormant() {
+            if let Dormant(inheritor) = actor {
                 log::debug!("Message {dispatch_id} is sent to non-active program {destination_id}");
-                return Exec::Notes(core_processor::process_non_executable(context));
+                return Exec::Notes(core_processor::process_non_executable(context, *inheritor));
             };
 
             if actor.is_initialized() && dispatch_kind.is_init() {
@@ -354,7 +354,7 @@ impl ExtManager {
                     unreachable!("{err_msg}");
                 }
 
-                return Exec::Notes(core_processor::process_non_executable(context));
+                return Exec::Notes(core_processor::process_non_executable(context, None));
             }
 
             if let Some(data) = actor.get_executable_actor_data() {
