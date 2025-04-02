@@ -100,6 +100,7 @@ impl Payload {
     Encode,
     TypeInfo,
     derive_more::From,
+    derive_more::Into,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct PanicBuffer(Payload);
