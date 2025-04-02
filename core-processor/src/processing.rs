@@ -35,7 +35,9 @@ use alloc::{
 use gear_core::{
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
-    message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, Payload, ReplyMessage, StoredDispatch,
+    },
     reservation::GasReservationState,
 };
 use gear_core_backend::{
@@ -224,14 +226,15 @@ impl ProcessErrorCase {
         }
     }
 
-    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, Vec<u8>) {
+    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, Option<Payload>) {
         match self {
             ProcessErrorCase::ExecutionFailed(
                 reason @ ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(buf)),
-            ) => (reason.as_simple().into(), buf.to_vec()),
+            ) => (reason.as_simple().into(), Some(buf.inner().clone())),
             this => {
                 let (reason, payload) = this.to_reason_and_payload_str();
-                (reason, payload.into_bytes())
+                let payload = payload.into_bytes().try_into().ok();
+                (reason, payload)
             }
         }
     }
@@ -297,7 +300,7 @@ fn process_error(
         let (err, err_payload) = case.to_reason_and_payload();
 
         // Panic is impossible, unless error message is too large or [Payload] max size is too small.
-        let err_payload = err_payload.try_into().unwrap_or_else(|_| {
+        let err_payload = err_payload.unwrap_or_else(|| {
             let (_, err_payload) = case.to_reason_and_payload_str();
             let err_msg =
                 format!("process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}",

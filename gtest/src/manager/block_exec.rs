@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::SuccessfulDispatchResultKind;
-use gear_core::{code::MAX_WASM_PAGES_AMOUNT, gas::GasCounter};
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, gas::GasCounter, str::LimitedStr};
 use task::get_maximum_task_gas;
 
 use super::*;
@@ -515,8 +515,9 @@ impl ExtManager {
             Err(expl) => {
                 mock.debug(expl);
 
-                let err_reply_reason =
-                    ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(expl.into()));
+                let err_reply_reason = ActorExecutionErrorReplyReason::Trap(
+                    TrapExplanation::Panic(LimitedStr::from_small_str(expl).into()),
+                );
                 core_processor::process_execution_error(
                     dispatch,
                     program_id,

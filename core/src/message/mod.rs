@@ -88,14 +88,26 @@ impl Payload {
 }
 
 /// Panic buffer which size cannot be bigger then max allowed payload size.
-#[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(
+    Clone,
+    Default,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    derive_more::From,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct PanicBuffer(Payload);
 
 impl PanicBuffer {
     /// Returns ref to the internal data.
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
+    pub fn inner(&self) -> &Payload {
+        &self.0
     }
 
     fn to_limited_str(&self) -> Option<LimitedStr> {
@@ -104,22 +116,14 @@ impl PanicBuffer {
     }
 }
 
-impl<T> From<T> for PanicBuffer
-where
-    T: AsRef<[u8]>,
-{
-    fn from(value: T) -> Self {
-        let value = value.as_ref();
-        let upper_bound = value.len().min(MAX_PAYLOAD_SIZE);
-        Payload::try_from(&value[..upper_bound])
-            .map(Self)
-            .unwrap_or_else(|PayloadSizeError| unreachable!("payload size is always limited"))
-    }
-}
-
 impl From<LimitedStr<'_>> for PanicBuffer {
     fn from(value: LimitedStr) -> Self {
-        Self::from(value.as_str())
+        const _: () = assert!(crate::str::TRIMMED_MAX_LEN <= MAX_PAYLOAD_SIZE);
+        Payload::try_from(value.into_inner().into_owned().into_bytes())
+            .map(Self)
+            .unwrap_or_else(|PayloadSizeError| {
+                unreachable!("`LimitedStr` is always smaller than maximum payload size",)
+            })
     }
 }
 
@@ -311,21 +315,25 @@ mod tests {
     use super::*;
     use alloc::format;
 
+    fn panic_buf(bytes: &[u8]) -> PanicBuffer {
+        Payload::try_from(bytes).map(PanicBuffer).unwrap()
+    }
+
     #[test]
     fn panic_buffer_debug() {
-        let buf = PanicBuffer::from("Hello, world!");
+        let buf = panic_buf(b"Hello, world!");
         assert_eq!(format!("{:?}", buf), r#""Hello, world!""#);
 
-        let buf = PanicBuffer::from(b"\xE0\x80\x80");
+        let buf = panic_buf(b"\xE0\x80\x80");
         assert_eq!(format!("{:?}", buf), "0xe08080");
     }
 
     #[test]
     fn panic_buffer_display() {
-        let buf = PanicBuffer::from("Hello, world!");
+        let buf = panic_buf(b"Hello, world!");
         assert_eq!(format!("{}", buf), "Hello, world!");
 
-        let buf = PanicBuffer::from(b"\xE0\x80\x80");
+        let buf = panic_buf(b"\xE0\x80\x80");
         assert_eq!(format!("{}", buf), "0xe08080");
     }
 }

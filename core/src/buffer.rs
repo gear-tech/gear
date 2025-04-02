@@ -98,6 +98,9 @@ impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
 }
 
 impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
+    /// Maximum length of the vector.
+    pub const MAX_LEN: usize = N;
+
     /// Constructs a new, empty `LimitedVec<T>`.
     pub const fn new() -> Self {
         Self(Vec::new(), PhantomData)

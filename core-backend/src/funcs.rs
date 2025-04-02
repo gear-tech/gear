@@ -399,14 +399,30 @@ where
         }
     }
 
+    fn read_payload(
+        ctx: &mut CallerWrap<Caller>,
+        io: &MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>,
+        read_payload: WasmMemoryRead,
+    ) -> Result<Option<Payload>, MemoryAccessError> {
+        if read_payload.size() as usize > Payload::MAX_LEN {
+            return Ok(None);
+        }
+
+        let payload = io.read(ctx, read_payload)?;
+        let payload: Payload = payload
+            .try_into()
+            .unwrap_or_else(|PayloadSizeError| unreachable!("length is checked above"));
+
+        Ok(Some(payload))
+    }
+
     fn read_message_payload(
         ctx: &mut CallerWrap<Caller>,
         io: &MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>,
         read_payload: WasmMemoryRead,
     ) -> Result<Payload, RunFallibleError> {
-        io.read(ctx, read_payload)?
-            .try_into()
-            .map_err(|PayloadSizeError| MessageError::MaxMessageSizeExceed.into())
+        Self::read_payload(ctx, io, read_payload)?
+            .ok_or_else(|| MessageError::MaxMessageSizeExceed.into())
             .map_err(RunFallibleError::FallibleExt)
     }
 
@@ -1105,9 +1121,11 @@ where
     pub fn panic(data_ptr: u32, data_len: u32) -> impl Syscall<Caller> {
         InfallibleSyscall::new(CostToken::Null, move |ctx: &mut CallerWrap<Caller>| {
             let mut registry = MemoryAccessRegistry::default();
-            let read_data = registry.register_read(data_ptr, data_len);
+            let read_payload = registry.register_read(data_ptr, data_len);
             let io = registry.pre_process(ctx)?;
-            let data = io.read(ctx, read_data).unwrap_or_default();
+            let data = Self::read_payload(ctx, &io, read_payload)?
+                .ok_or_else(|| UnrecoverableExecutionError::PanicBufferIsTooBig.into())
+                .map_err(TrapExplanation::UnrecoverableExt)?;
 
             Err(ActorTerminationReason::Trap(TrapExplanation::Panic(data.into())).into())
         })

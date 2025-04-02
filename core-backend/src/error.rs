@@ -122,12 +122,12 @@ pub enum UnrecoverableExecutionError {
     InvalidDebugString,
     #[display(fmt = "Not enough gas for operation")]
     NotEnoughGas,
-    #[display(fmt = "Length is overflowed to read payload")]
-    TooBigReadLen,
     #[display(fmt = "Cannot take data in payload range from message with size")]
     ReadWrongRange,
     #[display(fmt = "Unsupported version of environment variables encountered")]
     UnsupportedEnvVarsVersion,
+    #[display(fmt = "Length is overflowed to read panic payload")]
+    PanicBufferIsTooBig,
 }
 
 /// Memory error in infallible syscall.

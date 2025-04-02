@@ -51,7 +51,6 @@ pub use weights::WeightInfo;
 use alloc::{
     collections::{btree_map::Entry, BTreeMap},
     format,
-    string::ToString,
 };
 use common::{storage::Limiter, BlockLimiter};
 use core::marker::PhantomData;
@@ -109,7 +108,7 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
             }
             BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
-                TrapExplanation::Panic("Message decoding error".to_string().into()),
+                TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
             ),
             BuiltinActorError::Custom(e) => {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
