@@ -236,15 +236,23 @@ impl ProcessErrorCase {
         }
     }
 
-    fn to_payload(&self) -> Result<Payload, PayloadSizeError> {
-        let payload = match self {
-            ProcessErrorCase::ProgramExited { inheritor } => inheritor.into_bytes().to_vec(),
+    fn to_payload(&self) -> Payload {
+        match self {
+            ProcessErrorCase::ProgramExited { inheritor } => {
+                const _: () = assert!(size_of::<ProgramId>() <= Payload::MAX_LEN);
+                inheritor
+                    .into_bytes()
+                    .to_vec()
+                    .try_into()
+                    .unwrap_or_else(|PayloadSizeError| {
+                        unreachable!("`ProgramId` is always smaller than maximum payload size")
+                    })
+            }
             ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
                 TrapExplanation::Panic(buf),
-            )) => return Ok(buf.inner().clone()),
-            this => this.to_payload_str().into_bytes(),
-        };
-        payload.try_into()
+            )) => buf.inner().clone(),
+            _ => Payload::default(),
+        }
     }
 }
 
@@ -307,17 +315,6 @@ fn process_error(
     if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
         let err = case.to_reason();
         let err_payload = case.to_payload();
-
-        // Panic is impossible, unless error message is too large or [Payload] max size is too small.
-        let err_payload = err_payload.unwrap_or_else(|PayloadSizeError| {
-            let err_payload = case.to_payload_str();
-            let err_msg =
-                format!("process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}",
-            );
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}")
-        });
 
         // # Safety
         //
