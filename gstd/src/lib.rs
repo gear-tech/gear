@@ -215,26 +215,6 @@ pub mod ext {
     ///
     /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
-    ///     ext::panic_str("I'm panicked");
-    /// }
-    /// ```
-    pub fn panic_str(data: &str) -> ! {
-        gcore::ext::panic_str(data)
-    }
-
-    /// Panic
-    ///
-    /// Can be used to pass some data to error reply payload.
-    ///
-    /// Syscall this function uses is completely free in terms of gas usage.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use gstd::ext;
-    ///
-    /// #[unsafe(no_mangle)]
-    /// extern "C" fn handle() {
     ///     ext::panic_bytes([0, 1, 2, 3]);
     /// }
     /// ```
