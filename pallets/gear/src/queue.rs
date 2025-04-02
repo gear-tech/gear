@@ -58,15 +58,19 @@ where
 
         let program = match ProgramStorageOf::<T>::get_program(destination_id) {
             Some(Program::Active(program)) => program,
-            Some(Program::Exited(program_id) | Program::Terminated(program_id)) => {
+            Some(Program::Terminated(_)) => {
                 log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
-                return core_processor::process_non_executable(context, Some(program_id));
+                return core_processor::process_non_executable(context);
+            }
+            Some(Program::Exited(program_id)) => {
+                log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
+                return core_processor::process_program_exited(context, program_id);
             }
             None => {
                 log::trace!(
                     "Message {dispatch_id} is sent to nonexistent program {destination_id}"
                 );
-                return core_processor::process_non_executable(context, None);
+                return core_processor::process_non_executable(context);
             }
         };
 
@@ -100,7 +104,7 @@ where
                 unreachable!("{err_msg}");
             }
 
-            return core_processor::process_non_executable(context, None);
+            return core_processor::process_non_executable(context);
         }
 
         let context = match core_processor::precharge_for_allocations(

@@ -45,8 +45,7 @@ use gear_core_backend::{
     error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
     BackendExternalities,
 };
-use gear_core_errors::{ErrorReplyReason, SignalCode};
-use parity_scale_codec::Encode;
+use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleInactiveActorError};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<Ext>(
@@ -204,9 +203,11 @@ where
 
 enum ProcessErrorCase {
     /// Message is not executable.
-    NonExecutable {
-        /// Inheritor of a terminated/exited program.
-        inheritor: Option<ProgramId>,
+    NonExecutable,
+    /// Specific case of `NonExecutable`.
+    ProgramExited {
+        /// Inheritor of an exited program.
+        inheritor: ProgramId,
     },
     /// Error is considered as an execution failure.
     ExecutionFailed(ActorExecutionErrorReplyReason),
@@ -217,7 +218,12 @@ enum ProcessErrorCase {
 impl ProcessErrorCase {
     fn to_reason(&self) -> ErrorReplyReason {
         match self {
-            ProcessErrorCase::NonExecutable { .. } => ErrorReplyReason::InactiveActor,
+            ProcessErrorCase::NonExecutable => {
+                ErrorReplyReason::InactiveActor(SimpleInactiveActorError::Unsupported)
+            }
+            ProcessErrorCase::ProgramExited { .. } => {
+                ErrorReplyReason::InactiveActor(SimpleInactiveActorError::ProgramExited)
+            }
             ProcessErrorCase::ExecutionFailed(reason) => reason.as_simple().into(),
             ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::ReinstrumentationFailure,
         }
@@ -232,7 +238,7 @@ impl ProcessErrorCase {
 
     fn to_payload(&self) -> Result<Payload, PayloadSizeError> {
         let payload = match self {
-            ProcessErrorCase::NonExecutable { inheritor } => inheritor.encode(),
+            ProcessErrorCase::ProgramExited { inheritor } => inheritor.into_bytes().to_vec(),
             ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
                 TrapExplanation::Panic(buf),
             )) => return Ok(buf.inner().clone()),
@@ -348,7 +354,9 @@ fn process_error(
                 },
             }
         }
-        ProcessErrorCase::NonExecutable { .. } => DispatchOutcome::NoExecution,
+        ProcessErrorCase::NonExecutable | ProcessErrorCase::ProgramExited { .. } => {
+            DispatchOutcome::NoExecution
+        }
     };
 
     journal.push(JournalNote::MessageDispatched {
@@ -397,9 +405,29 @@ pub fn process_reinstrumentation_error(
 }
 
 /// Helper function for journal creation in message no execution case.
-pub fn process_non_executable(
+pub fn process_non_executable(context: ContextChargedForProgram) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::NonExecutable,
+    )
+}
+
+/// Helper function for journal creation in program exited case.
+pub fn process_program_exited(
     context: ContextChargedForProgram,
-    inheritor: Option<ProgramId>,
+    inheritor: ProgramId,
 ) -> Vec<JournalNote> {
     let ContextChargedForProgram {
         dispatch,
@@ -415,7 +443,7 @@ pub fn process_non_executable(
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
-        ProcessErrorCase::NonExecutable { inheritor },
+        ProcessErrorCase::ProgramExited { inheritor },
     )
 }
 

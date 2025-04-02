@@ -108,7 +108,8 @@ pub(crate) enum TestActor {
     Initialized(Program),
     // Contract: program is always `Some`, option is used to take ownership
     Uninitialized(Option<MessageId>, Option<Program>),
-    Dormant(Option<ProgramId>),
+    Dormant,
+    Exited(ProgramId),
 }
 
 impl TestActor {
