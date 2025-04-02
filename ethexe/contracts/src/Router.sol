@@ -454,7 +454,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return keccak256(transitionsHashes);
     }
 
-    function _commitRewards(Storage storage router, Gear.RewardsCommitment calldata _rewardsCommitment) private {
+    function _commitRewards(Storage storage, Gear.RewardsCommitment calldata _rewardsCommitment) private {
         // TODO: replace for this after implementing OwnableUpgreadable logic for Middleware
         // address middleware = router.implAddresses.middleware;
         address middleware = address(0);
