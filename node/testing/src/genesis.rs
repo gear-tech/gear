@@ -22,7 +22,7 @@ use crate::keyring::*;
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    constants::currency::*, AccountId, BabeConfig, BalancesConfig, GrandpaConfig,
+    constants::currency::*, AccountId, BabeConfig, BalancesConfig, BankAddress, GrandpaConfig,
     RuntimeGenesisConfig, SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig,
     SudoConfig, BABE_GENESIS_EPOCH_CONFIG,
 };
@@ -42,6 +42,7 @@ pub fn config_endowed(extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
         (dave(), 111 * ECONOMIC_UNITS),
         (eve(), 101 * ECONOMIC_UNITS),
         (ferdie(), 100 * ECONOMIC_UNITS),
+        (BankAddress::get(), UNITS),
     ];
 
     endowed.extend(
