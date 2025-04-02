@@ -14,7 +14,6 @@ ethexe-runtime-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
 gear-lazy-pages-interface.workspace = true
-gear-wasm-instrument.workspace = true
 gprimitives.workspace = true
 
 ## Operational deps.
@@ -33,6 +32,5 @@ std = [
     "core-processor/std",
     "gear-core/std",
     "gear-lazy-pages-interface/std",
-    "gear-wasm-instrument/std",
     "ethexe-common/std"
 ]

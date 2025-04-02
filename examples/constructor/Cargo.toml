@@ -10,7 +10,6 @@ repository.workspace = true
 [dependencies]
 gcore.workspace = true
 gstd.workspace = true
-hex.workspace = true
 parity-scale-codec.workspace = true
 
 [build-dependencies]

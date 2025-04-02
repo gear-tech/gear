@@ -92,6 +92,7 @@ use scale_info::{
 /// if implementation [`Numerated`], [`Copy`], [`Ord`], [`Eq`] are correct for `T`.
 /// In other cases `IntervalsTree` does not guarantees execution without panics.
 #[derive(Clone, PartialEq, Eq, TypeInfo, Encode, Decode)]
+#[codec(crate = scale_info::scale)]
 pub struct IntervalsTree<T> {
     inner: BTreeMap<T, T>,
 }

@@ -24,11 +24,8 @@ ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
 ethexe-tx-pool.workspace = true
 gprimitives.workspace = true
-
-clap = { workspace = true, features = ["derive"] }
 log.workspace = true
 env_logger.workspace = true
-directories.workspace = true
 anyhow.workspace = true
 alloy.workspace = true
 tokio = { workspace = true, features = [
@@ -39,16 +36,10 @@ tokio = { workspace = true, features = [
     "time",
 ] }
 futures.workspace = true
-serde = { workspace = true, features = ["derive"] }
-toml.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
-hex.workspace = true
 rand.workspace = true
 tempfile.workspace = true
-futures-timer.workspace = true
 derive_more.workspace = true
-
-static_init = "1.0.3"
 
 [dev-dependencies]
 alloy = { workspace = true, features = [
