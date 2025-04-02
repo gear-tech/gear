@@ -131,7 +131,7 @@ impl Externalities for MockExt {
                 performance_multiplier: gsys::Percent::new(100),
                 existential_deposit: 10,
                 mailbox_threshold: 20,
-                gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
+                gas_multiplier: gsys::GasMultiplier::from_value_per_gas(100),
             })),
             _ => unreachable!("Unexpected version of environment variables"),
         }
