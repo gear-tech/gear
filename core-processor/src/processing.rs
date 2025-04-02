@@ -35,11 +35,13 @@ use alloc::{
 use gear_core::{
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
-    message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, Payload, ReplyMessage, StoredDispatch,
+    },
     reservation::GasReservationState,
 };
 use gear_core_backend::{
-    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
+    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
     BackendExternalities,
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
@@ -208,7 +210,7 @@ enum ProcessErrorCase {
 }
 
 impl ProcessErrorCase {
-    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
+    pub fn to_reason_and_payload_str(&self) -> (ErrorReplyReason, String) {
         match self {
             ProcessErrorCase::NonExecutable => {
                 let reason = ErrorReplyReason::InactiveActor;
@@ -220,6 +222,19 @@ impl ProcessErrorCase {
             ProcessErrorCase::ReinstrumentationFailed => {
                 let err = ErrorReplyReason::ReinstrumentationFailure;
                 (err, err.to_string())
+            }
+        }
+    }
+
+    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, Option<Payload>) {
+        match self {
+            ProcessErrorCase::ExecutionFailed(
+                reason @ ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(buf)),
+            ) => (reason.as_simple().into(), Some(buf.inner().clone())),
+            this => {
+                let (reason, payload) = this.to_reason_and_payload_str();
+                let payload = payload.into_bytes().try_into().ok();
+                (reason, payload)
             }
         }
     }
@@ -285,8 +300,8 @@ fn process_error(
         let (err, err_payload) = case.to_reason_and_payload();
 
         // Panic is impossible, unless error message is too large or [Payload] max size is too small.
-        let err_payload = err_payload.into_bytes().try_into().unwrap_or_else(|_| {
-            let (_, err_payload) = case.to_reason_and_payload();
+        let err_payload = err_payload.unwrap_or_else(|| {
+            let (_, err_payload) = case.to_reason_and_payload_str();
             let err_msg =
                 format!("process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}",
             );
@@ -317,7 +332,7 @@ fn process_error(
 
     let outcome = match case {
         ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
-            let (_, err_payload) = case.to_reason_and_payload();
+            let (_, err_payload) = case.to_reason_and_payload_str();
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
                     program_id,

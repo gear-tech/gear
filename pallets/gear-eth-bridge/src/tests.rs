@@ -560,7 +560,7 @@ fn bridge_incorrect_value_applied_err() {
 
         assert_eq!(
             String::from_utf8_lossy(&response),
-            format!("Panic occurred: {}", builtin::error_to_str(&ERR))
+            builtin::error_to_str(&ERR)
         );
 
         // Check that value/fee was not charged
@@ -646,10 +646,7 @@ mod utils {
         let (response, _) =
             run_block_with_builtin_call(SIGNER, request, None, MockTransportFee::get());
 
-        assert_eq!(
-            String::from_utf8_lossy(&response),
-            format!("Panic occurred: {err_str}")
-        );
+        assert_eq!(String::from_utf8_lossy(&response), err_str);
     }
 
     #[track_caller]
