@@ -33,10 +33,13 @@ use alloc::format;
 
 pub use pallet::*;
 
-use frame_support::traits::{
-    fungible,
-    tokens::{Fortitude, Preservation, Provenance},
-    Currency, StorageVersion,
+use frame_support::{
+    traits::{
+        fungible,
+        tokens::{Fortitude, Preservation, Provenance},
+        Currency, StorageVersion,
+    },
+    PalletId,
 };
 
 #[macro_export]
@@ -62,7 +65,7 @@ macro_rules! impl_config_inner {
     ($runtime:ty$(,)?) => {
         impl pallet_gear_bank::Config for $runtime {
             type Currency = Balances;
-            type BankAddress = BankAddress;
+            type PalletId = BankPalletId;
             type GasMultiplier = GasMultiplier;
             type TreasuryAddress = GearBankConfigTreasuryAddress;
             type TreasuryGasFeeShare = GearBankConfigTreasuryGasFeeShare;
@@ -101,11 +104,11 @@ pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use core::ops::Add;
+    use core::{marker::PhantomData, ops::Add};
     use frame_support::{
         ensure,
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
-        sp_runtime::Saturating,
+        sp_runtime::{traits::AccountIdConversion, Saturating},
         traits::{
             tokens::DepositConsequence, ExistenceRequirement, Get, Hooks, LockableCurrency,
             ReservableCurrency,
@@ -132,9 +135,9 @@ pub mod pallet {
             + LockableCurrency<AccountIdOf<Self>>
             + fungible::Unbalanced<AccountIdOf<Self>, Balance = BalanceOf<Self>>;
 
-        /// Bank account address, that will keep all reserved funds.
+        /// The gear bank's pallet id, used for deriving its sovereign account ID.
         #[pallet::constant]
-        type BankAddress: Get<AccountIdOf<Self>>;
+        type PalletId: Get<PalletId>;
 
         /// Gas price converter.
         #[pallet::constant]
@@ -228,6 +231,18 @@ pub mod pallet {
     #[pallet::storage]
     type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
 
+    /// The default account ID of the Gear Bank.
+    struct DefaulBankAddress<T: Config>(PhantomData<T>);
+    impl<T: Config> Get<AccountIdOf<T>> for DefaulBankAddress<T> {
+        fn get() -> AccountIdOf<T> {
+            Pallet::<T>::bank_address()
+        }
+    }
+
+    // Private storage to hold the GearBank's AccountId.
+    #[pallet::storage]
+    type BankAddress<T> = StorageValue<_, AccountIdOf<T>, ValueQuery, DefaulBankAddress<T>>;
+
     // Private storage that keeps amount of value that wasn't sent because owner is inexistent account.
     #[pallet::storage]
     pub type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
@@ -282,13 +297,21 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        /// The account ID of the Gear Bank.
+        ///
+        /// This does some computation. Since GearBank account ID is used often,
+        /// the value should better be cached in the pallet storage.
+        pub fn bank_address() -> T::AccountId {
+            T::PalletId::get().into_account_truncating()
+        }
+
         /// Transfers value from `account_id` to bank address.
         fn deposit(
             account_id: &AccountIdOf<T>,
             value: BalanceOf<T>,
             keep_alive: bool,
         ) -> Result<(), Error<T>> {
-            let bank_address = T::BankAddress::get();
+            let bank_address = BankAddress::<T>::get();
 
             match <CurrencyOf<T> as fungible::Inspect<_>>::can_deposit(
                 &bank_address,
@@ -320,7 +343,7 @@ pub mod pallet {
         /// Ensures that bank account is able to transfer requested value.
         fn ensure_bank_can_transfer(value: BalanceOf<T>) -> Result<(), Error<T>> {
             let available_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-                &T::BankAddress::get(),
+                &BankAddress::<T>::get(),
                 Preservation::Expendable,
                 Fortitude::Polite,
             )
@@ -357,7 +380,7 @@ pub mod pallet {
 
             // Check on zero value is inside `pallet_balances` implementation.
             CurrencyOf::<T>::transfer(
-                &T::BankAddress::get(),
+                &BankAddress::<T>::get(),
                 account_id,
                 value,
                 // We always require bank account to be alive.
@@ -679,7 +702,7 @@ pub mod pallet {
 
         fn bank_balance_full_data() -> (BalanceOf<T>, BalanceOf<T>, BalanceOf<T>) {
             (
-                Self::reducible_balance(&T::BankAddress::get()),
+                Self::reducible_balance(&BankAddress::<T>::get()),
                 UnusedValue::<T>::get(),
                 OnFinalizeValue::<T>::get(),
             )
