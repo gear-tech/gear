@@ -136,13 +136,6 @@ impl ErrorReplyPayload {
         str::from_utf8(&self.0).ok()
     }
 
-    /// Similar to [`Self::try_as_str`], but panics in `None` case.
-    /// Preferable to use only for test purposes.
-    #[track_caller]
-    pub fn as_str(&self) -> &str {
-        str::from_utf8(&self.0).expect("Failed to create `str`")
-    }
-
     /// Returns inner byte vector.
     pub fn into_inner(self) -> Vec<u8> {
         self.0
