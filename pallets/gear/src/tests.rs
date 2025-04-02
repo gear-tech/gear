@@ -16041,6 +16041,12 @@ pub(crate) mod utils {
             AssertFailedError::Execution(error) => {
                 let mut expectations = error.to_string();
 
+                // userspace panic case passes panic payload without any formatting unlike other cases,
+                // so we strip the prefix
+                if let Some(s) = expectations.strip_prefix("Panic occurred: ") {
+                    expectations = s.to_string();
+                }
+
                 // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
                 // This check handles display of the error inside.
                 if actual_error.starts_with('\'') {
