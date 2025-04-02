@@ -62,10 +62,13 @@ benchmarks! {
         // Initially pallet is uninitialized so we hack it for benchmarks.
         crate::Initialized::<T>::put(true);
 
+        // Set fee to minimum balance for the benchmark.
+        assert!(Pallet::<T>::set_fee(RawOrigin::Root.into(), CurrencyOf::<T>::minimum_balance()).is_ok());
         // Initially pallet is paused so we need to unpause it first.
         assert!(Pallet::<T>::unpause(RawOrigin::Root.into()).is_ok());
 
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
+        let _ = crate::CurrencyOf::<T>::deposit_creating(&origin, CurrencyOf::<T>::minimum_balance());
 
         let destination = [42; 20].into();
 

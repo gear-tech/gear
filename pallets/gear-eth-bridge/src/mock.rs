@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear_eth_bridge;
+use crate::{self as pallet_gear_eth_bridge};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
@@ -163,6 +163,7 @@ parameter_types! {
     pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
+    pub const MockTransportFee: Balance = UNITS;
 }
 
 pallet_gear_bank::impl_config!(Test);
@@ -176,7 +177,7 @@ pallet_gear::impl_config!(
     BuiltinDispatcherFactory = GearBuiltin,
 );
 
-pub const BUILTIN_ID: u64 = 1;
+pub const BUILTIN_ID: u64 = crate::ETH_BRIDGE_BUILTIN_ID;
 
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
@@ -423,6 +424,11 @@ pub(crate) fn on_initialize(new: BlockNumberFor<Test>) {
     GearGas::on_initialize(new);
     GearBuiltin::on_initialize(new);
     GearEthBridge::on_initialize(new);
+    // Set fee after initialization
+    //let _ = GearEthBridge::set_fee(
+    //    RuntimeOrigin::root(),
+    //    MockTransportFee::get(),
+    //);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
@@ -456,7 +462,6 @@ pub(crate) fn on_finalize_gear_block(bn: BlockNumberFor<Test>) {
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
     let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
-
     ExtBuilder::default()
         .endowment(ENDOWMENT)
         .endowed_accounts(vec![bank_address, SIGNER, BLOCK_AUTHOR])
