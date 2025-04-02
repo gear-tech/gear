@@ -463,7 +463,7 @@ impl BlockRunResult {
         .expect("Unable to decode panic message");
 
         assert!(
-            payload.starts_with(&format!("Panic occurred: panicked with '{msg}'")),
+            payload.starts_with(&format!("panicked with '{msg}'")),
             "expected panic message that contains `{msg}`, but the actual panic message is `{payload}`"
         );
     }

@@ -20,8 +20,8 @@
 
 use crate::{
     accessors::{
-        Read, ReadAs, ReadDecoded, ReadDecodedSpecial, SyscallArg, SyscallValue, WriteAs,
-        WriteInGrRead,
+        Read, ReadAs, ReadDecoded, ReadDecodedSpecial, ReadLimited, SyscallArg, SyscallValue,
+        WriteAs, WriteInGrRead,
     },
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
@@ -33,10 +33,7 @@ use crate::{
     state::HostState,
     BackendExternalities,
 };
-use alloc::{
-    format,
-    string::{String, ToString},
-};
+use alloc::{format, string::String};
 use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::marker::PhantomData;
 use gear_core::{
@@ -403,18 +400,29 @@ where
         })
     }
 
-    fn read_message_payload(payload: Read) -> Result<Payload, RunFallibleError> {
-        payload
-            .value()?
-            .try_into()
-            .map_err(|PayloadSizeError| MessageError::MaxMessageSizeExceed.into())
+    fn read_payload(payload: ReadLimited) -> Result<Option<Payload>, MemoryAccessError> {
+        match payload.value() {
+            Some(payload) => {
+                let payload = payload?
+                    .try_into()
+                    .unwrap_or_else(|PayloadSizeError| unreachable!("length is checked above"));
+
+                Ok(Some(payload))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn read_message_payload(payload: ReadLimited) -> Result<Payload, RunFallibleError> {
+        Self::read_payload(payload)?
+            .ok_or_else(|| MessageError::MaxMessageSizeExceed.into())
             .map_err(RunFallibleError::FallibleExt)
     }
 
     fn send_inner(
         ctx: &mut CallerWrap<Caller>,
         pid_value: ReadAs<HashWithValue>,
-        payload: Read,
+        payload: ReadLimited,
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<MessageId, RunFallibleError> {
@@ -435,7 +443,7 @@ where
 
     pub fn send(
         pid_value: ReadAs<HashWithValue>,
-        payload: Read,
+        payload: ReadLimited,
         delay: u32,
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
@@ -448,7 +456,7 @@ where
 
     pub fn send_wgas(
         pid_value: ReadAs<HashWithValue>,
-        payload: Read,
+        payload: ReadLimited,
         gas_limit: u64,
         delay: u32,
     ) -> impl Syscall<Caller> {
@@ -535,7 +543,7 @@ where
 
     pub fn reservation_send(
         rid_pid_value: ReadAs<TwoHashesWithValue>,
-        payload: Read,
+        payload: ReadLimited,
         delay: u32,
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
@@ -773,7 +781,7 @@ where
 
     fn reply_inner(
         ctx: &mut CallerWrap<Caller>,
-        payload: Read,
+        payload: ReadLimited,
         gas_limit: Option<u64>,
         value: ReadDecodedSpecial<u128>,
     ) -> Result<MessageId, RunFallibleError> {
@@ -785,7 +793,7 @@ where
             .map_err(Into::into)
     }
 
-    pub fn reply(payload: Read, value: ReadDecodedSpecial<u128>) -> impl Syscall<Caller> {
+    pub fn reply(payload: ReadLimited, value: ReadDecodedSpecial<u128>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::Reply(payload.size().into()),
             move |ctx: &mut CallerWrap<Caller>| Self::reply_inner(ctx, payload, None, value),
@@ -793,7 +801,7 @@ where
     }
 
     pub fn reply_wgas(
-        payload: Read,
+        payload: ReadLimited,
         gas_limit: u64,
         value: ReadDecodedSpecial<u128>,
     ) -> impl Syscall<Caller> {
@@ -842,7 +850,7 @@ where
 
     pub fn reservation_reply(
         rid_value: ReadAs<HashWithValue>,
-        payload: Read,
+        payload: ReadLimited,
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationReply(payload.size().into()),
@@ -1056,13 +1064,13 @@ where
         )
     }
 
-    pub fn panic(data: Read) -> impl Syscall<Caller> {
+    pub fn panic(data: ReadLimited) -> impl Syscall<Caller> {
         InfallibleSyscall::new(CostToken::Null, move |_ctx: &mut CallerWrap<Caller>| {
-            let data = data.value().unwrap_or_default();
+            let data = Self::read_payload(data)?
+                .ok_or_else(|| UnrecoverableExecutionError::PanicBufferIsTooBig.into())
+                .map_err(TrapExplanation::UnrecoverableExt)?;
 
-            let s = String::from_utf8_lossy(&data).to_string();
-
-            Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
+            Err(ActorTerminationReason::Trap(TrapExplanation::Panic(data.into())).into())
         })
     }
 
@@ -1231,8 +1239,8 @@ where
     fn create_program_inner(
         ctx: &mut CallerWrap<Caller>,
         cid_value: ReadAs<HashWithValue>,
-        salt: Read,
-        payload: Read,
+        salt: ReadLimited,
+        payload: ReadLimited,
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), RunFallibleError> {
@@ -1262,8 +1270,8 @@ where
 
     pub fn create_program(
         cid_value: ReadAs<HashWithValue>,
-        salt: Read,
-        payload: Read,
+        salt: ReadLimited,
+        payload: ReadLimited,
         delay: u32,
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithTwoHashes>(
@@ -1276,8 +1284,8 @@ where
 
     pub fn create_program_wgas(
         cid_value: ReadAs<HashWithValue>,
-        salt: Read,
-        payload: Read,
+        salt: ReadLimited,
+        payload: ReadLimited,
         gas_limit: u64,
         delay: u32,
     ) -> impl Syscall<Caller> {

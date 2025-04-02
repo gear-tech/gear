@@ -29,6 +29,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
+use gear_core::message::Payload;
 use gear_sandbox::{AsContextExt, Value};
 use gear_sandbox_env::HostError;
 
@@ -101,6 +102,11 @@ pub(crate) trait SyscallArg: Sized {
 
 pub(crate) struct Read {
     result: Result<Vec<u8>, MemoryAccessError>,
+    size: u32,
+}
+
+pub(crate) struct ReadLimited<const N: usize = { Payload::MAX_LEN }> {
+    result: Option<Result<Vec<u8>, MemoryAccessError>>,
     size: u32,
 }
 
@@ -197,6 +203,51 @@ impl SyscallArg for Read {
         Self {
             size: output.size,
             result: ctx.io_ref().and_then(|io| io.read(ctx, output)),
+        }
+    }
+}
+
+impl<const N: usize> SyscallArg for ReadLimited<N> {
+    type Output = Option<WasmMemoryRead>;
+    const REQUIRED_ARGS: usize = 2;
+    const REQUIRES_MEMORY_MANAGER: bool = true;
+
+    fn pre_process<Caller, Ext>(
+        registry: &mut Option<MemoryAccessRegistry<Caller>>,
+        args: &[Value],
+    ) -> Result<Self::Output, HostError>
+    where
+        Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
+        Ext: BackendExternalities + 'static,
+    {
+        if args.len() != Self::REQUIRED_ARGS {
+            return Err(HostError);
+        }
+
+        let ptr = SyscallValue(args[0]).try_into()?;
+        let size = SyscallValue(args[1]).try_into()?;
+
+        if size as usize > N {
+            Ok(None)
+        } else {
+            Ok(Some(registry.as_mut().unwrap().register_read(ptr, size)))
+        }
+    }
+
+    fn post_process<Caller, Ext>(output: Self::Output, ctx: &CallerWrap<Caller>) -> Self
+    where
+        Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
+        Ext: BackendExternalities + 'static,
+    {
+        match output {
+            Some(output) => Self {
+                size: output.size,
+                result: Some(ctx.io_ref().and_then(|io| io.read(ctx, output))),
+            },
+            None => Self {
+                size: Default::default(),
+                result: None,
+            },
         }
     }
 }
@@ -366,6 +417,16 @@ impl<T> SyscallArg for WriteAs<T> {
 
 impl Read {
     pub fn value(self) -> Result<Vec<u8>, MemoryAccessError> {
+        self.result
+    }
+
+    pub fn size(&self) -> u32 {
+        self.size
+    }
+}
+
+impl<const N: usize> ReadLimited<N> {
+    pub fn value(self) -> Option<Result<Vec<u8>, MemoryAccessError>> {
         self.result
     }
 

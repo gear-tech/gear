@@ -27,6 +27,9 @@ use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 use pallet_staking::WeightInfo as _;
 use sp_runtime::AccountId32;
 
+#[cfg(feature = "dev")]
+use sp_runtime::traits::AccountIdConversion;
+
 mod utils;
 
 use utils::*;
@@ -75,6 +78,34 @@ fn bridge_session_timer_is_correct() {
     assert_eq!(
         <Runtime as pallet_staking::Config>::SessionsPerEra::get(),
         6
+    );
+}
+
+#[cfg(feature = "dev")]
+#[test]
+fn bridge_accounts_check() {
+    // # SAFETY: Do not change bridge pallet id without check of
+    // correct integration with already running network.
+    //
+    // Change of the pallet id will require migrating `pallet-gear-eth-bridge`'s
+    // `BridgeAdmin` and `BridgePauser` constants if they are derived from it.
+    // We explicitly use the *original* intended PalletId here for the check.
+    let original_pallet_id = PalletId(*b"py/gethb");
+    let expected_admin_account: AccountId =
+        original_pallet_id.into_sub_account_truncating("bridge_admin");
+    let expected_pauser_account: AccountId =
+        original_pallet_id.into_sub_account_truncating("bridge_pauser");
+
+    // Check if the constants defined in lib.rs match the expected derived accounts.
+    assert_eq!(
+        GearEthBridgeAdminAccount::get(),
+        expected_admin_account,
+        "BridgeAdmin constant does not match expected derivation from PalletId"
+    );
+    assert_eq!(
+        GearEthBridgePauserAccount::get(),
+        expected_pauser_account,
+        "BridgePauser constant does not match expected derivation from PalletId"
     );
 }
 
