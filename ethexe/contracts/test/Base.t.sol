@@ -13,9 +13,6 @@ import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegato
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
 import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
-
-import "forge-std/console.sol";
-
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {IMirror, Mirror} from "../src/Mirror.sol";
 import {IRouter, Router} from "../src/Router.sol";
@@ -45,7 +42,6 @@ contract Base is POCBaseTest {
     }
 
     function setUpWrappedVara() internal {
-        console.log("setUp WrapperVara");
         require(admin != address(0), "Base: admin must be initialized");
 
         vm.startPrank(admin);
@@ -60,15 +56,9 @@ contract Base is POCBaseTest {
     }
 
     function setUpMiddleware() internal {
-        //console.log("admin: ", admin);
-
         require(admin != address(0), "Base: admin must be initialized");
         require(address(wrappedVara) != address(0), "Base: wrappedVara should be initialized");
         require(eraDuration > 0, "Base: eraDuration should be greater than 0");
-
-        console.log("pass all requires");
-
-        //console.log("setUpMiddleware require successfull");
 
         // For correct symbiotic work with time arithmetics
         vm.warp(eraDuration * 100);
