@@ -1953,8 +1953,9 @@ dependencies = [
 
 [[package]]
 name = "blake3"
-version = "1.5.4"
-source = "git+https://github.com/gear-tech/BLAKE3?branch=clang-cl-cross-compilation-v1.5.4#1dd5c968e8f1bf47306edaef63144b13a1d0867b"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b17679a8d69b6d7fd9cd9801a536cec9fa5e5970b69f9d4747f70b39b031f5e7"
 dependencies = [
  "arrayref",
  "arrayvec 0.7.4",
@@ -2211,7 +2212,6 @@ dependencies = [
  "gtest",
  "serde",
  "serde_json",
- "toml 0.8.14",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3313,7 +3313,6 @@ dependencies = [
 name = "demo-async-critical"
 version = "0.1.0"
 dependencies = [
- "futures",
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
@@ -3326,7 +3325,6 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -3352,10 +3350,8 @@ dependencies = [
 name = "demo-async-reply-hook"
 version = "0.1.0"
 dependencies = [
- "futures",
  "gear-wasm-builder",
  "gstd",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -3384,7 +3380,6 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -3403,7 +3398,6 @@ name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gstd",
  "parity-scale-codec",
  "sha2 0.10.8",
 ]
@@ -3444,7 +3438,6 @@ dependencies = [
  "gcore",
  "gear-wasm-builder",
  "gstd",
- "hex",
  "parity-scale-codec",
 ]
 
@@ -3662,7 +3655,6 @@ dependencies = [
  "gbuiltin-proxy",
  "gear-wasm-builder",
  "gstd",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -3765,7 +3757,6 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hashbrown 0.14.5",
- "hex",
  "hex-literal",
  "parity-scale-codec",
 ]
@@ -3792,9 +3783,7 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "gsys",
  "gtest",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -3817,7 +3806,6 @@ dependencies = [
 name = "demo-wait"
 version = "0.1.0"
 dependencies = [
- "gcore",
  "gear-wasm-builder",
  "gstd",
 ]
@@ -4594,7 +4582,6 @@ dependencies = [
 name = "ethexe-common"
 version = "1.7.1"
 dependencies = [
- "anyhow",
  "gear-core",
  "gprimitives",
  "hex",
@@ -4610,13 +4597,9 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
- "ethexe-ethereum",
- "ethexe-observer",
  "ethexe-processor",
- "ethexe-service-utils",
  "futures",
  "gprimitives",
- "log",
  "tokio",
 ]
 
@@ -4650,10 +4633,8 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-core-errors",
- "gear-wasm-instrument",
  "gprimitives",
  "log",
- "parity-scale-codec",
  "rand 0.8.5",
  "roast-secp256k1-evm",
  "tokio",
@@ -4665,9 +4646,7 @@ version = "1.7.1"
 dependencies = [
  "anyhow",
  "async-trait",
- "derive_more 0.99.18",
  "env_logger",
- "ethexe-common",
  "ethexe-db",
  "ethexe-signer",
  "futures",
@@ -4689,19 +4668,16 @@ version = "1.7.1"
 dependencies = [
  "alloy",
  "anyhow",
- "async-stream",
  "async-trait",
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
- "ethexe-service-utils",
  "ethexe-signer",
  "futures",
  "gear-core",
  "gear-utils",
  "gprimitives",
  "log",
- "parity-scale-codec",
  "rand 0.8.5",
  "reqwest",
  "roast-secp256k1-evm",
@@ -4742,12 +4718,10 @@ name = "ethexe-prometheus"
 version = "1.7.1"
 dependencies = [
  "anyhow",
- "ethexe-service-utils",
  "futures",
  "hyper 0.14.31",
  "log",
  "prometheus",
- "thiserror 1.0.62",
  "tokio",
 ]
 
@@ -4764,7 +4738,6 @@ dependencies = [
  "futures",
  "gear-core",
  "gprimitives",
- "hex",
  "hyper 1.4.1",
  "jsonrpsee 0.24.7",
  "log",
@@ -4787,7 +4760,6 @@ dependencies = [
  "gear-core",
  "gear-core-processor",
  "gear-lazy-pages-interface",
- "gear-wasm-instrument",
  "gprimitives",
  "log",
  "parity-scale-codec",
@@ -4819,18 +4791,14 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-ethereum",
- "ethexe-observer",
- "ethexe-processor",
  "ethexe-service-utils",
  "ethexe-signer",
  "futures",
- "gear-core",
  "gprimitives",
  "indexmap 2.7.1",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
- "tokio",
 ]
 
 [[package]]
@@ -4839,12 +4807,10 @@ version = "1.7.1"
 dependencies = [
  "alloy",
  "anyhow",
- "clap 4.5.23",
  "demo-async",
  "demo-async-init",
  "demo-ping",
  "derive_more 0.99.18",
- "directories",
  "env_logger",
  "ethexe-common",
  "ethexe-compute",
@@ -4862,30 +4828,24 @@ dependencies = [
  "ethexe-tx-pool",
  "ethexe-validator",
  "futures",
- "futures-timer",
  "gear-core",
  "gear-core-errors",
  "gear-utils",
  "gprimitives",
- "hex",
  "log",
  "ntest",
  "parity-scale-codec",
  "rand 0.8.5",
  "roast-secp256k1-evm",
- "serde",
  "serde_json",
- "static_init",
  "tempfile",
  "tokio",
- "toml 0.8.14",
 ]
 
 [[package]]
 name = "ethexe-service-utils"
 version = "1.7.1"
 dependencies = [
- "anyhow",
  "futures",
  "log",
  "tokio",
@@ -4916,11 +4876,8 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-signer",
- "futures",
  "gear-utils",
  "gprimitives",
- "hex",
- "log",
  "parity-scale-codec",
  "tokio",
 ]
@@ -4934,12 +4891,10 @@ dependencies = [
  "ethexe-db",
  "ethexe-sequencer",
  "ethexe-signer",
- "futures",
  "gprimitives",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
- "static_init",
 ]
 
 [[package]]
@@ -5882,7 +5837,6 @@ dependencies = [
  "ark-ff 0.4.2",
  "ark-scale",
  "ark-serialize 0.4.2",
- "derive_more 0.99.18",
  "parity-scale-codec",
 ]
 
@@ -5901,7 +5855,6 @@ version = "1.7.1"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -5910,7 +5863,6 @@ version = "1.7.1"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -5930,13 +5882,11 @@ dependencies = [
  "etc",
  "gclient",
  "gear-core",
- "gear-core-errors",
  "gear-node-wrapper",
  "gear-runtime-primitives",
  "gring",
  "gsdk",
  "hex",
- "jsonrpsee 0.24.7",
  "keyring",
  "log",
  "rand 0.8.5",
@@ -5948,7 +5898,6 @@ dependencies = [
  "toml 0.8.14",
  "url",
  "which",
- "whoami",
 ]
 
 [[package]]
@@ -6050,7 +5999,6 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
- "sp-io",
  "sp-runtime",
  "sp-state-machine",
  "sp-timestamp",
@@ -6119,7 +6067,6 @@ dependencies = [
 name = "gear-common"
 version = "1.7.1"
 dependencies = [
- "derive_more 0.99.18",
  "enum-iterator 1.5.0",
  "fail",
  "frame-benchmarking",
@@ -6223,7 +6170,6 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -6298,7 +6244,6 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
- "gear-wasm-instrument",
  "log",
 ]
 
@@ -6322,7 +6267,6 @@ dependencies = [
  "primitive-types",
  "rand 0.8.5",
  "reqwest",
- "subxt",
  "thiserror 1.0.62",
  "tokio",
  "tracing",
@@ -6335,36 +6279,17 @@ name = "gear-node-testing"
 version = "1.7.1"
 dependencies = [
  "frame-metadata-hash-extension",
- "frame-support",
  "frame-system",
- "futures",
- "futures-timer",
- "gear-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
- "log",
- "pallet-gear-rpc-runtime-api",
  "parity-scale-codec",
- "parking_lot 0.12.3",
- "sc-block-builder",
- "sc-client-api",
- "sc-proposer-metrics",
  "sc-service",
- "sc-telemetry",
- "sc-transaction-pool",
- "sc-transaction-pool-api",
- "scale-info",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
  "sp-core",
  "sp-crypto-ec-utils",
- "sp-inherents",
  "sp-io",
  "sp-keyring",
  "sp-runtime",
- "sp-std",
  "substrate-test-client",
  "vara-runtime",
 ]
@@ -6385,7 +6310,6 @@ version = "1.0.0"
 dependencies = [
  "clap 4.5.23",
  "frame-remote-externalities",
- "frame-system",
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
@@ -6394,7 +6318,6 @@ dependencies = [
  "parity-scale-codec",
  "sc-cli",
  "sc-executor",
- "sc-executor-common",
  "sc-tracing",
  "sp-core",
  "sp-crypto-ec-utils",
@@ -6406,7 +6329,6 @@ dependencies = [
  "sp-state-machine",
  "substrate-rpc-client",
  "tokio",
- "vara-runtime",
 ]
 
 [[package]]
@@ -6417,19 +6339,11 @@ dependencies = [
  "frame-support",
  "frame-system",
  "frame-system-benchmarking",
- "gear-common",
- "gear-core",
- "gear-core-processor",
- "gear-lazy-pages-common",
  "gear-runtime-primitives",
- "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-bank",
- "pallet-gear-gas",
- "pallet-gear-messenger",
- "pallet-session",
  "pallet-treasury",
  "sp-runtime",
  "sp-std",
@@ -6443,7 +6357,6 @@ dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
  "ark-scale",
- "byteorder",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
@@ -6534,13 +6447,11 @@ dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "futures",
- "futures-timer",
  "gear-authorship",
  "gear-common",
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
- "hex-literal",
  "jsonrpsee 0.24.7",
  "log",
  "pallet-gear-builtin-rpc",
@@ -6551,30 +6462,23 @@ dependencies = [
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-staking-rewards-rpc",
  "pallet-gear-staking-rewards-rpc-runtime-api",
- "pallet-im-online",
- "pallet-staking",
  "pallet-transaction-payment-rpc",
  "pallet-transaction-payment-rpc-runtime-api",
- "parity-scale-codec",
  "sc-authority-discovery",
  "sc-chain-spec",
  "sc-client-api",
  "sc-consensus",
  "sc-consensus-babe",
  "sc-consensus-babe-rpc",
- "sc-consensus-epochs",
  "sc-consensus-grandpa",
  "sc-consensus-grandpa-rpc",
  "sc-consensus-slots",
  "sc-executor",
  "sc-executor-common",
  "sc-network",
- "sc-network-common",
  "sc-network-sync",
  "sc-offchain",
  "sc-rpc",
- "sc-rpc-api",
- "sc-rpc-spec-v2",
  "sc-service",
  "sc-sync-state-rpc",
  "sc-sysinfo",
@@ -6582,7 +6486,6 @@ dependencies = [
  "sc-transaction-pool",
  "sc-transaction-pool-api",
  "serde",
- "serde_json",
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
@@ -6711,7 +6614,6 @@ dependencies = [
  "derive_more 0.99.18",
  "diff",
  "enum-iterator 1.5.0",
- "indexmap 2.7.1",
  "log",
  "proptest",
  "wasm-encoder 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -6968,7 +6870,6 @@ dependencies = [
  "derive_more 0.99.18",
  "gear-ss58",
  "hex",
- "parity-scale-codec",
  "primitive-types",
  "scale-info",
  "serde",
@@ -7029,10 +6930,8 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.12.3",
- "rand 0.8.5",
  "scale-decode",
  "scale-value",
- "serde",
  "serde_json",
  "sp-core",
  "sp-runtime",
@@ -7046,7 +6945,6 @@ name = "gsdk-api-gen"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
- "frame-metadata 16.0.0",
  "gear-runtime-interface",
  "gear-utils",
  "heck 0.5.0",
@@ -7056,7 +6954,6 @@ dependencies = [
  "quote",
  "sc-executor",
  "sc-executor-common",
- "scale-info",
  "sp-io",
  "subxt-codegen",
  "syn 2.0.87",
@@ -7129,10 +7026,7 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-lazy-pages-native-interface",
  "gear-utils",
- "gear-wasm-instrument",
  "gsys",
- "hex",
- "indexmap 2.7.1",
  "log",
  "parity-scale-codec",
  "path-clean",
@@ -8530,7 +8424,6 @@ dependencies = [
  "gear-utils",
  "lazy-pages-fuzzer",
  "libfuzzer-sys",
- "log",
 ]
 
 [[package]]
@@ -10704,7 +10597,6 @@ dependencies = [
  "env_logger",
  "log",
  "num-traits",
- "parity-scale-codec",
  "proptest",
  "scale-info",
 ]
@@ -11129,7 +11021,6 @@ dependencies = [
  "scopeguard",
  "serde",
  "sp-consensus-babe",
- "sp-consensus-slots",
  "sp-core",
  "sp-externalities",
  "sp-io",
@@ -11345,7 +11236,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "log",
  "pallet-balances",
  "pallet-gear-messenger",
  "parity-scale-codec",
@@ -11366,8 +11256,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-core-errors",
- "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -11391,7 +11279,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
@@ -11429,8 +11316,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "hashbrown 0.14.5",
- "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -11438,7 +11323,6 @@ dependencies = [
  "pallet-timestamp",
  "pallet-treasury",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
  "sp-core",
  "sp-io",
@@ -11452,14 +11336,12 @@ name = "pallet-gear-rpc"
 version = "1.7.1"
 dependencies = [
  "gear-common",
- "gear-core",
  "gear-core-errors",
  "jsonrpsee 0.24.7",
  "pallet-gear-rpc-runtime-api",
  "sp-api",
  "sp-blockchain",
  "sp-core",
- "sp-rpc",
  "sp-runtime",
 ]
 
@@ -11497,7 +11379,6 @@ dependencies = [
  "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
  "sp-core",
  "sp-io",
@@ -11528,7 +11409,6 @@ dependencies = [
  "pallet-treasury",
  "pallet-utility",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
  "serde",
  "sp-authority-discovery",
@@ -11569,7 +11449,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "log",
  "pallet-balances",
  "parity-scale-codec",
  "primitive-types",
@@ -13311,15 +13190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "redox_syscall"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4722d768eff46b75989dd134e5c353f0d6296e5aaa3132e776cbdb56be7731aa"
-dependencies = [
- "bitflags 1.3.2",
-]
-
-[[package]]
 name = "redox_users"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13717,7 +13587,6 @@ dependencies = [
  "hex",
  "hex-literal",
  "log",
- "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-bank",
@@ -13732,7 +13601,6 @@ dependencies = [
  "sp-consensus-slots",
  "sp-core",
  "sp-io",
- "sp-keyring",
  "sp-runtime",
  "vara-runtime",
 ]
@@ -18450,13 +18318,11 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "gbuiltin-proxy",
- "gbuiltin-staking",
  "gear-common",
  "gear-core",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "gear-wasm-instrument",
- "hex-literal",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -18521,7 +18387,6 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
- "sp-npos-elections",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
@@ -18670,12 +18535,6 @@ checksum = "26816d2e1a4a36a2940b96c5296ce403917633dff8f3440e9b236ed6f6bacad2"
 dependencies = [
  "wit-bindgen-rt",
 ]
-
-[[package]]
-name = "wasite"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
 
 [[package]]
 name = "wasm-bindgen"
@@ -19564,17 +19423,6 @@ dependencies = [
  "home",
  "once_cell",
  "rustix 0.38.37",
-]
-
-[[package]]
-name = "whoami"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a44ab49fad634e88f55bf8f9bb3abd2f27d7204172a112c7c9987e01c1c94ea9"
-dependencies = [
- "redox_syscall 0.4.1",
- "wasite",
- "web-sys",
 ]
 
 [[package]]

@@ -10,12 +10,15 @@ import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 import {IMiddleware} from "./IMiddleware.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {ReentrancyGuardTransientUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
-contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
+contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
+    // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant TRANSIENT_STORAGE = 0xf02b465737fa6045c2ff53fb2df43c66916ac2166fa303264668fb2f6a1d8c00;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -35,6 +38,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
+        __ReentrancyGuardTransient_init();
 
         // Because of validator storages impl we have to check, that current timestamp is greater than 0.
         require(block.timestamp > 0, "current timestamp must be greater than 0");
@@ -325,6 +329,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         require(
             Gear.validateSignaturesAt(
                 router,
+                TRANSIENT_STORAGE,
                 keccak256(abi.encodePacked(keccak256(codeCommitmentsHashes), keccak256(blockCommitmentsHashes))),
                 _signatureType,
                 _signatures,
@@ -356,7 +361,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         bytes32 commitmentHash = Gear.validatorsCommitmentHash(_validatorsCommitment);
         require(
-            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures),
+            Gear.validateSignatures(
+                router, TRANSIENT_STORAGE, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures
+            ),
             "next era validators signatures verification failed"
         );
 
@@ -444,7 +451,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
                 router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
             );
 
-            IWrappedVara(router.implAddresses.wrappedVara).transfer(transition.actorId, transition.valueToReceive);
+            if (transition.valueToReceive != 0) {
+                IWrappedVara(router.implAddresses.wrappedVara).transfer(transition.actorId, transition.valueToReceive);
+            }
 
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);
 

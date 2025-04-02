@@ -81,7 +81,7 @@ async fn test_deployment() -> Result<()> {
     )
     .await?;
 
-    let blobs_reader = Arc::new(MockBlobReader::new(Duration::from_secs(1)));
+    let blobs_reader = Arc::new(MockBlobReader::new());
 
     let router_address = ethereum.router().address();
 

@@ -11,14 +11,10 @@ repository.workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { workspace = true, features = ["derive"] }
 futures.workspace = true
-futures-timer.workspace = true
-hex-literal.workspace = true
 jsonrpsee = { workspace = true, features = ["server"] }
 log.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true, features = [ "std" ] }
 
 # Gear
 common = { workspace = true, features = ["std"] }
@@ -46,14 +42,11 @@ sc-executor-common.workspace = true
 sc-service.workspace = true
 sc-telemetry.workspace = true
 sc-network.workspace = true
-sc-network-common.workspace = true
 sc-network-sync.workspace = true
 sc-consensus-slots.workspace = true
 sc-transaction-pool.workspace = true
 sc-transaction-pool-api.workspace = true
-sc-rpc-api.workspace = true
 sc-consensus.workspace = true
-sc-consensus-epochs.workspace = true
 sc-consensus-babe.workspace = true
 sc-consensus-babe-rpc.workspace = true
 sc-consensus-grandpa.workspace = true
@@ -61,7 +54,6 @@ sc-consensus-grandpa-rpc.workspace = true
 sc-client-api.workspace = true
 sc-offchain.workspace = true
 sc-rpc.workspace = true
-sc-rpc-spec-v2.workspace = true
 sc-sync-state-rpc.workspace = true
 sc-sysinfo.workspace = true
 
@@ -90,8 +82,6 @@ sp-session = { workspace = true, features = ["std"] }
 # Frame Pallets
 pallet-transaction-payment-rpc.workspace = true
 pallet-transaction-payment-rpc-runtime-api = { workspace = true, features = ["std"] }
-pallet-staking = { workspace = true, optional = true }
-pallet-im-online = { workspace = true, optional = true }
 
 # Substrate Other
 frame-benchmarking = { workspace = true, features = ["std"] }
@@ -105,8 +95,6 @@ substrate-build-script-utils.workspace = true
 [features]
 vara-native = [
 	"vara-runtime",
-	"pallet-staking",
-	"pallet-im-online",
 	"sp-authority-discovery"
 ]
 runtime-benchmarks = [
