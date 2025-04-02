@@ -52,7 +52,10 @@ pub mod pallet {
     use common::Origin;
     use frame_support::{
         pallet_prelude::*,
-        traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
+        traits::{
+            ConstBool, Currency, ExistenceRequirement, OneSessionHandler, StorageInstance,
+            StorageVersion,
+        },
         PalletId, StorageHasher,
     };
     use frame_system::{
@@ -68,13 +71,21 @@ pub mod pallet {
 
     type QueueCapacityOf<T> = <T as Config>::QueueCapacity;
     type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
+    type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+    type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
+    type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
+    type GearBuiltin<T> = pallet_gear_builtin::Pallet<T>;
 
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+    /// Builtin ID of the pallet.
+    pub const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config:
+        frame_system::Config + pallet_gear_bank::Config + pallet_gear_builtin::Config
+    {
         /// Type representing aggregated runtime event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
@@ -86,6 +97,9 @@ pub mod pallet {
 
         /// Privileged origin for bridge management operations.
         type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+        /// Privileged origin for administrative operations.
+        type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// The AccountId of the bridge admin.
         #[pallet::constant]
@@ -154,6 +168,9 @@ pub mod pallet {
         /// The error happens when bridge got called before
         /// proper initialization after deployment.
         BridgeIsNotYetInitialized,
+
+        /// The error happens transport fee is not set.
+        FeeIsNotSet,
 
         /// The error happens when bridge got called when paused.
         BridgeIsPaused,
@@ -241,6 +258,12 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
+    /// Operational storage.
+    ///
+    /// Defines the amount of fee to be paid for the transport of messages.
+    #[pallet::storage]
+    pub type TransportFee<T> = StorageValue<_, BalanceOf<T>>;
+
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
     #[pallet::storage_version(ETH_BRIDGE_STORAGE_VERSION)]
@@ -310,16 +333,48 @@ pub mod pallet {
             origin: OriginFor<T>,
             destination: H160,
             payload: Vec<u8>,
-        ) -> DispatchResultWithPostInfo {
-            let source = ensure_signed(origin)?.cast();
+        ) -> DispatchResultWithPostInfo
+        where
+            T::AccountId: Origin,
+        {
+            let source: ActorId = ensure_signed(origin.clone())?.cast();
+
+            Self::try_transfer_fee(&T::AccountId::from_origin(source.into()))?;
 
             Self::queue_message(source, destination, payload)?;
 
             Ok(().into())
         }
+
+        /// Root extrinsic that sets fee for the transport of messages.
+        #[pallet::call_index(3)]
+        #[pallet::weight(<T as Config>::WeightInfo::send_eth_message())]
+        pub fn set_fee(origin: OriginFor<T>, fee: BalanceOf<T>) -> DispatchResultWithPostInfo {
+            // Ensuring called by `AdminOrigin` or root.
+            T::AdminOrigin::ensure_origin_or_root(origin)?;
+
+            // Setting the fee.
+            TransportFee::<T>::put(fee);
+
+            // Returning successful result without weight refund.
+            Ok(().into())
+        }
     }
 
     impl<T: Config> Pallet<T> {
+        fn try_transfer_fee(origin: &T::AccountId) -> DispatchResult
+        where
+            T::AccountId: Origin,
+        {
+            let fee = TransportFee::<T>::get().ok_or(Error::<T>::FeeIsNotSet)?;
+
+            let builtin_id = T::AccountId::from_origin(
+                GearBuiltin::<T>::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into(),
+            );
+
+            CurrencyOf::<T>::transfer(origin, &builtin_id, fee, ExistenceRequirement::AllowDeath)
+        }
+
         pub(crate) fn queue_message(
             source: ActorId,
             destination: H160,

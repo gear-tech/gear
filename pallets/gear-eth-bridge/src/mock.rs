@@ -308,8 +308,16 @@ impl SortedMembers<AccountId> for MockBridgeControlAccounts {
     }
 }
 
+pub struct MockBridgeAdminAccounts;
+impl SortedMembers<AccountId> for MockBridgeAdminAccounts {
+    fn sorted_members() -> Vec<AccountId> {
+        vec![MockBridgeAdminAccount::get()]
+    }
+}
+
 impl pallet_gear_eth_bridge::Config for Test {
     type ControlOrigin = EnsureSignedBy<MockBridgeControlAccounts, AccountId>;
+    type AdminOrigin = EnsureSignedBy<MockBridgeAdminAccounts, AccountId>;
     type PalletId = GearEthBridgePalletId;
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;

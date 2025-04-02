@@ -16,18 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Error, Pallet, WeightInfo};
+use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
-    message::{Payload, StoredDispatch},
+    message::{Payload, StoredDispatch, Value},
     str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};
 use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext};
 use parity_scale_codec::{Decode, Encode};
-use sp_runtime::traits::Zero;
+use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;
 
 /// Gear builtin actor providing functionality of `pallet-gear-eth-bridge`.
@@ -43,7 +43,15 @@ where
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
     ) -> Result<Payload, BuiltinActorError> {
-        if !dispatch.value().is_zero() {
+        let fee: Value = TransportFee::<T>::get()
+            .ok_or_else(|| {
+                BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(
+                    &Error::<T>::FeeIsNotSet,
+                )))
+            })?
+            .unique_saturated_into();
+
+        if dispatch.value() != fee {
             return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 error_to_str(&Error::<T>::IncorrectValueApplied),
             )));
@@ -91,6 +99,7 @@ where
 pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
     match error {
         Error::BridgeIsNotYetInitialized => "Send message: bridge is not yet initialized",
+        Error::FeeIsNotSet => "Send message: fee is not set",
         Error::BridgeIsPaused => "Send message: bridge is paused",
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
         Error::QueueCapacityExceeded => "Send message: queue capacity exceeded",
