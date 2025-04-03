@@ -15577,7 +15577,6 @@ pub(crate) mod utils {
         let _ = env_logger::Builder::from_default_env()
             .format_module_path(false)
             .format_level(true)
-            .is_test(true)
             .try_init();
     }
 
