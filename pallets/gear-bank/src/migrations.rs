@@ -16,21 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet};
+use crate::{BankAddress, Config, Pallet};
 use common::Origin;
+#[cfg(feature = "try-runtime")]
+use frame_support::storage::generator::StorageValue;
 use frame_support::{
     pallet_prelude::Weight,
-    traits::{Currency, Get, GetStorageVersion, OnRuntimeUpgrade, OriginTrait},
+    traits::{Get, GetStorageVersion, OnRuntimeUpgrade, OriginTrait},
 };
 use frame_system::pallet_prelude::OriginFor;
 use pallet_balances::{Pallet as Balances, WeightInfo};
-use sp_runtime::traits::{StaticLookup, Zero};
+use sp_runtime::traits::StaticLookup;
 
 #[cfg(feature = "try-runtime")]
 use {
-    frame_support::ensure,
+    frame_support::{ensure, traits::Currency},
     sp_runtime::{
         codec::{Decode, Encode},
+        traits::Zero,
         TryRuntimeError,
     },
     sp_std::vec::Vec,
@@ -38,7 +41,9 @@ use {
 
 const OLD_BANK_ADDRESS: [u8; 32] = *b"gearbankgearbankgearbankgearbank";
 
+#[cfg(feature = "try-runtime")]
 pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+#[cfg(feature = "try-runtime")]
 pub(crate) type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountIdOf<T>>>::Balance;
 
 pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
@@ -67,8 +72,12 @@ where
                 log::error!("Migration to v1 failed");
             }
 
+            // Mutate the bank address in storage
+            BankAddress::<T>::put(Pallet::<T>::bank_address());
+
+            // Two writes are: the new on-chain storage version and the new bank address
             <T as pallet_balances::Config>::WeightInfo::transfer_all()
-                .saturating_add(T::DbWeight::get().reads_writes(2, 1))
+                .saturating_add(T::DbWeight::get().reads_writes(2, 2))
         } else {
             log::warn!("v1 migration is not applicable.");
             T::DbWeight::get().reads(2)
@@ -115,6 +124,11 @@ where
                 Pallet::<T>::on_chain_storage_version() == 1,
                 "v1 not applied"
             );
+
+            // Ensure the new bank address has been written to storage
+            let prefix = BankAddress::<T>::storage_value_final_key();
+            frame_support::storage::unhashed::get::<T::AccountId>(&prefix)
+                .ok_or("Bank address not found in storage")?;
         }
 
         Ok(())

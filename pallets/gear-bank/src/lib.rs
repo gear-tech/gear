@@ -234,7 +234,7 @@ pub mod pallet {
     type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
 
     /// The default account ID of the Gear Bank.
-    struct DefaulBankAddress<T: Config>(PhantomData<T>);
+    pub struct DefaulBankAddress<T: Config>(PhantomData<T>);
     impl<T: Config> Get<AccountIdOf<T>> for DefaulBankAddress<T> {
         fn get() -> AccountIdOf<T> {
             Pallet::<T>::bank_address()
@@ -243,7 +243,7 @@ pub mod pallet {
 
     // Private storage to hold the GearBank's AccountId.
     #[pallet::storage]
-    type BankAddress<T> = StorageValue<_, AccountIdOf<T>, ValueQuery, DefaulBankAddress<T>>;
+    pub type BankAddress<T> = StorageValue<_, AccountIdOf<T>, ValueQuery, DefaulBankAddress<T>>;
 
     // Private storage that keeps amount of value that wasn't sent because owner is inexistent account.
     #[pallet::storage]
