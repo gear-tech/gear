@@ -38,13 +38,13 @@ use ethexe_signer::Address;
 use futures::{future, stream::FuturesUnordered, FutureExt};
 use gear_core::ids::prelude::*;
 use gprimitives::{CodeId, H256};
-use std::{collections::HashMap, future::IntoFuture, sync::Arc};
+use std::{collections::HashMap, future::IntoFuture};
 
 /// Max number of blocks to query in alloy.
 pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
 
 pub(crate) async fn read_code_from_tx_hash(
-    blob_reader: Arc<dyn BlobReader>,
+    blob_reader: Box<dyn BlobReader>,
     expected_code_id: CodeId,
     timestamp: u64,
     tx_hash: H256,

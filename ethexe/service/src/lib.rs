@@ -27,7 +27,9 @@ use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{BlobData, BlockSyncedData, MockBlobReader, ObserverEvent, ObserverService};
+use ethexe_observer::{
+    BlobData, BlobReader, BlockSyncedData, MockBlobReader, ObserverEvent, ObserverService,
+};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
@@ -41,7 +43,6 @@ use ethexe_validator::{BlockCommitmentValidationRequest, Validator};
 use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
 
 pub mod config;
@@ -102,13 +103,24 @@ pub enum NetworkMessage {
     },
 }
 
+use ethexe_observer::ConsensusLayerBlobReader;
+
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let mock_blob_reader: Option<Arc<MockBlobReader>> = if config.node.dev {
-            Some(Arc::new(MockBlobReader::new()))
-        } else {
-            None
-        };
+        let (blob_reader, mock_blob_reader_for_rpc): (Box<dyn BlobReader>, Option<MockBlobReader>) =
+            if config.node.dev {
+                let reader = MockBlobReader::new();
+                (Box::new(reader.clone()), Some(reader))
+            } else {
+                let reader = ConsensusLayerBlobReader::new(
+                    &config.ethereum.rpc,
+                    &config.ethereum.beacon_rpc,
+                    config.ethereum.block_time,
+                )
+                .await
+                .context("failed to create consensus layer blob reader")?;
+                (Box::new(reader), None)
+            };
 
         let rocks_db = RocksDatabase::open(
             config
@@ -122,7 +134,7 @@ impl Service {
             &config.ethereum,
             config.node.eth_max_sync_depth,
             db.clone(),
-            mock_blob_reader.clone().map(|r| r as _),
+            blob_reader,
         )
         .await
         .context("failed to create observer service")?;
@@ -241,7 +253,7 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone()));
+            .map(|config| RpcService::new(config.clone(), db.clone(), mock_blob_reader_for_rpc));
 
         let tx_pool = TxPoolService::new(db.clone());
 

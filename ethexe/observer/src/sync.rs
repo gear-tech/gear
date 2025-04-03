@@ -34,16 +34,13 @@ use futures::{
     FutureExt,
 };
 use gprimitives::{CodeId, H256};
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
 
 // TODO #4552: make tests for ChainSync
 pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
     pub provider: RootProvider,
     pub db: DB,
-    pub blobs_reader: Arc<dyn BlobReader>,
+    pub blobs_reader: Box<dyn BlobReader>,
     pub config: RuntimeConfig,
 }
 
