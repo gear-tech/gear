@@ -53,10 +53,10 @@ pub mod pallet {
     use frame_support::{
         pallet_prelude::*,
         traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
-        StorageHasher,
+        PalletId, StorageHasher,
     };
     use frame_system::{
-        ensure_root, ensure_signed,
+        ensure_signed,
         pallet_prelude::{BlockNumberFor, OriginFor},
     };
     use gprimitives::{ActorId, H160, H256, U256};
@@ -79,6 +79,21 @@ pub mod pallet {
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+        /// The bridge' pallet id, used for deriving its sovereign account ID.
+        #[pallet::constant]
+        type PalletId: Get<PalletId>;
+
+        /// Privileged origin for bridge management operations.
+        type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+        /// The AccountId of the bridge admin.
+        #[pallet::constant]
+        type BridgeAdmin: Get<Self::AccountId>;
+
+        /// The AccountId of the bridge pauser.
+        #[pallet::constant]
+        type BridgePauser: Get<Self::AccountId>;
 
         /// Constant defining maximal payload size in bytes of message for bridging.
         #[pallet::constant]
@@ -241,8 +256,8 @@ pub mod pallet {
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::pause())]
         pub fn pause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by root.
-            ensure_root(origin)?;
+            // Ensuring called by `ControlOrigin` or root.
+            T::ControlOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -265,8 +280,8 @@ pub mod pallet {
         #[pallet::call_index(1)]
         #[pallet::weight(<T as Config>::WeightInfo::unpause())]
         pub fn unpause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by root.
-            ensure_root(origin)?;
+            // Ensuring called by `ControlOrigin` or root.
+            T::ControlOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(

@@ -138,7 +138,7 @@ impl ProcessorContext {
             forbidden_funcs: Default::default(),
             reserve_for: 0,
             random_data: ([0u8; 32].to_vec(), 0),
-            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(100),
             existential_deposit: Default::default(),
             mailbox_threshold: Default::default(),
             costs: Default::default(),

@@ -35,7 +35,6 @@ use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use frame_support::{assert_ok, storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
 use gear_core::program::Program;
-use gear_runtime_common::constants::BANK_ADDRESS;
 use pallet_gear_rpc_runtime_api::GearApi;
 use parking_lot::{Mutex, RwLock};
 use runtime_primitives::{Block as TestBlock, BlockNumber};
@@ -151,7 +150,6 @@ fn salt() -> [u8; 16] {
 }
 
 enum TestCall {
-    DepositToBank,
     Noop,
     InitLoop(u64),
     ToggleRunQueue(bool),
@@ -162,11 +160,6 @@ struct CallBuilder {
     call: TestCall,
 }
 impl CallBuilder {
-    pub fn deposit_to_bank() -> Self {
-        Self {
-            call: TestCall::DepositToBank,
-        }
-    }
     pub fn noop() -> Self {
         Self {
             call: TestCall::Noop,
@@ -189,14 +182,6 @@ impl CallBuilder {
     }
     fn build(self) -> RuntimeCall {
         match self.call {
-            TestCall::DepositToBank => RuntimeCall::Sudo(pallet_sudo::Call::sudo {
-                call: Box::new(RuntimeCall::Balances(
-                    pallet_balances::Call::force_set_balance {
-                        who: sp_runtime::MultiAddress::Id(AccountId::from(BANK_ADDRESS)),
-                        new_free: 1_000_000_000_000_000,
-                    },
-                )),
-            }),
             TestCall::Noop => RuntimeCall::Gear(pallet_gear::Call::upload_program {
                 code: WASM_BINARY.to_vec(),
                 salt: salt().to_vec(),
@@ -395,21 +380,12 @@ fn test_queue_remains_intact_if_processing_fails() {
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
-    // Create an extrinsic that prefunds the bank account
-    let pre_fund_bank_xt = CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(0))),
-        function: CallBuilder::deposit_to_bank().build(),
-    };
-
-    let mut checked = vec![pre_fund_bank_xt];
-    checked.extend(checked_extrinsics(5, bob(), 0_u32, || {
-        CallBuilder::noop().build()
-    }));
+    let mut checked = checked_extrinsics(5, bob(), 0_u32, || CallBuilder::noop().build());
     let nonce = 5_u32; // Bob's nonce for the future
 
     // Disable queue processing in Gear pallet as the root
     checked.push(CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(1))),
+        signed: Some((alice(), signed_extra(0))),
         function: CallBuilder::toggle_run_queue(false).build(),
     });
     let extrinsics = sign_extrinsics(
@@ -419,7 +395,7 @@ fn test_queue_remains_intact_if_processing_fails() {
         genesis_hash,
     );
     submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
-    assert_eq!(txpool.ready().count(), 7);
+    assert_eq!(txpool.ready().count(), 6);
 
     let current_block = client.info().best_number;
 
@@ -448,7 +424,7 @@ fn test_queue_remains_intact_if_processing_fails() {
     )
     .block;
     // Pseudo-inherent rolled back, therefore only have 1 inherent + 7 normal
-    assert_eq!(block.extrinsics().len(), 8);
+    assert_eq!(block.extrinsics().len(), 7);
 
     let best_hash = block.hash();
 
@@ -519,19 +495,8 @@ fn test_block_max_gas_works() {
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
     // Prepare block #1
-    // Create an extrinsic that prefunds the bank account
-    let extrinsics = vec![sign(
-        CheckedExtrinsic {
-            signed: Some((alice(), signed_extra(0))),
-            function: CallBuilder::deposit_to_bank().build(),
-        },
-        VERSION.spec_version,
-        VERSION.transaction_version,
-        genesis_hash,
-        None,
-    )
-    .into()];
-    submit_and_maintain(client.clone(), txpool.clone(), extrinsics.clone());
+    // Proposing it's empty to workaround block author in RPC.
+    submit_and_maintain(client.clone(), txpool.clone(), vec![]);
 
     let current_block = client.info().best_number;
 
@@ -657,7 +622,7 @@ fn test_pseudo_inherent_discarded_from_txpool() {
     let legit_xt = sign(
         CheckedExtrinsic {
             signed: Some((alice(), signed_extra(0))),
-            function: CallBuilder::deposit_to_bank().build(),
+            function: CallBuilder::noop().build(),
         },
         VERSION.spec_version,
         VERSION.transaction_version,
@@ -767,18 +732,11 @@ fn test_proposal_timing_consistent() {
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
-    // Create an extrinsic that prefunds the bank account
-    let pre_fund_bank_xt = CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(0))),
-        function: CallBuilder::deposit_to_bank().build(),
-    };
-    let mut checked = vec![pre_fund_bank_xt];
-
     // Disable queue processing in block #1
-    checked.push(CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(1))),
+    let mut checked = vec![CheckedExtrinsic {
+        signed: Some((alice(), signed_extra(0))),
         function: CallBuilder::toggle_run_queue(false).build(),
-    });
+    }];
 
     // Creating a bunch of extrinsics that will put N time-consuming init messages
     // to the message queue. The number of extrinsics should better allow all of
@@ -829,7 +787,7 @@ fn test_proposal_timing_consistent() {
     // Re-enable queue processing in block #2
     let extrinsics = sign_extrinsics(
         vec![CheckedExtrinsic {
-            signed: Some((alice(), signed_extra(2))),
+            signed: Some((alice(), signed_extra(1))),
             function: CallBuilder::toggle_run_queue(true).build(),
         }],
         VERSION.spec_version,

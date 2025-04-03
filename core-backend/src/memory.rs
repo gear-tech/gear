@@ -416,6 +416,12 @@ pub(crate) struct WasmMemoryRead {
     size: u32,
 }
 
+impl WasmMemoryRead {
+    pub(crate) fn size(&self) -> u32 {
+        self.size
+    }
+}
+
 /// Write static size type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryWriteAs<T> {
