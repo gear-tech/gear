@@ -39,12 +39,12 @@ use tokio::{
 #[async_trait]
 pub trait BlobReader: Send + Sync {
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>>;
-    fn clone_box(&self) -> Box<dyn BlobReader>;
+    fn clone_boxed(&self) -> Box<dyn BlobReader>;
 }
 
 impl Clone for Box<dyn BlobReader> {
     fn clone(&self) -> Self {
-        self.clone_box()
+        self.clone_boxed()
     }
 }
 
@@ -85,7 +85,7 @@ impl ConsensusLayerBlobReader {
 
 #[async_trait]
 impl BlobReader for ConsensusLayerBlobReader {
-    fn clone_box(&self) -> Box<dyn BlobReader> {
+    fn clone_boxed(&self) -> Box<dyn BlobReader> {
         Box::new(self.clone())
     }
 
@@ -173,7 +173,7 @@ impl Default for MockBlobReader {
 
 #[async_trait]
 impl BlobReader for MockBlobReader {
-    fn clone_box(&self) -> Box<dyn BlobReader> {
+    fn clone_boxed(&self) -> Box<dyn BlobReader> {
         Box::new(self.clone())
     }
 

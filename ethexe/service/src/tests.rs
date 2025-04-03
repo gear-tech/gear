@@ -1410,7 +1410,7 @@ mod utils {
                 block_time: config.block_time,
             };
             let mut observer =
-                ObserverService::new(&eth_cfg, u32::MAX, db.clone(), blob_reader.clone_box())
+                ObserverService::new(&eth_cfg, u32::MAX, db.clone(), blob_reader.clone_boxed())
                     .await
                     .unwrap();
 
@@ -1987,7 +1987,7 @@ mod utils {
                 &self.eth_cfg,
                 u32::MAX,
                 self.db.clone(),
-                self.blob_reader.clone_box(),
+                self.blob_reader.clone_boxed(),
             )
             .await
             .unwrap();

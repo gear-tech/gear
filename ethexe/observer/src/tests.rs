@@ -97,7 +97,7 @@ async fn test_deployment() -> Result<()> {
         },
         u32::MAX,
         database,
-        blobs_reader.clone_box(),
+        blobs_reader.clone_boxed(),
     )
     .await
     .expect("failed to create observer");
