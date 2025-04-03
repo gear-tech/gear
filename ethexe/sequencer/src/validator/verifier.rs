@@ -4,7 +4,7 @@ use ethexe_signer::Address;
 use gprimitives::H256;
 use std::mem;
 
-use super::{InputEvent, ValidatorContext, ValidatorSubService};
+use super::{ExternalEvent, ValidatorContext, ValidatorSubService};
 use crate::{validator::participant::Participant, ControlEvent};
 
 pub struct Verifier {
@@ -44,12 +44,12 @@ impl ValidatorSubService for Verifier {
         self.ctx
     }
 
-    fn process_input_event(
+    fn process_external_event(
         mut self: Box<Self>,
-        event: InputEvent,
+        event: ExternalEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
         match (&self.state, event) {
-            (State::WaitingForProducerBlock, InputEvent::ProducerBlock(pb))
+            (State::WaitingForProducerBlock, ExternalEvent::ProducerBlock(pb))
                 if pb.verify_address(self.producer).is_ok()
                     && (pb.data().block_hash == self.block.hash) =>
             {
@@ -59,7 +59,7 @@ impl ValidatorSubService for Verifier {
 
                 Ok(self)
             }
-            (_, event @ InputEvent::ValidationRequest(_)) => {
+            (_, event @ ExternalEvent::ValidationRequest(_)) => {
                 self.ctx.pending_events.push_back(event);
 
                 Ok(self)
@@ -108,14 +108,14 @@ impl Verifier {
         let pending_events = mem::take(&mut ctx.pending_events);
         for event in pending_events {
             match event {
-                InputEvent::ProducerBlock(signed_data)
+                ExternalEvent::ProducerBlock(signed_data)
                     if earlier_producer_block.is_none()
                         && (signed_data.data().block_hash == block.hash)
                         && signed_data.verify_address(producer).is_ok() =>
                 {
                     earlier_producer_block = Some(signed_data.into_parts().0);
                 }
-                event @ InputEvent::ValidationRequest(_) => {
+                event @ ExternalEvent::ValidationRequest(_) => {
                     ctx.pending_events.push_back(event);
                 }
                 _ => {

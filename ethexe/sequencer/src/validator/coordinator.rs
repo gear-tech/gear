@@ -9,7 +9,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use super::{InputEvent, ValidatorContext, ValidatorSubService};
+use super::{ExternalEvent, ValidatorContext, ValidatorSubService};
 use crate::{
     utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
     ControlEvent,
@@ -42,12 +42,12 @@ impl ValidatorSubService for Coordinator {
         self.ctx
     }
 
-    fn process_input_event(
+    fn process_external_event(
         mut self: Box<Self>,
-        event: InputEvent,
+        event: ExternalEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
         match event {
-            InputEvent::ValidationReply(reply) => {
+            ExternalEvent::ValidationReply(reply) => {
                 if let Err(err) = self
                     .multisigned_batch
                     .accept_batch_commitment_validation_reply(reply, |addr| {
@@ -146,9 +146,9 @@ impl ValidatorSubService for Submitter {
         self.ctx
     }
 
-    fn process_input_event(
+    fn process_external_event(
         mut self: Box<Self>,
-        event: InputEvent,
+        event: ExternalEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
         self.ctx.pending_events.push_back(event);
         Ok(self)

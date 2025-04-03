@@ -4,7 +4,7 @@ use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
 use ethexe_signer::{Address, Digest, ToDigest};
 use gprimitives::H256;
 
-use super::{initial::Initial, InputEvent, ValidatorContext, ValidatorSubService};
+use super::{initial::Initial, ExternalEvent, ValidatorContext, ValidatorSubService};
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
@@ -41,12 +41,12 @@ impl ValidatorSubService for Participant {
         self.ctx
     }
 
-    fn process_input_event(
+    fn process_external_event(
         mut self: Box<Self>,
-        event: InputEvent,
+        event: ExternalEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
         match event {
-            InputEvent::ValidationRequest(request)
+            ExternalEvent::ValidationRequest(request)
                 if request.verify_address(self.producer).is_ok() =>
             {
                 self.process_validation_request(request.into_parts().0)
@@ -72,7 +72,7 @@ impl Participant {
         let mut earlier_validation_request = None;
 
         ctx.pending_events.retain(|event| match event {
-            InputEvent::ValidationRequest(signed_data)
+            ExternalEvent::ValidationRequest(signed_data)
                 if earlier_validation_request.is_none()
                     && signed_data.verify_address(producer).is_ok() =>
             {
@@ -80,7 +80,7 @@ impl Participant {
 
                 false
             }
-            InputEvent::ValidationRequest(_) if earlier_validation_request.is_none() => {
+            ExternalEvent::ValidationRequest(_) if earlier_validation_request.is_none() => {
                 // NOTE: remove all validation events before the first from producer found.
                 false
             }

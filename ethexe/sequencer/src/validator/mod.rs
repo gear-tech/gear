@@ -71,10 +71,18 @@ impl ValidatorService {
             .context()
     }
 
-    fn take_inner(&mut self) -> Box<dyn ValidatorSubService> {
-        self.inner
+    fn update_inner(
+        &mut self,
+        update: impl FnOnce(Box<dyn ValidatorSubService>) -> Result<Box<dyn ValidatorSubService>>,
+    ) -> Result<()> {
+        let inner = self
+            .inner
             .take()
-            .unwrap_or_else(|| unreachable!("inner must be Some"))
+            .unwrap_or_else(|| unreachable!("inner must be Some"));
+
+        update(inner).map(|inner| {
+            self.inner = Some(inner);
+        })
     }
 }
 
@@ -83,52 +91,37 @@ impl ControlService for ValidatorService {
         format!("Validator ({:?})", self.context().pub_key.to_address())
     }
 
-    // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
-        self.take_inner().process_new_head(block).map(|inner| {
-            self.inner = Some(inner);
-        })
+        self.update_inner(|inner| inner.process_new_head(block))
     }
 
     fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()> {
-        self.take_inner().process_synced_block(data).map(|inner| {
-            self.inner = Some(inner);
-        })
+        self.update_inner(|inner| inner.process_synced_block(data))
     }
 
     fn receive_block_from_producer(&mut self, signed: SignedData<ProducerBlock>) -> Result<()> {
-        self.take_inner()
-            .process_input_event(InputEvent::ProducerBlock(signed))
-            .map(|inner| {
-                self.inner = Some(inner);
-            })
+        self.update_inner(|inner| {
+            inner.process_external_event(ExternalEvent::ProducerBlock(signed))
+        })
     }
 
     fn receive_computed_block(&mut self, computed_block: H256) -> Result<()> {
-        self.take_inner()
-            .process_computed_block(computed_block)
-            .map(|inner| {
-                self.inner = Some(inner);
-            })
+        self.update_inner(|inner| inner.process_computed_block(computed_block))
     }
 
     fn receive_validation_request(
         &mut self,
         signed_request: SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<()> {
-        self.take_inner()
-            .process_input_event(InputEvent::ValidationRequest(signed_request))
-            .map(|inner| {
-                self.inner = Some(inner);
-            })
+        self.update_inner(|inner| {
+            inner.process_external_event(ExternalEvent::ValidationRequest(signed_request))
+        })
     }
 
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
-        self.take_inner()
-            .process_input_event(InputEvent::ValidationReply(reply))
-            .map(|inner| {
-                self.inner = Some(inner);
-            })
+        self.update_inner(|inner| {
+            inner.process_external_event(ExternalEvent::ValidationReply(reply))
+        })
     }
 
     fn is_block_producer(&self) -> Result<bool> {
@@ -141,12 +134,16 @@ impl Stream for ValidatorService {
     type Item = Result<ControlEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.inner = Some(self.take_inner().poll(cx)?);
+        let mut event = None;
+        self.update_inner(|inner| {
+            let mut inner = inner.poll(cx)?;
 
-        self.take_inner()
-            .context_mut()
-            .output
-            .pop_front()
+            event = inner.context_mut().output.pop_front();
+
+            Ok(inner)
+        })?;
+
+        event
             .map(|event| Poll::Ready(Some(Ok(event))))
             .unwrap_or(Poll::Pending)
     }
@@ -159,7 +156,7 @@ impl FusedStream for ValidatorService {
 }
 
 #[derive(Debug)]
-enum InputEvent {
+enum ExternalEvent {
     ProducerBlock(SignedData<ProducerBlock>),
     ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
     ValidationReply(BatchCommitmentValidationReply),
@@ -172,13 +169,11 @@ trait ValidatorSubService: Unpin + Send + 'static {
     fn context_mut(&mut self) -> &mut ValidatorContext;
     fn into_context(self: Box<Self>) -> ValidatorContext;
 
-    fn process_input_event(
+    fn process_external_event(
         mut self: Box<Self>,
-        event: InputEvent,
+        event: ExternalEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        let warning = self.log(format!(
-            "Unexpected input event: {event:?}, append to pending events"
-        ));
+        let warning = self.log(format!("unexpected event: {event:?}, save for later"));
         self.context_mut().warning(warning);
 
         self.context_mut().pending_events.push_back(event);
@@ -190,6 +185,7 @@ trait ValidatorSubService: Unpin + Send + 'static {
         self: Box<Self>,
         block: SimpleBlockData,
     ) -> Result<Box<dyn ValidatorSubService>> {
+        // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
         Initial::create_with_chain_head(self.into_context(), block)
     }
 
@@ -226,7 +222,7 @@ struct ValidatorContext {
     signer: Signer,
     db: Database,
     ethereum: Ethereum,
-    pending_events: VecDeque<InputEvent>,
+    pending_events: VecDeque<ExternalEvent>,
     output: VecDeque<ControlEvent>,
 }
 
