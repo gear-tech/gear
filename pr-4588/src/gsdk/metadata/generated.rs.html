@@ -12351,7 +12351,9 @@
 <a href="#12350" id="12350">12350</a>
 <a href="#12351" id="12351">12351</a>
 <a href="#12352" id="12352">12352</a>
-<a href="#12353" id="12353">12353</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#12353" id="12353">12353</a>
+<a href="#12354" id="12354">12354</a>
+<a href="#12355" id="12355">12355</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 //
 // Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -23949,15 +23951,17 @@
     <span class="attr">#[doc = <span class="string">"Storage of pallet `GearBank`."</span>]
     </span><span class="kw">pub enum </span><a href="../../../gsdk/metadata/storage/enum.GearBankStorage.html">GearBankStorage</a> {
         Bank,
+        BankAddress,
         UnusedValue,
         OnFinalizeTransfers,
         OnFinalizeValue,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11597-11602">GearBankStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11597-11603">GearBankStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"GearBank"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11605">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11606">self</a> </span>{
                 <span class="self">Self</span>::Bank =&gt; <span class="string">"Bank"</span>,
+                <span class="self">Self</span>::BankAddress =&gt; <span class="string">"BankAddress"</span>,
                 <span class="self">Self</span>::UnusedValue =&gt; <span class="string">"UnusedValue"</span>,
                 <span class="self">Self</span>::OnFinalizeTransfers =&gt; <span class="string">"OnFinalizeTransfers"</span>,
                 <span class="self">Self</span>::OnFinalizeValue =&gt; <span class="string">"OnFinalizeValue"</span>,
@@ -23970,10 +23974,10 @@
         RemapId,
         ProgramsMap,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11615-11619">GearDebugStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11617-11621">GearDebugStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"GearDebug"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11622">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11624">self</a> </span>{
                 <span class="self">Self</span>::DebugMode =&gt; <span class="string">"DebugMode"</span>,
                 <span class="self">Self</span>::RemapId =&gt; <span class="string">"RemapId"</span>,
                 <span class="self">Self</span>::ProgramsMap =&gt; <span class="string">"ProgramsMap"</span>,
@@ -23992,10 +23996,10 @@
         MessageNonce,
         QueueChanged,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11631-11641">GearEthBridgeStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11633-11643">GearEthBridgeStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"GearEthBridge"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11644">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11646">self</a> </span>{
                 <span class="self">Self</span>::Initialized =&gt; <span class="string">"Initialized"</span>,
                 <span class="self">Self</span>::Paused =&gt; <span class="string">"Paused"</span>,
                 <span class="self">Self</span>::AuthoritySetHash =&gt; <span class="string">"AuthoritySetHash"</span>,
@@ -24014,10 +24018,10 @@
         GasNodes,
         Allowance,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11659-11663">GearGasStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11661-11665">GearGasStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"GearGas"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11666">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11668">self</a> </span>{
                 <span class="self">Self</span>::TotalIssuance =&gt; <span class="string">"TotalIssuance"</span>,
                 <span class="self">Self</span>::GasNodes =&gt; <span class="string">"GasNodes"</span>,
                 <span class="self">Self</span>::Allowance =&gt; <span class="string">"Allowance"</span>,
@@ -24037,10 +24041,10 @@
         Waitlist,
         DispatchStash,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11675-11686">GearMessengerStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11677-11688">GearMessengerStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"GearMessenger"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11689">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11691">self</a> </span>{
                 <span class="self">Self</span>::Dequeued =&gt; <span class="string">"Dequeued"</span>,
                 <span class="self">Self</span>::Dispatches =&gt; <span class="string">"Dispatches"</span>,
                 <span class="self">Self</span>::CounterForDispatches =&gt; <span class="string">"CounterForDispatches"</span>,
@@ -24064,10 +24068,10 @@
         ProgramStorage,
         MemoryPages,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11705-11713">GearProgramStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11707-11715">GearProgramStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"GearProgram"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11716">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11718">self</a> </span>{
                 <span class="self">Self</span>::CodeStorage =&gt; <span class="string">"CodeStorage"</span>,
                 <span class="self">Self</span>::CodeLenStorage =&gt; <span class="string">"CodeLenStorage"</span>,
                 <span class="self">Self</span>::OriginalCodeStorage =&gt; <span class="string">"OriginalCodeStorage"</span>,
@@ -24083,10 +24087,10 @@
         FirstIncompleteTasksBlock,
         TaskPool,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11729-11732">GearSchedulerStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11731-11734">GearSchedulerStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"GearScheduler"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11735">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11737">self</a> </span>{
                 <span class="self">Self</span>::FirstIncompleteTasksBlock =&gt; <span class="string">"FirstIncompleteTasksBlock"</span>,
                 <span class="self">Self</span>::TaskPool =&gt; <span class="string">"TaskPool"</span>,
             }
@@ -24097,10 +24101,10 @@
         Issued,
         Vouchers,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11743-11746">GearVoucherStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11745-11748">GearVoucherStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"GearVoucher"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11749">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11751">self</a> </span>{
                 <span class="self">Self</span>::Issued =&gt; <span class="string">"Issued"</span>,
                 <span class="self">Self</span>::Vouchers =&gt; <span class="string">"Vouchers"</span>,
             }
@@ -24116,10 +24120,10 @@
         SetIdSession,
         Authorities,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11757-11765">GrandpaStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11759-11767">GrandpaStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Grandpa"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11768">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11770">self</a> </span>{
                 <span class="self">Self</span>::State =&gt; <span class="string">"State"</span>,
                 <span class="self">Self</span>::PendingChange =&gt; <span class="string">"PendingChange"</span>,
                 <span class="self">Self</span>::NextForced =&gt; <span class="string">"NextForced"</span>,
@@ -24135,10 +24139,10 @@
         HistoricalSessions,
         StoredRange,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11781-11784">HistoricalStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11783-11786">HistoricalStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Historical"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11787">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11789">self</a> </span>{
                 <span class="self">Self</span>::HistoricalSessions =&gt; <span class="string">"HistoricalSessions"</span>,
                 <span class="self">Self</span>::StoredRange =&gt; <span class="string">"StoredRange"</span>,
             }
@@ -24154,10 +24158,10 @@
         AccountOfUsername,
         PendingUsernames,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11795-11803">IdentityStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11797-11805">IdentityStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Identity"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11806">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11808">self</a> </span>{
                 <span class="self">Self</span>::IdentityOf =&gt; <span class="string">"IdentityOf"</span>,
                 <span class="self">Self</span>::SuperOf =&gt; <span class="string">"SuperOf"</span>,
                 <span class="self">Self</span>::SubsOf =&gt; <span class="string">"SubsOf"</span>,
@@ -24175,10 +24179,10 @@
         ReceivedHeartbeats,
         AuthoredBlocks,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11819-11824">ImOnlineStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11821-11826">ImOnlineStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"ImOnline"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11827">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11829">self</a> </span>{
                 <span class="self">Self</span>::HeartbeatAfter =&gt; <span class="string">"HeartbeatAfter"</span>,
                 <span class="self">Self</span>::Keys =&gt; <span class="string">"Keys"</span>,
                 <span class="self">Self</span>::ReceivedHeartbeats =&gt; <span class="string">"ReceivedHeartbeats"</span>,
@@ -24190,10 +24194,10 @@
     </span><span class="kw">pub enum </span><a href="../../../gsdk/metadata/storage/enum.MultisigStorage.html">MultisigStorage</a> {
         Multisigs,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11837-11839">MultisigStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11839-11841">MultisigStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Multisig"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11842">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11844">self</a> </span>{
                 <span class="self">Self</span>::Multisigs =&gt; <span class="string">"Multisigs"</span>,
             }
         }
@@ -24222,10 +24226,10 @@
         CounterForReversePoolIdLookup,
         ClaimPermissions,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11849-11871">NominationPoolsStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11851-11873">NominationPoolsStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"NominationPools"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11874">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11876">self</a> </span>{
                 <span class="self">Self</span>::TotalValueLocked =&gt; <span class="string">"TotalValueLocked"</span>,
                 <span class="self">Self</span>::MinJoinBond =&gt; <span class="string">"MinJoinBond"</span>,
                 <span class="self">Self</span>::MinCreateBond =&gt; <span class="string">"MinCreateBond"</span>,
@@ -24255,10 +24259,10 @@
         Reports,
         ConcurrentReportsIndex,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11901-11904">OffencesStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11903-11906">OffencesStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Offences"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11907">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11909">self</a> </span>{
                 <span class="self">Self</span>::Reports =&gt; <span class="string">"Reports"</span>,
                 <span class="self">Self</span>::ConcurrentReportsIndex =&gt; <span class="string">"ConcurrentReportsIndex"</span>,
             }
@@ -24270,10 +24274,10 @@
         RequestStatusFor,
         PreimageFor,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11915-11919">PreimageStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11917-11921">PreimageStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Preimage"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11922">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11924">self</a> </span>{
                 <span class="self">Self</span>::StatusFor =&gt; <span class="string">"StatusFor"</span>,
                 <span class="self">Self</span>::RequestStatusFor =&gt; <span class="string">"RequestStatusFor"</span>,
                 <span class="self">Self</span>::PreimageFor =&gt; <span class="string">"PreimageFor"</span>,
@@ -24285,10 +24289,10 @@
         Proxies,
         Announcements,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11931-11934">ProxyStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11933-11936">ProxyStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Proxy"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11937">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11939">self</a> </span>{
                 <span class="self">Self</span>::Proxies =&gt; <span class="string">"Proxies"</span>,
                 <span class="self">Self</span>::Announcements =&gt; <span class="string">"Announcements"</span>,
             }
@@ -24302,10 +24306,10 @@
         DecidingCount,
         MetadataOf,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11945-11951">ReferendaStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11947-11953">ReferendaStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Referenda"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11954">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11956">self</a> </span>{
                 <span class="self">Self</span>::ReferendumCount =&gt; <span class="string">"ReferendumCount"</span>,
                 <span class="self">Self</span>::ReferendumInfoFor =&gt; <span class="string">"ReferendumInfoFor"</span>,
                 <span class="self">Self</span>::TrackQueue =&gt; <span class="string">"TrackQueue"</span>,
@@ -24321,10 +24325,10 @@
         Retries,
         Lookup,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11965-11970">SchedulerStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11967-11972">SchedulerStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Scheduler"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11973">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11975">self</a> </span>{
                 <span class="self">Self</span>::IncompleteSince =&gt; <span class="string">"IncompleteSince"</span>,
                 <span class="self">Self</span>::Agenda =&gt; <span class="string">"Agenda"</span>,
                 <span class="self">Self</span>::Retries =&gt; <span class="string">"Retries"</span>,
@@ -24342,10 +24346,10 @@
         NextKeys,
         KeyOwner,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11983-11991">SessionStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#11985-11993">SessionStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Session"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#11994">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#11996">self</a> </span>{
                 <span class="self">Self</span>::Validators =&gt; <span class="string">"Validators"</span>,
                 <span class="self">Self</span>::CurrentIndex =&gt; <span class="string">"CurrentIndex"</span>,
                 <span class="self">Self</span>::QueuedChanged =&gt; <span class="string">"QueuedChanged"</span>,
@@ -24402,10 +24406,10 @@
         DisabledValidators,
         ChillThreshold,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12007-12051">StakingStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12009-12053">StakingStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Staking"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#12054">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#12056">self</a> </span>{
                 <span class="self">Self</span>::ValidatorCount =&gt; <span class="string">"ValidatorCount"</span>,
                 <span class="self">Self</span>::MinimumValidatorCount =&gt; <span class="string">"MinimumValidatorCount"</span>,
                 <span class="self">Self</span>::Invulnerables =&gt; <span class="string">"Invulnerables"</span>,
@@ -24459,10 +24463,10 @@
         NonStakeableShare,
         FilteredAccounts,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12103-12108">StakingRewardsStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12105-12110">StakingRewardsStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"StakingRewards"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#12111">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#12113">self</a> </span>{
                 <span class="self">Self</span>::TargetInflation =&gt; <span class="string">"TargetInflation"</span>,
                 <span class="self">Self</span>::IdealStakingRatio =&gt; <span class="string">"IdealStakingRatio"</span>,
                 <span class="self">Self</span>::NonStakeableShare =&gt; <span class="string">"NonStakeableShare"</span>,
@@ -24474,10 +24478,10 @@
     </span><span class="kw">pub enum </span><a href="../../../gsdk/metadata/storage/enum.SudoStorage.html">SudoStorage</a> {
         Key,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12121-12123">SudoStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12123-12125">SudoStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Sudo"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#12126">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#12128">self</a> </span>{
                 <span class="self">Self</span>::Key =&gt; <span class="string">"Key"</span>,
             }
         }
@@ -24503,10 +24507,10 @@
         ExecutionPhase,
         AuthorizedUpgrade,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12133-12152">SystemStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12135-12154">SystemStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"System"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#12155">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#12157">self</a> </span>{
                 <span class="self">Self</span>::Account =&gt; <span class="string">"Account"</span>,
                 <span class="self">Self</span>::ExtrinsicCount =&gt; <span class="string">"ExtrinsicCount"</span>,
                 <span class="self">Self</span>::InherentsApplied =&gt; <span class="string">"InherentsApplied"</span>,
@@ -24533,10 +24537,10 @@
         Now,
         DidUpdate,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12179-12182">TimestampStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12181-12184">TimestampStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Timestamp"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#12185">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#12187">self</a> </span>{
                 <span class="self">Self</span>::Now =&gt; <span class="string">"Now"</span>,
                 <span class="self">Self</span>::DidUpdate =&gt; <span class="string">"DidUpdate"</span>,
             }
@@ -24547,10 +24551,10 @@
         NextFeeMultiplier,
         StorageVersion,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12193-12196">TransactionPaymentStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12195-12198">TransactionPaymentStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"TransactionPayment"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#12199">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#12201">self</a> </span>{
                 <span class="self">Self</span>::NextFeeMultiplier =&gt; <span class="string">"NextFeeMultiplier"</span>,
                 <span class="self">Self</span>::StorageVersion =&gt; <span class="string">"StorageVersion"</span>,
             }
@@ -24565,10 +24569,10 @@
         SpendCount,
         Spends,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12207-12214">TreasuryStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12209-12216">TreasuryStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Treasury"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#12217">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#12219">self</a> </span>{
                 <span class="self">Self</span>::ProposalCount =&gt; <span class="string">"ProposalCount"</span>,
                 <span class="self">Self</span>::Proposals =&gt; <span class="string">"Proposals"</span>,
                 <span class="self">Self</span>::Deactivated =&gt; <span class="string">"Deactivated"</span>,
@@ -24583,10 +24587,10 @@
         Vesting,
         StorageVersion,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12229-12232">VestingStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12231-12234">VestingStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Vesting"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#12235">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#12237">self</a> </span>{
                 <span class="self">Self</span>::Vesting =&gt; <span class="string">"Vesting"</span>,
                 <span class="self">Self</span>::StorageVersion =&gt; <span class="string">"StorageVersion"</span>,
             }
@@ -24596,10 +24600,10 @@
     </span><span class="kw">pub enum </span><a href="../../../gsdk/metadata/storage/enum.WhitelistStorage.html">WhitelistStorage</a> {
         WhitelistedCall,
     }
-    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12243-12245">WhitelistStorage</a> {
+    <span class="kw">impl </span><a href="#11341-11345">StorageInfo</a> <span class="kw">for </span><a href="#12245-12247">WhitelistStorage</a> {
         <span class="kw">const </span>PALLET: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Whitelist"</span>;
         <span class="kw">fn </span>storage_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> {
-            <span class="kw">match </span><span class="self"><a href="#12248">self</a> </span>{
+            <span class="kw">match </span><span class="self"><a href="#12250">self</a> </span>{
                 <span class="self">Self</span>::WhitelistedCall =&gt; <span class="string">"WhitelistedCall"</span>,
             }
         }
