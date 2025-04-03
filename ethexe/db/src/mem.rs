@@ -33,8 +33,13 @@ impl CASDatabase for MemDb {
     }
 
     fn read(&self, hash: H256) -> Option<Vec<u8>> {
-        let key = hash.as_bytes().to_vec();
-        self.inner.get(&key).map(|v| v.value().clone())
+        let key = hash.as_bytes();
+        self.inner.get(key).map(|v| v.value().clone())
+    }
+
+    fn has(&self, hash: H256) -> bool {
+        let key = hash.as_bytes();
+        self.inner.contains_key(key)
     }
 
     fn write(&self, data: &[u8]) -> H256 {
