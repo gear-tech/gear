@@ -1,22 +1,11 @@
-use crate::{
-    utils::BatchCommitmentValidationRequest, validator::participant::Participant, ControlEvent,
-};
 use anyhow::Result;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
-use ethexe_signer::{Address, SignedData};
+use ethexe_common::SimpleBlockData;
+use ethexe_signer::Address;
 use gprimitives::H256;
-use std::{
-    collections::VecDeque,
-    mem,
-    pin::Pin,
-    task::{Context, Poll},
-    vec,
-};
+use std::mem;
 
-use super::{
-    initial::{self, Initial},
-    InputEvent, ValidatorContext, ValidatorSubService,
-};
+use super::{InputEvent, ValidatorContext, ValidatorSubService};
+use crate::{validator::participant::Participant, ControlEvent};
 
 pub struct Verifier {
     ctx: ValidatorContext,
@@ -39,7 +28,11 @@ impl ValidatorSubService for Verifier {
         self
     }
 
-    fn context(&mut self) -> &mut super::ValidatorContext {
+    fn context(&self) -> &ValidatorContext {
+        &self.ctx
+    }
+
+    fn context_mut(&mut self) -> &mut super::ValidatorContext {
         &mut self.ctx
     }
 
@@ -92,7 +85,7 @@ impl ValidatorSubService for Verifier {
 
         if matches!(&self.state, State::WaitingProducerBlockComputed { block_hash, .. } if computed_block == *block_hash)
         {
-            return Participant::new(self.ctx, self.block, self.producer);
+            return Participant::create(self.ctx, self.block, self.producer);
         }
 
         self.ctx.warning(format!(
@@ -104,7 +97,7 @@ impl ValidatorSubService for Verifier {
 }
 
 impl Verifier {
-    pub fn new(
+    pub fn create(
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         producer: Address,

@@ -1,18 +1,8 @@
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
-
-use crate::{utils::BatchCommitmentValidationRequest, ControlEvent};
 use anyhow::Result;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
-use ethexe_signer::{sha3::digest::crypto_common::rand_core::block, Address, SignedData};
-use futures::{stream::FusedStream, Stream};
-use parity_scale_codec::Input;
+use ethexe_common::SimpleBlockData;
+use ethexe_signer::Address;
 
-use super::{
-    producer::Producer, verifier::Verifier, InputEvent, ValidatorContext, ValidatorSubService,
-};
+use super::{producer::Producer, verifier::Verifier, ValidatorContext, ValidatorSubService};
 
 pub struct Initial {
     ctx: ValidatorContext,
@@ -25,14 +15,14 @@ enum State {
 }
 
 impl Initial {
-    pub fn new(ctx: ValidatorContext) -> Result<Box<dyn ValidatorSubService>> {
+    pub fn create(ctx: ValidatorContext) -> Result<Box<dyn ValidatorSubService>> {
         Ok(Box::new(Self {
             ctx,
             state: State::WaitingForChainHead,
         }))
     }
 
-    pub fn new_with_chain_head(
+    pub fn create_with_chain_head(
         ctx: ValidatorContext,
         block: SimpleBlockData,
     ) -> Result<Box<dyn ValidatorSubService>> {
@@ -62,7 +52,11 @@ impl ValidatorSubService for Initial {
         self
     }
 
-    fn context(&mut self) -> &mut ValidatorContext {
+    fn context(&self) -> &ValidatorContext {
+        &self.ctx
+    }
+
+    fn context_mut(&mut self) -> &mut ValidatorContext {
         &mut self.ctx
     }
 
@@ -86,9 +80,9 @@ impl ValidatorSubService for Initial {
             State::WaitingForSyncedBlock(block) if block.hash == data.block_hash => {
                 let producer = self.producer_for(block.header.timestamp, &data.validators);
                 if self.ctx.pub_key.to_address() == producer {
-                    Producer::new(self.ctx, block.clone(), data.validators)
+                    Producer::create(self.ctx, block.clone(), data.validators)
                 } else {
-                    Verifier::new(self.ctx, block.clone(), producer)
+                    Verifier::create(self.ctx, block.clone(), producer)
                 }
             }
             State::WaitingForSyncedBlock(block) => {
@@ -97,7 +91,7 @@ impl ValidatorSubService for Initial {
                     block.hash, data.block_hash
                 ));
 
-                return Ok(self);
+                Ok(self)
             }
         }
     }

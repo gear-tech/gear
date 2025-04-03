@@ -1,3 +1,18 @@
+use anyhow::Result;
+use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_db::Database;
+use ethexe_ethereum::Ethereum;
+use ethexe_observer::BlockSyncedData;
+use ethexe_signer::{Address, PublicKey, SignedData, Signer};
+use futures::{stream::FusedStream, Stream};
+use gprimitives::H256;
+use std::{
+    collections::VecDeque,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
+};
+
 mod coordinator;
 mod initial;
 mod participant;
@@ -5,32 +20,10 @@ mod producer;
 mod verifier;
 
 use crate::{
-    utils::{
-        BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
-        MultisignedBatchCommitment,
-    },
+    utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
     ControlEvent, ControlService,
 };
-use anyhow::{anyhow, Result};
-use coordinator::Coordinator;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
-use ethexe_db::Database;
-use ethexe_ethereum::{router::Router, Ethereum};
-use ethexe_observer::BlockSyncedData;
-use ethexe_signer::{Address, PublicKey, SignedData, Signer};
-use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
-use gprimitives::H256;
 use initial::Initial;
-use participant::Participant;
-use producer::Producer;
-use std::{
-    collections::VecDeque,
-    mem,
-    pin::Pin,
-    task::{Context, Poll},
-    time::Duration,
-};
-use verifier::Verifier;
 
 pub struct ValidatorService {
     inner: Option<Box<dyn ValidatorSubService>>,
@@ -67,25 +60,15 @@ impl ValidatorService {
         };
 
         Ok(Self {
-            inner: Some(Initial::new(ctx)?),
+            inner: Some(Initial::create(ctx)?),
         })
     }
 
-    fn process_input_event(&mut self, event: InputEvent) -> Result<()> {
-        self.inner = Some(self.take_inner().process_input_event(event)?);
-
-        // while self.inner().is_terminated() {
-        //     let inner = self.take_inner().finalize();
-        //     self.inner = Some(inner);
-        // }
-
-        Ok(())
-    }
-
-    fn inner(&mut self) -> &mut Box<dyn ValidatorSubService> {
+    fn context(&self) -> &ValidatorContext {
         self.inner
-            .as_mut()
+            .as_ref()
             .unwrap_or_else(|| unreachable!("inner must be Some"))
+            .context()
     }
 
     fn take_inner(&mut self) -> Box<dyn ValidatorSubService> {
@@ -97,7 +80,7 @@ impl ValidatorService {
 
 impl ControlService for ValidatorService {
     fn role(&self) -> String {
-        format!("Validator (+_+_+)")
+        format!("Validator ({:?})", self.context().pub_key.to_address())
     }
 
     // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
@@ -161,7 +144,7 @@ impl Stream for ValidatorService {
         self.inner = Some(self.take_inner().poll(cx)?);
 
         self.take_inner()
-            .context()
+            .context_mut()
             .output
             .pop_front()
             .map(|event| Poll::Ready(Some(Ok(event))))
@@ -175,18 +158,6 @@ impl FusedStream for ValidatorService {
     }
 }
 
-async fn submit_batch_commitment(
-    router: Router,
-    batch: MultisignedBatchCommitment,
-) -> Result<H256> {
-    let (commitment, signatures) = batch.into_parts();
-    let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
-
-    log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
-
-    router.commit_batch(commitment, signatures).await
-}
-
 #[derive(Debug)]
 enum InputEvent {
     ProducerBlock(SignedData<ProducerBlock>),
@@ -196,18 +167,19 @@ enum InputEvent {
 
 trait ValidatorSubService: Unpin + Send + 'static {
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService>;
-    fn context(&mut self) -> &mut ValidatorContext;
+    fn context(&self) -> &ValidatorContext;
+    fn context_mut(&mut self) -> &mut ValidatorContext;
     fn into_context(self: Box<Self>) -> ValidatorContext;
 
     fn process_input_event(
         mut self: Box<Self>,
         event: InputEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.context().warning(format!(
+        self.context_mut().warning(format!(
             "Unexpected input event: {event:?}, append to pending events"
         ));
 
-        self.context().pending_events.push_back(event);
+        self.context_mut().pending_events.push_back(event);
 
         Ok(self.to_dyn())
     }
@@ -216,14 +188,14 @@ trait ValidatorSubService: Unpin + Send + 'static {
         self: Box<Self>,
         block: SimpleBlockData,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        Initial::new_with_chain_head(self.into_context(), block)
+        Initial::create_with_chain_head(self.into_context(), block)
     }
 
     fn process_synced_block(
         mut self: Box<Self>,
         data: BlockSyncedData,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.context()
+        self.context_mut()
             .warning(format!("Unexpected synced block: {:?}", data.block_hash));
 
         Ok(self.to_dyn())
@@ -233,7 +205,7 @@ trait ValidatorSubService: Unpin + Send + 'static {
         mut self: Box<Self>,
         computed_block: H256,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.context()
+        self.context_mut()
             .warning(format!("Unexpected computed block: {computed_block:?}"));
 
         Ok(self.to_dyn())

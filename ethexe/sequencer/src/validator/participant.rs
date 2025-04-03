@@ -1,5 +1,10 @@
-use std::mem;
+use anyhow::{anyhow, ensure, Result};
+use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
+use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
+use ethexe_signer::{Address, Digest, ToDigest};
+use gprimitives::H256;
 
+use super::{initial::Initial, InputEvent, ValidatorContext, ValidatorSubService};
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
@@ -7,16 +12,10 @@ use crate::{
     },
     ControlEvent,
 };
-use anyhow::{anyhow, ensure, Result};
-use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
-use ethexe_db::{BlockMetaStorage, CodesStorage, Database, OnChainStorage};
-use ethexe_signer::{Address, ContractSigner, Digest, PublicKey, SignedData, Signer, ToDigest};
-use gprimitives::H256;
-
-use super::{initial::Initial, InputEvent, ValidatorContext, ValidatorSubService};
 
 pub struct Participant {
     ctx: ValidatorContext,
+    #[allow(unused)]
     block: SimpleBlockData,
     producer: Address,
 }
@@ -26,7 +25,11 @@ impl ValidatorSubService for Participant {
         self
     }
 
-    fn context(&mut self) -> &mut ValidatorContext {
+    fn context(&self) -> &ValidatorContext {
+        &self.ctx
+    }
+
+    fn context_mut(&mut self) -> &mut ValidatorContext {
         &mut self.ctx
     }
 
@@ -58,7 +61,7 @@ impl ValidatorSubService for Participant {
 }
 
 impl Participant {
-    pub fn new(
+    pub fn create(
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         producer: Address,
@@ -108,7 +111,7 @@ impl Participant {
                     .output
                     .push_back(ControlEvent::PublishValidationReply(reply));
 
-                Initial::new(self.ctx)
+                Initial::create(self.ctx)
             }
             Err(err) => {
                 self.ctx.warning(format!(
@@ -142,7 +145,6 @@ impl Participant {
             .contract_signer(self.ctx.router_address)
             .sign_digest(self.ctx.pub_key, digest)
             .map(|signature| BatchCommitmentValidationReply { digest, signature })
-            .map_err(Into::into)
     }
 
     fn validate_code_commitment<DB1: OnChainStorage + CodesStorage>(

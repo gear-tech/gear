@@ -81,6 +81,7 @@ mod test_utils {
         }
     }
 
+    #[allow(dead_code)]
     pub fn mock_producer_block(
         signer: &Signer,
         producer: PublicKey,
@@ -97,6 +98,7 @@ mod test_utils {
         (pb, signed_pb)
     }
 
+    #[allow(dead_code)]
     pub fn mock_validation_request(
         signer: &Signer,
         public_key: PublicKey,

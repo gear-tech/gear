@@ -1,14 +1,7 @@
-use crate::{
-    utils::{
-        BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
-        MultisignedBatchCommitment,
-    },
-    ControlEvent, ControlService,
-};
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::gear::BatchCommitment;
 use ethexe_ethereum::router::Router;
-use ethexe_signer::{Address, PublicKey, Signer};
+use ethexe_signer::Address;
 use futures::{future::BoxFuture, FutureExt};
 use gprimitives::H256;
 use std::{
@@ -16,7 +9,11 @@ use std::{
     task::{Context, Poll},
 };
 
-use super::{initial::Initial, InputEvent, ValidatorContext, ValidatorSubService};
+use super::{InputEvent, ValidatorContext, ValidatorSubService};
+use crate::{
+    utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
+    ControlEvent,
+};
 
 pub struct Coordinator {
     ctx: ValidatorContext,
@@ -29,7 +26,11 @@ impl ValidatorSubService for Coordinator {
         self
     }
 
-    fn context(&mut self) -> &mut ValidatorContext {
+    fn context(&self) -> &ValidatorContext {
+        &self.ctx
+    }
+
+    fn context_mut(&mut self) -> &mut ValidatorContext {
         &mut self.ctx
     }
 
@@ -60,7 +61,7 @@ impl ValidatorSubService for Coordinator {
                 }
 
                 if self.multisigned_batch.signatures().len() as u64 >= self.ctx.threshold {
-                    Submitter::new(self.ctx, self.multisigned_batch)
+                    Submitter::create(self.ctx, self.multisigned_batch)
                 } else {
                     Ok(self)
                 }
@@ -79,7 +80,7 @@ impl ValidatorSubService for Coordinator {
 }
 
 impl Coordinator {
-    pub fn new(
+    pub fn create(
         mut ctx: ValidatorContext,
         validators: Vec<Address>,
         batch: BatchCommitment,
@@ -98,7 +99,7 @@ impl Coordinator {
         )?;
 
         if multisigned_batch.signatures().len() as u64 >= ctx.threshold {
-            return Submitter::new(ctx, multisigned_batch);
+            return Submitter::create(ctx, multisigned_batch);
         }
 
         let validation_request = ctx.signer.create_signed_data(
@@ -127,7 +128,11 @@ impl ValidatorSubService for Submitter {
         self
     }
 
-    fn context(&mut self) -> &mut ValidatorContext {
+    fn context(&self) -> &ValidatorContext {
+        &self.ctx
+    }
+
+    fn context_mut(&mut self) -> &mut ValidatorContext {
         &mut self.ctx
     }
 
@@ -159,7 +164,7 @@ impl ValidatorSubService for Submitter {
 }
 
 impl Submitter {
-    pub fn new(
+    pub fn create(
         ctx: ValidatorContext,
         batch: MultisignedBatchCommitment,
     ) -> Result<Box<dyn ValidatorSubService>> {

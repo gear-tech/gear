@@ -1,7 +1,3 @@
-use super::{
-    coordinator::Coordinator, initial::Initial, InputEvent, ValidatorContext, ValidatorSubService,
-};
-use crate::{ControlEvent};
 use anyhow::{anyhow, Result};
 use derivative::Derivative;
 use ethexe_common::{
@@ -9,16 +5,14 @@ use ethexe_common::{
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
     ProducerBlock, SimpleBlockData,
 };
-use ethexe_db::Database;
 use ethexe_service_utils::Timer;
-use ethexe_signer::{Address, PublicKey, Signer};
-use futures::{stream::FusedStream, FutureExt, Stream};
+use ethexe_signer::Address;
+use futures::FutureExt;
 use gprimitives::H256;
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-    time::Duration,
-};
+use std::task::Context;
+
+use super::{coordinator::Coordinator, initial::Initial, ValidatorContext, ValidatorSubService};
+use crate::ControlEvent;
 
 pub struct Producer {
     ctx: ValidatorContext,
@@ -42,7 +36,11 @@ impl ValidatorSubService for Producer {
         self
     }
 
-    fn context(&mut self) -> &mut ValidatorContext {
+    fn context(&self) -> &ValidatorContext {
+        &self.ctx
+    }
+
+    fn context_mut(&mut self) -> &mut ValidatorContext {
         &mut self.ctx
     }
 
@@ -66,14 +64,14 @@ impl ValidatorSubService for Producer {
                 self.ctx.warning(self.log(format!(
                     "block {block} in queue for block {computed_block:?} is not computed"
                 )));
-                return Initial::new(self.ctx);
+                return Initial::create(self.ctx);
             }
             Err(AggregationError::Any(err)) => return Err(err),
             Ok(Some(batch)) => batch,
-            Ok(None) => return Initial::new(self.ctx),
+            Ok(None) => return Initial::create(self.ctx),
         };
 
-        Coordinator::new(self.ctx, self.validators, batch)
+        Coordinator::create(self.ctx, self.validators, batch)
     }
 
     fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
@@ -91,7 +89,7 @@ impl ValidatorSubService for Producer {
 }
 
 impl Producer {
-    pub fn new(
+    pub fn create(
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         validators: Vec<Address>,
@@ -238,7 +236,7 @@ enum AggregationError {
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use ethexe_db::CodeInfo;
+    use ethexe_db::{CodeInfo, Database};
     use std::vec;
 
     // #[tokio::test]
@@ -584,6 +582,7 @@ mod tests {
     //     let _ = producer.into_parts();
     // }
 
+    #[allow(dead_code)]
     fn prepare_mock_code_commitment(db: &Database) -> CodeCommitment {
         let code = mock_code_commitment();
         db.set_code_blob_info(
@@ -598,6 +597,7 @@ mod tests {
         code
     }
 
+    #[allow(dead_code)]
     fn prepare_mock_block_commitment(
         db: &Database,
         hash: H256,
