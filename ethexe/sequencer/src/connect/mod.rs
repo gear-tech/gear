@@ -1,8 +1,8 @@
 use crate::{
     utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
-    ControlError, ControlEvent, ControlService,
+    ControlEvent, ControlService,
 };
-use anyhow::anyhow;
+use anyhow::Result;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::SignedData;
@@ -31,24 +31,29 @@ impl ControlService for SimpleConnectService {
         "Connect".to_string()
     }
 
-    fn receive_new_chain_head(&mut self, block: SimpleBlockData) {
+    fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
         self.block = Some(block);
+
+        Ok(())
     }
 
-    fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<(), ControlError> {
+    fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()> {
         let Some(block) = self.block.as_ref() else {
-            return Err(ControlError::Fatal(anyhow!(
+            self.output.push_back(ControlEvent::Warning(format!(
                 "Received synced block {}, but no chain-head was received yet",
                 data.block_hash
             )));
+
+            return Ok(());
         };
 
         if block.hash != data.block_hash {
-            return Err(ControlError::Warning(anyhow!(
+            self.output.push_back(ControlEvent::Warning(format!(
                 "Received synced block {} is different from the expected block hash {}",
-                data.block_hash,
-                block.hash
+                data.block_hash, block.hash
             )));
+
+            return Ok(());
         }
 
         self.output
@@ -60,29 +65,26 @@ impl ControlService for SimpleConnectService {
     fn receive_block_from_producer(
         &mut self,
         _block_hash: SignedData<ProducerBlock>,
-    ) -> Result<(), ControlError> {
+    ) -> Result<()> {
         Ok(())
     }
 
-    fn receive_computed_block(&mut self, _block_hash: H256) -> Result<(), ControlError> {
+    fn receive_computed_block(&mut self, _block_hash: H256) -> Result<()> {
         Ok(())
     }
 
     fn receive_validation_request(
         &mut self,
         _signed_batch: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<(), ControlError> {
+    ) -> Result<()> {
         Ok(())
     }
 
-    fn receive_validation_reply(
-        &mut self,
-        _reply: BatchCommitmentValidationReply,
-    ) -> Result<(), ControlError> {
+    fn receive_validation_reply(&mut self, _reply: BatchCommitmentValidationReply) -> Result<()> {
         Ok(())
     }
 
-    fn is_block_producer(&self) -> Result<bool, anyhow::Error> {
+    fn is_block_producer(&self) -> Result<bool> {
         Ok(false)
     }
 }

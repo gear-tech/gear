@@ -1,243 +1,151 @@
-use crate::{utils::BatchCommitmentValidationRequest, ControlEvent};
+use crate::{
+    utils::BatchCommitmentValidationRequest, validator::participant::Participant, ControlEvent,
+};
+use anyhow::Result;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_signer::{Address, SignedData};
 use gprimitives::H256;
 use std::{
+    collections::VecDeque,
     mem,
     pin::Pin,
     task::{Context, Poll},
     vec,
 };
 
+use super::{
+    initial::{self, Initial},
+    InputEvent, ValidatorContext, ValidatorSubService,
+};
+
 pub struct Verifier {
+    ctx: ValidatorContext,
     producer: Address,
     block: SimpleBlockData,
-    earlier_validation_request: Option<BatchCommitmentValidationRequest>,
     state: State,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 enum State {
-    Initial {
-        received_producer_blocks: Vec<SignedData<ProducerBlock>>,
-        received_validation_requests: Vec<SignedData<BatchCommitmentValidationRequest>>,
-    },
-    WaitingParentComputed {
-        parent_hash: H256,
-    },
     WaitingForProducerBlock,
     WaitingProducerBlockComputed {
         // TODO +_+_+: change this to producer-block digest when off-chain transactions added
         block_hash: H256,
-        parent_hash: Option<H256>,
     },
-    Final,
+}
+
+impl ValidatorSubService for Verifier {
+    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
+        self
+    }
+
+    fn context(&mut self) -> &mut super::ValidatorContext {
+        &mut self.ctx
+    }
+
+    fn into_context(self: Box<Self>) -> ValidatorContext {
+        self.ctx
+    }
+
+    fn process_input_event(
+        mut self: Box<Self>,
+        event: InputEvent,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        match (&self.state, event) {
+            (State::WaitingForProducerBlock, InputEvent::ProducerBlock(pb))
+                if pb.verify_address(self.producer).is_ok()
+                    && (pb.data().block_hash == self.block.hash) =>
+            {
+                self.ctx
+                    .output
+                    .push_back(ControlEvent::ComputeProducerBlock(pb.into_parts().0));
+
+                Ok(self)
+            }
+            (_, event @ InputEvent::ValidationRequest(_)) => {
+                self.ctx.pending_events.push_back(event);
+
+                Ok(self)
+            }
+            (_, event) => {
+                self.ctx.output.push_back(ControlEvent::Warning(format!(
+                    "VERIFIER - unexpected event: {event:?}, saved for later"
+                )));
+
+                self.ctx.pending_events.push_back(event);
+
+                Ok(self)
+            }
+        }
+    }
+
+    fn process_computed_block(
+        mut self: Box<Self>,
+        computed_block: H256,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        if computed_block == self.block.header.parent_hash {
+            // Earlier we sent a task for parent block computation.
+            // Continue to wait for block from producer.
+
+            return Ok(self);
+        }
+
+        if matches!(&self.state, State::WaitingProducerBlockComputed { block_hash, .. } if computed_block == *block_hash)
+        {
+            return Participant::new(self.ctx, self.block, self.producer);
+        }
+
+        self.ctx.warning(format!(
+            "VERIFIER - received unexpected computed block: {computed_block:?}"
+        ));
+
+        Ok(self)
+    }
 }
 
 impl Verifier {
     pub fn new(
+        mut ctx: ValidatorContext,
         block: SimpleBlockData,
         producer: Address,
-        received_producer_blocks: Vec<SignedData<ProducerBlock>>,
-        received_validation_requests: Vec<SignedData<BatchCommitmentValidationRequest>>,
-    ) -> Self {
-        Self {
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        let mut earlier_producer_block = None;
+        let pending_events = mem::take(&mut ctx.pending_events);
+        for event in pending_events {
+            match event {
+                InputEvent::ProducerBlock(signed_data)
+                    if earlier_producer_block.is_none()
+                        && (signed_data.data().block_hash == block.hash)
+                        && signed_data.verify_address(producer).is_ok() =>
+                {
+                    earlier_producer_block = Some(signed_data.into_parts().0);
+                }
+                event @ InputEvent::ValidationRequest(_) => {
+                    ctx.pending_events.push_back(event);
+                }
+                event => {
+                    ctx.warning(format!("VERIFIER - skip earlier received event: {event:?}"));
+                }
+            }
+        }
+
+        let state = if let Some(producer_block) = earlier_producer_block {
+            let block_hash = producer_block.block_hash;
+            ctx.output
+                .push_back(ControlEvent::ComputeProducerBlock(producer_block));
+            State::WaitingProducerBlockComputed { block_hash }
+        } else {
+            ctx.output
+                .push_back(ControlEvent::ComputeBlock(block.header.parent_hash));
+            State::WaitingForProducerBlock
+        };
+
+        Ok(Box::new(Self {
+            ctx,
             producer,
             block,
-            earlier_validation_request: None,
-            state: State::Initial {
-                received_producer_blocks,
-                received_validation_requests,
-            },
-        }
-    }
-
-    pub fn receive_block_from_producer(
-        &mut self,
-        signed: SignedData<ProducerBlock>,
-    ) -> Vec<ControlEvent> {
-        if let Err(err) = signed.verify_address(self.producer) {
-            return vec![ControlEvent::Warning(format!(
-                "Received block is not signed by the producer: {err}"
-            ))];
-        }
-
-        let (block, _) = signed.into_parts();
-
-        let parent_hash_in_computation = match &self.state {
-            State::WaitingParentComputed { parent_hash } => Some(*parent_hash),
-            State::WaitingForProducerBlock => None,
-            State::WaitingProducerBlockComputed { .. } | State::Initial { .. } | State::Final => {
-                return vec![ControlEvent::Warning(
-                    "Not waiting for producer block".to_string(),
-                )]
-            }
-        };
-
-        self.state = State::WaitingProducerBlockComputed {
-            block_hash: block.block_hash,
-            parent_hash: parent_hash_in_computation,
-        };
-
-        vec![ControlEvent::ComputeProducerBlock(block)]
-    }
-
-    /// Returns whether the received block is a computed block from the producer
-    pub fn receive_computed_block(&mut self, computed_block: H256) -> Vec<ControlEvent> {
-        match &mut self.state {
-            State::WaitingProducerBlockComputed {
-                block_hash,
-                parent_hash,
-            } => {
-                if computed_block == *block_hash {
-                    self.state = State::Final;
-                    vec![]
-                } else if Some(computed_block) == *parent_hash {
-                    vec![]
-                } else {
-                    vec![ControlEvent::Warning(format!(
-                        "Received computed block {computed_block} != expected {block_hash}"
-                    ))]
-                }
-            }
-            State::WaitingParentComputed { parent_hash } => {
-                if computed_block == *parent_hash {
-                    self.state = State::WaitingForProducerBlock;
-                    vec![]
-                } else {
-                    vec![ControlEvent::Warning(format!(
-                        "Received computed block {computed_block} != expected {parent_hash}"
-                    ))]
-                }
-            }
-            State::WaitingForProducerBlock | State::Initial { .. } | State::Final => {
-                vec![ControlEvent::Warning(
-                    "Received computed block in invalid state".to_string(),
-                )]
-            }
-        }
-    }
-
-    pub fn receive_validation_request(
-        &mut self,
-        request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Vec<ControlEvent> {
-        if let Err(err) = request.verify_address(self.producer) {
-            return vec![ControlEvent::Warning(format!(
-                "Received validation request is not signed by the producer: {err}"
-            ))];
-        };
-
-        if self.earlier_validation_request.is_some() {
-            return vec![ControlEvent::Warning(
-                "Received second validation request".to_string(),
-            )];
-        }
-
-        self.earlier_validation_request = Some(request.into_parts().0);
-
-        vec![]
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        Address,
-        SimpleBlockData,
-        Option<BatchCommitmentValidationRequest>,
-    ) {
-        if !matches!(self.state, State::Final) {
-            unreachable!("Verifier is not in final state: invalid verifier usage")
-        }
-
-        (self.producer, self.block, self.earlier_validation_request)
-    }
-
-    pub fn is_final(&self) -> bool {
-        matches!(self.state, State::Final)
-    }
-}
-
-impl Future for Verifier {
-    type Output = anyhow::Result<Vec<ControlEvent>>;
-
-    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match &mut self.state {
-            State::Initial {
-                received_producer_blocks,
-                received_validation_requests,
-            } => {
-                let received_producer_blocks = mem::take(received_producer_blocks);
-                let received_validation_requests = mem::take(received_validation_requests);
-
-                let mut events = vec![];
-
-                let mut producer_block = None;
-                for signed in received_producer_blocks {
-                    if let Err(err) = signed.verify_address(self.producer) {
-                        events.push(ControlEvent::Warning(format!(
-                            "Received block is not signed by the producer: {err}"
-                        )));
-                        continue;
-                    }
-
-                    if signed.data().block_hash != self.block.hash {
-                        events.push(ControlEvent::Warning(format!(
-                            "Received block hash {} is different from the expected block hash {}",
-                            signed.data().block_hash,
-                            self.block.hash
-                        )));
-                        continue;
-                    }
-
-                    if producer_block.is_some() {
-                        events.push(ControlEvent::Warning(
-                            "Received second producer block".to_string(),
-                        ));
-                        continue;
-                    }
-
-                    producer_block = Some(signed.into_parts().0);
-                }
-
-                let mut earlier_validation_request = None;
-                for signed in received_validation_requests {
-                    if let Err(err) = signed.verify_address(self.producer) {
-                        events.push(ControlEvent::Warning(format!(
-                            "Received validation request is not signed by the producer: {err}"
-                        )));
-                        continue;
-                    }
-
-                    if earlier_validation_request.is_some() {
-                        events.push(ControlEvent::Warning(
-                            "Received second validation request".to_string(),
-                        ));
-                        continue;
-                    }
-
-                    earlier_validation_request = Some(signed.into_parts().0);
-                }
-
-                if let Some(pb) = producer_block {
-                    self.state = State::WaitingProducerBlockComputed {
-                        block_hash: self.block.hash,
-                        parent_hash: None,
-                    };
-                    events.push(ControlEvent::ComputeProducerBlock(pb));
-                } else {
-                    let parent_hash = self.block.header.parent_hash;
-                    self.state = State::WaitingParentComputed { parent_hash };
-                    events.push(ControlEvent::ComputeBlock(parent_hash));
-                }
-
-                Poll::Ready(Ok(events))
-            }
-            State::WaitingParentComputed { .. }
-            | State::WaitingForProducerBlock
-            | State::WaitingProducerBlockComputed { .. } => Poll::Pending,
-            State::Final => unreachable!("Verifier is in the final state"),
-        }
+            state,
+        }))
     }
 }
 

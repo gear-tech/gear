@@ -29,8 +29,8 @@ use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
 use ethexe_sequencer::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ControlError, ControlEvent,
-    ControlService, SimpleConnectService, ValidatorConfig, ValidatorService,
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ControlEvent, ControlService,
+    SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{PublicKey, SignedData, Signer};
@@ -367,7 +367,7 @@ impl Service {
                             block_data.header.parent_hash,
                         );
 
-                        control.receive_new_chain_head(block_data);
+                        control.receive_new_chain_head(block_data)?
                     }
                     ObserverEvent::BlockSynced(data) => {
                         // NOTE: Observer guarantees that, if this event is emitted,
@@ -375,23 +375,12 @@ impl Service {
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
                         // 2) all approved(at least) codes are loaded and available in database.
 
-                        let res = control.receive_synced_block(data);
-
-                        if res.is_ok() {
-                            let is_block_producer = control
-                                .is_block_producer()
-                                .unwrap_or_else(|e| unreachable!("{e}"));
-                            log::info!(
-                                "🔗 Block synced, I'm a block producer: {is_block_producer}"
-                            );
-                        }
-
-                        handle_control_result(res)?;
+                        control.receive_synced_block(data)?
                     }
                 },
                 Event::Compute(event) => match event {
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
-                        handle_control_result(control.receive_computed_block(block_hash))?;
+                        control.receive_computed_block(block_hash)?
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
@@ -416,17 +405,13 @@ impl Service {
 
                             match message {
                                 NetworkMessage::ProducerBlock(block) => {
-                                    handle_control_result(
-                                        control.receive_block_from_producer(block),
-                                    )?;
+                                    control.receive_block_from_producer(block)?
                                 }
                                 NetworkMessage::RequestBatchValidation(request) => {
-                                    handle_control_result(
-                                        control.receive_validation_request(request),
-                                    )?;
+                                    control.receive_validation_request(request)?
                                 }
                                 NetworkMessage::ApproveBatch(reply) => {
-                                    handle_control_result(control.receive_validation_reply(reply))?;
+                                    control.receive_validation_reply(reply)?
                                 }
                                 NetworkMessage::OffchainTransaction { transaction } => {
                                     if let Err(e) = Self::process_offchain_transaction(
@@ -543,6 +528,17 @@ impl Service {
                         ControlEvent::Warning(msg) => {
                             log::warn!("Control service warning: {msg}");
                         }
+                        ControlEvent::IAmProducer(address) => {
+                            log::info!("I am a block producer, address: {address}");
+                        }
+                        ControlEvent::IAmSubordinate {
+                            my_address,
+                            producer,
+                        } => {
+                            log::info!(
+                                "I am a block subordinate, my address: {my_address}, producer: {producer}"
+                            );
+                        }
                     }
                 }
             }
@@ -605,16 +601,5 @@ impl Service {
         log::info!("Unimplemented tx execution");
 
         Ok(tx_hash)
-    }
-}
-
-fn handle_control_result(result: Result<(), ControlError>) -> Result<()> {
-    match result {
-        Err(ControlError::Warning(e)) => {
-            log::warn!("Control Service warning: {e}");
-            Ok(())
-        }
-        Err(ControlError::Fatal(e)) => Err(e),
-        Ok(()) | Err(ControlError::EventSkipped) => Ok(()),
     }
 }

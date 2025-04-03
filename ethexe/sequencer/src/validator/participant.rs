@@ -1,92 +1,146 @@
+use std::mem;
+
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         BlockCommitmentValidationRequest,
     },
-    ControlError, ControlEvent,
+    ControlEvent,
 };
-use anyhow::{anyhow, ensure};
+use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
 use ethexe_db::{BlockMetaStorage, CodesStorage, Database, OnChainStorage};
 use ethexe_signer::{Address, ContractSigner, Digest, PublicKey, SignedData, Signer, ToDigest};
 use gprimitives::H256;
 
+use super::{initial::Initial, InputEvent, ValidatorContext, ValidatorSubService};
+
 pub struct Participant {
-    pub_key: PublicKey,
+    ctx: ValidatorContext,
+    block: SimpleBlockData,
     producer: Address,
-    db: Database,
-    signer: ContractSigner,
-    #[allow(unused)]
-    state: State,
 }
 
-enum State {
-    #[allow(unused)]
-    WaitingForValidationRequest(SimpleBlockData),
+impl ValidatorSubService for Participant {
+    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
+        self
+    }
+
+    fn context(&mut self) -> &mut ValidatorContext {
+        &mut self.ctx
+    }
+
+    fn into_context(self: Box<Self>) -> ValidatorContext {
+        self.ctx
+    }
+
+    fn process_input_event(
+        mut self: Box<Self>,
+        event: InputEvent,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        match event {
+            InputEvent::ValidationRequest(request)
+                if request.verify_address(self.producer).is_ok() =>
+            {
+                self.process_validation_request(request.into_parts().0)
+            }
+            event => {
+                self.ctx.warning(format!(
+                    "PARTICIPANT - unexpected event: {event:?}, saved for later"
+                ));
+
+                self.ctx.pending_events.push_back(event);
+
+                Ok(self)
+            }
+        }
+    }
 }
 
 impl Participant {
     pub fn new(
-        pub_key: PublicKey,
-        router_address: Address,
-        producer: Address,
+        mut ctx: ValidatorContext,
         block: SimpleBlockData,
-        db: Database,
-        signer: Signer,
-    ) -> Self {
-        Self {
-            pub_key,
+        producer: Address,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        let mut earlier_validation_request = None;
+
+        ctx.pending_events.retain(|event| match event {
+            InputEvent::ValidationRequest(signed_data)
+                if earlier_validation_request.is_none()
+                    && signed_data.verify_address(producer).is_ok() =>
+            {
+                earlier_validation_request = Some(signed_data.data().clone());
+
+                false
+            }
+            InputEvent::ValidationRequest(_) if earlier_validation_request.is_none() => {
+                // NOTE: remove all validation events before the first from producer found.
+                false
+            }
+            _ => {
+                // NOTE: keep all other events in queue.
+                // Newer validation events could be from next block producer, so better to keep them.
+                true
+            }
+        });
+
+        let participant = Box::new(Self {
+            ctx,
+            block,
             producer,
-            db,
-            signer: signer.contract_signer(router_address),
-            state: State::WaitingForValidationRequest(block),
+        });
+
+        let Some(validation_request) = earlier_validation_request else {
+            return Ok(participant);
+        };
+
+        participant.process_validation_request(validation_request)
+    }
+
+    fn process_validation_request(
+        mut self: Box<Self>,
+        request: BatchCommitmentValidationRequest,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        match self.process_validation_request_inner(request) {
+            Ok(reply) => {
+                self.ctx
+                    .output
+                    .push_back(ControlEvent::PublishValidationReply(reply));
+
+                Initial::new(self.ctx)
+            }
+            Err(err) => {
+                self.ctx.warning(format!(
+                    "PARTICIPANT - failed to process validation request: {err}"
+                ));
+
+                Ok(self)
+            }
         }
     }
 
-    pub fn receive_validation_request(
-        &mut self,
-        request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<Vec<ControlEvent>, ControlError> {
-        request.verify_address(self.producer).map_err(|e| {
-            ControlError::Warning(anyhow!(
-                "Received validation request is not signed by the producer: {e}"
-            ))
-        })?;
-
-        self.receive_validation_request_unsigned(request.into_parts().0)
-    }
-
-    pub fn receive_validation_request_unsigned(
-        &mut self,
-        request: BatchCommitmentValidationRequest,
-    ) -> Result<Vec<ControlEvent>, ControlError> {
-        self.receive_validation_request_inner(request)
-            .map(|reply| vec![ControlEvent::PublishValidationReply(reply)])
-    }
-
-    fn receive_validation_request_inner(
+    fn process_validation_request_inner(
         &self,
         request: BatchCommitmentValidationRequest,
-    ) -> Result<BatchCommitmentValidationReply, ControlError> {
+    ) -> Result<BatchCommitmentValidationReply> {
         let digest = request.to_digest();
         let BatchCommitmentValidationRequest { blocks, codes } = request;
 
         for code_request in codes {
             log::debug!("Receive code commitment for validation: {code_request:?}");
-            Self::validate_code_commitment(&self.db, code_request).map_err(|e| {
-                ControlError::Warning(anyhow!("Received code commitment is not valid: {e}"))
-            })?;
+            Self::validate_code_commitment(&self.ctx.db, code_request)?;
         }
 
         for block_request in blocks {
             log::debug!("Receive block commitment for validation: {block_request:?}");
-            Self::validate_block_commitment(&self.db, block_request).map_err(|e| {
-                ControlError::Warning(anyhow!("Received block commitment is not valid: {e}"))
-            })?;
+            Self::validate_block_commitment(&self.ctx.db, block_request)?;
         }
 
-        self.signer
-            .sign_digest(self.pub_key, digest)
+        self.ctx
+            .signer
+            .contract_signer(self.ctx.router_address)
+            .sign_digest(self.ctx.pub_key, digest)
             .map(|signature| BatchCommitmentValidationReply { digest, signature })
             .map_err(Into::into)
     }
@@ -94,7 +148,7 @@ impl Participant {
     fn validate_code_commitment<DB1: OnChainStorage + CodesStorage>(
         db: &DB1,
         request: CodeCommitment,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let CodeCommitment {
             id,
             timestamp,
@@ -126,7 +180,7 @@ impl Participant {
     fn validate_block_commitment<DB1: BlockMetaStorage + OnChainStorage>(
         db: &DB1,
         request: BlockCommitmentValidationRequest,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let BlockCommitmentValidationRequest {
             block_hash,
             block_timestamp,
@@ -182,7 +236,7 @@ impl Participant {
         block_hash: H256,
         pred_hash: H256,
         max_distance: Option<u32>,
-    ) -> anyhow::Result<bool> {
+    ) -> Result<bool> {
         if block_hash == pred_hash {
             return Ok(true);
         }

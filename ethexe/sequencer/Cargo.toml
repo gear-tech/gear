@@ -25,6 +25,7 @@ futures.workspace = true
 tokio.workspace = true
 indexmap = { workspace = true, features = ["std"] }
 derive_more.workspace = true
+derivative = "2"
 
 [dev-dependencies]
 rand.workspace = true

@@ -9,9 +9,9 @@ use crate::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         MultisignedBatchCommitment,
     },
-    ControlError, ControlEvent, ControlService,
+    ControlEvent, ControlService,
 };
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use coordinator::Coordinator;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_db::Database;
@@ -20,7 +20,7 @@ use ethexe_observer::BlockSyncedData;
 use ethexe_signer::{Address, PublicKey, SignedData, Signer};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::H256;
-use initial::{Initial, Unformed};
+use initial::Initial;
 use participant::Participant;
 use producer::Producer;
 use std::{
@@ -33,31 +33,7 @@ use std::{
 use verifier::Verifier;
 
 pub struct ValidatorService {
-    slot_duration: Duration,
-    threshold: u64,
-    router_address: Address,
-    pub_key: PublicKey,
-    signer: Signer,
-    db: Database,
-    ethereum: Ethereum,
-    state: State,
-    output: VecDeque<ControlEvent>,
-}
-
-enum State {
-    Initial(Initial),
-    Unformed(Unformed),
-    Producer(Producer),
-    Verifier(Verifier),
-    Coordinator(Coordinator),
-    Participant(Participant),
-    Submitting(BoxFuture<'static, anyhow::Result<H256>>),
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::Initial(Initial::default())
-    }
+    inner: Option<Box<dyn ValidatorSubService>>,
 }
 
 pub struct ValidatorConfig {
@@ -69,11 +45,7 @@ pub struct ValidatorConfig {
 }
 
 impl ValidatorService {
-    pub async fn new(
-        signer: Signer,
-        db: Database,
-        config: ValidatorConfig,
-    ) -> anyhow::Result<Self> {
+    pub async fn new(signer: Signer, db: Database, config: ValidatorConfig) -> Result<Self> {
         let ethereum = Ethereum::new(
             &config.ethereum_rpc,
             config.router_address,
@@ -82,313 +54,118 @@ impl ValidatorService {
         )
         .await?;
 
-        Ok(Self {
+        let ctx = ValidatorContext {
             slot_duration: config.slot_duration,
             threshold: config.threshold,
             router_address: config.router_address,
             pub_key: config.pub_key,
             signer,
             db,
-            state: State::default(),
-            output: VecDeque::new(),
             ethereum,
+            pending_events: VecDeque::new(),
+            output: VecDeque::new(),
+        };
+
+        Ok(Self {
+            inner: Some(Initial::new(ctx)?),
         })
     }
 
-    fn poll_state(&mut self, cx: &mut Context<'_>) -> anyhow::Result<Vec<ControlEvent>> {
-        let mut events = Vec::new();
-        loop {
-            match &mut self.state {
-                State::Producer(producer) if producer.is_final() => {
-                    let State::Producer(producer) = mem::take(&mut self.state) else {
-                        unreachable!("state must be Producer");
-                    };
+    fn process_input_event(&mut self, event: InputEvent) -> Result<()> {
+        self.inner = Some(self.take_inner().process_input_event(event)?);
 
-                    let (validators, _, batch) = producer.into_parts();
+        // while self.inner().is_terminated() {
+        //     let inner = self.take_inner().finalize();
+        //     self.inner = Some(inner);
+        // }
 
-                    if let Some(batch) = batch {
-                        let coordinator = Coordinator::new(
-                            self.pub_key,
-                            validators,
-                            self.threshold,
-                            self.router_address,
-                            batch,
-                            self.signer.clone(),
-                        )?;
-
-                        self.state = State::Coordinator(coordinator);
-                    }
-                }
-                State::Producer(producer) => {
-                    let new_events = match producer.poll_unpin(cx) {
-                        Poll::Ready(res) => res?,
-                        Poll::Pending => return Ok(events),
-                    };
-
-                    events.extend(new_events);
-                }
-                State::Coordinator(coordinator) if coordinator.is_final() => {
-                    let State::Coordinator(coordinator) = mem::take(&mut self.state) else {
-                        unreachable!("state must be Coordinator");
-                    };
-
-                    let batch = coordinator.into_multisigned_batch_commitment();
-
-                    self.state = State::Submitting(
-                        submit_batch_commitment(self.ethereum.router(), batch).boxed(),
-                    );
-                }
-                State::Coordinator(coordinator) => {
-                    let new_events = match coordinator.poll_unpin(cx) {
-                        Poll::Ready(res) => res?,
-                        Poll::Pending => return Ok(events),
-                    };
-
-                    events.extend(new_events);
-                }
-                State::Submitting(future) => match future.poll_unpin(cx) {
-                    Poll::Ready(res) => {
-                        let event = match res {
-                            Ok(hash) => ControlEvent::CommitmentSubmitted(hash),
-                            Err(err) => ControlEvent::Warning(format!(
-                                "Failed to submit batch commitment: {err:?}",
-                            )),
-                        };
-                        events.push(event);
-
-                        self.state = State::default();
-                    }
-                    Poll::Pending => return Ok(events),
-                },
-                State::Verifier(verifier) if verifier.is_final() => {
-                    let State::Verifier(verifier) = mem::take(&mut self.state) else {
-                        unreachable!("state must be Verifier");
-                    };
-
-                    let (producer, block, request) = verifier.into_parts();
-
-                    let mut participant = Participant::new(
-                        self.pub_key,
-                        self.router_address,
-                        producer,
-                        block,
-                        self.db.clone(),
-                        self.signer.clone(),
-                    );
-
-                    if let Some(request) = request {
-                        let new_events = participant
-                            .receive_validation_request_unsigned(request)
-                            .unwrap();
-                        events.extend(new_events);
-                    }
-
-                    self.state = State::Participant(participant);
-                }
-                State::Verifier(verifier) => {
-                    let new_events = match verifier.poll_unpin(cx) {
-                        Poll::Ready(res) => res?,
-                        Poll::Pending => return Ok(events),
-                    };
-
-                    events.extend(new_events);
-                }
-                _ => return Ok(events),
-            }
-        }
+        Ok(())
     }
 
-    // TODO #4553: temporary implementation - next slot is the next validator in the list.
-    const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
-        (slot % validators_amount as u64) as usize
+    fn inner(&mut self) -> &mut Box<dyn ValidatorSubService> {
+        self.inner
+            .as_mut()
+            .unwrap_or_else(|| unreachable!("inner must be Some"))
     }
 
-    fn producer_for(&self, timestamp: u64, validators: &[Address]) -> Address {
-        let slot = timestamp / self.slot_duration.as_secs();
-        let index = Self::block_producer_index(validators.len(), slot);
-        validators
-            .get(index)
-            .cloned()
-            .unwrap_or_else(|| unreachable!("index must be valid"))
+    fn take_inner(&mut self) -> Box<dyn ValidatorSubService> {
+        self.inner
+            .take()
+            .unwrap_or_else(|| unreachable!("inner must be Some"))
     }
 }
 
 impl ControlService for ValidatorService {
     fn role(&self) -> String {
-        format!("Validator ({:?})", self.pub_key.to_address())
+        format!("Validator (+_+_+)")
     }
 
     // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
-    fn receive_new_chain_head(&mut self, block: SimpleBlockData) {
-        let state = mem::take(&mut self.state);
-        self.state = State::Unformed(match state {
-            State::Initial(initial) => initial.into_unformed(block),
-            State::Unformed(unformed) => unformed.with_new_chain_head(block),
-            _ => Unformed::new(block),
-        });
+    fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
+        self.take_inner().process_new_head(block).map(|inner| {
+            self.inner = Some(inner);
+        })
     }
 
-    fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<(), ControlError> {
-        let State::Unformed(state) = &mut self.state else {
-            return Err(ControlError::Warning(anyhow!(
-                "Received synced block {} in unexpected state",
-                data.block_hash
-            )));
-        };
-
-        if data.block_hash != state.block().hash {
-            return Err(ControlError::Warning(anyhow!(
-                "Received synced block {} is different from the expected block hash {}",
-                data.block_hash,
-                state.block().hash
-            )));
-        }
-
-        let State::Unformed(state) = mem::take(&mut self.state) else {
-            unreachable!("state must be Unformed");
-        };
-        let (block, blocks, requests) = state.into_parts();
-
-        let producer = self.producer_for(block.header.timestamp, &data.validators);
-
-        if self.pub_key.to_address() == producer {
-            self.state = State::Producer(Producer::new(
-                self.pub_key,
-                self.signer.clone(),
-                self.db.clone(),
-                self.slot_duration,
-                data.validators,
-                block,
-            ));
-        } else {
-            let verifier = Verifier::new(block, producer, blocks, requests);
-            self.state = State::Verifier(verifier);
-        }
-
-        Ok(())
+    fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()> {
+        self.take_inner().process_synced_block(data).map(|inner| {
+            self.inner = Some(inner);
+        })
     }
 
-    fn receive_block_from_producer(
-        &mut self,
-        signed: SignedData<ProducerBlock>,
-    ) -> Result<(), ControlError> {
-        match &mut self.state {
-            State::Initial(initial) => {
-                initial.receive_block_from_producer(signed);
-            }
-            State::Unformed(unformed) => {
-                unformed.receive_block_from_producer(signed);
-            }
-            State::Verifier(verifier) => {
-                let events = verifier.receive_block_from_producer(signed);
-                self.output.extend(events);
-            }
-            State::Producer(_) | State::Coordinator(_) | State::Submitting(_) => Err(
-                ControlError::Warning(anyhow!("Received producer block, but I'm producer")),
-            )?,
-            State::Participant(_) => Err(ControlError::Warning(anyhow!(
-                "Received producer block in unexpected state"
-            )))?,
-        }
-
-        Ok(())
+    fn receive_block_from_producer(&mut self, signed: SignedData<ProducerBlock>) -> Result<()> {
+        self.take_inner()
+            .process_input_event(InputEvent::ProducerBlock(signed))
+            .map(|inner| {
+                self.inner = Some(inner);
+            })
     }
 
-    fn receive_computed_block(&mut self, computed_block: H256) -> Result<(), ControlError> {
-        match &mut self.state {
-            State::Producer(producer) => {
-                let events = producer.receive_computed_block(computed_block)?;
-                self.output.extend(events);
-            }
-            State::Verifier(verifier) => {
-                let events = verifier.receive_computed_block(computed_block);
-                self.output.extend(events);
-            }
-            State::Initial(_)
-            | State::Unformed(_)
-            | State::Coordinator(_)
-            | State::Participant(_)
-            | State::Submitting(_) => Err(ControlError::Warning(anyhow!(
-                "Received computed block in unexpected state"
-            )))?,
-        }
-
-        Ok(())
+    fn receive_computed_block(&mut self, computed_block: H256) -> Result<()> {
+        self.take_inner()
+            .process_computed_block(computed_block)
+            .map(|inner| {
+                self.inner = Some(inner);
+            })
     }
 
     fn receive_validation_request(
         &mut self,
         signed_request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<(), ControlError> {
-        match &mut self.state {
-            State::Initial(initial) => {
-                initial.receive_validation_request(signed_request);
-            }
-            State::Unformed(unformed) => {
-                unformed.receive_validation_request(signed_request);
-            }
-            State::Participant(participant) => {
-                let events = participant.receive_validation_request(signed_request)?;
-                self.output.extend(events);
-                self.state = State::default();
-            }
-            State::Verifier(verifier) => {
-                let events = verifier.receive_validation_request(signed_request);
-                self.output.extend(events);
-            }
-            State::Coordinator(_) | State::Producer(_) | State::Submitting(_) => Err(
-                ControlError::Warning(anyhow!("Received validation request, but I'm producer")),
-            )?,
-        }
-
-        Ok(())
+    ) -> Result<()> {
+        self.take_inner()
+            .process_input_event(InputEvent::ValidationRequest(signed_request))
+            .map(|inner| {
+                self.inner = Some(inner);
+            })
     }
 
-    fn receive_validation_reply(
-        &mut self,
-        reply: BatchCommitmentValidationReply,
-    ) -> Result<(), ControlError> {
-        match &mut self.state {
-            State::Coordinator(coordinator) => {
-                coordinator.receive_validation_reply(reply)?;
-            }
-            State::Verifier(_) | State::Submitting(_) => Err(ControlError::EventSkipped)?,
-            State::Participant(_) => Err(ControlError::Warning(anyhow!(
-                "Received validation reply in participant mode"
-            )))?,
-            State::Initial(_) | State::Unformed(_) | State::Producer(_) => Err(
-                ControlError::Warning(anyhow!("Received validation reply in unexpected state")),
-            )?,
-        }
-
-        Ok(())
+    fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
+        self.take_inner()
+            .process_input_event(InputEvent::ValidationReply(reply))
+            .map(|inner| {
+                self.inner = Some(inner);
+            })
     }
 
-    fn is_block_producer(&self) -> anyhow::Result<bool> {
-        match &self.state {
-            State::Producer(_) | State::Coordinator(_) | State::Submitting(_) => Ok(true),
-            State::Verifier(_) | State::Participant(_) => Ok(false),
-            State::Initial(_) | State::Unformed(_) => Err(anyhow!("Is not known yet")),
-        }
+    fn is_block_producer(&self) -> Result<bool> {
+        // +_+_+
+        todo!()
     }
 }
 
 impl Stream for ValidatorService {
-    type Item = anyhow::Result<ControlEvent>;
+    type Item = Result<ControlEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let events = match self.poll_state(cx) {
-            Ok(events) => events,
-            Err(err) => return Poll::Ready(Some(Err(err))),
-        };
+        self.inner = Some(self.take_inner().poll(cx)?);
 
-        self.output.extend(events);
-
-        if let Some(event) = self.output.pop_front() {
-            Poll::Ready(Some(Ok(event)))
-        } else {
-            Poll::Pending
-        }
+        self.take_inner()
+            .context()
+            .output
+            .pop_front()
+            .map(|event| Poll::Ready(Some(Ok(event))))
+            .unwrap_or(Poll::Pending)
     }
 }
 
@@ -401,11 +178,86 @@ impl FusedStream for ValidatorService {
 async fn submit_batch_commitment(
     router: Router,
     batch: MultisignedBatchCommitment,
-) -> anyhow::Result<H256> {
+) -> Result<H256> {
     let (commitment, signatures) = batch.into_parts();
     let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
 
     log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
 
     router.commit_batch(commitment, signatures).await
+}
+
+#[derive(Debug)]
+enum InputEvent {
+    ProducerBlock(SignedData<ProducerBlock>),
+    ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
+    ValidationReply(BatchCommitmentValidationReply),
+}
+
+trait ValidatorSubService: Unpin + Send + 'static {
+    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService>;
+    fn context(&mut self) -> &mut ValidatorContext;
+    fn into_context(self: Box<Self>) -> ValidatorContext;
+
+    fn process_input_event(
+        mut self: Box<Self>,
+        event: InputEvent,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        self.context().warning(format!(
+            "Unexpected input event: {event:?}, append to pending events"
+        ));
+
+        self.context().pending_events.push_back(event);
+
+        Ok(self.to_dyn())
+    }
+
+    fn process_new_head(
+        self: Box<Self>,
+        block: SimpleBlockData,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        Initial::new_with_chain_head(self.into_context(), block)
+    }
+
+    fn process_synced_block(
+        mut self: Box<Self>,
+        data: BlockSyncedData,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        self.context()
+            .warning(format!("Unexpected synced block: {:?}", data.block_hash));
+
+        Ok(self.to_dyn())
+    }
+
+    fn process_computed_block(
+        mut self: Box<Self>,
+        computed_block: H256,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        self.context()
+            .warning(format!("Unexpected computed block: {computed_block:?}"));
+
+        Ok(self.to_dyn())
+    }
+
+    fn poll(self: Box<Self>, _cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
+        Ok(self.to_dyn())
+    }
+}
+
+struct ValidatorContext {
+    slot_duration: Duration,
+    threshold: u64,
+    router_address: Address,
+    pub_key: PublicKey,
+    signer: Signer,
+    db: Database,
+    ethereum: Ethereum,
+    pending_events: VecDeque<InputEvent>,
+    output: VecDeque<ControlEvent>,
+}
+
+impl ValidatorContext {
+    pub fn warning(&mut self, warning: String) {
+        self.output.push_back(ControlEvent::Warning(warning));
+    }
 }

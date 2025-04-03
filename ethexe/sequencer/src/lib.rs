@@ -8,9 +8,10 @@ pub use connect::SimpleConnectService;
 pub use utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 pub use validator::{ValidatorConfig, ValidatorService};
 
+use anyhow::Result;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
-use ethexe_signer::SignedData;
+use ethexe_signer::{Address, SignedData};
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
 
@@ -18,34 +19,25 @@ pub trait ControlService:
     Stream<Item = anyhow::Result<ControlEvent>> + FusedStream + Unpin + Send + 'static
 {
     fn role(&self) -> String;
-    fn receive_new_chain_head(&mut self, block: SimpleBlockData);
-    fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<(), ControlError>;
-    fn receive_block_from_producer(
-        &mut self,
-        block: SignedData<ProducerBlock>,
-    ) -> Result<(), ControlError>;
-    fn receive_computed_block(&mut self, block_hash: H256) -> Result<(), ControlError>;
+    fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()>;
+    fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()>;
+    fn receive_block_from_producer(&mut self, block: SignedData<ProducerBlock>) -> Result<()>;
+    fn receive_computed_block(&mut self, block_hash: H256) -> Result<()>;
     fn receive_validation_request(
         &mut self,
         request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<(), ControlError>;
-    fn receive_validation_reply(
-        &mut self,
-        reply: BatchCommitmentValidationReply,
-    ) -> Result<(), ControlError>;
-    fn is_block_producer(&self) -> anyhow::Result<bool>;
-}
-
-#[derive(Debug, derive_more::From)]
-pub enum ControlError {
-    #[from]
-    Fatal(anyhow::Error),
-    Warning(anyhow::Error),
-    EventSkipped,
+    ) -> Result<()>;
+    fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
+    fn is_block_producer(&self) -> Result<bool>;
 }
 
 #[derive(Debug, Clone)]
 pub enum ControlEvent {
+    IAmProducer(Address),
+    IAmSubordinate {
+        my_address: Address,
+        producer: Address,
+    },
     ComputeBlock(H256),
     ComputeProducerBlock(ProducerBlock),
     PublishProducerBlock(SignedData<ProducerBlock>),
