@@ -492,7 +492,7 @@ mod tests {
         let nodes_with_external_data: [gas_provider::node::GasNode<i32, i32, i32, i32>; 3] = [
             GasNode::External {
                 id: Default::default(),
-                multiplier: Default::default(),
+                multiplier: GasMultiplier::ValuePerGas(100),
                 value: Default::default(),
                 lock: Default::default(),
                 system_reserve: Default::default(),
@@ -502,13 +502,13 @@ mod tests {
             },
             GasNode::Cut {
                 id: Default::default(),
-                multiplier: Default::default(),
+                multiplier: GasMultiplier::ValuePerGas(100),
                 value: Default::default(),
                 lock: Default::default(),
             },
             GasNode::Reserved {
                 id: Default::default(),
-                multiplier: Default::default(),
+                multiplier: GasMultiplier::ValuePerGas(100),
                 value: Default::default(),
                 lock: Default::default(),
                 refs: Default::default(),
