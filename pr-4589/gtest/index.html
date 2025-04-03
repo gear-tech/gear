@@ -243,7 +243,7 @@ already specified field.</p>
 </span><span class="kw">let </span>log = Log::builder();
 
 <span class="comment">// Constructor for error reply log.
-</span><span class="kw">let </span>log = Log::error_builder(ErrorReplyReason::InactiveActor);
+</span><span class="kw">let </span>log = Log::error_builder(ErrorReplyReason::RemovedFromWaitlist);
 <span class="comment">// Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
 </span><span class="kw">let </span>log = Log::builder()
     .source(prog.id())
