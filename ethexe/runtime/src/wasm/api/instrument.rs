@@ -18,12 +18,12 @@
 
 use alloc::vec::Vec;
 use gear_core::{
-    code::{Code, CodeError, InstrumentedCode},
+    code::{Code, CodeError, CodeMetadata, InstrumentedCode},
     gas_metering::Schedule,
 };
 
 // TODO: impl Codec for CodeError, so could be thrown to host via memory.
-pub fn instrument_code(original_code: Vec<u8>) -> Option<InstrumentedCode> {
+pub fn instrument_code(original_code: Vec<u8>) -> Option<(InstrumentedCode, CodeMetadata)> {
     log::debug!("Runtime::instrument_code(..)");
 
     let schedule = Schedule::default();
@@ -33,7 +33,7 @@ pub fn instrument_code(original_code: Vec<u8>) -> Option<InstrumentedCode> {
         return None;
     }
 
-    let instrumented = Code::try_new(
+    let code = Code::try_new(
         original_code,
         // TODO: should we update it on each upgrade (?);
         crate::VERSION,
@@ -41,17 +41,18 @@ pub fn instrument_code(original_code: Vec<u8>) -> Option<InstrumentedCode> {
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
     )
-    .map(InstrumentedCode::from)
     .map_err(|e: CodeError| {
         log::debug!("Failed to validate or instrument code: {e:?}");
         e
     })
     .ok()?;
 
-    if instrumented.code().len() > schedule.limits.code_len as usize {
+    let (_, instrumented, metadata) = code.into_parts();
+
+    if instrumented.bytes().len() > schedule.limits.code_len as usize {
         log::debug!("Instrumented code exceeds size limit!");
         return None;
     }
 
-    Some(instrumented)
+    Some((instrumented, metadata))
 }

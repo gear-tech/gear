@@ -24,14 +24,17 @@ use alloc::vec::Vec;
 use core_processor::{common::JournalNote, configs::BlockInfo};
 use ethexe_common::gear::Origin;
 use ethexe_runtime_common::{process_next_message, state::Storage, RuntimeInterface};
-use gear_core::{code::InstrumentedCode, ids::ProgramId};
-use gprimitives::{CodeId, H256};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    ids::ProgramId,
+};
+use gprimitives::H256;
 
 pub fn run(
     program_id: ProgramId,
-    original_code_id: CodeId,
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,
+    code_metadata: Option<CodeMetadata>,
 ) -> (Vec<JournalNote>, Option<Origin>) {
     log::debug!("You're calling 'run(..)'");
 
@@ -51,7 +54,7 @@ pub fn run(
         program_id,
         program_state,
         maybe_instrumented_code,
-        original_code_id,
+        code_metadata,
         &ri,
     );
 
