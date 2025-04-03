@@ -23,6 +23,8 @@
 
 extern crate alloc;
 
+pub mod migrations;
+
 #[cfg(test)]
 mod mock;
 
@@ -99,7 +101,7 @@ pub(crate) type GasMultiplier<T> = common::GasMultiplier<BalanceOf<T>, u64>;
 pub(crate) type GasMultiplierOf<T> = <T as Config>::GasMultiplier;
 
 /// The current storage version.
-pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
