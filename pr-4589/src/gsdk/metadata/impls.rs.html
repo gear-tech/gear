@@ -440,65 +440,65 @@
             gas_provider::node::{<a href="generated.rs.html#642-647">GasNodeId</a>, <a href="generated.rs.html#651">NodeLock</a>},
         },
         <a href="generated.rs.html#749-876">gear_core::message</a> <span class="kw">as </span>generated_message,
-        <a href="generated.rs.html#1008-1079">gear_core_errors</a> <span class="kw">as </span>generated_core_errors, <a href="generated.rs.html#1080-1098">gprimitives</a> <span class="kw">as </span>generated_ids,
-        <a href="generated.rs.html#1294-1425">pallet_balances::pallet::Call</a> <span class="kw">as </span>BalancesCall,
-        <a href="generated.rs.html#2695-2891">pallet_gear::pallet::Call</a> <span class="kw">as </span>GearCall,
-        pallet_gear_voucher::internal::{<a href="generated.rs.html#3722-3745">PrepaidCall</a>, <a href="generated.rs.html#3747">VoucherId</a>},
-        <a href="generated.rs.html#8200-8248">pallet_sudo::pallet::Call</a> <span class="kw">as </span>SudoCall,
+        <a href="generated.rs.html#1008-1088">gear_core_errors</a> <span class="kw">as </span>generated_core_errors, <a href="generated.rs.html#1089-1107">gprimitives</a> <span class="kw">as </span>generated_ids,
+        <a href="generated.rs.html#1303-1434">pallet_balances::pallet::Call</a> <span class="kw">as </span>BalancesCall,
+        <a href="generated.rs.html#2704-2900">pallet_gear::pallet::Call</a> <span class="kw">as </span>GearCall,
+        pallet_gear_voucher::internal::{<a href="generated.rs.html#3731-3754">PrepaidCall</a>, <a href="generated.rs.html#3756">VoucherId</a>},
+        <a href="generated.rs.html#8209-8257">pallet_sudo::pallet::Call</a> <span class="kw">as </span>SudoCall,
     },
-    vara_runtime::{<a href="generated.rs.html#10291-10358">RuntimeCall</a>, <a href="generated.rs.html#10437-10504">RuntimeEvent</a>},
+    vara_runtime::{<a href="generated.rs.html#10300-10367">RuntimeCall</a>, <a href="generated.rs.html#10446-10513">RuntimeEvent</a>},
 };
 <span class="kw">use </span>core::ops::{<a href="https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html">Index</a>, <a href="https://doc.rust-lang.org/nightly/core/ops/index/trait.IndexMut.html">IndexMut</a>};
 <span class="kw">use </span>gear_core::{ids, message, message::UserMessage};
 <span class="kw">use </span>parity_scale_codec::{<a href="../../../gsdk/gp/derive.Decode.html">Decode</a>, <a href="../../../gsdk/gp/derive.Encode.html">Encode</a>};
 <span class="kw">use </span>subxt::{<a href="../../../gsdk/struct.Value.html">dynamic::Value</a>, utils::MultiAddress};
 
-<span class="kw">type </span>ApiEvent = <a href="generated.rs.html#10437-10504"><span class="kw">super</span>::Event</a>;
+<span class="kw">type </span>ApiEvent = <a href="generated.rs.html#10446-10513"><span class="kw">super</span>::Event</a>;
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;ids::MessageId&gt; <span class="kw">for </span><a href="generated.rs.html#1093">generated_ids::MessageId</a> {
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;ids::MessageId&gt; <span class="kw">for </span><a href="generated.rs.html#1102">generated_ids::MessageId</a> {
     <span class="kw">fn </span>from(other: ids::MessageId) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(<a href="#43">other</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
     }
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1093">generated_ids::MessageId</a>&gt; <span class="kw">for </span>ids::MessageId {
-    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1093">generated_ids::MessageId</a>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1102">generated_ids::MessageId</a>&gt; <span class="kw">for </span>ids::MessageId {
+    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1102">generated_ids::MessageId</a>) -&gt; <span class="self">Self </span>{
         <a href="#49">other</a>.<span class="number">0</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
     }
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;ids::ProgramId&gt; <span class="kw">for </span><a href="generated.rs.html#1085">generated_ids::ActorId</a> {
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;ids::ProgramId&gt; <span class="kw">for </span><a href="generated.rs.html#1094">generated_ids::ActorId</a> {
     <span class="kw">fn </span>from(other: ids::ProgramId) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(<a href="#55">other</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
     }
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1085">generated_ids::ActorId</a>&gt; <span class="kw">for </span>ids::ProgramId {
-    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1085">generated_ids::ActorId</a>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1094">generated_ids::ActorId</a>&gt; <span class="kw">for </span>ids::ProgramId {
+    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1094">generated_ids::ActorId</a>) -&gt; <span class="self">Self </span>{
         <a href="#61">other</a>.<span class="number">0</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
     }
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;ids::CodeId&gt; <span class="kw">for </span><a href="generated.rs.html#1089">generated_ids::CodeId</a> {
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;ids::CodeId&gt; <span class="kw">for </span><a href="generated.rs.html#1098">generated_ids::CodeId</a> {
     <span class="kw">fn </span>from(other: ids::CodeId) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(<a href="#67">other</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
     }
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1089">generated_ids::CodeId</a>&gt; <span class="kw">for </span>ids::CodeId {
-    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1089">generated_ids::CodeId</a>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1098">generated_ids::CodeId</a>&gt; <span class="kw">for </span>ids::CodeId {
+    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1098">generated_ids::CodeId</a>) -&gt; <span class="self">Self </span>{
         <a href="#73">other</a>.<span class="number">0</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
     }
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1097">generated_ids::ReservationId</a>&gt; <span class="kw">for </span>ids::ReservationId {
-    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1097">generated_ids::ReservationId</a>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1106">generated_ids::ReservationId</a>&gt; <span class="kw">for </span>ids::ReservationId {
+    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1106">generated_ids::ReservationId</a>) -&gt; <span class="self">Self </span>{
         <a href="#79">other</a>.<span class="number">0</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
     }
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1030-1037">generated_core_errors::simple::ReplyCode</a>&gt; <span class="kw">for </span>gear_core_errors::ReplyCode {
-    <span class="kw">fn </span>from(value: <a href="generated.rs.html#1030-1037">generated_core_errors::simple::ReplyCode</a>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1032-1039">generated_core_errors::simple::ReplyCode</a>&gt; <span class="kw">for </span>gear_core_errors::ReplyCode {
+    <span class="kw">fn </span>from(value: <a href="generated.rs.html#1032-1039">generated_core_errors::simple::ReplyCode</a>) -&gt; <span class="self">Self </span>{
         <a href="../../../gsdk/gp/trait.Decode.html"><span class="self">Self</span>::decode</a>(<span class="kw-2">&amp;mut </span><a href="#85">value</a>.<a href="../../../gsdk/gp/trait.Encode.html">encode</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html#tymethod.as_ref">as_ref</a>()).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.expect">expect</a>(<span class="string">"Incompatible metadata"</span>)
     }
 }
@@ -536,8 +536,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;M&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1097">generated_ids::ReservationId</a>&gt; <span class="kw">for </span><a href="generated.rs.html#642-647">GasNodeId</a>&lt;M, ids::ReservationId&gt; {
-    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1097">generated_ids::ReservationId</a>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;M&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#1106">generated_ids::ReservationId</a>&gt; <span class="kw">for </span><a href="generated.rs.html#642-647">GasNodeId</a>&lt;M, ids::ReservationId&gt; {
+    <span class="kw">fn </span>from(other: <a href="generated.rs.html#1106">generated_ids::ReservationId</a>) -&gt; <span class="self">Self </span>{
         <a href="generated.rs.html#646">GasNodeId::Reservation</a>(<a href="#124">other</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
     }
 }
@@ -576,30 +576,30 @@
 }
 
 <a class="macro" href="#142-160">impl_basic!</a> {
-    <a href="#40">ApiEvent</a>, <a href="generated.rs.html#1093">generated_ids::MessageId</a>,
-    <a href="generated.rs.html#1085">generated_ids::ActorId</a>, <a href="generated.rs.html#1089">generated_ids::CodeId</a>, <a href="generated.rs.html#1097">generated_ids::ReservationId</a>,
+    <a href="#40">ApiEvent</a>, <a href="generated.rs.html#1102">generated_ids::MessageId</a>,
+    <a href="generated.rs.html#1094">generated_ids::ActorId</a>, <a href="generated.rs.html#1098">generated_ids::CodeId</a>, <a href="generated.rs.html#1106">generated_ids::ReservationId</a>,
     <a href="generated.rs.html#560-565">Reason</a>&lt;<a href="generated.rs.html#567-572">UserMessageReadRuntimeReason</a>, <a href="generated.rs.html#574-577">UserMessageReadSystemReason</a>&gt;,
-    <a href="generated.rs.html#1030-1037">generated_core_errors::simple::ReplyCode</a>, <a href="generated.rs.html#3747">VoucherId</a>
+    <a href="generated.rs.html#1032-1039">generated_core_errors::simple::ReplyCode</a>, <a href="generated.rs.html#3756">VoucherId</a>
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#10291-10358">RuntimeCall</a>&gt; <span class="kw">for </span><a href="../../../gsdk/struct.Value.html">Value</a> {
-    <span class="kw">fn </span>from(call: <a href="generated.rs.html#10291-10358">RuntimeCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#10300-10367">RuntimeCall</a>&gt; <span class="kw">for </span><a href="../../../gsdk/struct.Value.html">Value</a> {
+    <span class="kw">fn </span>from(call: <a href="generated.rs.html#10300-10367">RuntimeCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
         <span class="kw">match </span><a href="#170">call</a> {
-            <a href="generated.rs.html#10349">RuntimeCall::Gear</a>(gear_call) =&gt; <a href="#181-264">gear_call_to_scale_value</a>(<a href="#172">gear_call</a>),
-            <a href="generated.rs.html#10347">RuntimeCall::Sudo</a>(sudo_call) =&gt; <a href="#266-285">sudo_call_to_scale_value</a>(<a href="#173">sudo_call</a>),
-            <a href="generated.rs.html#10301">RuntimeCall::Balances</a>(balances_call) =&gt; <a href="#287-306">balances_call_to_scale_value</a>(<a href="#174">balances_call</a>),
-            <a href="generated.rs.html#10293">RuntimeCall::System</a>(system_call) =&gt; <a href="#308-333">system_call_to_scale_value</a>(<a href="#175">system_call</a>),
+            <a href="generated.rs.html#10358">RuntimeCall::Gear</a>(gear_call) =&gt; <a href="#181-264">gear_call_to_scale_value</a>(<a href="#172">gear_call</a>),
+            <a href="generated.rs.html#10356">RuntimeCall::Sudo</a>(sudo_call) =&gt; <a href="#266-285">sudo_call_to_scale_value</a>(<a href="#173">sudo_call</a>),
+            <a href="generated.rs.html#10310">RuntimeCall::Balances</a>(balances_call) =&gt; <a href="#287-306">balances_call_to_scale_value</a>(<a href="#174">balances_call</a>),
+            <a href="generated.rs.html#10302">RuntimeCall::System</a>(system_call) =&gt; <a href="#308-333">system_call_to_scale_value</a>(<a href="#175">system_call</a>),
             <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unimplemented.html">unimplemented!</a>(<span class="string">"other calls aren't supported for now."</span>),
         }
     }
 }
 
-<span class="kw">fn </span>gear_call_to_scale_value(call: <a href="generated.rs.html#2695-2891">GearCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
+<span class="kw">fn </span>gear_call_to_scale_value(call: <a href="generated.rs.html#2704-2900">GearCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
     <span class="kw">let </span>variant = <span class="kw">match </span><a href="#181">call</a> {
-        <a href="generated.rs.html#2713-2715">GearCall::upload_code</a> { code } =&gt; {
+        <a href="generated.rs.html#2722-2724">GearCall::upload_code</a> { code } =&gt; {
             Value::named_variant(<span class="string">"upload_code"</span>, [(<span class="string">"code"</span>, Value::from_bytes(<a href="#183">code</a>))])
         }
-        <a href="generated.rs.html#2764-2772">GearCall::upload_program</a> {
+        <a href="generated.rs.html#2773-2781">GearCall::upload_program</a> {
             code,
             salt,
             init_payload,
@@ -617,7 +617,7 @@
                 (<span class="string">"keep_alive"</span>, Value::bool(<a href="#192">keep_alive</a>)),
             ],
         ),
-        <a href="generated.rs.html#2790-2798">GearCall::create_program</a> {
+        <a href="generated.rs.html#2799-2807">GearCall::create_program</a> {
             code_id,
             salt,
             init_payload,
@@ -635,7 +635,7 @@
                 (<span class="string">"keep_alive"</span>, Value::bool(<a href="#210">keep_alive</a>)),
             ],
         ),
-        <a href="generated.rs.html#2817-2823">GearCall::send_message</a> {
+        <a href="generated.rs.html#2826-2832">GearCall::send_message</a> {
             destination,
             payload,
             gas_limit,
@@ -651,7 +651,7 @@
                 (<span class="string">"keep_alive"</span>, Value::bool(<a href="#227">keep_alive</a>)),
             ],
         ),
-        <a href="generated.rs.html#2838-2844">GearCall::send_reply</a> {
+        <a href="generated.rs.html#2847-2853">GearCall::send_reply</a> {
             reply_to_id,
             payload,
             gas_limit,
@@ -667,7 +667,7 @@
                 (<span class="string">"keep_alive"</span>, Value::bool(<a href="#243">keep_alive</a>)),
             ],
         ),
-        <a href="generated.rs.html#2854-2856">GearCall::claim_value</a> { message_id } =&gt; Value::named_variant(
+        <a href="generated.rs.html#2863-2865">GearCall::claim_value</a> { message_id } =&gt; Value::named_variant(
             <span class="string">"claim_value"</span>,
             [(<span class="string">"message_id"</span>, Value::from_bytes(<a href="#254">message_id</a>.<span class="number">0</span>))],
         ),
@@ -679,9 +679,9 @@
     Value::unnamed_variant(<span class="string">"Gear"</span>, [<a href="#182">variant</a>])
 }
 
-<span class="kw">fn </span>sudo_call_to_scale_value(call: <a href="generated.rs.html#8200-8248">SudoCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
+<span class="kw">fn </span>sudo_call_to_scale_value(call: <a href="generated.rs.html#8209-8257">SudoCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
     <span class="kw">let </span>variant = <span class="kw">match </span><a href="#266">call</a> {
-        <a href="generated.rs.html#8214-8219">SudoCall::sudo_unchecked_weight</a> { call, weight } =&gt; Value::named_variant(
+        <a href="generated.rs.html#8223-8228">SudoCall::sudo_unchecked_weight</a> { call, weight } =&gt; Value::named_variant(
             <span class="string">"sudo_unchecked_weight"</span>,
             [
                 (<span class="string">"call"</span>, (<span class="kw-2">*</span><a href="#268">call</a>).<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()),
@@ -700,9 +700,9 @@
     Value::unnamed_variant(<span class="string">"Sudo"</span>, [<a href="#267">variant</a>])
 }
 
-<span class="kw">fn </span>balances_call_to_scale_value(call: <a href="generated.rs.html#1294-1425">BalancesCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
+<span class="kw">fn </span>balances_call_to_scale_value(call: <a href="generated.rs.html#1303-1434">BalancesCall</a>) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
     <span class="kw">let </span>variant = <span class="kw">match </span><a href="#287">call</a> {
-        <a href="generated.rs.html#1393-1400">BalancesCall::force_set_balance</a> { who, new_free } =&gt; {
+        <a href="generated.rs.html#1402-1409">BalancesCall::force_set_balance</a> { who, new_free } =&gt; {
             <span class="kw">let </span>id = <span class="kw">match </span><a href="#289">who</a> {
                 MultiAddress::Id(id) =&gt; <a href="#291">id</a>,
                 <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"internal error: unused multi-address variant occurred"</span>),
@@ -774,15 +774,15 @@
     }
 }
 
-<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#3722-3745">PrepaidCall</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;&gt; <span class="kw">for </span><a href="../../../gsdk/struct.Value.html">Value</a> {
-    <span class="kw">fn </span>from(call: <a href="generated.rs.html#3722-3745">PrepaidCall</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
+<span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="generated.rs.html#3731-3754">PrepaidCall</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;&gt; <span class="kw">for </span><a href="../../../gsdk/struct.Value.html">Value</a> {
+    <span class="kw">fn </span>from(call: <a href="generated.rs.html#3731-3754">PrepaidCall</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
         <a href="#367-407">prepaid_call_to_scale_value</a>(<a href="#362">call</a>)
     }
 }
 
-<span class="kw">fn </span>prepaid_call_to_scale_value(call: <a href="generated.rs.html#3722-3745">PrepaidCall</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
+<span class="kw">fn </span>prepaid_call_to_scale_value(call: <a href="generated.rs.html#3731-3754">PrepaidCall</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;) -&gt; <a href="../../../gsdk/struct.Value.html">Value</a> {
     <span class="kw">match </span><a href="#367">call</a> {
-        <a href="generated.rs.html#3724-3730">PrepaidCall::SendMessage</a> {
+        <a href="generated.rs.html#3733-3739">PrepaidCall::SendMessage</a> {
             destination,
             payload,
             gas_limit,
@@ -798,7 +798,7 @@
                 (<span class="string">"keep_alive"</span>, Value::bool(<a href="#374">keep_alive</a>)),
             ],
         ),
-        <a href="generated.rs.html#3732-3738">PrepaidCall::SendReply</a> {
+        <a href="generated.rs.html#3741-3747">PrepaidCall::SendReply</a> {
             reply_to_id,
             payload,
             gas_limit,
@@ -814,10 +814,10 @@
                 (<span class="string">"keep_alive"</span>, Value::bool(<a href="#390">keep_alive</a>)),
             ],
         ),
-        <a href="generated.rs.html#3740-3742">PrepaidCall::UploadCode</a> { code } =&gt; {
+        <a href="generated.rs.html#3749-3751">PrepaidCall::UploadCode</a> { code } =&gt; {
             Value::named_variant(<span class="string">"UploadCode"</span>, [(<span class="string">"code"</span>, Value::from_bytes(<a href="#401">code</a>))])
         }
-        <a href="generated.rs.html#3744">PrepaidCall::DeclineVoucher</a> =&gt; Value::unnamed_variant(<span class="string">"DeclineVoucher"</span>, []),
+        <a href="generated.rs.html#3753">PrepaidCall::DeclineVoucher</a> =&gt; Value::unnamed_variant(<span class="string">"DeclineVoucher"</span>, []),
         <span class="kw">_ </span>=&gt; <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"other prepaid calls aren't supported"</span>),
     }
 }

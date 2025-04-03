@@ -96,7 +96,7 @@
 </span><span class="doccomment">//! Events api
 </span><span class="kw">use crate</span>::{
     <a href="config.rs.html#36">config::GearConfig</a>,
-    metadata::{<a href="metadata/generated.rs.html#408-445">system::Event</a> <span class="kw">as </span>SystemEvent, <a href="metadata/generated.rs.html#10437-10504">Event</a>},
+    metadata::{<a href="metadata/generated.rs.html#408-445">system::Event</a> <span class="kw">as </span>SystemEvent, <a href="metadata/generated.rs.html#10446-10513">Event</a>},
     result::{<a href="result.rs.html#52-103">Error</a>, <a class="prelude-ty" href="result.rs.html#106">Result</a>},
     <a href="api.rs.html#32-38">Api</a>,
 };
@@ -141,10 +141,10 @@
 
     <span class="doccomment">/// Parse transaction fee from InBlockEvents
     </span><span class="kw">pub fn </span>capture_weight_info(details: <span class="kw-2">&amp;</span>EventDetails&lt;<a href="config.rs.html#36">GearConfig</a>&gt;) -&gt; <a class="prelude-ty" href="result.rs.html#106">Result</a>&lt;()&gt; {
-        <span class="kw">let </span>event: <a href="metadata/generated.rs.html#10437-10504">Event</a> = <a href="#66">details</a>.as_root_event::&lt;<a href="metadata/generated.rs.html#10437-10504">Event</a>&gt;()<span class="question-mark">?</span>;
+        <span class="kw">let </span>event: <a href="metadata/generated.rs.html#10446-10513">Event</a> = <a href="#66">details</a>.as_root_event::&lt;<a href="metadata/generated.rs.html#10446-10513">Event</a>&gt;()<span class="question-mark">?</span>;
 
-        <span class="kw">if let </span><a href="metadata/generated.rs.html#10439">Event::System</a>(<a href="metadata/generated.rs.html#411-413">SystemEvent::ExtrinsicSuccess</a> { dispatch_info })
-        | <a href="metadata/generated.rs.html#10439">Event::System</a>(<a href="metadata/generated.rs.html#416-419">SystemEvent::ExtrinsicFailed</a> { dispatch_info, .. }) = <a href="#67">event</a>
+        <span class="kw">if let </span><a href="metadata/generated.rs.html#10448">Event::System</a>(<a href="metadata/generated.rs.html#411-413">SystemEvent::ExtrinsicSuccess</a> { dispatch_info })
+        | <a href="metadata/generated.rs.html#10448">Event::System</a>(<a href="metadata/generated.rs.html#416-419">SystemEvent::ExtrinsicFailed</a> { dispatch_info, .. }) = <a href="#67">event</a>
         {
             <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.info.html">log::info!</a>(<span class="string">"	Weight cost: {:?}"</span>, dispatch_info.weight);
         }

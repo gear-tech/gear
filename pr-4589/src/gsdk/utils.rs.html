@@ -125,7 +125,7 @@
 </span><span class="kw">use crate</span>::{
     <a href="config.rs.html#36">config::GearConfig</a>,
     ext::sp_core::hashing,
-    metadata::{<a href="metadata/generated.rs.html#9863-9892">DispatchError</a>, <a href="metadata/generated.rs.html#11341-11345">StorageInfo</a>},
+    metadata::{<a href="metadata/generated.rs.html#9872-9901">DispatchError</a>, <a href="metadata/generated.rs.html#11350-11354">StorageInfo</a>},
     <a href="result.rs.html#106">result::Result</a>,
     <a href="api.rs.html#32-38">Api</a>,
 };
@@ -154,7 +154,7 @@
     }
 
     <span class="doccomment">/// Decode `DispatchError` to `subxt::error::Error`.
-    </span><span class="kw">pub fn </span>decode_error(<span class="kw-2">&amp;</span><span class="self">self</span>, dispatch_error: <a href="metadata/generated.rs.html#9863-9892">DispatchError</a>) -&gt; Error {
+    </span><span class="kw">pub fn </span>decode_error(<span class="kw-2">&amp;</span><span class="self">self</span>, dispatch_error: <a href="metadata/generated.rs.html#9872-9901">DispatchError</a>) -&gt; Error {
         <span class="kw">match </span>SubxtDispatchError::decode_from(<a href="#52">dispatch_error</a>.<a href="../../gsdk/gp/trait.Encode.html">encode</a>(), <a class="self" href="#52">self</a>.metadata()) {
             <span class="prelude-val">Ok</span>(err) =&gt; <a href="#54">err</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
             <span class="prelude-val">Err</span>(err) =&gt; <a href="#55">err</a>,
@@ -177,16 +177,16 @@
     }
 
     <span class="doccomment">/// Get the storage address from storage info.
-    </span><span class="kw">pub fn </span>storage&lt;T: <a href="metadata/generated.rs.html#11341-11345">StorageInfo</a>, Keys: StorageKey&gt;(
+    </span><span class="kw">pub fn </span>storage&lt;T: <a href="metadata/generated.rs.html#11350-11354">StorageInfo</a>, Keys: StorageKey&gt;(
         storage: T,
         keys: Keys,
     ) -&gt; DynamicAddress&lt;Keys&gt; {
-        subxt::dynamic::storage(T::PALLET, <a href="#76">storage</a>.<a href="metadata/generated.rs.html#11344">storage_name</a>(), <a href="#77">keys</a>)
+        subxt::dynamic::storage(T::PALLET, <a href="#76">storage</a>.<a href="metadata/generated.rs.html#11353">storage_name</a>(), <a href="#77">keys</a>)
     }
 
     <span class="doccomment">/// Get the storage root address from storage info.
-    </span><span class="kw">pub fn </span>storage_root&lt;T: <a href="metadata/generated.rs.html#11341-11345">StorageInfo</a>&gt;(storage: T) -&gt; DynamicAddress&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../gsdk/struct.Value.html">Value</a>&gt;&gt; {
-        subxt::dynamic::storage(T::PALLET, <a href="#83">storage</a>.<a href="metadata/generated.rs.html#11344">storage_name</a>(), <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>())
+    </span><span class="kw">pub fn </span>storage_root&lt;T: <a href="metadata/generated.rs.html#11350-11354">StorageInfo</a>&gt;(storage: T) -&gt; DynamicAddress&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../gsdk/struct.Value.html">Value</a>&gt;&gt; {
+        subxt::dynamic::storage(T::PALLET, <a href="#83">storage</a>.<a href="metadata/generated.rs.html#11353">storage_name</a>(), <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>())
     }
 }
 

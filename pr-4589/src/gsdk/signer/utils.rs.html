@@ -270,7 +270,7 @@
     <a href="../backtrace.rs.html#29-52">backtrace::BacktraceStatus</a>,
     <a href="../config.rs.html#36">config::GearConfig</a>,
     metadata::{
-        <a href="../metadata/generated.rs.html#11189-11195">calls::SudoCall</a>, <a href="../metadata/generated.rs.html#8258-8280">sudo::Event</a> <span class="kw">as </span>SudoEvent, <a href="../metadata/generated.rs.html#10291-10358">vara_runtime::RuntimeCall</a>, <a href="../metadata/generated.rs.html#10527-10531">CallInfo</a>, <a href="../metadata/generated.rs.html#10437-10504">Event</a>,
+        <a href="../metadata/generated.rs.html#11198-11204">calls::SudoCall</a>, <a href="../metadata/generated.rs.html#8267-8289">sudo::Event</a> <span class="kw">as </span>SudoEvent, <a href="../metadata/generated.rs.html#10300-10367">vara_runtime::RuntimeCall</a>, <a href="../metadata/generated.rs.html#10536-10540">CallInfo</a>, <a href="../metadata/generated.rs.html#10446-10513">Event</a>,
     },
     <a href="../result.rs.html#106">result::Result</a>,
     <a href="rpc.rs.html#31">signer::SignerRpc</a>,
@@ -441,7 +441,7 @@
     ///
     /// // ...
     /// ```
-    </span><span class="kw">pub async fn </span>run_tx&lt;Call: <a href="../metadata/generated.rs.html#10527-10531">CallInfo</a>&gt;(
+    </span><span class="kw">pub async fn </span>run_tx&lt;Call: <a href="../metadata/generated.rs.html#10536-10540">CallInfo</a>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         call: Call,
         fields: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;Composite&lt;()&gt;&gt;,
@@ -452,7 +452,7 @@
     </span>}
 
     <span class="doccomment">/// Run transaction with sudo.
-    </span><span class="kw">pub async fn </span>sudo_run_tx&lt;Call: <a href="../metadata/generated.rs.html#10527-10531">CallInfo</a>&gt;(
+    </span><span class="kw">pub async fn </span>sudo_run_tx&lt;Call: <a href="../metadata/generated.rs.html#10536-10540">CallInfo</a>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         call: Call,
         fields: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;Composite&lt;()&gt;&gt;,
@@ -463,7 +463,7 @@
     </span>}
 
     <span class="doccomment">/// `pallet_sudo::sudo`
-    </span><span class="kw">pub async fn </span>sudo(<span class="kw-2">&amp;</span><span class="self">self</span>, call: <a href="../metadata/generated.rs.html#10291-10358">RuntimeCall</a>) -&gt; EventsResult {
+    </span><span class="kw">pub async fn </span>sudo(<span class="kw-2">&amp;</span><span class="self">self</span>, call: <a href="../metadata/generated.rs.html#10300-10367">RuntimeCall</a>) -&gt; EventsResult {
         <span class="self">self</span>.sudo_run_tx(SudoCall::Sudo, <span class="macro">vec!</span>[Value::from(call)])
             .<span class="kw">await
     </span>}

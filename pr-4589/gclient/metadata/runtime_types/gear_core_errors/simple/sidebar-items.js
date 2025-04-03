@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ErrorReplyReason","ReplyCode","SignalCode","SimpleExecutionError","SimpleProgramCreationError","SuccessReplyReason"]};
+window.SIDEBAR_ITEMS = {"enum":["ErrorReplyReason","ReplyCode","SignalCode","SimpleExecutionError","SimpleInactiveActorError","SimpleProgramCreationError","SuccessReplyReason"]};
