@@ -9,6 +9,7 @@ pub struct Initial {
     state: State,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 enum State {
     WaitingForChainHead,
     WaitingForSyncedBlock(SimpleBlockData),
@@ -48,6 +49,10 @@ impl Initial {
 }
 
 impl ValidatorSubService for Initial {
+    fn log(&self, s: String) -> String {
+        format!("INITIAL in {state:?} - {s}", state = self.state)
+    }
+
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -70,10 +75,8 @@ impl ValidatorSubService for Initial {
     ) -> Result<Box<dyn ValidatorSubService>> {
         match &self.state {
             State::WaitingForChainHead => {
-                self.ctx.warning(format!(
-                    "Received synced block while waiting for chain head: {:#x}",
-                    data.block_hash
-                ));
+                let warning = self.log(format!("unexpected synced block: {:?}", data.block_hash));
+                self.ctx.warning(warning);
 
                 Ok(self)
             }
@@ -86,10 +89,11 @@ impl ValidatorSubService for Initial {
                 }
             }
             State::WaitingForSyncedBlock(block) => {
-                self.ctx.warning(format!(
-                    "Synced block hash does not match the expected block hash: {:?} != {:?}",
+                let warning = self.log(format!(
+                    "unexpected synced block: {:?}, must be {:?}",
                     block.hash, data.block_hash
                 ));
+                self.ctx.warning(warning);
 
                 Ok(self)
             }

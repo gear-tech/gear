@@ -21,6 +21,10 @@ pub struct Participant {
 }
 
 impl ValidatorSubService for Participant {
+    fn log(&self, s: String) -> String {
+        format!("PARTICIPANT - {s}")
+    }
+
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -48,9 +52,8 @@ impl ValidatorSubService for Participant {
                 self.process_validation_request(request.into_parts().0)
             }
             event => {
-                self.ctx.warning(format!(
-                    "PARTICIPANT - unexpected event: {event:?}, saved for later"
-                ));
+                let warning = format!("unexpected event: {event:?}, saved for later");
+                self.ctx.warning(warning);
 
                 self.ctx.pending_events.push_back(event);
 
@@ -114,9 +117,8 @@ impl Participant {
                 Initial::create(self.ctx)
             }
             Err(err) => {
-                self.ctx.warning(format!(
-                    "PARTICIPANT - failed to process validation request: {err}"
-                ));
+                let warning = self.log(format!("reject validation request: {err}"));
+                self.ctx.warning(warning);
 
                 Ok(self)
             }

@@ -166,6 +166,7 @@ enum InputEvent {
 }
 
 trait ValidatorSubService: Unpin + Send + 'static {
+    fn log(&self, s: String) -> String;
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService>;
     fn context(&self) -> &ValidatorContext;
     fn context_mut(&mut self) -> &mut ValidatorContext;
@@ -175,9 +176,10 @@ trait ValidatorSubService: Unpin + Send + 'static {
         mut self: Box<Self>,
         event: InputEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.context_mut().warning(format!(
+        let warning = self.log(format!(
             "Unexpected input event: {event:?}, append to pending events"
         ));
+        self.context_mut().warning(warning);
 
         self.context_mut().pending_events.push_back(event);
 
@@ -195,8 +197,8 @@ trait ValidatorSubService: Unpin + Send + 'static {
         mut self: Box<Self>,
         data: BlockSyncedData,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.context_mut()
-            .warning(format!("Unexpected synced block: {:?}", data.block_hash));
+        let warning = self.log(format!("Unexpected synced block: {:?}", data.block_hash));
+        self.context_mut().warning(warning);
 
         Ok(self.to_dyn())
     }
@@ -205,8 +207,8 @@ trait ValidatorSubService: Unpin + Send + 'static {
         mut self: Box<Self>,
         computed_block: H256,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.context_mut()
-            .warning(format!("Unexpected computed block: {computed_block:?}"));
+        let warning = self.log(format!("Unexpected computed block: {computed_block:?}"));
+        self.context_mut().warning(warning);
 
         Ok(self.to_dyn())
     }

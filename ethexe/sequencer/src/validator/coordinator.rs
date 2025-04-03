@@ -22,6 +22,10 @@ pub struct Coordinator {
 }
 
 impl ValidatorSubService for Coordinator {
+    fn log(&self, s: String) -> String {
+        format!("COORDINATOR - {s}")
+    }
+
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -55,9 +59,8 @@ impl ValidatorSubService for Coordinator {
                             })
                     })
                 {
-                    self.ctx.output.push_back(ControlEvent::Warning(format!(
-                        "COORDINATOR - validation reply rejected: {err}"
-                    )))
+                    let warning = self.log(format!("validation reply rejected: {err}"));
+                    self.ctx.warning(warning);
                 }
 
                 if self.multisigned_batch.signatures().len() as u64 >= self.ctx.threshold {
@@ -67,9 +70,8 @@ impl ValidatorSubService for Coordinator {
                 }
             }
             event => {
-                self.ctx.warning(format!(
-                    "COORDINATOR - received unexpected event: {event:?}"
-                ));
+                let warning = self.log(format!("unexpected event: {event:?}, saved for later"));
+                self.ctx.warning(warning);
 
                 self.ctx.pending_events.push_back(event);
 
@@ -124,6 +126,10 @@ struct Submitter {
 }
 
 impl ValidatorSubService for Submitter {
+    fn log(&self, s: String) -> String {
+        format!("Submitter - {s}")
+    }
+
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -154,9 +160,10 @@ impl ValidatorSubService for Submitter {
                 .ctx
                 .output
                 .push_back(ControlEvent::CommitmentSubmitted(tx)),
-            Poll::Ready(Err(err)) => self.ctx.output.push_back(ControlEvent::Warning(format!(
-                "Failed to submit batch commitment: {err:?}"
-            ))),
+            Poll::Ready(Err(err)) => {
+                let warning = self.log(format!("failed to submit batch commitment: {err:?}"));
+                self.ctx.warning(warning)
+            }
             Poll::Pending => {}
         }
         Ok(self)

@@ -32,6 +32,10 @@ enum State {
 }
 
 impl ValidatorSubService for Producer {
+    fn log(&self, s: String) -> String {
+        format!("PRODUCER in {state:?} - {s}", state = self.state)
+    }
+
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -105,10 +109,6 @@ impl Producer {
             validators,
             state: State::CollectOffChainTransactions { timer },
         }))
-    }
-
-    fn log(&self, log_info: String) -> String {
-        format!("PRODUCER in {state:?} - {log_info}", state = self.state)
     }
 
     fn aggregate_commitments_for_block(

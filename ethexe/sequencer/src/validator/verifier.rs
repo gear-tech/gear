@@ -24,6 +24,10 @@ enum State {
 }
 
 impl ValidatorSubService for Verifier {
+    fn log(&self, s: String) -> String {
+        format!("VERIFIER in {state:?} - {s}", state = self.state)
+    }
+
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -61,9 +65,8 @@ impl ValidatorSubService for Verifier {
                 Ok(self)
             }
             (_, event) => {
-                self.ctx.output.push_back(ControlEvent::Warning(format!(
-                    "VERIFIER - unexpected event: {event:?}, saved for later"
-                )));
+                self.ctx
+                    .warning(self.log(format!("unexpected event: {event:?}, saved for later")));
 
                 self.ctx.pending_events.push_back(event);
 
@@ -88,9 +91,8 @@ impl ValidatorSubService for Verifier {
             return Participant::create(self.ctx, self.block, self.producer);
         }
 
-        self.ctx.warning(format!(
-            "VERIFIER - received unexpected computed block: {computed_block:?}"
-        ));
+        self.ctx
+            .warning(self.log(format!("unexpected computed block: {computed_block:?}")));
 
         Ok(self)
     }
@@ -116,8 +118,8 @@ impl Verifier {
                 event @ InputEvent::ValidationRequest(_) => {
                     ctx.pending_events.push_back(event);
                 }
-                event => {
-                    ctx.warning(format!("VERIFIER - skip earlier received event: {event:?}"));
+                _ => {
+                    // NOTE: skip other events
                 }
             }
         }
