@@ -52,10 +52,8 @@ use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io::Write,
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
-    thread,
     time::Duration,
 };
 use tempfile::tempdir;
@@ -1026,7 +1024,7 @@ async fn multiple_validators() {
     log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
     // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
     let mut validator2 = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("validator-2")
             .validator(env.validators[2], env.validator_session_public_keys[2])
             .network(None, sequencer.multiaddr.clone())
             .db(validator2.db),
@@ -1150,7 +1148,7 @@ mod utils {
     use ethexe_sequencer::{SequencerConfig, SequencerService};
     use ethexe_signer::PrivateKey;
     use ethexe_tx_pool::TxPoolService;
-    use futures::{FutureExt, StreamExt};
+    use futures::StreamExt;
     use gear_core::message::ReplyCode;
     use rand::{rngs::StdRng, SeedableRng};
     use roast_secp256k1_evm::frost::{
@@ -1158,96 +1156,18 @@ mod utils {
         Identifier, SigningKey,
     };
     use std::{
-        collections::HashMap,
-        future::Future,
         ops::Mul,
-        pin::Pin,
         str::FromStr,
-        sync::{
-            atomic::{AtomicUsize, Ordering},
-            LazyLock, RwLock, RwLockReadGuard, RwLockWriteGuard,
-        },
-        task::{Context, Poll},
+        sync::atomic::{AtomicUsize, Ordering},
     };
     use tokio::sync::broadcast::{self, Receiver, Sender};
-
-    struct TaskNames;
-
-    impl TaskNames {
-        fn map() -> &'static RwLock<HashMap<task::Id, String>> {
-            static TASK_NAMES: LazyLock<RwLock<HashMap<task::Id, String>>> =
-                LazyLock::new(Default::default);
-            &TASK_NAMES
-        }
-
-        fn read() -> RwLockReadGuard<'static, HashMap<task::Id, String>> {
-            TaskNames::map().read().unwrap()
-        }
-
-        fn write() -> RwLockWriteGuard<'static, HashMap<task::Id, String>> {
-            TaskNames::map().write().unwrap()
-        }
-
-        fn task_name(id: task::Id) -> String {
-            if let Some(task_name) = Self::read().get(&id) {
-                task_name.clone()
-            } else {
-                id.to_string()
-            }
-        }
-    }
-
-    struct NamedJoinHandle<T> {
-        handle: JoinHandle<T>,
-    }
-
-    impl<T> NamedJoinHandle<T> {
-        fn wrap(name: impl Into<String>, handle: JoinHandle<T>) -> NamedJoinHandle<T> {
-            let mut map = TaskNames::write();
-            map.insert(handle.id(), name.into());
-            Self { handle }
-        }
-
-        fn abort(&self) {
-            self.handle.abort();
-        }
-    }
-
-    impl<T> Future for NamedJoinHandle<T> {
-        type Output = <JoinHandle<T> as Future>::Output;
-
-        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            self.handle.poll_unpin(cx)
-        }
-    }
-
-    impl<T> Drop for NamedJoinHandle<T> {
-        fn drop(&mut self) {
-            let mut map = TaskNames::write();
-            map.remove(&self.handle.id());
-        }
-    }
-
-    fn get_current_thread_name() -> String {
-        let current = thread::current();
-        if let Some(name) = current.name() {
-            name.to_string()
-        } else {
-            format!("{:?}", current.id())
-        }
-    }
+    use tracing::Instrument;
+    use tracing_subscriber::EnvFilter;
 
     pub fn init_logger() {
-        let _ = env_logger::Builder::from_default_env()
-            .format(|f, record| {
-                let task_name = task::try_id()
-                    .map(TaskNames::task_name)
-                    .unwrap_or_else(get_current_thread_name);
-                let level = f.default_styled_level(record.level());
-                let target = record.target();
-                let args = record.args();
-                writeln!(f, "[{task_name:^11} {level:<5} {target}] {args}")
-            })
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .without_time()
             .try_init();
     }
 
@@ -1270,7 +1190,7 @@ mod utils {
         broadcaster: Sender<ObserverEvent>,
         db: Database,
         _anvil: Option<AnvilInstance>,
-        _events_stream: NamedJoinHandle<()>,
+        _events_stream: JoinHandle<()>,
     }
 
     impl TestEnv {
@@ -1422,29 +1342,30 @@ mod utils {
 
                 let (send_subscription_created, receive_subscription_created) =
                     tokio::sync::oneshot::channel::<()>();
-                let handle = task::spawn(async move {
-                    send_subscription_created.send(()).unwrap();
+                let handle = task::spawn(
+                    async move {
+                        send_subscription_created.send(()).unwrap();
 
-                    while let Ok(event) = observer.select_next_some().await {
-                        log::trace!(target: "test-event", "📗 Event: {:?}", event);
+                        while let Ok(event) = observer.select_next_some().await {
+                            log::trace!(target: "test-event", "📗 Event: {:?}", event);
 
-                        cloned_sender
-                            .send(event)
-                            .inspect_err(|err| log::error!("Failed to broadcast event: {err}"))
-                            .unwrap();
+                            cloned_sender
+                                .send(event)
+                                .inspect_err(|err| log::error!("Failed to broadcast event: {err}"))
+                                .unwrap();
 
-                        // At least one receiver is presented always, in order to avoid the channel dropping.
-                        receiver
-                            .recv()
-                            .await
-                            .inspect_err(|err| log::error!("Failed to receive event: {err}"))
-                            .unwrap();
+                            // At least one receiver is presented always, in order to avoid the channel dropping.
+                            receiver
+                                .recv()
+                                .await
+                                .inspect_err(|err| log::error!("Failed to receive event: {err}"))
+                                .unwrap();
+                        }
+
+                        panic!("📗 Observer stream ended");
                     }
-
-                    panic!("📗 Observer stream ended");
-                });
-                let handle =
-                    NamedJoinHandle::wrap(format!("observer-stream-{}", handle.id()), handle);
+                    .instrument(tracing::trace_span!("observer-stream")),
+                );
                 receive_subscription_created.await.unwrap();
 
                 (sender, handle)
@@ -1909,7 +1830,7 @@ mod utils {
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
         block_time: Duration,
-        running_service_handle: Option<NamedJoinHandle<Result<()>>>,
+        running_service_handle: Option<JoinHandle<Result<()>>>,
         sequencer_public_key: Option<ethexe_signer::PublicKey>,
         validator_public_key: Option<ethexe_signer::PublicKey>,
         validator_session_public_key: Option<ethexe_signer::PublicKey>,
@@ -2016,12 +1937,10 @@ mod utils {
                 Some(sender),
             );
 
-            let handle = task::spawn(service.run());
-            let handle = NamedJoinHandle::wrap(
-                self.name
-                    .clone()
-                    .unwrap_or_else(|| format!("node-{}", handle.id())),
-                handle,
+            let handle = task::spawn(
+                service
+                    .run()
+                    .instrument(tracing::info_span!("node", name = self.name)),
             );
             self.running_service_handle = Some(handle);
 

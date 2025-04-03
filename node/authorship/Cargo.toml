@@ -62,5 +62,5 @@ gear-runtime-common = { workspace = true, features = ["std"] }
 gear-core = { workspace = true, features = ["std"] }
 vara-runtime  = { workspace = true, features = ["std", "dev"] }
 demo-constructor = { workspace = true, features = ["std"] }
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 parking_lot.workspace = true

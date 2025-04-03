@@ -30,7 +30,7 @@ codec.workspace = true
 
 [dev-dependencies]
 codec.workspace = true
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 
 [features]
 default = ["std"]
