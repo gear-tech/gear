@@ -1018,7 +1018,9 @@ pub mod runtime_types {
                         runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
                     ),
                     #[codec(index = 2)]
-                    InactiveActor,
+                    InactiveActor(
+                        runtime_types::gear_core_errors::simple::SimpleInactiveActorError,
+                    ),
                     #[codec(index = 3)]
                     RemovedFromWaitlist,
                     #[codec(index = 4)]
@@ -1056,6 +1058,13 @@ pub mod runtime_types {
                     UnreachableInstruction,
                     #[codec(index = 5)]
                     StackLimitExceeded,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum SimpleInactiveActorError {
+                    #[codec(index = 0)]
+                    ProgramExited,
                     #[codec(index = 255)]
                     Unsupported,
                 }

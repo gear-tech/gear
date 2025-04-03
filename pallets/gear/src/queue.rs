@@ -56,10 +56,22 @@ where
             Err(journal) => return journal,
         };
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<T>::get_program(destination_id)
-        else {
-            log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
-            return core_processor::process_non_executable(context);
+        let program = match ProgramStorageOf::<T>::get_program(destination_id) {
+            Some(Program::Active(program)) => program,
+            Some(Program::Terminated(_)) => {
+                log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
+                return core_processor::process_non_executable(context);
+            }
+            Some(Program::Exited(program_id)) => {
+                log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
+                return core_processor::process_program_exited(context, program_id);
+            }
+            None => {
+                log::trace!(
+                    "Message {dispatch_id} is sent to nonexistent program {destination_id}"
+                );
+                return core_processor::process_non_executable(context);
+            }
         };
 
         if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {

@@ -3534,6 +3534,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-inheritor-in-error-reply"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-init-fail-sender"
 version = "0.1.0"
 dependencies = [

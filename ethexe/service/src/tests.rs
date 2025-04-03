@@ -262,7 +262,7 @@ async fn uninitialized_program() {
             .await
             .unwrap();
 
-        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor(Default::default()));
         assert_eq!(res.code, expected_err);
     }
 
@@ -322,7 +322,7 @@ async fn uninitialized_program() {
             .wait_for()
             .await
             .unwrap();
-        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor(Default::default()));
         assert_eq!(res.code, expected_err);
         // Checking further initialization.
 

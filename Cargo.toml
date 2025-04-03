@@ -48,6 +48,7 @@ members = [
     "examples/futures-unordered",
     "examples/gas-burned",
     "examples/incomplete-async-payloads",
+    "examples/inheritor-in-error-reply",
     "examples/init-fail-sender",
     "examples/init-wait",
     "examples/init-wait-reply-exit",

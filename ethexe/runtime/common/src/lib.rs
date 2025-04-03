@@ -227,9 +227,13 @@ where
 
     let active_state = match program_state.program {
         state::Program::Active(state) => state,
-        state::Program::Exited(program_id) | state::Program::Terminated(program_id) => {
-            log::trace!("Program {program_id} is not active");
+        state::Program::Terminated(program_id) => {
+            log::trace!("Program {program_id} is terminated");
             return core_processor::process_non_executable(context);
+        }
+        state::Program::Exited(program_id) => {
+            log::trace!("Program {program_id} is exited");
+            return core_processor::process_program_exited(context, program_id);
         }
     };
 

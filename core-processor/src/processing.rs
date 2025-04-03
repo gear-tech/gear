@@ -28,7 +28,6 @@ use crate::{
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{
-    format,
     string::{String, ToString},
     vec::Vec,
 };
@@ -36,7 +35,8 @@ use gear_core::{
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, Payload, ReplyMessage, StoredDispatch,
+        ContextSettings, DispatchKind, IncomingDispatch, Payload, PayloadSizeError, ReplyMessage,
+        StoredDispatch,
     },
     reservation::GasReservationState,
 };
@@ -44,7 +44,7 @@ use gear_core_backend::{
     error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
     BackendExternalities,
 };
-use gear_core_errors::{ErrorReplyReason, SignalCode};
+use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleInactiveActorError};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<Ext>(
@@ -201,41 +201,56 @@ where
 }
 
 enum ProcessErrorCase {
-    /// Message is not executable error.
+    /// Message is not executable.
     NonExecutable,
+    /// Specific case of `NonExecutable`.
+    ProgramExited {
+        /// Inheritor of an exited program.
+        inheritor: ProgramId,
+    },
     /// Error is considered as an execution failure.
     ExecutionFailed(ActorExecutionErrorReplyReason),
-    /// Message is executable, but it's execution failed due to re-instrumentation.
+    /// Message is executable, but its execution failed due to re-instrumentation.
     ReinstrumentationFailed,
 }
 
 impl ProcessErrorCase {
-    pub fn to_reason_and_payload_str(&self) -> (ErrorReplyReason, String) {
+    fn to_reason(&self) -> ErrorReplyReason {
         match self {
             ProcessErrorCase::NonExecutable => {
-                let reason = ErrorReplyReason::InactiveActor;
-                (reason, reason.to_string())
+                ErrorReplyReason::InactiveActor(SimpleInactiveActorError::Unsupported)
             }
-            ProcessErrorCase::ExecutionFailed(reason) => {
-                (reason.as_simple().into(), reason.to_string())
+            ProcessErrorCase::ProgramExited { .. } => {
+                ErrorReplyReason::InactiveActor(SimpleInactiveActorError::ProgramExited)
             }
-            ProcessErrorCase::ReinstrumentationFailed => {
-                let err = ErrorReplyReason::ReinstrumentationFailure;
-                (err, err.to_string())
-            }
+            ProcessErrorCase::ExecutionFailed(reason) => reason.as_simple().into(),
+            ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::ReinstrumentationFailure,
         }
     }
 
-    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, Option<Payload>) {
+    fn to_payload_str(&self) -> String {
         match self {
-            ProcessErrorCase::ExecutionFailed(
-                reason @ ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(buf)),
-            ) => (reason.as_simple().into(), Some(buf.inner().clone())),
-            this => {
-                let (reason, payload) = this.to_reason_and_payload_str();
-                let payload = payload.into_bytes().try_into().ok();
-                (reason, payload)
+            ProcessErrorCase::ExecutionFailed(reason) => reason.to_string(),
+            this => this.to_reason().to_string(),
+        }
+    }
+
+    fn to_payload(&self) -> Payload {
+        match self {
+            ProcessErrorCase::ProgramExited { inheritor } => {
+                const _: () = assert!(size_of::<ProgramId>() <= Payload::MAX_LEN);
+                inheritor
+                    .into_bytes()
+                    .to_vec()
+                    .try_into()
+                    .unwrap_or_else(|PayloadSizeError| {
+                        unreachable!("`ProgramId` is always smaller than maximum payload size")
+                    })
             }
+            ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
+                TrapExplanation::Panic(buf),
+            )) => buf.inner().clone(),
+            _ => Payload::default(),
         }
     }
 }
@@ -297,18 +312,8 @@ fn process_error(
     }
 
     if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-        let (err, err_payload) = case.to_reason_and_payload();
-
-        // Panic is impossible, unless error message is too large or [Payload] max size is too small.
-        let err_payload = err_payload.unwrap_or_else(|| {
-            let (_, err_payload) = case.to_reason_and_payload_str();
-            let err_msg =
-                format!("process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}",
-            );
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}")
-        });
+        let err = case.to_reason();
+        let err_payload = case.to_payload();
 
         // # Safety
         //
@@ -332,7 +337,7 @@ fn process_error(
 
     let outcome = match case {
         ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
-            let (_, err_payload) = case.to_reason_and_payload_str();
+            let err_payload = case.to_payload_str();
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
                     program_id,
@@ -345,7 +350,9 @@ fn process_error(
                 },
             }
         }
-        ProcessErrorCase::NonExecutable => DispatchOutcome::NoExecution,
+        ProcessErrorCase::NonExecutable | ProcessErrorCase::ProgramExited { .. } => {
+            DispatchOutcome::NoExecution
+        }
     };
 
     journal.push(JournalNote::MessageDispatched {
@@ -410,6 +417,29 @@ pub fn process_non_executable(context: ContextChargedForProgram) -> Vec<JournalN
         gas_counter.burned(),
         system_reservation_ctx,
         ProcessErrorCase::NonExecutable,
+    )
+}
+
+/// Helper function for journal creation in program exited case.
+pub fn process_program_exited(
+    context: ContextChargedForProgram,
+    inheritor: ProgramId,
+) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::ProgramExited { inheritor },
     )
 }
 
