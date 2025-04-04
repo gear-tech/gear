@@ -119,7 +119,7 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const BankAddress: AccountId = 15082001;
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
 }
 
@@ -203,7 +203,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (BOB, 10_000u128),
             (BLOCK_AUTHOR, 1_000u128),
             (FEE_PAYER, 10_000_000u128),
-            (BankAddress::get(), ExistentialDeposit::get()),
+            (GearBank::bank_address(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

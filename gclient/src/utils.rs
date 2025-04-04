@@ -18,7 +18,6 @@
 
 use crate::{Error, Result};
 pub use gear_utils::now_micros;
-use gsdk::ext::sp_runtime::AccountId32;
 use std::{fs, path::Path};
 
 /// Return the full path to the optimized Wasm binary file with the `demo_name`
@@ -51,11 +50,4 @@ pub fn code_from_os(path: impl AsRef<Path>) -> Result<Vec<u8>> {
 /// Convert hex string to byte array.
 pub fn hex_to_vec(string: impl AsRef<str>) -> Result<Vec<u8>> {
     hex::decode(string.as_ref().trim_start_matches("0x")).map_err(Into::into)
-}
-
-/// Returns default bank address.
-pub fn bank_address() -> AccountId32 {
-    const BANK_ADDRESS: [u8; 32] = *b"gearbankgearbankgearbankgearbank";
-
-    BANK_ADDRESS.into()
 }

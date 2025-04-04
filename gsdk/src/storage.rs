@@ -212,6 +212,18 @@ impl Api {
 
         self.fetch_storage_at(&addr, block_hash).await
     }
+
+    /// Get Gear bank's sovereign account id.
+    pub async fn bank_address(&self) -> Result<AccountId32> {
+        let addr = Self::storage_root(GearBankStorage::BankAddress);
+        let thunk = self
+            .get_storage(None)
+            .await?
+            .fetch_or_default(&addr)
+            .await?
+            .into_encoded();
+        Ok(AccountId32::decode(&mut thunk.as_ref())?)
+    }
 }
 
 // pallet-gear

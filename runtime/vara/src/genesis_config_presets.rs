@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{UNITS as TOKEN, *};
+use super::{GearBank, UNITS as TOKEN, *};
 use pallet_balances::GenesisConfig;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::{Forcing, StakerStatus};
@@ -185,7 +185,7 @@ pub fn development_genesis() -> RuntimeGenesisConfig {
             get_account_id_from_seed::<sr25519::Public>("Alice"),
             get_account_id_from_seed::<sr25519::Public>("Bob"),
         ],
-        BANK_ADDRESS.into(),
+        GearBank::bank_address(),
         true,
     )
 }
@@ -208,7 +208,7 @@ pub fn local_testnet_genesis() -> RuntimeGenesisConfig {
             get_account_id_from_seed::<sr25519::Public>("Eve"),
             get_account_id_from_seed::<sr25519::Public>("Ferdie"),
         ],
-        BANK_ADDRESS.into(),
+        GearBank::bank_address(),
         true,
     )
 }

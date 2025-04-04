@@ -159,7 +159,7 @@ impl Drop for DynamicScheduleReset {
 }
 
 parameter_types! {
-    pub const BankAddress: AccountId = 15082001;
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
     pub const MinVoucherDuration: BlockNumber = 5;
     pub const MaxVoucherDuration: BlockNumber = 100_000_000;
@@ -195,7 +195,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
             (RENT_POOL, ExistentialDeposit::get()),
-            (BankAddress::get(), ExistentialDeposit::get()),
+            (GearBank::bank_address(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)
