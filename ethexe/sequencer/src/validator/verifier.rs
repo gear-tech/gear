@@ -117,7 +117,6 @@ impl Verifier {
         is_validator: bool,
     ) -> Result<Box<dyn ValidatorSubService>> {
         let mut earlier_producer_block = None;
-        // +_+_+ retain
         let pending_events = mem::take(&mut ctx.pending_events);
         for event in pending_events {
             match event {
@@ -129,20 +128,21 @@ impl Verifier {
                     earlier_producer_block = Some(signed_data.into_parts().0);
                 }
                 event @ ExternalEvent::ValidationRequest(_) if is_validator => {
+                    // Keep validation requests if we are a validator
                     ctx.pending_events.push_back(event);
                 }
-                _ => {
-                    // NOTE: skip other events
-                }
+                _ => {}
             }
         }
 
         let state = if let Some(producer_block) = earlier_producer_block {
             let block_hash = producer_block.block_hash;
             ctx.output(ControlEvent::ComputeProducerBlock(producer_block));
+
             State::WaitingProducerBlockComputed { block_hash }
         } else {
             ctx.output(ControlEvent::ComputeBlock(block.header.parent_hash));
+
             State::WaitingForProducerBlock
         };
 

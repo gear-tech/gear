@@ -176,8 +176,6 @@ trait ValidatorSubService: Unpin + Send + 'static {
         self: Box<Self>,
         block: SimpleBlockData,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        // +_+_+ warning
-        // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
         Initial::create_with_chain_head(self.into_context(), block)
     }
 
@@ -185,7 +183,7 @@ trait ValidatorSubService: Unpin + Send + 'static {
         mut self: Box<Self>,
         data: BlockSyncedData,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.warning(format!("Unexpected synced block: {:?}", data.block_hash));
+        self.warning(format!("unexpected synced block: {}", data.block_hash));
 
         Ok(self.to_dyn())
     }
@@ -194,7 +192,7 @@ trait ValidatorSubService: Unpin + Send + 'static {
         mut self: Box<Self>,
         computed_block: H256,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.warning(format!("Unexpected computed block: {computed_block:?}"));
+        self.warning(format!("unexpected computed block: {computed_block}"));
 
         Ok(self.to_dyn())
     }

@@ -42,7 +42,7 @@ impl ValidatorSubService for Initial {
     ) -> Result<Box<dyn ValidatorSubService>> {
         match &self.state {
             State::WaitingForChainHead => {
-                self.warning(format!("unexpected synced block: {:?}", data.block_hash));
+                self.warning(format!("unexpected synced block: {}", data.block_hash));
 
                 Ok(self)
             }
@@ -73,7 +73,7 @@ impl ValidatorSubService for Initial {
                 }
             }
             State::WaitingForSyncedBlock(block) => {
-                self.warning(format!("unexpected synced block: {:?}", block.hash));
+                self.warning(format!("unexpected synced block: {}", block.hash));
 
                 Ok(self)
             }
@@ -89,6 +89,7 @@ impl Initial {
         }))
     }
 
+    // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
     pub fn create_with_chain_head(
         ctx: ValidatorContext,
         block: SimpleBlockData,
