@@ -20,15 +20,17 @@
 
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
+    db::Schedule,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
 };
-use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use handling::{run, ProcessingHandler};
 use host::InstanceCreator;
+use std::collections::BTreeMap;
 
 pub use common::LocalOutcome;
 
@@ -39,6 +41,13 @@ mod handling;
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Clone, Debug)]
+pub struct BlockProcessingResult {
+    pub transitions: Vec<StateTransition>,
+    pub states: BTreeMap<ActorId, H256>,
+    pub schedule: Schedule,
+}
 
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
@@ -113,21 +122,17 @@ impl Processor {
         &mut self,
         block_hash: H256,
         events: Vec<BlockRequestEvent>,
-    ) -> Result<Vec<LocalOutcome>> {
-        let outcomes = self
-            .process_block_events_raw(block_hash, events)?
-            .into_iter()
-            .map(LocalOutcome::Transition)
-            .collect();
-
-        Ok(outcomes)
+    ) -> Result<BlockProcessingResult> {
+        // Directly return the result from the raw processing function.
+        // The caller (ComputeService) will now handle this result.
+        self.process_block_events_raw(block_hash, events)
     }
 
     pub fn process_block_events_raw(
         &mut self,
         block_hash: H256,
         events: Vec<BlockRequestEvent>,
-    ) -> Result<Vec<StateTransition>> {
+    ) -> Result<BlockProcessingResult> {
         log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
         let mut handler = self.handler(block_hash)?;
@@ -151,10 +156,11 @@ impl Processor {
 
         let (transitions, states, schedule) = handler.transitions.finalize();
 
-        self.db.set_block_program_states(block_hash, states);
-        self.db.set_block_schedule(block_hash, schedule);
-
-        Ok(transitions)
+        Ok(BlockProcessingResult {
+            transitions,
+            states,
+            schedule,
+        })
     }
 
     pub fn process_queue(&mut self, handler: &mut ProcessingHandler) {
