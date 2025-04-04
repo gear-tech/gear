@@ -181,10 +181,6 @@ contract Middleware is IMiddleware {
                 revert UnknownCollateral();
             }
 
-            if (!vaults.isEnable(stakerRewards.vault)) {
-                // TODO: think about what to do with disabled vault
-            }
-
             if (!vaults.contains(stakerRewards.vault)) {
                 revert UnknownVault();
             }
