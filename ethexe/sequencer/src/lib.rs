@@ -11,7 +11,7 @@ pub use validator::{ValidatorConfig, ValidatorService};
 use anyhow::Result;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
-use ethexe_signer::{Address, SignedData};
+use ethexe_signer::SignedData;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
 
@@ -32,12 +32,6 @@ pub trait ControlService:
 
 #[derive(Debug, Clone)]
 pub enum ControlEvent {
-    IAmProducer(Address),
-    // +_+_+ can be also not a validator at all
-    IAmSubordinate {
-        my_address: Address,
-        producer: Address,
-    },
     ComputeBlock(H256),
     ComputeProducerBlock(ProducerBlock),
     PublishProducerBlock(SignedData<ProducerBlock>),

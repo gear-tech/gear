@@ -53,8 +53,7 @@ impl ValidatorSubService for Coordinator {
                             })
                     })
                 {
-                    let warning = self.log(format!("validation reply rejected: {err}"));
-                    self.ctx.warning(warning);
+                    self.warning(format!("validation reply rejected: {err}"));
                 }
 
                 if self.multisigned_batch.signatures().len() as u64 >= self.ctx.threshold {
@@ -64,8 +63,7 @@ impl ValidatorSubService for Coordinator {
                 }
             }
             event => {
-                let warning = self.log(format!("unexpected event: {event:?}, saved for later"));
-                self.ctx.warning(warning);
+                self.warning(format!("unexpected event: {event:?}, saved for later"));
 
                 self.ctx.pending_events.push_back(event);
 
@@ -103,8 +101,7 @@ impl Coordinator {
             BatchCommitmentValidationRequest::from(multisigned_batch.batch()),
         )?;
 
-        ctx.output
-            .push_back(ControlEvent::PublishValidationRequest(validation_request));
+        ctx.output(ControlEvent::PublishValidationRequest(validation_request));
 
         Ok(Box::new(Self {
             ctx,

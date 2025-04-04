@@ -59,8 +59,7 @@ impl ValidatorSubService for Participant {
                 Ok(self)
             }
             event => {
-                let warning = format!("unexpected event: {event:?}, saved for later");
-                self.ctx.warning(warning);
+                self.warning(format!("unexpected event: {event:?}, saved for later"));
 
                 self.ctx.pending_events.push_back(event);
 
@@ -117,15 +116,12 @@ impl Participant {
     ) -> Result<Box<dyn ValidatorSubService>> {
         match self.process_validation_request_inner(request) {
             Ok(reply) => {
-                self.ctx
-                    .output
-                    .push_back(ControlEvent::PublishValidationReply(reply));
+                self.output(ControlEvent::PublishValidationReply(reply));
 
                 Initial::create(self.ctx)
             }
             Err(err) => {
-                let warning = self.log(format!("reject validation request: {err}"));
-                self.ctx.warning(warning);
+                self.warning(format!("reject validation request: {err}"));
 
                 Ok(self)
             }

@@ -216,6 +216,15 @@ trait ValidatorSubService: Unpin + Send + 'static {
     fn poll(self: Box<Self>, _cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
         Ok(self.to_dyn())
     }
+
+    fn warning(&mut self, warning: String) {
+        let warning = self.log(warning);
+        self.context_mut().warning(warning);
+    }
+
+    fn output(&mut self, event: ControlEvent) {
+        self.context_mut().output(event);
+    }
 }
 
 struct ValidatorContext {
@@ -233,5 +242,9 @@ struct ValidatorContext {
 impl ValidatorContext {
     pub fn warning(&mut self, warning: String) {
         self.output.push_back(ControlEvent::Warning(warning));
+    }
+
+    pub fn output(&mut self, event: ControlEvent) {
+        self.output.push_back(event);
     }
 }

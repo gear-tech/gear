@@ -38,14 +38,13 @@ impl ValidatorSubService for Submitter {
     fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
         match self.future.poll_unpin(cx) {
             Poll::Ready(Ok(tx)) => {
-                self.ctx
-                    .output
-                    .push_back(ControlEvent::CommitmentSubmitted(tx));
+                self.output(ControlEvent::CommitmentSubmitted(tx));
+
                 Initial::create(self.ctx)
             }
             Poll::Ready(Err(err)) => {
-                let warning = self.log(format!("failed to submit batch commitment: {err:?}"));
-                self.ctx.warning(warning);
+                self.warning(format!("failed to submit batch commitment: {err:?}"));
+
                 Initial::create(self.ctx)
             }
             Poll::Pending => Ok(self),

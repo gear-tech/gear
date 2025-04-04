@@ -57,17 +57,17 @@ impl ValidatorSubService for Producer {
         computed_block: H256,
     ) -> Result<Box<dyn ValidatorSubService>> {
         if matches!(&self.state, State::WaitingBlockComputed(hash) if *hash != computed_block) {
-            self.ctx.warning(self.log(format!(
-                "received unexpected computed block {computed_block:?}"
-            )));
+            self.warning(format!("unexpected computed block {computed_block}"));
+
             return Ok(self);
         }
 
         let batch = match Self::aggregate_commitments_for_block(&self.ctx, computed_block) {
             Err(AggregationError::SomeBlocksInQueueAreNotComputed(block)) => {
-                self.ctx.warning(self.log(format!(
-                    "block {block} in queue for block {computed_block:?} is not computed"
-                )));
+                self.warning(format!(
+                    "block {block} in queue for block {computed_block} is not computed"
+                ));
+
                 return Initial::create(self.ctx);
             }
             Err(AggregationError::Any(err)) => return Err(err),
@@ -214,12 +214,9 @@ impl Producer {
             .create_signed_data(self.ctx.pub_key, pb.clone())?;
 
         self.state = State::WaitingBlockComputed(self.block.hash);
-        self.ctx
-            .output
-            .push_back(ControlEvent::PublishProducerBlock(signed_pb));
-        self.ctx
-            .output
-            .push_back(ControlEvent::ComputeProducerBlock(pb));
+        self
+            .output(ControlEvent::PublishProducerBlock(signed_pb));
+        self.output(ControlEvent::ComputeProducerBlock(pb));
 
         Ok(())
     }

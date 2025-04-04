@@ -58,9 +58,7 @@ impl ValidatorSubService for Verifier {
                 let pb = pb.into_parts().0;
                 let block_hash = pb.block_hash;
 
-                self.ctx
-                    .output
-                    .push_back(ControlEvent::ComputeProducerBlock(pb));
+                self.output(ControlEvent::ComputeProducerBlock(pb));
 
                 self.state = State::WaitingProducerBlockComputed { block_hash };
 
@@ -154,12 +152,10 @@ impl Verifier {
 
         let state = if let Some(producer_block) = earlier_producer_block {
             let block_hash = producer_block.block_hash;
-            ctx.output
-                .push_back(ControlEvent::ComputeProducerBlock(producer_block));
+            ctx.output(ControlEvent::ComputeProducerBlock(producer_block));
             State::WaitingProducerBlockComputed { block_hash }
         } else {
-            ctx.output
-                .push_back(ControlEvent::ComputeBlock(block.header.parent_hash));
+            ctx.output(ControlEvent::ComputeBlock(block.header.parent_hash));
             State::WaitingForProducerBlock
         };
 

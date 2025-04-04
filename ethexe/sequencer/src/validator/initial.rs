@@ -42,8 +42,7 @@ impl ValidatorSubService for Initial {
     ) -> Result<Box<dyn ValidatorSubService>> {
         match &self.state {
             State::WaitingForChainHead => {
-                let warning = self.log(format!("unexpected synced block: {:?}", data.block_hash));
-                self.ctx.warning(warning);
+                self.warning(format!("unexpected synced block: {:?}", data.block_hash));
 
                 Ok(self)
             }
@@ -74,8 +73,7 @@ impl ValidatorSubService for Initial {
                 }
             }
             State::WaitingForSyncedBlock(block) => {
-                let warning = self.log(format!("unexpected synced block: {:?}", block.hash));
-                self.ctx.warning(warning);
+                self.warning(format!("unexpected synced block: {:?}", block.hash));
 
                 Ok(self)
             }

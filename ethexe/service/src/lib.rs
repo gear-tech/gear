@@ -528,17 +528,6 @@ impl Service {
                         ControlEvent::Warning(msg) => {
                             log::warn!("Control service warning: {msg}");
                         }
-                        ControlEvent::IAmProducer(address) => {
-                            log::info!("I am a block producer, address: {address}");
-                        }
-                        ControlEvent::IAmSubordinate {
-                            my_address,
-                            producer,
-                        } => {
-                            log::info!(
-                                "I am a block subordinate, my address: {my_address}, producer: {producer}"
-                            );
-                        }
                     }
                 }
             }
