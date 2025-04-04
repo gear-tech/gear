@@ -56,6 +56,7 @@ contract DeploymentScript is Script {
         mirror = new Mirror(address(router));
 
         wrappedVara.approve(address(router), type(uint256).max);
+        wrappedVara.transfer(0x27e257aFbE253bd74055eBAb9A54A7e0F2b54958, 500_000 * (10 ** wrappedVara.decimals()));
 
         vm.roll(vm.getBlockNumber() + 1);
         router.lookupGenesisHash();

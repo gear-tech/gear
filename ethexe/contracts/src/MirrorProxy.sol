@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 contract MirrorProxy {
-    address internal constant ROUTER = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address internal constant ROUTER = 0xdEf578d6C1d16a50a099FA401f2ED1dBff8719c7;
 
     address public inheritor;
     address public initializer;
