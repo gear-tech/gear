@@ -62,13 +62,7 @@ impl ValidatorSubService for Coordinator {
                     Ok(self)
                 }
             }
-            event => {
-                self.warning(format!("unexpected event: {event:?}, saved for later"));
-
-                self.ctx.pending_events.push_back(event);
-
-                Ok(self)
-            }
+            event => super::process_external_event_by_default(self, event),
         }
     }
 }

@@ -166,29 +166,17 @@ trait ValidatorSubService: Unpin + Send + 'static {
     fn into_context(self: Box<Self>) -> ValidatorContext;
 
     fn process_external_event(
-        mut self: Box<Self>,
+        self: Box<Self>,
         event: ExternalEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        if matches!(event, ExternalEvent::ValidationReply(_)) {
-            log::trace!(
-                "Skip validation reply: {event:?}, because only coordinator should process it"
-            );
-
-            return Ok(self.to_dyn());
-        }
-
-        let warning = self.log(format!("unexpected event: {event:?}, save for later"));
-        self.context_mut().warning(warning);
-
-        self.context_mut().pending_events.push_back(event);
-
-        Ok(self.to_dyn())
+        process_external_event_by_default(self.to_dyn(), event)
     }
 
     fn process_new_head(
         self: Box<Self>,
         block: SimpleBlockData,
     ) -> Result<Box<dyn ValidatorSubService>> {
+        // +_+_+ warning
         // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
         Initial::create_with_chain_head(self.into_context(), block)
     }
@@ -197,8 +185,7 @@ trait ValidatorSubService: Unpin + Send + 'static {
         mut self: Box<Self>,
         data: BlockSyncedData,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        let warning = self.log(format!("Unexpected synced block: {:?}", data.block_hash));
-        self.context_mut().warning(warning);
+        self.warning(format!("Unexpected synced block: {:?}", data.block_hash));
 
         Ok(self.to_dyn())
     }
@@ -207,8 +194,7 @@ trait ValidatorSubService: Unpin + Send + 'static {
         mut self: Box<Self>,
         computed_block: H256,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        let warning = self.log(format!("Unexpected computed block: {computed_block:?}"));
-        self.context_mut().warning(warning);
+        self.warning(format!("Unexpected computed block: {computed_block:?}"));
 
         Ok(self.to_dyn())
     }
@@ -225,6 +211,23 @@ trait ValidatorSubService: Unpin + Send + 'static {
     fn output(&mut self, event: ControlEvent) {
         self.context_mut().output(event);
     }
+}
+
+fn process_external_event_by_default(
+    mut s: Box<dyn ValidatorSubService>,
+    event: ExternalEvent,
+) -> Result<Box<dyn ValidatorSubService>> {
+    if matches!(event, ExternalEvent::ValidationReply(_)) {
+        log::trace!("Skip {event:?}, because only coordinator should process it.");
+
+        return Ok(s);
+    }
+
+    s.warning(format!("unexpected event: {event:?}, saved for later"));
+
+    s.context_mut().pending_events.push_back(event);
+
+    Ok(s)
 }
 
 struct ValidatorContext {

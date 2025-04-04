@@ -214,8 +214,7 @@ impl Producer {
             .create_signed_data(self.ctx.pub_key, pb.clone())?;
 
         self.state = State::WaitingBlockComputed(self.block.hash);
-        self
-            .output(ControlEvent::PublishProducerBlock(signed_pb));
+        self.output(ControlEvent::PublishProducerBlock(signed_pb));
         self.output(ControlEvent::ComputeProducerBlock(pb));
 
         Ok(())

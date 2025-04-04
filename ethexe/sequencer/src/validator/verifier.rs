@@ -76,21 +76,7 @@ impl ValidatorSubService for Verifier {
 
                 Ok(self)
             }
-            (_, ExternalEvent::ValidationReply(reply)) => {
-                log::trace!(
-                    "Skip validation reply: {reply:?}, because only coordinator should process it"
-                );
-
-                Ok(self)
-            }
-            (_, event) => {
-                self.ctx
-                    .warning(self.log(format!("unexpected event: {event:?}, saved for later")));
-
-                self.ctx.pending_events.push_back(event);
-
-                Ok(self)
-            }
+            (_, event) => super::process_external_event_by_default(self, event),
         }
     }
 
@@ -131,6 +117,7 @@ impl Verifier {
         is_validator: bool,
     ) -> Result<Box<dyn ValidatorSubService>> {
         let mut earlier_producer_block = None;
+        // +_+_+ retain
         let pending_events = mem::take(&mut ctx.pending_events);
         for event in pending_events {
             match event {

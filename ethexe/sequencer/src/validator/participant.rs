@@ -42,7 +42,7 @@ impl ValidatorSubService for Participant {
     }
 
     fn process_external_event(
-        mut self: Box<Self>,
+        self: Box<Self>,
         event: ExternalEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
         match event {
@@ -51,20 +51,7 @@ impl ValidatorSubService for Participant {
             {
                 self.process_validation_request(request.into_parts().0)
             }
-            event @ ExternalEvent::ValidationReply(_) => {
-                log::trace!(
-                    "Skip validation reply: {event:?}, because only coordinator should process it"
-                );
-
-                Ok(self)
-            }
-            event => {
-                self.warning(format!("unexpected event: {event:?}, saved for later"));
-
-                self.ctx.pending_events.push_back(event);
-
-                Ok(self)
-            }
+            event => super::process_external_event_by_default(self, event),
         }
     }
 }
