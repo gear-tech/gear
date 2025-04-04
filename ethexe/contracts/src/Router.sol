@@ -247,21 +247,25 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         emit CodeValidationRequested(_codeId);
     }
 
-    function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {
+    function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer) external returns (address) {
         address mirror = _createProgram(_codeId, _salt);
 
-        IMirror(mirror).initialize(msg.sender, address(0));
+        IMirror(mirror).initialize(_overrideInitializer == address(0) ? msg.sender : _overrideInitializer, address(0));
 
         return mirror;
     }
 
-    function createProgramWithAbiInterface(bytes32 _codeId, bytes32 _salt, address _abiInterface)
-        external
-        returns (address)
-    {
+    function createProgramWithAbiInterface(
+        bytes32 _codeId,
+        bytes32 _salt,
+        address _overrideInitializer,
+        address _abiInterface
+    ) external returns (address) {
         address mirror = _createProgram(_codeId, _salt);
 
-        IMirror(mirror).initialize(msg.sender, _abiInterface);
+        IMirror(mirror).initialize(
+            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface
+        );
 
         return mirror;
     }

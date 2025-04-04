@@ -140,9 +140,11 @@ impl Router {
     }
 
     pub async fn create_program(&self, code_id: CodeId, salt: H256) -> Result<(H256, ActorId)> {
-        let builder = self
-            .instance
-            .createProgram(code_id.into_bytes().into(), salt.to_fixed_bytes().into());
+        let builder = self.instance.createProgram(
+            code_id.into_bytes().into(),
+            salt.to_fixed_bytes().into(),
+            Address::ZERO,
+        );
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();

@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {ICallbacks} from "./ICallbacks.sol";
 import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 import {Gear} from "./libraries/Gear.sol";
 
 contract Mirror is IMirror {
+    address internal constant ETH_EVENT_ADDR = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
+
     address public immutable router;
 
     address public inheritor;
@@ -172,6 +176,75 @@ contract Mirror is IMirror {
 
     /// @dev Value never sent since goes to mailbox.
     function _sendMailboxedMessage(Gear.Message calldata _message) private {
+        bytes calldata payload = _message.payload;
+
+        if (_message.destination == ETH_EVENT_ADDR && _message.value == 0 && payload.length > 0) {
+            uint256 topicsLength;
+            assembly ("memory-safe") {
+                topicsLength := shr(248, calldataload(payload.offset))
+            }
+
+            if (topicsLength >= 1 && topicsLength <= 4) {
+                uint256 topicsLengthInBytes;
+                unchecked {
+                    topicsLengthInBytes = 1 + topicsLength * 32;
+                }
+
+                if (payload.length >= topicsLengthInBytes) {
+                    bytes32 topic1;
+                    assembly ("memory-safe") {
+                        topic1 := calldataload(add(payload.offset, 1))
+                    }
+
+                    if (
+                        topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
+                            && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
+                            && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
+                            && topic1 != Reply.selector && topic1 != ValueClaimed.selector
+                    ) {
+                        uint256 size;
+                        unchecked {
+                            size = payload.length - topicsLengthInBytes;
+                        }
+
+                        uint256 memPtr = Memory.allocate(size);
+                        assembly ("memory-safe") {
+                            calldatacopy(memPtr, add(payload.offset, topicsLengthInBytes), size)
+                        }
+
+                        bytes32 topic2;
+                        bytes32 topic3;
+                        bytes32 topic4;
+                        assembly ("memory-safe") {
+                            topic2 := calldataload(add(payload.offset, 33))
+                            topic3 := calldataload(add(payload.offset, 65))
+                            topic4 := calldataload(add(payload.offset, 97))
+                        }
+
+                        if (topicsLength == 1) {
+                            assembly ("memory-safe") {
+                                log1(memPtr, size, topic1)
+                            }
+                        } else if (topicsLength == 2) {
+                            assembly ("memory-safe") {
+                                log2(memPtr, size, topic1, topic2)
+                            }
+                        } else if (topicsLength == 3) {
+                            assembly ("memory-safe") {
+                                log3(memPtr, size, topic1, topic2, topic3)
+                            }
+                        } else if (topicsLength == 4) {
+                            assembly ("memory-safe") {
+                                log4(memPtr, size, topic1, topic2, topic3, topic4)
+                            }
+                        }
+
+                        return;
+                    }
+                }
+            }
+        }
+
         emit Message(_message.id, _message.destination, _message.payload, _message.value);
     }
 
@@ -179,7 +252,29 @@ contract Mirror is IMirror {
     function _sendReplyMessage(Gear.Message calldata _message) private {
         _transferValue(_message.destination, _message.value);
 
-        emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
+        if (_message.destination.code.length > 0) {
+            bytes4 replyCode = _message.replyDetails.code;
+            uint8 replyCodeDiscriminant = uint8(bytes1(replyCode));
+
+            bytes memory payload;
+
+            if (replyCodeDiscriminant == 0) {
+                /* gear_core::message::ReplyCode::Success = 0 */
+                payload = _message.payload;
+            } else {
+                /* gear_core::message::ReplyCode::{Error = 1, Unsupported = 255} */
+                payload =
+                    abi.encodeWithSelector(ICallbacks.onErrorReply.selector, _message.id, _message.payload, replyCode);
+            }
+
+            (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
+
+            if (success) {
+                return;
+            }
+        } else {
+            emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
+        }
     }
 
     function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32) {
@@ -242,7 +337,12 @@ contract Mirror is IMirror {
                 value := calldataload(0x04)
             }
 
-            sendMessage(msg.data, uint128(value));
+            bytes32 messageId = sendMessage(msg.data, uint128(value));
+
+            assembly ("memory-safe") {
+                mstore(0x00, messageId)
+                return(0x00, 0x20)
+            }
         } else {
             revert();
         }
