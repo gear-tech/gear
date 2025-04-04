@@ -16,7 +16,7 @@ pub struct Submitter {
 
 impl ValidatorSubService for Submitter {
     fn log(&self, s: String) -> String {
-        format!("Submitter - {s}")
+        format!("SUBMITTER - {s}")
     }
 
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
@@ -57,7 +57,7 @@ impl Submitter {
         ctx: ValidatorContext,
         batch: MultisignedBatchCommitment,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        let router = ctx.ethereum.router();
+        let router = ctx.get_router.as_ref()();
 
         Ok(Box::new(Self {
             ctx,

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_db::Database;
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::{router::Router, Ethereum};
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::{Address, PublicKey, SignedData, Signer};
 use futures::{stream::FusedStream, Stream};
@@ -55,7 +55,7 @@ impl ValidatorService {
             pub_key: config.pub_key,
             signer,
             db,
-            ethereum,
+            get_router: Box::new(move || ethereum.router()),
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
         };
@@ -151,7 +151,7 @@ impl FusedStream for ValidatorService {
     }
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Clone, Debug, derive_more::From, PartialEq, Eq)]
 enum ExternalEvent {
     ProducerBlock(SignedData<ProducerBlock>),
     ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
@@ -235,7 +235,7 @@ struct ValidatorContext {
     pub_key: PublicKey,
     signer: Signer,
     db: Database,
-    ethereum: Ethereum,
+    get_router: Box<dyn Fn() -> Router + Send>,
     pending_events: VecDeque<ExternalEvent>,
     output: VecDeque<ControlEvent>,
 }
@@ -247,5 +247,30 @@ impl ValidatorContext {
 
     pub fn output(&mut self, event: ControlEvent) {
         self.output.push_back(event);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::init_signer_with_keys;
+
+    use super::*;
+
+    pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
+        let (signer, _, mut keys) = init_signer_with_keys(10);
+
+        let ctx = ValidatorContext {
+            slot_duration: Duration::from_secs(1),
+            threshold: 1,
+            router_address: 12345.into(),
+            pub_key: keys.pop().unwrap(),
+            signer,
+            db: Database::memory(),
+            get_router: Box::new(|| panic!("not implemented for mock")),
+            pending_events: VecDeque::new(),
+            output: VecDeque::new(),
+        };
+
+        (ctx, keys)
     }
 }

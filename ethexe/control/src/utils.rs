@@ -65,7 +65,7 @@ impl ToDigest for BlockCommitmentValidationRequest {
     }
 }
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitmentValidationReply {
     pub digest: Digest,
     pub signature: ContractSignature,

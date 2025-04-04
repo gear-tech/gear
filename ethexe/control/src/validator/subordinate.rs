@@ -100,8 +100,7 @@ impl ValidatorSubService for Subordinate {
                 }
             }
             _ => {
-                self.ctx
-                    .warning(self.log(format!("unexpected computed block: {computed_block:?}")));
+                self.warning(format!("unexpected computed block: {computed_block:?}"));
 
                 Ok(self)
             }
@@ -156,325 +155,169 @@ impl Subordinate {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::test_utils::*;
-
-//     #[test]
-//     fn new_empty() {
-//         let (_, _, pub_keys) = init_signer_with_keys(1);
-
-//         let producer = pub_keys[0];
-
-//         let data = mock_simple_block_data();
-
-//         let (verifier, events) =
-//             Verifier::new(data.clone(), producer.to_address(), vec![], vec![]).unwrap();
-
-//         assert_eq!(verifier.producer, producer.to_address());
-//         assert_eq!(verifier.block, data);
-//         assert!(verifier.earlier_validation_request.is_none());
-//         assert_eq!(
-//             verifier.state,
-//             State::WaitingParentComputed {
-//                 parent_hash: data.header.parent_hash
-//             }
-//         );
-
-//         assert_eq!(events.len(), 1);
-//         assert!(matches!(
-//             events[0].clone(),
-//             ControlEvent::ComputeBlock(hash) if hash == data.header.parent_hash
-//         ));
-//     }
-
-//     #[test]
-//     fn new_with_producer_blocks() {
-//         let (signer, _, pub_keys) = init_signer_with_keys(2);
-
-//         let producer = pub_keys[0];
-//         let alice = pub_keys[1];
-
-//         let data = mock_simple_block_data();
-
-//         let (_, invalid_signed_pb) = mock_producer_block(&signer, alice, data.hash);
-//         let (verifier, _) = Verifier::new(
-//             data.clone(),
-//             producer.to_address(),
-//             vec![invalid_signed_pb.clone()],
-//             vec![],
-//         )
-//         .unwrap();
-
-//         assert!(matches!(
-//             verifier.state,
-//             State::WaitingParentComputed { .. }
-//         ));
-
-//         let (pb, signed_pb) = mock_producer_block(&signer, producer, data.hash);
-
-//         let (verifier, events) = Verifier::new(
-//             data.clone(),
-//             producer.to_address(),
-//             vec![invalid_signed_pb, signed_pb],
-//             vec![],
-//         )
-//         .unwrap();
-
-//         assert_eq!(verifier.producer, producer.to_address());
-//         assert_eq!(verifier.block, data);
-//         assert!(verifier.earlier_validation_request.is_none());
-//         assert_eq!(
-//             verifier.state,
-//             State::WaitingProducerBlockComputed {
-//                 block_hash: data.hash,
-//                 parent_hash: None
-//             }
-//         );
-
-//         assert_eq!(events.len(), 1);
-//         assert!(matches!(
-//             events[0].clone(),
-//             ControlEvent::ComputeProducerBlock(block) if block == pb
-//         ));
-//     }
-
-//     #[test]
-//     fn new_with_validation_requests() {
-//         let (signer, _, pub_keys) = init_signer_with_keys(2);
-
-//         let producer = pub_keys[0];
-//         let alice = pub_keys[1];
-
-//         let data = mock_simple_block_data();
-
-//         let request = BatchCommitmentValidationRequest {
-//             blocks: vec![],
-//             codes: vec![],
-//         };
-
-//         let invalid_signed_request = signer.create_signed_data(alice, request.clone()).unwrap();
-
-//         let (verifier, _) = Verifier::new(
-//             data.clone(),
-//             producer.to_address(),
-//             vec![],
-//             vec![invalid_signed_request.clone()],
-//         )
-//         .unwrap();
-
-//         assert!(verifier.earlier_validation_request.is_none());
-
-//         let signed_request = signer
-//             .create_signed_data(producer, request.clone())
-//             .unwrap();
-
-//         let (verifier, events) = Verifier::new(
-//             data.clone(),
-//             producer.to_address(),
-//             vec![],
-//             vec![invalid_signed_request, signed_request],
-//         )
-//         .unwrap();
-
-//         assert_eq!(verifier.producer, producer.to_address());
-//         assert_eq!(verifier.block, data);
-//         assert!(verifier.earlier_validation_request.is_some());
-//         assert_eq!(
-//             verifier.state,
-//             State::WaitingParentComputed {
-//                 parent_hash: data.header.parent_hash
-//             }
-//         );
-
-//         assert_eq!(events.len(), 1);
-//         assert!(matches!(
-//             events[0].clone(),
-//             ControlEvent::ComputeBlock(hash) if hash == data.header.parent_hash
-//         ));
-//     }
-
-//     #[test]
-//     fn receive_block_from_producer() {
-//         let (signer, _, pub_keys) = init_signer_with_keys(2);
-
-//         let producer = pub_keys[0];
-//         let alice = pub_keys[1];
-
-//         let data = mock_simple_block_data();
-
-//         let (mut verifier, _) =
-//             Verifier::new(data.clone(), producer.to_address(), vec![], vec![]).unwrap();
-
-//         let (_, invalid_signed_pb) = mock_producer_block(&signer, alice, data.hash);
-//         let result = verifier.receive_block_from_producer(invalid_signed_pb);
-//         assert!(matches!(result, Err(ControlError::Warning(_))));
-//         assert!(matches!(
-//             verifier.state,
-//             State::WaitingParentComputed { .. }
-//         ));
-
-//         let (pb, signed_pb) = mock_producer_block(&signer, producer, data.hash);
-//         let events = verifier
-//             .receive_block_from_producer(signed_pb.clone())
-//             .unwrap();
-
-//         assert_eq!(
-//             verifier.state,
-//             State::WaitingProducerBlockComputed {
-//                 block_hash: data.hash,
-//                 parent_hash: Some(data.header.parent_hash)
-//             }
-//         );
-
-//         assert_eq!(events.len(), 1);
-//         assert!(matches!(
-//             events[0].clone(),
-//             ControlEvent::ComputeProducerBlock(block) if block == pb
-//         ));
-
-//         let res = verifier.receive_block_from_producer(signed_pb);
-//         assert!(matches!(res, Err(ControlError::Warning(_))));
-//         assert!(matches!(
-//             verifier.state,
-//             State::WaitingProducerBlockComputed { .. }
-//         ));
-//     }
-
-//     #[test]
-//     fn receive_computed_block() {
-//         let (signer, _, pub_keys) = init_signer_with_keys(1);
-
-//         let producer = pub_keys[0];
-//         let data = mock_simple_block_data();
-
-//         let (mut verifier, _) =
-//             Verifier::new(data.clone(), producer.to_address(), vec![], vec![]).unwrap();
-
-//         let parent_hash = data.header.parent_hash;
-
-//         // Test receiving a computed block matching the parent hash
-//         let result = verifier.receive_computed_block(parent_hash);
-//         assert!(matches!(result, Ok(false)));
-//         assert!(matches!(verifier.state, State::WaitingForProducerBlock));
-
-//         // Test receiving a computed block matching the block hash
-//         let (_, signed_pb) = mock_producer_block(&signer, producer, data.hash);
-//         verifier.receive_block_from_producer(signed_pb).unwrap();
-
-//         let result = verifier.receive_computed_block(data.hash);
-//         assert!(matches!(result, Ok(true)));
-//         assert!(matches!(verifier.state, State::Final));
-
-//         // Test receiving an invalid computed block
-//         let invalid_hash = H256::random();
-//         let result = verifier.receive_computed_block(invalid_hash);
-//         assert!(matches!(result, Err(ControlError::Warning(_))));
-//     }
-
-//     #[test]
-//     fn receive_validation_request() {
-//         let (signer, _, pub_keys) = init_signer_with_keys(1);
-
-//         let producer = pub_keys[0];
-//         let data = mock_simple_block_data();
-
-//         let (mut verifier, _) =
-//             Verifier::new(data.clone(), producer.to_address(), vec![], vec![]).unwrap();
-
-//         let (_, signed_request) = mock_validation_request(&signer, producer);
-
-//         // Test receiving a valid validation request
-//         verifier
-//             .receive_validation_request(signed_request.clone())
-//             .unwrap();
-//         assert!(verifier.earlier_validation_request.is_some());
-
-//         // Test receiving a second validation request
-//         let result = verifier.receive_validation_request(signed_request);
-//         assert!(matches!(result, Err(ControlError::Warning(_))));
-//     }
-
-//     #[test]
-//     fn reject_unknown_signature_validation_request() {
-//         let (signer, _, pub_keys) = init_signer_with_keys(2);
-
-//         let producer = pub_keys[0];
-//         let alice = pub_keys[1];
-
-//         let data = mock_simple_block_data();
-
-//         let (mut verifier, _) =
-//             Verifier::new(data.clone(), producer.to_address(), vec![], vec![]).unwrap();
-
-//         let (_, signed_request) = mock_validation_request(&signer, alice);
-
-//         // Test receiving a validation request with an unknown signature (signed by Alice)
-//         let result = verifier.receive_validation_request(signed_request);
-//         assert!(matches!(result, Err(ControlError::Warning(_))));
-//         assert!(verifier.earlier_validation_request.is_none());
-//     }
-
-//     #[test]
-//     fn into_parts() {
-//         let (signer, _, pub_keys) = init_signer_with_keys(1);
-
-//         let producer = pub_keys[0];
-//         let data = mock_simple_block_data();
-
-//         let (mut verifier, _) =
-//             Verifier::new(data.clone(), producer.to_address(), vec![], vec![]).unwrap();
-
-//         // Move verifier to final state
-//         let parent_hash = data.header.parent_hash;
-//         verifier.receive_computed_block(parent_hash).unwrap();
-
-//         let (_, signed_pb) = mock_producer_block(&signer, producer, data.hash);
-//         verifier.receive_block_from_producer(signed_pb).unwrap();
-//         verifier.receive_computed_block(data.hash).unwrap();
-
-//         // Test into_parts
-//         let (returned_producer, returned_block, returned_request) = verifier.into_parts();
-//         assert_eq!(returned_producer, producer.to_address());
-//         assert_eq!(returned_block, data);
-//         assert!(returned_request.is_none());
-//     }
-
-//     #[test]
-//     fn invalid_state_transitions() {
-//         let (signer, _, pub_keys) = init_signer_with_keys(1);
-
-//         let producer = pub_keys[0];
-//         let data = mock_simple_block_data();
-
-//         let (mut verifier, _) =
-//             Verifier::new(data.clone(), producer.to_address(), vec![], vec![]).unwrap();
-
-//         // Test receiving a producer block in an invalid state
-//         let (_, signed_pb) = mock_producer_block(&signer, producer, data.hash);
-//         verifier.state = State::Final;
-//         let result = verifier.receive_block_from_producer(signed_pb);
-//         assert!(matches!(result, Err(ControlError::Warning(_))));
-
-//         // Test receiving a computed block in an invalid state
-//         verifier.state = State::Final;
-//         let result = verifier.receive_computed_block(data.hash);
-//         assert!(matches!(result, Err(ControlError::Warning(_))));
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Verifier is not in final state: invalid verifier usage")]
-//     fn into_parts_panics_if_not_final() {
-//         let (_, _, pub_keys) = init_signer_with_keys(1);
-
-//         let producer = pub_keys[0];
-//         let data = mock_simple_block_data();
-
-//         let (verifier, _) =
-//             Verifier::new(data.clone(), producer.to_address(), vec![], vec![]).unwrap();
-
-//         // Attempt to call into_parts while the state is not final
-//         let _ = verifier.into_parts();
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{test_utils::*, validator::tests::mock_validator_context};
+
+    #[test]
+    fn create_empty() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+
+        assert_eq!(
+            s.context().output,
+            vec![ControlEvent::ComputeBlock(block.header.parent_hash)]
+        );
+        assert_eq!(s.context().pending_events.len(), 0);
+    }
+
+    #[test]
+    fn create_with_producer_blocks() {
+        let (mut ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+        let (pb, signed_pb) = mock_producer_block(&ctx.signer, producer, block.hash);
+
+        ctx.pending_events
+            .push_back(ExternalEvent::ProducerBlock(signed_pb));
+
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+
+        assert_eq!(
+            s.context().output,
+            vec![ControlEvent::ComputeProducerBlock(pb)]
+        );
+        assert_eq!(s.context().pending_events.len(), 0);
+    }
+
+    #[test]
+    fn create_with_validation_requests() {
+        let (mut ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+        let (_, signed_request) = mock_validation_request(&ctx.signer, producer);
+
+        ctx.pending_events
+            .push_back(ExternalEvent::ValidationRequest(signed_request.clone()));
+
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+
+        assert_eq!(
+            s.context().output,
+            vec![ControlEvent::ComputeBlock(block.header.parent_hash)]
+        );
+        assert_eq!(s.context().pending_events.len(), 1,);
+        assert_eq!(
+            s.context().pending_events[0],
+            ExternalEvent::ValidationRequest(signed_request)
+        );
+
+        let ctx = s.into_context();
+        let s = Subordinate::create(ctx, block, producer.to_address(), false).unwrap();
+        assert_eq!(s.context().pending_events.len(), 0);
+    }
+
+    #[test]
+    fn simple() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+        let (pb, signed_pb) = mock_producer_block(&ctx.signer, producer, block.hash);
+
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        assert_eq!(s.context().output.len(), 1);
+        assert_eq!(
+            s.context().output[0],
+            ControlEvent::ComputeBlock(block.header.parent_hash)
+        );
+
+        let s = s
+            .process_external_event(ExternalEvent::ProducerBlock(signed_pb))
+            .unwrap();
+        assert_eq!(s.context().output.len(), 2);
+        assert_eq!(
+            s.context().output[1],
+            ControlEvent::ComputeProducerBlock(pb)
+        );
+
+        let s = s.process_computed_block(block.header.parent_hash).unwrap();
+        assert_eq!(s.context().output.len(), 2);
+
+        let s = s.process_computed_block(block.hash).unwrap();
+        assert_eq!(s.context().output.len(), 2);
+    }
+
+    #[test]
+    fn create_with_multiple_producer_blocks() {
+        let (mut ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+        let (_, signed_pb1) = mock_producer_block(&ctx.signer, producer, block.hash);
+        let (_, signed_pb2) = mock_producer_block(&ctx.signer, producer, block.hash);
+
+        ctx.pending_events
+            .push_back(ExternalEvent::ProducerBlock(signed_pb1));
+        ctx.pending_events
+            .push_back(ExternalEvent::ProducerBlock(signed_pb2));
+
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+
+        assert_eq!(s.context().output.len(), 1);
+        assert!(matches!(
+            s.context().output[0],
+            ControlEvent::ComputeProducerBlock(_)
+        ));
+        assert_eq!(s.context().pending_events.len(), 0);
+    }
+
+    #[test]
+    fn process_external_event_with_invalid_producer_block() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+        let (_, signed_pb) = mock_producer_block(&ctx.signer, pub_keys[1], block.hash);
+
+        let mut s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+
+        let invalid_pb = ExternalEvent::ProducerBlock(signed_pb);
+        s = s.process_external_event(invalid_pb.clone()).unwrap();
+        assert_eq!(s.context().output.len(), 2);
+        assert!(matches!(s.context().output[1], ControlEvent::Warning(_)));
+        assert_eq!(s.context().pending_events.len(), 1);
+        assert_eq!(s.context().pending_events[0], invalid_pb);
+    }
+
+    #[test]
+    fn process_computed_block_with_unexpected_hash() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+        let unexpected_hash = H256::random();
+
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+
+        let s = s.process_computed_block(unexpected_hash).unwrap();
+        assert_eq!(s.context().output.len(), 2);
+        assert!(matches!(s.context().output[1], ControlEvent::Warning(_)));
+    }
+
+    #[test]
+    fn process_validation_request_as_non_validator() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+        let (_, signed_request) = mock_validation_request(&ctx.signer, producer);
+
+        let mut s = Subordinate::create(ctx, block, producer.to_address(), false).unwrap();
+
+        s = s
+            .process_external_event(ExternalEvent::ValidationRequest(signed_request))
+            .unwrap();
+
+        assert_eq!(s.context().pending_events.len(), 0);
+    }
+}

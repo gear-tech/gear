@@ -30,7 +30,7 @@ pub trait ControlService:
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ControlEvent {
     ComputeBlock(H256),
     ComputeProducerBlock(ProducerBlock),
@@ -75,7 +75,6 @@ mod test_utils {
         }
     }
 
-    #[allow(dead_code)]
     pub fn mock_producer_block(
         signer: &Signer,
         producer: PublicKey,
@@ -92,7 +91,6 @@ mod test_utils {
         (pb, signed_pb)
     }
 
-    #[allow(dead_code)]
     pub fn mock_validation_request(
         signer: &Signer,
         public_key: PublicKey,
