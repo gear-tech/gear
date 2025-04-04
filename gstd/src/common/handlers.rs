@@ -66,7 +66,7 @@ mod panic_handler {
         #[cfg(feature = "debug")]
         let _ = ext::debug(MESSAGE);
 
-        ext::panic(MESSAGE)
+        ext::panic_str(MESSAGE)
     }
 
     /// Panic handler with extra information.
@@ -92,6 +92,6 @@ mod panic_handler {
         #[cfg(feature = "debug")]
         let _ = ext::debug(&debug_msg);
 
-        ext::panic(&debug_msg)
+        ext::panic_str(&debug_msg)
     }
 }

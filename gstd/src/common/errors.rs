@@ -126,16 +126,19 @@ impl From<ConversionError> for Error {
 pub struct ErrorReplyPayload(pub Vec<u8>);
 
 impl ErrorReplyPayload {
+    /// Returns byte slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
     /// Represents self as utf-8 str, if possible.
     pub fn try_as_str(&self) -> Option<&str> {
         str::from_utf8(&self.0).ok()
     }
 
-    /// Similar to [`Self::try_as_str`], but panics in `None` case.
-    /// Preferable to use only for test purposes.
-    #[track_caller]
-    pub fn as_str(&self) -> &str {
-        str::from_utf8(&self.0).expect("Failed to create `str`")
+    /// Returns inner byte vector.
+    pub fn into_inner(self) -> Vec<u8> {
+        self.0
     }
 }
 
