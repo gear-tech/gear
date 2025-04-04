@@ -155,7 +155,7 @@ where
             SyscallName::Random,
         ]
         .into(),
-        gas_multiplier: GasMultiplier::one(),
+        gas_multiplier: GasMultiplier::from_value_per_gas(100),
         costs: Default::default(),
         max_pages: MAX_WASM_PAGES_AMOUNT.into(),
         outgoing_limit: 1024,
