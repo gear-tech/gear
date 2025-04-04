@@ -34,6 +34,7 @@ pub trait ControlService:
 #[derive(Debug, Clone)]
 pub enum ControlEvent {
     IAmProducer(Address),
+    // +_+_+ can be also not a validator at all
     IAmSubordinate {
         my_address: Address,
         producer: Address,

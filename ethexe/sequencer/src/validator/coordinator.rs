@@ -9,7 +9,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use super::{ExternalEvent, ValidatorContext, ValidatorSubService};
+use super::{initial::Initial, ExternalEvent, ValidatorContext, ValidatorSubService};
 use crate::{
     utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
     ControlEvent,
@@ -156,17 +156,19 @@ impl ValidatorSubService for Submitter {
 
     fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
         match self.future.poll_unpin(cx) {
-            Poll::Ready(Ok(tx)) => self
-                .ctx
-                .output
-                .push_back(ControlEvent::CommitmentSubmitted(tx)),
+            Poll::Ready(Ok(tx)) => {
+                self.ctx
+                    .output
+                    .push_back(ControlEvent::CommitmentSubmitted(tx));
+                Initial::create(self.ctx)
+            }
             Poll::Ready(Err(err)) => {
                 let warning = self.log(format!("failed to submit batch commitment: {err:?}"));
-                self.ctx.warning(warning)
+                self.ctx.warning(warning);
+                Initial::create(self.ctx)
             }
-            Poll::Pending => {}
+            Poll::Pending => Ok(self),
         }
-        Ok(self)
     }
 }
 

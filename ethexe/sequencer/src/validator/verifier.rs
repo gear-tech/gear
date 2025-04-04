@@ -53,14 +53,14 @@ impl ValidatorSubService for Verifier {
                 if pb.verify_address(self.producer).is_ok()
                     && (pb.data().block_hash == self.block.hash) =>
             {
+                let pb = pb.into_parts().0;
+                let block_hash = pb.block_hash;
+
                 self.ctx
                     .output
-                    .push_back(ControlEvent::ComputeProducerBlock(pb.into_parts().0));
+                    .push_back(ControlEvent::ComputeProducerBlock(pb));
 
-                Ok(self)
-            }
-            (_, event @ ExternalEvent::ValidationRequest(_)) => {
-                self.ctx.pending_events.push_back(event);
+                self.state = State::WaitingProducerBlockComputed { block_hash };
 
                 Ok(self)
             }
