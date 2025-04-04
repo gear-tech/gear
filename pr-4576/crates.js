@@ -1,0 +1,2 @@
+window.ALL_CRATES = ["galloc","gclient","gcore","gear_common","gear_core","gear_core_backend","gear_core_errors","gear_core_processor","gear_lazy_pages","gear_wasm_builder","gsdk","gstd","gtest","pallet_gear","pallet_gear_gas","pallet_gear_messenger","pallet_gear_payment","pallet_gear_program","pallet_gear_rpc","pallet_gear_rpc_runtime_api","pallet_gear_scheduler"];
+//{"start":21,"fragment_lengths":[8,10,8,14,12,20,19,22,18,20,7,7,8,14,18,24,22,22,18,30,24]}
