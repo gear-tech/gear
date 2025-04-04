@@ -1871,7 +1871,7 @@ mod utils {
         signer: Signer,
         threshold: u64,
         block_time: Duration,
-        running_service_handle: Option<NamedJoinHandle<Result<()>>>,
+        running_service_handle: Option<NamedJoinHandle<()>>,
         validator_config: Option<ValidatorConfig>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
@@ -1962,7 +1962,7 @@ mod utils {
                 Some(sender),
             );
 
-            let handle = task::spawn(service.run());
+            let handle = task::spawn(async move { service.run().await.unwrap() });
             let handle = NamedJoinHandle::wrap(
                 self.name
                     .clone()

@@ -4,13 +4,15 @@ use ethexe_signer::Address;
 use gprimitives::H256;
 use std::mem;
 
-use super::{ExternalEvent, ValidatorContext, ValidatorSubService};
+use super::{initial::Initial, ExternalEvent, ValidatorContext, ValidatorSubService};
 use crate::{validator::participant::Participant, ControlEvent};
 
 pub struct Verifier {
     ctx: ValidatorContext,
     producer: Address,
     block: SimpleBlockData,
+    // +_+_+ test this mode when false
+    is_validator: bool,
     state: State,
 }
 
@@ -79,22 +81,28 @@ impl ValidatorSubService for Verifier {
         mut self: Box<Self>,
         computed_block: H256,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        if computed_block == self.block.header.parent_hash {
-            // Earlier we sent a task for parent block computation.
-            // Continue to wait for block from producer.
+        match &self.state {
+            _ if computed_block == self.block.header.parent_hash => {
+                // Earlier we sent a task for parent block computation.
+                // Continue to wait for block from producer.
+                Ok(self)
+            }
+            State::WaitingProducerBlockComputed { block_hash, .. }
+                if computed_block == *block_hash =>
+            {
+                if self.is_validator {
+                    Participant::create(self.ctx, self.block, self.producer)
+                } else {
+                    Initial::create(self.ctx)
+                }
+            }
+            _ => {
+                self.ctx
+                    .warning(self.log(format!("unexpected computed block: {computed_block:?}")));
 
-            return Ok(self);
+                Ok(self)
+            }
         }
-
-        if matches!(&self.state, State::WaitingProducerBlockComputed { block_hash, .. } if computed_block == *block_hash)
-        {
-            return Participant::create(self.ctx, self.block, self.producer);
-        }
-
-        self.ctx
-            .warning(self.log(format!("unexpected computed block: {computed_block:?}")));
-
-        Ok(self)
     }
 }
 
@@ -103,6 +111,7 @@ impl Verifier {
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         producer: Address,
+        is_validator: bool,
     ) -> Result<Box<dyn ValidatorSubService>> {
         let mut earlier_producer_block = None;
         let pending_events = mem::take(&mut ctx.pending_events);
@@ -115,7 +124,7 @@ impl Verifier {
                 {
                     earlier_producer_block = Some(signed_data.into_parts().0);
                 }
-                event @ ExternalEvent::ValidationRequest(_) => {
+                event @ ExternalEvent::ValidationRequest(_) if is_validator => {
                     ctx.pending_events.push_back(event);
                 }
                 _ => {
@@ -139,6 +148,7 @@ impl Verifier {
             ctx,
             producer,
             block,
+            is_validator,
             state,
         }))
     }

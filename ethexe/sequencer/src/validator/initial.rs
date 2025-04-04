@@ -49,10 +49,28 @@ impl ValidatorSubService for Initial {
             }
             State::WaitingForSyncedBlock(block) if block.hash == data.block_hash => {
                 let producer = self.producer_for(block.header.timestamp, &data.validators);
-                if self.ctx.pub_key.to_address() == producer {
+                let my_address = self.ctx.pub_key.to_address();
+
+                if my_address == producer {
+                    log::info!("👷 Start to work as a producer for block: {}", block.hash);
+
                     Producer::create(self.ctx, block.clone(), data.validators)
                 } else {
-                    Verifier::create(self.ctx, block.clone(), producer)
+                    let is_validator_for_current_block =
+                        data.validators.iter().any(|v| *v == my_address);
+
+                    log::info!(
+                        "👷 Start to work as a subordinate for block: {}, producer is {producer}, \
+                        I'm validator for current block: {is_validator_for_current_block}",
+                        block.hash
+                    );
+
+                    Verifier::create(
+                        self.ctx,
+                        block.clone(),
+                        producer,
+                        is_validator_for_current_block,
+                    )
                 }
             }
             State::WaitingForSyncedBlock(block) => {
