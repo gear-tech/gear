@@ -66,6 +66,25 @@ impl ValidatorSubService for Verifier {
 
                 Ok(self)
             }
+            (_, ExternalEvent::ValidationRequest(request))
+                if request.verify_address(self.producer).is_ok() =>
+            {
+                if self.is_validator {
+                    log::trace!(
+                        "Receive validation request from producer: {request:?}, saved for later"
+                    );
+                    self.ctx.pending_events.push_back(request.into());
+                }
+
+                Ok(self)
+            }
+            (_, ExternalEvent::ValidationReply(reply)) => {
+                log::trace!(
+                    "Skip validation reply: {reply:?}, because only coordinator should process it"
+                );
+
+                Ok(self)
+            }
             (_, event) => {
                 self.ctx
                     .warning(self.log(format!("unexpected event: {event:?}, saved for later")));

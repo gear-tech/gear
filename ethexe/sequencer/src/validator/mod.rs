@@ -151,7 +151,7 @@ impl FusedStream for ValidatorService {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 enum ExternalEvent {
     ProducerBlock(SignedData<ProducerBlock>),
     ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
@@ -169,6 +169,14 @@ trait ValidatorSubService: Unpin + Send + 'static {
         mut self: Box<Self>,
         event: ExternalEvent,
     ) -> Result<Box<dyn ValidatorSubService>> {
+        if matches!(event, ExternalEvent::ValidationReply(_)) {
+            log::trace!(
+                "Skip validation reply: {event:?}, because only coordinator should process it"
+            );
+
+            return Ok(self.to_dyn());
+        }
+
         let warning = self.log(format!("unexpected event: {event:?}, save for later"));
         self.context_mut().warning(warning);
 

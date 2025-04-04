@@ -51,6 +51,13 @@ impl ValidatorSubService for Participant {
             {
                 self.process_validation_request(request.into_parts().0)
             }
+            event @ ExternalEvent::ValidationReply(_) => {
+                log::trace!(
+                    "Skip validation reply: {event:?}, because only coordinator should process it"
+                );
+
+                Ok(self)
+            }
             event => {
                 let warning = format!("unexpected event: {event:?}, saved for later");
                 self.ctx.warning(warning);
