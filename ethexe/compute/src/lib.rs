@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sequencer for ethexe.
-
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, OnChainStorage},

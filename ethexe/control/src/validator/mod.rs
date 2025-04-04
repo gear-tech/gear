@@ -18,7 +18,7 @@ mod initial;
 mod participant;
 mod producer;
 mod submitter;
-mod verifier;
+mod subordinate;
 
 use crate::{
     utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},

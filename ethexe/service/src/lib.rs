@@ -21,6 +21,10 @@ use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
 use ethexe_common::ProducerBlock;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
+use ethexe_control::{
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ControlEvent, ControlService,
+    SimpleConnectService, ValidatorConfig, ValidatorService,
+};
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
@@ -28,10 +32,6 @@ use ethexe_observer::{BlobData, MockBlobReader, ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
-use ethexe_sequencer::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ControlEvent, ControlService,
-    SimpleConnectService, ValidatorConfig, ValidatorService,
-};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::{PublicKey, SignedData, Signer};
 use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};

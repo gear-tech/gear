@@ -72,7 +72,6 @@ async fn basics() {
     let node_cfg = config::NodeConfig {
         database_path: tmp_dir.join("db"),
         key_path: tmp_dir.join("key"),
-        sequencer: Default::default(),
         validator: Default::default(),
         validator_session: Default::default(),
         eth_max_sync_depth: 1_000,
@@ -1109,11 +1108,11 @@ mod utils {
     use super::*;
     use crate::Event;
     use ethexe_common::SimpleBlockData;
+    use ethexe_control::{ControlService, SimpleConnectService, ValidatorService};
     use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkEvent};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
-    use ethexe_sequencer::{ControlService, SimpleConnectService, ValidatorService};
     use ethexe_signer::{PrivateKey, PublicKey};
     use ethexe_tx_pool::TxPoolService;
     use futures::{FutureExt, StreamExt};
@@ -1913,7 +1912,7 @@ mod utils {
                         ValidatorService::new(
                             self.signer.clone(),
                             self.db.clone(),
-                            ethexe_sequencer::ValidatorConfig {
+                            ethexe_control::ValidatorConfig {
                                 ethereum_rpc: self.eth_cfg.rpc.clone(),
                                 pub_key: config.public_key,
                                 router_address: self.eth_cfg.router_address,

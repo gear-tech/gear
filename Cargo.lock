@@ -4622,6 +4622,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-control"
+version = "1.7.1"
+dependencies = [
+ "anyhow",
+ "derivative",
+ "derive_more 0.99.18",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "ethexe-observer",
+ "ethexe-processor",
+ "ethexe-service-utils",
+ "ethexe-signer",
+ "futures",
+ "gear-core",
+ "gprimitives",
+ "indexmap 2.7.1",
+ "log",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "tokio",
+]
+
+[[package]]
 name = "ethexe-db"
 version = "1.7.1"
 dependencies = [
@@ -4814,30 +4838,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-sequencer"
-version = "1.7.1"
-dependencies = [
- "anyhow",
- "derivative",
- "derive_more 0.99.18",
- "ethexe-common",
- "ethexe-db",
- "ethexe-ethereum",
- "ethexe-observer",
- "ethexe-processor",
- "ethexe-service-utils",
- "ethexe-signer",
- "futures",
- "gear-core",
- "gprimitives",
- "indexmap 2.7.1",
- "log",
- "parity-scale-codec",
- "rand 0.8.5",
- "tokio",
-]
-
-[[package]]
 name = "ethexe-service"
 version = "1.7.1"
 dependencies = [
@@ -4852,6 +4852,7 @@ dependencies = [
  "env_logger",
  "ethexe-common",
  "ethexe-compute",
+ "ethexe-control",
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-network",
@@ -4860,7 +4861,6 @@ dependencies = [
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-runtime-common",
- "ethexe-sequencer",
  "ethexe-service-utils",
  "ethexe-signer",
  "ethexe-tx-pool",

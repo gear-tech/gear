@@ -7,7 +7,7 @@ use std::mem;
 use super::{initial::Initial, ExternalEvent, ValidatorContext, ValidatorSubService};
 use crate::{validator::participant::Participant, ControlEvent};
 
-pub struct Verifier {
+pub struct Subordinate {
     ctx: ValidatorContext,
     producer: Address,
     block: SimpleBlockData,
@@ -25,9 +25,9 @@ enum State {
     },
 }
 
-impl ValidatorSubService for Verifier {
+impl ValidatorSubService for Subordinate {
     fn log(&self, s: String) -> String {
-        format!("VERIFIER in {state:?} - {s}", state = self.state)
+        format!("SUBORDINATE in {state:?} - {s}", state = self.state)
     }
 
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
@@ -109,7 +109,7 @@ impl ValidatorSubService for Verifier {
     }
 }
 
-impl Verifier {
+impl Subordinate {
     pub fn create(
         mut ctx: ValidatorContext,
         block: SimpleBlockData,

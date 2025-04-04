@@ -2,7 +2,7 @@ use anyhow::Result;
 use ethexe_common::SimpleBlockData;
 use ethexe_signer::Address;
 
-use super::{producer::Producer, verifier::Verifier, ValidatorContext, ValidatorSubService};
+use super::{producer::Producer, subordinate::Subordinate, ValidatorContext, ValidatorSubService};
 
 pub struct Initial {
     ctx: ValidatorContext,
@@ -64,7 +64,7 @@ impl ValidatorSubService for Initial {
                         block.hash
                     );
 
-                    Verifier::create(
+                    Subordinate::create(
                         self.ctx,
                         block.clone(),
                         producer,

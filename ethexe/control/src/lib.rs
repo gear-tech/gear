@@ -16,7 +16,7 @@ use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
 
 pub trait ControlService:
-    Stream<Item = anyhow::Result<ControlEvent>> + FusedStream + Unpin + Send + 'static
+    Stream<Item = Result<ControlEvent>> + FusedStream + Unpin + Send + 'static
 {
     fn role(&self) -> String;
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()>;
