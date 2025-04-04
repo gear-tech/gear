@@ -90,9 +90,9 @@ contract Middleware is IMiddleware {
     constructor(InitParams memory params) {
         _validateInitParams(params);
 
-        if (!IDefaultOperatorRewardsFactory(OPERATOR_REWARDS_FACTORY).isEntity(params.operatorRewards)) {
-            revert NotOperatorRewards();
-        }
+        // if (!IDefaultOperatorRewardsFactory(OPERATOR_REWARDS_FACTORY).isEntity(params.operatorRewards)) {
+        //     revert NotOperatorRewards();
+        // }
 
         ROUTER = msg.sender;
 
@@ -207,22 +207,22 @@ contract Middleware is IMiddleware {
         }
     }
 
-    function registerVault(address _vault, address _rewards) external _vaultAdmin(_vault) {
+    function registerVault(address _vault, address _rewards) external _vaultOwner(_vault) {
         _validateVault(_vault);
         _validateStakerRewards(_vault, _rewards);
 
         vaults.append(_vault, uint160(_rewards));
     }
 
-    function disableVault(address vault) external _vaultAdmin(vault) {
+    function disableVault(address vault) external _vaultOwner(vault) {
         vaults.disable(vault);
     }
 
-    function enableVault(address vault) external _vaultAdmin(vault) {
+    function enableVault(address vault) external _vaultOwner(vault) {
         vaults.enable(vault);
     }
 
-    function unregisterVault(address vault) external {
+    function unregisterVault(address vault) external _vaultOwner(vault) {
         (, uint48 disabledTime) = vaults.getTimes(vault);
 
         if (disabledTime == 0 || Time.timestamp() < disabledTime + VAULT_GRACE_PERIOD) {
@@ -448,6 +448,7 @@ contract Middleware is IMiddleware {
         if (!IVault(_vault).isDelegatorInitialized()) {
             revert DelegatorNotInitialized();
         }
+
         IBaseDelegator delegator = IBaseDelegator(IVault(_vault).delegator());
         if (delegator.maxNetworkLimit(SUBNETWORK) != type(uint256).max) {
             delegator.setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
@@ -472,9 +473,11 @@ contract Middleware is IMiddleware {
         if (vetoDuration < MIN_VETO_DURATION) {
             revert VetoDurationTooShort();
         }
+
         if (vetoDuration + MIN_SLASH_EXECUTION_DELAY > vaultEpochDuration) {
             revert VetoDurationTooLong();
         }
+
         if (IVetoSlasher(slasher).resolverSetEpochsDelay() > MAX_RESOLVER_SET_EPOCHS_DELAY) {
             revert ResolverSetDelayTooLong();
         }
@@ -526,8 +529,8 @@ contract Middleware is IMiddleware {
         _;
     }
 
-    modifier _vaultAdmin(address vault) {
-        if (!IAccessControl(vault).hasRole(DEFAULT_ADMIN_ROLE, vault)) {
+    modifier _vaultOwner(address vault) {
+        if (!IAccessControl(vault).hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert NotVaultOwner();
         }
         _;

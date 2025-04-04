@@ -87,7 +87,6 @@ library Gear {
         uint48 timestamp;
     }
 
-    // TODO:  add fields to support rewards distribution for stakers
     struct StakerRewards {
         address token;
         address vault;
