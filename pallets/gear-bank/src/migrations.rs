@@ -61,7 +61,7 @@ where
 
             // Transfer all funds from the old gear bank account to the new one
             if Balances::<T>::transfer_all(
-                OriginFor::<T>::signed(T::AccountId::from_origin(OLD_BANK_ADDRESS.into()).cast()),
+                OriginFor::<T>::signed(T::AccountId::from_origin(OLD_BANK_ADDRESS.into())),
                 T::Lookup::unlookup(Pallet::<T>::bank_address()),
                 false,
             )
