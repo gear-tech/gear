@@ -56,6 +56,7 @@ members = [
     "examples/ncompose",
     "examples/node",
     "examples/out-of-memory",
+    "examples/panic-payload",
     "examples/piggy-bank",
     "examples/ping",
     "examples/program-factory",
