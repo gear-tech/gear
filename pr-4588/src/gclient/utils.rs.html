@@ -51,15 +51,7 @@
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
 <a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#53" id="53">53</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -79,7 +71,6 @@
 
 </span><span class="kw">use crate</span>::{<a href="api/error.rs.html#29-124">Error</a>, <a class="prelude-ty" href="api/error.rs.html#25">Result</a>};
 <span class="kw">pub use </span><a href="../../gclient/fn.now_micros.html">gear_utils::now_micros</a>;
-<span class="kw">use </span><a href="../../gclient/ext/sp_runtime/struct.AccountId32.html">gsdk::ext::sp_runtime::AccountId32</a>;
 <span class="kw">use </span>std::{<a href="https://doc.rust-lang.org/nightly/std/fs/index.html">fs</a>, <a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html">path::Path</a>};
 
 <span class="doccomment">/// Return the full path to the optimized Wasm binary file with the `demo_name`
@@ -101,23 +92,16 @@
 
 <span class="doccomment">/// Read and return contents of a Wasm file specified by the `path`.
 </span><span class="kw">pub fn </span><a href="../../gclient/fn.code_from_os.html">code_from_os</a>(path: <span class="kw">impl </span><a href="../../gclient/ext/sp_core/sp_std/convert/trait.AsRef.html">AsRef</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html">Path</a>&gt;) -&gt; <a class="prelude-ty" href="api/error.rs.html#25">Result</a>&lt;<a href="../../gclient/ext/sp_runtime/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt; {
-    <a href="#42">path</a>.<a href="../../gclient/ext/sp_core/sp_std/convert/trait.AsRef.html">as_ref</a>()
+    <a href="#41">path</a>.<a href="../../gclient/ext/sp_core/sp_std/convert/trait.AsRef.html">as_ref</a>()
         .<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.extension">extension</a>()
-        .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.filter">filter</a>(|<span class="kw-2">&amp;</span>extension| <a href="#45">extension</a>.<a href="../../gclient/ext/sp_core/sp_std/prelude/trait.PartialEq.html">eq</a>(<span class="string">"wasm"</span>))
+        .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.filter">filter</a>(|<span class="kw-2">&amp;</span>extension| <a href="#44">extension</a>.<a href="../../gclient/ext/sp_core/sp_std/prelude/trait.PartialEq.html">eq</a>(<span class="string">"wasm"</span>))
         .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a href="api/error.rs.html#57">Error::WrongBinaryExtension</a>)<span class="question-mark">?</span>;
 
-    <a href="https://doc.rust-lang.org/nightly/std/fs/fn.read.html">fs::read</a>(<a href="https://doc.rust-lang.org/nightly/std/fs/fn.canonicalize.html">fs::canonicalize</a>(<a href="#42">path</a>)<span class="question-mark">?</span>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="../../gclient/ext/sp_core/sp_std/convert/trait.Into.html">Into::into</a>)
+    <a href="https://doc.rust-lang.org/nightly/std/fs/fn.read.html">fs::read</a>(<a href="https://doc.rust-lang.org/nightly/std/fs/fn.canonicalize.html">fs::canonicalize</a>(<a href="#41">path</a>)<span class="question-mark">?</span>).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="../../gclient/ext/sp_core/sp_std/convert/trait.Into.html">Into::into</a>)
 }
 
 <span class="doccomment">/// Convert hex string to byte array.
 </span><span class="kw">pub fn </span><a href="../../gclient/fn.hex_to_vec.html">hex_to_vec</a>(string: <span class="kw">impl </span><a href="../../gclient/ext/sp_core/sp_std/convert/trait.AsRef.html">AsRef</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;) -&gt; <a class="prelude-ty" href="api/error.rs.html#25">Result</a>&lt;<a href="../../gclient/ext/sp_runtime/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt; {
-    <a href="https://docs.rs/hex/0.4.3/hex/fn.decode.html">hex::decode</a>(<a href="#52">string</a>.<a href="../../gclient/ext/sp_core/sp_std/convert/trait.AsRef.html">as_ref</a>().<a href="https://doc.rust-lang.org/nightly/core/foreigntype.str.html#method.trim_start_matches">trim_start_matches</a>(<span class="string">"0x"</span>)).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="../../gclient/ext/sp_core/sp_std/convert/trait.Into.html">Into::into</a>)
-}
-
-<span class="doccomment">/// Returns default bank address.
-</span><span class="kw">pub fn </span><a href="../../gclient/fn.bank_address.html">bank_address</a>() -&gt; <a href="../../gclient/ext/sp_runtime/struct.AccountId32.html">AccountId32</a> {
-    <span class="kw">const </span>BANK_ADDRESS: [<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>; <span class="number">32</span>] = <span class="kw-2">*</span><span class="string">b"gearbankgearbankgearbankgearbank"</span>;
-
-    <a href="#58">BANK_ADDRESS</a>.<a href="../../gclient/ext/sp_core/sp_std/convert/trait.Into.html">into</a>()
+    <a href="https://docs.rs/hex/0.4.3/hex/fn.decode.html">hex::decode</a>(<a href="#51">string</a>.<a href="../../gclient/ext/sp_core/sp_std/convert/trait.AsRef.html">as_ref</a>().<a href="https://doc.rust-lang.org/nightly/core/foreigntype.str.html#method.trim_start_matches">trim_start_matches</a>(<span class="string">"0x"</span>)).<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(<a href="../../gclient/ext/sp_core/sp_std/convert/trait.Into.html">Into::into</a>)
 }
 </code></pre></div></section></main></body></html>

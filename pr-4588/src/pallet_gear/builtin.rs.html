@@ -109,7 +109,7 @@
 // along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 
 </span><span class="kw">use super</span>::<span class="kw-2">*</span>;
-<span class="kw">use </span><a href="../../gear_core_processor/common/enum.JournalNote.html">core_processor::common::JournalNote</a>;
+<span class="kw">use </span>core_processor::common::JournalNote;
 <span class="kw">use </span>gear_core::{
     ids::ProgramId,
     message::{Payload, StoredDispatch},
@@ -140,7 +140,7 @@
         context: <a href="#33-36">BuiltinInfo</a>&lt;<span class="self">Self</span>::Context, <span class="self">Self</span>::Error&gt;,
         dispatch: StoredDispatch,
         gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../gear_core_processor/common/enum.JournalNote.html">JournalNote</a>&gt;;
+    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;JournalNote&gt;;
 }
 
 <span class="kw">impl </span><a href="#39-52">BuiltinDispatcher</a> <span class="kw">for </span>() {
@@ -159,7 +159,7 @@
         _context: <a href="#33-36">BuiltinInfo</a>&lt;<span class="self">Self</span>::Context, <span class="self">Self</span>::Error&gt;,
         _dispatch: StoredDispatch,
         _gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../gear_core_processor/common/enum.JournalNote.html">JournalNote</a>&gt; {
+    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;JournalNote&gt; {
         <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
     }
 }

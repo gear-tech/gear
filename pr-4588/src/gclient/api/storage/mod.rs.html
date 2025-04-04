@@ -141,7 +141,15 @@
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -167,7 +175,10 @@
 <span class="kw">use </span><a href="account_id.rs.html#23-25">account_id::IntoAccountId32</a>;
 <span class="kw">use </span>gear_core::{<a href="../../../../gear_core/ids/index.html">ids</a>::<span class="kw-2">*</span>, <a href="../../../../gear_core/message/user/struct.UserStoredMessage.html">message::UserStoredMessage</a>};
 <span class="kw">use </span>gsdk::{
-    ext::sp_core::{<a href="../../../../gclient/ext/sp_core/crypto/trait.Ss58Codec.html">crypto::Ss58Codec</a>, <a href="../../../../gclient/ext/sp_core/struct.H256.html">H256</a>},
+    ext::{
+        sp_core::{<a href="../../../../gclient/ext/sp_core/crypto/trait.Ss58Codec.html">crypto::Ss58Codec</a>, <a href="../../../../gclient/ext/sp_core/struct.H256.html">H256</a>},
+        <a href="../../../../gclient/ext/sp_runtime/struct.AccountId32.html">sp_runtime::AccountId32</a>,
+    },
     metadata::runtime_types::{
         <a href="../../../../gclient/metadata/runtime_types/gear_common/storage/primitives/struct.Interval.html">gear_common::storage::primitives::Interval</a>, <a href="../../../../gclient/metadata/runtime_types/gear_core/message/user/index.html">gear_core::message::user</a>,
         <a href="../../../../gclient/metadata/runtime_types/pallet_balances/types/struct.AccountData.html">pallet_balances::types::AccountData</a>, <a href="../../../../gclient/metadata/runtime_types/pallet_gear_bank/pallet/struct.BankAccount.html">pallet_gear_bank::pallet::BankAccount</a>,
@@ -256,6 +267,11 @@
             </span>.api()
             .bank_info_at(account_id.into_account_id(), block_hash)
             .<span class="kw">await</span><span class="question-mark">?</span>)
+    }
+
+    <span class="doccomment">/// Get bank account data by `account_id` at specified block.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">async fn </span>bank_address(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;AccountId32&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.api().bank_address().<span class="kw">await</span><span class="question-mark">?</span>)
     }
 
     <span class="doccomment">/// Get the total balance of the account identified by `account_id`.

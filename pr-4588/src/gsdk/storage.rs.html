@@ -461,7 +461,19 @@
 <a href="#460" id="460">460</a>
 <a href="#461" id="461">461</a>
 <a href="#462" id="462">462</a>
-<a href="#463" id="463">463</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 //
 // Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -675,6 +687,18 @@
 
         <span class="self">self</span>.fetch_storage_at(<span class="kw-2">&amp;</span>addr, block_hash).<span class="kw">await
     </span>}
+
+    <span class="doccomment">/// Get Gear bank's sovereign account id.
+    </span><span class="kw">pub async fn </span>bank_address(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;AccountId32&gt; {
+        <span class="kw">let </span>addr = <span class="self">Self</span>::storage_root(GearBankStorage::BankAddress);
+        <span class="kw">let </span>thunk = <span class="self">self
+            </span>.get_storage(<span class="prelude-val">None</span>)
+            .<span class="kw">await</span><span class="question-mark">?
+            </span>.fetch_or_default(<span class="kw-2">&amp;</span>addr)
+            .<span class="kw">await</span><span class="question-mark">?
+            </span>.into_encoded();
+        <span class="prelude-val">Ok</span>(AccountId32::decode(<span class="kw-2">&amp;mut </span>thunk.as_ref())<span class="question-mark">?</span>)
+    }
 }
 
 <span class="comment">// pallet-gear
@@ -909,19 +933,19 @@
 
 <span class="doccomment">/// Get storage entry type id using `metadata` and storage entry `address`
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>storage_type_id(metadata: <span class="kw-2">&amp;</span>subxt::Metadata, address: <span class="kw-2">&amp;</span><span class="kw">impl </span>Address) -&gt; <a class="prelude-ty" href="result.rs.html#106">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt; {
-    <span class="kw">let </span>storage_type = <a href="#448">metadata</a>
-        .pallet_by_name_err(<a href="#448">address</a>.pallet_name())<span class="question-mark">?
+    <span class="kw">let </span>storage_type = <a href="#460">metadata</a>
+        .pallet_by_name_err(<a href="#460">address</a>.pallet_name())<span class="question-mark">?
         </span>.storage()
         .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a class="macro" href="https://docs.rs/anyhow/1.0.85/anyhow/macro.anyhow.html">anyhow!</a>(<span class="string">"Storage {} not found"</span>, address.pallet_name()))<span class="question-mark">?
-        </span>.entry_by_name(<a href="#448">address</a>.entry_name())
+        </span>.entry_by_name(<a href="#460">address</a>.entry_name())
         .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a class="macro" href="https://docs.rs/anyhow/1.0.85/anyhow/macro.anyhow.html">anyhow!</a>(<span class="string">"Entry {} not found"</span>, address.entry_name()))<span class="question-mark">?
         </span>.entry_type();
 
-    <span class="kw">let </span>storage_type_id = <span class="kw">match </span><a href="#449">storage_type</a> {
-        StorageEntryType::Plain(id) =&gt; <a href="#458">id</a>,
-        StorageEntryType::Map { value_ty, .. } =&gt; <a href="#459">value_ty</a>,
+    <span class="kw">let </span>storage_type_id = <span class="kw">match </span><a href="#461">storage_type</a> {
+        StorageEntryType::Plain(id) =&gt; <a href="#470">id</a>,
+        StorageEntryType::Map { value_ty, .. } =&gt; <a href="#471">value_ty</a>,
     };
 
-    <span class="prelude-val">Ok</span>(<span class="kw-2">*</span><a href="#457">storage_type_id</a>)
+    <span class="prelude-val">Ok</span>(<span class="kw-2">*</span><a href="#469">storage_type_id</a>)
 }
 </code></pre></div></section></main></body></html>

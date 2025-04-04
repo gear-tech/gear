@@ -1585,7 +1585,9 @@
 <a href="#1584" id="1584">1584</a>
 <a href="#1585" id="1585">1585</a>
 <a href="#1586" id="1586">1586</a>
-<a href="#1587" id="1587">1587</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
+<a href="#1587" id="1587">1587</a>
+<a href="#1588" id="1588">1588</a>
+<a href="#1589" id="1589">1589</a></pre></div><pre class="rust"><code><span class="comment">// This file is part of Gear.
 
 // Copyright (C) 2022-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -1947,8 +1949,10 @@
                 }
             })<span class="question-mark">?</span>;
 
+        <span class="kw">let </span>bank_address = <span class="self">self</span>.bank_address().<span class="kw">await</span><span class="question-mark">?</span>;
+
         <span class="kw">let </span>src_bank_account_data = <span class="self">self
-            </span>.account_data_at(<span class="kw">crate</span>::bank_address(), src_block_hash)
+            </span>.account_data_at(bank_address.clone(), src_block_hash)
             .<span class="kw">await
             </span>.or_else(|e| {
                 <span class="kw">if let </span>Error::GearSDK(GsdkError::StorageNotFound) = e {
@@ -2030,7 +2034,7 @@
             .<span class="kw">await</span><span class="question-mark">?</span>;
 
         dest_node_api
-            .force_set_balance(<span class="kw">crate</span>::bank_address(), src_bank_account_data.free)
+            .force_set_balance(bank_address, src_bank_account_data.free)
             .<span class="kw">await</span><span class="question-mark">?</span>;
 
         dest_node_api
