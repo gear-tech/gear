@@ -17,6 +17,7 @@ mod coordinator;
 mod initial;
 mod participant;
 mod producer;
+mod submitter;
 mod verifier;
 
 use crate::{
@@ -122,11 +123,6 @@ impl ControlService for ValidatorService {
         self.update_inner(|inner| {
             inner.process_external_event(ExternalEvent::ValidationReply(reply))
         })
-    }
-
-    fn is_block_producer(&self) -> Result<bool> {
-        // +_+_+
-        todo!()
     }
 }
 

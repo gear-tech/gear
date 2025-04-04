@@ -83,10 +83,6 @@ impl ControlService for SimpleConnectService {
     fn receive_validation_reply(&mut self, _reply: BatchCommitmentValidationReply) -> Result<()> {
         Ok(())
     }
-
-    fn is_block_producer(&self) -> Result<bool> {
-        Ok(false)
-    }
 }
 
 impl Stream for SimpleConnectService {

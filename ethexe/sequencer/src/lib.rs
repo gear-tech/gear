@@ -28,7 +28,6 @@ pub trait ControlService:
         request: SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<()>;
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
-    fn is_block_producer(&self) -> Result<bool>;
 }
 
 #[derive(Debug, Clone)]
