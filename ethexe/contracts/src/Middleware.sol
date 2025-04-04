@@ -82,7 +82,6 @@ contract Middleware is IMiddleware {
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
     EnumerableMap.AddressToUintMap private operators;
-    EnumerableMap.AddressToUintMap private pendingRewards;
 
     // vault -> (enableTime, disableTime, rewards)
     EnumerableMap.AddressToUintMap private vaults;
@@ -187,23 +186,14 @@ contract Middleware is IMiddleware {
             }
 
             if (!vaults.contains(stakerRewards.vault)) {
-                _updatePendingRewards(stakerRewards.vault, stakerRewards.amount);
-                return;
+                revert UnknownVault();
             }
 
             address rewards = address(vaults.getPinnedData(stakerRewards.vault));
 
-            (bool exists, uint256 pendingAmount) = pendingRewards.tryGet(stakerRewards.vault);
-            uint256 rewardsAmount = stakerRewards.amount;
-
-            if (exists) {
-                rewardsAmount += pendingAmount;
-                pendingRewards.remove(stakerRewards.vault);
-            }
-
             // TODO: consider to add hints instead of bytes("")
             bytes memory data = abi.encode(_commitment.timestamp, MAX_ADMIN_FEE, bytes(""), bytes(""));
-            IDefaultStakerRewards(rewards).distributeRewards(ROUTER, stakerRewards.token, rewardsAmount, data);
+            IDefaultStakerRewards(rewards).distributeRewards(ROUTER, stakerRewards.token, stakerRewards.amount, data);
         }
     }
 
@@ -353,13 +343,6 @@ contract Middleware is IMiddleware {
         }
     }
 
-    // Increase vault pending rewards by _amount
-    function _updatePendingRewards(address _vault, uint256 _amount) private {
-        (bool _exists, uint256 pendingAmount) = pendingRewards.tryGet(_vault);
-        uint256 pendingAmount_ = _exists ? pendingAmount + _amount : _amount;
-        pendingRewards.set(_vault, pendingAmount_);
-    }
-
     function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {
         for (uint256 i; i < vaults.length(); ++i) {
             (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = vaults.atWithTimes(i);
@@ -427,7 +410,7 @@ contract Middleware is IMiddleware {
     // TODO: check vault has enough stake
     function _validateVault(address _vault) private {
         if (!IRegistry(VAULT_REGISTRY).isEntity(_vault)) {
-            revert UnknownVault();
+            revert NonFactoryVault();
         }
 
         if (IMigratableEntity(_vault).version() != ALLOWED_VAULT_IMPL_VERSION) {

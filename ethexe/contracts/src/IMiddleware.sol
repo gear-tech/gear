@@ -4,7 +4,10 @@ pragma solidity ^0.8.28;
 import {Gear} from "./libraries/Gear.sol";
 
 interface IMiddleware {
+    error NonFactoryVault();
+
     error UnknownVault();
+
     error VaultWrongEpochDuration();
     error UnknownCollateral();
     error OperatorGracePeriodNotPassed();
