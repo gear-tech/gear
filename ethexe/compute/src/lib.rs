@@ -186,7 +186,8 @@ impl ChainHeadProcessContext {
 
         let block_outcomes = self
             .processor
-            .process_block_events(block, block_request_events)?;
+            .process_block_events(block, block_request_events)
+            .await?;
 
         let outcomes: Vec<_> = block_outcomes
             .into_iter()

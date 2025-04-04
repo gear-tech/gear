@@ -64,8 +64,8 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
     )
 }
 
-#[test]
-fn process_observer_event() {
+#[tokio::test(flavor = "multi_thread")]
+async fn process_observer_event() {
     init_logger();
 
     let db = MemDb::default();
@@ -90,7 +90,7 @@ fn process_observer_event() {
         }]
     );
 
-    let _ = processor.process_block_events(ch0, vec![]).unwrap();
+    let _ = processor.process_block_events(ch0, vec![]).await.unwrap();
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
 
     let actor_id = ActorId::from(42);
@@ -116,6 +116,7 @@ fn process_observer_event() {
 
     let outcomes = processor
         .process_block_events(ch1, create_program_events)
+        .await
         .expect("failed to process create program");
 
     log::debug!("\n\nCreate program outcomes: {outcomes:?}\n\n");
@@ -134,6 +135,7 @@ fn process_observer_event() {
 
     let outcomes = processor
         .process_block_events(ch2, vec![send_message_event])
+        .await
         .expect("failed to process send message");
 
     log::debug!("\n\nSend message outcomes: {outcomes:?}\n\n");
@@ -213,8 +215,8 @@ fn handle_new_code_invalid() {
         .is_none());
 }
 
-#[test]
-fn ping_pong() {
+#[tokio::test(flavor = "multi_thread")]
+async fn ping_pong() {
     init_logger();
 
     let db = MemDb::default();
@@ -270,7 +272,7 @@ fn ping_pong() {
         )
         .expect("failed to send message");
 
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     let to_users = handler.transitions.current_messages();
 
@@ -285,8 +287,8 @@ fn ping_pong() {
     assert_eq!(message.payload, b"PONG");
 }
 
-#[test]
-fn async_and_ping() {
+#[tokio::test(flavor = "multi_thread")]
+async fn async_and_ping() {
     init_logger();
 
     let mut message_nonce: u64 = 0;
@@ -387,7 +389,7 @@ fn async_and_ping() {
         )
         .expect("failed to send message");
 
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     let to_users = handler.transitions.current_messages();
 
@@ -406,8 +408,8 @@ fn async_and_ping() {
     assert_eq!(message.payload, wait_for_reply_to.into_bytes().as_slice());
 }
 
-#[test]
-fn many_waits() {
+#[tokio::test(flavor = "multi_thread")]
+async fn many_waits() {
     init_logger();
 
     let wat = r#"
@@ -481,7 +483,7 @@ fn many_waits() {
     }
 
     handler.run_schedule();
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     assert_eq!(
         handler.transitions.current_messages().len(),
@@ -502,7 +504,7 @@ fn many_waits() {
             .expect("failed to send message");
     }
 
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     // unchanged
     assert_eq!(
@@ -534,7 +536,7 @@ fn many_waits() {
         let mut expected_schedule = BTreeMap::<_, BTreeSet<_>>::new();
 
         for (pid, state_hash) in &states {
-            let state = processor.db.read_state(*state_hash).unwrap();
+            let state = processor.db.read_state(state_hash.hash).unwrap();
             let waitlist_hash = state.waitlist_hash.to_inner().unwrap();
             let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
 
@@ -560,7 +562,7 @@ fn many_waits() {
 
     let mut handler = processor.handler(ch11).unwrap();
     handler.run_schedule();
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     assert_eq!(
         handler.transitions.current_messages().len(),

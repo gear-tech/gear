@@ -58,7 +58,6 @@ pub struct NodeConfig {
     pub validator: ConfigPublicKey,
     pub validator_session: ConfigPublicKey,
     pub eth_max_sync_depth: u32,
-    pub worker_threads_override: Option<usize>,
     pub virtual_threads: usize,
     pub dev: bool,
 }

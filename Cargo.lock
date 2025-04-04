@@ -4714,8 +4714,10 @@ dependencies = [
  "gear-runtime-interface",
  "gear-wasm-instrument",
  "gprimitives",
+ "itertools 0.13.0",
  "log",
  "parity-scale-codec",
+ "rand 0.8.5",
  "sp-allocator",
  "sp-wasm-interface",
  "tokio",
@@ -4765,7 +4767,6 @@ dependencies = [
 name = "ethexe-runtime"
 version = "1.7.1"
 dependencies = [
- "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
  "gear-core-processor",
