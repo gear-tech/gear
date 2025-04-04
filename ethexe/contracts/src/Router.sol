@@ -8,6 +8,7 @@ import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
+import {IMiddleware} from "./IMiddleware.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardTransientUpgradeable} from
     "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
@@ -28,6 +29,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         address _owner,
         address _mirror,
         address _wrappedVara,
+        // address _middleware,
         uint256 _eraDuration,
         uint256 _electionDuration,
         uint256 _validationDelay,
@@ -459,6 +461,15 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         }
 
         return keccak256(transitionsHashes);
+    }
+
+    function _commitRewards(Storage storage, Gear.RewardsCommitment calldata _rewardsCommitment) private {
+        // TODO: replace for this after implementing OwnableUpgreadable logic for Middleware
+        // address middleware = router.implAddresses.middleware;
+        address middleware = address(0);
+
+        IMiddleware(middleware).distributeOperatorRewards(_rewardsCommitment.operators);
+        IMiddleware(middleware).distributeStakerRewards(_rewardsCommitment.stakers);
     }
 
     function _resetValidators(

@@ -69,6 +69,29 @@ library Gear {
         CodeCommitment[] codeCommitments;
         BlockCommitment[] blockCommitments;
     }
+    //RewardsCommitment rewardsCommitment;
+
+    struct RewardsCommitment {
+        OperatorRewardsCommitment operators;
+        StakerRewardsCommitment stakers;
+    }
+
+    struct OperatorRewardsCommitment {
+        address token;
+        uint256 amount;
+        bytes32 root;
+    }
+
+    struct StakerRewardsCommitment {
+        StakerRewards[] distribution;
+        uint48 timestamp;
+    }
+
+    struct StakerRewards {
+        address token;
+        address vault;
+        uint256 amount;
+    }
 
     enum CodeState {
         Unknown,

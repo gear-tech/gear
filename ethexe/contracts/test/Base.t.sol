@@ -13,12 +13,18 @@ import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegato
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
 import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
-
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {IMirror, Mirror} from "../src/Mirror.sol";
 import {IRouter, Router} from "../src/Router.sol";
+import {IMiddleware} from "../src/IMiddleware.sol";
 import {Middleware} from "../src/Middleware.sol";
 import {Gear} from "../src/libraries/Gear.sol";
+
+import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
+import {DefaultStakerRewards} from "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewards.sol";
+import {DefaultStakerRewardsTest} from "symbiotic-rewards/test/defaultStakerRewards/DefaultStakerRewards.t.sol";
+import {DefaultStakerRewardsFactory} from
+    "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
 
 contract Base is POCBaseTest {
     using MessageHashUtils for address;
@@ -36,6 +42,8 @@ contract Base is POCBaseTest {
     WrappedVara public wrappedVara;
     Router public router;
     Mirror public mirror;
+
+    DefaultStakerRewardsFactory defaultStakerRewardsFactory;
 
     function setUp() public virtual override {
         revert("Must not be called");
@@ -67,7 +75,11 @@ contract Base is POCBaseTest {
         SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
         super.setUp();
 
-        Middleware.Config memory cfg = Middleware.Config({
+        address defaultStakerRewards_ =
+            address(new DefaultStakerRewards(address(vaultFactory), address(networkMiddlewareService)));
+        defaultStakerRewardsFactory = new DefaultStakerRewardsFactory(defaultStakerRewards_);
+
+        Middleware.InitParams memory cfg = IMiddleware.InitParams({
             eraDuration: eraDuration,
             minVaultEpochDuration: eraDuration * 2,
             operatorGracePeriod: eraDuration * 2,
@@ -85,7 +97,11 @@ contract Base is POCBaseTest {
             collateral: address(wrappedVara),
             roleSlashRequester: admin,
             roleSlashExecutor: admin,
-            vetoResolver: admin
+            vetoResolver: admin,
+            // TODO: add real addresses for testing associated functions
+            operatorRewards: address(0),
+            operatorRewardsFactory: address(0),
+            stakerRewardsFactory: address(defaultStakerRewardsFactory)
         });
 
         middleware = new Middleware(cfg);
@@ -165,13 +181,14 @@ contract Base is POCBaseTest {
 
     function createVaultForOperator(address _operator) internal returns (address _vault) {
         _vault = newVault(eraDuration * 2, _operator);
+        address _rewards = newStakerRewards(_vault, _operator);
 
         vm.startPrank(_operator);
         {
-            middleware.registerVault(_vault);
+            middleware.registerVault(_vault, _rewards);
             operatorVaultOptInService.optIn(_vault);
             IOperatorSpecificDelegator(IVault(_vault).delegator()).setNetworkLimit(
-                middleware.subnetwork(), type(uint256).max
+                middleware.SUBNETWORK(), type(uint256).max
             );
         }
         vm.stopPrank();
@@ -328,6 +345,18 @@ contract Base is POCBaseTest {
                         resolverSetEpochsDelay: 3
                     })
                 )
+            })
+        );
+    }
+
+    function newStakerRewards(address _vault, address _operator) internal returns (address _rewards) {
+        _rewards = defaultStakerRewardsFactory.create(
+            IDefaultStakerRewards.InitParams({
+                vault: _vault,
+                adminFee: 10000,
+                defaultAdminRoleHolder: _operator,
+                adminFeeClaimRoleHolder: _operator,
+                adminFeeSetRoleHolder: _operator
             })
         );
     }
