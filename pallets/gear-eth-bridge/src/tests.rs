@@ -211,7 +211,7 @@ fn bridge_send_eth_message_works() {
         assert_eq!(Queue::get(), queue);
         // Check that the fee was charged and transferred to the builtin
         assert_eq!(balance_of(&SIGNER), signer_balance);
-        assert_eq!(balance_of(&builtin_id), fee);
+        assert_eq!(balance_of(&builtin_id), builtin_balance);
 
         let destination = H160::random();
         let payload = H256::random().as_bytes().to_vec();
