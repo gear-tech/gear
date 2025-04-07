@@ -55,7 +55,7 @@ benchmarks! {
         let fee = CurrencyOf::<T>::minimum_balance();
     } : _(RawOrigin::Root, fee)
     verify {
-        assert_eq!(crate::TransportFee::<T>::get().unwrap(), CurrencyOf::<T>::minimum_balance());
+        assert_eq!(crate::TransportFee::<T>::get(), CurrencyOf::<T>::minimum_balance());
     }
 
     send_eth_message {

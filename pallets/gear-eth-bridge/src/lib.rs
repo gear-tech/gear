@@ -172,9 +172,6 @@ pub mod pallet {
         /// proper initialization after deployment.
         BridgeIsNotYetInitialized,
 
-        /// The error happens transport fee is not set.
-        FeeIsNotSet,
-
         /// The error happens when bridge got called when paused.
         BridgeIsPaused,
 
@@ -265,7 +262,7 @@ pub mod pallet {
     ///
     /// Defines the amount of fee to be paid for the transport of messages.
     #[pallet::storage]
-    pub type TransportFee<T> = StorageValue<_, BalanceOf<T>>;
+    pub type TransportFee<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
@@ -351,7 +348,7 @@ pub mod pallet {
 
         /// Root extrinsic that sets fee for the transport of messages.
         #[pallet::call_index(3)]
-        #[pallet::weight(<T as Config>::WeightInfo::send_eth_message())]
+        #[pallet::weight(<T as Config>::WeightInfo::set_fee())]
         pub fn set_fee(origin: OriginFor<T>, fee: BalanceOf<T>) -> DispatchResultWithPostInfo {
             // Ensuring called by `AdminOrigin` or root.
             T::AdminOrigin::ensure_origin_or_root(origin)?;
@@ -369,7 +366,7 @@ pub mod pallet {
         where
             T::AccountId: Origin,
         {
-            let fee = TransportFee::<T>::get().ok_or(Error::<T>::FeeIsNotSet)?;
+            let fee = TransportFee::<T>::get();
             let builtin_id = T::BuiltinAddress::get();
 
             CurrencyOf::<T>::transfer(origin, &builtin_id, fee, ExistenceRequirement::AllowDeath)

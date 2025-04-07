@@ -255,10 +255,6 @@ fn bridge_queue_root_changes() {
     new_test_ext().execute_with(|| {
         run_to_block(WHEN_INITIALIZED);
 
-        assert_ok!(GearEthBridge::set_fee(
-            RuntimeOrigin::root(),
-            MockTransportFee::get()
-        ));
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         assert!(!QueueChanged::get());
@@ -310,10 +306,6 @@ fn bridge_updates_authorities_and_clears() {
 
         assert!(!AuthoritySetHash::exists());
 
-        assert_ok!(GearEthBridge::set_fee(
-            RuntimeOrigin::root(),
-            MockTransportFee::get()
-        ));
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         for _ in 0..5 {
@@ -326,7 +318,7 @@ fn bridge_updates_authorities_and_clears() {
 
         on_finalize_gear_block(ERA_BLOCKS + 2);
 
-        assert_eq!(System::events().len(), 14);
+        assert_eq!(System::events().len(), 7);
         assert!(matches!(
             System::events().last().expect("infallible").event,
             RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged(_))
@@ -442,11 +434,6 @@ fn bridge_is_not_yet_initialized_err() {
     new_test_ext().execute_with(|| {
         const ERR: Error = Error::BridgeIsNotYetInitialized;
 
-        assert_ok!(GearEthBridge::set_fee(
-            RuntimeOrigin::root(),
-            MockTransportFee::get()
-        ));
-
         run_to_block(1);
         run_block_and_assert_bridge_error(ERR);
 
@@ -460,11 +447,6 @@ fn bridge_is_paused_err() {
     init_logger();
     new_test_ext().execute_with(|| {
         const ERR: Error = Error::BridgeIsPaused;
-
-        assert_ok!(GearEthBridge::set_fee(
-            RuntimeOrigin::root(),
-            MockTransportFee::get()
-        ));
 
         run_to_block(WHEN_INITIALIZED);
         run_block_and_assert_messaging_error(
@@ -485,10 +467,6 @@ fn bridge_max_payload_size_exceeded_err() {
 
         run_to_block(WHEN_INITIALIZED);
 
-        assert_ok!(GearEthBridge::set_fee(
-            RuntimeOrigin::root(),
-            MockTransportFee::get()
-        ));
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         let max_payload_size: u32 = <Test as crate::Config>::MaxPayloadSize::get();
@@ -511,10 +489,6 @@ fn bridge_queue_capacity_exceeded_err() {
 
         run_to_block(WHEN_INITIALIZED);
 
-        assert_ok!(GearEthBridge::set_fee(
-            RuntimeOrigin::root(),
-            MockTransportFee::get()
-        ));
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         for _ in 0..<Test as crate::Config>::QueueCapacity::get() {
@@ -582,10 +556,6 @@ fn bridge_insufficient_gas_err() {
 
         run_to_block(WHEN_INITIALIZED);
 
-        assert_ok!(GearEthBridge::set_fee(
-            RuntimeOrigin::root(),
-            MockTransportFee::get()
-        ));
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         let (_, code) = run_block_with_builtin_call(
@@ -595,7 +565,7 @@ fn bridge_insufficient_gas_err() {
                 payload: vec![],
             },
             Some(<Test as Config>::WeightInfo::send_eth_message().ref_time() - 1),
-            MockTransportFee::get(),
+            0,
         );
 
         assert_eq!(code, ERR_CODE);
@@ -643,8 +613,7 @@ mod utils {
             error
         );
 
-        let (response, _) =
-            run_block_with_builtin_call(SIGNER, request, None, MockTransportFee::get());
+        let (response, _) = run_block_with_builtin_call(SIGNER, request, None, 0);
 
         assert_eq!(String::from_utf8_lossy(&response), err_str);
     }
@@ -658,7 +627,7 @@ mod utils {
     ) -> (Vec<u8>, ReplyCode) {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(source),
-            builtin_id().into(),
+            builtin_id(),
             request.encode(),
             gas_limit
                 .unwrap_or_else(|| <Test as Config>::WeightInfo::send_eth_message().ref_time()),
