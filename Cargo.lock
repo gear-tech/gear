@@ -4624,17 +4624,14 @@ dependencies = [
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-observer",
- "ethexe-processor",
  "ethexe-service-utils",
  "ethexe-signer",
  "futures",
- "gear-core",
  "gprimitives",
  "indexmap 2.7.1",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
- "tokio",
 ]
 
 [[package]]
