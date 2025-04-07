@@ -119,7 +119,7 @@ impl GearApi {
     }
 
     /// Get bank account data by `account_id` at specified block.
-    pub(crate) async fn bank_address(&self) -> Result<AccountId32> {
+    pub async fn bank_address(&self) -> Result<AccountId32> {
         Ok(self.0.api().bank_address().await?)
     }
 

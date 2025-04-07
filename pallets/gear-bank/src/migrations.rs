@@ -203,6 +203,9 @@ mod tests {
             .assimilate_storage(&mut storage)
             .unwrap();
 
+        // Note: pallet_gear_bank GenesisConfig is deliberately not applied to simulate
+        // current on-chain situation where the bank address is not present in storage.
+
         sp_io::TestExternalities::new(storage)
     }
 

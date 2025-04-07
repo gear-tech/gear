@@ -17,7 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{mock::*, GasMultiplier, OnFinalizeValue, UnusedValue, *};
-use frame_support::{assert_noop, assert_ok, traits::Hooks};
+use frame_support::{
+    assert_noop, assert_ok,
+    storage::{generator::StorageValue, unhashed},
+    traits::Hooks,
+};
 use sp_runtime::{traits::Zero, Percent, StateVersion};
 use utils::*;
 
@@ -1574,6 +1578,15 @@ fn spend_gas_on_finalize_single_user() {
         assert_block_author_inc(gas_price(BURN_1 + BURN_2));
 
         GearBank::on_initialize(2);
+    })
+}
+
+#[test]
+fn bank_address_always_in_storage() {
+    new_test_ext().execute_with(|| {
+        let key = BankAddress::<Test>::storage_value_final_key();
+        unhashed::get::<<Test as frame_system::Config>::AccountId>(&key)
+            .expect("Bank address not found in storage");
     })
 }
 

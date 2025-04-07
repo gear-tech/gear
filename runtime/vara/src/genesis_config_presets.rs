@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{GearBank, UNITS as TOKEN, *};
+use super::{UNITS as TOKEN, *};
 use pallet_balances::GenesisConfig;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::{Forcing, StakerStatus};
@@ -118,6 +118,9 @@ pub fn testnet_genesis(
         sudo: SudoConfig {
             // Assign network admin rights.
             key: Some(root_key),
+        },
+        gear_bank: GearBankConfig {
+            _config: Default::default(),
         },
         ..Default::default()
     }

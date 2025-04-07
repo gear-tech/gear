@@ -36,6 +36,7 @@ use alloc::format;
 pub use pallet::*;
 
 use frame_support::{
+    pallet_prelude::BuildGenesisConfig,
     traits::{
         fungible,
         tokens::{Fortitude, Preservation, Provenance},
@@ -234,8 +235,8 @@ pub mod pallet {
     type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
 
     /// The default account ID of the Gear Bank.
-    pub struct DefaulBankAddress<T: Config>(PhantomData<T>);
-    impl<T: Config> Get<AccountIdOf<T>> for DefaulBankAddress<T> {
+    pub struct DefaultBankAddress<T: Config>(PhantomData<T>);
+    impl<T: Config> Get<AccountIdOf<T>> for DefaultBankAddress<T> {
         fn get() -> AccountIdOf<T> {
             Pallet::<T>::bank_address()
         }
@@ -243,7 +244,7 @@ pub mod pallet {
 
     // Private storage to hold the GearBank's AccountId.
     #[pallet::storage]
-    pub type BankAddress<T> = StorageValue<_, AccountIdOf<T>, ValueQuery, DefaulBankAddress<T>>;
+    pub type BankAddress<T> = StorageValue<_, AccountIdOf<T>, ValueQuery, DefaultBankAddress<T>>;
 
     // Private storage that keeps amount of value that wasn't sent because owner is inexistent account.
     #[pallet::storage]
@@ -256,6 +257,21 @@ pub mod pallet {
     // Private storage that represents sum of values in OnFinalizeTransfers.
     #[pallet::storage]
     pub(crate) type OnFinalizeValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
+    pub struct GenesisConfig<T: Config> {
+        #[serde(skip)]
+        pub _config: PhantomData<T>,
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            // Ensure the bank address is present in storage from the start.
+            BankAddress::<T>::put(<Pallet<T>>::bank_address());
+        }
+    }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {

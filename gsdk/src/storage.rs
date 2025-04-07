@@ -219,8 +219,9 @@ impl Api {
         let thunk = self
             .get_storage(None)
             .await?
-            .fetch_or_default(&addr)
+            .fetch(&addr)
             .await?
+            .ok_or(Error::StorageNotFound)?
             .into_encoded();
         Ok(AccountId32::decode(&mut thunk.as_ref())?)
     }

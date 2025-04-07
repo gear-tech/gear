@@ -107,6 +107,12 @@ pub fn new_test_ext() -> TestExternalities {
         .assimilate_storage(&mut storage)
         .unwrap();
 
+    pallet_gear_bank::GenesisConfig::<Test> {
+        _config: Default::default(),
+    }
+    .assimilate_storage(&mut storage)
+    .unwrap();
+
     let mut ext = TestExternalities::new(storage);
     ext.execute_with(|| System::set_block_number(1));
     ext
