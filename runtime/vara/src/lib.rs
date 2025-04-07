@@ -1228,10 +1228,7 @@ pub type BuiltinActors = (
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
-    ActorWithId<
-        { pallet_gear_eth_bridge::ETH_BRIDGE_BUILTIN_ID },
-        pallet_gear_eth_bridge::Actor<Runtime>,
-    >,
+    ActorWithId<3, pallet_gear_eth_bridge::Actor<Runtime>>,
     ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
 );
 

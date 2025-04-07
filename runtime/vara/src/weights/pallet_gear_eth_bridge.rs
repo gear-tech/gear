@@ -24,7 +24,7 @@
 //! CPU: `Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz`
 //! EXECUTION: , WASM-EXECUTION: Compiled, CHAIN: Some("vara-dev"), DB CACHE: 1024
 //!
-//! NOTE(romanm): Manually updated 02-04-2025, added `set_fee` weight function.
+//! NOTE(romanm): Mannualy updated 02-04-2025, added `set_fee` weight function.
 
 // Executed Command:
 // ./target/production/gear benchmark pallet --chain=vara-dev --steps=50 --repeat=20 --pallet=pallet_gear_eth_bridge --extrinsic=* --heap-pages=4096 --output=./scripts/benchmarking/weights-output/pallet_gear_eth_bridge.rs --template=.maintain/frame-weight-template.hbs
