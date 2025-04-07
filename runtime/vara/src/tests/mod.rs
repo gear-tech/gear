@@ -411,3 +411,16 @@ fn write_is_not_too_cheap() {
 
     assert!((block_max_gas / cheapest_write) < runtime_heap_size_in_wasm_pages);
 }
+
+#[cfg(feature = "dev")]
+#[test]
+fn eth_bridge_builtin_id_matches() {
+    use common::Origin;
+
+    assert_eq!(
+        AccountId::from_origin(
+            GearBuiltin::generate_actor_id(pallet_gear_eth_bridge::ETH_BRIDGE_BUILTIN_ID).into()
+        ),
+        <Runtime as pallet_gear_eth_bridge::Config>::BuiltinAddress::get(),
+    )
+}

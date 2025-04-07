@@ -1223,12 +1223,15 @@ pub type BuiltinActors = (
     ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
 );
 
+#[cfg(feature = "dev")]
+const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
+
 /// Builtin actors arranged in a tuple.
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
-    ActorWithId<3, pallet_gear_eth_bridge::Actor<Runtime>>,
+    ActorWithId<{ ETH_BRIDGE_BUILTIN_ID }, pallet_gear_eth_bridge::Actor<Runtime>>,
     ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
 );
 
@@ -1241,6 +1244,8 @@ impl pallet_gear_builtin::Config for Runtime {
 
 parameter_types! {
     pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
+    pub GearEthBridgeBuiltinAddress: AccountId
+        = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
 
     pub GearEthBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
     pub GearEthBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
@@ -1275,6 +1280,7 @@ impl SortedMembers<AccountId> for GearEthBridgeAdminAccounts {
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
+    type BuiltinAddress = GearEthBridgeBuiltinAddress;
     type ControlOrigin = frame_system::EnsureSignedBy<GearEthBridgeControlAccounts, AccountId>;
     type AdminOrigin = frame_system::EnsureSignedBy<GearEthBridgeAdminAccounts, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB

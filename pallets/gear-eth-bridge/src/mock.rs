@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{self as pallet_gear_eth_bridge};
+use common::Origin as _;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
@@ -179,6 +180,10 @@ pallet_gear::impl_config!(
 
 pub const BUILTIN_ID: u64 = crate::ETH_BRIDGE_BUILTIN_ID;
 
+pub fn mock_builtin_id() -> ActorId {
+    GearBuiltin::generate_actor_id(BUILTIN_ID)
+}
+
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (ActorWithId<BUILTIN_ID, crate::builtin::Actor<Test>>,);
@@ -292,6 +297,7 @@ impl pallet_session::Config for Test {
 
 parameter_types! {
     pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
+    pub MockBridgeBuiltinAddress: AccountId = AccountId::from_origin(mock_builtin_id().into());
 
     pub MockBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
     pub MockBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
@@ -320,6 +326,7 @@ impl pallet_gear_eth_bridge::Config for Test {
     type ControlOrigin = EnsureSignedBy<MockBridgeControlAccounts, AccountId>;
     type AdminOrigin = EnsureSignedBy<MockBridgeAdminAccounts, AccountId>;
     type PalletId = GearEthBridgePalletId;
+    type BuiltinAddress = MockBridgeBuiltinAddress;
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
@@ -462,6 +469,7 @@ pub(crate) fn on_finalize_gear_block(bn: BlockNumberFor<Test>) {
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
     let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
+
     ExtBuilder::default()
         .endowment(ENDOWMENT)
         .endowed_accounts(vec![bank_address, SIGNER, BLOCK_AUTHOR])

@@ -74,7 +74,6 @@ pub mod pallet {
     type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
     type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
     pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
-    type GearBuiltin<T> = pallet_gear_builtin::Pallet<T>;
 
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -94,6 +93,10 @@ pub mod pallet {
         /// The bridge' pallet id, used for deriving its sovereign account ID.
         #[pallet::constant]
         type PalletId: Get<PalletId>;
+
+        /// Builtin actor ID of the bridge.
+        #[pallet::constant]
+        type BuiltinAddress: Get<Self::AccountId>;
 
         /// Privileged origin for bridge management operations.
         type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -367,10 +370,7 @@ pub mod pallet {
             T::AccountId: Origin,
         {
             let fee = TransportFee::<T>::get().ok_or(Error::<T>::FeeIsNotSet)?;
-
-            let builtin_id = T::AccountId::from_origin(
-                GearBuiltin::<T>::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into(),
-            );
+            let builtin_id = T::BuiltinAddress::get();
 
             CurrencyOf::<T>::transfer(origin, &builtin_id, fee, ExistenceRequirement::AllowDeath)
         }

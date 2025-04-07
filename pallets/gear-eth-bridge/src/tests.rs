@@ -1,4 +1,8 @@
-use crate::{builtin, mock::*, Config, EthMessage, WeightInfo};
+use crate::{
+    builtin,
+    mock::{mock_builtin_id as builtin_id, *},
+    Config, EthMessage, WeightInfo,
+};
 use common::Origin as _;
 use frame_support::{
     assert_noop, assert_ok, assert_storage_noop, traits::Get, Blake2_256, StorageHasher,
@@ -602,11 +606,7 @@ mod utils {
     use super::*;
     use crate::builtin;
     use gear_core::message::{UserMessage, Value};
-    use gprimitives::{ActorId, MessageId};
-
-    pub(crate) fn builtin_id() -> ActorId {
-        GearBuiltin::generate_actor_id(BUILTIN_ID)
-    }
+    use gprimitives::MessageId;
 
     #[track_caller]
     pub(crate) fn run_block_and_assert_bridge_error(error: Error) {
@@ -658,7 +658,7 @@ mod utils {
     ) -> (Vec<u8>, ReplyCode) {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(source),
-            builtin_id(),
+            builtin_id().into(),
             request.encode(),
             gas_limit
                 .unwrap_or_else(|| <Test as Config>::WeightInfo::send_eth_message().ref_time()),
