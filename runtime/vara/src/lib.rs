@@ -1244,6 +1244,7 @@ impl pallet_gear_builtin::Config for Runtime {
 
 parameter_types! {
     pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
+    #[cfg(feature = "dev")]
     pub GearEthBridgeBuiltinAddress: AccountId
         = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
 
