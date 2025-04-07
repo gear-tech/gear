@@ -377,7 +377,6 @@ impl CodesStorage for Database {
     }
 
     // TODO (gsobol): consider to move to another place
-    // TODO #4559: test this method
     fn program_ids(&self) -> BTreeSet<ProgramId> {
         let key_prefix = Key::ProgramToCodeId(Default::default()).prefix();
         self.kv
@@ -654,15 +653,218 @@ mod tests {
     }
 
     #[test]
-    fn test_check_within_recent_blocks() {
-        let db = Database::memory();
+    fn check_within_recent_blocks_scenarios() {
+        const WINDOW_SIZE: u32 = OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE;
+        const BASE_HEIGHT: u32 = 100;
 
-        let block_hash = H256::random();
-        let block_header = BlockHeader::default();
-        db.set_block_header(block_hash, block_header.clone());
-        db.set_latest_computed_block(block_hash, block_header);
+        // --- Success: Latest Block ---
+        {
+            println!("Scenario: Success - Latest Block");
+            let db = Database::memory();
+            let block_hash = H256::random();
+            let block_header = BlockHeader {
+                height: BASE_HEIGHT,
+                ..Default::default()
+            };
+            db.set_block_header(block_hash, block_header.clone());
+            db.set_latest_computed_block(block_hash, block_header);
+            assert!(db.check_within_recent_blocks(block_hash).unwrap());
+        }
 
-        assert!(db.check_within_recent_blocks(block_hash).unwrap());
+        // --- Success: Within Window ---
+        {
+            println!("Scenario: Success - Within Window");
+            let db = Database::memory();
+            let mut current_hash = H256::random();
+            let mut current_header = BlockHeader {
+                height: BASE_HEIGHT + WINDOW_SIZE,
+                ..Default::default()
+            };
+            db.set_latest_computed_block(current_hash, current_header.clone());
+
+            let mut history = vec![(current_hash, current_header.clone())];
+
+            // Build history within the window
+            for i in 0..WINDOW_SIZE {
+                let parent_hash = H256::random();
+                current_header.parent_hash = parent_hash;
+                db.set_block_header(current_hash, current_header.clone());
+                history.push((current_hash, current_header.clone()));
+
+                current_hash = parent_hash;
+                current_header = BlockHeader {
+                    height: BASE_HEIGHT + WINDOW_SIZE - 1 - i,
+                    ..Default::default()
+                };
+            }
+            // Oldest in window
+            db.set_block_header(current_hash, current_header.clone());
+            history.push((current_hash, current_header.clone()));
+
+            // Check block near the end of the window
+            let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
+            assert!(db
+                .check_within_recent_blocks(reference_block_hash_mid)
+                .unwrap());
+
+            // Check block at the edge of the window
+            // Block at BASE_HEIGHT
+            let reference_block_hash_edge = history[WINDOW_SIZE as usize].0;
+            assert!(db
+                .check_within_recent_blocks(reference_block_hash_edge)
+                .unwrap());
+        }
+
+        // --- Fail: Outside Window ---
+        {
+            println!("Scenario: Fail - Outside Window");
+            let db = Database::memory();
+            let mut current_hash = H256::random();
+            // One block beyond the window
+            let mut current_header = BlockHeader {
+                height: BASE_HEIGHT + WINDOW_SIZE + 1,
+                parent_hash: H256::random(),
+                ..Default::default()
+            };
+            db.set_latest_computed_block(current_hash, current_header.clone());
+
+            let mut reference_block_hash = H256::zero();
+
+            // Build history
+            for i in 0..(WINDOW_SIZE + 1) {
+                let parent_hash = H256::random();
+                current_header.parent_hash = parent_hash;
+                db.set_block_header(current_hash, current_header.clone());
+
+                // This is the block just outside the window (height BASE_HEIGHT)
+                if i == WINDOW_SIZE {
+                    reference_block_hash = current_hash;
+                }
+
+                current_hash = parent_hash;
+                current_header = BlockHeader {
+                    height: BASE_HEIGHT + WINDOW_SIZE - i,
+                    parent_hash: H256::random(),
+                    ..Default::default()
+                };
+            }
+            // Oldest block
+            db.set_block_header(current_hash, current_header);
+
+            assert!(!db.check_within_recent_blocks(reference_block_hash).unwrap());
+        }
+
+        // --- Fail: Reorg ---
+        {
+            println!("Scenario: Fail - Reorg");
+            let db = Database::memory();
+            let mut current_hash = H256::random();
+            let mut current_header = BlockHeader {
+                height: BASE_HEIGHT + WINDOW_SIZE,
+                parent_hash: H256::random(),
+                ..Default::default()
+            };
+            db.set_latest_computed_block(current_hash, current_header.clone());
+
+            // Build canonical chain history
+            for i in 0..WINDOW_SIZE {
+                let parent_hash = H256::random();
+                current_header.parent_hash = parent_hash;
+                db.set_block_header(current_hash, current_header.clone());
+
+                current_hash = parent_hash;
+                current_header = BlockHeader {
+                    height: BASE_HEIGHT + WINDOW_SIZE - 1 - i,
+                    parent_hash: H256::random(),
+                    ..Default::default()
+                };
+            }
+            // Oldest canonical block
+            db.set_block_header(current_hash, current_header.clone());
+
+            // Create a fork (reference block not on the canonical chain)
+            let fork_block_hash = H256::random();
+            // Within height window
+            // Different parent
+            let fork_block_header = BlockHeader {
+                height: BASE_HEIGHT + 1,
+                parent_hash: H256::random(),
+                ..Default::default()
+            };
+            db.set_block_header(fork_block_hash, fork_block_header);
+
+            assert!(!db.check_within_recent_blocks(fork_block_hash).unwrap());
+        }
+
+        // --- Error: No Latest Block ---
+        {
+            println!("Scenario: Error - No Latest Block");
+            let db = Database::memory();
+            let reference_block_hash = H256::random();
+            let result = db.check_within_recent_blocks(reference_block_hash);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("No latest valid block found"));
+        }
+
+        // --- Error: No Reference Block ---
+        {
+            println!("Scenario: Error - No Reference Block");
+            let db = Database::memory();
+            let latest_hash = H256::random();
+            let latest_header = BlockHeader {
+                height: BASE_HEIGHT,
+                ..Default::default()
+            };
+            db.set_latest_computed_block(latest_hash, latest_header.clone());
+            // Need the latest header itself
+            db.set_block_header(latest_hash, latest_header);
+
+            // This block doesn't exist
+            let reference_block_hash = H256::random();
+            let result = db.check_within_recent_blocks(reference_block_hash);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("No reference block found"));
+        }
+
+        // --- Error: Missing History ---
+        {
+            println!("Scenario: Error - Missing History");
+            let db = Database::memory();
+            let latest_hash = H256::random();
+            let missing_parent_hash = H256::random();
+            // This parent won't be in the DB
+            let latest_header = BlockHeader {
+                height: BASE_HEIGHT + WINDOW_SIZE,
+                parent_hash: missing_parent_hash,
+                ..Default::default()
+            };
+            db.set_latest_computed_block(latest_hash, latest_header.clone());
+            // Add latest block header
+            db.set_block_header(latest_hash, latest_header);
+
+            let reference_block_hash = H256::random();
+            // Within height range
+            let reference_header = BlockHeader {
+                height: BASE_HEIGHT,
+                parent_hash: H256::random(),
+                ..Default::default()
+            };
+            // Add reference block header
+            db.set_block_header(reference_block_hash, reference_header);
+
+            let result = db.check_within_recent_blocks(reference_block_hash);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("not found in the window"));
+        }
     }
 
     #[test]
@@ -760,6 +962,40 @@ mod tests {
         let code_id = CodeId::default();
         db.set_program_code_id(program_id, code_id);
         assert_eq!(db.program_code_id(program_id), Some(code_id));
+    }
+
+    #[test]
+    fn test_program_ids() {
+        let db = Database::memory();
+
+        let program_id_1 = ProgramId::from(H256::random());
+        let program_id_2 = ProgramId::from(H256::random());
+        let program_id_3 = ProgramId::from(H256::random());
+
+        let code_id_1 = CodeId::from(H256::random());
+        let code_id_2 = CodeId::from(H256::random());
+        let code_id_3 = CodeId::from(H256::random());
+
+        // Add some program IDs
+        db.set_program_code_id(program_id_1, code_id_1);
+        db.set_program_code_id(program_id_2, code_id_2);
+        db.set_program_code_id(program_id_3, code_id_3);
+
+        // Retrieve all program IDs
+        let retrieved_ids = db.program_ids();
+
+        // Check if the retrieved set contains all added IDs and has the correct size
+        let mut expected_ids = BTreeSet::new();
+        expected_ids.insert(program_id_1);
+        expected_ids.insert(program_id_2);
+        expected_ids.insert(program_id_3);
+
+        assert_eq!(retrieved_ids.len(), 3);
+        assert_eq!(retrieved_ids, expected_ids);
+
+        // Test with an empty database
+        let empty_db = Database::memory();
+        assert!(empty_db.program_ids().is_empty());
     }
 
     #[test]
