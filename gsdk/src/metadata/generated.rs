@@ -3455,19 +3455,16 @@ pub mod runtime_types {
                     #[doc = "proper initialization after deployment."]
                     BridgeIsNotYetInitialized,
                     #[codec(index = 1)]
-                    #[doc = "The error happens transport fee is not set."]
-                    FeeIsNotSet,
-                    #[codec(index = 2)]
                     #[doc = "The error happens when bridge got called when paused."]
                     BridgeIsPaused,
-                    #[codec(index = 3)]
+                    #[codec(index = 2)]
                     #[doc = "The error happens when bridging message sent with too big payload."]
                     MaxPayloadSizeExceeded,
-                    #[codec(index = 4)]
+                    #[codec(index = 3)]
                     #[doc = "The error happens when bridging queue capacity exceeded,"]
                     #[doc = "so message couldn't be sent."]
                     QueueCapacityExceeded,
-                    #[codec(index = 5)]
+                    #[codec(index = 4)]
                     #[doc = "The error happens when bridging thorough builtin and message value"]
                     #[doc = "is inapplicable to operation or insufficient."]
                     IncorrectValueApplied,
