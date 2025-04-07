@@ -178,7 +178,7 @@ pallet_gear::impl_config!(
     BuiltinDispatcherFactory = GearBuiltin,
 );
 
-pub const BUILTIN_ID: u64 = crate::ETH_BRIDGE_BUILTIN_ID;
+pub const BUILTIN_ID: u64 = 3;
 
 pub(crate) fn mock_builtin_id() -> ActorId {
     GearBuiltin::generate_actor_id(BUILTIN_ID)

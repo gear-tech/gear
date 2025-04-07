@@ -77,8 +77,6 @@ pub mod pallet {
 
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
-    /// Builtin ID of the pallet.
-    pub const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
