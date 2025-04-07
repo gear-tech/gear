@@ -23,8 +23,6 @@
 //! WORST CASE MAP SIZE: `1000000`
 //! CPU: `<UNKNOWN>`
 //! EXECUTION: , WASM-EXECUTION: Compiled, CHAIN: Some("vara-dev"), DB CACHE: 1024
-//!
-//! NOTE(romanm): Mannualy updated 02-04-2025, added `set_fee` weight function.
 
 // Executed Command:
 // ./target/release/gear benchmark pallet --chain=vara-dev --steps=50 --repeat=20 --pallet=pallet_gear_eth_bridge --extrinsic=* --heap-pages=4096 --output=./pallets/gear-eth-bridge/weights.rs --template=.maintain/frame-weight-template.hbs
