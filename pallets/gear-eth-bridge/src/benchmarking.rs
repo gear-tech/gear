@@ -23,7 +23,7 @@ use common::{benchmarking, Origin};
 use frame_benchmarking::benchmarks;
 use frame_support::traits::Currency;
 use frame_system::RawOrigin;
-use sp_runtime::traits::Get;
+use sp_runtime::traits::{Get, UniqueSaturatedInto};
 use sp_std::vec;
 
 #[cfg(test)]
@@ -52,10 +52,10 @@ benchmarks! {
     }
 
     set_fee {
-        let fee = CurrencyOf::<T>::minimum_balance();
+        let fee = 4242424242424242u128.unique_saturated_into();
     } : _(RawOrigin::Root, fee)
     verify {
-        assert_eq!(crate::TransportFee::<T>::get(), CurrencyOf::<T>::minimum_balance());
+        assert_eq!(crate::TransportFee::<T>::get(), 4242424242424242u128.unique_saturated_into());
     }
 
     send_eth_message {

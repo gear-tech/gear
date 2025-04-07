@@ -180,7 +180,7 @@ pallet_gear::impl_config!(
 
 pub const BUILTIN_ID: u64 = crate::ETH_BRIDGE_BUILTIN_ID;
 
-pub fn mock_builtin_id() -> ActorId {
+pub(crate) fn mock_builtin_id() -> ActorId {
     GearBuiltin::generate_actor_id(BUILTIN_ID)
 }
 
@@ -431,11 +431,6 @@ pub(crate) fn on_initialize(new: BlockNumberFor<Test>) {
     GearGas::on_initialize(new);
     GearBuiltin::on_initialize(new);
     GearEthBridge::on_initialize(new);
-    // Set fee after initialization
-    //let _ = GearEthBridge::set_fee(
-    //    RuntimeOrigin::root(),
-    //    MockTransportFee::get(),
-    //);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)

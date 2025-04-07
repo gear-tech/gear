@@ -82,9 +82,7 @@ pub mod pallet {
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
-    pub trait Config:
-        frame_system::Config + pallet_gear_bank::Config + pallet_gear_builtin::Config
-    {
+    pub trait Config: frame_system::Config + pallet_gear_bank::Config {
         /// Type representing aggregated runtime event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
@@ -94,7 +92,7 @@ pub mod pallet {
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
-        /// Builtin actor ID of the bridge.
+        /// Account ID of the bridge builtin.
         #[pallet::constant]
         type BuiltinAddress: Get<Self::AccountId>;
 
@@ -339,7 +337,15 @@ pub mod pallet {
         {
             let source: ActorId = ensure_signed(origin.clone())?.cast();
 
-            Self::try_transfer_fee(&T::AccountId::from_origin(source.into()))?;
+            // Transfer fee
+            let fee = TransportFee::<T>::get();
+            let builtin_id = T::BuiltinAddress::get();
+            CurrencyOf::<T>::transfer(
+                &T::AccountId::from_origin(source.into()),
+                &builtin_id,
+                fee,
+                ExistenceRequirement::AllowDeath,
+            )?;
 
             Self::queue_message(source, destination, payload)?;
 
@@ -362,16 +368,6 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        fn try_transfer_fee(origin: &T::AccountId) -> DispatchResult
-        where
-            T::AccountId: Origin,
-        {
-            let fee = TransportFee::<T>::get();
-            let builtin_id = T::BuiltinAddress::get();
-
-            CurrencyOf::<T>::transfer(origin, &builtin_id, fee, ExistenceRequirement::AllowDeath)
-        }
-
         pub(crate) fn queue_message(
             source: ActorId,
             destination: H160,
