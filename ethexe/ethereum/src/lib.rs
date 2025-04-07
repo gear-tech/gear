@@ -111,8 +111,6 @@ impl Ethereum {
         sender_address: LocalAddress,
         verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
     ) -> Result<Self> {
-        const VALUE_PER_GAS: u128 = 6;
-
         let maybe_validator_identifiers: Result<Vec<_>, _> = validators
             .iter()
             .map(|address| Identifier::deserialize(&ActorId::from(*address).into_bytes()))

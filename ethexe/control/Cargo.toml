@@ -10,19 +10,15 @@ repository.workspace = true
 [dependencies]
 ethexe-service-utils.workspace = true
 ethexe-signer.workspace = true
-ethexe-observer.workspace = true
-ethexe-processor.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 ethexe-db.workspace = true
-gear-core.workspace = true
 gprimitives = { workspace = true, features = ["codec"] }
 
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
-tokio.workspace = true
 indexmap = { workspace = true, features = ["std"] }
 derive_more.workspace = true
 derivative = "2"
