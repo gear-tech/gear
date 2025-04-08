@@ -177,9 +177,6 @@ pub enum ErrorReplyReason {
     #[display(fmt = "execution error ({_0})")]
     Execution(SimpleExecutionError) = 0,
 
-    // TODO: deny usage of 1
-    //
-    //
     /// Destination actor is unavailable, so it can't process the message.
     #[display(fmt = "destination actor is unavailable")]
     UnavailableActor(SimpleUnavailableActorError) = 2,
@@ -417,7 +414,16 @@ impl SignalCode {
 #[cfg(feature = "codec")]
 #[cfg(test)]
 mod tests {
-    use super::{ReplyCode, SignalCode};
+    use super::*;
+
+    #[test]
+    fn test_forbidden_codes() {
+        for code in enum_iterator::all::<ErrorReplyReason>() {
+            let bytes = code.to_bytes();
+            assert_ne!(bytes[0], 1); // `FailedToCreateProgram` variant
+            assert_ne!(bytes[0], 4); // `ReinstrumentationFailure` variant
+        }
+    }
 
     #[test]
     fn test_reply_code_encode_decode() {
