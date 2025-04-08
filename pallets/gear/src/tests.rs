@@ -4238,14 +4238,14 @@ fn events_logging_works() {
                 Some(ErrorReplyReason::Execution(
                     SimpleExecutionError::RanOutOfGas,
                 )),
-                Some(ErrorReplyReason::InactiveActor(Default::default())),
+                Some(ErrorReplyReason::UnavailableActor(Default::default())),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
                 Some(ErrorReplyReason::Execution(
                     SimpleExecutionError::UnreachableInstruction,
                 )),
-                Some(ErrorReplyReason::InactiveActor(Default::default())),
+                Some(ErrorReplyReason::UnavailableActor(Default::default())),
             ),
             // First try asserts by status code.
             (
@@ -4919,7 +4919,7 @@ fn messages_to_uninitialized_program_wait() {
         assert!(auto_reply.details().is_some());
         assert_eq!(
             auto_reply.reply_code().expect("Should be"),
-            ReplyCode::Error(ErrorReplyReason::InactiveActor(Default::default()))
+            ReplyCode::Error(ErrorReplyReason::UnavailableActor(Default::default()))
         );
         assert_eq!(auto_reply.payload_bytes(), &[] as &[u8]);
     })
@@ -5092,7 +5092,7 @@ fn wake_messages_after_program_inited() {
                 {
                     assert_eq!(
                         message.reply_code(),
-                        Some(ReplyCode::Error(ErrorReplyReason::InactiveActor(
+                        Some(ReplyCode::Error(ErrorReplyReason::UnavailableActor(
                             Default::default()
                         )))
                     );
@@ -7398,7 +7398,7 @@ fn init_wait_reply_exit_cleaned_storage() {
 
         let mut responses = vec![
             Assertion::ReplyCode(ReplyCode::Error(
-                ErrorReplyReason::InactiveActor(Default::default())
+                ErrorReplyReason::UnavailableActor(Default::default())
             ));
             count
         ];
@@ -10177,7 +10177,12 @@ fn test_reinstrumentation_failure() {
         assert_eq!(code.instruction_weights_version(), old_version);
 
         // Error reply must be returned with the reason of re-instrumentation failure.
-        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
+        assert_failed(
+            mid,
+            ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::ReinstrumentationFailure,
+            ),
+        );
     })
 }
 
@@ -10214,7 +10219,12 @@ fn test_init_reinstrumentation_failure() {
         assert_eq!(code.instruction_weights_version(), old_version);
 
         // Error reply must be returned with the reason of re-instrumentation failure.
-        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
+        assert_failed(
+            mid,
+            ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::ReinstrumentationFailure,
+            ),
+        );
     })
 }
 
@@ -12666,7 +12676,7 @@ fn async_init() {
             USER_1,
             vec![
                 // `demo_async_init` sent error reply on "PING" message
-                Assertion::ReplyCode(ErrorReplyReason::InactiveActor(Default::default()).into()),
+                Assertion::ReplyCode(ErrorReplyReason::UnavailableActor(Default::default()).into()),
                 // `demo_async_init`'s `init` was successful
                 Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
             ],
@@ -14189,7 +14199,7 @@ fn test_send_to_terminated_from_program() {
             .expect("internal error: no message from proxy");
         assert_eq!(
             mail_from_proxy.payload_bytes().to_vec(),
-            ReplyCode::Error(ErrorReplyReason::InactiveActor(Default::default())).encode()
+            ReplyCode::Error(ErrorReplyReason::UnavailableActor(Default::default())).encode()
         );
         assert_eq!(mails_from_proxy_iter.next(), None);
 

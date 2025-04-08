@@ -44,7 +44,7 @@ use gear_core_backend::{
     error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
     BackendExternalities,
 };
-use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleInactiveActorError};
+use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleUnavailableActorError};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<Ext>(
@@ -201,30 +201,42 @@ where
 }
 
 enum ProcessErrorCase {
-    /// Message is not executable.
-    NonExecutable,
-    /// Specific case of `NonExecutable`.
+    /// Program exited.
     ProgramExited {
         /// Inheritor of an exited program.
         inheritor: ProgramId,
     },
-    /// Error is considered as an execution failure.
-    ExecutionFailed(ActorExecutionErrorReplyReason),
+    /// Program failed during init.
+    FailedInit,
+    /// Program is not initialized yet.
+    Uninitialized,
+    /// Given code id for program creation doesn't exist.
+    CodeNotExists,
     /// Message is executable, but its execution failed due to re-instrumentation.
     ReinstrumentationFailed,
+    /// Error is considered as an execution failure.
+    ExecutionFailed(ActorExecutionErrorReplyReason),
 }
 
 impl ProcessErrorCase {
     fn to_reason(&self) -> ErrorReplyReason {
         match self {
-            ProcessErrorCase::NonExecutable => {
-                ErrorReplyReason::InactiveActor(SimpleInactiveActorError::Unsupported)
-            }
             ProcessErrorCase::ProgramExited { .. } => {
-                ErrorReplyReason::InactiveActor(SimpleInactiveActorError::ProgramExited)
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramExited)
             }
+            ProcessErrorCase::FailedInit => {
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::FailedInit)
+            }
+            ProcessErrorCase::Uninitialized => {
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::Uninitialized)
+            }
+            ProcessErrorCase::CodeNotExists => {
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::CodeNotExists)
+            }
+            ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::ReinstrumentationFailure,
+            ),
             ProcessErrorCase::ExecutionFailed(reason) => reason.as_simple().into(),
-            ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::ReinstrumentationFailure,
         }
     }
 
@@ -350,9 +362,10 @@ fn process_error(
                 },
             }
         }
-        ProcessErrorCase::NonExecutable | ProcessErrorCase::ProgramExited { .. } => {
-            DispatchOutcome::NoExecution
-        }
+        ProcessErrorCase::ProgramExited { .. }
+        | ProcessErrorCase::FailedInit
+        | ProcessErrorCase::Uninitialized
+        | ProcessErrorCase::CodeNotExists => DispatchOutcome::NoExecution,
     };
 
     journal.push(JournalNote::MessageDispatched {
@@ -382,44 +395,6 @@ pub fn process_execution_error(
     )
 }
 
-/// Helper function for journal creation in case of re-instrumentation error.
-pub fn process_reinstrumentation_error(
-    context: ContextChargedForInstrumentation,
-) -> Vec<JournalNote> {
-    let dispatch = context.data.dispatch;
-    let program_id = context.data.destination_id;
-    let gas_burned = context.data.gas_counter.burned();
-    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-
-    process_error(
-        dispatch,
-        program_id,
-        gas_burned,
-        system_reservation_ctx,
-        ProcessErrorCase::ReinstrumentationFailed,
-    )
-}
-
-/// Helper function for journal creation in message no execution case.
-pub fn process_non_executable(context: ContextChargedForProgram) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
-
-    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-
-    process_error(
-        dispatch,
-        destination_id,
-        gas_counter.burned(),
-        system_reservation_ctx,
-        ProcessErrorCase::NonExecutable,
-    )
-}
-
 /// Helper function for journal creation in program exited case.
 pub fn process_program_exited(
     context: ContextChargedForProgram,
@@ -440,6 +415,84 @@ pub fn process_program_exited(
         gas_counter.burned(),
         system_reservation_ctx,
         ProcessErrorCase::ProgramExited { inheritor },
+    )
+}
+
+/// Helper function for journal creation in program failed init case.
+pub fn process_failed_init(context: ContextChargedForProgram) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::FailedInit,
+    )
+}
+
+/// Helper function for journal creation in program uninitialized case.
+pub fn process_uninitialized(context: ContextChargedForProgram) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::Uninitialized,
+    )
+}
+
+/// Helper function for journal creation in code not exists case.
+pub fn process_code_not_exists(context: ContextChargedForProgram) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::CodeNotExists,
+    )
+}
+
+/// Helper function for journal creation in case of re-instrumentation error.
+pub fn process_reinstrumentation_error(
+    context: ContextChargedForInstrumentation,
+) -> Vec<JournalNote> {
+    let dispatch = context.data.dispatch;
+    let program_id = context.data.destination_id;
+    let gas_burned = context.data.gas_counter.burned();
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        program_id,
+        gas_burned,
+        system_reservation_ctx,
+        ProcessErrorCase::ReinstrumentationFailed,
     )
 }
 

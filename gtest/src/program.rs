@@ -714,7 +714,7 @@ mod tests {
     use demo_constructor::{Arg, Scheme};
     use gear_core::ids::ActorId;
     use gear_core_errors::{
-        ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleInactiveActorError,
+        ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
     };
 
     #[test]
@@ -767,8 +767,8 @@ mod tests {
 
         res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
 
-        let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor(
-            SimpleInactiveActorError::Unsupported,
+        let expected_log = Log::error_builder(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::Unsupported,
         ))
         .source(prog.id())
         .dest(user_id);

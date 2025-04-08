@@ -229,7 +229,7 @@ where
         state::Program::Active(state) => state,
         state::Program::Terminated(program_id) => {
             log::trace!("Program {program_id} is terminated");
-            return core_processor::process_non_executable(context);
+            return core_processor::process_failed_init(context);
         }
         state::Program::Exited(program_id) => {
             log::trace!("Program {program_id} is exited");
@@ -250,7 +250,7 @@ where
     // Otherwise, we return error reply.
     if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
         log::trace!("Program {program_id} is not yet finished initialization, so cannot process handle message");
-        return core_processor::process_non_executable(context);
+        return core_processor::process_uninitialized(context);
     }
 
     // TODO: support normal allocations len #4068

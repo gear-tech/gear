@@ -177,23 +177,16 @@ pub enum ErrorReplyReason {
     #[display(fmt = "execution error ({_0})")]
     Execution(SimpleExecutionError) = 0,
 
-    /// Error reply was created due to errors in program creation.
-    #[display(fmt = "fail in program creation ({_0})")]
-    FailedToCreateProgram(SimpleProgramCreationError) = 1,
-
-    /// Destination actor is inactive, so it can't process the message.
-    // TODO: think whether to split this error into long (`gr_exit()`, rent, failed init)
-    // TODO: and short (uninitialized program) versions (#3890)
-    #[display(fmt = "destination actor is inactive")]
-    InactiveActor(SimpleInactiveActorError) = 2,
+    // TODO: deny usage of 1
+    //
+    //
+    /// Destination actor is unavailable, so it can't process the message.
+    #[display(fmt = "destination actor is unavailable")]
+    UnavailableActor(SimpleUnavailableActorError) = 2,
 
     /// Message has died in Waitlist as out of rent one.
     #[display(fmt = "removal from waitlist")]
     RemovedFromWaitlist = 3,
-
-    /// Program re-instrumentation failed.
-    #[display(fmt = "program re-instrumentation failed")]
-    ReinstrumentationFailure = 4,
 
     /// Unsupported reason of error reply.
     /// Variant exists for backward compatibility.
@@ -215,9 +208,8 @@ impl ErrorReplyReason {
 
         match self {
             Self::Execution(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
-            Self::FailedToCreateProgram(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
-            Self::InactiveActor(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
-            Self::RemovedFromWaitlist | Self::ReinstrumentationFailure | Self::Unsupported => {}
+            Self::UnavailableActor(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
+            Self::RemovedFromWaitlist | Self::Unsupported => {}
         }
 
         bytes
@@ -229,18 +221,11 @@ impl ErrorReplyReason {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Execution(SimpleExecutionError::from_bytes(err_bytes))
             }
-            b if Self::FailedToCreateProgram(Default::default()).discriminant() == b => {
+            b if Self::UnavailableActor(Default::default()).discriminant() == b => {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
-                Self::FailedToCreateProgram(SimpleProgramCreationError::from_bytes(err_bytes))
-            }
-            b if Self::InactiveActor(Default::default()).discriminant() == b => {
-                let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
-                Self::InactiveActor(SimpleInactiveActorError::from_bytes(err_bytes))
+                Self::UnavailableActor(SimpleUnavailableActorError::from_bytes(err_bytes))
             }
             b if Self::RemovedFromWaitlist.discriminant() == b => Self::RemovedFromWaitlist,
-            b if Self::ReinstrumentationFailure.discriminant() == b => {
-                Self::ReinstrumentationFailure
-            }
             _ => Self::Unsupported,
         }
     }
@@ -309,49 +294,27 @@ impl SimpleExecutionError {
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-/// Simplified error occurred during program creation.
-pub enum SimpleProgramCreationError {
+/// Simplified error occurred because of actor unavailability.
+pub enum SimpleUnavailableActorError {
+    /// Program called `gr_exit` syscall.
+    #[display(fmt = "Program exited")]
+    ProgramExited = 0,
+
+    /// Program was terminated due to failed initialization.
+    #[display(fmt = "Program was terminated due failed initialization")]
+    FailedInit = 1,
+
+    /// Program is not initialized yet.
+    #[display(fmt = "Program is not initialized yet")]
+    Uninitialized = 2,
+
     /// Given code id for program creation doesn't exist.
     #[display(fmt = "Given `CodeId` doesn't exist")]
-    CodeNotExists = 0,
+    CodeNotExists = 3,
 
-    // -----
-    // TODO: consider should such error appear or not #2821.
-    // /// Resulting program id for program creation already exists.
-    // ProgramIdAlreadyExists = 1,
-    // -----
-    /// Unsupported reason of program creation error.
-    /// Variant exists for backward compatibility.
-    #[default]
-    #[display(fmt = "<unsupported error>")]
-    Unsupported = 255,
-}
-
-impl SimpleProgramCreationError {
-    fn to_bytes(self) -> [u8; 2] {
-        [self as u8, 0]
-    }
-
-    fn from_bytes(bytes: [u8; 2]) -> Self {
-        match bytes[0] {
-            b if Self::CodeNotExists as u8 == b => Self::CodeNotExists,
-            // TODO: #2821
-            // b if Self::ProgramIdAlreadyExists as u8 == b => Self::ProgramIdAlreadyExists,
-            _ => Self::Unsupported,
-        }
-    }
-}
-
-#[repr(u8)]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-/// Simplified error occurred because of actor inactivity.
-pub enum SimpleInactiveActorError {
-    /// Program called `gr_exit` syscall.
-    ProgramExited = 0,
+    /// Program re-instrumentation failed.
+    #[display(fmt = "program re-instrumentation failed")]
+    ReinstrumentationFailure = 4,
 
     /// Unsupported reason of inactive actor error.
     /// Variant exists for backward compatibility.
@@ -360,7 +323,7 @@ pub enum SimpleInactiveActorError {
     Unsupported = 255,
 }
 
-impl SimpleInactiveActorError {
+impl SimpleUnavailableActorError {
     fn to_bytes(self) -> [u8; 2] {
         [self as u8, 0]
     }

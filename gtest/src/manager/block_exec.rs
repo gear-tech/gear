@@ -317,7 +317,8 @@ impl ExtManager {
                     log::debug!(
                         "Message {dispatch_id} is sent to non-active program {destination_id}"
                     );
-                    return Exec::Notes(core_processor::process_non_executable(context));
+                    // TODO: fix
+                    return Exec::Notes(core_processor::process_failed_init(context));
                 }
                 Exited(inheritor) => {
                     log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
@@ -365,7 +366,7 @@ impl ExtManager {
                     unreachable!("{err_msg}");
                 }
 
-                return Exec::Notes(core_processor::process_non_executable(context));
+                return Exec::Notes(core_processor::process_uninitialized(context));
             }
 
             if let Some(data) = actor.get_executable_actor_data() {

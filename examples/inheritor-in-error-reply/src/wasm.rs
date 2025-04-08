@@ -18,7 +18,7 @@
 
 use crate::State;
 use gstd::{
-    errors::{ReplyCode, SimpleInactiveActorError},
+    errors::{ReplyCode, SimpleUnavailableActorError},
     exec, msg,
     prelude::*,
     ActorId,
@@ -48,7 +48,7 @@ extern "C" fn handle_reply() {
     let reply_code = msg::reply_code().unwrap();
     assert_eq!(
         reply_code,
-        ReplyCode::error(SimpleInactiveActorError::ProgramExited)
+        ReplyCode::error(SimpleUnavailableActorError::ProgramExited)
     );
 
     let inheritor = msg::load_bytes().unwrap();
