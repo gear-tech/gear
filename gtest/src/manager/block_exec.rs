@@ -313,12 +313,19 @@ impl ExtManager {
             let actor = actor.unwrap_or_else(|| unreachable!("actor must exist for queue message"));
 
             match actor {
-                Dormant => {
+                Initialized(_) => {}
+                Uninitialized(_, _) => { /* uninit case is checked further */ }
+                FailedInit => {
                     log::debug!(
-                        "Message {dispatch_id} is sent to non-active program {destination_id}"
+                        "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
                     );
-                    // TODO: fix
                     return Exec::Notes(core_processor::process_failed_init(context));
+                }
+                CodeNotExists => {
+                    log::debug!(
+                        "Message {dispatch_id} is sent to program {destination_id} which code does not exist"
+                    );
+                    return Exec::Notes(core_processor::process_code_not_exists(context));
                 }
                 Exited(inheritor) => {
                     log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
@@ -326,7 +333,6 @@ impl ExtManager {
                         context, *inheritor,
                     ));
                 }
-                _ => {}
             }
 
             if actor.is_initialized() && dispatch_kind.is_init() {

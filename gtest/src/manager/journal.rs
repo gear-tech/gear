@@ -317,7 +317,7 @@ impl JournalHandler for ExtManager {
         } else {
             log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             for (_, invalid_candidate_id) in candidates {
-                Actors::insert(invalid_candidate_id, TestActor::Dormant);
+                Actors::insert(invalid_candidate_id, TestActor::CodeNotExists);
             }
         }
     }
