@@ -14205,7 +14205,7 @@ fn test_send_to_terminated_from_program() {
         assert_eq!(
             mail_from_proxy.payload_bytes().to_vec(),
             ReplyCode::Error(ErrorReplyReason::UnavailableActor(
-                SimpleUnavailableActorError::FailedInit
+                SimpleUnavailableActorError::InitializationFailure
             ))
             .encode()
         );

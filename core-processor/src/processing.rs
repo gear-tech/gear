@@ -224,9 +224,9 @@ impl ProcessErrorCase {
             ProcessErrorCase::ProgramExited { .. } => {
                 ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramExited)
             }
-            ProcessErrorCase::FailedInit => {
-                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::FailedInit)
-            }
+            ProcessErrorCase::FailedInit => ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::InitializationFailure,
+            ),
             ProcessErrorCase::Uninitialized => {
                 ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::Uninitialized)
             }

@@ -297,10 +297,9 @@ pub enum SimpleUnavailableActorError {
     #[display(fmt = "Program exited")]
     ProgramExited = 0,
 
-    // TODO: rename
     /// Program was terminated due to failed initialization.
     #[display(fmt = "Program was terminated due failed initialization")]
-    FailedInit = 1,
+    InitializationFailure = 1,
 
     /// Program is not initialized yet.
     #[display(fmt = "Program is not initialized yet")]
@@ -329,7 +328,7 @@ impl SimpleUnavailableActorError {
     fn from_bytes(bytes: [u8; 2]) -> Self {
         match bytes[0] {
             b if Self::ProgramExited as u8 == b => Self::ProgramExited,
-            b if Self::FailedInit as u8 == b => Self::FailedInit,
+            b if Self::InitializationFailure as u8 == b => Self::InitializationFailure,
             b if Self::Uninitialized as u8 == b => Self::Uninitialized,
             b if Self::CodeNotExists as u8 == b => Self::CodeNotExists,
             b if Self::ReinstrumentationFailure as u8 == b => Self::ReinstrumentationFailure,

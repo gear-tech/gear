@@ -768,7 +768,7 @@ mod tests {
         res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
 
         let expected_log = Log::error_builder(ErrorReplyReason::UnavailableActor(
-            SimpleUnavailableActorError::FailedInit,
+            SimpleUnavailableActorError::InitializationFailure,
         ))
         .source(prog.id())
         .dest(user_id);

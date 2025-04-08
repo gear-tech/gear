@@ -263,7 +263,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let expected_err = ReplyCode::Error(ErrorReplyReason::UnavailableActor(
-            SimpleUnavailableActorError::FailedInit,
+            SimpleUnavailableActorError::InitializationFailure,
         ));
         assert_eq!(res.code, expected_err);
     }
