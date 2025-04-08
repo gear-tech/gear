@@ -162,7 +162,7 @@ parameter_types! {
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const PerformanceMultiplier: u32 = 100;
-    pub const BankAddress: AccountId = 15082001;
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
     pub const MockTransportFee: Balance = UNITS;
 }
@@ -463,7 +463,7 @@ pub(crate) fn on_finalize_gear_block(bn: BlockNumberFor<Test>) {
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-    let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
+    let bank_address = GearBank::bank_address();
 
     ExtBuilder::default()
         .endowment(ENDOWMENT)
