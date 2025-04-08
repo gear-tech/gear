@@ -22,6 +22,8 @@ mod participant;
 mod producer;
 mod submitter;
 mod subordinate;
+#[cfg(test)]
+mod tests;
 
 use crate::{
     utils::{
@@ -171,7 +173,6 @@ trait ValidatorSubService: Any + Unpin + Send + 'static {
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService>;
     fn context(&self) -> &ValidatorContext;
     fn context_mut(&mut self) -> &mut ValidatorContext;
-    // +_+_+ remove box?
     fn into_context(self: Box<Self>) -> ValidatorContext;
 
     fn process_external_event(
@@ -232,7 +233,7 @@ fn process_external_event_by_default(
 
     s.warning(format!("unexpected event: {event:?}, saved for later"));
 
-    s.context_mut().pending_events.push_back(event);
+    s.context_mut().pending(event);
 
     Ok(s)
 }
@@ -257,96 +258,14 @@ impl ValidatorContext {
     pub fn output(&mut self, event: ControlEvent) {
         self.output.push_back(event);
     }
+
+    pub fn pending(&mut self, event: impl Into<ExternalEvent>) {
+        self.pending_events.push_back(event.into());
+    }
 }
 
 #[async_trait]
 pub trait BatchCommitter: Send {
     fn clone_boxed(&self) -> Box<dyn BatchCommitter>;
     async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256>;
-}
-
-#[cfg(test)]
-mod tests {
-    use std::cell::RefCell;
-
-    use super::*;
-    use crate::test_utils::init_signer_with_keys;
-
-    thread_local! {
-        static BATCH: RefCell<Option<MultisignedBatchCommitment>> = const { RefCell::new(None) };
-    }
-
-    pub fn with_batch(f: impl FnOnce(Option<&MultisignedBatchCommitment>)) {
-        BATCH.with_borrow(|storage| f(storage.as_ref()));
-    }
-
-    struct DummyCommitter;
-
-    #[async_trait]
-    impl BatchCommitter for DummyCommitter {
-        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
-            Box::new(DummyCommitter)
-        }
-
-        async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256> {
-            BATCH.with_borrow_mut(|storage| storage.replace(batch));
-            Ok(H256::random())
-        }
-    }
-
-    #[async_trait]
-    pub trait WaitForEvent {
-        async fn wait_for_event(self) -> Result<(Box<dyn ValidatorSubService>, ControlEvent)>;
-    }
-
-    #[async_trait]
-    impl WaitForEvent for Box<dyn ValidatorSubService> {
-        async fn wait_for_event(self) -> Result<(Box<dyn ValidatorSubService>, ControlEvent)> {
-            wait_for_event_inner(self).await
-        }
-    }
-
-    pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
-        let (signer, _, mut keys) = init_signer_with_keys(10);
-
-        let ctx = ValidatorContext {
-            slot_duration: Duration::from_secs(1),
-            threshold: 1,
-            router_address: 12345.into(),
-            pub_key: keys.pop().unwrap(),
-            signer,
-            db: Database::memory(),
-            committer: Box::new(DummyCommitter),
-            pending_events: VecDeque::new(),
-            output: VecDeque::new(),
-        };
-
-        (ctx, keys)
-    }
-
-    async fn wait_for_event_inner(
-        s: Box<dyn ValidatorSubService>,
-    ) -> Result<(Box<dyn ValidatorSubService>, ControlEvent)> {
-        struct Dummy(Option<Box<dyn ValidatorSubService>>);
-
-        impl Future for Dummy {
-            type Output = Result<ControlEvent>;
-
-            fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-                let mut s = self.0.take().unwrap().poll(cx)?;
-                let res = s
-                    .context_mut()
-                    .output
-                    .pop_front()
-                    .map(|event| Poll::Ready(Ok(event)))
-                    .unwrap_or(Poll::Pending);
-                self.0 = Some(s);
-                res
-            }
-        }
-
-        let mut dummy = Dummy(Some(s));
-        let event = (&mut dummy).await?;
-        Ok((dummy.0.unwrap(), event))
-    }
 }

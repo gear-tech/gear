@@ -1,5 +1,6 @@
 use anyhow::Result;
 use ethexe_common::SimpleBlockData;
+use ethexe_observer::BlockSyncedData;
 use ethexe_signer::Address;
 
 use super::{producer::Producer, subordinate::Subordinate, ValidatorContext, ValidatorSubService};
@@ -38,7 +39,7 @@ impl ValidatorSubService for Initial {
 
     fn process_synced_block(
         mut self: Box<Self>,
-        data: ethexe_observer::BlockSyncedData,
+        data: BlockSyncedData,
     ) -> Result<Box<dyn ValidatorSubService>> {
         match &self.state {
             State::WaitingForChainHead => {

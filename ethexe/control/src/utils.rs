@@ -37,7 +37,7 @@ impl ToDigest for BatchCommitmentValidationRequest {
 pub struct BlockCommitmentValidationRequest {
     pub block_hash: H256,
     pub block_timestamp: u64,
-    pub previous_committed_block: H256,
+    pub previous_not_empty_block: H256,
     pub predecessor_block: H256,
     pub transitions_digest: Digest,
 }
@@ -47,7 +47,7 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
         BlockCommitmentValidationRequest {
             block_hash: commitment.hash,
             block_timestamp: commitment.timestamp,
-            previous_committed_block: commitment.previous_committed_block,
+            previous_not_empty_block: commitment.previous_committed_block,
             predecessor_block: commitment.predecessor_block,
             transitions_digest: commitment.transitions.to_digest(),
         }
@@ -59,7 +59,7 @@ impl ToDigest for BlockCommitmentValidationRequest {
         hasher.update(self.block_hash.as_bytes());
         hasher
             .update(ethexe_common::u64_into_uint48_be_bytes_lossy(self.block_timestamp).as_slice());
-        hasher.update(self.previous_committed_block.as_bytes());
+        hasher.update(self.previous_not_empty_block.as_bytes());
         hasher.update(self.predecessor_block.as_bytes());
         hasher.update(self.transitions_digest.as_ref());
     }
@@ -132,7 +132,7 @@ impl MultisignedBatchCommitment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils;
+    use crate::tests::*;
 
     #[test]
     fn multisigned_batch_commitment_creation() {
@@ -141,7 +141,7 @@ mod tests {
             code_commitments: vec![],
         };
 
-        let (signer, _, public_keys) = test_utils::init_signer_with_keys(1);
+        let (signer, _, public_keys) = init_signer_with_keys(1);
         let signer = signer.contract_signer(Address([42; 20]));
         let pub_key = public_keys[0];
 
@@ -159,7 +159,7 @@ mod tests {
             code_commitments: vec![],
         };
 
-        let (signer, _, public_keys) = test_utils::init_signer_with_keys(2);
+        let (signer, _, public_keys) = init_signer_with_keys(2);
         let signer = signer.contract_signer(Address([42; 20]));
         let pub_key = public_keys[0];
 
@@ -196,7 +196,7 @@ mod tests {
             code_commitments: vec![],
         };
 
-        let (signer, _, public_keys) = test_utils::init_signer_with_keys(1);
+        let (signer, _, public_keys) = init_signer_with_keys(1);
         let signer = signer.contract_signer(Address([42; 20]));
         let pub_key = public_keys[0];
 
@@ -221,7 +221,7 @@ mod tests {
             code_commitments: vec![],
         };
 
-        let (signer, _, public_keys) = test_utils::init_signer_with_keys(2);
+        let (signer, _, public_keys) = init_signer_with_keys(2);
         let signer = signer.contract_signer(Address([42; 20]));
         let pub_key = public_keys[0];
 
@@ -264,7 +264,7 @@ mod tests {
         assert_eq!(batch.to_digest(), batch_validation_request.to_digest());
 
         let contract_address = Address([42; 20]);
-        let (signer, _, public_keys) = test_utils::init_signer_with_keys(1);
+        let (signer, _, public_keys) = init_signer_with_keys(1);
         let signer = signer.contract_signer(contract_address);
         let public_key = public_keys[0];
 

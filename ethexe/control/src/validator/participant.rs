@@ -102,17 +102,14 @@ impl Participant {
         request: BatchCommitmentValidationRequest,
     ) -> Result<Box<dyn ValidatorSubService>> {
         match self.process_validation_request_inner(request) {
-            Ok(reply) => {
-                self.output(ControlEvent::PublishValidationReply(reply));
-
-                Initial::create(self.ctx)
-            }
-            Err(err) => {
-                self.warning(format!("reject validation request: {err}"));
-
-                Ok(self)
-            }
+            Ok(reply) => self.output(ControlEvent::PublishValidationReply(reply)),
+            Err(err) => self.warning(format!("reject validation request: {err}")),
         }
+
+        // NOTE: In both cases it returns to the initial state,
+        // means - if producer publish incorrect validation request,
+        // then it does not wait for the next validation request from producer.
+        Initial::create(self.ctx)
     }
 
     fn process_validation_request_inner(
@@ -139,8 +136,8 @@ impl Participant {
             .map(|signature| BatchCommitmentValidationReply { digest, signature })
     }
 
-    fn validate_code_commitment<DB1: OnChainStorage + CodesStorage>(
-        db: &DB1,
+    fn validate_code_commitment<DB: OnChainStorage + CodesStorage>(
+        db: &DB,
         request: CodeCommitment,
     ) -> Result<()> {
         let CodeCommitment {
@@ -171,15 +168,15 @@ impl Participant {
         Ok(())
     }
 
-    fn validate_block_commitment<DB1: BlockMetaStorage + OnChainStorage>(
-        db: &DB1,
+    fn validate_block_commitment<DB: BlockMetaStorage + OnChainStorage>(
+        db: &DB,
         request: BlockCommitmentValidationRequest,
     ) -> Result<()> {
         let BlockCommitmentValidationRequest {
             block_hash,
             block_timestamp,
-            previous_committed_block: allowed_previous_committed_block,
-            predecessor_block: allowed_predecessor_block,
+            previous_not_empty_block,
+            predecessor_block,
             transitions_digest,
         } = request;
 
@@ -207,7 +204,7 @@ impl Participant {
 
         if db.previous_not_empty_block(block_hash).ok_or_else(|| {
             anyhow!("Cannot get from db previous not empty for block {block_hash}")
-        })? != allowed_previous_committed_block
+        })? != previous_not_empty_block
         {
             return Err(anyhow!(
                 "Requested and local previous commitment block hash mismatch"
@@ -215,9 +212,9 @@ impl Participant {
         }
 
         // TODO: #4579 rename max_distance and make it configurable
-        if !Self::verify_is_predecessor(db, allowed_predecessor_block, block_hash, None)? {
+        if !Self::verify_is_predecessor(db, predecessor_block, block_hash, None)? {
             return Err(anyhow!(
-                "{block_hash} is not a predecessor of {allowed_predecessor_block}"
+                "{block_hash} is not a predecessor of {predecessor_block}"
             ));
         }
 
@@ -265,5 +262,240 @@ impl Participant {
         }
 
         Ok(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use ethexe_db::{BlockHeader, CodeInfo, Database, OnChainStorage};
+
+    use super::*;
+    use crate::{tests::*, validator::tests::*};
+
+    #[test]
+    fn create() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+
+        assert_eq!(participant.type_id(), TypeId::of::<Participant>());
+        assert_eq!(participant.context().pending_events.len(), 0);
+    }
+
+    #[test]
+    fn create_with_pending_events() {
+        let (mut ctx, keys) = mock_validator_context();
+        let producer = keys[0];
+        let alice = keys[1];
+        let block = mock_simple_block_data();
+        let contract_address = Address([42; 20]);
+
+        // Reply from alice - must be kept
+        ctx.pending(mock_validation_reply(&ctx.signer, alice, contract_address));
+
+        // Reply from alice - must be removed
+        ctx.pending(mock_validation_request(&ctx.signer, alice).1);
+
+        // Reply from producer - must be removed and processed
+        ctx.pending(mock_validation_request(&ctx.signer, producer).1);
+
+        // Second request from producer - must be kept
+        ctx.pending(mock_validation_request(&ctx.signer, producer).1);
+
+        // Second request from alice - must be kept
+        ctx.pending(mock_validation_request(&ctx.signer, alice).1);
+
+        let initial = Participant::create(ctx, block, producer.to_address()).unwrap();
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+
+        let ctx = initial.into_context();
+        assert_eq!(ctx.pending_events.len(), 3);
+        assert!(matches!(
+            ctx.pending_events[0],
+            ExternalEvent::ValidationReply(_)
+        ));
+        assert!(matches!(
+            ctx.pending_events[1],
+            ExternalEvent::ValidationRequest(_)
+        ));
+        assert!(matches!(
+            ctx.pending_events[2],
+            ExternalEvent::ValidationRequest(_)
+        ));
+        assert_eq!(ctx.output.len(), 1);
+        assert!(matches!(ctx.output[0], ControlEvent::Warning(_)));
+    }
+
+    #[test]
+    fn process_validation_request_success() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+        let (_, signed_request) = mock_validation_request(&ctx.signer, producer);
+
+        prepare_code_commitment(&ctx.db, signed_request.data().codes[0].clone());
+        prepare_code_commitment(&ctx.db, signed_request.data().codes[1].clone());
+
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+        let participant = participant
+            .process_external_event(ExternalEvent::ValidationRequest(signed_request))
+            .unwrap();
+
+        assert_eq!(participant.type_id(), TypeId::of::<Initial>());
+        assert_eq!(participant.context().output.len(), 1);
+        assert!(matches!(
+            participant.context().output[0],
+            ControlEvent::PublishValidationReply(_)
+        ));
+    }
+
+    #[test]
+    fn process_validation_request_failure() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = mock_simple_block_data();
+        let (_, signed_request) = mock_validation_request(&ctx.signer, producer);
+
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+        let initial = participant
+            .process_external_event(ExternalEvent::ValidationRequest(signed_request))
+            .unwrap();
+
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert_eq!(initial.context().output.len(), 1);
+        assert!(matches!(
+            initial.context().output[0],
+            ControlEvent::Warning(_)
+        ));
+    }
+
+    #[test]
+    fn validate_code_commitment() {
+        let db = Database::memory();
+        let mut code_commitment = mock_code_commitment();
+
+        // No enough data in db
+        Participant::validate_code_commitment(&db, code_commitment.clone()).unwrap_err();
+
+        db.set_code_valid(code_commitment.id, true);
+        db.set_code_blob_info(
+            code_commitment.id,
+            CodeInfo {
+                timestamp: 123,
+                tx_hash: H256::random(),
+            },
+        );
+
+        // Incorrect validation status
+        code_commitment.valid = false;
+        Participant::validate_code_commitment(&db, code_commitment.clone()).unwrap_err();
+
+        // Incorrect timestamp
+        code_commitment.valid = true;
+        code_commitment.timestamp = 111;
+        Participant::validate_code_commitment(&db, code_commitment.clone()).unwrap_err();
+
+        code_commitment.timestamp = 123;
+        Participant::validate_code_commitment(&db, code_commitment).unwrap();
+    }
+
+    #[test]
+    fn validate_block_commitment() {
+        let db = Database::from_one(&ethexe_db::MemDb::default());
+        let (_, block_commitment) = prepare_block_commitment(
+            &db,
+            mock_block_commitment(H256::random(), H256::random(), H256::random()),
+        );
+
+        let request = BlockCommitmentValidationRequest::from(&block_commitment);
+
+        Participant::validate_block_commitment(&db, request.clone()).unwrap();
+
+        // Incorrect timestamp
+        let mut incorrect_request = request.clone();
+        incorrect_request.block_timestamp += 1;
+        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
+
+        // Incorrect block hash
+        let mut incorrect_request = request.clone();
+        incorrect_request.predecessor_block = H256::random();
+        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
+
+        // Incorrect previous committed block
+        let mut incorrect_request = request.clone();
+        incorrect_request.previous_not_empty_block = H256::random();
+        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
+
+        // Incorrect transitions digest
+        let mut incorrect_request = request.clone();
+        incorrect_request.transitions_digest = Digest::from([2; 32]);
+        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
+
+        // Block is not processed by this node
+        let mut incorrect_request = request.clone();
+        incorrect_request.block_hash = H256::random();
+        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
+    }
+
+    #[test]
+    fn verify_is_predecessor() {
+        let db = Database::from_one(&ethexe_db::MemDb::default());
+
+        let blocks = [H256::random(), H256::random(), H256::random()];
+        db.set_block_header(
+            blocks[0],
+            BlockHeader {
+                height: 100,
+                timestamp: 100,
+                parent_hash: H256::zero(),
+            },
+        );
+        db.set_block_header(
+            blocks[1],
+            BlockHeader {
+                height: 101,
+                timestamp: 101,
+                parent_hash: blocks[0],
+            },
+        );
+        db.set_block_header(
+            blocks[2],
+            BlockHeader {
+                height: 102,
+                timestamp: 102,
+                parent_hash: blocks[1],
+            },
+        );
+
+        Participant::verify_is_predecessor(&db, blocks[1], H256::random(), None)
+            .expect_err("Unknown pred block is provided");
+
+        Participant::verify_is_predecessor(&db, H256::random(), blocks[0], None)
+            .expect_err("Unknown block is provided");
+
+        Participant::verify_is_predecessor(&db, blocks[2], blocks[0], Some(1))
+            .expect_err("Distance is too large");
+
+        // Another chain block
+        let block3 = H256::random();
+        db.set_block_header(
+            block3,
+            BlockHeader {
+                height: 1,
+                timestamp: 1,
+                parent_hash: blocks[0],
+            },
+        );
+        Participant::verify_is_predecessor(&db, blocks[2], block3, None)
+            .expect_err("Block is from other chain with incorrect height");
+
+        assert!(Participant::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap());
+        assert!(Participant::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2)).unwrap());
+        assert!(!Participant::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1)).unwrap());
+        assert!(Participant::verify_is_predecessor(&db, blocks[1], blocks[1], None).unwrap());
     }
 }

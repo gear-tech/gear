@@ -71,7 +71,7 @@ impl ValidatorSubService for Subordinate {
                     log::trace!(
                         "Receive validation request from producer: {request:?}, saved for later"
                     );
-                    self.ctx.pending_events.push_back(request.into());
+                    self.ctx.pending(request);
                 }
 
                 Ok(self)
@@ -128,7 +128,7 @@ impl Subordinate {
                 }
                 event @ ExternalEvent::ValidationRequest(_) if is_validator => {
                     // Keep validation requests if we are a validator
-                    ctx.pending_events.push_back(event);
+                    ctx.pending(event);
                 }
                 _ => {}
             }
@@ -158,7 +158,7 @@ impl Subordinate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_utils::*, validator::tests::mock_validator_context};
+    use crate::{tests::*, validator::tests::mock_validator_context};
 
     #[test]
     fn create_empty() {
@@ -182,8 +182,7 @@ mod tests {
         let block = mock_simple_block_data();
         let (pb, signed_pb) = mock_producer_block(&ctx.signer, producer, block.hash);
 
-        ctx.pending_events
-            .push_back(ExternalEvent::ProducerBlock(signed_pb));
+        ctx.pending(signed_pb);
 
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
@@ -201,8 +200,7 @@ mod tests {
         let block = mock_simple_block_data();
         let (_, signed_request) = mock_validation_request(&ctx.signer, producer);
 
-        ctx.pending_events
-            .push_back(ExternalEvent::ValidationRequest(signed_request.clone()));
+        ctx.pending(signed_request.clone());
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
@@ -259,10 +257,8 @@ mod tests {
         let (_, signed_pb1) = mock_producer_block(&ctx.signer, producer, block.hash);
         let (_, signed_pb2) = mock_producer_block(&ctx.signer, producer, block.hash);
 
-        ctx.pending_events
-            .push_back(ExternalEvent::ProducerBlock(signed_pb1));
-        ctx.pending_events
-            .push_back(ExternalEvent::ProducerBlock(signed_pb2));
+        ctx.pending(signed_pb1);
+        ctx.pending(signed_pb2);
 
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 

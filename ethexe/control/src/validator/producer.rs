@@ -237,14 +237,9 @@ enum AggregationError {
 mod tests {
     use super::*;
     use crate::{
-        test_utils::*,
-        validator::{
-            submitter::Submitter,
-            tests::{mock_validator_context, with_batch, WaitForEvent},
-            ExternalEvent,
-        },
+        tests::*,
+        validator::{submitter::Submitter, tests::*},
     };
-    use ethexe_db::{CodeInfo, Database};
     use std::{any::TypeId, vec};
 
     #[tokio::test]
@@ -253,15 +248,16 @@ mod tests {
         let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
         let block = mock_simple_block_data();
 
-        ctx.pending_events
-            .push_back(ExternalEvent::ValidationRequest(
-                mock_validation_request(&ctx.signer, keys[0]).1,
-            ));
+        ctx.pending(mock_validation_request(&ctx.signer, keys[0]).1);
 
         let producer = Producer::create(ctx, block, validators.clone()).unwrap();
 
         let ctx = producer.context();
-        assert_eq!(ctx.pending_events.len(), 0, "Producer must ignore events");
+        assert_eq!(
+            ctx.pending_events.len(),
+            0,
+            "Producer must ignore external events"
+        );
 
         let ctx = producer.into_context();
         let validators = vec![keys[0].to_address(), keys[1].to_address()];
@@ -293,14 +289,19 @@ mod tests {
         let (ctx, keys) = mock_validator_context();
         let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
 
+        // [block2] <- ... <- [block1]
         let (block1_hash, block2_hash) = (H256::random(), H256::random());
-        let (block1, block1_commitment) =
-            prepare_mock_block_commitment(&ctx.db, block1_hash, block1_hash, block2_hash);
-        let (block2, block2_commitment) =
-            prepare_mock_block_commitment(&ctx.db, block2_hash, block1_hash, H256::random());
+        let (block2, block2_commitment) = prepare_block_commitment(
+            &ctx.db,
+            mock_block_commitment(block2_hash, block1_hash, H256::random()),
+        );
+        let (block1, block1_commitment) = prepare_block_commitment(
+            &ctx.db,
+            mock_block_commitment(block1_hash, block1_hash, block2_hash),
+        );
 
-        let code1 = prepare_mock_code_commitment(&ctx.db);
-        let code2 = prepare_mock_code_commitment(&ctx.db);
+        let code1 = prepare_code_commitment(&ctx.db, mock_code_commitment());
+        let code2 = prepare_code_commitment(&ctx.db, mock_code_commitment());
 
         ctx.db
             .set_block_codes_queue(block1.hash, [code1.id, code2.id].into_iter().collect());
@@ -356,8 +357,8 @@ mod tests {
         let block = mock_simple_block_data();
         prepare_mock_empty_block(&ctx.db, &block, H256::random());
 
-        let code1 = prepare_mock_code_commitment(&ctx.db);
-        let code2 = prepare_mock_code_commitment(&ctx.db);
+        let code1 = prepare_code_commitment(&ctx.db, mock_code_commitment());
+        let code2 = prepare_code_commitment(&ctx.db, mock_code_commitment());
         ctx.db
             .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
 
@@ -376,59 +377,6 @@ mod tests {
             assert_eq!(batch.batch().block_commitments.len(), 0);
             assert_eq!(batch.batch().code_commitments.len(), 2);
         });
-    }
-
-    fn prepare_mock_code_commitment(db: &Database) -> CodeCommitment {
-        let code = mock_code_commitment();
-        db.set_code_blob_info(
-            code.id,
-            CodeInfo {
-                timestamp: code.timestamp,
-                tx_hash: H256::random(),
-            },
-        );
-        db.set_code_valid(code.id, code.valid);
-        db.set_code_valid(code.id, code.valid);
-        code
-    }
-
-    fn prepare_mock_block_commitment(
-        db: &Database,
-        hash: H256,
-        predecessor: H256,
-        previous_not_empty: H256,
-    ) -> (SimpleBlockData, BlockCommitment) {
-        let mut block = mock_simple_block_data();
-        block.hash = hash;
-
-        prepare_mock_empty_block(db, &block, previous_not_empty);
-
-        let transitions = vec![mock_state_transition(), mock_state_transition()];
-        db.set_block_outcome(block.hash, transitions.clone());
-
-        (
-            block.clone(),
-            BlockCommitment {
-                hash: block.hash,
-                timestamp: block.header.timestamp,
-                previous_committed_block: previous_not_empty,
-                predecessor_block: predecessor,
-                transitions,
-            },
-        )
-    }
-
-    fn prepare_mock_empty_block(
-        db: &Database,
-        block: &SimpleBlockData,
-        previous_committed_block: H256,
-    ) {
-        db.set_block_computed(block.hash);
-        db.set_block_header(block.hash, block.header.clone());
-        db.set_previous_not_empty_block(block.hash, previous_committed_block);
-        db.set_block_codes_queue(block.hash, Default::default());
-        db.set_block_commitment_queue(block.hash, Default::default());
-        db.set_block_outcome(block.hash, Default::default());
     }
 
     async fn producer_create_skip_timer(
