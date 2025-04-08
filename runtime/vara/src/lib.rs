@@ -1244,12 +1244,15 @@ impl pallet_gear_builtin::Config for Runtime {
 
 parameter_types! {
     pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
-    #[cfg(feature = "dev")]
-    pub GearEthBridgeBuiltinAddress: AccountId
-        = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
 
     pub GearEthBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
     pub GearEthBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
+}
+
+#[cfg(feature = "dev")]
+parameter_types! {
+    pub GearEthBridgeBuiltinAddress: AccountId
+        = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
 }
 
 /// Provides the set of accounts allowed to control the Gear ETH Bridge (admin and pauser).
