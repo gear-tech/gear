@@ -3443,6 +3443,9 @@ pub mod runtime_types {
                         destination: ::subxt::ext::subxt_core::utils::H160,
                         payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
+                    #[codec(index = 3)]
+                    #[doc = "Root extrinsic that sets fee for the transport of messages."]
+                    set_fee { fee: ::core::primitive::u128 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's error."]
@@ -10782,6 +10785,7 @@ pub mod calls {
         Pause,
         Unpause,
         SendEthMessage,
+        SetFee,
     }
     impl CallInfo for GearEthBridgeCall {
         const PALLET: &'static str = "GearEthBridge";
@@ -10790,6 +10794,7 @@ pub mod calls {
                 Self::Pause => "pause",
                 Self::Unpause => "unpause",
                 Self::SendEthMessage => "send_eth_message",
+                Self::SetFee => "set_fee",
             }
         }
     }
@@ -11640,6 +11645,7 @@ pub mod storage {
         ClearTimer,
         MessageNonce,
         QueueChanged,
+        TransportFee,
     }
     impl StorageInfo for GearEthBridgeStorage {
         const PALLET: &'static str = "GearEthBridge";
@@ -11654,6 +11660,7 @@ pub mod storage {
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
+                Self::TransportFee => "TransportFee",
             }
         }
     }
