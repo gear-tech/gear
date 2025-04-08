@@ -337,13 +337,15 @@ pub mod pallet {
 
             // Transfer fee
             let fee = TransportFee::<T>::get();
-            let builtin_id = T::BuiltinAddress::get();
-            CurrencyOf::<T>::transfer(
-                &T::AccountId::from_origin(source.into()),
-                &builtin_id,
-                fee,
-                ExistenceRequirement::AllowDeath,
-            )?;
+            if !fee.is_zero() {
+                let builtin_id = T::BuiltinAddress::get();
+                CurrencyOf::<T>::transfer(
+                    &source.cast(),
+                    &builtin_id,
+                    fee,
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            }
 
             Self::queue_message(source, destination, payload)?;
 

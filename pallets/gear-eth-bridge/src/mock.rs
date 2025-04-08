@@ -297,7 +297,7 @@ impl pallet_session::Config for Test {
 
 parameter_types! {
     pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
-    pub MockBridgeBuiltinAddress: AccountId = AccountId::from_origin(mock_builtin_id().into());
+    pub MockBridgeBuiltinAddress: AccountId = mock_builtin_id().cast();
 
     pub MockBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
     pub MockBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");

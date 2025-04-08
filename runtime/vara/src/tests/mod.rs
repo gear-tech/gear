@@ -418,7 +418,7 @@ fn eth_bridge_builtin_id_matches() {
     use common::Origin;
 
     assert_eq!(
-        AccountId::from_origin(GearBuiltin::generate_actor_id(super::ETH_BRIDGE_BUILTIN_ID).into()),
+        GearBuiltin::generate_actor_id(super::ETH_BRIDGE_BUILTIN_ID).cast(),
         <Runtime as pallet_gear_eth_bridge::Config>::BuiltinAddress::get(),
     )
 }
