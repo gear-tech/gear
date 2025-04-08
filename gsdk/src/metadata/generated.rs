@@ -11596,6 +11596,7 @@ pub mod storage {
     #[doc = "Storage of pallet `GearBank`."]
     pub enum GearBankStorage {
         Bank,
+        BankAddress,
         UnusedValue,
         OnFinalizeTransfers,
         OnFinalizeValue,
@@ -11605,6 +11606,7 @@ pub mod storage {
         fn storage_name(&self) -> &'static str {
             match self {
                 Self::Bank => "Bank",
+                Self::BankAddress => "BankAddress",
                 Self::UnusedValue => "UnusedValue",
                 Self::OnFinalizeTransfers => "OnFinalizeTransfers",
                 Self::OnFinalizeValue => "OnFinalizeValue",

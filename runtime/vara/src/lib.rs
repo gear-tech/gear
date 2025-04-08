@@ -115,8 +115,8 @@ pub use frame_support::{
 };
 pub use gear_runtime_common::{
     constants::{
-        BANK_ADDRESS, RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR,
-        RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR,
+        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
+        RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
     GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
@@ -1138,7 +1138,7 @@ parameter_types! {
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
-    pub BankAddress: AccountId = BANK_ADDRESS.into();
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const TreasuryGasFeeShare: Percent = Percent::one();
     pub const TreasuryTxFeeShare: Percent = Percent::one();
@@ -1146,7 +1146,7 @@ parameter_types! {
 
 impl pallet_gear_bank::Config for Runtime {
     type Currency = Balances;
-    type BankAddress = BankAddress;
+    type PalletId = BankPalletId;
     type GasMultiplier = GasMultiplier;
     type TreasuryAddress = TreasuryAccount;
     type TreasuryGasFeeShare = TreasuryGasFeeShare;

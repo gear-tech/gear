@@ -159,7 +159,7 @@ impl ExtBuilder {
             )
             .collect::<Vec<_>>();
 
-        balances.push((BankAddress::get(), EXISTENTIAL_DEPOSIT));
+        balances.push((GearBank::bank_address(), EXISTENTIAL_DEPOSIT));
 
         pallet_balances::GenesisConfig::<Runtime> { balances }
             .assimilate_storage(&mut storage)
