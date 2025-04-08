@@ -1013,18 +1013,12 @@ pub mod runtime_types {
                 pub enum ErrorReplyReason {
                     #[codec(index = 0)]
                     Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
-                    #[codec(index = 1)]
-                    FailedToCreateProgram(
-                        runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
-                    ),
                     #[codec(index = 2)]
-                    InactiveActor(
-                        runtime_types::gear_core_errors::simple::SimpleInactiveActorError,
+                    UnavailableActor(
+                        runtime_types::gear_core_errors::simple::SimpleUnavailableActorError,
                     ),
                     #[codec(index = 3)]
                     RemovedFromWaitlist,
-                    #[codec(index = 4)]
-                    ReinstrumentationFailure,
                     #[codec(index = 255)]
                     Unsupported,
                 }
@@ -1062,16 +1056,17 @@ pub mod runtime_types {
                     Unsupported,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum SimpleInactiveActorError {
+                pub enum SimpleUnavailableActorError {
                     #[codec(index = 0)]
                     ProgramExited,
-                    #[codec(index = 255)]
-                    Unsupported,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum SimpleProgramCreationError {
-                    #[codec(index = 0)]
+                    #[codec(index = 1)]
+                    InitializationFailure,
+                    #[codec(index = 2)]
+                    Uninitialized,
+                    #[codec(index = 3)]
                     CodeNotExists,
+                    #[codec(index = 4)]
+                    ReinstrumentationFailure,
                     #[codec(index = 255)]
                     Unsupported,
                 }
