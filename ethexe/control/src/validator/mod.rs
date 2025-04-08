@@ -1,17 +1,20 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_db::Database;
-use ethexe_ethereum::{router::Router, Ethereum};
+use ethexe_ethereum::Ethereum;
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::{Address, PublicKey, SignedData, Signer};
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
 use std::{
+    any::Any,
     collections::VecDeque,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
+use submitter::EthereumCommitter;
 
 mod coordinator;
 mod initial;
@@ -21,7 +24,10 @@ mod submitter;
 mod subordinate;
 
 use crate::{
-    utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
+    utils::{
+        BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
+        MultisignedBatchCommitment,
+    },
     ControlEvent, ControlService,
 };
 use initial::Initial;
@@ -48,6 +54,8 @@ impl ValidatorService {
         )
         .await?;
 
+        let router = ethereum.router();
+
         let ctx = ValidatorContext {
             slot_duration: config.slot_duration,
             threshold: config.threshold,
@@ -55,7 +63,7 @@ impl ValidatorService {
             pub_key: config.pub_key,
             signer,
             db,
-            get_router: Box::new(move || ethereum.router()),
+            committer: Box::new(EthereumCommitter { router }),
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
         };
@@ -158,11 +166,12 @@ enum ExternalEvent {
     ValidationReply(BatchCommitmentValidationReply),
 }
 
-trait ValidatorSubService: Unpin + Send + 'static {
+trait ValidatorSubService: Any + Unpin + Send + 'static {
     fn log(&self, s: String) -> String;
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService>;
     fn context(&self) -> &ValidatorContext;
     fn context_mut(&mut self) -> &mut ValidatorContext;
+    // +_+_+ remove box?
     fn into_context(self: Box<Self>) -> ValidatorContext;
 
     fn process_external_event(
@@ -235,7 +244,7 @@ struct ValidatorContext {
     pub_key: PublicKey,
     signer: Signer,
     db: Database,
-    get_router: Box<dyn Fn() -> Router + Send>,
+    committer: Box<dyn BatchCommitter>,
     pending_events: VecDeque<ExternalEvent>,
     output: VecDeque<ControlEvent>,
 }
@@ -250,11 +259,52 @@ impl ValidatorContext {
     }
 }
 
+#[async_trait]
+pub trait BatchCommitter: Send {
+    fn clone_boxed(&self) -> Box<dyn BatchCommitter>;
+    async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256>;
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::init_signer_with_keys;
+    use std::cell::RefCell;
 
     use super::*;
+    use crate::test_utils::init_signer_with_keys;
+
+    thread_local! {
+        static BATCH: RefCell<Option<MultisignedBatchCommitment>> = const { RefCell::new(None) };
+    }
+
+    pub fn with_batch(f: impl FnOnce(Option<&MultisignedBatchCommitment>)) {
+        BATCH.with_borrow(|storage| f(storage.as_ref()));
+    }
+
+    struct DummyCommitter;
+
+    #[async_trait]
+    impl BatchCommitter for DummyCommitter {
+        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+            Box::new(DummyCommitter)
+        }
+
+        async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256> {
+            BATCH.with_borrow_mut(|storage| storage.replace(batch));
+            Ok(H256::random())
+        }
+    }
+
+    #[async_trait]
+    pub trait WaitForEvent {
+        async fn wait_for_event(self) -> Result<(Box<dyn ValidatorSubService>, ControlEvent)>;
+    }
+
+    #[async_trait]
+    impl WaitForEvent for Box<dyn ValidatorSubService> {
+        async fn wait_for_event(self) -> Result<(Box<dyn ValidatorSubService>, ControlEvent)> {
+            wait_for_event_inner(self).await
+        }
+    }
 
     pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         let (signer, _, mut keys) = init_signer_with_keys(10);
@@ -266,11 +316,37 @@ mod tests {
             pub_key: keys.pop().unwrap(),
             signer,
             db: Database::memory(),
-            get_router: Box::new(|| panic!("not implemented for mock")),
+            committer: Box::new(DummyCommitter),
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
         };
 
         (ctx, keys)
+    }
+
+    async fn wait_for_event_inner(
+        s: Box<dyn ValidatorSubService>,
+    ) -> Result<(Box<dyn ValidatorSubService>, ControlEvent)> {
+        struct Dummy(Option<Box<dyn ValidatorSubService>>);
+
+        impl Future for Dummy {
+            type Output = Result<ControlEvent>;
+
+            fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                let mut s = self.0.take().unwrap().poll(cx)?;
+                let res = s
+                    .context_mut()
+                    .output
+                    .pop_front()
+                    .map(|event| Poll::Ready(Ok(event)))
+                    .unwrap_or(Poll::Pending);
+                self.0 = Some(s);
+                res
+            }
+        }
+
+        let mut dummy = Dummy(Some(s));
+        let event = (&mut dummy).await?;
+        Ok((dummy.0.unwrap(), event))
     }
 }

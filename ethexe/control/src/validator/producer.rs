@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, ensure, Result};
 use derivative::Derivative;
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
@@ -56,7 +56,7 @@ impl ValidatorSubService for Producer {
         mut self: Box<Self>,
         computed_block: H256,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        if matches!(&self.state, State::WaitingBlockComputed(hash) if *hash != computed_block) {
+        if !matches!(&self.state, State::WaitingBlockComputed(hash) if *hash == computed_block) {
             self.warning(format!("unexpected computed block {computed_block}"));
 
             return Ok(self);
@@ -98,6 +98,11 @@ impl Producer {
         block: SimpleBlockData,
         validators: Vec<Address>,
     ) -> Result<Box<dyn ValidatorSubService>> {
+        ensure!(
+            validators.contains(&ctx.pub_key.to_address()),
+            "Producer is not in the list of validators"
+        );
+
         let mut timer = Timer::new("collect off-chain transactions", ctx.slot_duration / 6);
         timer.start(());
 
@@ -231,354 +236,148 @@ enum AggregationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
+    use crate::{
+        test_utils::*,
+        validator::{
+            submitter::Submitter,
+            tests::{mock_validator_context, with_batch, WaitForEvent},
+            ExternalEvent,
+        },
+    };
     use ethexe_db::{CodeInfo, Database};
-    use std::vec;
-
-    // #[tokio::test]
-    // async fn producer_new() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20]), Address([2; 20])];
-    //     let block = mock_simple_block_data();
-    //     let slot_duration = Duration::ZERO;
-
-    //     let producer = Producer::new(
-    //         pub_key,
-    //         signer.clone(),
-    //         db.clone(),
-    //         slot_duration,
-    //         validators.clone(),
-    //         block.clone(),
-    //     );
-    //     assert_eq!(producer.pub_key, pub_key);
-    //     assert_eq!(producer.validators, validators);
-    //     assert_eq!(producer.block, block);
-    //     assert!(matches!(
-    //         producer.state,
-    //         State::CollectOffChainTransactions(_)
-    //     ));
-
-    //     let events = producer.await.unwrap();
-    //     assert_eq!(events.len(), 2);
-    //     assert!(matches!(events[0], ControlEvent::PublishProducerBlock(_)));
-    //     assert!(matches!(events[1], ControlEvent::ComputeProducerBlock(_)));
-    // }
-
-    // #[tokio::test]
-    // async fn receive_wrong_computed_block() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-    //     let slot_duration = Duration::ZERO;
-
-    //     let mut producer = Producer::new(
-    //         pub_key,
-    //         signer,
-    //         db.clone(),
-    //         slot_duration,
-    //         validators,
-    //         block.clone(),
-    //     );
-    //     (&mut producer).await.unwrap();
-
-    //     let wrong_block = H256::random();
-    //     let events = producer.receive_computed_block(wrong_block).unwrap();
-    //     assert!(events.len() == 1 && matches!(events[0], ControlEvent::Warning(_)));
-    // }
-
-    // #[tokio::test]
-    // async fn code_commitments_only() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-    //     let slot_duration = Duration::ZERO;
-
-    //     let mut producer = Producer::new(
-    //         pub_key,
-    //         signer,
-    //         db.clone(),
-    //         slot_duration,
-    //         validators,
-    //         block.clone(),
-    //     );
-
-    //     (&mut producer).await.unwrap();
-
-    //     let code1 = prepare_mock_code_commitment(&db);
-    //     let code2 = prepare_mock_code_commitment(&db);
-    //     db.set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
-    //     db.set_block_commitment_queue(block.hash, Default::default());
-
-    //     let events = producer.receive_computed_block(block.hash).unwrap();
-    //     assert!(events.is_empty());
-
-    //     let (_, _, batch) = producer.into_parts();
-    //     let batch = batch.unwrap();
-    //     assert_eq!(batch.block_commitments, vec![]);
-    //     assert_eq!(batch.code_commitments, vec![code1, code2]);
-    // }
-
-    // #[tokio::test]
-    // async fn code_and_block_commitments() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let slot_duration = Duration::ZERO;
-
-    //     let (block1_hash, block2_hash) = (H256::random(), H256::random());
-    //     let (block1, block1_commitment) =
-    //         prepare_mock_block_commitment(&db, block1_hash, block1_hash, block2_hash);
-    //     let (block2, block2_commitment) =
-    //         prepare_mock_block_commitment(&db, block2_hash, block1_hash, H256::random());
-
-    //     let mut producer = Producer::new(
-    //         pub_key,
-    //         signer,
-    //         db.clone(),
-    //         slot_duration,
-    //         validators,
-    //         block1.clone(),
-    //     );
-    //     (&mut producer).await.unwrap();
-
-    //     let code1 = prepare_mock_code_commitment(&db);
-    //     let code2 = prepare_mock_code_commitment(&db);
-
-    //     db.set_block_codes_queue(block1.hash, [code1.id, code2.id].into_iter().collect());
-    //     db.set_block_commitment_queue(
-    //         block1.hash,
-    //         [block2.hash, block1.hash].into_iter().collect(),
-    //     );
-
-    //     let events = producer.receive_computed_block(block1.hash).unwrap();
-    //     assert!(events.is_empty());
-
-    //     let (_, _, batch) = producer.into_parts();
-    //     let batch = batch.unwrap();
-    //     assert_eq!(
-    //         batch.block_commitments,
-    //         vec![block2_commitment, block1_commitment]
-    //     );
-    //     assert_eq!(batch.code_commitments, vec![code1, code2]);
-    // }
-
-    // #[test]
-    // fn blocks_in_queue_not_computed() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (mut producer, _) =
-    //         Producer::new(pub_key, signer, db.clone(), validators, block.clone()).unwrap();
-
-    //     let (block1_hash, block2_hash) = (H256::random(), H256::random());
-    //     let (block1, _) = prepare_mock_block_commitment(&db, block1_hash, block1_hash, block2_hash);
-
-    //     // Simulate a block in the queue that is not computed
-    //     db.set_block_commitment_queue(block.hash, [block1.hash, block2_hash].into_iter().collect());
-    //     db.set_block_computed(block1.hash); // Only block1 is marked as computed
-
-    //     let result = producer.receive_computed_block(block.hash);
-
-    //     assert!(matches!(result, Ok(None)));
-    // }
-
-    // #[test]
-    // fn receive_computed_block_in_collect_off_chain_transactions_state() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (mut producer, _) =
-    //         Producer::new(pub_key, signer, db.clone(), validators, block.clone()).unwrap();
-
-    //     // Manually set the state to `CollectOffChainTransactions`
-    //     producer.state =
-    //         ProducerState::CollectOffChainTransactions(Timer::new_from_secs("dead", 10));
-
-    //     let computed_block = block.hash;
-    //     let result = producer.receive_computed_block(computed_block);
-
-    //     assert!(matches!(result, Err(ControlError::Fatal(_))));
-    // }
-
-    // #[test]
-    // fn receive_computed_block_with_wrong_hash() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (mut producer, _) =
-    //         Producer::new(pub_key, signer, db.clone(), validators, block.clone()).unwrap();
-
-    //     let wrong_block_hash = H256::random();
-    //     let result = producer.receive_computed_block(wrong_block_hash);
-
-    //     assert!(matches!(result, Err(ControlError::Warning(_))));
-    // }
-
-    // #[test]
-    // fn receive_computed_block_in_final_state() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (mut producer, _) =
-    //         Producer::new(pub_key, signer, db.clone(), validators, block.clone()).unwrap();
-
-    //     // Simulate the producer reaching the final state
-    //     producer.state = ProducerState::Final;
-
-    //     let computed_block = block.hash;
-    //     let result = producer.receive_computed_block(computed_block);
-
-    //     assert!(matches!(result, Err(ControlError::Fatal(_))));
-    // }
-
-    // #[test]
-    // fn receive_computed_block_with_missing_commitment_queue() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (mut producer, _) =
-    //         Producer::new(pub_key, signer, db.clone(), validators, block.clone()).unwrap();
-
-    //     // Simulate missing commitment queue in the database
-    //     let computed_block = block.hash;
-    //     let result = producer.receive_computed_block(computed_block);
-
-    //     assert!(matches!(result, Err(ControlError::Fatal(_))));
-    // }
-
-    // #[test]
-    // fn receive_computed_block_with_missing_outcome() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (mut producer, _) =
-    //         Producer::new(pub_key, signer, db.clone(), validators, block.clone()).unwrap();
-
-    //     // Simulate a block in the queue but missing outcome
-    //     let block1_hash = H256::random();
-    //     db.set_block_commitment_queue(block.hash, [block1_hash].into_iter().collect());
-    //     db.set_block_computed(block1_hash);
-
-    //     let computed_block = block.hash;
-    //     let result = producer.receive_computed_block(computed_block);
-
-    //     assert!(matches!(result, Err(ControlError::Fatal(_))));
-    // }
-
-    // #[test]
-    // fn receive_computed_block_with_missing_previous_committed_block() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (mut producer, _) =
-    //         Producer::new(pub_key, signer, db.clone(), validators, block.clone()).unwrap();
-
-    //     // Simulate a block in the queue but missing previous committed block
-    //     let block1_hash = H256::random();
-    //     db.set_block_commitment_queue(block.hash, [block1_hash].into_iter().collect());
-    //     db.set_block_computed(block1_hash);
-    //     db.set_block_outcome(block1_hash, vec![mock_state_transition()]);
-
-    //     let computed_block = block.hash;
-    //     let result = producer.receive_computed_block(computed_block);
-
-    //     assert!(matches!(result, Err(ControlError::Fatal(_))));
-    // }
-
-    // #[test]
-    // fn receive_computed_block_with_missing_header() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (mut producer, _) =
-    //         Producer::new(pub_key, signer, db.clone(), validators, block.clone()).unwrap();
-
-    //     // Simulate a block in the queue but missing header
-    //     let block1_hash = H256::random();
-    //     db.set_block_commitment_queue(block.hash, [block1_hash].into_iter().collect());
-    //     db.set_block_computed(block1_hash);
-    //     db.set_block_outcome(block1_hash, vec![mock_state_transition()]);
-    //     db.set_previous_not_empty_block(block1_hash, H256::random());
-
-    //     let computed_block = block.hash;
-    //     let result = producer.receive_computed_block(computed_block);
-
-    //     assert!(matches!(result, Err(ControlError::Fatal(_))));
-    // }
-
-    // #[test]
-    // fn into_parts_works() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20]), Address([2; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (mut producer, _) = Producer::new(
-    //         pub_key,
-    //         signer,
-    //         db.clone(),
-    //         validators.clone(),
-    //         block.clone(),
-    //     )
-    //     .unwrap();
-
-    //     // Simulate the producer reaching the final state
-    //     producer.state = ProducerState::Final;
-
-    //     let (returned_validators, returned_block) = producer.into_parts();
-
-    //     assert_eq!(returned_validators, validators);
-    //     assert_eq!(returned_block, block);
-    // }
-
-    // #[test]
-    // #[should_panic(expected = "Producer is not in the final state: wrong Producer usage")]
-    // fn into_parts_panics_if_not_final() {
-    //     let (signer, _, pub_keys) = init_signer_with_keys(1);
-    //     let pub_key = pub_keys[0];
-    //     let db = Database::memory();
-    //     let validators = vec![Address([1; 20]), Address([2; 20])];
-    //     let block = mock_simple_block_data();
-
-    //     let (producer, _) = Producer::new(pub_key, signer, db.clone(), validators, block).unwrap();
-
-    //     // Attempt to call into_parts without reaching the final state
-    //     let _ = producer.into_parts();
-    // }
-
-    #[allow(dead_code)]
+    use std::{any::TypeId, vec};
+
+    #[tokio::test]
+    async fn create() {
+        let (mut ctx, keys) = mock_validator_context();
+        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
+        let block = mock_simple_block_data();
+
+        ctx.pending_events
+            .push_back(ExternalEvent::ValidationRequest(
+                mock_validation_request(&ctx.signer, keys[0]).1,
+            ));
+
+        let producer = Producer::create(ctx, block, validators.clone()).unwrap();
+
+        let ctx = producer.context();
+        assert_eq!(ctx.pending_events.len(), 0, "Producer must ignore events");
+
+        let ctx = producer.into_context();
+        let validators = vec![keys[0].to_address(), keys[1].to_address()];
+        let block = mock_simple_block_data();
+        assert!(Producer::create(ctx, block, validators).is_err());
+    }
+
+    #[tokio::test]
+    async fn simple() {
+        let (ctx, keys) = mock_validator_context();
+        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
+        let block = mock_simple_block_data();
+        prepare_mock_empty_block(&ctx.db, &block, H256::random());
+
+        let producer = producer_create_skip_timer(ctx, block.clone(), validators)
+            .await
+            .unwrap()
+            .0;
+
+        // No commitments - no batch and goes to initial state
+        let initial = producer.process_computed_block(block.hash).unwrap();
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert_eq!(initial.context().output.len(), 0);
+        with_batch(|batch| assert!(batch.is_none()));
+    }
+
+    #[tokio::test]
+    async fn complex() {
+        let (ctx, keys) = mock_validator_context();
+        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
+
+        let (block1_hash, block2_hash) = (H256::random(), H256::random());
+        let (block1, block1_commitment) =
+            prepare_mock_block_commitment(&ctx.db, block1_hash, block1_hash, block2_hash);
+        let (block2, block2_commitment) =
+            prepare_mock_block_commitment(&ctx.db, block2_hash, block1_hash, H256::random());
+
+        let code1 = prepare_mock_code_commitment(&ctx.db);
+        let code2 = prepare_mock_code_commitment(&ctx.db);
+
+        ctx.db
+            .set_block_codes_queue(block1.hash, [code1.id, code2.id].into_iter().collect());
+        ctx.db.set_block_commitment_queue(
+            block1.hash,
+            [block2.hash, block1.hash].into_iter().collect(),
+        );
+
+        // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
+        let submitter = producer_create_skip_timer(ctx, block1.clone(), validators.clone())
+            .await
+            .unwrap()
+            .0
+            .process_computed_block(block1.hash)
+            .unwrap();
+        assert_eq!(submitter.type_id(), TypeId::of::<Submitter>());
+        assert_eq!(submitter.context().output.len(), 0);
+
+        // Check that we have a batch with code commitments after submitting
+        let initial = submitter.wait_for_event().await.unwrap().0;
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        with_batch(|batch| {
+            let batch = batch.expect("Expected that batch is committed");
+            assert_eq!(batch.signatures().len(), 1);
+            assert_eq!(batch.batch().block_commitments.len(), 2);
+            assert_eq!(batch.batch().block_commitments[0], block2_commitment);
+            assert_eq!(batch.batch().block_commitments[1], block1_commitment);
+            assert_eq!(batch.batch().code_commitments.len(), 2);
+            assert_eq!(batch.batch().code_commitments[0], code1);
+            assert_eq!(batch.batch().code_commitments[1], code2);
+        });
+
+        // If threshold is 2, producer must goes to coordinator state and emit validation request
+        let mut ctx = initial.into_context();
+        ctx.threshold = 2;
+        let (coordinator, request) = producer_create_skip_timer(ctx, block1.clone(), validators)
+            .await
+            .unwrap()
+            .0
+            .process_computed_block(block1.hash)
+            .unwrap()
+            .wait_for_event()
+            .await
+            .unwrap();
+        assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
+        assert!(matches!(request, ControlEvent::PublishValidationRequest(_)));
+    }
+
+    #[tokio::test]
+    async fn code_commitments_only() {
+        let (ctx, keys) = mock_validator_context();
+        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
+        let block = mock_simple_block_data();
+        prepare_mock_empty_block(&ctx.db, &block, H256::random());
+
+        let code1 = prepare_mock_code_commitment(&ctx.db);
+        let code2 = prepare_mock_code_commitment(&ctx.db);
+        ctx.db
+            .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
+
+        let submitter = producer_create_skip_timer(ctx, block.clone(), validators.clone())
+            .await
+            .unwrap()
+            .0
+            .process_computed_block(block.hash)
+            .unwrap();
+
+        let initial = submitter.wait_for_event().await.unwrap().0;
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        with_batch(|batch| {
+            let batch = batch.expect("Expected that batch is committed");
+            assert_eq!(batch.signatures().len(), 1);
+            assert_eq!(batch.batch().block_commitments.len(), 0);
+            assert_eq!(batch.batch().code_commitments.len(), 2);
+        });
+    }
+
     fn prepare_mock_code_commitment(db: &Database) -> CodeCommitment {
         let code = mock_code_commitment();
         db.set_code_blob_info(
@@ -593,7 +392,6 @@ mod tests {
         code
     }
 
-    #[allow(dead_code)]
     fn prepare_mock_block_commitment(
         db: &Database,
         hash: H256,
@@ -603,11 +401,11 @@ mod tests {
         let mut block = mock_simple_block_data();
         block.hash = hash;
 
+        prepare_mock_empty_block(db, &block, previous_not_empty);
+
         let transitions = vec![mock_state_transition(), mock_state_transition()];
-        db.set_block_computed(block.hash);
-        db.set_previous_not_empty_block(block.hash, previous_not_empty);
         db.set_block_outcome(block.hash, transitions.clone());
-        db.set_block_header(block.hash, block.header.clone());
+
         (
             block.clone(),
             BlockCommitment {
@@ -618,5 +416,43 @@ mod tests {
                 transitions,
             },
         )
+    }
+
+    fn prepare_mock_empty_block(
+        db: &Database,
+        block: &SimpleBlockData,
+        previous_committed_block: H256,
+    ) {
+        db.set_block_computed(block.hash);
+        db.set_block_header(block.hash, block.header.clone());
+        db.set_previous_not_empty_block(block.hash, previous_committed_block);
+        db.set_block_codes_queue(block.hash, Default::default());
+        db.set_block_commitment_queue(block.hash, Default::default());
+        db.set_block_outcome(block.hash, Default::default());
+    }
+
+    async fn producer_create_skip_timer(
+        ctx: ValidatorContext,
+        block: SimpleBlockData,
+        validators: Vec<Address>,
+    ) -> Result<(Box<dyn ValidatorSubService>, ControlEvent, ControlEvent)> {
+        let producer = Producer::create(ctx, block.clone(), validators)?;
+        assert_eq!(producer.type_id(), TypeId::of::<Producer>());
+
+        let (producer, publish_event) = producer.wait_for_event().await?;
+        assert_eq!(producer.type_id(), TypeId::of::<Producer>());
+        assert!(matches!(
+            publish_event,
+            ControlEvent::PublishProducerBlock(_)
+        ));
+
+        let (producer, compute_event) = producer.wait_for_event().await?;
+        assert_eq!(producer.type_id(), TypeId::of::<Producer>());
+        assert!(matches!(
+            compute_event,
+            ControlEvent::ComputeProducerBlock(_)
+        ));
+
+        Ok((producer, publish_event, compute_event))
     }
 }

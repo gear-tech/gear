@@ -4618,6 +4618,7 @@ name = "ethexe-control"
 version = "1.7.1"
 dependencies = [
  "anyhow",
+ "async-trait",
  "derivative",
  "derive_more 0.99.18",
  "ethexe-common",
@@ -4632,6 +4633,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
+ "tokio",
 ]
 
 [[package]]

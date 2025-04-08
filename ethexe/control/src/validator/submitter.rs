@@ -1,13 +1,12 @@
-use std::task::{Context, Poll};
-
 use anyhow::Result;
+use async_trait::async_trait;
 use ethexe_ethereum::router::Router;
 use futures::{future::BoxFuture, FutureExt};
 use gprimitives::H256;
+use std::task::{Context, Poll};
 
+use super::{initial::Initial, BatchCommitter, ValidatorContext, ValidatorSubService};
 use crate::{utils::MultisignedBatchCommitment, ControlEvent};
-
-use super::{initial::Initial, ValidatorContext, ValidatorSubService};
 
 pub struct Submitter {
     ctx: ValidatorContext,
@@ -57,23 +56,40 @@ impl Submitter {
         ctx: ValidatorContext,
         batch: MultisignedBatchCommitment,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        let router = ctx.get_router.as_ref()();
-
-        Ok(Box::new(Self {
-            ctx,
-            future: submit_batch_commitment(router, batch).boxed(),
-        }))
+        let future = ctx.committer.clone_boxed().commit_batch(batch);
+        Ok(Box::new(Self { ctx, future }))
     }
 }
 
-async fn submit_batch_commitment(
-    router: Router,
-    batch: MultisignedBatchCommitment,
-) -> Result<H256> {
-    let (commitment, signatures) = batch.into_parts();
-    let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
-
-    log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
-
-    router.commit_batch(commitment, signatures).await
+#[derive(Clone)]
+pub struct EthereumCommitter {
+    pub(crate) router: Router,
 }
+
+#[async_trait]
+impl BatchCommitter for EthereumCommitter {
+    fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+        Box::new(self.clone())
+    }
+
+    async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256> {
+        let (commitment, signatures) = batch.into_parts();
+        let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
+
+        log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
+
+        self.router.commit_batch(commitment, signatures).await
+    }
+}
+
+// async fn submit_batch_commitment(
+//     router: Router,
+//     batch: MultisignedBatchCommitment,
+// ) -> Result<H256> {
+//     let (commitment, signatures) = batch.into_parts();
+//     let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
+
+//     log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
+
+//     router.commit_batch(commitment, signatures).await
+// }
