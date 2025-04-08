@@ -4919,7 +4919,9 @@ fn messages_to_uninitialized_program_wait() {
         assert!(auto_reply.details().is_some());
         assert_eq!(
             auto_reply.reply_code().expect("Should be"),
-            ReplyCode::Error(ErrorReplyReason::UnavailableActor(Default::default()))
+            ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::Uninitialized
+            ))
         );
         assert_eq!(auto_reply.payload_bytes(), &[] as &[u8]);
     })
@@ -5093,7 +5095,7 @@ fn wake_messages_after_program_inited() {
                     assert_eq!(
                         message.reply_code(),
                         Some(ReplyCode::Error(ErrorReplyReason::UnavailableActor(
-                            Default::default()
+                            SimpleUnavailableActorError::Uninitialized
                         )))
                     );
                     Some(())
@@ -7398,7 +7400,7 @@ fn init_wait_reply_exit_cleaned_storage() {
 
         let mut responses = vec![
             Assertion::ReplyCode(ReplyCode::Error(
-                ErrorReplyReason::UnavailableActor(Default::default())
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::Uninitialized)
             ));
             count
         ];
@@ -12676,7 +12678,10 @@ fn async_init() {
             USER_1,
             vec![
                 // `demo_async_init` sent error reply on "PING" message
-                Assertion::ReplyCode(ErrorReplyReason::UnavailableActor(Default::default()).into()),
+                Assertion::ReplyCode(
+                    ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::Uninitialized)
+                        .into(),
+                ),
                 // `demo_async_init`'s `init` was successful
                 Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
             ],
@@ -14199,7 +14204,10 @@ fn test_send_to_terminated_from_program() {
             .expect("internal error: no message from proxy");
         assert_eq!(
             mail_from_proxy.payload_bytes().to_vec(),
-            ReplyCode::Error(ErrorReplyReason::UnavailableActor(Default::default())).encode()
+            ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::FailedInit
+            ))
+            .encode()
         );
         assert_eq!(mails_from_proxy_iter.next(), None);
 

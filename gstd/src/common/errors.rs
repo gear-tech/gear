@@ -95,15 +95,16 @@ impl Error {
         }
     }
 
-    /// Check whether an error is [`SimpleExecutionError::UserspacePanic`] from error reply and
-    /// return its decoded message's payload of a custom type.
+    /// Check whether an error is [`SimpleExecutionError::UserspacePanic`] from
+    /// error reply and return its decoded message's payload of
+    /// a custom type.
     pub fn error_reply_panic<T: Decode>(&self) -> Option<Result<T, Self>> {
         self.error_reply_panic_bytes()
             .map(|mut bytes| T::decode(&mut bytes).map_err(Error::Decode))
     }
 
-    /// Check whether an error is [`SimpleExecutionError::UserspacePanic`] from error reply and
-    /// return its payload as bytes.
+    /// Check whether an error is [`SimpleExecutionError::UserspacePanic`] from
+    /// error reply and return its payload as bytes.
     pub fn error_reply_panic_bytes(&self) -> Option<&[u8]> {
         if let Self::ErrorReply(
             payload,
@@ -116,8 +117,8 @@ impl Error {
         }
     }
 
-    /// Check whether an error is [`SimpleUnavailableActorError::ProgramExited`] from error reply and
-    /// return inheritor of exited program.
+    /// Check whether an error is [`SimpleUnavailableActorError::ProgramExited`]
+    /// from error reply and return inheritor of exited program.
     pub fn error_reply_exit_inheritor(&self) -> Option<ActorId> {
         if let Self::ErrorReply(
             payload,
