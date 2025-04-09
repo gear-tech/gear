@@ -25,8 +25,6 @@ use crate::{
     Gas, Value, GAS_ALLOWANCE,
 };
 use codec::{Decode, DecodeAll};
-use colored::Colorize;
-use env_logger::{Builder, Env};
 use gear_core::{
     ids::{prelude::CodeIdExt, CodeId, ProgramId},
     pages::GearPage,
@@ -34,7 +32,8 @@ use gear_core::{
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, mem, path::Path, thread};
+use std::{borrow::Cow, cell::RefCell, env, fs, mem, path::Path};
+use tracing_subscriber::EnvFilter;
 
 thread_local! {
     /// `System` is a singleton with a one instance and no copies returned.
@@ -144,34 +143,15 @@ impl System {
 
     /// Init logger with `default_filter` as default filter.
     pub fn init_logger_with_default_filter<'a>(&self, default_filter: impl Into<Cow<'a, str>>) {
-        let _ = Builder::from_env(Env::default().default_filter_or(default_filter))
-            .format(|buf, record| {
-                let lvl = record.level().to_string().to_uppercase();
-                let target = record.target().to_string();
-                let mut msg = record.args().to_string();
-
-                if target == "gwasm" {
-                    msg = msg.replacen("DEBUG: ", "", 1);
-
-                    writeln!(
-                        buf,
-                        "[{} {}] {}",
-                        lvl.blue(),
-                        thread::current().name().unwrap_or("unknown").white(),
-                        msg.white()
-                    )
-                } else {
-                    writeln!(
-                        buf,
-                        "[{} {}] {}",
-                        target.red(),
-                        thread::current().name().unwrap_or("unknown").white(),
-                        msg.white()
-                    )
-                }
-            })
-            .format_target(false)
-            .format_timestamp(None)
+        let filter = if env::var(EnvFilter::DEFAULT_ENV).is_ok() {
+            EnvFilter::from_default_env()
+        } else {
+            EnvFilter::new(default_filter.into())
+        };
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .without_time()
+            .with_thread_names(true)
             .try_init();
     }
 

@@ -180,9 +180,13 @@ pub(crate) mod tests {
     use crate::{db_sync::PeerId, utils::ConnectionMap};
     use libp2p::swarm::ConnectionId;
     use std::collections::HashSet;
+    use tracing_subscriber::EnvFilter;
 
     pub fn init_logger() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_test_writer()
+            .try_init();
     }
 
     #[test]
