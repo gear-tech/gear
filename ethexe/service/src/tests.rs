@@ -991,7 +991,7 @@ async fn multiple_validators() {
     log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
     // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
     let mut validator2 = env.new_node(
-        NodeConfig::default()
+        NodeConfig::named("validator-2-restarted")
             .validator(env.validators[2])
             .network(None, validator0.multiaddr.clone())
             .db(validator2.db),

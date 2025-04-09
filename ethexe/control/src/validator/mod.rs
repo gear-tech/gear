@@ -279,10 +279,10 @@ impl DefaultProcessing {
     }
 
     fn validation_reply(
-        mut s: Box<dyn ValidatorSubService>,
+        s: Box<dyn ValidatorSubService>,
         reply: BatchCommitmentValidationReply,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        s.warning(format!("unexpected validation reply: {reply:?}"));
+        log::trace!("Skip validation reply: {reply:?}");
 
         Ok(s)
     }
