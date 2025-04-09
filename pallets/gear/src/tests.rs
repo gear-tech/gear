@@ -4238,14 +4238,14 @@ fn events_logging_works() {
                 Some(ErrorReplyReason::Execution(
                     SimpleExecutionError::RanOutOfGas,
                 )),
-                Some(ErrorReplyReason::UnavailableActor(Default::default())),
+                None,
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
                 Some(ErrorReplyReason::Execution(
                     SimpleExecutionError::UnreachableInstruction,
                 )),
-                Some(ErrorReplyReason::UnavailableActor(Default::default())),
+                None,
             ),
             // First try asserts by status code.
             (
