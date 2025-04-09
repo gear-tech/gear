@@ -27,10 +27,7 @@ use crate::{
     ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{string::ToString, vec::Vec};
 use core::{fmt, fmt::Formatter};
 use gear_core::{
     env::Externalities,
