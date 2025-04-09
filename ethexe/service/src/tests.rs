@@ -38,14 +38,14 @@ use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
+use ethexe_rpc::{test_utils::{RpcClient, SerdeJsonRpcResponse}, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
 use ethexe_validator::Validator;
 use gear_core::{
     ids::prelude::*,
-    message::{ReplyCode, SuccessReplyReason},
+    message::{ReplyCode, ReplyInfo, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
@@ -1137,6 +1137,152 @@ async fn tx_pool_gossip() {
         .get_offchain_transaction(tx_hash)
         .expect("tx not found");
     assert_eq!(node1_db_tx, signed_ethexe_tx);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn test_calculate_reply_for_handle_ping() {
+    utils::init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    log::info!("📗 Starting node");
+    let sequencer_public_key = env.wallets.next();
+    let mut validator = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0], env.validator_session_public_keys[0])
+            .service_rpc(9505),
+    );
+    validator.start_service().await;
+
+    // Upload program
+    log::info!("📗 Uploading program");
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, demo_ping::WASM_BINARY);
+    assert!(res.valid);
+
+    // Create program
+    log::info!("📗 Creating program");
+    let ping_code_id = res.code_id;
+    let res = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    // Why is that essential for the test? Does that serve as an init?
+    let res = env
+        .send_message(res.program_id, b"PING", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
+
+    // Wait until the program is initialized
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // Calculate reply for handle
+    log::info!("📗 Calculating reply for handle");
+    let sender_id = env.sender_id.try_into().unwrap();
+    let program_id = res.program_id.try_into().unwrap();
+    let rpc_client = validator.rpc_client().expect("rpc server is set");
+    let resp = rpc_client
+        .calculate_reply_for_handle(None, sender_id, program_id, b"PING".to_vec().into(), 0)
+        .await
+        .expect("failed sending request");
+    let reply_info = SerdeJsonRpcResponse::new(resp)
+        .await
+        .expect("failed to deserialize json response from rpc")
+        .try_extract_res::<ReplyInfo>()
+        .expect("failed to deserialize reply info");
+
+    assert_eq!(reply_info.payload, b"PONG".to_vec());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn test_calculate_reply_for_handle_async() {
+    utils::init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    log::info!("📗 Starting node");
+    let sequencer_public_key = env.wallets.next();
+    let mut validator = env.new_node(
+        NodeConfig::default()
+            .sequencer(sequencer_public_key)
+            .validator(env.validators[0], env.validator_session_public_keys[0])
+            .service_rpc(9505),
+    );
+    validator.start_service().await;
+
+    let res = env
+        .upload_code(demo_async::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let init_res = env
+        .send_message(res.program_id, &env.sender_id.encode(), 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    // Wait until the program is initialized
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let pid = res.program_id;
+
+    env.approve_wvara(pid).await;
+
+    log::info!("📗 Calculating reply for handle");
+    let rpc_client = validator.rpc_client().expect("rpc server is set");
+    let resp = rpc_client
+        .calculate_reply_for_handle(
+            None,
+            env.sender_id.try_into().unwrap(),
+            pid.try_into().unwrap(),
+            demo_async::Command::Common.encode().into(),
+            0,
+        )
+        .await
+        .expect("failed sending request");
+    let err = SerdeJsonRpcResponse::new(resp)
+        .await
+        .expect("failed to deserialize json response from rpc")
+        .try_extract_err()
+        .expect("failed to deserialize reply info");
+
+    assert!(err.data().unwrap().get().contains("reply wasn't found"));
 }
 
 mod utils {

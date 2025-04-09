@@ -123,7 +123,7 @@ impl ProgramServer for ProgramApi {
         payload: Bytes,
         value: u128,
     ) -> RpcResult<ReplyInfo> {
-        let block_hash = block_header_at_or_latest(&self.db, at)?.0;
+        let (block_hash, _) = block_header_at_or_latest(&self.db, at)?;
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
         // TODO (breathx): optimize here instantiation if matches actual runtime.

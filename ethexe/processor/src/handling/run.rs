@@ -29,7 +29,10 @@ use gprimitives::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
 
+/// A ethexe-processir task unit.
 enum Task {
+    /// A task for processing message queue of the program with id `program_id`.
+    /// The message queue is expected to be obtained form the storage using the `state_hash`.
     Run {
         program_id: ProgramId,
         state_hash: H256,
@@ -37,6 +40,10 @@ enum Task {
     },
 }
 
+/// Processing queue of the program entry point function. 
+/// The queue obtained from the storage using `in_block_transitions`.
+/// 
+/// Creates a separate tokio runtime and processes queues for each program in a separate thread.
 pub fn run(
     config: &ProcessorConfig,
     db: Database,
@@ -44,6 +51,7 @@ pub fn run(
     in_block_transitions: &mut InBlockTransitions,
 ) {
     tokio::task::block_in_place(|| {
+        // todo [sab] why a separate rt?
         let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
 
         if let Some(worker_threads) = config.worker_threads_override {
@@ -63,14 +71,18 @@ pub fn run(
     })
 }
 
+/// Main processing queue function, which performs processing for programs
+/// included into `in_block_transitions`.
+/// 
+/// 
 async fn run_in_async(
     virtual_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
-    let mut task_senders = vec![];
-    let mut handles = vec![];
+    let mut task_senders = Vec::with_capacity(virtual_threads);
+    let mut handles = Vec::with_capacity(virtual_threads);
 
     // create workers
     for id in 0..virtual_threads {
@@ -128,6 +140,32 @@ async fn run_in_async(
     }
 }
 
+/// A worker that processes [`Task`].
+/// 
+/// Basically, waits for a task to be sent from the sending end of the channel
+/// and then runs it with a newly instantiated executor.
+/// 
+/// The worker is expected to be run in a separate thread, so the sending end
+/// of the channel is used from the other (main) one.
+/// Actually, the sending end is used when tasks are sent in batches (see [`one_batch`] function).
+async fn worker(
+    id: usize,
+    db: Database,
+    instance_creator: InstanceCreator,
+    mut task_receiver: mpsc::Receiver<Task>,
+) {
+    log::trace!("Worker {} started", id);
+
+    let mut executor = instance_creator
+        .instantiate()
+        .expect("Failed to instantiate executor");
+
+    while let Some(task) = task_receiver.recv().await {
+        run_task(db.clone(), &mut executor, task).await;
+    }
+}
+
+/// Inner implementation of the task processing done by the worker.
 async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
     match task {
         Task::Run {
@@ -148,23 +186,22 @@ async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
     }
 }
 
-async fn worker(
-    id: usize,
-    db: Database,
-    instance_creator: InstanceCreator,
-    mut task_receiver: mpsc::Receiver<Task>,
-) {
-    log::trace!("Worker {} started", id);
-
-    let mut executor = instance_creator
-        .instantiate()
-        .expect("Failed to instantiate executor");
-
-    while let Some(task) = task_receiver.recv().await {
-        run_task(db.clone(), &mut executor, task).await;
-    }
-}
-
+/// Sends a number of tasks to different workers ([`worker`]).
+/// 
+/// The result of the task is waited through the receiving end of the channel.
+/// The sending end is given to a task processor, which is the [`worker`] itself.
+/// 
+/// The batch is, basically, a set of tasks created from the `in_block_transitions`, which
+/// are sent to different workers. The size of the batch is maximum of a size of `task_senders`,
+/// which itself has a size of `virtual_threads`.
+///
+/// Each time the function is called it is expected to have `from_index` value
+/// to be updated, as it is used to skip already processed in block transitions.
+/// The `from_index` argument is itself expected to be updated by the virtual
+/// threads amount. So, if there are 3 virtual threads, then `from_index`
+/// will be set to 0, 3, 6, 9, etc.
+/// 
+/// Returns a set of receivers, which are used to wait for the results of the tasks to be sent from [`worker`].
 async fn one_batch(
     from_index: usize,
     task_senders: &[mpsc::Sender<Task>],
