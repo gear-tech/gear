@@ -66,6 +66,14 @@ impl ExtManager {
         let gas_limit = dispatch
             .gas_limit()
             .unwrap_or_else(|| unreachable!("message from program API always has gas"));
+
+        if gas_limit > MAX_USER_GAS_LIMIT {
+            usage_panic!(
+                "User message gas limit ({gas_limit}) is greater than \
+                maximum allowed ({MAX_USER_GAS_LIMIT})."
+            );
+        };
+
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas_limit);
 
         // Check sender has enough balance to cover dispatch costs

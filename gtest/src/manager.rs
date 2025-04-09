@@ -32,7 +32,8 @@ use crate::{
         waitlist::WaitlistManager,
     },
     Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, RESERVE_FOR, VALUE_PER_GAS,
+    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
+    VALUE_PER_GAS,
 };
 use core_processor::{
     common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,

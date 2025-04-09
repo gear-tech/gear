@@ -41,7 +41,7 @@ impl ExtManager {
                 Some(data.allocations),
                 Some((*program_id, Default::default())),
                 payload,
-                GAS_ALLOWANCE,
+                MAX_USER_GAS_LIMIT,
                 self.blocks_manager.get(),
             )
             .map_err(TestError::ReadStateError)
