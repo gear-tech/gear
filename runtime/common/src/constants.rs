@@ -36,9 +36,6 @@ pub const RENT_RESUME_WEEK_FACTOR: BlockNumber = 4;
 /// The amount of blocks for processing resume session represented as a factor of hours.
 pub const RESUME_SESSION_DURATION_HOUR_FACTOR: BlockNumber = 1;
 
-/// Address of bank account represented as 32 bytes.
-pub const BANK_ADDRESS: [u8; 32] = *b"gearbankgearbankgearbankgearbank";
-
 /// The free of charge period of rent represented as a factor of months.
 pub const RENT_FREE_PERIOD_MONTH_FACTOR: BlockNumber = 6;
 

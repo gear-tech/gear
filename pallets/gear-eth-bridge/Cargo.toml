@@ -24,6 +24,7 @@ gbuiltin-eth-bridge.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
 pallet-gear-builtin.workspace = true
+pallet-gear-bank.workspace = true
 
 # Substrate deps.
 binary-merkle-tree.workspace = true
