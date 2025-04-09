@@ -19,7 +19,10 @@
 use crate::*;
 
 /// All migrations that will run on the next runtime upgrade.
-pub type Migrations = (BagsListMigrate<Runtime>,);
+pub type Migrations = (
+    BagsListMigrate<Runtime>,
+    pallet_gear_bank::migrations::MigrateToV1<Runtime>,
+);
 
 pub struct BagsListMigrate<T: pallet_bags_list::Config<pallet_bags_list::Instance1>>(
     core::marker::PhantomData<T>,
