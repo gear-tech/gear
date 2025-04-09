@@ -231,7 +231,7 @@ impl ProcessErrorCase {
                 ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::Uninitialized)
             }
             ProcessErrorCase::CodeNotExists => {
-                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::CodeNotExists)
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramNotCreated)
             }
             ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::UnavailableActor(
                 SimpleUnavailableActorError::ReinstrumentationFailure,

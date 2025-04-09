@@ -336,9 +336,9 @@ pub enum SimpleUnavailableActorError {
     #[display(fmt = "Program is not initialized yet")]
     Uninitialized = 2,
 
-    /// Given code id for program creation doesn't exist.
-    #[display(fmt = "Given `CodeId` doesn't exist")]
-    CodeNotExists = 3,
+    /// Program was not created.
+    #[display(fmt = "Program was not created")]
+    ProgramNotCreated = 3,
 
     /// Program re-instrumentation failed.
     #[display(fmt = "Program re-instrumentation failed")]
@@ -361,7 +361,7 @@ impl SimpleUnavailableActorError {
             b if Self::ProgramExited as u8 == b => Self::ProgramExited,
             b if Self::InitializationFailure as u8 == b => Self::InitializationFailure,
             b if Self::Uninitialized as u8 == b => Self::Uninitialized,
-            b if Self::CodeNotExists as u8 == b => Self::CodeNotExists,
+            b if Self::ProgramNotCreated as u8 == b => Self::ProgramNotCreated,
             b if Self::ReinstrumentationFailure as u8 == b => Self::ReinstrumentationFailure,
             _ => Self::Unsupported,
         }
