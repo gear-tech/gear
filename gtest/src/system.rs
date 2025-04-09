@@ -146,7 +146,7 @@ impl System {
         let filter = if env::var(EnvFilter::DEFAULT_ENV).is_ok() {
             EnvFilter::from_default_env()
         } else {
-            EnvFilter::new(default_filter)
+            EnvFilter::new(default_filter.into())
         };
         let _ = tracing_subscriber::fmt()
             .with_env_filter(filter)
