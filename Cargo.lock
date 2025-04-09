@@ -4629,7 +4629,6 @@ dependencies = [
  "ethexe-signer",
  "futures",
  "gprimitives",
- "indexmap 2.7.1",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",

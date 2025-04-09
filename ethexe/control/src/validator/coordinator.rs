@@ -3,10 +3,10 @@ use ethexe_common::gear::BatchCommitment;
 use ethexe_signer::Address;
 use std::collections::BTreeSet;
 
-use super::{submitter::Submitter, ExternalEvent, ValidatorContext, ValidatorSubService};
+use super::{submitter::Submitter, ValidatorContext, ValidatorSubService};
 use crate::{
     utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
-    ControlEvent,
+    BatchCommitmentValidationReply, ControlEvent,
 };
 
 pub struct Coordinator {
@@ -36,33 +36,26 @@ impl ValidatorSubService for Coordinator {
         self.ctx
     }
 
-    fn process_external_event(
+    fn process_validation_reply(
         mut self: Box<Self>,
-        event: ExternalEvent,
+        reply: BatchCommitmentValidationReply,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        match event {
-            ExternalEvent::ValidationReply(reply) => {
-                if let Err(err) = self
-                    .multisigned_batch
-                    .accept_batch_commitment_validation_reply(reply, |addr| {
-                        self.validators
-                            .contains(&addr)
-                            .then_some(())
-                            .ok_or_else(|| {
-                                anyhow!("Received validation reply is not from known validator")
-                            })
-                    })
-                {
-                    self.warning(format!("validation reply rejected: {err}"));
-                }
+        if let Err(err) = self
+            .multisigned_batch
+            .accept_batch_commitment_validation_reply(reply, |addr| {
+                self.validators
+                    .contains(&addr)
+                    .then_some(())
+                    .ok_or_else(|| anyhow!("Received validation reply is not from known validator"))
+            })
+        {
+            self.warning(format!("validation reply rejected: {err}"));
+        }
 
-                if self.multisigned_batch.signatures().len() as u64 >= self.ctx.threshold {
-                    Submitter::create(self.ctx, self.multisigned_batch)
-                } else {
-                    Ok(self)
-                }
-            }
-            event => super::process_external_event_by_default(self, event),
+        if self.multisigned_batch.signatures().len() as u64 >= self.ctx.threshold {
+            Submitter::create(self.ctx, self.multisigned_batch)
+        } else {
+            Ok(self)
         }
     }
 }

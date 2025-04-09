@@ -21,7 +21,6 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
-indexmap = { workspace = true, features = ["std"] }
 derive_more.workspace = true
 derivative = "2"
 

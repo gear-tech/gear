@@ -24,8 +24,8 @@ pub trait ControlService:
     fn role(&self) -> String;
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()>;
     fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()>;
-    fn receive_block_from_producer(&mut self, block: SignedData<ProducerBlock>) -> Result<()>;
     fn receive_computed_block(&mut self, block_hash: H256) -> Result<()>;
+    fn receive_block_from_producer(&mut self, block: SignedData<ProducerBlock>) -> Result<()>;
     fn receive_validation_request(
         &mut self,
         request: SignedData<BatchCommitmentValidationRequest>,

@@ -4,7 +4,9 @@ use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
 use ethexe_signer::{Address, Digest, ToDigest};
 use gprimitives::H256;
 
-use super::{initial::Initial, ExternalEvent, ValidatorContext, ValidatorSubService};
+use super::{
+    initial::Initial, DefaultProcessing, PendingEvent, ValidatorContext, ValidatorSubService,
+};
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
@@ -41,17 +43,14 @@ impl ValidatorSubService for Participant {
         self.ctx
     }
 
-    fn process_external_event(
+    fn process_validation_request(
         self: Box<Self>,
-        event: ExternalEvent,
+        request: ethexe_signer::SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        match event {
-            ExternalEvent::ValidationRequest(request)
-                if request.verify_address(self.producer).is_ok() =>
-            {
-                self.process_validation_request(request.into_parts().0)
-            }
-            event => super::process_external_event_by_default(self, event),
+        if request.verify_address(self.producer).is_ok() {
+            self.process_validation_request(request.into_parts().0)
+        } else {
+            DefaultProcessing::validation_request(self, request)
         }
     }
 }
@@ -63,9 +62,8 @@ impl Participant {
         producer: Address,
     ) -> Result<Box<dyn ValidatorSubService>> {
         let mut earlier_validation_request = None;
-
         ctx.pending_events.retain(|event| match event {
-            ExternalEvent::ValidationRequest(signed_data)
+            PendingEvent::ValidationRequest(signed_data)
                 if earlier_validation_request.is_none()
                     && signed_data.verify_address(producer).is_ok() =>
             {
@@ -73,13 +71,8 @@ impl Participant {
 
                 false
             }
-            ExternalEvent::ValidationRequest(_) if earlier_validation_request.is_none() => {
-                // NOTE: remove all validation events before the first from producer found.
-                false
-            }
             _ => {
                 // NOTE: keep all other events in queue.
-                // Newer validation events could be from next block producer, so better to keep them.
                 true
             }
         });
@@ -107,8 +100,8 @@ impl Participant {
         }
 
         // NOTE: In both cases it returns to the initial state,
-        // means - if producer publish incorrect validation request,
-        // then it does not wait for the next validation request from producer.
+        // means - even if producer publish incorrect validation request,
+        // then participant does not wait for the next validation request from producer.
         Initial::create(self.ctx)
     }
 
@@ -267,9 +260,8 @@ impl Participant {
 
 #[cfg(test)]
 mod tests {
+    use ethexe_db::{BlockHeader, Database, OnChainStorage};
     use std::any::TypeId;
-
-    use ethexe_db::{BlockHeader, CodeInfo, Database, OnChainStorage};
 
     use super::*;
     use crate::{tests::*, validator::tests::*};
@@ -292,22 +284,18 @@ mod tests {
         let producer = keys[0];
         let alice = keys[1];
         let block = mock_simple_block_data();
-        let contract_address = Address([42; 20]);
 
-        // Reply from alice - must be kept
-        ctx.pending(mock_validation_reply(&ctx.signer, alice, contract_address));
-
-        // Reply from alice - must be removed
+        // Validation request from alice - must be kept
         ctx.pending(mock_validation_request(&ctx.signer, alice).1);
 
         // Reply from producer - must be removed and processed
         ctx.pending(mock_validation_request(&ctx.signer, producer).1);
 
-        // Second request from producer - must be kept
-        ctx.pending(mock_validation_request(&ctx.signer, producer).1);
+        // Block from producer - must be kept
+        ctx.pending(mock_producer_block(&ctx.signer, producer, H256::random()).1);
 
-        // Second request from alice - must be kept
-        ctx.pending(mock_validation_request(&ctx.signer, alice).1);
+        // Block from alice - must be kept
+        ctx.pending(mock_producer_block(&ctx.signer, alice, H256::random()).1);
 
         let initial = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert_eq!(initial.type_id(), TypeId::of::<Initial>());
@@ -316,16 +304,18 @@ mod tests {
         assert_eq!(ctx.pending_events.len(), 3);
         assert!(matches!(
             ctx.pending_events[0],
-            ExternalEvent::ValidationReply(_)
+            PendingEvent::ProducerBlock(_)
         ));
         assert!(matches!(
             ctx.pending_events[1],
-            ExternalEvent::ValidationRequest(_)
+            PendingEvent::ProducerBlock(_)
         ));
         assert!(matches!(
             ctx.pending_events[2],
-            ExternalEvent::ValidationRequest(_)
+            PendingEvent::ValidationRequest(_)
         ));
+
+        // Pending validation request from producer was found and rejected
         assert_eq!(ctx.output.len(), 1);
         assert!(matches!(ctx.output[0], ControlEvent::Warning(_)));
     }
@@ -342,7 +332,7 @@ mod tests {
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
         let participant = participant
-            .process_external_event(ExternalEvent::ValidationRequest(signed_request))
+            .process_validation_request(signed_request)
             .unwrap();
 
         assert_eq!(participant.type_id(), TypeId::of::<Initial>());
@@ -362,7 +352,7 @@ mod tests {
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
         let initial = participant
-            .process_external_event(ExternalEvent::ValidationRequest(signed_request))
+            .process_validation_request(signed_request)
             .unwrap();
 
         assert_eq!(initial.type_id(), TypeId::of::<Initial>());
@@ -381,14 +371,7 @@ mod tests {
         // No enough data in db
         Participant::validate_code_commitment(&db, code_commitment.clone()).unwrap_err();
 
-        db.set_code_valid(code_commitment.id, true);
-        db.set_code_blob_info(
-            code_commitment.id,
-            CodeInfo {
-                timestamp: 123,
-                tx_hash: H256::random(),
-            },
-        );
+        prepare_code_commitment(&db, code_commitment.clone());
 
         // Incorrect validation status
         code_commitment.valid = false;

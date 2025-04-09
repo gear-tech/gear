@@ -110,29 +110,23 @@ impl ControlService for ValidatorService {
         self.update_inner(|inner| inner.process_synced_block(data))
     }
 
-    fn receive_block_from_producer(&mut self, signed: SignedData<ProducerBlock>) -> Result<()> {
-        self.update_inner(|inner| {
-            inner.process_external_event(ExternalEvent::ProducerBlock(signed))
-        })
-    }
-
     fn receive_computed_block(&mut self, computed_block: H256) -> Result<()> {
         self.update_inner(|inner| inner.process_computed_block(computed_block))
     }
 
+    fn receive_block_from_producer(&mut self, signed: SignedData<ProducerBlock>) -> Result<()> {
+        self.update_inner(|inner| inner.process_block_from_producer(signed))
+    }
+
     fn receive_validation_request(
         &mut self,
-        signed_request: SignedData<BatchCommitmentValidationRequest>,
+        signed: SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<()> {
-        self.update_inner(|inner| {
-            inner.process_external_event(ExternalEvent::ValidationRequest(signed_request))
-        })
+        self.update_inner(|inner| inner.process_validation_request(signed))
     }
 
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
-        self.update_inner(|inner| {
-            inner.process_external_event(ExternalEvent::ValidationReply(reply))
-        })
+        self.update_inner(|inner| inner.process_validation_reply(reply))
     }
 }
 
@@ -162,10 +156,9 @@ impl FusedStream for ValidatorService {
 }
 
 #[derive(Clone, Debug, derive_more::From, PartialEq, Eq)]
-enum ExternalEvent {
+enum PendingEvent {
     ProducerBlock(SignedData<ProducerBlock>),
     ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
-    ValidationReply(BatchCommitmentValidationReply),
 }
 
 trait ValidatorSubService: Any + Unpin + Send + 'static {
@@ -175,36 +168,46 @@ trait ValidatorSubService: Any + Unpin + Send + 'static {
     fn context_mut(&mut self) -> &mut ValidatorContext;
     fn into_context(self: Box<Self>) -> ValidatorContext;
 
-    fn process_external_event(
-        self: Box<Self>,
-        event: ExternalEvent,
-    ) -> Result<Box<dyn ValidatorSubService>> {
-        process_external_event_by_default(self.to_dyn(), event)
-    }
-
     fn process_new_head(
         self: Box<Self>,
         block: SimpleBlockData,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        Initial::create_with_chain_head(self.into_context(), block)
+        DefaultProcessing::new_head(self.to_dyn(), block)
     }
 
     fn process_synced_block(
-        mut self: Box<Self>,
+        self: Box<Self>,
         data: BlockSyncedData,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.warning(format!("unexpected synced block: {}", data.block_hash));
-
-        Ok(self.to_dyn())
+        DefaultProcessing::synced_block(self.to_dyn(), data)
     }
 
     fn process_computed_block(
-        mut self: Box<Self>,
+        self: Box<Self>,
         computed_block: H256,
     ) -> Result<Box<dyn ValidatorSubService>> {
-        self.warning(format!("unexpected computed block: {computed_block}"));
+        DefaultProcessing::computed_block(self.to_dyn(), computed_block)
+    }
 
-        Ok(self.to_dyn())
+    fn process_block_from_producer(
+        self: Box<Self>,
+        block: SignedData<ProducerBlock>,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        DefaultProcessing::block_from_producer(self.to_dyn(), block)
+    }
+
+    fn process_validation_request(
+        self: Box<Self>,
+        request: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        DefaultProcessing::validation_request(self.to_dyn(), request)
+    }
+
+    fn process_validation_reply(
+        self: Box<Self>,
+        reply: BatchCommitmentValidationReply,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        DefaultProcessing::validation_reply(self.to_dyn(), reply)
     }
 
     fn poll(self: Box<Self>, _cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
@@ -221,21 +224,68 @@ trait ValidatorSubService: Any + Unpin + Send + 'static {
     }
 }
 
-fn process_external_event_by_default(
-    mut s: Box<dyn ValidatorSubService>,
-    event: ExternalEvent,
-) -> Result<Box<dyn ValidatorSubService>> {
-    if matches!(event, ExternalEvent::ValidationReply(_)) {
-        log::trace!("Skip {event:?}, because only coordinator should process it.");
+struct DefaultProcessing;
 
-        return Ok(s);
+impl DefaultProcessing {
+    fn new_head(
+        s: Box<dyn ValidatorSubService>,
+        block: SimpleBlockData,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        Initial::create_with_chain_head(s.into_context(), block)
     }
 
-    s.warning(format!("unexpected event: {event:?}, saved for later"));
+    fn synced_block(
+        mut s: Box<dyn ValidatorSubService>,
+        data: BlockSyncedData,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        s.warning(format!("unexpected synced block: {}", data.block_hash));
 
-    s.context_mut().pending(event);
+        Ok(s)
+    }
 
-    Ok(s)
+    fn computed_block(
+        mut s: Box<dyn ValidatorSubService>,
+        computed_block: H256,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        s.warning(format!("unexpected computed block: {computed_block}"));
+
+        Ok(s)
+    }
+
+    fn block_from_producer(
+        mut s: Box<dyn ValidatorSubService>,
+        block: SignedData<ProducerBlock>,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        s.warning(format!(
+            "unexpected block from producer: {block:?}, saved for later."
+        ));
+
+        s.context_mut().pending(block);
+
+        Ok(s)
+    }
+
+    fn validation_request(
+        mut s: Box<dyn ValidatorSubService>,
+        request: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        s.warning(format!(
+            "unexpected validation request: {request:?}, saved for later."
+        ));
+
+        s.context_mut().pending(request);
+
+        Ok(s)
+    }
+
+    fn validation_reply(
+        mut s: Box<dyn ValidatorSubService>,
+        reply: BatchCommitmentValidationReply,
+    ) -> Result<Box<dyn ValidatorSubService>> {
+        s.warning(format!("unexpected validation reply: {reply:?}"));
+
+        Ok(s)
+    }
 }
 
 struct ValidatorContext {
@@ -246,7 +296,7 @@ struct ValidatorContext {
     signer: Signer,
     db: Database,
     committer: Box<dyn BatchCommitter>,
-    pending_events: VecDeque<ExternalEvent>,
+    pending_events: VecDeque<PendingEvent>,
     output: VecDeque<ControlEvent>,
 }
 
@@ -259,8 +309,8 @@ impl ValidatorContext {
         self.output.push_back(event);
     }
 
-    pub fn pending(&mut self, event: impl Into<ExternalEvent>) {
-        self.pending_events.push_back(event.into());
+    pub fn pending(&mut self, event: impl Into<PendingEvent>) {
+        self.pending_events.push_front(event.into());
     }
 }
 

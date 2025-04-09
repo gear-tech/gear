@@ -65,6 +65,7 @@ pub fn mock_validation_request(
     (request, signed)
 }
 
+#[allow(unused)]
 pub fn mock_validation_reply(
     signer: &Signer,
     public_key: PublicKey,
@@ -135,7 +136,6 @@ pub fn prepare_code_commitment(db: &Database, code: CodeCommitment) -> CodeCommi
             tx_hash: H256::random(),
         },
     );
-    db.set_code_valid(code.id, code.valid);
     db.set_code_valid(code.id, code.valid);
     code
 }

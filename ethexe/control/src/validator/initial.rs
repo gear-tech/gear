@@ -3,7 +3,10 @@ use ethexe_common::SimpleBlockData;
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::Address;
 
-use super::{producer::Producer, subordinate::Subordinate, ValidatorContext, ValidatorSubService};
+use super::{
+    producer::Producer, subordinate::Subordinate, DefaultProcessing, ValidatorContext,
+    ValidatorSubService,
+};
 
 pub struct Initial {
     ctx: ValidatorContext,
@@ -38,15 +41,10 @@ impl ValidatorSubService for Initial {
     }
 
     fn process_synced_block(
-        mut self: Box<Self>,
+        self: Box<Self>,
         data: BlockSyncedData,
     ) -> Result<Box<dyn ValidatorSubService>> {
         match &self.state {
-            State::WaitingForChainHead => {
-                self.warning(format!("unexpected synced block: {}", data.block_hash));
-
-                Ok(self)
-            }
             State::WaitingForSyncedBlock(block) if block.hash == data.block_hash => {
                 let producer = self.producer_for(block.header.timestamp, &data.validators);
                 let my_address = self.ctx.pub_key.to_address();
@@ -73,11 +71,7 @@ impl ValidatorSubService for Initial {
                     )
                 }
             }
-            State::WaitingForSyncedBlock(block) => {
-                self.warning(format!("unexpected synced block: {}", block.hash));
-
-                Ok(self)
-            }
+            _ => DefaultProcessing::synced_block(self, data),
         }
     }
 }
