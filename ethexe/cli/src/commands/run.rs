@@ -18,7 +18,7 @@
 
 use super::MergeParams;
 use crate::Params;
-use anyhow::{Context as _, Result};
+use anyhow::{anyhow, Context as _, Result};
 use clap::Args;
 use ethexe_service::Service;
 use tracing_subscriber::EnvFilter;
@@ -56,7 +56,7 @@ impl RunCommand {
                     .add_directive("cranelift=off".parse()?),
             )
             .try_init()
-            .map_err(|e| anyhow::anyhow!("failed to initialize logger: {e}"))?;
+            .map_err(|e| anyhow!("failed to initialize logger: {e}"))?;
 
         let config = self
             .params
