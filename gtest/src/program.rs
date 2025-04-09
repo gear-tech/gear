@@ -122,7 +122,7 @@ pub trait WasmProgram: Debug {
     ///
     /// Logging target `gwasm` is used in this method.
     fn debug(&mut self, data: &str) {
-        log::debug!(target: "gwasm", "DEBUG: {data}");
+        log::debug!(target: "gwasm", "{data}");
     }
 }
 

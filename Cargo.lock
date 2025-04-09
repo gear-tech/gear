@@ -2178,10 +2178,10 @@ name = "calc-stack-height"
 version = "1.7.1"
 dependencies = [
  "anyhow",
- "env_logger",
  "gear-core",
  "gear-wasm-instrument",
  "log",
+ "tracing-subscriber",
  "vara-runtime",
  "wasmer",
  "wasmer-types",
@@ -4581,7 +4581,6 @@ dependencies = [
  "anyhow",
  "clap 4.5.23",
  "directories",
- "env_logger",
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
@@ -4597,6 +4596,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml 0.8.14",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4667,7 +4667,6 @@ version = "1.7.1"
 dependencies = [
  "anyhow",
  "async-trait",
- "env_logger",
  "ethexe-db",
  "ethexe-signer",
  "futures",
@@ -4680,6 +4679,7 @@ dependencies = [
  "rand 0.8.5",
  "tempfile",
  "tokio",
+ "tracing-subscriber",
  "void",
 ]
 
@@ -4714,7 +4714,6 @@ dependencies = [
  "anyhow",
  "demo-async",
  "demo-ping",
- "env_logger",
  "ethexe-common",
  "ethexe-db",
  "ethexe-runtime",
@@ -4730,6 +4729,7 @@ dependencies = [
  "sp-allocator",
  "sp-wasm-interface",
  "tokio",
+ "tracing-subscriber",
  "wasmtime",
  "wat",
 ]
@@ -4832,7 +4832,6 @@ dependencies = [
  "demo-async-init",
  "demo-ping",
  "derive_more 0.99.18",
- "env_logger",
  "ethexe-common",
  "ethexe-compute",
  "ethexe-db",
@@ -4861,6 +4860,8 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5899,7 +5900,6 @@ dependencies = [
  "demo-messenger",
  "demo-waiter",
  "dirs",
- "env_logger",
  "etc",
  "gclient",
  "gear-core",
@@ -5917,6 +5917,7 @@ dependencies = [
  "thiserror 1.0.62",
  "tokio",
  "toml 0.8.14",
+ "tracing-subscriber",
  "url",
  "which",
 ]
@@ -5948,7 +5949,6 @@ dependencies = [
  "demo-proxy-relay",
  "demo-reserve-gas",
  "demo-wat",
- "env_logger",
  "futures",
  "gear-core",
  "gear-core-errors",
@@ -5963,6 +5963,7 @@ dependencies = [
  "subxt",
  "thiserror 1.0.62",
  "tokio",
+ "tracing-subscriber",
  "url",
  "wat",
 ]
@@ -5984,7 +5985,6 @@ name = "gear-authorship"
 version = "1.7.1"
 dependencies = [
  "demo-constructor",
- "env_logger",
  "frame-support",
  "frame-system",
  "futures",
@@ -6024,6 +6024,7 @@ dependencies = [
  "sp-state-machine",
  "sp-timestamp",
  "substrate-prometheus-endpoint",
+ "tracing-subscriber",
  "vara-runtime",
 ]
 
@@ -6125,7 +6126,6 @@ dependencies = [
  "byteorder",
  "derive_more 0.99.18",
  "enum-iterator 1.5.0",
- "env_logger",
  "gear-core-errors",
  "gear-wasm-instrument",
  "gprimitives",
@@ -6142,6 +6142,7 @@ dependencies = [
  "rand 0.8.5",
  "scale-info",
  "serde",
+ "tracing-subscriber",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
 ]
@@ -6153,7 +6154,6 @@ dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
  "derive_more 0.99.18",
- "env_logger",
  "gear-core",
  "gear-core-errors",
  "gear-lazy-pages-common",
@@ -6163,6 +6163,7 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6182,7 +6183,6 @@ dependencies = [
  "actor-system-error",
  "derive_more 0.99.18",
  "enum-iterator 1.5.0",
- "env_logger",
  "gear-core",
  "gear-core-backend",
  "gear-core-errors",
@@ -6191,6 +6191,7 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6220,7 +6221,6 @@ version = "1.7.1"
 dependencies = [
  "cfg-if",
  "derive_more 0.99.18",
- "env_logger",
  "errno",
  "gear-core",
  "gear-lazy-pages-common",
@@ -6233,6 +6233,7 @@ dependencies = [
  "proptest",
  "region",
  "sp-wasm-interface-common",
+ "tracing-subscriber",
  "wasmer-vm",
  "winapi",
 ]
@@ -6553,7 +6554,6 @@ dependencies = [
 name = "gear-utils"
 version = "1.7.1"
 dependencies = [
- "env_logger",
  "gear-core",
  "hex",
  "nonempty 0.8.1",
@@ -6561,6 +6561,7 @@ dependencies = [
  "path-clean",
  "serde",
  "serde_json",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6569,7 +6570,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
- "env_logger",
  "futures",
  "gsdk",
  "log",
@@ -6578,6 +6578,7 @@ dependencies = [
  "subxt",
  "thiserror 1.0.62",
  "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6667,11 +6668,11 @@ dependencies = [
  "bytes",
  "demo-constructor",
  "derive_more 0.99.18",
- "env_logger",
  "fs4",
  "log",
  "loom",
  "tempfile",
+ "tracing-subscriber",
  "uluru",
  "wasmer",
  "wasmer-cache",
@@ -7037,7 +7038,6 @@ dependencies = [
  "demo-piggy-bank",
  "demo-ping",
  "derive_more 0.99.18",
- "env_logger",
  "etc",
  "gear-common",
  "gear-core",
@@ -7052,6 +7052,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -10615,11 +10616,11 @@ name = "numerated"
 version = "1.7.1"
 dependencies = [
  "derive_more 0.99.18",
- "env_logger",
  "log",
  "num-traits",
  "proptest",
  "scale-info",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -11004,7 +11005,6 @@ dependencies = [
  "demo-waiter",
  "demo-waiting-proxy",
  "derive_more 0.99.18",
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -11048,6 +11048,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "test-syscalls",
+ "tracing-subscriber",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
 ]
@@ -11085,7 +11086,6 @@ dependencies = [
  "demo-staking-broker",
  "demo-waiting-proxy",
  "derive_more 0.99.18",
- "env_logger",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -11127,6 +11127,7 @@ dependencies = [
  "sp-runtime",
  "sp-staking",
  "sp-std",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -11154,7 +11155,6 @@ name = "pallet-gear-debug"
 version = "1.7.1"
 dependencies = [
  "demo-vec",
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -11181,6 +11181,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "test-syscalls",
+ "tracing-subscriber",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
 ]
@@ -11190,7 +11191,6 @@ name = "pallet-gear-eth-bridge"
 version = "1.7.1"
 dependencies = [
  "binary-merkle-tree",
- "env_logger",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
@@ -11225,6 +11225,7 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -11252,7 +11253,6 @@ dependencies = [
 name = "pallet-gear-gas"
 version = "1.7.1"
 dependencies = [
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -11266,13 +11266,13 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tracing-subscriber",
 ]
 
 [[package]]
 name = "pallet-gear-messenger"
 version = "1.7.1"
 dependencies = [
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -11289,6 +11289,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -11333,7 +11334,6 @@ dependencies = [
 name = "pallet-gear-program"
 version = "1.7.1"
 dependencies = [
- "env_logger",
  "frame-support",
  "frame-system",
  "gear-common",
@@ -11350,6 +11350,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tracing-subscriber",
  "wat",
 ]
 
@@ -11382,7 +11383,6 @@ dependencies = [
 name = "pallet-gear-scheduler"
 version = "1.7.1"
 dependencies = [
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -11406,13 +11406,13 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tracing-subscriber",
 ]
 
 [[package]]
 name = "pallet-gear-staking-rewards"
 version = "1.7.1"
 dependencies = [
- "env_logger",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -11439,6 +11439,7 @@ dependencies = [
  "sp-npos-elections",
  "sp-runtime",
  "sp-std",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -11465,7 +11466,6 @@ name = "pallet-gear-voucher"
 version = "1.7.1"
 dependencies = [
  "derive_more 0.99.18",
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -11479,6 +11479,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -18329,7 +18330,6 @@ name = "vara-runtime"
 version = "1.7.1"
 dependencies = [
  "const-str",
- "env_logger",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -18420,6 +18420,7 @@ dependencies = [
  "sp-version",
  "substrate-build-script-utils",
  "substrate-wasm-builder",
+ "tracing-subscriber",
  "wat",
 ]
 
@@ -18705,10 +18706,10 @@ name = "wasm-proc"
 version = "1.7.1"
 dependencies = [
  "clap 4.5.23",
- "env_logger",
  "gear-wasm-builder",
  "gear-wasm-instrument",
  "log",
+ "tracing-subscriber",
 ]
 
 [[package]]
