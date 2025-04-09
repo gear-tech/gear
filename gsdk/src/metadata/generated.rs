@@ -1064,7 +1064,7 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     Uninitialized,
                     #[codec(index = 3)]
-                    CodeNotExists,
+                    ProgramNotCreated,
                     #[codec(index = 4)]
                     ReinstrumentationFailure,
                     #[codec(index = 255)]
