@@ -18,11 +18,10 @@
 
 use super::MergeParams;
 use crate::Params;
-use anyhow::{Context as _, Result};
+use anyhow::{anyhow, Context as _, Result};
 use clap::Args;
-use env_logger::Env;
 use ethexe_service::Service;
-use log::LevelFilter;
+use tracing_subscriber::EnvFilter;
 
 /// Run the node.
 #[derive(Debug, Args)]
@@ -48,13 +47,16 @@ impl RunCommand {
     pub async fn run(self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
 
-        let env = Env::default().default_filter_or(default);
-
-        env_logger::Builder::from_env(env)
-            .filter_module("wasmtime_cranelift", LevelFilter::Off)
-            .filter_module("cranelift", LevelFilter::Off)
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                EnvFilter::builder()
+                    .with_default_directive(default.parse()?)
+                    .from_env_lossy()
+                    .add_directive("wasmtime_cranlift=off".parse()?)
+                    .add_directive("cranelift=off".parse()?),
+            )
             .try_init()
-            .with_context(|| "failed to initialize logger")?;
+            .map_err(|e| anyhow!("failed to initialize logger: {e}"))?;
 
         let config = self
             .params

@@ -25,7 +25,7 @@ gprimitives.workspace = true
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
 directories.workspace = true
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 hex.workspace = true
 log.workspace = true
 serde.workspace = true
