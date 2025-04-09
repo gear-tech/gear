@@ -228,11 +228,11 @@ where
     let active_state = match program_state.program {
         state::Program::Active(state) => state,
         state::Program::Terminated(program_id) => {
-            log::trace!("Program {program_id} is terminated");
+            log::trace!("Program {program_id} has failed init");
             return core_processor::process_failed_init(context);
         }
         state::Program::Exited(program_id) => {
-            log::trace!("Program {program_id} is exited");
+            log::trace!("Program {program_id} has exited");
             return core_processor::process_program_exited(context, program_id);
         }
     };

@@ -59,11 +59,13 @@ where
         let program = match ProgramStorageOf::<T>::get_program(destination_id) {
             Some(Program::Active(program)) => program,
             Some(Program::Terminated(_)) => {
-                log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
+                log::trace!(
+                    "Message {dispatch_id} is sent to failed init program {destination_id}"
+                );
                 return core_processor::process_failed_init(context);
             }
             Some(Program::Exited(program_id)) => {
-                log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
+                log::trace!("Message {dispatch_id} is sent to exited program {destination_id}");
                 return core_processor::process_program_exited(context, program_id);
             }
             None => {
