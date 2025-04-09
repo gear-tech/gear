@@ -65,13 +65,12 @@ pub fn mock_validation_request(
     (request, signed)
 }
 
-#[allow(unused)]
 pub fn mock_validation_reply(
     signer: &Signer,
     public_key: PublicKey,
     contract_address: Address,
+    digest: Digest,
 ) -> BatchCommitmentValidationReply {
-    let digest: Digest = H256::random().0.into();
     BatchCommitmentValidationReply {
         digest,
         signature: signer
