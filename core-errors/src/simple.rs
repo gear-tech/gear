@@ -270,6 +270,9 @@ pub enum SimpleExecutionError {
     BackendError = 2,
 
     /// Execution failed with userspace panic.
+    ///
+    /// Reply message contains a string program panicked with in the message payload
+    /// (`gr_panic` arguments).
     #[display(fmt = "Message panicked")]
     UserspacePanic = 3,
 
@@ -325,6 +328,9 @@ impl SimpleExecutionError {
 /// Simplified error occurred because of actor unavailability.
 pub enum SimpleUnavailableActorError {
     /// Program called `gr_exit` syscall.
+    ///
+    /// Reply message contains `ActorId` value inheritor program exited with in the message payload
+    /// (`gr_exit` argument).
     #[display(fmt = "Program exited")]
     ProgramExited = 0,
 
