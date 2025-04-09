@@ -178,7 +178,7 @@ pub enum ErrorReplyReason {
     Execution(SimpleExecutionError) = 0,
 
     /// Destination actor is unavailable, so it can't process the message.
-    #[display(fmt = "destination actor is unavailable")]
+    #[display(fmt = "destination actor is unavailable ({_0})")]
     UnavailableActor(SimpleUnavailableActorError) = 2,
 
     /// Message has died in Waitlist as out of rent one.
@@ -310,7 +310,7 @@ pub enum SimpleUnavailableActorError {
     CodeNotExists = 3,
 
     /// Program re-instrumentation failed.
-    #[display(fmt = "program re-instrumentation failed")]
+    #[display(fmt = "Program re-instrumentation failed")]
     ReinstrumentationFailure = 4,
 
     /// Unsupported reason of inactive actor error.
