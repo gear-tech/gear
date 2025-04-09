@@ -31,6 +31,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use core::{fmt, fmt::Formatter};
 use gear_core::{
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
@@ -218,6 +219,15 @@ enum ProcessErrorCase {
     ExecutionFailed(ActorExecutionErrorReplyReason),
 }
 
+impl fmt::Display for ProcessErrorCase {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ProcessErrorCase::ExecutionFailed(reason) => fmt::Display::fmt(reason, f),
+            this => fmt::Display::fmt(&this.to_reason(), f),
+        }
+    }
+}
+
 impl ProcessErrorCase {
     fn to_reason(&self) -> ErrorReplyReason {
         match self {
@@ -240,13 +250,7 @@ impl ProcessErrorCase {
         }
     }
 
-    fn to_payload_str(&self) -> String {
-        match self {
-            ProcessErrorCase::ExecutionFailed(reason) => reason.to_string(),
-            this => this.to_reason().to_string(),
-        }
-    }
-
+    // TODO: consider to convert `self` into `Payload` to avoid `PanicBuffer` cloning (#4594)
     fn to_payload(&self) -> Payload {
         match self {
             ProcessErrorCase::ProgramExited { inheritor } => {
@@ -349,16 +353,16 @@ fn process_error(
 
     let outcome = match case {
         ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
-            let err_payload = case.to_payload_str();
+            let err_msg = case.to_string();
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
                     program_id,
                     origin,
-                    reason: err_payload,
+                    reason: err_msg,
                 },
                 _ => DispatchOutcome::MessageTrap {
                     program_id,
-                    trap: err_payload,
+                    trap: err_msg,
                 },
             }
         }
