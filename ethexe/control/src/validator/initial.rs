@@ -109,3 +109,129 @@ impl Initial {
         (slot % validators_amount as u64) as usize
     }
 }
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use gprimitives::H256;
+
+    use super::*;
+    use crate::{tests::*, validator::tests::*, ControlEvent};
+
+    #[test]
+    fn create_initial_success() {
+        let (ctx, _) = mock_validator_context();
+        let initial = Initial::create(ctx).unwrap();
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+    }
+
+    #[test]
+    fn create_with_chain_head_success() {
+        let (ctx, _) = mock_validator_context();
+        let block = mock_simple_block_data();
+        let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+    }
+
+    #[tokio::test]
+    async fn switch_to_producer() {
+        let (ctx, keys) = mock_validator_context();
+        let validators = vec![
+            ctx.pub_key.to_address(),
+            keys[0].to_address(),
+            keys[1].to_address(),
+        ];
+
+        let mut block = mock_simple_block_data();
+        block.header.timestamp = 0;
+
+        let data = BlockSyncedData {
+            block_hash: block.hash,
+            validators: validators.clone(),
+        };
+
+        let initial = Initial::create_with_chain_head(ctx, block).unwrap();
+        let producer = initial.process_synced_block(data).unwrap();
+        assert_eq!(producer.type_id(), TypeId::of::<Producer>());
+    }
+
+    #[test]
+    fn switch_to_subordinate() {
+        let (ctx, keys) = mock_validator_context();
+        let validators = vec![
+            ctx.pub_key.to_address(),
+            keys[1].to_address(),
+            keys[2].to_address(),
+        ];
+
+        let mut block = mock_simple_block_data();
+        block.header.timestamp = 1;
+
+        let data = BlockSyncedData {
+            block_hash: block.hash,
+            validators: validators.clone(),
+        };
+
+        let initial = Initial::create_with_chain_head(ctx, block).unwrap();
+        let producer = initial.process_synced_block(data).unwrap();
+        assert_eq!(producer.type_id(), TypeId::of::<Subordinate>());
+    }
+
+    #[test]
+    fn process_synced_block_rejected() {
+        let (ctx, _) = mock_validator_context();
+        let block = mock_simple_block_data();
+        let data = BlockSyncedData {
+            block_hash: block.hash,
+            validators: vec![],
+        };
+
+        let initial = Initial::create(ctx)
+            .unwrap()
+            .process_synced_block(data)
+            .unwrap();
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(matches!(
+            initial.context().output[0],
+            ControlEvent::Warning(_)
+        ));
+
+        let data = BlockSyncedData {
+            block_hash: H256::random(),
+            validators: vec![],
+        };
+
+        let initial = initial
+            .process_new_head(block)
+            .unwrap()
+            .process_synced_block(data)
+            .unwrap();
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(matches!(
+            initial.context().output[1],
+            ControlEvent::Warning(_)
+        ));
+    }
+
+    #[test]
+    fn producer_for_calculates_correct_producer() {
+        let (ctx, keys) = mock_validator_context();
+        let validators: Vec<_> = keys.iter().map(|k| k.to_address()).collect();
+        let timestamp = 10;
+
+        let producer = Initial {
+            ctx,
+            state: State::WaitingForChainHead,
+        }
+        .producer_for(timestamp, &validators);
+        assert_eq!(producer, validators[10 % validators.len()]);
+    }
+
+    #[test]
+    fn block_producer_index_calculates_correct_index() {
+        let validators_amount = 5;
+        let slot = 7;
+        let index = Initial::block_producer_index(validators_amount, slot);
+        assert_eq!(index, 2);
+    }
+}
