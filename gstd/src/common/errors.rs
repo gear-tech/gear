@@ -82,19 +82,6 @@ impl Error {
         matches!(self, Error::Timeout(..))
     }
 
-    /// Check whether an error is [`Error::ErrorReply`] and
-    /// return its decoded message's payload of a custom type.
-    pub fn error_reply_decoded<T: Decode>(&self) -> Option<(Result<T, Self>, ErrorReplyReason)> {
-        if let Self::ErrorReply(payload, code) = self {
-            Some((
-                T::decode(&mut payload.0.as_slice()).map_err(Error::Decode),
-                *code,
-            ))
-        } else {
-            None
-        }
-    }
-
     /// Check whether an error is [`SimpleExecutionError::UserspacePanic`] from
     /// error reply and return its decoded message's payload of
     /// a custom type.
