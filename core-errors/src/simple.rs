@@ -16,9 +16,7 @@
 
 //! Simple errors being used for status codes
 
-#[cfg(feature = "codec")]
 use enum_iterator::Sequence;
-
 #[cfg(feature = "codec")]
 use scale_info::{
     scale::{self, Decode, Encode},
@@ -38,8 +36,9 @@ use scale_info::{
     Default,
     derive_more::Display,
     derive_more::From,
+    Sequence,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing reply code with reason of its creation.
 pub enum ReplyCode {
@@ -117,9 +116,19 @@ impl ReplyCode {
 
 #[repr(u8)]
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    derive_more::Display,
+    Sequence,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of success reply creation.
 pub enum SuccessReplyReason {
@@ -165,13 +174,13 @@ impl SuccessReplyReason {
     Default,
     derive_more::Display,
     derive_more::From,
+    Sequence,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of error reply creation.
-///
-/// NOTE: Adding new variants to this enum you must also update `ErrorReplyReason::to_bytes` and
-/// `ErrorReplyReason::from_bytes` methods.
+// NOTE: Adding new variants to this enum you must also update `ErrorReplyReason::to_bytes` and
+// `ErrorReplyReason::from_bytes` methods.
 pub enum ErrorReplyReason {
     /// Error reply was created due to underlying execution error.
     #[display(fmt = "execution error ({_0})")]
@@ -214,6 +223,8 @@ impl ErrorReplyReason {
 
     fn from_bytes(bytes: [u8; 3]) -> Self {
         match bytes[0] {
+            1 /* removed `FailedToCreateProgram` variant */ |
+            4 /* moved `ReinstrumentationFailure` variant */ => Self::Unsupported,
             b if Self::Execution(Default::default()).discriminant() == b => {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Execution(SimpleExecutionError::from_bytes(err_bytes))
@@ -230,9 +241,19 @@ impl ErrorReplyReason {
 
 #[repr(u8)]
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    derive_more::Display,
+    Sequence,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during execution.
 pub enum SimpleExecutionError {
@@ -287,9 +308,19 @@ impl SimpleExecutionError {
 
 #[repr(u8)]
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    derive_more::Display,
+    Sequence,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred because of actor unavailability.
 pub enum SimpleUnavailableActorError {
@@ -349,8 +380,9 @@ impl SimpleUnavailableActorError {
     Default,
     derive_more::Display,
     derive_more::From,
+    Sequence,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing signal code and reason of its creation.
 ///
@@ -415,17 +447,27 @@ impl SignalCode {
     }
 }
 
-#[cfg(feature = "codec")]
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_forbidden_codes() {
+        let codes = [
+            1, // `FailedToCreateProgram` variant
+            4, // `ReinstrumentationFailure` variant
+        ];
+
+        // check forbidden code is `Unsupported` variant now
+        for code in codes {
+            let err = ErrorReplyReason::from_bytes([code, 0, 0]);
+            assert_eq!(err, ErrorReplyReason::Unsupported);
+        }
+
+        // check forbidden code is never produced
         for code in enum_iterator::all::<ErrorReplyReason>() {
             let bytes = code.to_bytes();
-            assert_ne!(bytes[0], 1); // `FailedToCreateProgram` variant
-            assert_ne!(bytes[0], 4); // `ReinstrumentationFailure` variant
+            assert!(!codes.contains(&bytes[0]));
         }
     }
 
