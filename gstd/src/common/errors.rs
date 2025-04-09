@@ -62,6 +62,7 @@ pub enum Error {
     /// Received error reply while awaited response from another actor.
     ///
     /// NOTE: this error could only be returned from async messaging.
+    // TODO: consider to load payload lazily (#4595)
     ErrorReply(ErrorReplyPayload, ErrorReplyReason),
 
     /// Received reply that couldn't be identified as successful or not
