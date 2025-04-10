@@ -40,6 +40,7 @@ use sp_std::marker::PhantomData;
 pub trait WeightInfo {
     fn pause() -> Weight;
     fn unpause() -> Weight;
+    fn set_fee() -> Weight;
     fn send_eth_message() -> Weight;
 }
 
@@ -62,6 +63,14 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 6_000_000 picoseconds.
         Weight::from_parts(7_000_000, 1486)
             .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(1_u64))
+    }
+    fn set_fee() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_003_000 picoseconds.
+        Weight::from_parts(2_164_000, 0)
             .saturating_add(T::DbWeight::get().writes(1_u64))
     }
     fn send_eth_message() -> Weight {
@@ -93,6 +102,14 @@ impl WeightInfo for () {
         // Minimum execution time: 6_000_000 picoseconds.
         Weight::from_parts(7_000_000, 1486)
             .saturating_add(RocksDbWeight::get().reads(2_u64))
+            .saturating_add(RocksDbWeight::get().writes(1_u64))
+    }
+    fn set_fee() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_003_000 picoseconds.
+        Weight::from_parts(2_164_000, 0)
             .saturating_add(RocksDbWeight::get().writes(1_u64))
     }
     fn send_eth_message() -> Weight {

@@ -149,7 +149,7 @@ fn test_mprotect_pages() {
         }
     }
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     init_with_handler::<TestHandler, _>(LazyPagesVersion::Version1, init_ctx(), NoopStorage)
         .unwrap();

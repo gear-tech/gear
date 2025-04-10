@@ -49,11 +49,11 @@ async fn test_command_upload_works() -> Result<()> {
     )?;
     assert!(
         output
-            .stderr
+            .stdout
             .convert()
             .contains("Submitted Gear::upload_program"),
-        "code should be uploaded, but got: {:?}",
-        output.stderr
+        "code should be uploaded, but got: {}",
+        output.stderr.convert()
     );
     assert!(
         signer.api().code_storage(code_id).await.is_ok(),
@@ -72,11 +72,13 @@ async fn test_command_upload_code_works() -> Result<()> {
             .program(env::wasm_bin("demo_fungible_token.opt.wasm")),
     )?;
 
-    let stderr = output.stderr.convert();
-
     assert!(
-        stderr.contains("Submitted Gear::upload_code"),
-        "code should be uploaded, but got: {stderr:?}",
+        output
+            .stdout
+            .convert()
+            .contains("Submitted Gear::upload_code"),
+        "code should be uploaded, but got: {}",
+        output.stderr.convert()
     );
     Ok(())
 }

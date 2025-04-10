@@ -663,6 +663,7 @@ mod util {
         pallet_prelude::{DispatchClass, Weight},
         parameter_types,
         traits::{ConstBool, ConstU64, FindAuthor, Get, OnFinalize, OnInitialize},
+        PalletId,
     };
     use frame_support_test::TestRandomness;
     use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
@@ -764,7 +765,7 @@ mod util {
         pub ResumeMinimalPeriod: BlockNumber = 100;
         pub ResumeSessionDuration: BlockNumber = 1_000;
         pub const PerformanceMultiplier: u32 = 100;
-        pub const BankAddress: AccountId = 15082001;
+        pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
         pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
     }
 
@@ -981,7 +982,7 @@ mod util {
     }
 
     pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-        let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
+        let bank_address = GearBank::bank_address();
 
         ExtBuilder::default()
             .initial_authorities(vec![
@@ -995,10 +996,7 @@ mod util {
     }
 
     pub(super) fn init_logger() {
-        let _ = env_logger::Builder::from_default_env()
-            .format_module_path(false)
-            .format_level(true)
-            .try_init();
+        let _ = tracing_subscriber::fmt::try_init();
     }
 
     pub(super) fn deploy_broker_contract() {

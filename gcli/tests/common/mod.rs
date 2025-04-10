@@ -18,12 +18,14 @@
 
 //! Common utils for integration tests
 pub use self::{args::Args, node::NodeExec, result::Result};
+use anyhow::Context;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::{
     iter::IntoIterator,
     process::{Command, Output},
 };
+use tracing_subscriber::EnvFilter;
 
 mod app;
 mod args;
@@ -58,13 +60,17 @@ pub fn dev() -> Result<NodeInstance> {
     login_as_alice()?;
     Node::from_path(env::node_bin())?
         .spawn()
+        .context("failed to spawn node")
         .map_err(Into::into)
 }
 
 /// Init env logger
 #[allow(dead_code)]
 pub fn init_logger() {
-    let _ = env_logger::builder().is_test(true).try_init();
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_test_writer()
+        .try_init();
 }
 
 /// Login as //Alice
