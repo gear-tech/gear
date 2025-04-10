@@ -27,7 +27,7 @@ use abi::{
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, Bytes, ChainId, PrimitiveSignature as Signature, B256, U256},
+    primitives::{Address, Bytes, ChainId, Signature, B256, U256},
     providers::{
         fillers::{
             BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
@@ -192,7 +192,7 @@ impl Ethereum {
         let builder = wrapped_vara.approve(router_address, U256::MAX);
         builder.send().await?.try_get_receipt().await?;
 
-        assert_eq!(router.mirrorImpl().call().await?._0, *mirror.address());
+        assert_eq!(router.mirrorImpl().call().await?, *mirror.address());
 
         let builder = router.lookupGenesisHash();
         builder.send().await?.try_get_receipt().await?;
@@ -351,7 +351,7 @@ impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
 }
 
 pub(crate) fn decode_log<E: SolEvent>(log: &Log) -> Result<E> {
-    E::decode_raw_log(log.topics(), &log.data().data, false).map_err(Into::into)
+    E::decode_raw_log(log.topics(), &log.data().data).map_err(Into::into)
 }
 
 macro_rules! signatures_consts {

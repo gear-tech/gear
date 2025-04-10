@@ -28,8 +28,8 @@ use gprimitives::{MessageId, H256};
 
 pub mod events;
 
-type Instance = IMirror::IMirrorInstance<(), AlloyProvider>;
-type QueryInstance = IMirror::IMirrorInstance<(), RootProvider>;
+type Instance = IMirror::IMirrorInstance<AlloyProvider>;
+type QueryInstance = IMirror::IMirrorInstance<RootProvider>;
 
 pub struct Mirror(Instance);
 
@@ -124,7 +124,7 @@ impl MirrorQuery {
             .stateHash()
             .call()
             .await
-            .map(|res| H256(*res._0))
+            .map(|res| H256(*res))
             .map_err(Into::into)
     }
 
@@ -133,7 +133,7 @@ impl MirrorQuery {
             .inheritor()
             .call()
             .await
-            .map(|res| LocalAddress(res._0.into()))
+            .map(|res| LocalAddress(res.into()))
             .map_err(Into::into)
     }
 
@@ -142,7 +142,7 @@ impl MirrorQuery {
             .nonce()
             .call()
             .await
-            .map(|res| U256::from(res._0))
+            .map(|res| U256::from(res))
             .map_err(Into::into)
     }
 
@@ -151,7 +151,7 @@ impl MirrorQuery {
             .router()
             .call()
             .await
-            .map(|res| LocalAddress(res._0.into()))
+            .map(|res| LocalAddress(res.into()))
             .map_err(Into::into)
     }
 }
