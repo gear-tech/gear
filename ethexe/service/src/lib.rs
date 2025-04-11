@@ -488,48 +488,45 @@ impl Service {
                         }
                     }
                 }
-                Event::Control(event) => {
-                    match event {
-                        ControlEvent::ComputeBlock(block) => compute.receive_synced_head(block),
-                        ControlEvent::ComputeProducerBlock(producer_block) => {
-                            // TODO +_+_+: implement
-                            if !producer_block.off_chain_transactions.is_empty()
-                                || producer_block.gas_allowance.is_none()
-                            {
-                                unimplemented!("Off-chain transactions and gas allowance are not supported yet");
-                            }
+                Event::Control(event) => match event {
+                    ControlEvent::ComputeBlock(block) => compute.receive_synced_head(block),
+                    ControlEvent::ComputeProducerBlock(producer_block) => {
+                        if !producer_block.off_chain_transactions.is_empty()
+                            || producer_block.gas_allowance.is_none()
+                        {
+                            todo!("+_+_+ off-chain transactions and gas allowance are not supported yet");
+                        }
 
-                            compute.receive_synced_head(producer_block.block_hash);
-                        }
-                        ControlEvent::PublishProducerBlock(block) => {
-                            let Some(n) = network.as_mut() else {
-                                continue;
-                            };
-
-                            n.publish_message(NetworkMessage::from(block).encode());
-                        }
-                        ControlEvent::PublishValidationRequest(request) => {
-                            let Some(n) = network.as_mut() else {
-                                continue;
-                            };
-
-                            n.publish_message(NetworkMessage::from(request).encode());
-                        }
-                        ControlEvent::PublishValidationReply(reply) => {
-                            let Some(n) = network.as_mut() else {
-                                continue;
-                            };
-
-                            n.publish_message(NetworkMessage::from(reply).encode());
-                        }
-                        ControlEvent::CommitmentSubmitted(tx) => {
-                            log::info!("Commitment submitted, tx: {tx}");
-                        }
-                        ControlEvent::Warning(msg) => {
-                            log::warn!("Control service warning: {msg}");
-                        }
+                        compute.receive_synced_head(producer_block.block_hash);
                     }
-                }
+                    ControlEvent::PublishProducerBlock(block) => {
+                        let Some(n) = network.as_mut() else {
+                            continue;
+                        };
+
+                        n.publish_message(NetworkMessage::from(block).encode());
+                    }
+                    ControlEvent::PublishValidationRequest(request) => {
+                        let Some(n) = network.as_mut() else {
+                            continue;
+                        };
+
+                        n.publish_message(NetworkMessage::from(request).encode());
+                    }
+                    ControlEvent::PublishValidationReply(reply) => {
+                        let Some(n) = network.as_mut() else {
+                            continue;
+                        };
+
+                        n.publish_message(NetworkMessage::from(reply).encode());
+                    }
+                    ControlEvent::CommitmentSubmitted(tx) => {
+                        log::info!("Commitment submitted, tx: {tx}");
+                    }
+                    ControlEvent::Warning(msg) => {
+                        log::warn!("Control service warning: {msg}");
+                    }
+                },
             }
         }
     }
