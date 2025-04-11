@@ -112,7 +112,7 @@ async fn fetch_and_instrument(
     }))
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::fmt()
         .with_env_filter(
@@ -168,29 +168,32 @@ async fn main() -> anyhow::Result<()> {
             fetch_and_instrument(api, latest_block, code_id)
         })
         .buffer_unordered(concurrency)
-        .chunks(100)
-        .scan(0, |counter, chunk| {
-            *counter += chunk.len();
-            tracing::info!("[{counter}/{keys_len}] Instrumenting codes...");
-            future::ready(Some(stream::iter(chunk)))
+        .scan(0, |counter, code| {
+            *counter += 1;
+            if *counter % 100 == 0 {
+                tracing::info!("[{counter}/{keys_len}] Instrumenting codes...");
+            }
+            future::ready(Some(code))
         })
-        .flatten()
-        .try_filter_map(|maybe_code| future::ready(Ok(maybe_code)))
-        .try_filter(|res| future::ready(!excluded_codes.contains(&res.code_id)))
+        .try_filter_map(|maybe_failed_code| future::ready(Ok(maybe_failed_code)))
+        .try_filter(|failed_code| future::ready(!excluded_codes.contains(&failed_code.code_id)))
         .try_collect::<Vec<_>>()
         .await?;
+
+    if failed_codes.is_empty() {
+        tracing::info!("All codes were instrumented successfully");
+        return Ok(());
+    }
 
     let temp_dir = tempfile::tempdir()
         .context("Failed to create temporary directory")?
         .into_path();
 
-    if !failed_codes.is_empty() {
-        tracing::warn!(
-            dir = %temp_dir.display(),
-            "There are {} failed codes. Their WASMs and WATs will be written",
-            failed_codes.len(),
-        );
-    }
+    tracing::warn!(
+        dir = %temp_dir.display(),
+        "There are {} failed codes. Their WASMs and WATs will be written",
+        failed_codes.len(),
+    );
 
     for FailedCode {
         code_id,
@@ -213,5 +216,5 @@ async fn main() -> anyhow::Result<()> {
         tracing::error!(%code_id, "{err}");
     }
 
-    Ok(())
+    anyhow::bail!("Failed to instrument some codes")
 }
