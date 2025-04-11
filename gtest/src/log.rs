@@ -225,13 +225,6 @@ impl Log {
     pub fn error_builder(error_reason: ErrorReplyReason) -> Self {
         let mut log = Self::builder();
         log.reply_code = Some(error_reason.into());
-        log.payload = Some(
-            error_reason
-                .to_string()
-                .into_bytes()
-                .try_into()
-                .expect("Infallible"),
-        );
 
         log
     }

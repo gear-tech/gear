@@ -238,7 +238,7 @@ impl ExtManager {
     fn init_failure(&mut self, program_id: ProgramId, origin: ProgramId) {
         Actors::modify(program_id, |actor| {
             let actor = actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"));
-            *actor = TestActor::Dormant
+            *actor = TestActor::FailedInit;
         });
 
         let value = Accounts::balance(program_id);

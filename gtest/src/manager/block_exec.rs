@@ -320,10 +320,28 @@ impl ExtManager {
 
             let actor = actor.unwrap_or_else(|| unreachable!("actor must exist for queue message"));
 
-            if actor.is_dormant() {
-                log::debug!("Message {dispatch_id} is sent to non-active program {destination_id}");
-                return Exec::Notes(core_processor::process_non_executable(context));
-            };
+            match actor {
+                Initialized(_) => {}
+                Uninitialized(_, _) => { /* uninit case is checked further */ }
+                FailedInit => {
+                    log::debug!(
+                        "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
+                    );
+                    return Exec::Notes(core_processor::process_failed_init(context));
+                }
+                CodeNotExists => {
+                    log::debug!(
+                        "Message {dispatch_id} is sent to program {destination_id} which code does not exist"
+                    );
+                    return Exec::Notes(core_processor::process_code_not_exists(context));
+                }
+                Exited(inheritor) => {
+                    log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
+                    return Exec::Notes(core_processor::process_program_exited(
+                        context, *inheritor,
+                    ));
+                }
+            }
 
             if actor.is_initialized() && dispatch_kind.is_init() {
                 // Panic is impossible, because gear protocol does not provide functionality
@@ -362,7 +380,7 @@ impl ExtManager {
                     unreachable!("{err_msg}");
                 }
 
-                return Exec::Notes(core_processor::process_non_executable(context));
+                return Exec::Notes(core_processor::process_uninitialized(context));
             }
 
             if let Some(data) = actor.get_executable_actor_data() {
