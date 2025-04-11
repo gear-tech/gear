@@ -33,7 +33,8 @@ use gear_core::{
     },
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryDump, MemoryError,
+        MemoryInterval, PageBuf, PageDump,
     },
     message::{
         ContextOutcomeDrain, ContextStore, Dispatch, DispatchKind, GasLimit, HandlePacket,
@@ -146,7 +147,7 @@ impl ProcessorContext {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
@@ -166,6 +167,19 @@ pub struct ExtInfo {
 pub trait ProcessorExternalities {
     /// Create new
     fn new(context: ProcessorContext) -> Self;
+
+    /// Dump current program memory.
+    fn dump_memory<Context>(
+        ctx: &Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<MemoryDump, MemoryError>;
+
+    /// Set current program memory.
+    fn set_memory<Context>(
+        ctx: &mut Context,
+        memory: &impl Memory<Context>,
+        memory_dump: &MemoryDump,
+    ) -> Result<(), MemoryError>;
 
     /// Convert externalities into info.
     fn into_ext_info<Context>(
@@ -561,6 +575,35 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
             outgoing_gasless: 0,
             _phantom: PhantomData,
         }
+    }
+
+    fn dump_memory<Context>(
+        ctx: &Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<MemoryDump, MemoryError> {
+        let accessed_pages = LP::get_write_accessed_pages();
+
+        let mut pages_data = MemoryDump::new();
+        for page in accessed_pages {
+            let mut data = PageBuf::new_zeroed();
+            memory.read(ctx, page.offset(), &mut data)?;
+            pages_data.try_push(PageDump { page, data })?;
+        }
+
+        Ok(pages_data)
+    }
+
+    fn set_memory<Context>(
+        ctx: &mut Context,
+        memory: &impl Memory<Context>,
+        memory_dump: &MemoryDump,
+    ) -> Result<(), MemoryError> {
+        for page_dump in memory_dump.inner() {
+            let page = page_dump.page;
+            memory.write(ctx, page.offset(), &page_dump.data)?;
+        }
+
+        Ok(())
     }
 
     fn into_ext_info<Context>(

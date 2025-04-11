@@ -37,7 +37,7 @@ use core::{
 use gear_core::{
     env::Externalities,
     gas::GasAmount,
-    memory::HostPointer,
+    memory::{HostPointer, MemoryDump, MemoryError},
     message::{DispatchKind, WasmEntryPoint},
     pages::WasmPagesAmount,
     str::LimitedStr,
@@ -253,54 +253,6 @@ where
         add_function!(FreeRange, free_range);
     }
 
-    fn setup_memory(ext: Ext, binary: &[u8], mem_size: WasmPagesAmount) -> SetupMemoryResult<Ext> {
-        use EnvironmentError::*;
-        use SystemEnvironmentError::*;
-
-        let mut store = Store::new(None);
-
-        let mut builder = EnvBuilder::<Ext> {
-            env_def_builder: EnvironmentDefinitionBuilder::new(),
-            funcs_count: 0,
-        };
-
-        let memory: BackendMemory<ExecutorMemory> =
-            match ExecutorMemory::new(&mut store, mem_size.into(), None) {
-                Ok(mem) => mem.into(),
-                Err(e) => return Err(System(CreateEnvMemory(e))),
-            };
-
-        builder.add_memory(memory.clone());
-
-        Self::bind_funcs(&mut builder);
-
-        // Check that we have implementations for all the syscalls.
-        // This is intended to panic during any testing, when the
-        // condition is not met.
-        assert_eq!(
-            builder.funcs_count,
-            SyscallName::all().count(),
-            "Not all existing syscalls were added to the module's env."
-        );
-
-        let env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
-
-        *store.data_mut() = Some(State {
-            ext,
-            memory: memory.clone(),
-            termination_reason: ActorTerminationReason::Success.into(),
-        });
-
-        let instance = Instance::new(&mut store, binary, &env_builder).map_err(|e| {
-            Actor(
-                store_host_state_mut(&mut store).ext.gas_amount(),
-                format!("{e:?}"),
-            )
-        })?;
-
-        Ok((store, memory, instance))
-    }
-
     fn report_impl(mut self) -> BackendReport<Ext> {
         let state = self.store.data_mut().take().unwrap_or_else(|| {
             let err_msg = "Environment::report: State must be set";
@@ -373,7 +325,49 @@ where
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPagesAmount,
     ) -> Result<Environment<'a, EnvExt, ReadyToExecute>, EnvironmentError> {
-        let (store, memory, instance) = Self::setup_memory(ext, binary, mem_size)?;
+        use EnvironmentError::*;
+        use SystemEnvironmentError::*;
+
+        let mut store = Store::new(None);
+
+        let mut builder = EnvBuilder::<EnvExt> {
+            env_def_builder: EnvironmentDefinitionBuilder::new(),
+            funcs_count: 0,
+        };
+
+        let memory: BackendMemory<ExecutorMemory> =
+            match ExecutorMemory::new(&mut store, mem_size.into(), None) {
+                Ok(mem) => mem.into(),
+                Err(e) => return Err(System(CreateEnvMemory(e))),
+            };
+
+        builder.add_memory(memory.clone());
+
+        Self::bind_funcs(&mut builder);
+
+        // Check that we have implementations for all the syscalls.
+        // This is intended to panic during any testing, when the
+        // condition is not met.
+        assert_eq!(
+            builder.funcs_count,
+            SyscallName::all().count(),
+            "Not all existing syscalls were added to the module's env."
+        );
+
+        let env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
+
+        *store.data_mut() = Some(State {
+            ext,
+            memory: memory.clone(),
+            termination_reason: ActorTerminationReason::Success.into(),
+        });
+
+        let instance = Instance::new(&mut store, binary, &env_builder).map_err(|e| {
+            Actor(
+                store_host_state_mut(&mut store).ext.gas_amount(),
+                format!("{e:?}"),
+            )
+        })?;
 
         Ok(Environment {
             instance,
@@ -549,8 +543,11 @@ where
             ..
         } = self;
 
-        let state = store_host_state_mut(&mut store);
-        state.ext = ext;
+        *store.data_mut() = Some(State {
+            ext,
+            memory: memory.clone(),
+            termination_reason: ActorTerminationReason::Success.into(),
+        });
 
         Ok(Environment {
             instance,
@@ -561,6 +558,18 @@ where
             execution_result: None,
             _phantom: PhantomData,
         })
+    }
+
+    pub fn dump_memory(
+        &self,
+        dumping_fn: impl FnOnce(
+            &Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>>,
+            &BackendMemory<ExecutorMemory>,
+        ) -> Result<MemoryDump, MemoryError>,
+    ) -> Result<MemoryDump, MemoryError> {
+        let Self { store, memory, .. } = self;
+
+        dumping_fn(store, memory)
     }
 }
 
@@ -574,14 +583,24 @@ where
     pub fn report(self) -> BackendReport<EnvExt> {
         self.report_impl()
     }
-    pub fn clear_memory(
-        self,
-        ext: EnvExt,
-        mem_size: WasmPagesAmount,
-    ) -> Result<Environment<'a, EnvExt, ReadyToExecute>, EnvironmentError> {
-        let Self { entries, code, .. } = self;
 
-        let (store, memory, instance) = Self::setup_memory(ext, code, mem_size)?;
+    pub fn set_memory(
+        self,
+        setting_fn: impl FnOnce(
+            &mut Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>>,
+            &BackendMemory<ExecutorMemory>,
+        ) -> Result<(), MemoryError>,
+    ) -> Result<Environment<'a, EnvExt, SuccessExecution>, MemoryError> {
+        let Self {
+            instance,
+            entries,
+            mut store,
+            memory,
+            code,
+            ..
+        } = self;
+
+        setting_fn(&mut store, &memory)?;
 
         Ok(Environment {
             instance,
