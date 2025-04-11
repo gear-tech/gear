@@ -307,10 +307,8 @@ impl Service {
             (None, None)
         };
 
-        let mut roles = "Observer".to_string();
-        roles.push_str(control.role().as_str());
-
-        log::info!("⚙️ Node service starting, roles: [{}]", roles);
+        let roles = vec!["Observer".to_string(), control.role()];
+        log::info!("⚙️ Node service starting, roles: {roles:?}");
 
         // Broadcast service started event.
         // Never supposed to be Some in production code.
