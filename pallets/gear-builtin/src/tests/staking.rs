@@ -996,10 +996,7 @@ mod util {
     }
 
     pub(super) fn init_logger() {
-        let _ = env_logger::Builder::from_default_env()
-            .format_module_path(false)
-            .format_level(true)
-            .try_init();
+        let _ = tracing_subscriber::fmt::try_init();
     }
 
     pub(super) fn deploy_broker_contract() {

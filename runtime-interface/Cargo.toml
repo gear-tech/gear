@@ -18,7 +18,7 @@ gear-sandbox-interface.workspace = true
 sp-io.workspace = true
 sp-runtime-interface = { workspace = true, default-features = false }
 sp-std.workspace = true
-codec = { workspace = true }
+parity-scale-codec.workspace = true
 log = { workspace = true, optional = true }
 
 ark-bls12-381 = { workspace = true, features = ["curve"] }
@@ -40,7 +40,7 @@ std = [
 	"sp-io/std",
 	"sp-std/std",
 	"sp-runtime-interface/std",
-	"codec/std",
+	"parity-scale-codec/std",
 	"log",
 
 	"ark-bls12-381/std",

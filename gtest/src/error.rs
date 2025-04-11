@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::Error as CodecError;
 use gear_core::{ids::ProgramId, pages::WasmPage};
 use gear_core_errors::ExtError;
+use parity_scale_codec::Error as CodecError;
 
 /// Type alias for the testing functions running result.
 pub type Result<T, E = TestError> = core::result::Result<T, E>;

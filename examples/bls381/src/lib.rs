@@ -21,7 +21,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {
@@ -32,7 +32,6 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Encode, Decode)]
-#[codec(crate = codec)]
 pub enum HandleMessage {
     MillerLoop {
         message: Vec<u8>,
@@ -42,7 +41,6 @@ pub enum HandleMessage {
 }
 
 #[derive(Encode, Decode)]
-#[codec(crate = codec)]
 pub struct InitMessage {
     pub g2_gen: Vec<u8>,
     pub pub_keys: Vec<Vec<u8>>,
