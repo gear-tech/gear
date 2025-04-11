@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # "Connect-Node" Control Service
+//!
+//! Simple "connect-node" control service implementation.
+
 use crate::{
     utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
     ControlEvent, ControlService,
@@ -32,6 +36,8 @@ use std::{
     task::{Context, Poll},
 };
 
+/// Control service which tracks the on-chain and ethexe events
+/// in order to keep the program states in local database actual.
 #[derive(Debug, Default)]
 pub struct SimpleConnectService {
     block: Option<SimpleBlockData>,
@@ -39,6 +45,7 @@ pub struct SimpleConnectService {
 }
 
 impl SimpleConnectService {
+    /// Creates a new instance of `SimpleConnectService`.
     pub fn new() -> Self {
         Self::default()
     }

@@ -16,6 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Utilities Module
+//!
+//! This module provides utility functions and data structures for handling batch commitments,
+//! validation requests, and multi-signature operations in the Ethexe system.
+
 use anyhow::Result;
 use ethexe_common::gear::{BatchCommitment, BlockCommitment, CodeCommitment};
 use ethexe_signer::{
@@ -25,9 +30,14 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
 
+/// Represents a request for validating a batch of block commitments.
+/// This structure is used to verify the integrity and validity of multiple block commitments
+/// and their associated code commitments.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitmentValidationRequest {
+    /// List of block commitment validation requests
     pub blocks: Vec<BlockCommitmentValidationRequest>,
+    /// List of code commitments to be validated
     pub codes: Vec<CodeCommitment>,
 }
 
@@ -51,12 +61,22 @@ impl ToDigest for BatchCommitmentValidationRequest {
     }
 }
 
+/// A request for validating a single block commitment.
+/// Contains all necessary information to verify the integrity of a block's commitment.
+///
+/// NOTE: [`BlockCommitmentValidationRequest`] digest is always equal to the corresponding
+/// [`BlockCommitment`] digest.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct BlockCommitmentValidationRequest {
+    /// Hash of the block being validated
     pub block_hash: H256,
+    /// Timestamp of the block
     pub block_timestamp: u64,
+    /// Hash of the previous non-empty block
     pub previous_not_empty_block: H256,
+    /// Hash of the predecessor block
     pub predecessor_block: H256,
+    /// Digest of the block's state transitions
     pub transitions_digest: Digest,
 }
 
@@ -83,12 +103,19 @@ impl ToDigest for BlockCommitmentValidationRequest {
     }
 }
 
+/// A reply to a batch commitment validation request.
+/// Contains the digest of the batch and a signature confirming the validation.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitmentValidationReply {
+    /// Digest of the [`BatchCommitment`] being validated
     pub digest: Digest,
+    /// Signature confirming the validation by origin
     pub signature: ContractSignature,
 }
 
+/// A batch commitment, that has been signed by multiple validators.
+/// This structure manages the collection of signatures from different validators
+/// for a single batch commitment.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct MultisignedBatchCommitment {
     batch: BatchCommitment,
@@ -98,6 +125,15 @@ pub struct MultisignedBatchCommitment {
 }
 
 impl MultisignedBatchCommitment {
+    /// Creates a new multisigned batch commitment with an initial signature.
+    ///
+    /// # Arguments
+    /// * `batch` - The batch commitment to be signed
+    /// * `signer` - The contract signer used to create signatures
+    /// * `pub_key` - The public key of the initial signer
+    ///
+    /// # Returns
+    /// A new `MultisignedBatchCommitment` instance with the initial signature
     pub fn new(
         batch: BatchCommitment,
         signer: &ContractSigner,
@@ -115,6 +151,14 @@ impl MultisignedBatchCommitment {
         })
     }
 
+    /// Accepts a validation reply from another validator and adds it's signature.
+    ///
+    /// # Arguments
+    /// * `reply` - The validation reply containing the signature
+    /// * `check_origin` - A closure to verify the origin of the signature
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the operation
     pub fn accept_batch_commitment_validation_reply(
         &mut self,
         reply: BatchCommitmentValidationReply,
@@ -135,14 +179,20 @@ impl MultisignedBatchCommitment {
         Ok(())
     }
 
+    /// Returns a reference to the map of validator addresses to their signatures
     pub fn signatures(&self) -> &BTreeMap<Address, ContractSignature> {
         &self.signatures
     }
 
+    /// Returns a reference to the underlying batch commitment
     pub fn batch(&self) -> &BatchCommitment {
         &self.batch
     }
 
+    /// Consumes the structure and returns its parts
+    ///
+    /// # Returns
+    /// A tuple containing the batch commitment and the map of signatures
     pub fn into_parts(self) -> (BatchCommitment, BTreeMap<Address, ContractSignature>) {
         (self.batch, self.signatures)
     }

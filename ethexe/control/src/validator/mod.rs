@@ -16,6 +16,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Validator Control Service
+//!
+//! This module provides the core validation functionality for the Ethexe system.
+//! It implements a state machine-based validator service that processes blocks,
+//! handles validation requests, and manages the validation workflow.
+//!
+//! State transformations schema:
+//! ```text
+//! Initial
+//!    |
+//!    ├────> Producer
+//!    |         └───> Coordinator
+//!    |                    └───> Submitter
+//!    └───> Subordinate
+//!              └───> Participant
+//! ```
+//! * [`Initial`] switches to a [`Producer`] if it's producer for an incoming block, else becomes a [`Subordinate`].
+//! * [`Producer`] switches to [`Coordinator`] after producing a block and sending it to other validators.
+//! * [`Subordinate`] switches to [`Participant`] after receiving a block from the producer and waiting for its local computation.
+//! * [`Coordinator`] switches to [`Submitter`] after receiving enough validation replies from other validators.
+//! * [`Participant`] switches to [`Initial`] after receiving request from [`Coordinator`] and sending validation reply (or rejecting request).
+//! * [`Submitter`] switches to [`Initial`] after submitting the batch commitment to the blockchain.
+//! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
+
 use anyhow::Result;
 use async_trait::async_trait;
 use derivative::Derivative;
@@ -54,19 +78,43 @@ use crate::{
 };
 use initial::Initial;
 
+#[cfg(doc)]
+use self::{
+    coordinator::Coordinator, participant::Participant, producer::Producer, submitter::Submitter,
+    subordinate::Subordinate,
+};
+
+/// The main validator service that implements the `ControlService` trait.
+/// This service manages the validation workflow.
 pub struct ValidatorService {
     inner: Option<Box<dyn ValidatorSubService>>,
 }
 
+/// Configuration parameters for the validator service.
 pub struct ValidatorConfig {
+    /// Ethereum RPC endpoint URL
     pub ethereum_rpc: String,
+    /// ECDSA public key of the validator
     pub pub_key: PublicKey,
+    /// Address of the router contract
     pub router_address: Address,
+    /// ECDSA multi-signature threshold
+    // TODO +_+_+: threshold should be a ratio (and maybe also a block dependent value)
     pub threshold: u64,
+    /// Duration of a slot (only to identify producer for the incoming blocks)
     pub slot_duration: Duration,
 }
 
 impl ValidatorService {
+    /// Creates a new validator service instance.
+    ///
+    /// # Arguments
+    /// * `signer` - The signer used for cryptographic operations
+    /// * `db` - The database instance
+    /// * `config` - Configuration parameters for the validator
+    ///
+    /// # Returns
+    /// A new `ValidatorService` instance
     pub async fn new(signer: Signer, db: Database, config: ValidatorConfig) -> Result<Self> {
         let ethereum = Ethereum::new(
             &config.ethereum_rpc,
@@ -175,12 +223,17 @@ impl FusedStream for ValidatorService {
     }
 }
 
+/// An event that can be saved for later processing.
 #[derive(Clone, Debug, derive_more::From, PartialEq, Eq)]
 enum PendingEvent {
+    /// A block from the producer
     ProducerBlock(SignedData<ProducerBlock>),
+    /// A validation request
     ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
 }
 
+/// Trait defining the interface for validator sub-services.
+/// Each sub-service represents a different state in the validation state machine.
 trait ValidatorSubService: Display + fmt::Debug + Any + Unpin + Send + 'static {
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService>;
     fn context(&self) -> &ValidatorContext;
@@ -311,7 +364,6 @@ impl DefaultProcessing {
 #[derivative(Debug)]
 struct ValidatorContext {
     slot_duration: Duration,
-    // TODO +_+_+: threshold should be a ratio (and maybe also a block dependent value)
     threshold: u64,
     router_address: Address,
     pub_key: PublicKey,
@@ -339,8 +391,18 @@ impl ValidatorContext {
     }
 }
 
+/// Trait for committing batch commitments to the blockchain.
 #[async_trait]
 pub trait BatchCommitter: Send {
+    /// Creates a boxed clone of the committer.
     fn clone_boxed(&self) -> Box<dyn BatchCommitter>;
+
+    /// Commits a batch of signed commitments to the blockchain.
+    ///
+    /// # Arguments
+    /// * `batch` - The batch of commitments to commit
+    ///
+    /// # Returns
+    /// The hash of the transaction that was sent to the blockchain
     async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256>;
 }

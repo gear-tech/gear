@@ -16,6 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Ethexe Control
+//!
+//! This crate provides controlling a behaviour of ethexe node depending on incoming blocks.
+//!
+//! The main components are:
+//! - [`ControlService`]: A trait defining the core interface for control services
+//! - [`ControlEvent`]: An enum representing various control events which have to be processed by outer services
+//! - [`SimpleConnectService`]: A basic implementation of "connect-node"
+//! - [`ValidatorService`]: Service for handling block validation
+//!
+//! The crate is organized into several modules:
+//! - [`connect`]: Connection management functionality
+//! - [`validator`]: Block validation services and implementations
+//! - [`utils`]: Utility functions and shared data structures
+
 mod connect;
 mod utils;
 mod validator;
@@ -37,25 +52,45 @@ use gprimitives::H256;
 pub trait ControlService:
     Stream<Item = Result<ControlEvent>> + FusedStream + Unpin + Send + 'static
 {
+    /// Returns the role info of the service
     fn role(&self) -> String;
+
+    /// Process a new chain head
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()>;
+
+    /// Process a synced block info
     fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()>;
+
+    /// Process a computed block received
     fn receive_computed_block(&mut self, block_hash: H256) -> Result<()>;
+
+    /// Process a received producer block
     fn receive_block_from_producer(&mut self, block: SignedData<ProducerBlock>) -> Result<()>;
+
+    /// Process a received validation request
     fn receive_validation_request(
         &mut self,
         request: SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<()>;
+
+    /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ControlEvent {
+    /// Outer service have to compute block
     ComputeBlock(H256),
+    /// Outer service have to compute producer block
     ComputeProducerBlock(ProducerBlock),
+    /// Outer service have to publish signed producer block
     PublishProducerBlock(SignedData<ProducerBlock>),
+    /// Outer service have to publish signed validation request
     PublishValidationRequest(SignedData<BatchCommitmentValidationRequest>),
+    /// Outer service have to publish signed validation reply
     PublishValidationReply(BatchCommitmentValidationReply),
+    /// Informational event: commitment was successfully submitted, tx hash is provided
     CommitmentSubmitted(H256),
+    /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }
