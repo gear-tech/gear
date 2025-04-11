@@ -781,10 +781,10 @@ async fn ping_reorg() {
     assert_eq!(res.payload, b"PONG");
 }
 
-// Stop service - waits 15 blocks - send message - waits 150 blocks - start service.
+// Stop service - waits 150 blocks - send message - waits 150 blocks - start service.
 // Deep sync must load chain in batch.
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(1000_000)]
+#[ntest::timeout(60_000)]
 async fn ping_deep_sync() {
     utils::init_logger();
 
@@ -831,13 +831,13 @@ async fn ping_deep_sync() {
 
     node.stop_service().await;
 
-    env.skip_blocks(15).await;
+    env.skip_blocks(150).await;
 
     env.approve_wvara(ping_id).await;
 
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
 
-    env.skip_blocks(15).await;
+    env.skip_blocks(150).await;
 
     node.start_service().await;
 

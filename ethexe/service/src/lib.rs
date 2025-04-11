@@ -81,13 +81,9 @@ pub struct Service {
 // TODO #4176: consider to move this to another module
 #[derive(Debug, Clone, Encode, Decode, derive_more::From)]
 pub enum NetworkMessage {
-    #[from]
     ProducerBlock(SignedData<ProducerBlock>),
-    #[from]
     RequestBatchValidation(SignedData<BatchCommitmentValidationRequest>),
-    #[from]
     ApproveBatch(BatchCommitmentValidationReply),
-    #[from]
     OffchainTransaction {
         transaction: SignedOffchainTransaction,
     },

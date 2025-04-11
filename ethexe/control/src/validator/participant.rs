@@ -19,7 +19,7 @@
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
 use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
-use ethexe_signer::{Address, Digest, ToDigest};
+use ethexe_signer::{Address, Digest, SignedData, ToDigest};
 use gprimitives::H256;
 use std::fmt;
 
@@ -61,7 +61,7 @@ impl ValidatorSubService for Participant {
 
     fn process_validation_request(
         self: Box<Self>,
-        request: ethexe_signer::SignedData<BatchCommitmentValidationRequest>,
+        request: SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<Box<dyn ValidatorSubService>> {
         if request.verify_address(self.producer).is_ok() {
             self.process_validation_request(request.into_parts().0)

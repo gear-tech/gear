@@ -367,13 +367,21 @@ struct ValidatorContext {
     threshold: u64,
     router_address: Address,
     pub_key: PublicKey,
+
     #[derivative(Debug = "ignore")]
     signer: Signer,
     #[derivative(Debug = "ignore")]
     db: Database,
     #[derivative(Debug = "ignore")]
     committer: Box<dyn BatchCommitter>,
+
+    /// Pending events that are saved for later processing.
+    ///
+    /// ## Important
+    /// New events are pushed-front, in order to process the most recent event first.
+    /// So, actually it is a stack.
     pending_events: VecDeque<PendingEvent>,
+    /// Output events for outer services. Populates during the poll.
     output: VecDeque<ControlEvent>,
 }
 
