@@ -21,13 +21,13 @@ use crate::{
     program::{Gas, ProgramIdWrapper},
     Value, GAS_MULTIPLIER,
 };
-use codec::{Codec, Encode};
 use core_processor::configs::BlockInfo;
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Payload, StoredMessage, UserStoredMessage},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
+use parity_scale_codec::{Codec, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryInto,
