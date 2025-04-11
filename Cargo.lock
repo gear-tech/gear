@@ -7838,10 +7838,12 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "gsdk",
+ "hex-literal",
  "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "wasmprinter",
 ]
 
 [[package]]
