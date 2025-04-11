@@ -23,6 +23,7 @@ use ethexe_common::{
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
     ProducerBlock, SimpleBlockData,
 };
+use ethexe_db::CodeInfo;
 use ethexe_service_utils::Timer;
 use ethexe_signer::Address;
 use futures::FutureExt;
@@ -206,23 +207,29 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Vec<CodeCommitment>, AggregationError> {
-        Ok(ctx
+        let codes_queue = ctx
             .db
             .block_codes_queue(block_hash)
-            .ok_or_else(|| anyhow!("Cannot get from db codes queue for block {block_hash}"))?
+            .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
+
+        let mut commitments = Vec::new();
+        for (id, valid) in codes_queue
             .into_iter()
-            .filter_map(|code_id| {
-                let Some(code_info) = ctx.db.code_blob_info(code_id) else {
-                    // TODO +_+_+: this must be an error
-                    return None;
-                };
-                ctx.db.code_valid(code_id).map(|valid| CodeCommitment {
-                    id: code_id,
-                    timestamp: code_info.timestamp,
-                    valid,
-                })
-            })
-            .collect())
+            .filter_map(|id| ctx.db.code_valid(id).map(|valid| (id, valid)))
+        {
+            let CodeInfo { timestamp, .. } = ctx
+                .db
+                .code_blob_info(id)
+                .ok_or_else(|| anyhow!("Validated code {id} blob info is not in storage"))?;
+
+            commitments.push(CodeCommitment {
+                id,
+                timestamp,
+                valid,
+            });
+        }
+
+        Ok(commitments)
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
