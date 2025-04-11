@@ -21,6 +21,7 @@ futures.workspace = true
 tempfile.workspace = true
 wasmprinter.workspace = true
 hex-literal.workspace = true
+clap.workspace = true
 
 [lints]
 workspace = true

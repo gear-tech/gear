@@ -7833,6 +7833,7 @@ name = "instrument-whole-network"
 version = "1.7.1"
 dependencies = [
  "anyhow",
+ "clap 4.5.23",
  "futures",
  "gcli",
  "gear-core",
