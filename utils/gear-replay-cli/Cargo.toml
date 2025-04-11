@@ -33,7 +33,7 @@ frame-remote-externalities.workspace = true
 substrate-rpc-client.workspace = true
 
 # third-party
-codec.workspace = true
+parity-scale-codec.workspace = true
 clap = { workspace = true, features = ["derive"] }
 hex.workspace = true
 log.workspace = true
@@ -42,7 +42,7 @@ tokio = { workspace = true, features = ["macros"] }
 [features]
 default = ["std", "always-wasm"]
 std = [
-    "codec/std",
+    "parity-scale-codec/std",
     "log/std",
     "runtime-primitives/std",
     "sp-core/std",

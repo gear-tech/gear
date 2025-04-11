@@ -159,7 +159,7 @@ impl ExtBuilder {
             )
             .collect::<Vec<_>>();
 
-        balances.push((BankAddress::get(), EXISTENTIAL_DEPOSIT));
+        balances.push((GearBank::bank_address(), EXISTENTIAL_DEPOSIT));
 
         pallet_balances::GenesisConfig::<Runtime> { balances }
             .assimilate_storage(&mut storage)
@@ -239,10 +239,7 @@ pub(crate) fn run_for_n_blocks(n: u32) {
 }
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 pub(crate) fn get_last_program_id() -> [u8; 32] {

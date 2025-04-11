@@ -60,7 +60,7 @@ pub use gear_core::{
     program::{ActiveProgram, MemoryInfix, Program},
 };
 use primitive_types::H256;
-use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
+use sp_arithmetic::traits::{BaseArithmetic, Saturating, UniqueSaturatedInto, Unsigned};
 use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
@@ -170,12 +170,6 @@ impl Origin for ReservationId {
 pub enum GasMultiplier<Balance, Gas> {
     ValuePerGas(Balance),
     GasPerValue(Gas),
-}
-
-impl<Balance: One, Gas> Default for GasMultiplier<Balance, Gas> {
-    fn default() -> Self {
-        Self::ValuePerGas(One::one())
-    }
 }
 
 impl<Balance, Gas> GasMultiplier<Balance, Gas>

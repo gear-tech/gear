@@ -4,11 +4,16 @@ pragma solidity ^0.8.28;
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IRouter} from "../IRouter.sol";
+import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
+import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 library Gear {
     using ECDSA for bytes32;
     using MessageHashUtils for address;
+
+    using TransientSlot for *;
+    using SlotDerivation for *;
 
     // 2.5 * 10^9 of gear gas.
     uint64 public constant COMPUTATION_THRESHOLD = 2_500_000_000;
@@ -220,21 +225,26 @@ library Gear {
     /// @dev Validates signatures of the given data hash.
     function validateSignatures(
         IRouter.Storage storage router,
+        bytes32 routerTransientStorage,
         bytes32 _dataHash,
         Gear.SignatureType _signatureType,
         bytes[] calldata _signatures
-    ) internal view returns (bool) {
-        return validateSignaturesAt(router, _dataHash, _signatureType, _signatures, block.timestamp);
+    ) internal returns (bool) {
+        return validateSignaturesAt(
+            router, routerTransientStorage, _dataHash, _signatureType, _signatures, block.timestamp
+        );
     }
 
     /// @dev Validates signatures of the given data hash at the given timestamp.
+    /// TODO: support native keyword `transient storage`: https://github.com/foundry-rs/foundry/issues/9931
     function validateSignaturesAt(
         IRouter.Storage storage router,
+        bytes32 routerTransientStorage,
         bytes32 _dataHash,
         SignatureType _signatureType,
         bytes[] calldata _signatures,
         uint256 ts
-    ) internal view returns (bool) {
+    ) internal returns (bool) {
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
         if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
             require(ts >= router.genesisBlock.timestamp, "cannot validate before genesis");
@@ -253,7 +263,7 @@ library Gear {
         }
 
         Validators storage validators = validatorsAt(router, ts);
-        bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(_dataHash));
+        bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);
 
         if (_signatureType == SignatureType.FROST) {
             require(_signatures.length == 1, "FROST signature must be single");
@@ -271,12 +281,10 @@ library Gear {
                 _signatureZ := mload(add(_signature, 0x60))
             }
 
-            // extra security check (`FROST.verifySignature()` does not check public key validity)
-            require(
-                FROST.isValidPublicKey(validators.aggregatedPublicKey.x, validators.aggregatedPublicKey.y),
-                "FROST aggregated public key is invalid"
-            );
-
+            /*
+            * @dev SECURITY: `FROST.isValidPublicKey(validators.aggregatedPublicKey.x, validators.aggregatedPublicKey.y)` is not called here,
+            *      because it is already checked in `Router._resetValidators(...)`.
+            */
             return FROST.verifySignature(
                 validators.aggregatedPublicKey.x,
                 validators.aggregatedPublicKey.y,
@@ -297,6 +305,14 @@ library Gear {
                 address validator = _messageHash.recover(signature);
 
                 if (validators.map[validator]) {
+                    bytes32 transientStorageValidatorsSlot = routerTransientStorage.deriveMapping(validator);
+
+                    if (transientStorageValidatorsSlot.asBoolean().tload()) {
+                        continue;
+                    } else {
+                        transientStorageValidatorsSlot.asBoolean().tstore(true);
+                    }
+
                     if (++validSignatures == threshold) {
                         return true;
                     }

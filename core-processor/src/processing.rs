@@ -27,22 +27,22 @@ use crate::{
     ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
-use alloc::{
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{string::ToString, vec::Vec};
+use core::{fmt, fmt::Formatter};
 use gear_core::{
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
-    message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, Payload, PayloadSizeError, ReplyMessage,
+        StoredDispatch,
+    },
     reservation::GasReservationState,
 };
 use gear_core_backend::{
-    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError},
+    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
     BackendExternalities,
 };
-use gear_core_errors::{ErrorReplyReason, SignalCode};
+use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleUnavailableActorError};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<Ext>(
@@ -199,28 +199,71 @@ where
 }
 
 enum ProcessErrorCase {
-    /// Message is not executable error.
-    NonExecutable,
+    /// Program exited.
+    ProgramExited {
+        /// Inheritor of an exited program.
+        inheritor: ProgramId,
+    },
+    /// Program failed during init.
+    FailedInit,
+    /// Program is not initialized yet.
+    Uninitialized,
+    /// Given code id for program creation doesn't exist.
+    CodeNotExists,
+    /// Message is executable, but its execution failed due to re-instrumentation.
+    ReinstrumentationFailed,
     /// Error is considered as an execution failure.
     ExecutionFailed(ActorExecutionErrorReplyReason),
-    /// Message is executable, but it's execution failed due to re-instrumentation.
-    ReinstrumentationFailed,
+}
+
+impl fmt::Display for ProcessErrorCase {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ProcessErrorCase::ExecutionFailed(reason) => fmt::Display::fmt(reason, f),
+            this => fmt::Display::fmt(&this.to_reason(), f),
+        }
+    }
 }
 
 impl ProcessErrorCase {
-    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
+    fn to_reason(&self) -> ErrorReplyReason {
         match self {
-            ProcessErrorCase::NonExecutable => {
-                let reason = ErrorReplyReason::InactiveActor;
-                (reason, reason.to_string())
+            ProcessErrorCase::ProgramExited { .. } => {
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramExited)
             }
-            ProcessErrorCase::ExecutionFailed(reason) => {
-                (reason.as_simple().into(), reason.to_string())
+            ProcessErrorCase::FailedInit => ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::InitializationFailure,
+            ),
+            ProcessErrorCase::Uninitialized => {
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::Uninitialized)
             }
-            ProcessErrorCase::ReinstrumentationFailed => {
-                let err = ErrorReplyReason::ReinstrumentationFailure;
-                (err, err.to_string())
+            ProcessErrorCase::CodeNotExists => {
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramNotCreated)
             }
+            ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::ReinstrumentationFailure,
+            ),
+            ProcessErrorCase::ExecutionFailed(reason) => reason.as_simple().into(),
+        }
+    }
+
+    // TODO: consider to convert `self` into `Payload` to avoid `PanicBuffer` cloning (#4594)
+    fn to_payload(&self) -> Payload {
+        match self {
+            ProcessErrorCase::ProgramExited { inheritor } => {
+                const _: () = assert!(size_of::<ProgramId>() <= Payload::MAX_LEN);
+                inheritor
+                    .into_bytes()
+                    .to_vec()
+                    .try_into()
+                    .unwrap_or_else(|PayloadSizeError| {
+                        unreachable!("`ProgramId` is always smaller than maximum payload size")
+                    })
+            }
+            ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
+                TrapExplanation::Panic(buf),
+            )) => buf.inner().clone(),
+            _ => Payload::default(),
         }
     }
 }
@@ -282,18 +325,8 @@ fn process_error(
     }
 
     if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-        let (err, err_payload) = case.to_reason_and_payload();
-
-        // Panic is impossible, unless error message is too large or [Payload] max size is too small.
-        let err_payload = err_payload.into_bytes().try_into().unwrap_or_else(|_| {
-            let (_, err_payload) = case.to_reason_and_payload();
-            let err_msg =
-                format!("process_error: Error message is too big. Message id - {message_id}, error payload - {err_payload}",
-            );
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}")
-        });
+        let err = case.to_reason();
+        let err_payload = case.to_payload();
 
         // # Safety
         //
@@ -317,20 +350,23 @@ fn process_error(
 
     let outcome = match case {
         ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
-            let (_, err_payload) = case.to_reason_and_payload();
+            let err_msg = case.to_string();
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
                     program_id,
                     origin,
-                    reason: err_payload,
+                    reason: err_msg,
                 },
                 _ => DispatchOutcome::MessageTrap {
                     program_id,
-                    trap: err_payload,
+                    trap: err_msg,
                 },
             }
         }
-        ProcessErrorCase::NonExecutable => DispatchOutcome::NoExecution,
+        ProcessErrorCase::ProgramExited { .. }
+        | ProcessErrorCase::FailedInit
+        | ProcessErrorCase::Uninitialized
+        | ProcessErrorCase::CodeNotExists => DispatchOutcome::NoExecution,
     };
 
     journal.push(JournalNote::MessageDispatched {
@@ -360,6 +396,89 @@ pub fn process_execution_error(
     )
 }
 
+/// Helper function for journal creation in program exited case.
+pub fn process_program_exited(
+    context: ContextChargedForProgram,
+    inheritor: ProgramId,
+) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::ProgramExited { inheritor },
+    )
+}
+
+/// Helper function for journal creation in program failed init case.
+pub fn process_failed_init(context: ContextChargedForProgram) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::FailedInit,
+    )
+}
+
+/// Helper function for journal creation in program uninitialized case.
+pub fn process_uninitialized(context: ContextChargedForProgram) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::Uninitialized,
+    )
+}
+
+/// Helper function for journal creation in code not exists case.
+pub fn process_code_not_exists(context: ContextChargedForProgram) -> Vec<JournalNote> {
+    let ContextChargedForProgram {
+        dispatch,
+        gas_counter,
+        destination_id,
+        ..
+    } = context;
+
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::CodeNotExists,
+    )
+}
+
 /// Helper function for journal creation in case of re-instrumentation error.
 pub fn process_reinstrumentation_error(
     context: ContextChargedForInstrumentation,
@@ -375,26 +494,6 @@ pub fn process_reinstrumentation_error(
         gas_burned,
         system_reservation_ctx,
         ProcessErrorCase::ReinstrumentationFailed,
-    )
-}
-
-/// Helper function for journal creation in message no execution case.
-pub fn process_non_executable(context: ContextChargedForProgram) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
-
-    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-
-    process_error(
-        dispatch,
-        destination_id,
-        gas_counter.burned(),
-        system_reservation_ctx,
-        ProcessErrorCase::NonExecutable,
     )
 }
 

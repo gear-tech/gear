@@ -98,6 +98,9 @@ impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
 }
 
 impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
+    /// Maximum length of the vector.
+    pub const MAX_LEN: usize = N;
+
     /// Constructs a new, empty `LimitedVec<T>`.
     pub const fn new() -> Self {
         Self(Vec::new(), PhantomData)
@@ -166,6 +169,11 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
     /// Returns mut ref to the internal data slice.
     pub fn inner_mut(&mut self) -> &mut [T] {
         &mut self.0
+    }
+
+    /// Clones self into vector.
+    pub fn to_vec(&self) -> Vec<T> {
+        self.0.clone()
     }
 
     /// Destruct limited vector and returns inner vector.
