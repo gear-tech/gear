@@ -16011,6 +16011,15 @@ pub(crate) mod utils {
 
         let (mut actual_error, reply_code) = get_last_event_error_and_reply_code(message_id);
 
+        if let ReplyCode::Error(err_reason) = reply_code {
+            if err_reason.is_exited() {
+                // ActorId.
+                assert_eq!(actual_error.len(), 32);
+            } else if !err_reason.is_userspace_panic() {
+                assert!(actual_error.is_empty());
+            }
+        }
+
         match error {
             AssertFailedError::Panic(error) => {
                 let mut expectations = error.to_string();

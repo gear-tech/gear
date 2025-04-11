@@ -202,6 +202,19 @@ pub enum ErrorReplyReason {
 }
 
 impl ErrorReplyReason {
+    /// Returns bool indicating if self is UnavailableActor::ProgramExited variant.
+    pub fn is_exited(&self) -> bool {
+        matches!(
+            self,
+            Self::UnavailableActor(SimpleUnavailableActorError::ProgramExited)
+        )
+    }
+
+    /// Returns bool indicating if self is Execution::UserspacePanic variant.
+    pub fn is_userspace_panic(&self) -> bool {
+        matches!(self, Self::Execution(SimpleExecutionError::UserspacePanic))
+    }
+
     fn discriminant(&self) -> u8 {
         // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
         // between `repr(C)` structs, each of which has the `u8` discriminant as its first
@@ -271,8 +284,7 @@ pub enum SimpleExecutionError {
 
     /// Execution failed with userspace panic.
     ///
-    /// Reply message contains a string program panicked with in the message payload
-    /// (`gr_panic` arguments).
+    /// **PAYLOAD**: Arbitrary payload given by the program as `gr_panic` argument.
     #[display(fmt = "Message panicked")]
     UserspacePanic = 3,
 
@@ -329,8 +341,7 @@ impl SimpleExecutionError {
 pub enum SimpleUnavailableActorError {
     /// Program called `gr_exit` syscall.
     ///
-    /// Reply message contains `ActorId` value inheritor program exited with in the message payload
-    /// (`gr_exit` argument).
+    /// **PAYLOAD**: `ActorId` of the exited program's inheritor (`gr_exit` argument).
     #[display(fmt = "Program exited")]
     ProgramExited = 0,
 
