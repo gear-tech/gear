@@ -89,10 +89,6 @@ contract Middleware is IMiddleware {
     constructor(InitParams memory params) {
         _validateInitParams(params);
 
-        // if (!IDefaultOperatorRewardsFactory(OPERATOR_REWARDS_FACTORY).isEntity(params.operatorRewards)) {
-        //     revert NotOperatorRewards();
-        // }
-
         ROUTER = msg.sender;
 
         ERA_DURATION = params.eraDuration;
