@@ -1126,6 +1126,7 @@ mod utils {
     };
     use std::{
         ops::Mul,
+        pin::Pin,
         str::FromStr,
         sync::atomic::{AtomicUsize, Ordering},
     };
@@ -1795,7 +1796,7 @@ mod utils {
         signer: Signer,
         threshold: u64,
         block_time: Duration,
-        running_service_handle: Option<JoinHandle<Result<()>>>,
+        running_service_handle: Option<JoinHandle<()>>,
         validator_config: Option<ValidatorConfig>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
@@ -1886,10 +1887,11 @@ mod utils {
                 Some(sender),
             );
 
+            let name = self.name.clone();
             let handle = task::spawn(async move {
                 service
                     .run()
-                    .instrument(tracing::info_span!("node", name = self.name))
+                    .instrument(tracing::info_span!("node", name))
                     .await
                     .unwrap()
             });

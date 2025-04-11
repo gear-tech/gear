@@ -69,6 +69,5 @@ pub struct SimpleBlockData {
 pub struct ProducerBlock {
     pub block_hash: H256,
     pub gas_allowance: Option<u64>,
-    // +_+_+ consider. Maybe need to share off-chain transactions data instead of only hashes.
     pub off_chain_transactions: Vec<H256>,
 }

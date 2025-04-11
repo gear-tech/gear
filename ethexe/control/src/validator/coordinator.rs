@@ -43,7 +43,7 @@ impl ValidatorSubService for Coordinator {
                 self.validators
                     .contains(&addr)
                     .then_some(())
-                    .ok_or_else(|| anyhow!("Received validation reply is not from known validator"))
+                    .ok_or_else(|| anyhow!("Received validation reply is not known validator"))
             })
         {
             self.warning(format!("validation reply rejected: {err}"));
