@@ -7838,6 +7838,7 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "gsdk",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",
