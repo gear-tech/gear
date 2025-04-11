@@ -24,7 +24,6 @@ use crate::{
     system::System,
     Result, Value, MAX_USER_GAS_LIMIT,
 };
-use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     gas_metering::Schedule,
@@ -32,6 +31,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
+use parity_scale_codec::{Codec, Decode, Encode};
 use path_clean::PathClean;
 use std::{
     cell::RefCell,

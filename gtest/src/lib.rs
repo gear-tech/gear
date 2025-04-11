@@ -500,8 +500,8 @@ mod state;
 mod system;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
-pub use codec;
 pub use error::{Result, TestError};
+pub use parity_scale_codec;
 pub use program::{
     calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
     WasmProgram,
