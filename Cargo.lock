@@ -7829,6 +7829,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "instrument-whole-network"
+version = "1.7.1"
+dependencies = [
+ "anyhow",
+ "futures",
+ "gcli",
+ "gear-core",
+ "gprimitives",
+ "gsdk",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "integer-sqrt"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
