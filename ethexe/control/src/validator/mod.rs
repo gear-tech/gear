@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use derivative::Derivative;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
@@ -10,6 +11,7 @@ use gprimitives::H256;
 use std::{
     any::Any,
     collections::VecDeque,
+    fmt::{self, Display},
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -161,8 +163,7 @@ enum PendingEvent {
     ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
 }
 
-trait ValidatorSubService: Any + Unpin + Send + 'static {
-    fn log(&self, s: String) -> String;
+trait ValidatorSubService: Display + fmt::Debug + Any + Unpin + Send + 'static {
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService>;
     fn context(&self) -> &ValidatorContext;
     fn context_mut(&mut self) -> &mut ValidatorContext;
@@ -215,7 +216,7 @@ trait ValidatorSubService: Any + Unpin + Send + 'static {
     }
 
     fn warning(&mut self, warning: String) {
-        let warning = self.log(warning);
+        let warning = format!("{self} - {warning}");
         self.context_mut().warning(warning);
     }
 
@@ -288,13 +289,19 @@ impl DefaultProcessing {
     }
 }
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 struct ValidatorContext {
     slot_duration: Duration,
+    // TODO +_+_+: threshold should be a ratio (and maybe also a block dependent value)
     threshold: u64,
     router_address: Address,
     pub_key: PublicKey,
+    #[derivative(Debug = "ignore")]
     signer: Signer,
+    #[derivative(Debug = "ignore")]
     db: Database,
+    #[derivative(Debug = "ignore")]
     committer: Box<dyn BatchCommitter>,
     pending_events: VecDeque<PendingEvent>,
     output: VecDeque<ControlEvent>,

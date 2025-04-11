@@ -71,6 +71,7 @@ pub struct BatchCommitmentValidationReply {
     pub signature: ContractSignature,
 }
 
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct MultisignedBatchCommitment {
     batch: BatchCommitment,
     batch_digest: Digest,

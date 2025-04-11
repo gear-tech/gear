@@ -1,4 +1,5 @@
 use anyhow::Result;
+use core::fmt;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_signer::{Address, SignedData};
 use gprimitives::H256;
@@ -11,6 +12,7 @@ use crate::{validator::participant::Participant, ControlEvent};
 
 const MAX_PENDING_EVENTS: usize = 10;
 
+#[derive(Debug)]
 pub struct Subordinate {
     ctx: ValidatorContext,
     producer: Address,
@@ -29,10 +31,6 @@ enum State {
 }
 
 impl ValidatorSubService for Subordinate {
-    fn log(&self, s: String) -> String {
-        format!("SUBORDINATE in {state:?} - {s}", state = self.state)
-    }
-
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -103,6 +101,12 @@ impl ValidatorSubService for Subordinate {
             }
             _ => DefaultProcessing::computed_block(self, computed_block),
         }
+    }
+}
+
+impl fmt::Display for Subordinate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("SUBORDINATE in {:?}", self.state))
     }
 }
 

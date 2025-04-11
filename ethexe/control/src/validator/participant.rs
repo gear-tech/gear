@@ -3,6 +3,7 @@ use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
 use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
 use ethexe_signer::{Address, Digest, ToDigest};
 use gprimitives::H256;
+use std::fmt;
 
 use super::{
     initial::Initial, DefaultProcessing, PendingEvent, ValidatorContext, ValidatorSubService,
@@ -15,6 +16,7 @@ use crate::{
     ControlEvent,
 };
 
+#[derive(Debug)]
 pub struct Participant {
     ctx: ValidatorContext,
     #[allow(unused)]
@@ -23,10 +25,6 @@ pub struct Participant {
 }
 
 impl ValidatorSubService for Participant {
-    fn log(&self, s: String) -> String {
-        format!("PARTICIPANT - {s}")
-    }
-
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -52,6 +50,12 @@ impl ValidatorSubService for Participant {
         } else {
             DefaultProcessing::validation_request(self, request)
         }
+    }
+}
+
+impl fmt::Display for Participant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("PARTICIPANT")
     }
 }
 

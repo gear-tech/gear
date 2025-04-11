@@ -1,23 +1,26 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use derivative::Derivative;
 use ethexe_ethereum::router::Router;
 use futures::{future::BoxFuture, FutureExt};
 use gprimitives::H256;
-use std::task::{Context, Poll};
+use std::{
+    fmt,
+    task::{Context, Poll},
+};
 
 use super::{initial::Initial, BatchCommitter, ValidatorContext, ValidatorSubService};
 use crate::{utils::MultisignedBatchCommitment, ControlEvent};
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Submitter {
     ctx: ValidatorContext,
+    #[derivative(Debug = "ignore")]
     future: BoxFuture<'static, Result<H256>>,
 }
 
 impl ValidatorSubService for Submitter {
-    fn log(&self, s: String) -> String {
-        format!("SUBMITTER - {s}")
-    }
-
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -48,6 +51,12 @@ impl ValidatorSubService for Submitter {
             }
             Poll::Pending => Ok(self),
         }
+    }
+}
+
+impl fmt::Display for Submitter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SUBMITTER")
     }
 }
 
@@ -82,14 +91,38 @@ impl BatchCommitter for EthereumCommitter {
     }
 }
 
-// async fn submit_batch_commitment(
-//     router: Router,
-//     batch: MultisignedBatchCommitment,
-// ) -> Result<H256> {
-//     let (commitment, signatures) = batch.into_parts();
-//     let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
 
-//     log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
+    use super::*;
+    use crate::{tests::*, validator::tests::*};
+    use ethexe_common::gear::BatchCommitment;
 
-//     router.commit_batch(commitment, signatures).await
-// }
+    #[tokio::test]
+    async fn submitter() {
+        let (ctx, _) = mock_validator_context();
+        let batch = BatchCommitment {
+            code_commitments: vec![mock_code_commitment(), mock_code_commitment()],
+            block_commitments: vec![
+                mock_block_commitment(H256::random(), H256::random(), H256::random()).1,
+            ],
+        };
+
+        let multisigned_batch = MultisignedBatchCommitment::new(
+            batch,
+            &ctx.signer.contract_signer(ctx.router_address),
+            ctx.pub_key,
+        )
+        .unwrap();
+
+        let submitter = Submitter::create(ctx, multisigned_batch.clone()).unwrap();
+        assert_eq!(submitter.type_id(), TypeId::of::<Submitter>());
+
+        let (initial, event) = submitter.wait_for_event().await.unwrap();
+        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(matches!(event, ControlEvent::CommitmentSubmitted(_)));
+
+        with_batch(|submitted_batch| assert_eq!(submitted_batch, Some(&multisigned_batch)));
+    }
+}

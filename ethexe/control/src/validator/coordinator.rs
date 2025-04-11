@@ -1,7 +1,7 @@
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::gear::BatchCommitment;
 use ethexe_signer::Address;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, fmt};
 
 use super::{submitter::Submitter, ValidatorContext, ValidatorSubService};
 use crate::{
@@ -9,6 +9,7 @@ use crate::{
     BatchCommitmentValidationReply, ControlEvent,
 };
 
+#[derive(Debug)]
 pub struct Coordinator {
     ctx: ValidatorContext,
     validators: BTreeSet<Address>,
@@ -16,10 +17,6 @@ pub struct Coordinator {
 }
 
 impl ValidatorSubService for Coordinator {
-    fn log(&self, s: String) -> String {
-        format!("COORDINATOR - {s}")
-    }
-
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -60,6 +57,12 @@ impl ValidatorSubService for Coordinator {
     }
 }
 
+impl fmt::Display for Coordinator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("COORDINATOR")
+    }
+}
+
 impl Coordinator {
     pub fn create(
         mut ctx: ValidatorContext,
@@ -97,6 +100,7 @@ impl Coordinator {
         }))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::any::TypeId;

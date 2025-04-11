@@ -9,11 +9,12 @@ use ethexe_service_utils::Timer;
 use ethexe_signer::Address;
 use futures::FutureExt;
 use gprimitives::H256;
-use std::task::Context;
+use std::{fmt, task::Context};
 
 use super::{coordinator::Coordinator, initial::Initial, ValidatorContext, ValidatorSubService};
 use crate::ControlEvent;
 
+#[derive(Debug)]
 pub struct Producer {
     ctx: ValidatorContext,
     block: SimpleBlockData,
@@ -32,10 +33,6 @@ enum State {
 }
 
 impl ValidatorSubService for Producer {
-    fn log(&self, s: String) -> String {
-        format!("PRODUCER in {state:?} - {s}", state = self.state)
-    }
-
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -89,6 +86,12 @@ impl ValidatorSubService for Producer {
         }
 
         Ok(self)
+    }
+}
+
+impl fmt::Display for Producer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("PRODUCER in {:?}", self.state))
     }
 }
 
@@ -291,13 +294,13 @@ mod tests {
 
         // [block2] <- ... <- [block1]
         let (block1_hash, block2_hash) = (H256::random(), H256::random());
-        let (block2, block2_commitment) = prepare_block_commitment(
-            &ctx.db,
-            mock_block_commitment(block2_hash, block1_hash, H256::random()),
-        );
         let (block1, block1_commitment) = prepare_block_commitment(
             &ctx.db,
             mock_block_commitment(block1_hash, block1_hash, block2_hash),
+        );
+        let (block2, block2_commitment) = prepare_block_commitment(
+            &ctx.db,
+            mock_block_commitment(block2_hash, block1_hash, H256::random()),
         );
 
         let code1 = prepare_code_commitment(&ctx.db, mock_code_commitment());

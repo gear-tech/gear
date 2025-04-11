@@ -147,7 +147,9 @@ pub fn prepare_block_commitment(
 
     db.set_block_outcome(block.hash, commitment.transitions.clone());
 
-    if commitment.predecessor_block != block.hash {
+    if commitment.predecessor_block != block.hash
+        && db.block_header(commitment.predecessor_block).is_none()
+    {
         // If predecessor is not the same as block.hash, we need to set the block header
         // Set predecessor (note: it is predecessor of block where commitment would apply) as child of block
         db.set_block_header(

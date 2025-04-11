@@ -2,12 +2,14 @@ use anyhow::Result;
 use ethexe_common::SimpleBlockData;
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::Address;
+use std::fmt;
 
 use super::{
     producer::Producer, subordinate::Subordinate, DefaultProcessing, ValidatorContext,
     ValidatorSubService,
 };
 
+#[derive(Debug)]
 pub struct Initial {
     ctx: ValidatorContext,
     state: State,
@@ -20,10 +22,6 @@ enum State {
 }
 
 impl ValidatorSubService for Initial {
-    fn log(&self, s: String) -> String {
-        format!("INITIAL in {state:?} - {s}", state = self.state)
-    }
-
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
         self
     }
@@ -54,6 +52,7 @@ impl ValidatorSubService for Initial {
 
                     Producer::create(self.ctx, block.clone(), data.validators)
                 } else {
+                    // TODO +_+_+: add test (in ethexe-service) for case where is not validator for current block
                     let is_validator_for_current_block =
                         data.validators.iter().any(|v| *v == my_address);
 
@@ -73,6 +72,12 @@ impl ValidatorSubService for Initial {
             }
             _ => DefaultProcessing::synced_block(self, data),
         }
+    }
+}
+
+impl fmt::Display for Initial {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("INITIAL in {:?}", self.state))
     }
 }
 
@@ -109,6 +114,7 @@ impl Initial {
         (slot % validators_amount as u64) as usize
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::any::TypeId;
