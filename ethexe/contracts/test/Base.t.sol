@@ -79,32 +79,74 @@ contract Base is POCBaseTest {
             address(new DefaultStakerRewards(address(vaultFactory), address(networkMiddlewareService)));
         defaultStakerRewardsFactory = new DefaultStakerRewardsFactory(defaultStakerRewards_);
 
-        Middleware.InitParams memory cfg = IMiddleware.InitParams({
-            eraDuration: eraDuration,
-            minVaultEpochDuration: eraDuration * 2,
-            operatorGracePeriod: eraDuration * 2,
-            vaultGracePeriod: eraDuration * 2,
-            minVetoDuration: eraDuration / 3,
-            minSlashExecutionDelay: eraDuration / 3,
-            maxResolverSetEpochsDelay: type(uint256).max,
+        // Middleware.InitParams memory cfg = IMiddleware.InitParams({
+        //     eraDuration: eraDuration,
+        //     minVaultEpochDuration: eraDuration * 2,
+        //     operatorGracePeriod: eraDuration * 2,
+        //     vaultGracePeriod: eraDuration * 2,
+        //     minVetoDuration: eraDuration / 3,
+        //     minSlashExecutionDelay: eraDuration / 3,
+        //     maxResolverSetEpochsDelay: type(uint256).max,
+        //     vaultRegistry: address(vaultFactory),
+        //     allowedVaultImplVersion: 1,
+        //     vetoSlasherImplType: 1,
+        //     operatorRegistry: address(operatorRegistry),
+        //     networkRegistry: address(networkRegistry),
+        //     networkOptIn: address(operatorNetworkOptInService),
+        //     middlewareService: address(networkMiddlewareService),
+        //     collateral: address(wrappedVara),
+        //     roleSlashRequester: admin,
+        //     roleSlashExecutor: admin,
+        //     vetoResolver: admin,
+        //     // TODO: add real addresses for testing associated functions
+        //     operatorRewards: address(0),
+        //     operatorRewardsFactory: address(0),
+        //     stakerRewardsFactory: address(defaultStakerRewardsFactory)
+        // });
+
+        Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
             vaultRegistry: address(vaultFactory),
-            allowedVaultImplVersion: 1,
-            vetoSlasherImplType: 1,
             operatorRegistry: address(operatorRegistry),
             networkRegistry: address(networkRegistry),
-            networkOptIn: address(operatorNetworkOptInService),
             middlewareService: address(networkMiddlewareService),
-            collateral: address(wrappedVara),
-            roleSlashRequester: admin,
-            roleSlashExecutor: admin,
-            vetoResolver: admin,
-            // TODO: add real addresses for testing associated functions
-            operatorRewards: address(0),
+            networkOptIn: address(operatorNetworkOptInService),
             operatorRewardsFactory: address(0),
             stakerRewardsFactory: address(defaultStakerRewardsFactory)
         });
 
-        middleware = new Middleware(cfg);
+        vm.startPrank(admin, admin);
+        {
+            middleware = Middleware(
+                Upgrades.deployTransparentProxy(
+                    "Middleware.sol",
+                    admin,
+                    abi.encodeCall(
+                        Middleware.initialize,
+                        (
+                            admin, // owner
+                            0, // networkIdentifier
+                            eraDuration, // eraDuration
+                            eraDuration * 2,
+                            eraDuration * 2,
+                            eraDuration * 2,
+                            eraDuration / 3,
+                            eraDuration / 3,
+                            1, // allowedVaultImplVersion
+                            1, // _vetoSlasherImpType
+                            type(uint256).max, // maxResolverSetEpochsDelay
+                            address(wrappedVara), // collateral
+                            0x00, // _subnetwork
+                            10000, // _maxAdminFee
+                            admin, // _roleSlashRequester
+                            admin, // _roleSlashExecutor
+                            admin, // _vetoResolver
+                            registries // _registries
+                        )
+                    )
+                )
+            );
+        }
+        vm.stopPrank();
     }
 
     function setUpRouter(Gear.AggregatedPublicKey memory _aggregatedPublicKey, address[] memory _validators) internal {
@@ -188,7 +230,7 @@ contract Base is POCBaseTest {
             middleware.registerVault(_vault, _rewards);
             operatorVaultOptInService.optIn(_vault);
             IOperatorSpecificDelegator(IVault(_vault).delegator()).setNetworkLimit(
-                middleware.SUBNETWORK(), type(uint256).max
+                middleware.subnetwork(), type(uint256).max
             );
         }
         vm.stopPrank();

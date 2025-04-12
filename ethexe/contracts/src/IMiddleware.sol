@@ -2,12 +2,11 @@
 pragma solidity ^0.8.28;
 
 import {Gear} from "./libraries/Gear.sol";
+import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
 interface IMiddleware {
     error NonFactoryVault();
-
     error UnknownVault();
-
     error VaultWrongEpochDuration();
     error UnknownCollateral();
     error OperatorGracePeriodNotPassed();
@@ -37,30 +36,57 @@ interface IMiddleware {
 
     /**
      * @notice ...
-     * @param eraDuration ...
      */
-    struct InitParams {
+    // struct InitParams {
+    //     uint48 eraDuration;
+    //     uint48 minVaultEpochDuration;
+    //     uint48 operatorGracePeriod;
+    //     uint48 vaultGracePeriod;
+    //     uint48 minVetoDuration;
+    //     uint48 minSlashExecutionDelay;
+    //     uint64 allowedVaultImplVersion;
+    //     uint64 vetoSlasherImplType;
+    //     uint256 maxResolverSetEpochsDelay;
+    //     address vaultRegistry;
+    //     address operatorRegistry;
+    //     address networkRegistry;
+    //     address networkOptIn;
+    //     address middlewareService;
+    //     address collateral;
+    //     address roleSlashRequester;
+    //     address roleSlashExecutor;
+    //     address vetoResolver;
+    //     address operatorRewards;
+    //     address operatorRewardsFactory;
+    //     address stakerRewardsFactory;
+    // }
+
+    struct Storage {
+        uint96 networkIdentifier;
         uint48 eraDuration;
         uint48 minVaultEpochDuration;
         uint48 operatorGracePeriod;
         uint48 vaultGracePeriod;
         uint48 minVetoDuration;
         uint48 minSlashExecutionDelay;
+        uint256 maxResolverSetEpochsDelay;
         uint64 allowedVaultImplVersion;
         uint64 vetoSlasherImplType;
-        uint256 maxResolverSetEpochsDelay;
-        address vaultRegistry;
-        address operatorRegistry;
-        address networkRegistry;
-        address networkOptIn;
-        address middlewareService;
+        // TODO: support multiple assets as collateral
         address collateral;
+        bytes32 subnetwork;
+        // TODO: calculate better commission for admin fee
+        uint256 maxAdminFee;
+        address operatorRewards;
+        address router;
         address roleSlashRequester;
         address roleSlashExecutor;
         address vetoResolver;
-        address operatorRewards;
-        address operatorRewardsFactory;
-        address stakerRewardsFactory;
+        // bytes32 defaultAdminRole;
+        Gear.SymbioticRegistries registries;
+        EnumerableMap.AddressToUintMap operators;
+        // vault -> (enableTime, disableTime, rewards)
+        EnumerableMap.AddressToUintMap vaults;
     }
 
     struct VaultSlashData {
@@ -79,127 +105,24 @@ interface IMiddleware {
         uint256 index;
     }
 
-    /* View functions */
-
-    /**
-     * @notice
-     * @return
-     */
-    function ERA_DURATION() external view returns (uint48);
-
-    /**
-     * @notice
-     * @return
-     */
-    function MIN_VAULT_EPOCH_DURATION() external view returns (uint48);
-
-    /**
-     * @notice
-     * @return
-     */
-    function OPERATOR_GRACE_PERIOD() external view returns (uint48);
-
-    /**
-     * @notice
-     * @return
-     */
-    function VAULT_GRACE_PERIOD() external view returns (uint48);
-
-    /**
-     * @notice
-     * @return
-     */
-    function MIN_VETO_DURATION() external view returns (uint48);
-
-    /**
-     * @notice
-     * @return
-     */
-    function MIN_SLASH_EXECUTION_DELAY() external view returns (uint48);
-
-    /**
-     * @notice
-     * @return
-     */
-    function MAX_RESOLVER_SET_EPOCHS_DELAY() external view returns (uint256);
-
-    /**
-     * @notice
-     * @return
-     */
-    function VAULT_REGISTRY() external view returns (address);
-
-    /**
-     * @notice
-     * @return
-     */
-    function ALLOWED_VAULT_IMPL_VERSION() external view returns (uint64);
-
-    /**
-     * @notice
-     * @return
-     */
-    function VETO_SLASHER_IMPL_TYPE() external view returns (uint64);
-
-    /**
-     * @notice
-     * @return
-     */
-    function OPERATOR_REGISTRY() external view returns (address);
-
-    /**
-     * @notice
-     * @return
-     */
-    function NETWORK_REGISTRY() external view returns (address);
-
-    /**
-     * @notice
-     * @return
-     */
-    function NETWORK_OPT_IN() external view returns (address);
-
-    /**
-     * @notice
-     * @return
-     */
-    function MIDDLEWARE_SERVICE() external view returns (address);
-
-    /**
-     * @notice
-     * @return
-     */
-    function COLLATERAL() external view returns (address);
-
-    /**
-     * @notice
-     * @return
-     */
-    function VETO_RESOLVER() external view returns (address);
-
-    /**
-     * @notice
-     * @return
-     */
-    function SUBNETWORK() external view returns (bytes32);
-
-    /**
-     * @notice
-     * @return
-     */
-    function OPERATOR_REWARDS() external view returns (address);
-
-    /**
-     * @notice
-     * @return
-     */
-    function OPERATOR_REWARDS_FACTORY() external view returns (address);
-
-    /**
-     * @notice
-     * @return
-     */
-    function STAKER_REWARDS_FACTORY() external view returns (address);
+    // # Views.
+    function eraDuration() external view returns (uint48);
+    function minVaultEpochDuration() external view returns (uint48);
+    function operatorGracePeriod() external view returns (uint48);
+    function vaultGracePeriod() external view returns (uint48);
+    function minVetoDuration() external view returns (uint48);
+    function minSlashExecutionDelay() external view returns (uint48);
+    function maxResolverSetEpochsDelay() external view returns (uint256);
+    function allowedVaultImplVersion() external view returns (uint64);
+    function vetoSlasherImplType() external view returns (uint64);
+    function collateral() external view returns (address);
+    function subnetwork() external view returns (bytes32);
+    function maxAdminFee() external view returns (uint256);
+    function operatorRewards() external view returns (address);
+    function router() external view returns (address);
+    function roleSlashRequester() external view returns (address);
+    function roleSlashExecutor() external view returns (address);
+    function operatorRegistry() external view returns (address);
 
     /**
      * @notice ...

@@ -170,7 +170,7 @@ contract MiddlewareTest is Base {
         // Wait for grace period and unregister operator from other address
         vm.startPrank(address(0x3));
         {
-            vm.warp(vm.getBlockTimestamp() + middleware.OPERATOR_GRACE_PERIOD());
+            vm.warp(vm.getBlockTimestamp() + middleware.operatorGracePeriod());
             middleware.unregisterOperator(address(0x2));
         }
         vm.stopPrank();
