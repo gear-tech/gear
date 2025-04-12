@@ -100,9 +100,17 @@ jobs:
         run: ./target/${{ matrix.profiles.name }}/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Check: Stack height limit"
-        # no need to run check twice
+        # no need to run the check twice
         if: ${{ matrix.profiles.flags == 'release' }}
         run: cargo run -p calc-stack-height --release --locked
+
+      - name: "Check: Instrument the whole network"
+        # no need to run the check twice
+        if: ${{ matrix.profiles.flags == 'release' }}
+        run: |
+          cargo build -p instrument-whole-network --release --locked
+          ./target/release/instrument-whole-network --network testnet --concurrency 32
+          ./target/release/instrument-whole-network --network mainnet --concurrency 32
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
