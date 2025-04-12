@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.7.1"
+version = "1.8.0"
 authors = ["Gear Technologies"]
 edition = "2024"
 license = "GPL-3.0"
@@ -48,6 +48,7 @@ members = [
     "examples/futures-unordered",
     "examples/gas-burned",
     "examples/incomplete-async-payloads",
+    "examples/inheritor-in-error-reply",
     "examples/init-fail-sender",
     "examples/init-wait",
     "examples/init-wait-reply-exit",
@@ -127,7 +128,6 @@ bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
 cargo_metadata = "0.19.2"
 clap = "4.5.8"
-codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false }
 color-eyre = "0.6.3"
 colored = "2.1.0"
 const-str = "0.5"
@@ -149,7 +149,7 @@ jsonrpsee = { version = "^0.24" }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }
 num_enum = { version = "0.6.1", default-features = false }
-parity-scale-codec = { version = "3.6.4", default-features = false }
+parity-scale-codec = { version = "3.7.4", default-features = false }
 parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
@@ -164,7 +164,7 @@ regex = "^1.9"
 region = "3.0.2"
 reqwest = { version = "0.12.8", default-features = false }
 roast-secp256k1-evm = { version = "0.1.0", git = "https://github.com/gear-tech/roast", branch = "gear-v0.1.0" }
-scale-info = { version = "2.5.0", default-features = false }
+scale-info = { version = "2.11", default-features = false }
 serde = { version = "^1", default-features = false }
 serde_json = { version = "1.0.135", default-features = false, features = ["alloc"] }
 serde-json-wasm = { version = "1.0.1", default-features = false }

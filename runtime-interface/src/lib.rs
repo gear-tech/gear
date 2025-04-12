@@ -23,13 +23,13 @@
 
 extern crate alloc;
 
-use codec::{Decode, Encode};
 use gear_core::{
     gas::GasLeft,
     memory::{HostPointer, MemoryInterval},
     str::LimitedStr,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
+use parity_scale_codec::{Decode, Encode};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
@@ -59,7 +59,6 @@ const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
 #[derive(Debug, Clone, Encode, Decode)]
-#[codec(crate = codec)]
 pub struct LazyPagesProgramContext {
     /// Wasm program memory addr.
     pub wasm_mem_addr: Option<HostPointer>,
@@ -81,7 +80,6 @@ impl PassBy for LazyPagesProgramContext {
 }
 
 #[derive(Debug, Clone, Encode, Decode)]
-#[codec(crate = codec)]
 pub struct LazyPagesInitContext {
     pub page_sizes: Vec<u32>,
     pub global_names: Vec<LimitedStr<'static>>,
@@ -139,7 +137,6 @@ impl LazyPagesStorage for SpIoProgramStorage {
 }
 
 #[derive(Debug, Clone, Encode, Decode)]
-#[codec(crate = codec)]
 pub enum ProcessAccessErrorVer1 {
     OutOfBounds,
     GasLimitExceeded,
