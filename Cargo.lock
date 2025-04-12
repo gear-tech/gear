@@ -7841,7 +7841,7 @@ dependencies = [
 
 [[package]]
 name = "instrument-whole-network"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
