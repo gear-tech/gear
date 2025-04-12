@@ -12,11 +12,12 @@ rust-version.workspace = true
 gcli.workspace = true
 gsdk.workspace = true
 gear-core.workspace = true
+gprimitives.workspace = true
+
 tracing-subscriber.workspace = true
 tracing.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
-gprimitives.workspace = true
 futures.workspace = true
 tempfile.workspace = true
 wasmprinter.workspace = true
