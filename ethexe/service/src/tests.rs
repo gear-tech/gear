@@ -47,7 +47,7 @@ use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
-use gear_core_errors::{ErrorReplyReason, SimpleExecutionError};
+use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
 use std::{
@@ -260,7 +260,9 @@ async fn uninitialized_program() {
             .await
             .unwrap();
 
-        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        let expected_err = ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::InitializationFailure,
+        ));
         assert_eq!(res.code, expected_err);
     }
 
@@ -320,7 +322,9 @@ async fn uninitialized_program() {
             .wait_for()
             .await
             .unwrap();
-        let expected_err = ReplyCode::Error(ErrorReplyReason::InactiveActor);
+        let expected_err = ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::Uninitialized,
+        ));
         assert_eq!(res.code, expected_err);
         // Checking further initialization.
 
