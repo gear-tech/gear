@@ -1,0 +1,22 @@
+[package]
+name = "demo-inheritor-in-error-reply"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gstd = { workspace = true, features = ["debug"] }
+parity-scale-codec.workspace = true
+
+[dev-dependencies]
+gear-core.workspace = true
+gtest.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []

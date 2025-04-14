@@ -16,12 +16,10 @@ targets = ["x86_64-unknown-linux-gnu"]
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
-log.workspace = true
 
 # Internal deps
 common.workspace = true
 gear-core.workspace = true
-gear-core-errors.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
@@ -36,21 +34,18 @@ pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 common = { workspace = true, features = ["std"] }
 rand.workspace = true
 
 [features]
 default = ['std']
 std = [
-	"parity-scale-codec/std",
 	"common/std",
-	"log/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"frame-benchmarking/std",
-	"scale-info/std",
 	"sp-runtime/std",
 	"sp-std/std",
 	"sp-io/std",

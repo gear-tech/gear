@@ -23,7 +23,6 @@ use crate::{
     BackendExternalities,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use codec::{Decode, Encode};
 use core::{fmt, fmt::Debug, mem};
 use gear_core::{
     costs::CostToken,
@@ -38,10 +37,10 @@ use gear_core::{
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
 use gear_wasm_instrument::syscalls::SyscallName;
+use parity_scale_codec::{Decode, Encode};
 
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
-#[codec(crate = codec)]
 pub struct Error;
 
 impl fmt::Display for Error {
@@ -131,7 +130,7 @@ impl Externalities for MockExt {
                 performance_multiplier: gsys::Percent::new(100),
                 existential_deposit: 10,
                 mailbox_threshold: 20,
-                gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
+                gas_multiplier: gsys::GasMultiplier::from_value_per_gas(100),
             })),
             _ => unreachable!("Unexpected version of environment variables"),
         }

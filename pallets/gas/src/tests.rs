@@ -34,7 +34,7 @@ fn random_node_id() -> MessageId {
     H256::random().cast()
 }
 
-const MULTIPLIER: GasMultiplier<u128, u64> = GasMultiplier::ValuePerGas(25);
+const MULTIPLIER: GasMultiplier<u128, u64> = GasMultiplier::ValuePerGas(100);
 
 #[test]
 fn simple_value_tree() {
@@ -163,7 +163,7 @@ fn can_cut_nodes() {
 
 #[test]
 fn value_tree_with_all_kinds_of_nodes() {
-    let _ = env_logger::try_init();
+    let _ = tracing_subscriber::fmt::try_init();
     new_test_ext().execute_with(|| {
         let total_supply = 1000;
         let cut_value = 300;

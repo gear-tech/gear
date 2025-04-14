@@ -21,13 +21,13 @@ use crate::{
     program::{Gas, ProgramIdWrapper},
     Value, GAS_MULTIPLIER,
 };
-use codec::{Codec, Encode};
 use core_processor::configs::BlockInfo;
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Payload, StoredMessage, UserStoredMessage},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
+use parity_scale_codec::{Codec, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryInto,
@@ -225,13 +225,6 @@ impl Log {
     pub fn error_builder(error_reason: ErrorReplyReason) -> Self {
         let mut log = Self::builder();
         log.reply_code = Some(error_reason.into());
-        log.payload = Some(
-            error_reason
-                .to_string()
-                .into_bytes()
-                .try_into()
-                .expect("Infallible"),
-        );
 
         log
     }
@@ -463,7 +456,7 @@ impl BlockRunResult {
         .expect("Unable to decode panic message");
 
         assert!(
-            payload.starts_with(&format!("Panic occurred: panicked with '{msg}'")),
+            payload.starts_with(&format!("panicked with '{msg}'")),
             "expected panic message that contains `{msg}`, but the actual panic message is `{payload}`"
         );
     }

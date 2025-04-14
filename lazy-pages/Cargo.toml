@@ -35,6 +35,6 @@ errno.workspace = true
 winapi = { workspace = true, features = ["excpt", "memoryapi"] }
 
 [dev-dependencies]
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 proptest.workspace = true
 numerated = { workspace = true, features = ["mock"] }

@@ -24,7 +24,6 @@ use crate::{
     system::System,
     Result, Value, MAX_USER_GAS_LIMIT,
 };
-use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     gas_metering::Schedule,
@@ -32,6 +31,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
+use parity_scale_codec::{Codec, Decode, Encode};
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -122,7 +122,7 @@ pub trait WasmProgram: Debug {
     ///
     /// Logging target `gwasm` is used in this method.
     fn debug(&mut self, data: &str) {
-        log::debug!(target: "gwasm", "DEBUG: {data}");
+        log::debug!(target: "gwasm", "{data}");
     }
 }
 
@@ -713,7 +713,9 @@ mod tests {
     use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
     use demo_constructor::{Arg, Scheme};
     use gear_core::ids::ActorId;
-    use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
+    use gear_core_errors::{
+        ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
+    };
 
     #[test]
     fn test_handle_signal() {
@@ -765,9 +767,11 @@ mod tests {
 
         res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
 
-        let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor)
-            .source(prog.id())
-            .dest(user_id);
+        let expected_log = Log::error_builder(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::InitializationFailure,
+        ))
+        .source(prog.id())
+        .dest(user_id);
 
         assert!(res.not_executed.contains(&skipped_mid));
         assert!(res.contains(&expected_log));
@@ -798,8 +802,8 @@ mod tests {
 
         let user_id = 42;
         let mut user_spent_balance = 0;
-        sys.mint_to(user_id, 12 * EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(user_id), 12 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(user_id, 240 * EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 240 * EXISTENTIAL_DEPOSIT);
 
         let program_id = 137;
         let prog = Program::from_binary_with_id(&sys, program_id, demo_ping::WASM_BINARY);
@@ -816,7 +820,7 @@ mod tests {
         );
         assert_eq!(
             sys.balance_of(user_id),
-            9 * EXISTENTIAL_DEPOSIT - user_spent_balance
+            237 * EXISTENTIAL_DEPOSIT - user_spent_balance
         );
 
         prog.send_with_value(user_id, "PING".to_string(), 2 * EXISTENTIAL_DEPOSIT);
@@ -828,7 +832,7 @@ mod tests {
         );
         assert_eq!(
             sys.balance_of(user_id),
-            7 * EXISTENTIAL_DEPOSIT - user_spent_balance
+            235 * EXISTENTIAL_DEPOSIT - user_spent_balance
         );
     }
 
@@ -843,12 +847,12 @@ mod tests {
         let sender2 = 45;
 
         // Top-up senders balances
-        sys.mint_to(sender0, 20 * EXISTENTIAL_DEPOSIT);
-        sys.mint_to(sender1, 20 * EXISTENTIAL_DEPOSIT);
-        sys.mint_to(sender2, 20 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender0, 400 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender1, 400 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender2, 400 * EXISTENTIAL_DEPOSIT);
 
         // Top-up receiver balance
-        let mut receiver_expected_balance = 10 * EXISTENTIAL_DEPOSIT;
+        let mut receiver_expected_balance = 200 * EXISTENTIAL_DEPOSIT;
         sys.mint_to(receiver, receiver_expected_balance);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
@@ -862,19 +866,19 @@ mod tests {
         let sender0_spent_value = sys.run_next_block().spent_value();
         assert_eq!(
             sys.balance_of(sender0),
-            18 * EXISTENTIAL_DEPOSIT - sender0_spent_value
+            398 * EXISTENTIAL_DEPOSIT - sender0_spent_value
         );
         prog.send_bytes_with_value(sender1, b"insert", 4 * EXISTENTIAL_DEPOSIT);
         let sender1_spent_value = sys.run_next_block().spent_value();
         assert_eq!(
             sys.balance_of(sender1),
-            16 * EXISTENTIAL_DEPOSIT - sender1_spent_value
+            396 * EXISTENTIAL_DEPOSIT - sender1_spent_value
         );
         prog.send_bytes_with_value(sender2, b"insert", 6 * EXISTENTIAL_DEPOSIT);
         let sender2_spent_value = sys.run_next_block().spent_value();
         assert_eq!(
             sys.balance_of(sender2),
-            14 * EXISTENTIAL_DEPOSIT - sender2_spent_value
+            394 * EXISTENTIAL_DEPOSIT - sender2_spent_value
         );
 
         // Check program's balance
@@ -926,7 +930,7 @@ mod tests {
     #[test]
     #[should_panic(
         expected = "Insufficient balance: user (0x0000000000000000000000000500000000000000000000000000000000000000) \
-    tries to send (1000000000001) value, (4500000000000) gas and ED (1000000000000), while his balance (1000000000000)"
+    tries to send (1000000000001) value, (75000000000000) gas and ED (1000000000000), while his balance (1000000000000)"
     )]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
@@ -947,13 +951,13 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        const RECEIVER_INITIAL_BALANCE: Value = 10 * EXISTENTIAL_DEPOSIT;
+        const RECEIVER_INITIAL_BALANCE: Value = 200 * EXISTENTIAL_DEPOSIT;
 
         let sender = 42;
         let receiver = 84;
         let mut receiver_expected_balance = RECEIVER_INITIAL_BALANCE;
 
-        sys.mint_to(sender, 20 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender, 400 * EXISTENTIAL_DEPOSIT);
         sys.mint_to(receiver, RECEIVER_INITIAL_BALANCE);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);

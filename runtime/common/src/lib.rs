@@ -78,7 +78,7 @@ parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
 }
 
-pub const VALUE_PER_GAS: u128 = 6;
+pub const VALUE_PER_GAS: u128 = 100;
 
 pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
     <T as frame_system::Config>::AccountId,

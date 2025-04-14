@@ -20,12 +20,10 @@ async-trait.workspace = true
 colored.workspace = true
 color-eyre.workspace = true
 dirs.workspace = true
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 gear-core.workspace = true
-gear-core-errors.workspace = true
 gring = { workspace = true, features = ["cli"] }
 hex.workspace = true
-jsonrpsee = { workspace = true, features = ["http-client", "ws-client"] }
 keyring.workspace = true
 log.workspace = true
 scale-info.workspace = true
@@ -33,7 +31,6 @@ serde.workspace = true
 clap = { workspace = true, features = ["std", "derive"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
-whoami.workspace = true
 reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
 etc.workspace = true
 runtime-primitives.workspace = true
