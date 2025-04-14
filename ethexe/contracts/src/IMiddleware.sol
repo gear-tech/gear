@@ -37,30 +37,6 @@ interface IMiddleware {
     /**
      * @notice ...
      */
-    // struct InitParams {
-    //     uint48 eraDuration;
-    //     uint48 minVaultEpochDuration;
-    //     uint48 operatorGracePeriod;
-    //     uint48 vaultGracePeriod;
-    //     uint48 minVetoDuration;
-    //     uint48 minSlashExecutionDelay;
-    //     uint64 allowedVaultImplVersion;
-    //     uint64 vetoSlasherImplType;
-    //     uint256 maxResolverSetEpochsDelay;
-    //     address vaultRegistry;
-    //     address operatorRegistry;
-    //     address networkRegistry;
-    //     address networkOptIn;
-    //     address middlewareService;
-    //     address collateral;
-    //     address roleSlashRequester;
-    //     address roleSlashExecutor;
-    //     address vetoResolver;
-    //     address operatorRewards;
-    //     address operatorRewardsFactory;
-    //     address stakerRewardsFactory;
-    // }
-
     struct Storage {
         uint96 networkIdentifier;
         uint48 eraDuration;
@@ -72,20 +48,16 @@ interface IMiddleware {
         uint256 maxResolverSetEpochsDelay;
         uint64 allowedVaultImplVersion;
         uint64 vetoSlasherImplType;
-        // TODO: support multiple assets as collateral
         address collateral;
         bytes32 subnetwork;
-        // TODO: calculate better commission for admin fee
         uint256 maxAdminFee;
         address operatorRewards;
         address router;
         address roleSlashRequester;
         address roleSlashExecutor;
         address vetoResolver;
-        // bytes32 defaultAdminRole;
         Gear.SymbioticRegistries registries;
         EnumerableMap.AddressToUintMap operators;
-        // vault -> (enableTime, disableTime, rewards)
         EnumerableMap.AddressToUintMap vaults;
     }
 

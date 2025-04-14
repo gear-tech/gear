@@ -116,7 +116,7 @@ contract Base is POCBaseTest {
                             defaultOperatorRewards_,
                             // TODO: replace with real Router address
                             // Now it doesn't work because of test bytecode size becomes too large
-                            // address(router),
+                            //address(router),
                             address(0),
                             admin,
                             admin,
