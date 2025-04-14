@@ -39,14 +39,9 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
-// TODO: implement migreatable or upgreadable logic
 contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
-
-    using EnumerableMap for EnumerableMap.AddressToAddressMap;
-    using MapWithTimeData for EnumerableMap.AddressToAddressMap;
-
     using Subnetwork for address;
 
     // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
@@ -61,46 +56,9 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _disableInitializers();
     }
 
-    // constructor(InitParams memory params) {
-    //     _validateInitParams(params);
-
-    //     ROUTER = msg.sender;
-
-    //     ERA_DURATION = params.eraDuration;
-    //     MIN_VAULT_EPOCH_DURATION = params.minVaultEpochDuration;
-    //     OPERATOR_GRACE_PERIOD = params.operatorGracePeriod;
-    //     VAULT_GRACE_PERIOD = params.vaultGracePeriod;
-    //     MIN_VETO_DURATION = params.minVetoDuration;
-    //     MIN_SLASH_EXECUTION_DELAY = params.minSlashExecutionDelay;
-    //     MAX_RESOLVER_SET_EPOCHS_DELAY = params.maxResolverSetEpochsDelay;
-    //     VAULT_REGISTRY = params.vaultRegistry;
-    //     ALLOWED_VAULT_IMPL_VERSION = params.allowedVaultImplVersion;
-    //     VETO_SLASHER_IMPL_TYPE = params.vetoSlasherImplType;
-    //     OPERATOR_REGISTRY = params.operatorRegistry;
-    //     NETWORK_REGISTRY = params.networkRegistry;
-    //     NETWORK_OPT_IN = params.networkOptIn;
-    //     MIDDLEWARE_SERVICE = params.middlewareService;
-    //     COLLATERAL = params.collateral;
-    //     VETO_RESOLVER = params.vetoResolver;
-
-    //     roleSlashRequester = params.roleSlashRequester;
-    //     roleSlashExecutor = params.roleSlashExecutor;
-
-    //     SUBNETWORK = address(this).subnetwork(NETWORK_IDENTIFIER);
-
-    //     OPERATOR_REWARDS = params.operatorRewards;
-    //     OPERATOR_REWARDS_FACTORY = params.operatorRewardsFactory;
-    //     STAKER_REWARDS_FACTORY = params.stakerRewardsFactory;
-
-    //     // Presently network and middleware are the same address
-    //     INetworkRegistry(NETWORK_REGISTRY).registerNetwork();
-    //     INetworkMiddlewareService(MIDDLEWARE_SERVICE).setMiddleware(address(this));
-    // }
-
     function initialize(
         address _owner,
         uint96 _networkIdentifier,
-        // Time params
         uint48 _eraDuration,
         uint48 _minVaultEpochDuration,
         uint48 _operatorGracePeriod,
@@ -110,17 +68,13 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         uint64 _allowedVaultImplVersion,
         uint64 _vetoSlasherImplType,
         uint256 _maxResolverSetEpochsDelay,
-        //
         address _collateral,
-        bytes32 _subnetwork,
-        //
         uint256 _maxAdminFee,
-        //address _operatorRewards,
-        // address _router,
+        address _operatorRewards,
+        address _router,
         address _roleSlashRequester,
         address _roleSlashExecutor,
         address _vetoResolver,
-        //
         Gear.SymbioticRegistries memory _registries
     ) public initializer {
         __Ownable_init(_owner);
@@ -131,7 +85,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         $.networkIdentifier = _networkIdentifier;
 
-        // Time params
         $.eraDuration = _eraDuration;
         $.minVaultEpochDuration = _minVaultEpochDuration;
         $.operatorGracePeriod = _operatorGracePeriod;
@@ -142,25 +95,23 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         $.allowedVaultImplVersion = _allowedVaultImplVersion;
         $.vetoSlasherImplType = _vetoSlasherImplType;
 
-        //
         $.collateral = _collateral;
-        $.subnetwork = _subnetwork;
-        //
+        $.subnetwork = address(this).subnetwork(_networkIdentifier);
         $.maxAdminFee = _maxAdminFee;
 
-        $.operatorRewards = IDefaultOperatorRewardsFactory(_registries.operatorRewardsFactory).create();
+        $.operatorRewards = _operatorRewards;
 
-        // Setting router address to 0
-        $.router = address(0);
+        $.router = _router;
 
         $.roleSlashRequester = _roleSlashRequester;
         $.roleSlashExecutor = _roleSlashExecutor;
         $.vetoResolver = _vetoResolver;
-        // middleware.defaultAdminRole = 0x00;
 
         $.registries = _registries;
 
-        // Validate params after initialization
+        INetworkRegistry(_registries.networkRegistry).registerNetwork();
+        INetworkMiddlewareService(_registries.middlewareService).setMiddleware(address(this));
+
         _validateStorage($);
     }
 
@@ -170,7 +121,35 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _setStorageSlot("middleware.storage.MiddlewareV2");
         Storage storage newStorage = _storage();
 
-        // TODO: move storage params from oldMiddleware to newMiddleware
+        newStorage.networkIdentifier = oldStorage.networkIdentifier;
+        newStorage.eraDuration = oldStorage.eraDuration;
+        newStorage.minVaultEpochDuration = oldStorage.minVaultEpochDuration;
+        newStorage.operatorGracePeriod = oldStorage.operatorGracePeriod;
+        newStorage.vaultGracePeriod = oldStorage.vaultGracePeriod;
+        newStorage.minVetoDuration = oldStorage.minVetoDuration;
+        newStorage.minSlashExecutionDelay = oldStorage.minSlashExecutionDelay;
+        newStorage.maxResolverSetEpochsDelay = oldStorage.maxResolverSetEpochsDelay;
+        newStorage.allowedVaultImplVersion = oldStorage.allowedVaultImplVersion;
+        newStorage.vetoSlasherImplType = oldStorage.vetoSlasherImplType;
+        newStorage.collateral = oldStorage.collateral;
+        newStorage.subnetwork = oldStorage.subnetwork;
+        newStorage.maxAdminFee = oldStorage.maxAdminFee;
+        newStorage.operatorRewards = oldStorage.operatorRewards;
+        newStorage.router = oldStorage.router;
+        newStorage.roleSlashRequester = oldStorage.roleSlashRequester;
+        newStorage.roleSlashExecutor = oldStorage.roleSlashExecutor;
+        newStorage.vetoResolver = oldStorage.vetoResolver;
+        newStorage.registries = oldStorage.registries;
+
+        for (uint256 i = 0; i < oldStorage.operators.length(); i++) {
+            (address key, uint256 value) = oldStorage.operators.at(i);
+            newStorage.operators.set(key, value);
+        }
+
+        for (uint256 i = 0; i < oldStorage.vaults.length(); i++) {
+            (address key, uint256 value) = oldStorage.vaults.at(i);
+            newStorage.vaults.set(key, value);
+        }
     }
 
     // # Views
@@ -242,18 +221,22 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return _storage().registries.operatorRegistry;
     }
 
-    // # Owner calls.
-
     // # Calls.
 
-    // function changeSlashRequester(address newRole) external _onlyRole(roleSlashRequester) {
     function changeSlashRequester(address newRole) external {
-        // roleSlashRequester = newRole;
+        Storage storage $ = _storage();
+        if (msg.sender != $.roleSlashRequester) {
+            revert RoleMismatch();
+        }
+        $.roleSlashRequester = newRole;
     }
 
-    // function changeSlashExecutor(address newRole) external _onlyRole(roleSlashExecutor) {
     function changeSlashExecutor(address newRole) external {
-        // roleSlashExecutor = newRole;
+        Storage storage $ = _storage();
+        if (msg.sender != $.roleSlashExecutor) {
+            revert RoleMismatch();
+        }
+        $.roleSlashExecutor = newRole;
     }
 
     // TODO: Check that total stake is big enough
@@ -446,9 +429,13 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         }
     }
 
-    // function requestSlash(SlashData[] calldata data) external _onlyRole(roleSlashRequester) {
     function requestSlash(SlashData[] calldata data) external {
         Storage storage $ = _storage();
+
+        if (msg.sender != $.roleSlashRequester) {
+            revert RoleMismatch();
+        }
+
         for (uint256 i; i < data.length; ++i) {
             SlashData calldata slashData = data[i];
             if (!$.operators.contains(slashData.operator)) {
@@ -470,8 +457,11 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         }
     }
 
-    // function executeSlash(SlashIdentifier[] calldata slashes) external _onlyRole(roleSlashExecutor) {
     function executeSlash(SlashIdentifier[] calldata slashes) external {
+        if (msg.sender != _storage().roleSlashRequester) {
+            revert RoleMismatch();
+        }
+
         for (uint256 i; i < slashes.length; ++i) {
             SlashIdentifier calldata slash = slashes[i];
 
@@ -663,14 +653,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     function _setStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
-    }
-
-    // TODO: consider to remove this
-    modifier _onlyRole(address role) {
-        if (msg.sender != role) {
-            revert RoleMismatch();
-        }
-        _;
     }
 
     modifier _vaultOwner(address vault) {

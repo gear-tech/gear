@@ -168,7 +168,8 @@ library Gear {
         address networkRegistry;
         address middlewareService;
         address networkOptIn;
-        address operatorRewardsFactory;
+        // address operatorRewards;
+        // address operatorRewardsFactory;
         address stakerRewardsFactory;
     }
 

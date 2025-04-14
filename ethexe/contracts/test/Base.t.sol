@@ -25,6 +25,7 @@ import {DefaultStakerRewards} from "symbiotic-rewards/src/contracts/defaultStake
 import {DefaultStakerRewardsTest} from "symbiotic-rewards/test/defaultStakerRewards/DefaultStakerRewards.t.sol";
 import {DefaultStakerRewardsFactory} from
     "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
+import {DefaultOperatorRewards} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewards.sol";
 
 contract Base is POCBaseTest {
     using MessageHashUtils for address;
@@ -79,30 +80,7 @@ contract Base is POCBaseTest {
             address(new DefaultStakerRewards(address(vaultFactory), address(networkMiddlewareService)));
         defaultStakerRewardsFactory = new DefaultStakerRewardsFactory(defaultStakerRewards_);
 
-        // Middleware.InitParams memory cfg = IMiddleware.InitParams({
-        //     eraDuration: eraDuration,
-        //     minVaultEpochDuration: eraDuration * 2,
-        //     operatorGracePeriod: eraDuration * 2,
-        //     vaultGracePeriod: eraDuration * 2,
-        //     minVetoDuration: eraDuration / 3,
-        //     minSlashExecutionDelay: eraDuration / 3,
-        //     maxResolverSetEpochsDelay: type(uint256).max,
-        //     vaultRegistry: address(vaultFactory),
-        //     allowedVaultImplVersion: 1,
-        //     vetoSlasherImplType: 1,
-        //     operatorRegistry: address(operatorRegistry),
-        //     networkRegistry: address(networkRegistry),
-        //     networkOptIn: address(operatorNetworkOptInService),
-        //     middlewareService: address(networkMiddlewareService),
-        //     collateral: address(wrappedVara),
-        //     roleSlashRequester: admin,
-        //     roleSlashExecutor: admin,
-        //     vetoResolver: admin,
-        //     // TODO: add real addresses for testing associated functions
-        //     operatorRewards: address(0),
-        //     operatorRewardsFactory: address(0),
-        //     stakerRewardsFactory: address(defaultStakerRewardsFactory)
-        // });
+        address defaultOperatorRewards_ = address(new DefaultOperatorRewards(address(networkMiddlewareService)));
 
         Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
             vaultRegistry: address(vaultFactory),
@@ -110,7 +88,6 @@ contract Base is POCBaseTest {
             networkRegistry: address(networkRegistry),
             middlewareService: address(networkMiddlewareService),
             networkOptIn: address(operatorNetworkOptInService),
-            operatorRewardsFactory: address(0),
             stakerRewardsFactory: address(defaultStakerRewardsFactory)
         });
 
@@ -123,24 +100,28 @@ contract Base is POCBaseTest {
                     abi.encodeCall(
                         Middleware.initialize,
                         (
-                            admin, // owner
-                            0, // networkIdentifier
-                            eraDuration, // eraDuration
+                            admin,
+                            0,
+                            eraDuration,
                             eraDuration * 2,
                             eraDuration * 2,
                             eraDuration * 2,
                             eraDuration / 3,
                             eraDuration / 3,
-                            1, // allowedVaultImplVersion
-                            1, // _vetoSlasherImpType
-                            type(uint256).max, // maxResolverSetEpochsDelay
-                            address(wrappedVara), // collateral
-                            0x00, // _subnetwork
-                            10000, // _maxAdminFee
-                            admin, // _roleSlashRequester
-                            admin, // _roleSlashExecutor
-                            admin, // _vetoResolver
-                            registries // _registries
+                            1,
+                            1,
+                            type(uint256).max,
+                            address(wrappedVara),
+                            10000,
+                            defaultOperatorRewards_,
+                            // TODO: replace with real Router address
+                            // Now it doesn't work because of test bytecode size becomes too large
+                            // address(router),
+                            address(0),
+                            admin,
+                            admin,
+                            admin,
+                            registries
                         )
                     )
                 )
