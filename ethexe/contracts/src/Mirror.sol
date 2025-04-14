@@ -11,6 +11,8 @@ import {IWrappedVara} from "./IWrappedVara.sol";
 import {Gear} from "./libraries/Gear.sol";
 
 contract Mirror is IMirror {
+    /// @dev Special address to which Sails contract sends messages so that Mirror can decode events:
+    ///      https://github.com/gear-tech/sails/blob/master/rs/src/solidity.rs
     address internal constant ETH_EVENT_ADDR = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
 
     address public immutable router;
@@ -178,9 +180,17 @@ contract Mirror is IMirror {
     function _sendMailboxedMessage(Gear.Message calldata _message) private {
         bytes calldata payload = _message.payload;
 
+        // The format in which the Sails contract sends events is as follows:
+        // - `uint8 topicsLength` (can be `1`, `2`, `3`, `4`).
+        //    specifies which opcode (`log1`, `log2`, `log3`, `log4`) should be called.
+        // - `bytes32 topic1` (required)
+        // - `bytes32 topic2` (optional)
+        // - `bytes32 topic3` (optional)
+        // - `bytes32 topic4` (optional)
         if (_message.destination == ETH_EVENT_ADDR && _message.value == 0 && payload.length > 0) {
             uint256 topicsLength;
             assembly ("memory-safe") {
+                // `248` right bit shift is required to remove extra bits since `calldataload` returns `uint256`
                 topicsLength := shr(248, calldataload(payload.offset))
             }
 
@@ -191,11 +201,17 @@ contract Mirror is IMirror {
                 }
 
                 if (payload.length >= topicsLengthInBytes) {
+                    // we use offset 1 to skip `uint8 topicsLength`
                     bytes32 topic1;
                     assembly ("memory-safe") {
                         topic1 := calldataload(add(payload.offset, 1))
                     }
 
+                    /*
+                    * @dev SECURITY:
+                    *      Very important check because custom events can match our hashes!
+                    *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
+                    */
                     if (
                         topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
                             && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
@@ -212,6 +228,8 @@ contract Mirror is IMirror {
                             calldatacopy(memPtr, add(payload.offset, topicsLengthInBytes), size)
                         }
 
+                        // we use offset 1 to skip `uint8 topicsLength`
+                        // regular offsets: `32`, `64`, `96`
                         bytes32 topic2;
                         bytes32 topic3;
                         bytes32 topic4;
