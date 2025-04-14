@@ -531,7 +531,6 @@ tower = "0.4.13"                                             # ethexe/rpc
 tower-http = "0.5.2"                                         # ethexe/rpc
 tracing-appender = "0.2"                                     # utils/node-loader
 trybuild = "1"                                               # gstd/codegen
-wasm-opt = "0.116"                                           # utils/wasm-builder
 wasmprinter = "0.225"                                        # utils/wasm-gen
 whoami = "1.5.1"                                             # gcli
 fail = "0.5"                                                 # gear-common

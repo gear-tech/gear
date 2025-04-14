@@ -3384,7 +3384,7 @@ dependencies = [
 
 [[package]]
 name = "demo-big-data-section"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
