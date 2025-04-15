@@ -135,6 +135,7 @@ struct ChainHeadProcessContext {
 }
 
 impl ChainHeadProcessContext {
+    /// Processes the chain of not computed blocks starting from the given `head`.
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
@@ -152,6 +153,7 @@ impl ChainHeadProcessContext {
             header,
         } = block_data;
 
+        // Events must be set for all synced blocks.
         let events = OnChainStorage::block_events(&self.db, block)
             .ok_or_else(|| anyhow!("events not found for synced block {block}"))?;
 
@@ -216,6 +218,13 @@ impl ChainHeadProcessContext {
         Ok(())
     }
 
+    /// Gets `wait for commitment` blocks queue from the `parent` of the `block`.
+    ///
+    /// The returned data doesn't contain waiting for commitment blocks included
+    /// into current (`block`) block.
+    ///
+    /// The `block` can have requests for code validation. These requests are united with those
+    /// from the `parent` block and set to the `block`'s codes queue.
     fn propagate_data_from_parent<'a>(
         db: &Database,
         block: H256,
@@ -283,6 +292,7 @@ impl ChainHeadProcessContext {
                 return Err(anyhow!("Block {block} is not synced, but must be"));
             }
 
+            // Headers must be set for all synced blocks.
             let header = OnChainStorage::block_header(db, block)
                 .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
 

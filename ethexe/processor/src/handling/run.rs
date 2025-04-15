@@ -18,15 +18,15 @@
 
 use crate::{
     host::{InstanceCreator, InstanceWrapper},
-    ProcessorConfig,
+    OverlaidProcessor, Processor, ProcessorConfig,
 };
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
 use ethexe_db::{CodesStorage, Database};
 use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
-use gear_core::ids::ProgramId;
+use gear_core::{ids::ProgramId, message::DispatchKind};
 use gprimitives::H256;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use tokio::sync::{mpsc, oneshot};
 
 /// A ethexe-processir task unit.
@@ -40,18 +40,119 @@ enum Task {
     },
 }
 
-/// Processing queue of the program entry point function. 
-/// The queue obtained from the storage using `in_block_transitions`.
-/// 
-/// Creates a separate tokio runtime and processes queues for each program in a separate thread.
-pub fn run(
+pub fn run(processor: &Processor, in_block_transitions: &mut InBlockTransitions) {
+    let config = processor.config();
+    let db = processor.db.clone();
+    let instance_creator = processor.creator.clone();
+
+    run_impl(&config, db, instance_creator, in_block_transitions, None);
+}
+
+struct OverlayRunContext {
+    nulled_queues: BTreeSet<ProgramId>,
+    db: Database,
+}
+
+impl OverlayRunContext {
+    fn new(
+        base_program: ProgramId,
+        db: Database,
+        in_block_transitions: &mut InBlockTransitions,
+    ) -> Self {
+        let mut this = Self {
+            nulled_queues: BTreeSet::new(),
+            db,
+        };
+
+        this.nullify_queue_impl(in_block_transitions, base_program, true);
+
+        this
+    }
+
+    /// Nullifies the queue of the program with id `program_id`.
+    ///
+    /// If the queue was nullified, it won't be nullified again.
+    /// The nullification is done to increase speed of the overlaid execution as concerned programs
+    /// can have large queues, which will slow down the processing for the reply from the main program
+    /// dispatch.
+    fn nullify_queue(
+        &mut self,
+        in_block_transitions: &mut InBlockTransitions,
+        program_id: ProgramId,
+    ) {
+        self.nullify_queue_impl(in_block_transitions, program_id, false);
+    }
+
+    fn nullify_queue_impl(
+        &mut self,
+        in_block_transitions: &mut InBlockTransitions,
+        program_id: ProgramId,
+        is_base_program: bool,
+    ) {
+        log::warn!("Called nullifying queue for program {program_id}");
+        if self.nulled_queues.contains(&program_id) {
+            return;
+        }
+        log::warn!("Nullifying queue for program {program_id} will be executed");
+
+        let mut transition_controller = TransitionController {
+            transitions: in_block_transitions,
+            storage: &self.db,
+        };
+
+        transition_controller.update_state(program_id, |state, _, _| {
+            state.queue_hash.modify_queue(&self.db, |queue| {
+                if is_base_program {
+                    log::warn!("Base program queue will be nullified");
+                    log::warn!("Queue state - {:#?}", queue);
+                    // Last dispatch is the one for which overlaid executor was created.
+                    let dispatch = queue
+                        .pop_back()
+                        .expect("last dispatch must be added before");
+                    queue.clear();
+                    queue.queue(dispatch);
+                    log::warn!("Queue state after - {:#?}", queue);
+                } else {
+                    log::warn!("Non-base program {program_id} queue will be nullified");
+                    log::warn!("Queue state - {:#?}", queue);
+                    // Otherwise, we need to clear the queue.
+                    queue.clear();
+                    log::warn!("Queue state after - {:#?}", queue);
+                }
+            });
+        });
+
+        self.nulled_queues.insert(program_id);
+    }
+}
+
+pub fn run_overlaid(
+    processor: &OverlaidProcessor,
+    in_block_transitions: &mut InBlockTransitions,
+    base_pid: ProgramId,
+) {
+    let config = processor.0.config();
+    let db = processor.0.db.clone();
+    let instance_creator = processor.0.creator.clone();
+    let overlay_ctx = OverlayRunContext::new(base_pid, db.clone(), in_block_transitions);
+
+    run_impl(
+        &config,
+        db,
+        instance_creator,
+        in_block_transitions,
+        Some(overlay_ctx),
+    );
+}
+
+fn run_impl(
     config: &ProcessorConfig,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
+    maybe_overlaid_context: Option<OverlayRunContext>,
 ) {
     tokio::task::block_in_place(|| {
-        // todo [sab] why a separate rt?
         let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
 
         if let Some(worker_threads) = config.worker_threads_override {
@@ -67,19 +168,17 @@ pub fn run(
             db,
             instance_creator,
             in_block_transitions,
+            maybe_overlaid_context,
         ))
     })
 }
 
-/// Main processing queue function, which performs processing for programs
-/// included into `in_block_transitions`.
-/// 
-/// 
 async fn run_in_async(
     virtual_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
+    mut maybe_overlaid_context: Option<OverlayRunContext>,
 ) {
     let mut task_senders = Vec::with_capacity(virtual_threads);
     let mut handles = Vec::with_capacity(virtual_threads);
@@ -102,7 +201,13 @@ async fn run_in_async(
 
         let mut no_more_to_do = true;
         for index in (0..in_block_transitions.states_amount()).step_by(virtual_threads) {
-            let result_receivers = one_batch(index, &task_senders, in_block_transitions).await;
+            let result_receivers = one_batch(
+                index,
+                &task_senders,
+                in_block_transitions,
+                maybe_overlaid_context.as_mut(),
+            )
+            .await;
 
             let mut super_journal = vec![];
             for (program_id, receiver) in result_receivers.into_iter() {
@@ -118,6 +223,26 @@ async fn run_in_async(
             }
 
             for (program_id, dispatch_origin, journal) in super_journal {
+                // Overlaid execution case.
+                //
+                // The handling is required for the situations when current batch program sent messages
+                // to the program, which will be executed later (it's in a further batch). If nullification
+                // is not done here, then any newly sent dispatches to programs from further batches will
+                // be nullified in the [`one_batch`] function.
+                for note in &journal {
+                    match note {
+                        JournalNote::SendDispatch { dispatch, .. }
+                            if dispatch.kind() == DispatchKind::Handle =>
+                        {
+                            if let Some(overlaid_ctx) = maybe_overlaid_context.as_mut() {
+                                overlaid_ctx
+                                    .nullify_queue(in_block_transitions, dispatch.destination());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
                 let mut handler = JournalHandler {
                     program_id,
                     controller: TransitionController {
@@ -141,10 +266,10 @@ async fn run_in_async(
 }
 
 /// A worker that processes [`Task`].
-/// 
+///
 /// Basically, waits for a task to be sent from the sending end of the channel
 /// and then runs it with a newly instantiated executor.
-/// 
+///
 /// The worker is expected to be run in a separate thread, so the sending end
 /// of the channel is used from the other (main) one.
 /// Actually, the sending end is used when tasks are sent in batches (see [`one_batch`] function).
@@ -187,10 +312,10 @@ async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
 }
 
 /// Sends a number of tasks to different workers ([`worker`]).
-/// 
+///
 /// The result of the task is waited through the receiving end of the channel.
 /// The sending end is given to a task processor, which is the [`worker`] itself.
-/// 
+///
 /// The batch is, basically, a set of tasks created from the `in_block_transitions`, which
 /// are sent to different workers. The size of the batch is maximum of a size of `task_senders`,
 /// which itself has a size of `virtual_threads`.
@@ -200,14 +325,27 @@ async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
 /// The `from_index` argument is itself expected to be updated by the virtual
 /// threads amount. So, if there are 3 virtual threads, then `from_index`
 /// will be set to 0, 3, 6, 9, etc.
-/// 
+///
 /// Returns a set of receivers, which are used to wait for the results of the tasks to be sent from [`worker`].
 async fn one_batch(
     from_index: usize,
     task_senders: &[mpsc::Sender<Task>],
     in_block_transitions: &mut InBlockTransitions,
+    mut maybe_overlaid_context: Option<&mut OverlayRunContext>,
 ) -> BTreeMap<ProgramId, oneshot::Receiver<(Vec<JournalNote>, Option<Origin>)>> {
     let mut result_receivers = BTreeMap::new();
+
+    // This will modify `in_block_transitions` in case overlaid context was provided.
+    let actors_to_process = in_block_transitions
+        .states_iter()
+        .skip(from_index)
+        .map(|(program_id, _)| *program_id)
+        .collect::<Vec<_>>();
+    for program_id in actors_to_process {
+        if let Some(overlay_ctx) = &mut maybe_overlaid_context {
+            overlay_ctx.nullify_queue(in_block_transitions, program_id);
+        }
+    }
 
     for (sender, (program_id, state_hash)) in task_senders
         .iter()
@@ -228,3 +366,5 @@ async fn one_batch(
 
     result_receivers
 }
+
+// todo [sab] test how many messages were executed in overlay

@@ -55,7 +55,7 @@ impl InBlockTransitions {
     }
 
     pub fn state_of(&self, actor_id: &ActorId) -> Option<H256> {
-        self.states.get(actor_id).cloned()
+        self.states.get(actor_id).copied()
     }
 
     pub fn states_amount(&self) -> usize {
@@ -67,7 +67,7 @@ impl InBlockTransitions {
     }
 
     pub fn known_programs(&self) -> Vec<ActorId> {
-        self.states.keys().cloned().collect()
+        self.states.keys().copied().collect()
     }
 
     pub fn current_messages(&self) -> Vec<(ActorId, Message)> {

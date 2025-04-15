@@ -90,7 +90,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
 
         if header.height <= latest_synced_block_height {
             log::warn!(
-                "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
+                "Got a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
                 latest_synced_block_height
             );

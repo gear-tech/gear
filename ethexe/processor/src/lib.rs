@@ -109,6 +109,7 @@ impl Processor {
         Ok(valid)
     }
 
+    /// High level wrapper for `process_block_events_raw`.
     pub fn process_block_events(
         &mut self,
         block_hash: H256,
@@ -160,12 +161,7 @@ impl Processor {
     pub fn process_queue(&mut self, handler: &mut ProcessingHandler) {
         self.creator.set_chain_head(handler.block_hash);
 
-        run::run(
-            self.config(),
-            self.db.clone(),
-            self.creator.clone(),
-            &mut handler.transitions,
-        );
+        run::run(&self, &mut handler.transitions);
     }
 }
 
@@ -211,11 +207,18 @@ impl OverlaidProcessor {
             },
         )?;
 
-        self.0.process_queue(&mut handler);
+        self.process_queue(&mut handler, program_id);
 
-        let res = handler
-            .transitions
-            .current_messages()
+        // Getting message to users now, because later transitions are moved.
+        let current_messages = handler.transitions.current_messages();
+
+        // Setiing program states and schedule for the block is not necessary,
+        // but important for testing.
+        let (_, states, schedule) = handler.transitions.finalize();
+        self.0.db.set_block_program_states(block_hash, states);
+        self.0.db.set_block_schedule(block_hash, schedule);
+
+        let res = current_messages
             .into_iter()
             .find_map(|(_source, message)| {
                 message.reply_details.and_then(|details| {
@@ -229,5 +232,11 @@ impl OverlaidProcessor {
             .ok_or_else(|| anyhow!("reply wasn't found"))?;
 
         Ok(res)
+    }
+
+    fn process_queue(&mut self, handler: &mut ProcessingHandler, program_id: ActorId) {
+        self.0.creator.set_chain_head(handler.block_hash);
+
+        run::run_overlaid(&self, &mut handler.transitions, program_id);
     }
 }

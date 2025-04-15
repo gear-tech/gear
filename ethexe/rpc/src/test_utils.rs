@@ -20,11 +20,11 @@
 
 use anyhow::{bail, Result as AnyhowResult};
 use ethexe_common::tx_pool::OffchainTransaction;
-use jsonrpsee::types::ErrorObject;
-use reqwest::{Client, Response, Result};
 use gprimitives::{H160, H256};
-use sp_core::Bytes;
+use jsonrpsee::types::ErrorObjectOwned;
+use reqwest::{Client, Response, Result};
 use serde::{de::DeserializeOwned, Deserialize};
+use sp_core::Bytes;
 
 /// Client for the ethexe rpc server.
 pub struct RpcClient {
@@ -83,18 +83,24 @@ impl RpcClient {
     }
 }
 
-#[derive(Deserialize)]
-pub struct SerdeJsonRpcResponse {
+/// Response from the ethexe rpc server.
+///
+/// It's a wrapper around `serde_json::Value` to provide a convenient way to extract
+/// the `result` and `error` fields from the response.
+#[derive(Debug, Deserialize)]
+pub struct JsonRpcResponse {
     inner: serde_json::Value,
 }
 
-impl SerdeJsonRpcResponse {
+impl JsonRpcResponse {
+    /// Create a new `JsonRpcResponse` from a `Response`.
     pub async fn new(response: Response) -> Result<Self> {
         let inner = response.json().await?;
 
         Ok(Self { inner })
     }
 
+    /// Try extract `result` field from the response.
     pub fn try_extract_res<T: DeserializeOwned>(&self) -> AnyhowResult<T> {
         match self.inner.get("result") {
             Some(result) => {
@@ -106,10 +112,11 @@ impl SerdeJsonRpcResponse {
         }
     }
 
-    pub fn try_extract_err(&self) -> AnyhowResult<ErrorObject<'static>> {
+    /// Try extract `error` field from the response.
+    pub fn try_extract_err(&self) -> AnyhowResult<ErrorObjectOwned> {
         match self.inner.get("error") {
             Some(error) => {
-                let error: ErrorObject<'static> = serde_json::from_value(error.clone())?;
+                let error = serde_json::from_value(error.clone())?;
 
                 Ok(error)
             }

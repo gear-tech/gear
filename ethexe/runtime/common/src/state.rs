@@ -712,6 +712,22 @@ impl MessageQueue {
     }
 }
 
+/// Methods introduced due to solution to #4513.
+/// Remove when becomes unnecessary.
+impl MessageQueue {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear()
+    }
+
+    pub fn pop_back(&mut self) -> Option<Dispatch> {
+        self.0.pop_back()
+    }
+}
+
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Waitlist {
