@@ -20,7 +20,7 @@ etc.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [ "std" ] }
 tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing-subscriber.workspace = true
 gear-wasm-optimizer.workspace = true
 glob.workspace = true
 

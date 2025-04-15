@@ -177,7 +177,7 @@ mod test {
 
     #[test]
     fn v11_metadata_into_attribution_migration_works() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt::try_init();
 
         new_test_ext().execute_with(|| {
             StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearProgram>();

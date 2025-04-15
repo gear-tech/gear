@@ -20,8 +20,8 @@ use crate::*;
 
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
-	BagsListMigrate<Runtime>,
-	// move metadata into attribution
+    BagsListMigrate<Runtime>,
+    pallet_gear_bank::migrations::MigrateToV1<Runtime>,
     pallet_gear_program::migrations::v11_code_metadata_delete_migration::MigrateRemoveCodeMetadata<Runtime>,
     // migrate program code hash to code id and remove code_exports and static_pages
     pallet_gear_program::migrations::v12_program_code_id_migration::MigrateProgramCodeHashToCodeId<Runtime>,

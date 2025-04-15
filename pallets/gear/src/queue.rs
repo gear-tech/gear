@@ -62,10 +62,24 @@ where
 
         log::debug!("Gas burned after Program {:?}", context.gas_burned());
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<T>::get_program(destination_id)
-        else {
-            log::trace!("Message {dispatch_id} is sent to non-active program {destination_id}");
-            return core_processor::process_non_executable(context);
+        let program = match ProgramStorageOf::<T>::get_program(destination_id) {
+            Some(Program::Active(program)) => program,
+            Some(Program::Terminated(_)) => {
+                log::trace!(
+                    "Message {dispatch_id} is sent to failed init program {destination_id}"
+                );
+                return core_processor::process_failed_init(context);
+            }
+            Some(Program::Exited(program_id)) => {
+                log::trace!("Message {dispatch_id} is sent to exited program {destination_id}");
+                return core_processor::process_program_exited(context, program_id);
+            }
+            None => {
+                log::trace!(
+                    "Message {dispatch_id} is sent to nonexistent program {destination_id}"
+                );
+                return core_processor::process_code_not_exists(context);
+            }
         };
 
         if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {
@@ -98,7 +112,7 @@ where
                 unreachable!("{err_msg}");
             }
 
-            return core_processor::process_non_executable(context);
+            return core_processor::process_uninitialized(context);
         }
 
         // Adjust gas counters for fetching code metadata.

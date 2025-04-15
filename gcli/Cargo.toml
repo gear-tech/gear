@@ -20,7 +20,7 @@ async-trait.workspace = true
 colored.workspace = true
 color-eyre.workspace = true
 dirs.workspace = true
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 gear-core.workspace = true
 gring = { workspace = true, features = ["cli"] }
 hex.workspace = true

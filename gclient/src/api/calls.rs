@@ -360,8 +360,10 @@ impl GearApi {
                 }
             })?;
 
+        let bank_address = self.bank_address().await?;
+
         let src_bank_account_data = self
-            .account_data_at(crate::bank_address(), src_block_hash)
+            .account_data_at(bank_address.clone(), src_block_hash)
             .await
             .or_else(|e| {
                 if let Error::GearSDK(GsdkError::StorageNotFound) = e {
@@ -443,7 +445,7 @@ impl GearApi {
             .await?;
 
         dest_node_api
-            .force_set_balance(crate::bank_address(), src_bank_account_data.free)
+            .force_set_balance(bank_address, src_bank_account_data.free)
             .await?;
 
         dest_node_api

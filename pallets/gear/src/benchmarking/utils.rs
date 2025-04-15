@@ -77,7 +77,7 @@ where
 
     // to see logs in bench tests
     #[cfg(feature = "std")]
-    let _ = env_logger::try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 
     let (builtins, _) = T::BuiltinDispatcherFactory::create();
     let ext_manager = ExtManager::<T>::new(builtins);
