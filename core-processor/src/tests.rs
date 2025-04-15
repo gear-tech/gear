@@ -5,7 +5,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, ProgramId},
-    memory::{Memory, MemoryDump, MemoryError},
+    memory::{AllocationsContext, MemoryDump, MemoryError},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
     },
@@ -14,7 +14,7 @@ use gear_core_backend::env::{
     BackendReport, Environment, EnvironmentExecutionResult, FailedExecution, ReadyToExecute,
     SuccessExecution,
 };
-use gear_lazy_pages::LazyPagesVersion;
+use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use parity_scale_codec::Encode;
@@ -27,18 +27,28 @@ enum ExecutionExpectation {
     Failure,
 }
 
-enum MemoryAction {
-    Init,
-    Skip,
-}
-
 struct TestConfig {
     pub name: &'static str,
     pub payload: Payload,
     pub dispatch_kind: DispatchKind,
-    pub memory_action: MemoryAction,
     pub expectation: ExecutionExpectation,
 }
+
+#[derive(Debug)]
+struct EmptyStorage;
+
+impl LazyPagesStorage for EmptyStorage {
+    fn page_exists(&self, _key: &[u8]) -> bool {
+        false
+    }
+
+    fn load_page(&mut self, _key: &[u8], _buffer: &mut [u8]) -> Option<u32> {
+        unreachable!();
+    }
+}
+
+const MEMORY_SIZE: u16 = 100;
+const MAX_MEMORY: u16 = 65000;
 
 #[test]
 fn execute_environment_multiple_times_with_memory_replacing() {
@@ -50,7 +60,6 @@ fn execute_environment_multiple_times_with_memory_replacing() {
             payload: Payload::try_from(InitConfig::test_sequence().encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Init,
-            memory_action: MemoryAction::Init,
             expectation: ExecutionExpectation::Success,
         },
         TestConfig {
@@ -59,7 +68,6 @@ fn execute_environment_multiple_times_with_memory_replacing() {
             payload: Payload::try_from(FTAction::Mint(1_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Success,
         },
         TestConfig {
@@ -68,7 +76,6 @@ fn execute_environment_multiple_times_with_memory_replacing() {
             payload: Payload::try_from(FTAction::Burn(2_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Failure,
         },
         TestConfig {
@@ -77,7 +84,6 @@ fn execute_environment_multiple_times_with_memory_replacing() {
             payload: Payload::try_from(FTAction::Mint(3_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Init,
             expectation: ExecutionExpectation::Success,
         },
         TestConfig {
@@ -86,14 +92,12 @@ fn execute_environment_multiple_times_with_memory_replacing() {
             payload: Payload::try_from(FTAction::Burn(1_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Success,
         },
         TestConfig {
             name: "TotalSupply",
             payload: Payload::try_from(FTAction::TotalSupply.encode()).expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Success,
         },
     ];
@@ -113,7 +117,20 @@ fn execute_environment_multiple_times_and_compare_results() {
             payload: Payload::try_from(InitConfig::test_sequence().encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Init,
-            memory_action: MemoryAction::Init,
+            expectation: ExecutionExpectation::Success,
+        },
+        TestConfig {
+            name: "Test set",
+            payload: Payload::try_from(FTAction::TestSet(0..500, 1_000_000).encode())
+                .expect("Failed to encode"),
+            dispatch_kind: DispatchKind::Handle,
+            expectation: ExecutionExpectation::Success,
+        },
+        TestConfig {
+            name: "Test set",
+            payload: Payload::try_from(FTAction::TestSet(0..500, 2_000_000).encode())
+                .expect("Failed to encode"),
+            dispatch_kind: DispatchKind::Handle,
             expectation: ExecutionExpectation::Success,
         },
         TestConfig {
@@ -122,7 +139,6 @@ fn execute_environment_multiple_times_and_compare_results() {
             payload: Payload::try_from(FTAction::Mint(1_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Success,
         },
         TestConfig {
@@ -131,7 +147,6 @@ fn execute_environment_multiple_times_and_compare_results() {
             payload: Payload::try_from(FTAction::Burn(2_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Failure,
         },
         TestConfig {
@@ -140,7 +155,6 @@ fn execute_environment_multiple_times_and_compare_results() {
             payload: Payload::try_from(FTAction::Burn(1_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Success,
         },
     ];
@@ -151,7 +165,20 @@ fn execute_environment_multiple_times_and_compare_results() {
             payload: Payload::try_from(InitConfig::test_sequence().encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Init,
-            memory_action: MemoryAction::Init,
+            expectation: ExecutionExpectation::Success,
+        },
+        TestConfig {
+            name: "Test set",
+            payload: Payload::try_from(FTAction::TestSet(0..500, 1_000_000).encode())
+                .expect("Failed to encode"),
+            dispatch_kind: DispatchKind::Handle,
+            expectation: ExecutionExpectation::Success,
+        },
+        TestConfig {
+            name: "Test set",
+            payload: Payload::try_from(FTAction::TestSet(0..500, 2_000_000).encode())
+                .expect("Failed to encode"),
+            dispatch_kind: DispatchKind::Handle,
             expectation: ExecutionExpectation::Success,
         },
         TestConfig {
@@ -160,7 +187,6 @@ fn execute_environment_multiple_times_and_compare_results() {
             payload: Payload::try_from(FTAction::Mint(1_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Success,
         },
         TestConfig {
@@ -169,7 +195,6 @@ fn execute_environment_multiple_times_and_compare_results() {
             payload: Payload::try_from(FTAction::Burn(1_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Success,
         },
     ];
@@ -180,7 +205,20 @@ fn execute_environment_multiple_times_and_compare_results() {
             payload: Payload::try_from(InitConfig::test_sequence().encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Init,
-            memory_action: MemoryAction::Init,
+            expectation: ExecutionExpectation::Success,
+        },
+        TestConfig {
+            name: "Test set",
+            payload: Payload::try_from(FTAction::TestSet(0..500, 1_000_000).encode())
+                .expect("Failed to encode"),
+            dispatch_kind: DispatchKind::Handle,
+            expectation: ExecutionExpectation::Success,
+        },
+        TestConfig {
+            name: "Test set",
+            payload: Payload::try_from(FTAction::TestSet(0..500, 2_000_000).encode())
+                .expect("Failed to encode"),
+            dispatch_kind: DispatchKind::Handle,
             expectation: ExecutionExpectation::Success,
         },
         TestConfig {
@@ -189,7 +227,6 @@ fn execute_environment_multiple_times_and_compare_results() {
             payload: Payload::try_from(FTAction::Mint(1_000_000).encode())
                 .expect("Failed to encode"),
             dispatch_kind: DispatchKind::Handle,
-            memory_action: MemoryAction::Skip,
             expectation: ExecutionExpectation::Success,
         },
     ];
@@ -227,7 +264,7 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dump: &mut MemoryDump) ->
     gear_lazy_pages::init(
         LazyPagesVersion::Version1,
         LazyPagesInitContext::new(PROGRAM_STORAGE_PREFIX),
-        (),
+        EmptyStorage,
     )
     .expect("Failed to init lazy-pages");
 
@@ -253,15 +290,29 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dump: &mut MemoryDump) ->
 
     for (i, test_config) in test_configs.into_iter().enumerate() {
         if i == 0 {
-            let ext = make_ext(program_id, test_config.payload);
+            let ext = make_ext(
+                test_config.dispatch_kind,
+                program_id,
+                &code,
+                test_config.payload,
+            );
 
             env = Environment::new(
                 ext,
                 code.code(),
-                vec![DispatchKind::Init, DispatchKind::Handle]
-                    .into_iter()
-                    .collect(),
-                512.into(),
+                code.exports().clone(),
+                MEMORY_SIZE.into(),
+                |ctx, mem, globals_config| {
+                    Ext::lazy_pages_init_for_program(
+                        ctx,
+                        mem,
+                        program_id,
+                        Default::default(),
+                        code.stack_end(),
+                        globals_config,
+                        Default::default(),
+                    );
+                },
             )
             .unwrap_or_else(|_| {
                 panic!(
@@ -272,7 +323,9 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dump: &mut MemoryDump) ->
         } else {
             env = inspect_and_set_payload(
                 execution_result.take().unwrap(),
+                test_config.dispatch_kind,
                 program_id,
+                &code,
                 test_config.payload,
                 previous_expectation,
                 memory_dump,
@@ -284,13 +337,12 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dump: &mut MemoryDump) ->
         previous_expectation = test_config.expectation;
         previous_config_name = test_config.name;
 
-        execution_result = Some(execute_for_result(
-            env,
-            test_config.dispatch_kind,
-            program_id,
-            test_config.memory_action,
-            test_config.name,
-        ));
+        execution_result = Some(env.execute(test_config.dispatch_kind).unwrap_or_else(|_| {
+            panic!(
+                "Failed to execute WASM module, config_name: {}",
+                test_config.name
+            );
+        }));
     }
 
     let env = match execution_result {
@@ -323,51 +375,12 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dump: &mut MemoryDump) ->
         .expect("Failed to get ext info")
 }
 
-fn execute_for_result<'a>(
-    env: Environment<'a, Ext, ReadyToExecute>,
-    dispatch_kind: DispatchKind,
-    program_id: ProgramId,
-    memory_action: MemoryAction,
-    config_name: &str,
-) -> EnvironmentExecutionResult<'a, Ext> {
-    match memory_action {
-        MemoryAction::Init => env
-            .execute(dispatch_kind, |ctx, mem, globals_config| {
-                Ext::lazy_pages_init_for_program(
-                    ctx,
-                    mem,
-                    program_id,
-                    Default::default(),
-                    Some(mem.size(ctx).to_page_number().unwrap_or_else(|| {
-                        panic!(
-                            "Memory size is 4GB, so cannot be stack end, config_name: {}",
-                            config_name
-                        )
-                    })),
-                    globals_config,
-                    Default::default(),
-                );
-            })
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Failed to execute WASM module, config_name: {}",
-                    config_name
-                );
-            }),
-        MemoryAction::Skip => env
-            .execute(dispatch_kind, |_, _, _| {})
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Failed to execute WASM module, config_name: {}",
-                    config_name
-                );
-            }),
-    }
-}
-
+#[allow(clippy::too_many_arguments)]
 fn inspect_and_set_payload<'a>(
     execution_result: EnvironmentExecutionResult<'a, Ext>,
+    dispatch_kind: DispatchKind,
     program_id: ProgramId,
+    code: &Code,
     payload: Payload,
     expectation: ExecutionExpectation,
     memory_dump: &mut MemoryDump,
@@ -388,7 +401,7 @@ fn inspect_and_set_payload<'a>(
                         )
                     });
 
-                let ext = make_ext(program_id, payload);
+                let ext = make_ext(dispatch_kind, program_id, code, payload);
 
                 success_execution
                     .set_ext(ext)
@@ -404,12 +417,12 @@ fn inspect_and_set_payload<'a>(
         Err(failed_execution) => match expectation {
             ExecutionExpectation::Success => {
                 panic!(
-                    "Should fail to execute WASM module, config name: {}",
+                    "Should succeed to execute WASM module, config name: {}",
                     config_name
                 );
             }
             ExecutionExpectation::Failure => {
-                let ext = make_ext(program_id, payload);
+                let ext = make_ext(dispatch_kind, program_id, code, payload);
 
                 let success_execution =
                     set_memory(failed_execution, memory_dump).unwrap_or_else(|_| {
@@ -424,7 +437,12 @@ fn inspect_and_set_payload<'a>(
     }
 }
 
-fn make_ext(program_id: ProgramId, payload: Payload) -> Ext {
+fn make_ext(
+    dispatch_kind: DispatchKind,
+    program_id: ProgramId,
+    code: &Code,
+    payload: Payload,
+) -> Ext {
     let incoming_message = IncomingMessage::new(
         0.into(),
         message_sender(),
@@ -435,7 +453,7 @@ fn make_ext(program_id: ProgramId, payload: Payload) -> Ext {
     );
 
     let message_context = MessageContext::new(
-        IncomingDispatch::new(DispatchKind::Init, incoming_message, None),
+        IncomingDispatch::new(dispatch_kind, incoming_message, None),
         program_id,
         ContextSettings::with_outgoing_limits(1024, u32::MAX),
     );
@@ -446,6 +464,14 @@ fn make_ext(program_id: ProgramId, payload: Payload) -> Ext {
         value_counter: ValueCounter::new(250_000_000_000),
         gas_counter: GasCounter::new(250_000_000_000),
         gas_allowance_counter: GasAllowanceCounter::new(250_000_000_000),
+        allocations_context: AllocationsContext::try_new(
+            MEMORY_SIZE.into(),
+            Default::default(),
+            code.static_pages(),
+            code.stack_end(),
+            MAX_MEMORY.into(),
+        )
+        .expect("Failed to create AllocationsContext"),
         ..ProcessorContext::new_mock()
     };
 

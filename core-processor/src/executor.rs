@@ -139,18 +139,19 @@ where
             program.code.code(),
             program.code.exports().clone(),
             memory_size,
+            |ctx, memory, globals_config| {
+                Ext::lazy_pages_init_for_program(
+                    ctx,
+                    memory,
+                    program.id,
+                    program.memory_infix,
+                    program.code.stack_end(),
+                    globals_config,
+                    settings.lazy_pages_costs,
+                )
+            },
         )?;
-        env.execute(kind, |ctx, memory, globals_config| {
-            Ext::lazy_pages_init_for_program(
-                ctx,
-                memory,
-                program.id,
-                program.memory_infix,
-                program.code.stack_end(),
-                globals_config,
-                settings.lazy_pages_costs,
-            )
-        })
+        env.execute(kind)
     };
 
     let (termination, mut store, memory, ext) = match execute() {
@@ -364,18 +365,19 @@ where
             program.code.code(),
             program.code.exports().clone(),
             memory_size,
+            |ctx, memory, globals_config| {
+                Ext::lazy_pages_init_for_program(
+                    ctx,
+                    memory,
+                    program_id,
+                    program.memory_infix,
+                    program.code.stack_end(),
+                    globals_config,
+                    Default::default(),
+                )
+            },
         )?;
-        env.execute(function, |ctx, memory, globals_config| {
-            Ext::lazy_pages_init_for_program(
-                ctx,
-                memory,
-                program_id,
-                program.memory_infix,
-                program.code.stack_end(),
-                globals_config,
-                Default::default(),
-            )
-        })
+        env.execute(function)
     };
 
     let (termination, mut store, memory, ext) = match execute() {

@@ -358,6 +358,11 @@ impl Code {
         self.static_pages
     }
 
+    /// Returns stack end page if exists.
+    pub fn stack_end(&self) -> Option<WasmPage> {
+        self.stack_end
+    }
+
     /// Consumes this instance and returns the instrumented and raw binary codes.
     pub fn into_parts(self) -> (InstrumentedCode, Vec<u8>) {
         let original_code_len = self.original_code.len() as u32;

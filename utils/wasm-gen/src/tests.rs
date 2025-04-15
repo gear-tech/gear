@@ -1059,11 +1059,7 @@ fn execute_wasm_with_custom_configs(
         code.code(),
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),
-    )
-    .expect("Failed to create environment");
-
-    let execution_result = env
-        .execute(DispatchKind::Init, |ctx, mem, globals_config| {
+        |ctx, mem, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 mem,
@@ -1084,7 +1080,12 @@ fn execute_wasm_with_custom_configs(
                         .expect("Failed to write to memory");
                 }
             };
-        })
+        },
+    )
+    .expect("Failed to create environment");
+
+    let execution_result = env
+        .execute(DispatchKind::Init)
         .expect("Failed to execute WASM module");
 
     execution_result

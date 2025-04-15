@@ -55,6 +55,9 @@ use gear_wasm_instrument::{
     GLOBAL_NAME_GAS,
 };
 
+#[cfg(feature = "std")]
+use std::pin::Pin;
+
 // we have requirement to pass function pointer for `gear_sandbox`
 // so the only reason this macro exists is const function pointers are not stabilized yet
 // so we create non-capturing closure that can be coerced into function pointer
@@ -128,7 +131,92 @@ where
     memory: BackendMemory<ExecutorMemory>,
     code: &'a [u8],
     execution_result: Option<Result<ReturnValue, Error>>,
+    #[cfg(feature = "std")]
+    globals_holder: Pin<Box<GlobalsHolder<Ext>>>,
     _phantom: PhantomData<State>,
+}
+
+#[cfg(feature = "std")]
+struct GlobalsHolder<Ext>
+where
+    Ext: BackendExternalities,
+{
+    access_provider: Box<GlobalsAccessProvider<Ext>>,
+    accessor_ref: *mut dyn GlobalsAccessor,
+    access_ptr: HostPointer,
+}
+
+#[cfg(feature = "std")]
+impl<Ext> GlobalsHolder<Ext>
+where
+    Ext: BackendExternalities + Send + 'static,
+{
+    fn new(instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>) -> Pin<Box<Self>> {
+        let mut access_provider = Box::new(GlobalsAccessProvider {
+            instance,
+            store: None,
+        });
+
+        let accessor_ref: *mut dyn GlobalsAccessor = &mut *access_provider;
+
+        let holder = GlobalsHolder {
+            access_provider,
+            accessor_ref,
+            access_ptr: 0,
+        };
+
+        let mut boxed_holder = Box::pin(holder);
+
+        let access_ptr = {
+            let holder_ref: &*mut dyn GlobalsAccessor = &boxed_holder.accessor_ref;
+            holder_ref as *const _ as HostPointer
+        };
+
+        unsafe {
+            let mut_ref = Pin::get_unchecked_mut(boxed_holder.as_mut());
+            mut_ref.access_ptr = access_ptr;
+        }
+
+        boxed_holder
+    }
+
+    fn access_provider_mut(&mut self) -> &mut GlobalsAccessProvider<Ext> {
+        self.access_provider.as_mut()
+    }
+
+    fn accessor_ref(&mut self) -> &mut dyn GlobalsAccessor {
+        self.access_provider.as_mut()
+    }
+
+    fn access_ptr(&self) -> HostPointer {
+        self.access_ptr
+    }
+}
+
+struct GlobalsAccessProvider<Ext: Externalities> {
+    instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
+    store: Option<Store<HostState<Ext, BackendMemory<ExecutorMemory>>>>,
+}
+
+impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
+    fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
+        let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
+        self.instance
+            .get_global_val(store, name.as_str())
+            .and_then(i64::try_from_value)
+            .ok_or(GlobalsAccessError)
+    }
+
+    fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
+        let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
+        self.instance
+            .set_global_val(store, name.as_str(), Value::I64(value))
+            .map_err(|_| GlobalsAccessError)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 pub struct BackendReport<Ext>
@@ -286,32 +374,6 @@ where
     }
 }
 
-struct GlobalsAccessProvider<Ext: Externalities> {
-    instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
-    store: Option<Store<HostState<Ext, BackendMemory<ExecutorMemory>>>>,
-}
-
-impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
-    fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
-        let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
-        self.instance
-            .get_global_val(store, name.as_str())
-            .and_then(i64::try_from_value)
-            .ok_or(GlobalsAccessError)
-    }
-
-    fn set_i64(&mut self, name: &LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
-        let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
-        self.instance
-            .set_global_val(store, name.as_str(), Value::I64(value))
-            .map_err(|_| GlobalsAccessError)
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
-
 impl<'a, EnvExt> Environment<'a, EnvExt>
 where
     EnvExt: BackendExternalities + Send + 'static,
@@ -324,6 +386,11 @@ where
         binary: &'a [u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPagesAmount,
+        prepare_memory: impl FnOnce(
+            &mut Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>>,
+            &mut BackendMemory<ExecutorMemory>,
+            GlobalsAccessConfig,
+        ),
     ) -> Result<Environment<'a, EnvExt, ReadyToExecute>, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
@@ -335,7 +402,7 @@ where
             funcs_count: 0,
         };
 
-        let memory: BackendMemory<ExecutorMemory> =
+        let mut memory: BackendMemory<ExecutorMemory> =
             match ExecutorMemory::new(&mut store, mem_size.into(), None) {
                 Ok(mem) => mem.into(),
                 Err(e) => return Err(System(CreateEnvMemory(e))),
@@ -369,6 +436,23 @@ where
             )
         })?;
 
+        #[cfg(feature = "std")]
+        let globals_holder = GlobalsHolder::new(instance.clone());
+
+        #[cfg(feature = "std")]
+        let globals_config = GlobalsAccessConfig {
+            access_ptr: globals_holder.access_ptr(),
+            access_mod: GlobalsAccessMod::NativeRuntime,
+        };
+
+        #[cfg(not(feature = "std"))]
+        let globals_config = GlobalsAccessConfig {
+            access_ptr: instance.get_instance_ptr(),
+            access_mod: GlobalsAccessMod::WasmRuntime,
+        };
+
+        prepare_memory(&mut store, &mut memory, globals_config);
+
         Ok(Environment {
             instance,
             entries,
@@ -376,6 +460,8 @@ where
             memory,
             code: binary,
             execution_result: None,
+            #[cfg(feature = "std")]
+            globals_holder,
             _phantom: PhantomData,
         })
     }
@@ -391,11 +477,6 @@ where
     pub fn execute(
         self,
         entry_point: impl WasmEntryPoint,
-        prepare_memory: impl FnOnce(
-            &mut Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>>,
-            &mut BackendMemory<ExecutorMemory>,
-            GlobalsAccessConfig,
-        ),
     ) -> Result<EnvironmentExecutionResult<'a, EnvExt>, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
@@ -404,8 +485,10 @@ where
             mut instance,
             entries,
             mut store,
-            mut memory,
+            memory,
             code,
+            #[cfg(feature = "std")]
+            mut globals_holder,
             ..
         } = self;
 
@@ -418,34 +501,7 @@ where
             .map_err(|_| System(WrongInjectedGas))?;
 
         #[cfg(feature = "std")]
-        let mut globals_provider = GlobalsAccessProvider {
-            instance: instance.clone(),
-            store: None,
-        };
-        #[cfg(feature = "std")]
-        let globals_provider_dyn_ref = &mut globals_provider as &mut dyn GlobalsAccessor;
-
-        // Pointer to the globals access provider is valid until the end of `invoke` method.
-        // So, we can safely use it inside lazy-pages and be sure that it points to the valid object.
-        // We cannot guaranty that `store` (and so globals also) will be in a valid state,
-        // because executor mut-borrows `store` during execution. But if it's in a valid state
-        // each moment when protect memory signal can occur, than this trick is pretty safe.
-        #[cfg(feature = "std")]
-        let globals_access_ptr = &globals_provider_dyn_ref as *const _ as HostPointer;
-
-        #[cfg(feature = "std")]
-        let globals_config = GlobalsAccessConfig {
-            access_ptr: globals_access_ptr,
-            access_mod: GlobalsAccessMod::NativeRuntime,
-        };
-
-        #[cfg(not(feature = "std"))]
-        let globals_config = GlobalsAccessConfig {
-            access_ptr: instance.get_instance_ptr(),
-            access_mod: GlobalsAccessMod::WasmRuntime,
-        };
-
-        prepare_memory(&mut store, &mut memory, globals_config);
+        let globals_provider_dyn_ref = globals_holder.accessor_ref();
 
         let needs_execution = entry_point
             .try_into_kind()
@@ -482,7 +538,7 @@ where
 
                 let res = instance.invoke(store_ref, entry_point.as_entry(), &[]);
 
-                store = globals_provider.store.take().unwrap();
+                store = globals_holder.access_provider_mut().store.take().unwrap();
 
                 res
             };
@@ -503,6 +559,8 @@ where
                 memory,
                 code,
                 execution_result: Some(res),
+                #[cfg(feature = "std")]
+                globals_holder,
                 _phantom: PhantomData,
             }))
         } else {
@@ -513,6 +571,8 @@ where
                 memory,
                 code,
                 execution_result: Some(res),
+                #[cfg(feature = "std")]
+                globals_holder,
                 _phantom: PhantomData,
             }))
         }
@@ -540,6 +600,8 @@ where
             mut store,
             memory,
             code,
+            #[cfg(feature = "std")]
+            globals_holder,
             ..
         } = self;
 
@@ -556,6 +618,8 @@ where
             memory,
             code,
             execution_result: None,
+            #[cfg(feature = "std")]
+            globals_holder,
             _phantom: PhantomData,
         })
     }
@@ -597,6 +661,8 @@ where
             mut store,
             memory,
             code,
+            #[cfg(feature = "std")]
+            globals_holder,
             ..
         } = self;
 
@@ -609,6 +675,8 @@ where
             memory,
             code,
             execution_result: None,
+            #[cfg(feature = "std")]
+            globals_holder,
             _phantom: PhantomData,
         })
     }
