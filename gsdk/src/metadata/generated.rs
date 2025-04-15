@@ -1075,6 +1075,8 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     ProgramNotCreated,
                     #[codec(index = 4)]
+                    MetadataVerificationFailure,
+                    #[codec(index = 5)]
                     ReinstrumentationFailure,
                     #[codec(index = 255)]
                     Unsupported,
