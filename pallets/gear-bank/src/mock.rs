@@ -21,6 +21,7 @@ use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstU32, FindAuthor},
     weights::constants::RocksDbWeight,
+    PalletId,
 };
 use primitive_types::H256;
 use sp_io::TestExternalities;
@@ -47,8 +48,6 @@ mod consts {
 
     pub const BLOCK_AUTHOR: AccountId = 255;
 
-    pub const BANK_ADDRESS: AccountId = 137;
-
     pub const CHARLIE: AccountId = 3;
     pub const EVE: AccountId = 4;
 
@@ -62,7 +61,7 @@ mod consts {
 pub use consts::*;
 
 parameter_types! {
-    pub const BankAddress: AccountId = BANK_ADDRESS;
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
@@ -97,7 +96,7 @@ pub fn new_test_ext() -> TestExternalities {
     let balances = vec![
         (ALICE, ALICE_BALANCE),
         (BOB, BOB_BALANCE),
-        (BANK_ADDRESS, EXISTENTIAL_DEPOSIT),
+        (GearBank::bank_address(), EXISTENTIAL_DEPOSIT),
         (BLOCK_AUTHOR, EXISTENTIAL_DEPOSIT),
         (CHARLIE, EXISTENTIAL_DEPOSIT),
         (EVE, EXISTENTIAL_DEPOSIT),
@@ -107,6 +106,12 @@ pub fn new_test_ext() -> TestExternalities {
     pallet_balances::GenesisConfig::<Test> { balances }
         .assimilate_storage(&mut storage)
         .unwrap();
+
+    pallet_gear_bank::GenesisConfig::<Test> {
+        _config: Default::default(),
+    }
+    .assimilate_storage(&mut storage)
+    .unwrap();
 
     let mut ext = TestExternalities::new(storage);
     ext.execute_with(|| System::set_block_number(1));

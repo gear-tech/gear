@@ -108,7 +108,9 @@ pub(crate) enum TestActor {
     Initialized(Program),
     // Contract: program is always `Some`, option is used to take ownership
     Uninitialized(Option<MessageId>, Option<Program>),
-    Dormant,
+    FailedInit,
+    CodeNotExists,
+    Exited(ProgramId),
 }
 
 impl TestActor {
@@ -142,11 +144,6 @@ impl TestActor {
     // Checks if actor is initialized.
     pub(crate) fn is_initialized(&self) -> bool {
         matches!(self, TestActor::Initialized(..))
-    }
-
-    // Checks if actor is dormant.
-    pub(crate) fn is_dormant(&self) -> bool {
-        matches!(self, TestActor::Dormant)
     }
 
     // Returns `Some` if actor contains genuine program.

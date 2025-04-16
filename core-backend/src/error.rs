@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use actor_system_error::actor_system_error;
-use codec::{Decode, Encode};
 use gear_core::{
     gas::{ChargeError, CounterType},
     ids::ProgramId,
     message::{MessageWaitedType, PanicBuffer},
 };
 use gear_core_errors::ExtError as FallibleExtError;
+use parity_scale_codec::{Decode, Encode};
 
 actor_system_error! {
     pub type TerminationReason = ActorSystemError<ActorTerminationReason, SystemTerminationReason>;
@@ -75,7 +75,6 @@ impl<E: BackendSyscallError> From<E> for UndefinedTerminationReason {
 }
 
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
-#[codec(crate = codec)]
 pub enum ActorTerminationReason {
     Exit(ProgramId),
     Leave,
@@ -116,7 +115,6 @@ pub struct SystemTerminationReason;
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum UnrecoverableExecutionError {
     #[display(fmt = "Invalid debug string passed in `gr_debug` syscall")]
     InvalidDebugString,
@@ -143,7 +141,6 @@ pub enum UnrecoverableExecutionError {
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum UnrecoverableMemoryError {
     /// The error occurs in attempt to access memory outside wasm program memory.
     #[display(fmt = "Trying to access memory outside wasm program memory")]
@@ -166,7 +163,6 @@ pub enum UnrecoverableMemoryError {
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum UnrecoverableWaitError {
     /// An error occurs in attempt to wait for or wait up to zero blocks.
     #[display(fmt = "Waiting duration cannot be zero")]
@@ -188,7 +184,6 @@ pub enum UnrecoverableWaitError {
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum UnrecoverableExtError {
     #[display(fmt = "Execution error: {_0}")]
     Execution(UnrecoverableExecutionError),
@@ -210,7 +205,6 @@ pub enum UnrecoverableExtError {
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum TrapExplanation {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
