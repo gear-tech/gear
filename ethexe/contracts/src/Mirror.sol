@@ -184,9 +184,12 @@ contract Mirror is IMirror {
         // - `uint8 topicsLength` (can be `1`, `2`, `3`, `4`).
         //    specifies which opcode (`log1`, `log2`, `log3`, `log4`) should be called.
         // - `bytes32 topic1` (required)
+        //    should never match our event selectors!
         // - `bytes32 topic2` (optional)
         // - `bytes32 topic3` (optional)
         // - `bytes32 topic4` (optional)
+        // - `bytes payload` (optional)
+        //    contains encoded data of event in form of `abi.encode(...)`.
         if (_message.destination == ETH_EVENT_ADDR && _message.value == 0 && payload.length > 0) {
             uint256 topicsLength;
             assembly ("memory-safe") {
