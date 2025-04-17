@@ -20,11 +20,9 @@
 
 use anyhow::{bail, Result as AnyhowResult};
 use ethexe_common::tx_pool::OffchainTransaction;
-use gprimitives::{H160, H256};
 use jsonrpsee::types::ErrorObjectOwned;
 use reqwest::{Client, Response, Result};
 use serde::{de::DeserializeOwned, Deserialize};
-use sp_core::Bytes;
 
 /// Client for the ethexe rpc server.
 pub struct RpcClient {
@@ -51,30 +49,6 @@ impl RpcClient {
             "params": {
                 "ethexe_tx": ethexe_tx,
                 "signature": signature,
-            },
-            "id": 1,
-        });
-
-        self.client.post(&self.url).json(&body).send().await
-    }
-
-    pub async fn calculate_reply_for_handle(
-        &self,
-        at: Option<H256>,
-        source: H160,
-        program_id: H160,
-        payload: Bytes,
-        value: u128,
-    ) -> Result<Response> {
-        let body = serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": "program_calculateReplyForHandle",
-            "params": {
-                "at": at,
-                "source": source,
-                "program_id": program_id,
-                "payload": payload,
-                "value": value,
             },
             "id": 1,
         });

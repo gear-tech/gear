@@ -82,6 +82,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         Ok((res, codes_to_load_later))
     }
 
+    /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
         let Some(latest_synced_block_height) = self.db.latest_synced_block_height() else {
             log::warn!("latest_synced_block_height is not set in the database");
@@ -123,6 +124,14 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         .await
     }
 
+    /// Sync level processing for blocks pre-loaded/received from the Ethereum.
+    ///
+    /// 1. Sets block header and events to the database.
+    /// 2. If there're any `CodeValidationRequested` events, it sets the code info to the database and
+    ///    adds the code id to the set of codes to load later.
+    /// 3. If there're any `CodeGotValidated` events, it adds the code id to the set of codes to load now.
+    ///
+    /// Returns the chain of unsynced blocks, the set of codes to load now, and the set of codes to load later.
     async fn load_chain(
         &self,
         block: H256,
@@ -205,6 +214,11 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         ))
     }
 
+    /// Loads codes from the Ethereum using own blobs reader.
+    ///
+    /// Blobs reader reads codes from the Ethereum transactions.
+    /// The function puts tasks into unordered futures queue and
+    /// waits for all of them to finish.
     async fn load_codes(&self, codes: impl Iterator<Item = CodeId>) -> Result<()> {
         // TODO #4564: consider to change this behaviour of loading already validated codes.
         // Should be done with ObserverService::codes_futures together.

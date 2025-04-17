@@ -804,9 +804,9 @@ fn overlay_execution_noop() {
     processor.db.set_block_schedule(block3, schedule);
 
     // Check queues are still not empty in the block3.
-    let ping_mq = get_program_mq(ping_id, block3, &&processor).expect("ping mq wasn't found");
+    let ping_mq = get_program_mq(ping_id, block3, &processor).expect("ping mq wasn't found");
     assert_eq!(ping_mq.len(), 2);
-    let async_mq = get_program_mq(async_id, block3, &&processor).expect("async mq wasn't found");
+    let async_mq = get_program_mq(async_id, block3, &processor).expect("async mq wasn't found");
     assert_eq!(async_mq.len(), 3);
 
     // Send message using overlay on the block3.

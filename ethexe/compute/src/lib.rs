@@ -136,6 +136,8 @@ struct ChainHeadProcessContext {
 
 impl ChainHeadProcessContext {
     /// Processes the chain of not computed blocks starting from the given `head`.
+    ///
+    /// If there is a chain of blocks to be processed, then `head` is the latest block.
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
@@ -147,6 +149,15 @@ impl ChainHeadProcessContext {
         Ok(BlockProcessed { block_hash: head })
     }
 
+    /// Processes events from the provided block.
+    ///
+    /// The processing is a complex task, which involves:
+    /// - Instrumenting validated codes and setting the instrumented version, if not already done.
+    /// - Building commitments from outcomes resulted from processing block events, which itself
+    ///   returns state transition for ethexe actors.
+    /// - Merging the fresh commitments with those from the parent block. Parent block commitments
+    ///   can remain pending (not fully processed by the sequencer service).
+    /// - Setting the block as computed, it's outcome from events processing and the final commitment queue.
     async fn process_one_block(&mut self, block_data: SimpleBlockData) -> Result<()> {
         let SimpleBlockData {
             hash: block,

@@ -139,7 +139,7 @@ impl Stream for ObserverService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // If subscription stream finished working, a new subscription is requested to be created.
-        // The subscription createion request is a future itself, and it is polled here. If it's ready,
+        // The subscription creation request is a future itself, and it is polled here. If it's ready,
         // a new stream from it is created and used further to poll the next header.
         if let Some(future) = self.subscription_future.as_mut() {
             match future.poll_unpin(cx) {
@@ -286,9 +286,6 @@ impl ObserverService {
         })
     }
 
-    // TODO #4563: this is a temporary solution.
-    // Choose a better place for this, out of ObserverService.
-
     /// Populates database with genesis block data.
     ///
     /// Basically, requests data for the block, which is considered to be a genesis block
@@ -304,6 +301,8 @@ impl ObserverService {
     ///   and processing outcome (state transitions) are set to default (empty) values.
     ///
     /// If genesis block was computed earlier, this function returns immediately.
+    // TODO #4563: this is a temporary solution.
+    // Choose a better place for this, out of ObserverService.
     async fn pre_process_genesis_for_db(
         db: &Database,
         provider: &RootProvider,

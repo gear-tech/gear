@@ -124,6 +124,7 @@ impl Processor {
         Ok(outcomes)
     }
 
+    /// todo [sab]
     pub fn process_block_events_raw(
         &mut self,
         block_hash: H256,
@@ -161,7 +162,7 @@ impl Processor {
     pub fn process_queue(&mut self, handler: &mut ProcessingHandler) {
         self.creator.set_chain_head(handler.block_hash);
 
-        run::run(&self, &mut handler.transitions);
+        run::run(self, &mut handler.transitions);
     }
 }
 
@@ -237,6 +238,6 @@ impl OverlaidProcessor {
     fn process_queue(&mut self, handler: &mut ProcessingHandler, program_id: ActorId) {
         self.0.creator.set_chain_head(handler.block_hash);
 
-        run::run_overlaid(&self, &mut handler.transitions, program_id);
+        run::run_overlaid(self, &mut handler.transitions, program_id);
     }
 }

@@ -22,14 +22,14 @@ use crate::{
 };
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
-use ethexe_db::{BlockHeader, CodesStorage, Database};
-use ethexe_runtime_common::{state::{Storage, ActiveProgram, Dispatch, MaybeHashOf, Program, ProgramState}, InBlockTransitions, JournalHandler, TransitionController};
+use ethexe_db::{CodesStorage, Database};
+use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
 use gear_core::{ids::ProgramId, message::DispatchKind};
-use gprimitives::{MessageId, H256};
+use gprimitives::H256;
 use std::collections::{BTreeMap, BTreeSet};
 use tokio::sync::{mpsc, oneshot};
 
-/// A ethexe-processir task unit.
+/// A ethexe-processor task unit.
 enum Task {
     /// A task for processing message queue of the program with id `program_id`.
     /// The message queue is expected to be obtained form the storage using the `state_hash`.
@@ -40,20 +40,22 @@ enum Task {
     },
 }
 
-pub fn run(processor: &Processor, in_block_transitions: &mut InBlockTransitions) {
-    let config = processor.config();
-    let db = processor.db.clone();
-    let instance_creator = processor.creator.clone();
-
-    run_impl(&config, db, instance_creator, in_block_transitions, None);
-}
-
+/// A context for the overlay execution.
+///
+/// For more info see [`run_overlaid`].
 struct OverlayRunContext {
     nulled_queues: BTreeSet<ProgramId>,
     db: Database,
 }
 
 impl OverlayRunContext {
+    /// Instantiates a new [`OverlayRunContext`].
+    ///
+    /// The overlaid execution and the instantiation of the context
+    /// has implicit contract to be stated: the latest message in the
+    /// queue of the base program is the one for which the overlaid executor
+    /// is created. Therefor the queue for the base program is not fully nullified,
+    /// i.e. the last message is kept in the queue.
     fn new(
         base_program: ProgramId,
         db: Database,
@@ -127,6 +129,27 @@ impl OverlayRunContext {
     }
 }
 
+/// Entry-point which processes all the requested by events transitions for
+/// programs in the current block.
+pub fn run(processor: &Processor, in_block_transitions: &mut InBlockTransitions) {
+    let config = processor.config();
+    let db = processor.db.clone();
+    let instance_creator = processor.creator.clone();
+
+    run_impl(config, db, instance_creator, in_block_transitions, None);
+}
+
+/// Entry-point which processes all the requested by events transitions for
+/// programs in the current block, but with the overlay processor.
+///
+/// Overlay processor is created to execute a specific message for the specific program
+/// using an overlaid database. The overlaid execution of the message has no interest
+/// in all the possible state transitions performed by other programs. It is only interested
+/// in transitions which are related to the execution of the base (specific) program.
+/// That's why the queues of all the programs are initially nullified, except for the base one.
+/// For the base one only the last message is kept in the queue (see [`OverlayRunContext::new`]).
+/// The nullification is done to increase speed of the overlaid execution as concerned programs
+/// can have large queues, which will slow down the processing for the reply from the main program.
 pub fn run_overlaid(
     processor: &OverlaidProcessor,
     in_block_transitions: &mut InBlockTransitions,
@@ -138,7 +161,7 @@ pub fn run_overlaid(
     let overlay_ctx = OverlayRunContext::new(base_pid, db.clone(), in_block_transitions);
 
     run_impl(
-        &config,
+        config,
         db,
         instance_creator,
         in_block_transitions,
@@ -146,6 +169,8 @@ pub fn run_overlaid(
     );
 }
 
+/// Instantiates a new runtime and runs the requested by events transitions for
+/// programs in different threads.
 fn run_impl(
     config: &ProcessorConfig,
     db: Database,
@@ -174,6 +199,13 @@ fn run_impl(
     })
 }
 
+/// Actually runs the requested by events transitions for programs in different threads.
+///
+/// Based on the amount of `virtual_threads` it creates a number of workers, which await
+/// for the task to execute queue of a particular program.
+/// All the programs are processed in batches, which are sent to the workers.
+///
+/// After executing one batch, the results are collected and the journal is handled.
 async fn run_in_async(
     virtual_threads: usize,
     db: Database,
@@ -292,6 +324,9 @@ async fn worker(
 }
 
 /// Inner implementation of the task processing done by the worker.
+///
+/// Basically calls exported `run` function from the executor in the form
+/// of wasm module instance.
 async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
     match task {
         Task::Run {
@@ -326,6 +361,9 @@ async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
 /// The `from_index` argument is itself expected to be updated by the virtual
 /// threads amount. So, if there are 3 virtual threads, then `from_index`
 /// will be set to 0, 3, 6, 9, etc.
+///
+/// If overlay context is provided, then the queues of the programs are nullified,
+/// before tasks are sent. No double nullification occurs.
 ///
 /// Returns a set of receivers, which are used to wait for the results of the tasks to be sent from [`worker`].
 async fn one_batch(
@@ -373,6 +411,12 @@ async fn one_batch(
 // - no double nullification occurs
 #[tokio::test]
 async fn test_nullification() {
+    use ethexe_db::BlockHeader;
+    use ethexe_runtime_common::state::{
+        ActiveProgram, Dispatch, MaybeHashOf, Program, ProgramState, Storage,
+    };
+    use gprimitives::MessageId;
+
     let mem_db = ethexe_db::MemDb::default();
     let db = Database::from_one(&mem_db);
 
@@ -380,102 +424,62 @@ async fn test_nullification() {
     let pid1 = ProgramId::from(H256::random());
     let pid2 = ProgramId::from(H256::random());
 
-    // Create a proper state for pid1
-    let mut pid1_state = ProgramState {
-        program: Program::Active(ActiveProgram {
-            allocations_hash: MaybeHashOf::empty(),
-            pages_hash: MaybeHashOf::empty(),
-            memory_infix: Default::default(),
-            initialized: true,
-        }),
-        queue_hash: MaybeHashOf::empty(),
-        waitlist_hash: MaybeHashOf::empty(),
-        stash_hash: MaybeHashOf::empty(),
-        mailbox_hash: MaybeHashOf::empty(),
-        balance: 10_000_000_000,
-        executable_balance: 10_000_000_000,
+    let create_pid_state = |messages: Vec<MessageId>| {
+        let mut pid_state = ProgramState {
+            program: Program::Active(ActiveProgram {
+                allocations_hash: MaybeHashOf::empty(),
+                pages_hash: MaybeHashOf::empty(),
+                memory_infix: Default::default(),
+                initialized: true,
+            }),
+            queue_hash: MaybeHashOf::empty(),
+            waitlist_hash: MaybeHashOf::empty(),
+            stash_hash: MaybeHashOf::empty(),
+            mailbox_hash: MaybeHashOf::empty(),
+            balance: 10_000_000_000,
+            executable_balance: 10_000_000_000,
+        };
+
+        pid_state.queue_hash.modify_queue(&db, |queue| {
+            for id in messages {
+                let dispatch = Dispatch::new(&db, id, source, vec![], 0, false, Origin::Ethereum)
+                    .expect("Failed to create dispatch");
+                queue.queue(dispatch);
+            }
+        });
+
+        pid_state
     };
 
-    let pid1_mid1 = MessageId::from(H256::random());
-    let pid1_mid2 = MessageId::from(H256::random());
-    let pid1_mid3 = MessageId::from(H256::random());
-    pid1_state.queue_hash.modify_queue(&db, |queue| {
-        let dispatch1 = Dispatch::new(
-            &db,
-            pid1_mid1,
-            source,
-            vec![],
-            0,
-            false,
-            Origin::Ethereum
-        ).expect("Failed to create dispatch");
-        queue.queue(dispatch1);
+    fn access_state<F>(
+        pid: ProgramId,
+        in_block_transitions: &mut InBlockTransitions,
+        db: &Database,
+        mut f: F,
+    ) where
+        F: FnMut(&mut ProgramState, &Database, &mut InBlockTransitions),
+    {
+        let mut tc = TransitionController {
+            storage: db,
+            transitions: in_block_transitions,
+        };
 
-        let dispatch2 = Dispatch::new(
-            &db,
-            pid1_mid2,
-            source,
-            vec![],
-            0,
-            false,
-            Origin::Ethereum
-        ).expect("Failed to create dispatch");
-        queue.queue(dispatch2);
+        tc.update_state(pid, |state, storage, transitions| {
+            f(state, storage, transitions)
+        });
+    }
 
-        let dispatch3 = Dispatch::new(
-            &db,
-            pid1_mid3,
-            source,
-            vec![],
-            0,
-            false,
-            Origin::Ethereum
-        ).expect("Failed to create dispatch");
-        queue.queue(dispatch3);
-    });
+    // Create a proper state for pid1
+    let pid1_state = create_pid_state(vec![
+        MessageId::from(H256::random()),
+        MessageId::from(H256::random()),
+        MessageId::from(H256::random()),
+    ]);
     let pid1_state_hash = db.write_state(pid1_state);
 
     // Create a proper state for pid2
-    let mut pid2_state = ProgramState {
-        program: Program::Active(ActiveProgram {
-            allocations_hash: MaybeHashOf::empty(),
-            pages_hash: MaybeHashOf::empty(),
-            memory_infix: Default::default(),
-            initialized: true,
-        }),
-        queue_hash: MaybeHashOf::empty(),
-        waitlist_hash: MaybeHashOf::empty(),
-        stash_hash: MaybeHashOf::empty(),
-        mailbox_hash: MaybeHashOf::empty(),
-        balance: 10_000_000_000,
-        executable_balance: 10_000_000_000,
-    };
-
-    let pid2_mid1 = MessageId::from(H256::random());
     let pid2_overlay_mid2 = MessageId::from(H256::random());
-    pid2_state.queue_hash.modify_queue(&db, |queue| {
-        let dispatch1 = Dispatch::new(
-            &db,
-            pid2_mid1,
-            source,
-            vec![],
-            0,
-            false,
-            Origin::Ethereum
-        ).expect("Failed to create dispatch");
-        queue.queue(dispatch1);
-
-        let dispatch2 = Dispatch::new(
-            &db,
-            pid2_overlay_mid2,
-            source,
-            vec![],
-            0,
-            false,
-            Origin::Ethereum
-        ).expect("Failed to create dispatch");
-        queue.queue(dispatch2);
-    });
+    let pid2_state = create_pid_state(vec![MessageId::from(H256::random()), pid2_overlay_mid2]);
     let pid2_state_hash = db.write_state(pid2_state);
 
     // Create in block transitions
@@ -485,57 +489,62 @@ async fn test_nullification() {
         timestamp: 10000,
         parent_hash: H256::random(),
     };
-    let mut in_block_transitions = InBlockTransitions::new(block_header, states, Default::default());
+    let mut in_block_transitions =
+        InBlockTransitions::new(block_header, states, Default::default());
 
     let base_program = pid2;
 
-    // Check pid2 state after creating overlay context.
-    let mut overlay_ctx = OverlayRunContext::new(base_program, db.clone(), &mut in_block_transitions);
+    // Check programs states after creating overlay context.
+    let mut overlay_ctx =
+        OverlayRunContext::new(base_program, db.clone(), &mut in_block_transitions);
 
     assert!(overlay_ctx.nulled_queues.contains(&pid2));
     assert!(!overlay_ctx.nulled_queues.contains(&pid1));
 
-    let mut transition_controller = TransitionController {
-        storage: &db,
-        transitions: &mut in_block_transitions,
-    };
-    transition_controller.update_state(pid2, |state, storage, _| {
-        let mut queue = state.queue_hash.query(storage).expect("Failed to read queue for pid2");
+    access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
+        let mut queue = state
+            .queue_hash
+            .query(storage)
+            .expect("Failed to read queue for pid2");
         assert_eq!(queue.len(), 1);
-        
+
         let dispatch = queue.dequeue().expect("pid2 queue has 1 dispatch");
         assert_eq!(dispatch.id, pid2_overlay_mid2);
     });
-    transition_controller.update_state(pid1, |state, storage, _| {
-        let queue = state.queue_hash.query(storage).expect("Failed to read queue for pid2");
+    access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
+        let queue = state
+            .queue_hash
+            .query(storage)
+            .expect("Failed to read queue for pid2");
         assert_eq!(queue.len(), 3);
     });
 
     // Run batch creation, which performs nullification before programs are executed.
-    // No task senders are sent, because nullification logic is independant
+    // No task senders are sent, because nullification logic is independent.
     let _ = one_batch(0, &[], &mut in_block_transitions, Some(&mut overlay_ctx)).await;
 
-    let mut transition_controller = TransitionController {
-        storage: &db,
-        transitions: &mut in_block_transitions,
-    };
-    // Check pid2 (base program) state after running one_batch for the first time.
-    transition_controller.update_state(pid2, |state, storage, _| {
-        let mut queue = state.queue_hash.query(storage).expect("Failed to read queue for pid2");
+    // Check programs states after `one_batch` execution.
+    access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
+        let mut queue = state
+            .queue_hash
+            .query(storage)
+            .expect("Failed to read queue for pid2");
         assert_eq!(queue.len(), 1);
-        
+
         let dispatch = queue.dequeue().expect("pid2 queue has 1 dispatch");
         assert_eq!(dispatch.id, pid2_overlay_mid2);
     });
-    // Check pid1 state after running one_batch for the first time.
-    transition_controller.update_state(pid1, |state, storage, _| {
-        let queue = state.queue_hash.query(storage).expect("Failed to read queue for pid2");
+    access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
+        let queue = state
+            .queue_hash
+            .query(storage)
+            .expect("Failed to read queue for pid2");
         assert_eq!(queue.len(), 0);
     });
 
-    // Say pid1 received one message
+    // Say, pid1 received one message
     let pid1_overlay_mid4 = MessageId::from(H256::random());
-    transition_controller.update_state(pid1, |state, storage, _| {
+    access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
         state.queue_hash.modify_queue(storage, |queue| {
             let dispatch = Dispatch::new(
                 storage,
@@ -544,15 +553,16 @@ async fn test_nullification() {
                 vec![],
                 0,
                 false,
-                Origin::Ethereum
-            ).expect("Failed to create dispatch");
+                Origin::Ethereum,
+            )
+            .expect("Failed to create dispatch");
             queue.queue(dispatch);
         });
     });
 
     // Say pid2 (base program) mq was executed and a new message for it occurred.
     let pid2_overlay_mid3 = MessageId::from(H256::random());
-    transition_controller.update_state(pid2, |state, storage, _| {
+    access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
         state.queue_hash.modify_queue(storage, |queue| {
             // first dequeue the message
             let _ = queue.dequeue().expect("pid2 queue has 1 dispatch");
@@ -564,8 +574,9 @@ async fn test_nullification() {
                 vec![],
                 0,
                 false,
-                Origin::Ethereum
-            ).expect("Failed to create dispatch");
+                Origin::Ethereum,
+            )
+            .expect("Failed to create dispatch");
             queue.queue(dispatch);
         });
     });
@@ -573,29 +584,26 @@ async fn test_nullification() {
     // Call one_batch again, which won't nullify the queues again.
     let _ = one_batch(0, &[], &mut in_block_transitions, Some(&mut overlay_ctx)).await;
 
-    let mut transition_controller = TransitionController {
-        storage: &db,
-        transitions: &mut in_block_transitions,
-    };
     // Check pid2 (base program) state after running one_batch for the second time.
-    transition_controller.update_state(pid2, |state, storage, _| {
-        let mut queue = state.queue_hash.query(storage).expect("Failed to read queue for pid2");
+    access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
+        let mut queue = state
+            .queue_hash
+            .query(storage)
+            .expect("Failed to read queue for pid2");
         assert_eq!(queue.len(), 1);
-        
+
         let dispatch = queue.dequeue().expect("pid2 queue has 1 dispatch");
         assert_eq!(dispatch.id, pid2_overlay_mid3);
     });
     // Check pid1 state after running one_batch for the second time.
-    transition_controller.update_state(pid1, |state, storage, _| {
-        let mut queue = state.queue_hash.query(storage).expect("Failed to read queue for pid2");
+    access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
+        let mut queue = state
+            .queue_hash
+            .query(storage)
+            .expect("Failed to read queue for pid2");
         assert_eq!(queue.len(), 1);
 
         let dispatch = queue.dequeue().expect("pid1 queue has 1 dispatch");
         assert_eq!(dispatch.id, pid1_overlay_mid4);
     });
-
 }
-
-// Todo [sab]:
-// 2. Refactor
-// 3. Docs.

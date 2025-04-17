@@ -28,6 +28,15 @@ use ethexe_common::{
 };
 use gprimitives::{ActorId, H256};
 
+/// In-memory store for the state transitions
+/// that are going to be applied in the current block.
+///
+/// The type is instantiated with states taken from the parent
+/// block, as parent block stores latest states to be possibly
+/// updated in the current block.
+///
+/// The type actually stores latest state transitions, which are going to be
+/// applied in the current block.
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
     header: BlockHeader,
