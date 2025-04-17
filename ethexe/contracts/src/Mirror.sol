@@ -117,9 +117,7 @@ contract Mirror is IMirror {
         require(implementationSlot.value == address(0), "abi interface could only be set once");
 
         initializer = _initializer;
-        if (_abiInterface != address(0)) {
-            implementationSlot.value = _abiInterface;
-        }
+        implementationSlot.value = _abiInterface;
     }
 
     // NOTE (breathx): value to receive should be already handled in router.
@@ -350,7 +348,7 @@ contract Mirror is IMirror {
             StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT);
         address _abiInterface = implementationSlot.value;
 
-        if (_abiInterface != address(0)) {
+        if (_abiInterface != IRouter(router).mirrorImpl()) {
             require(msg.data.length >= 0x24);
 
             uint256 value;
