@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, ensure, Result};
-use derivative::Derivative;
+use derive_more::{Debug, Display};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
@@ -28,12 +28,13 @@ use ethexe_service_utils::Timer;
 use ethexe_signer::Address;
 use futures::FutureExt;
 use gprimitives::H256;
-use std::{fmt, task::Context};
+use std::task::Context;
 
 use super::{coordinator::Coordinator, initial::Initial, ValidatorContext, ValidatorSubService};
 use crate::ConsensusEvent;
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
+#[display("PRODUCER in {:?}", self.state)]
 pub struct Producer {
     ctx: ValidatorContext,
     block: SimpleBlockData,
@@ -41,11 +42,10 @@ pub struct Producer {
     state: State,
 }
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 enum State {
     CollectOffChainTransactions {
-        #[derivative(Debug = "ignore")]
+        #[debug(skip)]
         timer: Timer,
     },
     WaitingBlockComputed(H256),
@@ -105,12 +105,6 @@ impl ValidatorSubService for Producer {
         }
 
         Ok(self)
-    }
-}
-
-impl fmt::Display for Producer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("PRODUCER in {:?}", self.state))
     }
 }
 

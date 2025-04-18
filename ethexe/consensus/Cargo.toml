@@ -21,8 +21,7 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
-derive_more.workspace = true
-derivative = "2"
+derive_more = { version = "2.0.1", features = ["full"] }
 
 [dev-dependencies]
 rand.workspace = true

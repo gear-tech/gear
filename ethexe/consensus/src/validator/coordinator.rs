@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, ensure, Result};
+use derive_more::{Debug, Display};
 use ethexe_common::gear::BatchCommitment;
 use ethexe_signer::Address;
-use std::{collections::BTreeSet, fmt};
+use std::collections::BTreeSet;
 
 use super::{submitter::Submitter, ValidatorContext, ValidatorSubService};
 use crate::{
@@ -27,7 +28,8 @@ use crate::{
     BatchCommitmentValidationReply, ConsensusEvent,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
+#[display("COORDINATOR")]
 pub struct Coordinator {
     ctx: ValidatorContext,
     validators: BTreeSet<Address>,
@@ -72,12 +74,6 @@ impl ValidatorSubService for Coordinator {
         } else {
             Ok(self)
         }
-    }
-}
-
-impl fmt::Display for Coordinator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("COORDINATOR")
     }
 }
 

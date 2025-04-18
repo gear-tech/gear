@@ -17,17 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
+use derive_more::{Debug, Display};
 use ethexe_common::SimpleBlockData;
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::Address;
-use std::fmt;
 
 use super::{
     producer::Producer, subordinate::Subordinate, DefaultProcessing, ValidatorContext,
     ValidatorSubService,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
+#[display("INITIAL in {:?}", self.state)]
 pub struct Initial {
     ctx: ValidatorContext,
     state: State,
@@ -90,12 +91,6 @@ impl ValidatorSubService for Initial {
             }
             _ => DefaultProcessing::synced_block(self, data),
         }
-    }
-}
-
-impl fmt::Display for Initial {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("INITIAL in {:?}", self.state))
     }
 }
 

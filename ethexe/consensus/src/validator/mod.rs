@@ -42,7 +42,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use derivative::Derivative;
+use derive_more::{Debug, From};
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
@@ -53,7 +53,7 @@ use gprimitives::H256;
 use std::{
     any::Any,
     collections::VecDeque,
-    fmt::{self, Display},
+    fmt,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -94,14 +94,14 @@ pub struct ValidatorService {
 pub struct ValidatorConfig {
     /// Ethereum RPC endpoint URL
     pub ethereum_rpc: String,
-    /// ECDSA public key of the validator
+    /// ECDSA public key of this validator
     pub pub_key: PublicKey,
     /// Address of the router contract
     pub router_address: Address,
     /// ECDSA multi-signature threshold
     // TODO +_+_+: threshold should be a ratio (and maybe also a block dependent value)
     pub threshold: u64,
-    /// Duration of a slot (only to identify producer for the incoming blocks)
+    /// Duration of ethexe slot (only to identify producer for the incoming blocks)
     pub slot_duration: Duration,
 }
 
@@ -224,7 +224,7 @@ impl FusedStream for ValidatorService {
 }
 
 /// An event that can be saved for later processing.
-#[derive(Clone, Debug, derive_more::From, PartialEq, Eq)]
+#[derive(Clone, Debug, From, PartialEq, Eq)]
 enum PendingEvent {
     /// A block from the producer
     ProducerBlock(SignedData<ProducerBlock>),
@@ -234,7 +234,7 @@ enum PendingEvent {
 
 /// Trait defining the interface for validator sub-services.
 /// Each sub-service represents a different state in the validation state machine.
-trait ValidatorSubService: Display + fmt::Debug + Any + Unpin + Send + 'static {
+trait ValidatorSubService: fmt::Display + fmt::Debug + Any + Unpin + Send + 'static {
     fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService>;
     fn context(&self) -> &ValidatorContext;
     fn context_mut(&mut self) -> &mut ValidatorContext;
@@ -360,19 +360,18 @@ impl DefaultProcessing {
     }
 }
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 struct ValidatorContext {
     slot_duration: Duration,
     threshold: u64,
     router_address: Address,
     pub_key: PublicKey,
 
-    #[derivative(Debug = "ignore")]
+    #[debug(skip)]
     signer: Signer,
-    #[derivative(Debug = "ignore")]
+    #[debug(skip)]
     db: Database,
-    #[derivative(Debug = "ignore")]
+    #[debug(skip)]
     committer: Box<dyn BatchCommitter>,
 
     /// Pending events that are saved for later processing.

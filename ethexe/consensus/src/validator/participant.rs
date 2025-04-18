@@ -17,11 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, ensure, Result};
+use derive_more::{Debug, Display};
 use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
 use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
 use ethexe_signer::{Address, Digest, SignedData, ToDigest};
 use gprimitives::H256;
-use std::fmt;
 
 use super::{
     initial::Initial, DefaultProcessing, PendingEvent, ValidatorContext, ValidatorSubService,
@@ -34,7 +34,8 @@ use crate::{
     ConsensusEvent,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
+#[display("PARTICIPANT")]
 pub struct Participant {
     ctx: ValidatorContext,
     #[allow(unused)]
@@ -68,12 +69,6 @@ impl ValidatorSubService for Participant {
         } else {
             DefaultProcessing::validation_request(self, request)
         }
-    }
-}
-
-impl fmt::Display for Participant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("PARTICIPANT")
     }
 }
 

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use core::fmt;
+use derive_more::{Debug, Display};
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_signer::{Address, SignedData};
 use gprimitives::H256;
@@ -30,7 +30,8 @@ use crate::{validator::participant::Participant, ConsensusEvent};
 
 const MAX_PENDING_EVENTS: usize = 10;
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
+#[display("SUBORDINATE in {:?}", self.state)]
 pub struct Subordinate {
     ctx: ValidatorContext,
     producer: Address,
@@ -122,12 +123,6 @@ impl ValidatorSubService for Subordinate {
     }
 }
 
-impl fmt::Display for Subordinate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("SUBORDINATE in {:?}", self.state))
-    }
-}
-
 impl Subordinate {
     pub fn create(
         mut ctx: ValidatorContext,
@@ -139,7 +134,7 @@ impl Subordinate {
 
         // Search for already received producer blocks.
         // If events amount is eq to MAX_PENDING_EVENTS, then oldest ones would be removed.
-        // TODO: potential abuse can be here. If we receive a lot of fake events,
+        // TODO +_+_+: potential abuse can be here. If we receive a lot of fake events,
         // important ones can be removed. What to do:
         // 1) Check event is sent by current or next or previous era validator.
         // 2) Malicious validator can send a lot of events (consider what to do).

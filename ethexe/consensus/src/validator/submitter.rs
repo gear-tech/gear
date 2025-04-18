@@ -18,23 +18,20 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use derivative::Derivative;
+use derive_more::{Debug, Display};
 use ethexe_ethereum::router::Router;
 use futures::{future::BoxFuture, FutureExt};
 use gprimitives::H256;
-use std::{
-    fmt,
-    task::{Context, Poll},
-};
+use std::task::{Context, Poll};
 
 use super::{initial::Initial, BatchCommitter, ValidatorContext, ValidatorSubService};
 use crate::{utils::MultisignedBatchCommitment, ConsensusEvent};
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug, Display)]
+#[display("SUBMITTER")]
 pub struct Submitter {
     ctx: ValidatorContext,
-    #[derivative(Debug = "ignore")]
+    #[debug(skip)]
     future: BoxFuture<'static, Result<H256>>,
 }
 
@@ -69,12 +66,6 @@ impl ValidatorSubService for Submitter {
             }
             Poll::Pending => Ok(self),
         }
-    }
-}
-
-impl fmt::Display for Submitter {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("SUBMITTER")
     }
 }
 
