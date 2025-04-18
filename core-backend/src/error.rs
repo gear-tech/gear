@@ -116,15 +116,15 @@ pub struct SystemTerminationReason;
     derive_more::From,
 )]
 pub enum UnrecoverableExecutionError {
-    #[display(fmt = "Invalid debug string passed in `gr_debug` syscall")]
+    #[display("Invalid debug string passed in `gr_debug` syscall")]
     InvalidDebugString,
-    #[display(fmt = "Not enough gas for operation")]
+    #[display("Not enough gas for operation")]
     NotEnoughGas,
-    #[display(fmt = "Cannot take data in payload range from message with size")]
+    #[display("Cannot take data in payload range from message with size")]
     ReadWrongRange,
-    #[display(fmt = "Unsupported version of environment variables encountered")]
+    #[display("Unsupported version of environment variables encountered")]
     UnsupportedEnvVarsVersion,
-    #[display(fmt = "Length is overflowed to read panic payload")]
+    #[display("Length is overflowed to read panic payload")]
     PanicBufferIsTooBig,
 }
 
@@ -143,10 +143,10 @@ pub enum UnrecoverableExecutionError {
 )]
 pub enum UnrecoverableMemoryError {
     /// The error occurs in attempt to access memory outside wasm program memory.
-    #[display(fmt = "Trying to access memory outside wasm program memory")]
+    #[display("Trying to access memory outside wasm program memory")]
     AccessOutOfBounds,
     /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
-    #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
+    #[display("Trying to allocate more memory in block-chain runtime than allowed")]
     RuntimeAllocOutOfBounds,
 }
 
@@ -165,10 +165,10 @@ pub enum UnrecoverableMemoryError {
 )]
 pub enum UnrecoverableWaitError {
     /// An error occurs in attempt to wait for or wait up to zero blocks.
-    #[display(fmt = "Waiting duration cannot be zero")]
+    #[display("Waiting duration cannot be zero")]
     ZeroDuration,
     /// An error occurs in attempt to wait after reply sent.
-    #[display(fmt = "`wait()` is not allowed after reply sent")]
+    #[display("`wait()` is not allowed after reply sent")]
     WaitAfterReply,
 }
 
@@ -185,11 +185,11 @@ pub enum UnrecoverableWaitError {
     derive_more::From,
 )]
 pub enum UnrecoverableExtError {
-    #[display(fmt = "Execution error: {_0}")]
+    #[display("Execution error: {_0}")]
     Execution(UnrecoverableExecutionError),
-    #[display(fmt = "Memory error: {_0}")]
+    #[display("Memory error: {_0}")]
     Memory(UnrecoverableMemoryError),
-    #[display(fmt = "Waiting error: {_0}")]
+    #[display("Waiting error: {_0}")]
     Wait(UnrecoverableWaitError),
 }
 
@@ -207,22 +207,22 @@ pub enum UnrecoverableExtError {
 )]
 pub enum TrapExplanation {
     /// An error occurs in attempt to charge more gas than available during execution.
-    #[display(fmt = "Not enough gas to continue execution")]
+    #[display("Not enough gas to continue execution")]
     GasLimitExceeded,
     /// An error occurs in attempt to call forbidden syscall.
-    #[display(fmt = "Unable to call a forbidden function")]
+    #[display("Unable to call a forbidden function")]
     ForbiddenFunction,
     /// The error occurs when a program tries to allocate more memory than
     /// allowed.
-    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
+    #[display("Trying to allocate more wasm program memory than allowed")]
     ProgramAllocOutOfBounds,
-    #[display(fmt = "Syscall unrecoverable error: {_0}")]
+    #[display("Syscall unrecoverable error: {_0}")]
     UnrecoverableExt(UnrecoverableExtError),
-    #[display(fmt = "Panic occurred: {_0}")]
+    #[display("Panic occurred: {_0}")]
     Panic(PanicBuffer),
-    #[display(fmt = "Stack limit exceeded")]
+    #[display("Stack limit exceeded")]
     StackLimitExceeded,
-    #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
+    #[display("Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }
 
