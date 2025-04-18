@@ -40,7 +40,7 @@ const GLOBAL_NAME_GAS: &str = "gear_gas";
 
 /// Memory access error during syscall that lazy-pages have caught.
 /// 0 index is reserved for an ok result.
-#[derive(Debug, Clone, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, Copy, Clone, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum ProcessAccessError {
     OutOfBounds = 1,

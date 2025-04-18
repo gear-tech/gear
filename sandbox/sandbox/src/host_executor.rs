@@ -141,7 +141,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         }
     }
 
-    fn write<Context>(&self, _ctx: &Context, offset: u32, val: &[u8]) -> Result<(), Error>
+    fn write<Context>(&self, _ctx: &mut Context, offset: u32, val: &[u8]) -> Result<(), Error>
     where
         Context: AsContextExt<State = T>,
     {

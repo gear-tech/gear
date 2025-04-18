@@ -29,7 +29,7 @@ use crate::{
         UnrecoverableMemoryError,
     },
     memory::{BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessRegistry},
-    runtime::CallerWrap,
+    runtime::MemoryCallerContext,
     state::HostState,
     BackendExternalities,
 };
@@ -42,9 +42,7 @@ use gear_core::{
     env::DropPayloadLockBound,
     gas::CounterType,
     ids::{MessageId, ProgramId, ReservationId},
-    message::{
-        HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
-    },
+    message::{HandlePacket, InitPacket, MessageWaitedType, Payload, ReplyPacket},
     pages::WasmPage,
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
@@ -90,16 +88,14 @@ impl From<u32> for SyscallReturnValue {
 pub(crate) trait SyscallContext: Sized + Copy {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError>;
 
-    fn gas(&self) -> Option<Gas>;
+    fn gas(&self) -> Option<Gas> {
+        None
+    }
 }
 
 impl SyscallContext for () {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError> {
         Ok(((), args))
-    }
-
-    fn gas(&self) -> Option<Gas> {
-        None
     }
 }
 
@@ -108,7 +104,7 @@ pub(crate) trait Syscall<Caller, T = ()> {
 
     fn execute(
         self,
-        caller: &mut CallerWrap<Caller>,
+        caller: &mut MemoryCallerContext<Caller>,
         ctx: Self::Context,
         syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError>;
@@ -123,7 +119,11 @@ pub(crate) trait SyscallBuilder<Caller, Args: ?Sized, Res, Call>
 where
     Call: Syscall<Caller, Res>,
 {
-    fn build(self, ctx: &mut CallerWrap<Caller>, args: &[Value]) -> Result<Call, HostError>;
+    fn build(
+        self,
+        ctx: &mut MemoryCallerContext<Caller>,
+        args: &[Value],
+    ) -> Result<Call, HostError>;
 }
 
 impl<Caller, Res, Call, Builder> SyscallBuilder<Caller, (), Res, Call> for Builder
@@ -131,7 +131,7 @@ where
     Builder: FnOnce() -> Call,
     Call: Syscall<Caller, Res>,
 {
-    fn build(self, _: &mut CallerWrap<Caller>, args: &[Value]) -> Result<Call, HostError> {
+    fn build(self, _: &mut MemoryCallerContext<Caller>, args: &[Value]) -> Result<Call, HostError> {
         let _: [Value; 0] = args.try_into().map_err(|_| HostError)?;
         Ok((self)())
     }
@@ -142,7 +142,7 @@ where
     Builder: for<'a> FnOnce(&'a [Value]) -> Call,
     Call: Syscall<Caller, Res>,
 {
-    fn build(self, _: &mut CallerWrap<Caller>, args: &[Value]) -> Result<Call, HostError> {
+    fn build(self, _: &mut MemoryCallerContext<Caller>, args: &[Value]) -> Result<Call, HostError> {
         Ok((self)(args))
     }
 }
@@ -160,40 +160,30 @@ macro_rules! impl_syscall_builder {
             Ext: BackendExternalities + 'static,
             $( $generic: SyscallArg, )+
         {
-            fn build(self, caller: &mut CallerWrap<Caller>, args: &[Value]) -> Result<Call, HostError> {
+            fn build(self, ctx: &mut MemoryCallerContext<Caller>, args: &[Value]) -> Result<Call, HostError> {
                 let ARGS_AMOUNT: usize = 0 $( + $generic::REQUIRED_ARGS )+;
 
-                if args.len() != ARGS_AMOUNT {
-                    return Err(HostError);
-                }
+                debug_assert_eq!(args.len(), ARGS_AMOUNT);
 
                 let mut registry: Option<MemoryAccessRegistry<Caller>> = None;
-
-                $(
-                    if $generic::REQUIRES_MEMORY_MANAGER && registry.is_none() {
-                        registry = Some(MemoryAccessRegistry::default());
-                    }
-                )+
 
                 let mut index = 0;
                 $(
                     let args_count = $generic::REQUIRED_ARGS;
                     let args_slice = &args[index..index + args_count];
-                    let $generic = $generic::pre_process(&mut registry, args_slice).map_err(|_| HostError)?;
+                    let $generic = $generic::pre_process(&mut registry, args_slice)?;
                     index += args_count;
                 )+
 
-                if(index != ARGS_AMOUNT) {
-                    return Err(HostError);
-                }
+                debug_assert_eq!(index, ARGS_AMOUNT);
 
-                if registry.is_some() {
-                    let io = registry.unwrap().pre_process(caller);
-                    caller.set_io(io);
+                if let Some(registry) = registry {
+                    let io = registry.pre_process(&mut ctx.caller_wrap);
+                    ctx.memory_wrap.set_io(io);
                 }
 
                 $(
-                    let $generic = $generic::post_process($generic, caller);
+                    let $generic = $generic::post_process($generic, ctx);
                 )+
 
                 Ok(((self)($($generic),+)))
@@ -210,7 +200,7 @@ impl_syscall_builder!(A, B, C, D, E);
 impl_syscall_builder!(A, B, C, D, E, F);
 impl_syscall_builder!(A, B, C, D, E, F, G);
 
-/// "raw" syscall without any argument parsing or without calling [`CallerWrap`] helper methods
+/// "raw" syscall without any argument parsing or without calling [`MemoryCallerContext`] helper methods
 struct RawSyscall<F>(F);
 
 impl<F> RawSyscall<F> {
@@ -221,7 +211,7 @@ impl<F> RawSyscall<F> {
 
 impl<T, F, Caller, Ext> Syscall<Caller, T> for RawSyscall<F>
 where
-    F: FnOnce(&mut CallerWrap<Caller>) -> Result<(Gas, T), HostError>,
+    F: FnOnce(&mut MemoryCallerContext<Caller>) -> Result<(Gas, T), HostError>,
     Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
     Ext: BackendExternalities + 'static,
 {
@@ -229,7 +219,7 @@ where
 
     fn execute(
         self,
-        caller: &mut CallerWrap<Caller>,
+        caller: &mut MemoryCallerContext<Caller>,
         (): Self::Context,
         syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
@@ -260,7 +250,7 @@ impl SyscallContext for FallibleSyscallContext {
     }
 }
 
-/// Fallible syscall that calls [`CallerWrap::run_fallible`] underneath.
+/// Fallible syscall that calls [`MemoryCallerContext::run_fallible`] underneath.
 #[derive(Copy, Clone)]
 struct FallibleSyscall<E, F> {
     token: CostToken,
@@ -280,7 +270,7 @@ impl<F> FallibleSyscall<(), F> {
 
 impl<T, E, F, Caller, Ext> Syscall<Caller, ()> for FallibleSyscall<E, F>
 where
-    F: FnOnce(&mut CallerWrap<Caller>) -> Result<T, RunFallibleError>,
+    F: FnOnce(&mut MemoryCallerContext<Caller>) -> Result<T, RunFallibleError>,
     E: From<Result<T, u32>>,
     Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
     Ext: BackendExternalities + 'static,
@@ -289,7 +279,7 @@ where
 
     fn execute(
         self,
-        caller: &mut CallerWrap<Caller>,
+        caller: &mut MemoryCallerContext<Caller>,
         context: Self::Context,
         syscall_name: SyscallName,
     ) -> Result<(Gas, ()), HostError> {
@@ -318,7 +308,7 @@ impl SyscallContext for InfallibleSyscallContext {
     }
 }
 
-/// Infallible syscall that calls [`CallerWrap::run_any`] underneath
+/// Infallible syscall that calls [`MemoryCallerContext::run_any`] underneath
 #[derive(Copy, Clone)]
 struct InfallibleSyscall<F> {
     token: CostToken,
@@ -333,7 +323,7 @@ impl<F> InfallibleSyscall<F> {
 
 impl<T, F, Caller, Ext> Syscall<Caller, T> for InfallibleSyscall<F>
 where
-    F: FnOnce(&mut CallerWrap<Caller>) -> Result<T, UndefinedTerminationReason>,
+    F: FnOnce(&mut MemoryCallerContext<Caller>) -> Result<T, UndefinedTerminationReason>,
     Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
     Ext: BackendExternalities + 'static,
 {
@@ -341,7 +331,7 @@ where
 
     fn execute(
         self,
-        caller: &mut CallerWrap<Caller>,
+        caller: &mut MemoryCallerContext<Caller>,
         _ctx: Self::Context,
         syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
@@ -377,20 +367,21 @@ where
     {
         crate::log::trace_syscall::<Builder>(args);
 
-        let mut caller = CallerWrap::new(caller);
+        let mut memory_caller_context = MemoryCallerContext::new(caller);
 
         let (ctx, args) = Call::Context::from_args(args)?;
 
-        if ctx.gas().is_some() {
-            caller
+        if let Some(gas) = ctx.gas() {
+            memory_caller_context
+                .caller_wrap
                 .state_mut()
                 .ext
-                .decrease_current_counter_to(ctx.gas().unwrap());
+                .decrease_current_counter_to(gas);
         }
 
-        let syscall = builder.build(&mut caller, args)?;
+        let syscall = builder.build(&mut memory_caller_context, args)?;
 
-        let (gas, value) = syscall.execute(&mut caller, ctx, syscall_name)?;
+        let (gas, value) = syscall.execute(&mut memory_caller_context, ctx, syscall_name)?;
 
         let value = value.into();
 
@@ -400,27 +391,21 @@ where
         })
     }
 
-    fn read_payload(payload: ReadLimited) -> Result<Option<Payload>, MemoryAccessError> {
-        match payload.value() {
-            Some(payload) => {
-                let payload = payload?
+    fn read_payload(payload: ReadLimited) -> Result<Payload, RunFallibleError> {
+        payload
+            .into_inner()
+            .map_err(|_| MessageError::MaxMessageSizeExceed.into())
+            .map_err(RunFallibleError::FallibleExt)?
+            .map(|payload| {
+                payload
                     .try_into()
-                    .unwrap_or_else(|PayloadSizeError| unreachable!("length is checked above"));
-
-                Ok(Some(payload))
-            }
-            None => Ok(None),
-        }
-    }
-
-    fn read_message_payload(payload: ReadLimited) -> Result<Payload, RunFallibleError> {
-        Self::read_payload(payload)?
-            .ok_or_else(|| MessageError::MaxMessageSizeExceed.into())
-            .map_err(RunFallibleError::FallibleExt)
+                    .unwrap_or_else(|_| unreachable!("length is checked inside ReadLimited"))
+            })
+            .map_err(|e| e.into_run_fallible_error())
     }
 
     fn send_inner(
-        ctx: &mut CallerWrap<Caller>,
+        ctx: &mut MemoryCallerContext<Caller>,
         pid_value: ReadAs<HashWithValue>,
         payload: ReadLimited,
         gas_limit: Option<u64>,
@@ -429,11 +414,12 @@ where
         let HashWithValue {
             hash: destination,
             value,
-        } = pid_value.value()?;
+        } = pid_value.into_inner()?;
 
-        let payload = Self::read_message_payload(payload)?;
+        let payload = Self::read_payload(payload)?;
 
-        ctx.ext_mut()
+        ctx.caller_wrap
+            .ext_mut()
             .send(
                 HandlePacket::maybe_with_gas(destination.into(), payload, gas_limit, value),
                 delay,
@@ -448,7 +434,7 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::Send(payload.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::send_inner(ctx, pid_value, payload, None, delay)
             },
         )
@@ -462,14 +448,14 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::SendWGas(payload.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::send_inner(ctx, pid_value, payload, Some(gas_limit), delay)
             },
         )
     }
 
     fn send_commit_inner(
-        ctx: &mut CallerWrap<Caller>,
+        ctx: &mut MemoryCallerContext<Caller>,
         handle: u32,
         pid_value: ReadAs<HashWithValue>,
         gas_limit: Option<u64>,
@@ -478,9 +464,10 @@ where
         let HashWithValue {
             hash: destination,
             value,
-        } = pid_value.value()?;
+        } = pid_value.into_inner()?;
 
-        ctx.ext_mut()
+        ctx.caller_wrap
+            .ext_mut()
             .send_commit(
                 handle,
                 HandlePacket::maybe_with_gas(
@@ -501,7 +488,7 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::SendCommit,
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::send_commit_inner(ctx, handle, pid_value, None, delay)
             },
         )
@@ -515,7 +502,7 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::SendCommitWGas,
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::send_commit_inner(ctx, handle, pid_value, Some(gas_limit), delay)
             },
         )
@@ -524,17 +511,20 @@ where
     pub fn send_init() -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHandle>(
             CostToken::SendInit,
-            move |ctx: &mut CallerWrap<Caller>| ctx.ext_mut().send_init().map_err(Into::into),
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap.ext_mut().send_init().map_err(Into::into)
+            },
         )
     }
 
     pub fn send_push(handle: u32, payload: Read) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::SendPush(payload.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| {
-                let payload = payload.value()?;
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let payload = payload.into_inner()?;
 
-                ctx.ext_mut()
+                ctx.caller_wrap
+                    .ext_mut()
                     .send_push(handle, &payload)
                     .map_err(Into::into)
             },
@@ -548,15 +538,17 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationSend(payload.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 let TwoHashesWithValue {
                     hash1: reservation_id,
                     hash2: destination,
                     value,
-                } = rid_pid_value.value()?;
-                let payload = Self::read_message_payload(payload)?;
+                } = rid_pid_value.into_inner()?;
 
-                ctx.ext_mut()
+                let payload = Self::read_payload(payload)?;
+
+                ctx.caller_wrap
+                    .ext_mut()
                     .reservation_send(
                         reservation_id.into(),
                         HandlePacket::new(destination.into(), payload, value),
@@ -574,14 +566,15 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationSendCommit,
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 let TwoHashesWithValue {
                     hash1: reservation_id,
                     hash2: destination,
                     value,
-                } = rid_pid_value.value()?;
+                } = rid_pid_value.into_inner()?;
 
-                ctx.ext_mut()
+                ctx.caller_wrap
+                    .ext_mut()
                     .reservation_send_commit(
                         reservation_id.into(),
                         handle,
@@ -594,46 +587,59 @@ where
     }
 
     pub fn read(at: u32, buffer: WriteInGrRead) -> impl Syscall<Caller> {
-        FallibleSyscall::new::<ErrorBytes>(CostToken::Read, move |ctx: &mut CallerWrap<Caller>| {
-            let payload_lock = ctx.ext_mut().lock_payload(at, buffer.size())?;
-            payload_lock
-                .drop_with::<MemoryAccessError, _>(move |payload_access| {
-                    let f = || {
-                        buffer.write(ctx, payload_access.as_slice())?;
-                        Ok(())
-                    };
-                    let res = f();
-                    let unlock_bound = ctx.ext_mut().unlock_payload(payload_access.into_lock());
+        FallibleSyscall::new::<ErrorBytes>(
+            CostToken::Read,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let payload_lock = ctx.caller_wrap.ext_mut().lock_payload(at, buffer.size())?;
+                payload_lock
+                    .drop_with::<MemoryAccessError, _>(move |payload_access| {
+                        let f = || {
+                            buffer.write(ctx, payload_access.as_slice())?;
+                            Ok(())
+                        };
+                        let res = f();
+                        let unlock_bound = ctx
+                            .caller_wrap
+                            .ext_mut()
+                            .unlock_payload(payload_access.into_lock());
 
-                    DropPayloadLockBound::from((unlock_bound, res))
-                })
-                .into_inner()
-                .map_err(Into::into)
-        })
+                        DropPayloadLockBound::from((unlock_bound, res))
+                    })
+                    .into_inner()
+                    .map_err(Into::into)
+            },
+        )
     }
 
     pub fn size(size_write: WriteAs<[u8; 4]>) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Size, move |ctx: &mut CallerWrap<Caller>| {
-            let size = ctx.ext_mut().size()? as u32;
+        InfallibleSyscall::new(
+            CostToken::Size,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let size = ctx.caller_wrap.ext_mut().size()? as u32;
 
-            size_write
-                .write(ctx, size.to_le_bytes())
-                .map_err(Into::into)
-        })
+                size_write
+                    .write(ctx, size.to_le_bytes())
+                    .map_err(Into::into)
+            },
+        )
     }
 
     pub fn exit(inheritor_id: ReadDecoded<ProgramId>) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Exit, move |_ctx: &mut CallerWrap<Caller>| {
-            let inheritor_id = inheritor_id.value()?;
-            Err(ActorTerminationReason::Exit(inheritor_id).into())
-        })
+        InfallibleSyscall::new(
+            CostToken::Exit,
+            move |_ctx: &mut MemoryCallerContext<Caller>| {
+                let inheritor_id = inheritor_id.into_inner()?;
+                Err(ActorTerminationReason::Exit(inheritor_id).into())
+            },
+        )
     }
 
     pub fn reply_code() -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithReplyCode>(
             CostToken::ReplyCode,
-            move |ctx: &mut CallerWrap<Caller>| {
-                ctx.ext_mut()
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap
+                    .ext_mut()
                     .reply_code()
                     .map(ReplyCode::to_bytes)
                     .map_err(Into::into)
@@ -644,8 +650,9 @@ where
     pub fn signal_code() -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithSignalCode>(
             CostToken::SignalCode,
-            move |ctx: &mut CallerWrap<Caller>| {
-                ctx.ext_mut()
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap
+                    .ext_mut()
                     .signal_code()
                     .map(SignalCode::to_u32)
                     .map_err(Into::into)
@@ -654,91 +661,104 @@ where
     }
 
     pub fn alloc(pages: u32) -> impl Syscall<Caller, u32> {
-        InfallibleSyscall::new(CostToken::Alloc, move |ctx: &mut CallerWrap<Caller>| {
-            let res = ctx.alloc(pages);
-            let res = ctx.process_alloc_func_result(res)?;
+        InfallibleSyscall::new(
+            CostToken::Alloc,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let res = ctx.alloc(pages);
+                let res = ctx.process_alloc_func_result(res)?;
 
-            let page = match res {
-                Ok(page) => {
-                    log::trace!("Alloc {pages:?} pages at {page:?}");
-                    page.into()
-                }
-                Err(err) => {
-                    log::trace!("Alloc failed: {err}");
-                    u32::MAX
-                }
-            };
-            Ok(page)
-        })
+                let page = match res {
+                    Ok(page) => {
+                        log::trace!("Alloc {pages:?} pages at {page:?}");
+                        page.into()
+                    }
+                    Err(err) => {
+                        log::trace!("Alloc failed: {err}");
+                        u32::MAX
+                    }
+                };
+                Ok(page)
+            },
+        )
     }
 
     pub fn free(page_no: u32) -> impl Syscall<Caller, i32> {
-        InfallibleSyscall::new(CostToken::Free, move |ctx: &mut CallerWrap<Caller>| {
-            let page = WasmPage::try_from(page_no).map_err(|_| {
-                UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
-                    TrapExplanation::Unknown,
-                ))
-            })?;
+        InfallibleSyscall::new(
+            CostToken::Free,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let page = WasmPage::try_from(page_no).map_err(|_| {
+                    UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                        TrapExplanation::Unknown,
+                    ))
+                })?;
 
-            let res = ctx.ext_mut().free(page);
-            let res = ctx.process_alloc_func_result(res)?;
+                let res = ctx.caller_wrap.ext_mut().free(page);
+                let res = ctx.process_alloc_func_result(res)?;
 
-            match &res {
-                Ok(()) => {
-                    log::trace!("Free {page:?}");
-                }
-                Err(err) => {
-                    log::trace!("Free failed: {err}");
-                }
-            };
+                match &res {
+                    Ok(()) => {
+                        log::trace!("Free {page:?}");
+                    }
+                    Err(err) => {
+                        log::trace!("Free failed: {err}");
+                    }
+                };
 
-            Ok(res.is_err() as i32)
-        })
+                Ok(res.is_err() as i32)
+            },
+        )
     }
 
     pub fn free_range(start: u32, end: u32) -> impl Syscall<Caller, i32> {
-        InfallibleSyscall::new(CostToken::FreeRange, move |ctx: &mut CallerWrap<Caller>| {
-            let page_err = |_| {
-                UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
-                    TrapExplanation::Unknown,
-                ))
-            };
+        InfallibleSyscall::new(
+            CostToken::FreeRange,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let page_err = |_| {
+                    UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                        TrapExplanation::Unknown,
+                    ))
+                };
 
-            let start = WasmPage::try_from(start).map_err(page_err)?;
-            let end = WasmPage::try_from(end).map_err(page_err)?;
+                let start = WasmPage::try_from(start).map_err(page_err)?;
+                let end = WasmPage::try_from(end).map_err(page_err)?;
 
-            let result = ctx.ext_mut().free_range(start, end);
+                let result = ctx.caller_wrap.ext_mut().free_range(start, end);
 
-            match ctx.process_alloc_func_result(result)? {
-                Ok(()) => {
-                    log::trace!("Free range {start:?}:{end:?} success");
-                    Ok(0)
+                match ctx.process_alloc_func_result(result)? {
+                    Ok(()) => {
+                        log::trace!("Free range {start:?}:{end:?} success");
+                        Ok(0)
+                    }
+                    Err(e) => {
+                        log::trace!("Free range {start:?}:{end:?} failed: {e}");
+                        Ok(1)
+                    }
                 }
-                Err(e) => {
-                    log::trace!("Free range {start:?}:{end:?} failed: {e}");
-                    Ok(1)
-                }
-            }
-        })
+            },
+        )
     }
 
     pub fn env_vars(vars_ver: u32, vars_ptr: u32) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::EnvVars, move |ctx: &mut CallerWrap<Caller>| {
-            let vars = ctx.ext_mut().env_vars(vars_ver)?;
-            let vars_bytes = vars.to_bytes();
+        InfallibleSyscall::new(
+            CostToken::EnvVars,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let vars = ctx.caller_wrap.ext_mut().env_vars(vars_ver)?;
+                let vars_bytes = vars.to_bytes();
 
-            let mut registry = MemoryAccessRegistry::default();
-            let vars_write = registry.register_write(vars_ptr, vars_bytes.len() as u32);
-            let io = registry.pre_process(ctx)?;
-            io.write(ctx, vars_write, vars_bytes).map_err(Into::into)
-        })
+                let mut registry = MemoryAccessRegistry::default();
+                let vars_write = registry.register_write(vars_ptr, vars_bytes.len() as u32);
+                let mut io = registry.pre_process(&mut ctx.caller_wrap)?;
+                io.write(&mut ctx.caller_wrap, vars_write, vars_bytes)
+                    .map_err(Into::into)
+            },
+        )
     }
 
     pub fn block_height(height_write: WriteAs<[u8; 4]>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::BlockHeight,
-            move |ctx: &mut CallerWrap<Caller>| {
-                let height = ctx.ext_mut().block_height()?;
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let height = ctx.caller_wrap.ext_mut().block_height()?;
 
                 height_write
                     .write(ctx, height.to_le_bytes())
@@ -750,8 +770,8 @@ where
     pub fn block_timestamp(timestamp_write: WriteAs<[u8; 8]>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::BlockTimestamp,
-            move |ctx: &mut CallerWrap<Caller>| {
-                let timestamp = ctx.ext_mut().block_timestamp()?;
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let timestamp = ctx.caller_wrap.ext_mut().block_timestamp()?;
 
                 timestamp_write
                     .write(ctx, timestamp.to_le_bytes())
@@ -764,31 +784,35 @@ where
         subject_ptr: ReadDecoded<Hash>,
         bn_random_ptr: WriteAs<BlockNumberWithHash>,
     ) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Random, move |ctx: &mut CallerWrap<Caller>| {
-            let raw_subject = subject_ptr.value()?;
-            let (random, bn) = ctx.ext_mut().random()?;
-            let subject = [&raw_subject, random].concat();
+        InfallibleSyscall::new(
+            CostToken::Random,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let raw_subject = subject_ptr.into_inner()?;
+                let (random, bn) = ctx.caller_wrap.ext_mut().random()?;
+                let subject = [&raw_subject, random].concat();
 
-            let mut blake2_ctx = Blake2b256::new();
-            blake2_ctx.update(subject);
-            let hash = blake2_ctx.finalize().into();
+                let mut blake2_ctx = Blake2b256::new();
+                blake2_ctx.update(subject);
+                let hash = blake2_ctx.finalize().into();
 
-            bn_random_ptr
-                .write(ctx, BlockNumberWithHash { bn, hash })
-                .map_err(Into::into)
-        })
+                bn_random_ptr
+                    .write(ctx, BlockNumberWithHash { bn, hash })
+                    .map_err(Into::into)
+            },
+        )
     }
 
     fn reply_inner(
-        ctx: &mut CallerWrap<Caller>,
+        ctx: &mut MemoryCallerContext<Caller>,
         payload: ReadLimited,
         gas_limit: Option<u64>,
         value: ReadDecodedSpecial<u128>,
     ) -> Result<MessageId, RunFallibleError> {
-        let value = value.value()?;
-        let payload = Self::read_message_payload(payload)?;
+        let value = value.into_inner()?;
+        let payload = Self::read_payload(payload)?;
 
-        ctx.ext_mut()
+        ctx.caller_wrap
+            .ext_mut()
             .reply(ReplyPacket::maybe_with_gas(payload, gas_limit, value))
             .map_err(Into::into)
     }
@@ -796,7 +820,9 @@ where
     pub fn reply(payload: ReadLimited, value: ReadDecodedSpecial<u128>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::Reply(payload.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| Self::reply_inner(ctx, payload, None, value),
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                Self::reply_inner(ctx, payload, None, value)
+            },
         )
     }
 
@@ -807,20 +833,21 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyWGas(payload.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::reply_inner(ctx, payload, Some(gas_limit), value)
             },
         )
     }
 
     fn reply_commit_inner(
-        ctx: &mut CallerWrap<Caller>,
+        ctx: &mut MemoryCallerContext<Caller>,
         gas_limit: Option<u64>,
         value: ReadDecodedSpecial<u128>,
     ) -> Result<MessageId, RunFallibleError> {
-        let value = value.value()?;
+        let value = value.into_inner()?;
 
-        ctx.ext_mut()
+        ctx.caller_wrap
+            .ext_mut()
             .reply_commit(ReplyPacket::maybe_with_gas(
                 Default::default(),
                 gas_limit,
@@ -832,7 +859,7 @@ where
     pub fn reply_commit(value: ReadDecodedSpecial<u128>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyCommit,
-            move |ctx: &mut CallerWrap<Caller>| Self::reply_commit_inner(ctx, None, value),
+            move |ctx: &mut MemoryCallerContext<Caller>| Self::reply_commit_inner(ctx, None, value),
         )
     }
 
@@ -842,7 +869,7 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyCommitWGas,
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::reply_commit_inner(ctx, Some(gas_limit), value)
             },
         )
@@ -854,14 +881,15 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationReply(payload.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 let HashWithValue {
                     hash: reservation_id,
                     value,
-                } = rid_value.value()?;
-                let payload = Self::read_message_payload(payload)?;
+                } = rid_value.into_inner()?;
+                let payload = Self::read_payload(payload)?;
 
-                ctx.ext_mut()
+                ctx.caller_wrap
+                    .ext_mut()
                     .reservation_reply(reservation_id.into(), ReplyPacket::new(payload, value))
                     .map_err(Into::into)
             },
@@ -871,13 +899,14 @@ where
     pub fn reservation_reply_commit(rid_value: ReadAs<HashWithValue>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationReplyCommit,
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 let HashWithValue {
                     hash: reservation_id,
                     value,
-                } = rid_value.value()?;
+                } = rid_value.into_inner()?;
 
-                ctx.ext_mut()
+                ctx.caller_wrap
+                    .ext_mut()
                     .reservation_reply_commit(
                         reservation_id.into(),
                         ReplyPacket::new(Default::default(), value),
@@ -890,41 +919,49 @@ where
     pub fn reply_to() -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyTo,
-            move |ctx: &mut CallerWrap<Caller>| ctx.ext_mut().reply_to().map_err(Into::into),
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap.ext_mut().reply_to().map_err(Into::into)
+            },
         )
     }
 
     pub fn signal_from() -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::SignalFrom,
-            move |ctx: &mut CallerWrap<Caller>| ctx.ext_mut().signal_from().map_err(Into::into),
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap.ext_mut().signal_from().map_err(Into::into)
+            },
         )
     }
 
     pub fn reply_push(payload: Read) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::ReplyPush(payload.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| {
-                let payload = payload.value()?;
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let payload = payload.into_inner()?;
 
-                ctx.ext_mut().reply_push(&payload).map_err(Into::into)
+                ctx.caller_wrap
+                    .ext_mut()
+                    .reply_push(&payload)
+                    .map_err(Into::into)
             },
         )
     }
 
     fn reply_input_inner(
-        ctx: &mut CallerWrap<Caller>,
+        ctx: &mut MemoryCallerContext<Caller>,
         offset: u32,
         len: u32,
         gas_limit: Option<u64>,
         value: ReadDecodedSpecial<u128>,
     ) -> Result<MessageId, RunFallibleError> {
-        let value = value.value()?;
+        let value = value.into_inner()?;
 
         // Charge for `len` is inside `reply_push_input`
-        ctx.ext_mut().reply_push_input(offset, len)?;
+        ctx.caller_wrap.ext_mut().reply_push_input(offset, len)?;
 
-        ctx.ext_mut()
+        ctx.caller_wrap
+            .ext_mut()
             .reply_commit(ReplyPacket::maybe_with_gas(
                 Default::default(),
                 gas_limit,
@@ -940,7 +977,7 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyInput,
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::reply_input_inner(ctx, offset, len, None, value)
             },
         )
@@ -954,7 +991,7 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyInputWGas,
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::reply_input_inner(ctx, offset, len, Some(gas_limit), value)
             },
         )
@@ -963,8 +1000,9 @@ where
     pub fn reply_push_input(offset: u32, len: u32) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::ReplyPushInput,
-            move |ctx: &mut CallerWrap<Caller>| {
-                ctx.ext_mut()
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap
+                    .ext_mut()
                     .reply_push_input(offset, len)
                     .map_err(Into::into)
             },
@@ -972,7 +1010,7 @@ where
     }
 
     fn send_input_inner(
-        ctx: &mut CallerWrap<Caller>,
+        ctx: &mut MemoryCallerContext<Caller>,
         pid_value: ReadAs<HashWithValue>,
         offset: u32,
         len: u32,
@@ -982,13 +1020,16 @@ where
         let HashWithValue {
             hash: destination,
             value,
-        } = pid_value.value()?;
+        } = pid_value.into_inner()?;
 
-        let handle = ctx.ext_mut().send_init()?;
+        let handle = ctx.caller_wrap.ext_mut().send_init()?;
         // Charge for `len` inside `send_push_input`
-        ctx.ext_mut().send_push_input(handle, offset, len)?;
+        ctx.caller_wrap
+            .ext_mut()
+            .send_push_input(handle, offset, len)?;
 
-        ctx.ext_mut()
+        ctx.caller_wrap
+            .ext_mut()
             .send_commit(
                 handle,
                 HandlePacket::maybe_with_gas(
@@ -1010,7 +1051,7 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::SendInput,
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::send_input_inner(ctx, pid_value, offset, len, None, delay)
             },
         )
@@ -1025,7 +1066,7 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::SendInputWGas,
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::send_input_inner(ctx, pid_value, offset, len, Some(gas_limit), delay)
             },
         )
@@ -1034,8 +1075,9 @@ where
     pub fn send_push_input(handle: u32, offset: u32, len: u32) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::SendPushInput,
-            move |ctx: &mut CallerWrap<Caller>| {
-                ctx.ext_mut()
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap
+                    .ext_mut()
                     .send_push_input(handle, offset, len)
                     .map_err(Into::into)
             },
@@ -1045,9 +1087,9 @@ where
     pub fn debug(data: Read) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::Debug(data.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 let data: RuntimeBuffer = data
-                    .value()?
+                    .into_inner()?
                     .try_into()
                     .map_err(|RuntimeBufferSizeError| {
                         UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into()
@@ -1057,7 +1099,7 @@ where
                 let s = String::from_utf8(data.into_vec())
                     .map_err(|_err| UnrecoverableExecutionError::InvalidDebugString.into())
                     .map_err(TrapExplanation::UnrecoverableExt)?;
-                ctx.ext_mut().debug(&s)?;
+                ctx.caller_wrap.ext_mut().debug(&s)?;
 
                 Ok(())
             },
@@ -1065,17 +1107,20 @@ where
     }
 
     pub fn panic(data: ReadLimited) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Null, move |_ctx: &mut CallerWrap<Caller>| {
-            let data = Self::read_payload(data)?
-                .ok_or_else(|| UnrecoverableExecutionError::PanicBufferIsTooBig.into())
-                .map_err(TrapExplanation::UnrecoverableExt)?;
+        InfallibleSyscall::new(
+            CostToken::Null,
+            move |_ctx: &mut MemoryCallerContext<Caller>| {
+                let data = Self::read_payload(data)
+                    .map_err(|_| UnrecoverableExecutionError::PanicBufferIsTooBig.into())
+                    .map_err(TrapExplanation::UnrecoverableExt)?;
 
-            Err(ActorTerminationReason::Trap(TrapExplanation::Panic(data.into())).into())
-        })
+                Err(ActorTerminationReason::Trap(TrapExplanation::Panic(data.into())).into())
+            },
+        )
     }
 
     pub fn oom_panic() -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Null, |_ctx: &mut CallerWrap<Caller>| {
+        InfallibleSyscall::new(CostToken::Null, |_ctx: &mut MemoryCallerContext<Caller>| {
             Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
         })
     }
@@ -1083,8 +1128,9 @@ where
     pub fn reserve_gas(gas_value: u64, duration: u32) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReserveGas,
-            move |ctx: &mut CallerWrap<Caller>| {
-                ctx.ext_mut()
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap
+                    .ext_mut()
                     .reserve_gas(gas_value, duration)
                     .map_err(Into::into)
             },
@@ -1097,10 +1143,11 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::ReplyDeposit,
-            move |ctx: &mut CallerWrap<Caller>| {
-                let message_id = message_id.value()?;
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let message_id = message_id.into_inner()?;
 
-                ctx.ext_mut()
+                ctx.caller_wrap
+                    .ext_mut()
                     .reply_deposit(message_id, gas_value)
                     .map_err(Into::into)
             },
@@ -1110,10 +1157,11 @@ where
     pub fn unreserve_gas(reservation_id: ReadDecoded<ReservationId>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithGas>(
             CostToken::UnreserveGas,
-            move |ctx: &mut CallerWrap<Caller>| {
-                let reservation_id = reservation_id.value()?;
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let reservation_id = reservation_id.into_inner()?;
 
-                ctx.ext_mut()
+                ctx.caller_wrap
+                    .ext_mut()
                     .unreserve_gas(reservation_id)
                     .map_err(Into::into)
             },
@@ -1123,8 +1171,9 @@ where
     pub fn system_reserve_gas(gas_value: u64) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::SystemReserveGas,
-            move |ctx: &mut CallerWrap<Caller>| {
-                ctx.ext_mut()
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap
+                    .ext_mut()
                     .system_reserve_gas(gas_value)
                     .map_err(Into::into)
             },
@@ -1134,8 +1183,8 @@ where
     pub fn gas_available(gas: WriteAs<[u8; 8]>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::GasAvailable,
-            move |ctx: &mut CallerWrap<Caller>| {
-                let gas_available = ctx.ext_mut().gas_available()?;
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let gas_available = ctx.caller_wrap.ext_mut().gas_available()?;
 
                 gas.write(ctx, gas_available.to_le_bytes())
                     .map_err(Into::into)
@@ -1144,50 +1193,62 @@ where
     }
 
     pub fn message_id(message_id_write: WriteAs<[u8; 32]>) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::MsgId, move |ctx: &mut CallerWrap<Caller>| {
-            let message_id = ctx.ext_mut().message_id()?;
+        InfallibleSyscall::new(
+            CostToken::MsgId,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let message_id = ctx.caller_wrap.ext_mut().message_id()?;
 
-            message_id_write
-                .write(ctx, message_id.into_bytes())
-                .map_err(Into::into)
-        })
+                message_id_write
+                    .write(ctx, message_id.into_bytes())
+                    .map_err(Into::into)
+            },
+        )
     }
 
     pub fn program_id(program_id_write: WriteAs<[u8; 32]>) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::ProgramId, move |ctx: &mut CallerWrap<Caller>| {
-            let program_id = ctx.ext_mut().program_id()?;
+        InfallibleSyscall::new(
+            CostToken::ProgramId,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let program_id = ctx.caller_wrap.ext_mut().program_id()?;
 
-            program_id_write
-                .write(ctx, program_id.into_bytes())
-                .map_err(Into::into)
-        })
+                program_id_write
+                    .write(ctx, program_id.into_bytes())
+                    .map_err(Into::into)
+            },
+        )
     }
 
     pub fn source(source_write: WriteAs<[u8; 32]>) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Source, move |ctx: &mut CallerWrap<Caller>| {
-            let source = ctx.ext_mut().source()?;
+        InfallibleSyscall::new(
+            CostToken::Source,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let source = ctx.caller_wrap.ext_mut().source()?;
 
-            source_write
-                .write(ctx, source.into_bytes())
-                .map_err(Into::into)
-        })
+                source_write
+                    .write(ctx, source.into_bytes())
+                    .map_err(Into::into)
+            },
+        )
     }
 
     pub fn value(value_write: WriteAs<[u8; 16]>) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Value, move |ctx: &mut CallerWrap<Caller>| {
-            let value = ctx.ext_mut().value()?;
+        InfallibleSyscall::new(
+            CostToken::Value,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let value = ctx.caller_wrap.ext_mut().value()?;
 
-            value_write
-                .write(ctx, value.to_le_bytes())
-                .map_err(Into::into)
-        })
+                value_write
+                    .write(ctx, value.to_le_bytes())
+                    .map_err(Into::into)
+            },
+        )
     }
 
     pub fn value_available(value_write: WriteAs<[u8; 16]>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::ValueAvailable,
-            move |ctx: &mut CallerWrap<Caller>| {
-                let value_available = ctx.ext_mut().value_available()?;
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let value_available = ctx.caller_wrap.ext_mut().value_available()?;
 
                 value_write
                     .write(ctx, value_available.to_le_bytes())
@@ -1197,47 +1258,63 @@ where
     }
 
     pub fn leave() -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Leave, move |_ctx: &mut CallerWrap<Caller>| {
-            Err(ActorTerminationReason::Leave.into())
-        })
+        InfallibleSyscall::new(
+            CostToken::Leave,
+            move |_ctx: &mut MemoryCallerContext<Caller>| Err(ActorTerminationReason::Leave.into()),
+        )
     }
 
     pub fn wait() -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::Wait, move |ctx: &mut CallerWrap<Caller>| {
-            ctx.ext_mut().wait()?;
-            Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
-        })
+        InfallibleSyscall::new(
+            CostToken::Wait,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap.ext_mut().wait()?;
+                Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
+            },
+        )
     }
 
     pub fn wait_for(duration: u32) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::WaitFor, move |ctx: &mut CallerWrap<Caller>| {
-            ctx.ext_mut().wait_for(duration)?;
-            Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
-        })
+        InfallibleSyscall::new(
+            CostToken::WaitFor,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                ctx.caller_wrap.ext_mut().wait_for(duration)?;
+                Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
+            },
+        )
     }
 
     pub fn wait_up_to(duration: u32) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::WaitUpTo, move |ctx: &mut CallerWrap<Caller>| {
-            let waited_type = if ctx.ext_mut().wait_up_to(duration)? {
-                MessageWaitedType::WaitUpToFull
-            } else {
-                MessageWaitedType::WaitUpTo
-            };
-            Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
-        })
+        InfallibleSyscall::new(
+            CostToken::WaitUpTo,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let waited_type = if ctx.caller_wrap.ext_mut().wait_up_to(duration)? {
+                    MessageWaitedType::WaitUpToFull
+                } else {
+                    MessageWaitedType::WaitUpTo
+                };
+                Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
+            },
+        )
     }
 
     pub fn wake(message_id: ReadDecoded<MessageId>, delay: u32) -> impl Syscall<Caller> {
-        FallibleSyscall::new::<ErrorBytes>(CostToken::Wake, move |ctx: &mut CallerWrap<Caller>| {
-            let message_id = message_id.value()?;
+        FallibleSyscall::new::<ErrorBytes>(
+            CostToken::Wake,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let message_id = message_id.into_inner()?;
 
-            ctx.ext_mut().wake(message_id, delay).map_err(Into::into)
-        })
+                ctx.caller_wrap
+                    .ext_mut()
+                    .wake(message_id, delay)
+                    .map_err(Into::into)
+            },
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
     fn create_program_inner(
-        ctx: &mut CallerWrap<Caller>,
+        ctx: &mut MemoryCallerContext<Caller>,
         cid_value: ReadAs<HashWithValue>,
         salt: ReadLimited,
         payload: ReadLimited,
@@ -1247,13 +1324,14 @@ where
         let HashWithValue {
             hash: code_id,
             value,
-        } = cid_value.value()?;
-        let salt = Self::read_message_payload(salt)?;
-        let payload = Self::read_message_payload(payload)?;
+        } = cid_value.into_inner()?;
+        let salt = Self::read_payload(salt)?;
+        let payload = Self::read_payload(payload)?;
 
-        let message_id = ctx.ext_mut().message_id()?;
+        let message_id = ctx.caller_wrap.ext_mut().message_id()?;
 
-        ctx.ext_mut()
+        ctx.caller_wrap
+            .ext_mut()
             .create_program(
                 InitPacket::new_from_program(
                     code_id.into(),
@@ -1276,7 +1354,7 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithTwoHashes>(
             CostToken::CreateProgram(payload.size().into(), salt.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| -> Result<_, RunFallibleError> {
+            move |ctx: &mut MemoryCallerContext<Caller>| -> Result<_, RunFallibleError> {
                 Self::create_program_inner(ctx, cid_value, salt, payload, None, delay)
             },
         )
@@ -1291,14 +1369,14 @@ where
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithTwoHashes>(
             CostToken::CreateProgramWGas(payload.size().into(), salt.size().into()),
-            move |ctx: &mut CallerWrap<Caller>| {
+            move |ctx: &mut MemoryCallerContext<Caller>| {
                 Self::create_program_inner(ctx, cid_value, salt, payload, Some(gas_limit), delay)
             },
         )
     }
 
-    fn out_of_gas(ctx: &mut CallerWrap<Caller>) -> UndefinedTerminationReason {
-        let ext = ctx.ext_mut();
+    fn out_of_gas(ctx: &mut MemoryCallerContext<Caller>) -> UndefinedTerminationReason {
+        let ext = ctx.caller_wrap.ext_mut();
         let current_counter = ext.current_counter_type();
         log::trace!(target: "syscalls", "system_break(OutOfGas): Current counter in global represents {current_counter:?}");
 
@@ -1316,7 +1394,7 @@ where
     }
 
     pub fn system_break(_gas: Gas, code: u32) -> impl Syscall<Caller> {
-        RawSyscall::new(move |ctx: &mut CallerWrap<Caller>| {
+        RawSyscall::new(move |ctx: &mut MemoryCallerContext<Caller>| {
             // At the instrumentation level, we can only use variants of the `SystemBreakCode`,
             // so we should never reach `unreachable!("{err_msg}")`.
             let termination_reason = SystemBreakCode::try_from(code)
@@ -1334,7 +1412,7 @@ where
                     log::error!("{err_msg}");
                     unreachable!("{err_msg}")
                 });
-            ctx.set_termination_reason(termination_reason);
+            ctx.caller_wrap.set_termination_reason(termination_reason);
             Err(HostError)
         })
     }

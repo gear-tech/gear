@@ -23,13 +23,13 @@ use crate::{
         BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessRegistry, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    runtime::CallerWrap,
+    runtime::MemoryCallerContext,
     state::HostState,
     BackendExternalities,
 };
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
-use gear_core::message::Payload;
+use gear_core::message::{Payload, PayloadSizeError};
 use gear_sandbox::{AsContextExt, Value};
 use gear_sandbox_env::HostError;
 
@@ -83,8 +83,8 @@ impl TryFrom<SyscallValue> for u64 {
 
 pub(crate) trait SyscallArg: Sized {
     type Output;
+
     const REQUIRED_ARGS: usize;
-    const REQUIRES_MEMORY_MANAGER: bool;
 
     fn pre_process<Caller, Ext>(
         registry: &mut Option<MemoryAccessRegistry<Caller>>,
@@ -94,7 +94,10 @@ pub(crate) trait SyscallArg: Sized {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static;
 
-    fn post_process<Caller, Ext>(output: Self::Output, ctx: &CallerWrap<Caller>) -> Self
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static;
@@ -106,7 +109,7 @@ pub(crate) struct Read {
 }
 
 pub(crate) struct ReadLimited<const N: usize = { Payload::MAX_LEN }> {
-    result: Option<Result<Vec<u8>, MemoryAccessError>>,
+    result: Result<Result<Vec<u8>, MemoryAccessError>, PayloadSizeError>,
     size: u32,
 }
 
@@ -132,21 +135,22 @@ pub(crate) struct WriteAs<T> {
 
 impl SyscallArg for u32 {
     type Output = u32;
+
     const REQUIRED_ARGS: usize = 1;
-    const REQUIRES_MEMORY_MANAGER: bool = false;
 
     fn pre_process<Caller, Ext>(
         _: &mut Option<MemoryAccessRegistry<Caller>>,
         args: &[Value],
     ) -> Result<Self::Output, HostError> {
-        if args.len() != Self::REQUIRED_ARGS {
-            return Err(HostError);
-        }
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
 
         SyscallValue(args[0]).try_into()
     }
 
-    fn post_process<Caller, Ext>(output: Self::Output, _ctx: &CallerWrap<Caller>) -> Self {
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        _ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self {
         output
     }
 }
@@ -154,20 +158,20 @@ impl SyscallArg for u32 {
 impl SyscallArg for u64 {
     type Output = u64;
     const REQUIRED_ARGS: usize = 1;
-    const REQUIRES_MEMORY_MANAGER: bool = false;
 
     fn pre_process<Caller, Ext>(
         _: &mut Option<MemoryAccessRegistry<Caller>>,
         args: &[Value],
     ) -> Result<Self::Output, HostError> {
-        if args.len() != Self::REQUIRED_ARGS {
-            return Err(HostError);
-        }
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
 
         SyscallValue(args[0]).try_into()
     }
 
-    fn post_process<Caller, Ext>(output: Self::Output, _ctx: &CallerWrap<Caller>) -> Self {
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        _ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self {
         output
     }
 }
@@ -175,7 +179,6 @@ impl SyscallArg for u64 {
 impl SyscallArg for Read {
     type Output = WasmMemoryRead;
     const REQUIRED_ARGS: usize = 2;
-    const REQUIRES_MEMORY_MANAGER: bool = true;
 
     fn pre_process<Caller, Ext>(
         registry: &mut Option<MemoryAccessRegistry<Caller>>,
@@ -185,32 +188,35 @@ impl SyscallArg for Read {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        if args.len() != Self::REQUIRED_ARGS {
-            return Err(HostError);
-        }
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
 
         let ptr = SyscallValue(args[0]).try_into()?;
         let size = SyscallValue(args[1]).try_into()?;
 
-        Ok(registry.as_mut().unwrap().register_read(ptr, size))
+        Ok(registry.get_or_insert_default().register_read(ptr, size))
     }
 
-    fn post_process<Caller, Ext>(output: Self::Output, ctx: &CallerWrap<Caller>) -> Self
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
         Self {
             size: output.size,
-            result: ctx.io_ref().and_then(|io| io.read(ctx, output)),
+            result: ctx
+                .memory_wrap
+                .io_ref()
+                .and_then(|io| io.read(&mut ctx.caller_wrap, output)),
         }
     }
 }
 
 impl<const N: usize> SyscallArg for ReadLimited<N> {
-    type Output = Option<WasmMemoryRead>;
+    type Output = Result<WasmMemoryRead, PayloadSizeError>;
     const REQUIRED_ARGS: usize = 2;
-    const REQUIRES_MEMORY_MANAGER: bool = true;
 
     fn pre_process<Caller, Ext>(
         registry: &mut Option<MemoryAccessRegistry<Caller>>,
@@ -220,33 +226,39 @@ impl<const N: usize> SyscallArg for ReadLimited<N> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        if args.len() != Self::REQUIRED_ARGS {
-            return Err(HostError);
-        }
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
 
         let ptr = SyscallValue(args[0]).try_into()?;
         let size = SyscallValue(args[1]).try_into()?;
 
         if size as usize > N {
-            Ok(None)
+            Ok(Err(PayloadSizeError))
         } else {
-            Ok(Some(registry.as_mut().unwrap().register_read(ptr, size)))
+            Ok(Ok(registry
+                .get_or_insert_default()
+                .register_read(ptr, size)))
         }
     }
 
-    fn post_process<Caller, Ext>(output: Self::Output, ctx: &CallerWrap<Caller>) -> Self
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
         match output {
-            Some(output) => Self {
+            Ok(output) => Self {
                 size: output.size,
-                result: Some(ctx.io_ref().and_then(|io| io.read(ctx, output))),
+                result: Ok(ctx
+                    .memory_wrap
+                    .io_ref()
+                    .and_then(|io| io.read(&mut ctx.caller_wrap, output))),
             },
-            None => Self {
-                size: Default::default(),
-                result: None,
+            Err(err) => Self {
+                size: 0,
+                result: Err(err),
             },
         }
     }
@@ -255,7 +267,6 @@ impl<const N: usize> SyscallArg for ReadLimited<N> {
 impl<T> SyscallArg for ReadAs<T> {
     type Output = WasmMemoryReadAs<T>;
     const REQUIRED_ARGS: usize = 1;
-    const REQUIRES_MEMORY_MANAGER: bool = true;
 
     fn pre_process<Caller, Ext>(
         registry: &mut Option<MemoryAccessRegistry<Caller>>,
@@ -265,22 +276,26 @@ impl<T> SyscallArg for ReadAs<T> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        if args.len() != Self::REQUIRED_ARGS {
-            return Err(HostError);
-        }
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
 
         let ptr = SyscallValue(args[0]).try_into()?;
 
-        Ok(registry.as_mut().unwrap().register_read_as(ptr))
+        Ok(registry.get_or_insert_default().register_read_as(ptr))
     }
 
-    fn post_process<Caller, Ext>(output: Self::Output, ctx: &CallerWrap<Caller>) -> Self
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
         Self {
-            result: ctx.io_ref().and_then(|io| io.read_as(ctx, output)),
+            result: ctx
+                .memory_wrap
+                .io_ref()
+                .and_then(|io| io.read_as(&mut ctx.caller_wrap, output)),
         }
     }
 }
@@ -288,7 +303,6 @@ impl<T> SyscallArg for ReadAs<T> {
 impl<T: Decode + MaxEncodedLen> SyscallArg for ReadDecoded<T> {
     type Output = WasmMemoryReadDecoded<T>;
     const REQUIRED_ARGS: usize = 1;
-    const REQUIRES_MEMORY_MANAGER: bool = true;
 
     fn pre_process<Caller, Ext>(
         registry: &mut Option<MemoryAccessRegistry<Caller>>,
@@ -298,22 +312,26 @@ impl<T: Decode + MaxEncodedLen> SyscallArg for ReadDecoded<T> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        if args.len() != Self::REQUIRED_ARGS {
-            return Err(HostError);
-        }
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
 
         let ptr = SyscallValue(args[0]).try_into()?;
 
-        Ok(registry.as_mut().unwrap().register_read_decoded(ptr))
+        Ok(registry.get_or_insert_default().register_read_decoded(ptr))
     }
 
-    fn post_process<Caller, Ext>(output: Self::Output, ctx: &CallerWrap<Caller>) -> Self
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
         Self {
-            result: ctx.io_ref().and_then(|io| io.read_decoded(ctx, output)),
+            result: ctx
+                .memory_wrap
+                .io_ref()
+                .and_then(|io| io.read_decoded(&mut ctx.caller_wrap, output)),
         }
     }
 }
@@ -321,7 +339,6 @@ impl<T: Decode + MaxEncodedLen> SyscallArg for ReadDecoded<T> {
 impl<T: Decode + MaxEncodedLen + Default> SyscallArg for ReadDecodedSpecial<T> {
     type Output = Option<WasmMemoryReadDecoded<T>>;
     const REQUIRED_ARGS: usize = 1;
-    const REQUIRES_MEMORY_MANAGER: bool = true;
 
     fn pre_process<Caller, Ext>(
         registry: &mut Option<MemoryAccessRegistry<Caller>>,
@@ -331,27 +348,33 @@ impl<T: Decode + MaxEncodedLen + Default> SyscallArg for ReadDecodedSpecial<T> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        if args.len() != Self::REQUIRED_ARGS {
-            return Err(HostError);
-        }
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
 
         let ptr = SyscallValue(args[0]).try_into()?;
 
         if ptr != PTR_SPECIAL {
-            Ok(Some(registry.as_mut().unwrap().register_read_decoded(ptr)))
+            Ok(Some(
+                registry.get_or_insert_default().register_read_decoded(ptr),
+            ))
         } else {
             Ok(None)
         }
     }
 
-    fn post_process<Caller, Ext>(output: Self::Output, ctx: &CallerWrap<Caller>) -> Self
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
         match output {
             Some(output) => Self {
-                result: ctx.io_ref().and_then(|io| io.read_decoded(ctx, output)),
+                result: ctx
+                    .memory_wrap
+                    .io_ref()
+                    .and_then(|io| io.read_decoded(&mut ctx.caller_wrap, output)),
             },
             None => Self {
                 result: Ok(Default::default()),
@@ -363,7 +386,6 @@ impl<T: Decode + MaxEncodedLen + Default> SyscallArg for ReadDecodedSpecial<T> {
 impl SyscallArg for WriteInGrRead {
     type Output = WasmMemoryWrite;
     const REQUIRED_ARGS: usize = 2;
-    const REQUIRES_MEMORY_MANAGER: bool = true;
 
     fn pre_process<Caller, Ext>(
         registry: &mut Option<MemoryAccessRegistry<Caller>>,
@@ -373,17 +395,18 @@ impl SyscallArg for WriteInGrRead {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        if args.len() != Self::REQUIRED_ARGS {
-            return Err(HostError);
-        }
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
 
         let ptr = SyscallValue(args[1]).try_into()?;
         let size = SyscallValue(args[0]).try_into()?;
 
-        Ok(registry.as_mut().unwrap().register_write(ptr, size))
+        Ok(registry.get_or_insert_default().register_write(ptr, size))
     }
 
-    fn post_process<Caller, Ext>(output: Self::Output, _ctx: &CallerWrap<Caller>) -> Self {
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        _ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self {
         Self { write: output }
     }
 }
@@ -391,7 +414,6 @@ impl SyscallArg for WriteInGrRead {
 impl<T> SyscallArg for WriteAs<T> {
     type Output = WasmMemoryWriteAs<T>;
     const REQUIRED_ARGS: usize = 1;
-    const REQUIRES_MEMORY_MANAGER: bool = true;
 
     fn pre_process<Caller, Ext>(
         registry: &mut Option<MemoryAccessRegistry<Caller>>,
@@ -401,22 +423,23 @@ impl<T> SyscallArg for WriteAs<T> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        if args.len() != Self::REQUIRED_ARGS {
-            return Err(HostError);
-        }
+        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
 
         let ptr = SyscallValue(args[0]).try_into()?;
 
-        Ok(registry.as_mut().unwrap().register_write_as(ptr))
+        Ok(registry.get_or_insert_default().register_write_as(ptr))
     }
 
-    fn post_process<Caller, Ext>(output: Self::Output, _ctx: &CallerWrap<Caller>) -> Self {
+    fn post_process<Caller, Ext>(
+        output: Self::Output,
+        _ctx: &mut MemoryCallerContext<Caller>,
+    ) -> Self {
         Self { write: output }
     }
 }
 
 impl Read {
-    pub fn value(self) -> Result<Vec<u8>, MemoryAccessError> {
+    pub fn into_inner(self) -> Result<Vec<u8>, MemoryAccessError> {
         self.result
     }
 
@@ -426,7 +449,7 @@ impl Read {
 }
 
 impl<const N: usize> ReadLimited<N> {
-    pub fn value(self) -> Option<Result<Vec<u8>, MemoryAccessError>> {
+    pub fn into_inner(self) -> Result<Result<Vec<u8>, MemoryAccessError>, PayloadSizeError> {
         self.result
     }
 
@@ -436,19 +459,19 @@ impl<const N: usize> ReadLimited<N> {
 }
 
 impl<T> ReadAs<T> {
-    pub fn value(self) -> Result<T, MemoryAccessError> {
+    pub fn into_inner(self) -> Result<T, MemoryAccessError> {
         self.result
     }
 }
 
 impl<T: Decode + MaxEncodedLen> ReadDecoded<T> {
-    pub fn value(self) -> Result<T, MemoryAccessError> {
+    pub fn into_inner(self) -> Result<T, MemoryAccessError> {
         self.result
     }
 }
 
 impl<T: Decode + MaxEncodedLen + Default> ReadDecodedSpecial<T> {
-    pub fn value(self) -> Result<T, MemoryAccessError> {
+    pub fn into_inner(self) -> Result<T, MemoryAccessError> {
         self.result
     }
 }
@@ -456,14 +479,16 @@ impl<T: Decode + MaxEncodedLen + Default> ReadDecodedSpecial<T> {
 impl WriteInGrRead {
     pub fn write<Caller, Ext>(
         self,
-        ctx: &mut CallerWrap<Caller>,
+        ctx: &mut MemoryCallerContext<Caller>,
         buff: &[u8],
     ) -> Result<(), MemoryAccessError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        ctx.io_ref()?.write(ctx, self.write, buff)
+        ctx.memory_wrap
+            .io_ref()
+            .and_then(|io| io.write(&mut ctx.caller_wrap, self.write, buff))
     }
 
     pub fn size(&self) -> u32 {
@@ -474,13 +499,15 @@ impl WriteInGrRead {
 impl<T> WriteAs<T> {
     pub fn write<Caller, Ext>(
         self,
-        ctx: &mut CallerWrap<Caller>,
+        ctx: &mut MemoryCallerContext<Caller>,
         obj: T,
     ) -> Result<(), MemoryAccessError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        ctx.io_ref()?.write_as(ctx, self.write, obj)
+        ctx.memory_wrap
+            .io_ref()
+            .and_then(|io| io.write_as(&mut ctx.caller_wrap, self.write, obj))
     }
 }
