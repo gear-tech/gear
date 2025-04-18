@@ -328,7 +328,7 @@ impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
         };
 
         log::trace!("Failed to get transaction receipt for {tx_hash}. Retrying...");
-        for n in 0..100 {
+        for n in 0..20 {
             log::trace!("Attempt {n}. Error - {err}");
             match err {
                 PendingTransactionError::TransportError(RpcError::NullResp) => {}
