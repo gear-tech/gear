@@ -19,13 +19,14 @@ use gear_core::{
 use gear_core_errors::SignalCode;
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
-pub struct Handler<'a, S: Storage> {
+// Handles unprocessed journal notes during chunk processing.
+pub struct ChunkJournalHandler<'a, S: Storage> {
     pub program_id: ProgramId,
     pub dispatch_origin: Origin,
     pub controller: TransitionController<'a, S>,
 }
 
-impl<S: Storage> Handler<'_, S> {
+impl<S: Storage> ChunkJournalHandler<'_, S> {
     fn send_dispatch_to_program(
         &mut self,
         _message_id: MessageId,
@@ -121,14 +122,14 @@ impl<S: Storage> Handler<'_, S> {
     }
 }
 
-impl<S: Storage> JournalHandler for Handler<'_, S> {
+impl<S: Storage> JournalHandler for ChunkJournalHandler<'_, S> {
     fn message_dispatched(
         &mut self,
         _message_id: MessageId,
         _source: ProgramId,
         _outcome: DispatchOutcome,
     ) {
-        // Handled inside runtime by `RuntimeJournalHandler`
+        // Handled inside runtime by `MessageJournalHandler`
     }
 
     fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {
@@ -286,7 +287,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         _program_id: ProgramId,
         _pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
-        // Handled inside runtime by `RuntimeJournalHandler`
+        // Handled inside runtime by `MessageJournalHandler`
     }
 
     fn update_allocations(
@@ -294,7 +295,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         _program_id: ProgramId,
         _new_allocations: IntervalsTree<WasmPage>,
     ) {
-        // Handled inside runtime by `RuntimeJournalHandler`
+        // Handled inside runtime by `MessageJournalHandler`
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
@@ -355,7 +356,8 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     }
 }
 
-pub struct RuntimeJournalHandler<'s, S>
+// Handles unprocessed journal notes during message processing in the runtime.
+pub struct MessageJournalHandler<'s, S>
 where
     S: Storage,
 {
@@ -363,7 +365,7 @@ where
     pub program_state: &'s mut ProgramState,
 }
 
-impl<S> RuntimeJournalHandler<'_, S>
+impl<S> MessageJournalHandler<'_, S>
 where
     S: Storage,
 {

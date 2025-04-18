@@ -37,11 +37,11 @@ use gear_core::{
 use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
-use journal::RuntimeJournalHandler;
+use journal::MessageJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
-pub use journal::Handler as JournalHandler;
+pub use journal::ChunkJournalHandler as JournalHandler;
 pub use schedule::Handler as ScheduleHandler;
 pub use transitions::{InBlockTransitions, NonFinalTransition};
 
@@ -186,7 +186,7 @@ where
             code_id,
             ri,
         );
-        let mut handler = RuntimeJournalHandler {
+        let mut handler = MessageJournalHandler {
             storage: ri.storage(),
             program_state: &mut program_state,
         };
@@ -257,7 +257,7 @@ where
         }
         state::Program::Exited(program_id) => {
             log::trace!("Program {program_id} has exited");
-            return core_processor::process_program_exited(context, program_id);
+            return core_processor::process_program_exited(context, *program_id);
         }
     };
 

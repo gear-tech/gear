@@ -64,11 +64,6 @@ pub struct NodeParams {
     #[serde(rename = "max-depth")]
     pub max_depth: Option<NonZero<u32>>,
 
-    /// Number of physical threads to use.
-    #[arg(long)]
-    #[serde(rename = "physical-threads")]
-    pub physical_threads: Option<NonZero<u8>>,
-
     /// Number of virtual thread to use for programs processing.
     #[arg(long)]
     #[serde(rename = "virtual-threads")]
@@ -169,7 +164,6 @@ impl MergeParams for NodeParams {
 
             max_depth: self.max_depth.or(with.max_depth),
 
-            physical_threads: self.physical_threads.or(with.physical_threads),
             virtual_threads: self.virtual_threads.or(with.virtual_threads),
         }
     }

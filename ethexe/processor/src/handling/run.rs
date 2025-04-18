@@ -191,14 +191,14 @@ pub async fn run(
     }
 }
 
-// `split_to_buckets` is not exactly sorting (sorting usually `n*log(n)`` this one is `O(n)``),
+// `split_to_buckets` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)``),
 // but rather partitioning into subsets (buckets) of programs with approximately similar queue sizes.
 fn split_to_buckets(
     queues_processing_threads: usize,
     states: &[(ActorId, H256, usize)],
 ) -> impl IntoIterator<Item = (ActorId, H256, usize)> {
     fn bucket_idx(queue_size: usize, number_of_buckets: usize) -> usize {
-        // Simplest implementation of bucket partitioning '..1| 2 | 3 | 4 ..'
+        // Simplest implementation of bucket partitioning '| 1 | 2 | 3 | 4 | ..'
         queue_size.clamp(1, number_of_buckets) - 1
     }
 
