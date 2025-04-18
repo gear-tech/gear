@@ -29,7 +29,6 @@ derive_more.workspace = true
 codec.workspace = true
 
 [dev-dependencies]
-codec.workspace = true
 env_logger.workspace = true
 
 [features]
