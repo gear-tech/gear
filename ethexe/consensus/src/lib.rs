@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! # Ethexe Control
+//! # Ethexe Consensus
 //!
 //! This crate provides controlling a behaviour of ethexe node depending on incoming blocks.
 //!
 //! The main components are:
-//! - [`ControlService`]: A trait defining the core interface for control services
-//! - [`ControlEvent`]: An enum representing various control events which have to be processed by outer services
+//! - [`ConsensusService`]: A trait defining the core interface for consensus services
+//! - [`ConsensusEvent`]: An enum representing various consensus events which have to be processed by outer services
 //! - [`SimpleConnectService`]: A basic implementation of "connect-node"
 //! - [`ValidatorService`]: Service for handling block validation
 //!
@@ -49,8 +49,8 @@ use ethexe_signer::SignedData;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
 
-pub trait ControlService:
-    Stream<Item = Result<ControlEvent>> + FusedStream + Unpin + Send + 'static
+pub trait ConsensusService:
+    Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static
 {
     /// Returns the role info of the service
     fn role(&self) -> String;
@@ -78,7 +78,7 @@ pub trait ControlService:
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ControlEvent {
+pub enum ConsensusEvent {
     /// Outer service have to compute block
     ComputeBlock(H256),
     /// Outer service have to compute producer block

@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! # "Connect-Node" Control Service
+//! # "Connect-Node" Consensus Service
 //!
-//! Simple "connect-node" control service implementation.
+//! Simple "connect-node" consensus service implementation.
 
 use crate::{
     utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
-    ControlEvent, ControlService,
+    ConsensusEvent, ConsensusService,
 };
 use anyhow::Result;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
@@ -36,12 +36,12 @@ use std::{
     task::{Context, Poll},
 };
 
-/// Control service which tracks the on-chain and ethexe events
+/// Consensus service which tracks the on-chain and ethexe events
 /// in order to keep the program states in local database actual.
 #[derive(Debug, Default)]
 pub struct SimpleConnectService {
     block: Option<SimpleBlockData>,
-    output: VecDeque<ControlEvent>,
+    output: VecDeque<ConsensusEvent>,
 }
 
 impl SimpleConnectService {
@@ -51,7 +51,7 @@ impl SimpleConnectService {
     }
 }
 
-impl ControlService for SimpleConnectService {
+impl ConsensusService for SimpleConnectService {
     fn role(&self) -> String {
         "Connect".to_string()
     }
@@ -64,7 +64,7 @@ impl ControlService for SimpleConnectService {
 
     fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()> {
         let Some(block) = self.block.as_ref() else {
-            self.output.push_back(ControlEvent::Warning(format!(
+            self.output.push_back(ConsensusEvent::Warning(format!(
                 "Received synced block {}, but no chain-head was received yet",
                 data.block_hash
             )));
@@ -73,7 +73,7 @@ impl ControlService for SimpleConnectService {
         };
 
         if block.hash != data.block_hash {
-            self.output.push_back(ControlEvent::Warning(format!(
+            self.output.push_back(ConsensusEvent::Warning(format!(
                 "Received synced block {} is different from the expected block hash {}",
                 data.block_hash, block.hash
             )));
@@ -82,7 +82,7 @@ impl ControlService for SimpleConnectService {
         }
 
         self.output
-            .push_back(ControlEvent::ComputeBlock(block.header.parent_hash));
+            .push_back(ConsensusEvent::ComputeBlock(block.header.parent_hash));
 
         Ok(())
     }
@@ -111,7 +111,7 @@ impl ControlService for SimpleConnectService {
 }
 
 impl Stream for SimpleConnectService {
-    type Item = anyhow::Result<ControlEvent>;
+    type Item = anyhow::Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(event) = self.output.pop_front() {

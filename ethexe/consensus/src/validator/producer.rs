@@ -31,7 +31,7 @@ use gprimitives::H256;
 use std::{fmt, task::Context};
 
 use super::{coordinator::Coordinator, initial::Initial, ValidatorContext, ValidatorSubService};
-use crate::ControlEvent;
+use crate::ConsensusEvent;
 
 #[derive(Debug)]
 pub struct Producer {
@@ -247,8 +247,8 @@ impl Producer {
             .create_signed_data(self.ctx.pub_key, pb.clone())?;
 
         self.state = State::WaitingBlockComputed(self.block.hash);
-        self.output(ControlEvent::PublishProducerBlock(signed_pb));
-        self.output(ControlEvent::ComputeProducerBlock(pb));
+        self.output(ConsensusEvent::PublishProducerBlock(signed_pb));
+        self.output(ConsensusEvent::ComputeProducerBlock(pb));
 
         Ok(())
     }
@@ -375,7 +375,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
-        assert!(matches!(request, ControlEvent::PublishValidationRequest(_)));
+        assert!(matches!(
+            request,
+            ConsensusEvent::PublishValidationRequest(_)
+        ));
     }
 
     #[tokio::test]
@@ -411,7 +414,7 @@ mod tests {
         ctx: ValidatorContext,
         block: SimpleBlockData,
         validators: Vec<Address>,
-    ) -> Result<(Box<dyn ValidatorSubService>, ControlEvent, ControlEvent)> {
+    ) -> Result<(Box<dyn ValidatorSubService>, ConsensusEvent, ConsensusEvent)> {
         let producer = Producer::create(ctx, block.clone(), validators)?;
         assert_eq!(producer.type_id(), TypeId::of::<Producer>());
 
@@ -419,14 +422,14 @@ mod tests {
         assert_eq!(producer.type_id(), TypeId::of::<Producer>());
         assert!(matches!(
             publish_event,
-            ControlEvent::PublishProducerBlock(_)
+            ConsensusEvent::PublishProducerBlock(_)
         ));
 
         let (producer, compute_event) = producer.wait_for_event().await?;
         assert_eq!(producer.type_id(), TypeId::of::<Producer>());
         assert!(matches!(
             compute_event,
-            ControlEvent::ComputeProducerBlock(_)
+            ConsensusEvent::ComputeProducerBlock(_)
         ));
 
         Ok((producer, publish_event, compute_event))

@@ -28,7 +28,7 @@ use std::{
 };
 
 use super::{initial::Initial, BatchCommitter, ValidatorContext, ValidatorSubService};
-use crate::{utils::MultisignedBatchCommitment, ControlEvent};
+use crate::{utils::MultisignedBatchCommitment, ConsensusEvent};
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -58,7 +58,7 @@ impl ValidatorSubService for Submitter {
     fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
         match self.future.poll_unpin(cx) {
             Poll::Ready(Ok(tx)) => {
-                self.output(ControlEvent::CommitmentSubmitted(tx));
+                self.output(ConsensusEvent::CommitmentSubmitted(tx));
 
                 Initial::create(self.ctx)
             }
@@ -139,7 +139,7 @@ mod tests {
 
         let (initial, event) = submitter.wait_for_event().await.unwrap();
         assert_eq!(initial.type_id(), TypeId::of::<Initial>());
-        assert!(matches!(event, ControlEvent::CommitmentSubmitted(_)));
+        assert!(matches!(event, ConsensusEvent::CommitmentSubmitted(_)));
 
         with_batch(|submitted_batch| assert_eq!(submitted_batch, Some(&multisigned_batch)));
     }

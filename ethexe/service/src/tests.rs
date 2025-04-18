@@ -1115,7 +1115,7 @@ mod utils {
     use super::*;
     use crate::Event;
     use ethexe_common::SimpleBlockData;
-    use ethexe_control::{ControlService, SimpleConnectService, ValidatorService};
+    use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
     use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
     use ethexe_observer::{ObserverEvent, ObserverService};
@@ -1603,7 +1603,7 @@ mod utils {
                 .unwrap()
                 .header
                 .timestamp;
-            ethexe_control::block_producer_index(
+            ethexe_consensus::block_producer_index(
                 self.validators.len(),
                 (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
             )
@@ -1886,13 +1886,13 @@ mod utils {
                 network
             });
 
-            let control: Pin<Box<dyn ControlService>> =
+            let consensus: Pin<Box<dyn ConsensusService>> =
                 if let Some(config) = self.validator_config.as_ref() {
                     Box::pin(
                         ValidatorService::new(
                             self.signer.clone(),
                             self.db.clone(),
-                            ethexe_control::ValidatorConfig {
+                            ethexe_consensus::ValidatorConfig {
                                 ethereum_rpc: self.eth_cfg.rpc.clone(),
                                 pub_key: config.public_key,
                                 router_address: self.eth_cfg.router_address,
@@ -1934,7 +1934,7 @@ mod utils {
                 processor,
                 self.signer.clone(),
                 tx_pool_service,
-                control,
+                consensus,
                 network,
                 None,
                 rpc,

@@ -26,7 +26,7 @@ use std::mem;
 use super::{
     initial::Initial, DefaultProcessing, PendingEvent, ValidatorContext, ValidatorSubService,
 };
-use crate::{validator::participant::Participant, ControlEvent};
+use crate::{validator::participant::Participant, ConsensusEvent};
 
 const MAX_PENDING_EVENTS: usize = 10;
 
@@ -76,7 +76,7 @@ impl ValidatorSubService for Subordinate {
             let pb = block.into_parts().0;
             let block_hash = pb.block_hash;
 
-            self.output(ControlEvent::ComputeProducerBlock(pb));
+            self.output(ConsensusEvent::ComputeProducerBlock(pb));
 
             self.state = State::WaitingProducerBlockComputed { block_hash };
 
@@ -165,11 +165,11 @@ impl Subordinate {
 
         let state = if let Some(producer_block) = earlier_producer_block {
             let block_hash = producer_block.block_hash;
-            ctx.output(ControlEvent::ComputeProducerBlock(producer_block));
+            ctx.output(ConsensusEvent::ComputeProducerBlock(producer_block));
 
             State::WaitingProducerBlockComputed { block_hash }
         } else {
-            ctx.output(ControlEvent::ComputeBlock(block.header.parent_hash));
+            ctx.output(ConsensusEvent::ComputeBlock(block.header.parent_hash));
 
             State::WaitingForProducerBlock
         };
@@ -202,7 +202,7 @@ mod tests {
         assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
         assert_eq!(
             s.context().output,
-            vec![ControlEvent::ComputeBlock(block.header.parent_hash)]
+            vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
         );
         assert_eq!(s.context().pending_events, vec![]);
     }
@@ -223,7 +223,7 @@ mod tests {
         assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
         assert_eq!(
             s.context().output,
-            vec![ControlEvent::ComputeProducerBlock(pb1)]
+            vec![ConsensusEvent::ComputeProducerBlock(pb1)]
         );
 
         // Second block must stay in pending events, because it's not from current producer.
@@ -249,7 +249,7 @@ mod tests {
         assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
         assert_eq!(
             s.context().output,
-            vec![ControlEvent::ComputeBlock(block.header.parent_hash)]
+            vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
         );
         assert_eq!(
             s.context().pending_events,
@@ -279,7 +279,7 @@ mod tests {
         assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
         assert_eq!(
             s.context().output,
-            vec![ControlEvent::ComputeProducerBlock(pb)]
+            vec![ConsensusEvent::ComputeProducerBlock(pb)]
         );
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
     }
@@ -296,7 +296,7 @@ mod tests {
         assert_eq!(s.context().output.len(), 1);
         assert_eq!(
             s.context().output[0],
-            ControlEvent::ComputeBlock(block.header.parent_hash)
+            ConsensusEvent::ComputeBlock(block.header.parent_hash)
         );
 
         let s = s.process_block_from_producer(signed_pb).unwrap();
@@ -304,7 +304,7 @@ mod tests {
         assert_eq!(s.context().output.len(), 2);
         assert_eq!(
             s.context().output[1],
-            ControlEvent::ComputeProducerBlock(pb)
+            ConsensusEvent::ComputeProducerBlock(pb)
         );
 
         let s = s.process_computed_block(block.header.parent_hash).unwrap();
@@ -328,7 +328,7 @@ mod tests {
         assert_eq!(s.context().output.len(), 1);
         assert_eq!(
             s.context().output[0],
-            ControlEvent::ComputeBlock(block.header.parent_hash)
+            ConsensusEvent::ComputeBlock(block.header.parent_hash)
         );
 
         let s = s.process_block_from_producer(signed_pb).unwrap();
@@ -336,7 +336,7 @@ mod tests {
         assert_eq!(s.context().output.len(), 2);
         assert_eq!(
             s.context().output[1],
-            ControlEvent::ComputeProducerBlock(pb)
+            ConsensusEvent::ComputeProducerBlock(pb)
         );
 
         let s = s.process_computed_block(block.header.parent_hash).unwrap();
@@ -362,7 +362,7 @@ mod tests {
 
         assert_eq!(
             s.context().output,
-            vec![ControlEvent::ComputeProducerBlock(pb1)]
+            vec![ConsensusEvent::ComputeProducerBlock(pb1)]
         );
         assert_eq!(
             s.context().pending_events,
@@ -381,7 +381,7 @@ mod tests {
 
         s = s.process_block_from_producer(invalid_pb.clone()).unwrap();
         assert_eq!(s.context().output.len(), 2);
-        assert!(matches!(s.context().output[1], ControlEvent::Warning(_)));
+        assert!(matches!(s.context().output[1], ConsensusEvent::Warning(_)));
         assert_eq!(s.context().pending_events.len(), 1);
         assert_eq!(s.context().pending_events[0], invalid_pb.into());
     }
@@ -397,6 +397,6 @@ mod tests {
 
         let s = s.process_computed_block(unexpected_hash).unwrap();
         assert_eq!(s.context().output.len(), 2);
-        assert!(matches!(s.context().output[1], ControlEvent::Warning(_)));
+        assert!(matches!(s.context().output[1], ConsensusEvent::Warning(_)));
     }
 }

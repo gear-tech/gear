@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! # Validator Control Service
+//! # Validator Consensus Service
 //!
 //! This module provides the core validation functionality for the Ethexe system.
 //! It implements a state machine-based validator service that processes blocks,
@@ -74,7 +74,7 @@ use crate::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         MultisignedBatchCommitment,
     },
-    ControlEvent, ControlService,
+    ConsensusEvent, ConsensusService,
 };
 use initial::Initial;
 
@@ -84,7 +84,7 @@ use self::{
     subordinate::Subordinate,
 };
 
-/// The main validator service that implements the `ControlService` trait.
+/// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
 pub struct ValidatorService {
     inner: Option<Box<dyn ValidatorSubService>>,
@@ -165,7 +165,7 @@ impl ValidatorService {
     }
 }
 
-impl ControlService for ValidatorService {
+impl ConsensusService for ValidatorService {
     fn role(&self) -> String {
         format!("Validator ({:?})", self.context().pub_key.to_address())
     }
@@ -199,7 +199,7 @@ impl ControlService for ValidatorService {
 }
 
 impl Stream for ValidatorService {
-    type Item = Result<ControlEvent>;
+    type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut event = None;
@@ -291,7 +291,7 @@ trait ValidatorSubService: Display + fmt::Debug + Any + Unpin + Send + 'static {
         self.context_mut().warning(warning);
     }
 
-    fn output(&mut self, event: ControlEvent) {
+    fn output(&mut self, event: ConsensusEvent) {
         self.context_mut().output(event);
     }
 }
@@ -382,15 +382,15 @@ struct ValidatorContext {
     /// So, actually it is a stack.
     pending_events: VecDeque<PendingEvent>,
     /// Output events for outer services. Populates during the poll.
-    output: VecDeque<ControlEvent>,
+    output: VecDeque<ConsensusEvent>,
 }
 
 impl ValidatorContext {
     pub fn warning(&mut self, warning: String) {
-        self.output.push_back(ControlEvent::Warning(warning));
+        self.output.push_back(ConsensusEvent::Warning(warning));
     }
 
-    pub fn output(&mut self, event: ControlEvent) {
+    pub fn output(&mut self, event: ConsensusEvent) {
         self.output.push_back(event);
     }
 

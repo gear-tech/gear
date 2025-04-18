@@ -45,12 +45,12 @@ impl BatchCommitter for DummyCommitter {
 
 #[async_trait]
 pub trait WaitForEvent {
-    async fn wait_for_event(self) -> Result<(Box<dyn ValidatorSubService>, ControlEvent)>;
+    async fn wait_for_event(self) -> Result<(Box<dyn ValidatorSubService>, ConsensusEvent)>;
 }
 
 #[async_trait]
 impl WaitForEvent for Box<dyn ValidatorSubService> {
-    async fn wait_for_event(self) -> Result<(Box<dyn ValidatorSubService>, ControlEvent)> {
+    async fn wait_for_event(self) -> Result<(Box<dyn ValidatorSubService>, ConsensusEvent)> {
         wait_for_event_inner(self).await
     }
 }
@@ -75,11 +75,11 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
 
 async fn wait_for_event_inner(
     s: Box<dyn ValidatorSubService>,
-) -> Result<(Box<dyn ValidatorSubService>, ControlEvent)> {
+) -> Result<(Box<dyn ValidatorSubService>, ConsensusEvent)> {
     struct Dummy(Option<Box<dyn ValidatorSubService>>);
 
     impl Future for Dummy {
-        type Output = Result<ControlEvent>;
+        type Output = Result<ConsensusEvent>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             let mut s = self.0.take().unwrap().poll(cx)?;

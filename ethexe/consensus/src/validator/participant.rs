@@ -31,7 +31,7 @@ use crate::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         BlockCommitmentValidationRequest,
     },
-    ControlEvent,
+    ConsensusEvent,
 };
 
 #[derive(Debug)]
@@ -117,7 +117,7 @@ impl Participant {
         request: BatchCommitmentValidationRequest,
     ) -> Result<Box<dyn ValidatorSubService>> {
         match self.process_validation_request_inner(request) {
-            Ok(reply) => self.output(ControlEvent::PublishValidationReply(reply)),
+            Ok(reply) => self.output(ConsensusEvent::PublishValidationReply(reply)),
             Err(err) => self.warning(format!("reject validation request: {err}")),
         }
 
@@ -339,7 +339,7 @@ mod tests {
 
         // Pending validation request from producer was found and rejected
         assert_eq!(ctx.output.len(), 1);
-        assert!(matches!(ctx.output[0], ControlEvent::Warning(_)));
+        assert!(matches!(ctx.output[0], ConsensusEvent::Warning(_)));
     }
 
     #[test]
@@ -361,7 +361,7 @@ mod tests {
         assert_eq!(participant.context().output.len(), 1);
         assert!(matches!(
             participant.context().output[0],
-            ControlEvent::PublishValidationReply(_)
+            ConsensusEvent::PublishValidationReply(_)
         ));
     }
 
@@ -381,7 +381,7 @@ mod tests {
         assert_eq!(initial.context().output.len(), 1);
         assert!(matches!(
             initial.context().output[0],
-            ControlEvent::Warning(_)
+            ConsensusEvent::Warning(_)
         ));
     }
 

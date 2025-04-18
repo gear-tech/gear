@@ -24,7 +24,7 @@ use std::{collections::BTreeSet, fmt};
 use super::{submitter::Submitter, ValidatorContext, ValidatorSubService};
 use crate::{
     utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
-    BatchCommitmentValidationReply, ControlEvent,
+    BatchCommitmentValidationReply, ConsensusEvent,
 };
 
 #[derive(Debug)]
@@ -109,7 +109,7 @@ impl Coordinator {
             BatchCommitmentValidationRequest::from(multisigned_batch.batch()),
         )?;
 
-        ctx.output(ControlEvent::PublishValidationRequest(validation_request));
+        ctx.output(ConsensusEvent::PublishValidationRequest(validation_request));
 
         Ok(Box::new(Self {
             ctx,
@@ -140,7 +140,7 @@ mod tests {
         assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
         assert!(matches!(
             coordinator.context().output[0],
-            ControlEvent::PublishValidationRequest(_)
+            ConsensusEvent::PublishValidationRequest(_)
         ));
     }
 
@@ -193,7 +193,7 @@ mod tests {
         assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
         assert!(matches!(
             coordinator.context().output[0],
-            ControlEvent::PublishValidationRequest(_)
+            ConsensusEvent::PublishValidationRequest(_)
         ));
 
         coordinator = coordinator.process_validation_reply(reply1).unwrap();
@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
         assert!(matches!(
             coordinator.context().output[1],
-            ControlEvent::Warning(_)
+            ConsensusEvent::Warning(_)
         ));
 
         coordinator = coordinator
@@ -214,7 +214,7 @@ mod tests {
         assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
         assert!(matches!(
             coordinator.context().output[2],
-            ControlEvent::Warning(_)
+            ConsensusEvent::Warning(_)
         ));
 
         coordinator = coordinator.process_validation_reply(reply4).unwrap();

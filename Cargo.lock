@@ -4625,7 +4625,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-control"
+name = "ethexe-consensus"
 version = "1.8.0"
 dependencies = [
  "anyhow",
@@ -4839,7 +4839,7 @@ dependencies = [
  "derive_more 0.99.18",
  "ethexe-common",
  "ethexe-compute",
- "ethexe-control",
+ "ethexe-consensus",
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-network",

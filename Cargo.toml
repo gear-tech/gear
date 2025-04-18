@@ -297,7 +297,7 @@ ethexe-runtime = { path = "ethexe/runtime", default-features = false }
 ethexe-signer = { path = "ethexe/signer", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
 ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
-ethexe-control = { path = "ethexe/control", default-features = false }
+ethexe-consensus = { path = "ethexe/consensus", default-features = false }
 ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
 ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
 ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }

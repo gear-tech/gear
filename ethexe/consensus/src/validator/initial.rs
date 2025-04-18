@@ -135,7 +135,7 @@ mod tests {
     use gprimitives::H256;
 
     use super::*;
-    use crate::{tests::*, validator::tests::*, ControlEvent};
+    use crate::{tests::*, validator::tests::*, ConsensusEvent};
 
     #[test]
     fn create_initial_success() {
@@ -212,7 +212,7 @@ mod tests {
         assert_eq!(initial.type_id(), TypeId::of::<Initial>());
         assert!(matches!(
             initial.context().output[0],
-            ControlEvent::Warning(_)
+            ConsensusEvent::Warning(_)
         ));
 
         let data = BlockSyncedData {
@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(initial.type_id(), TypeId::of::<Initial>());
         assert!(matches!(
             initial.context().output[1],
-            ControlEvent::Warning(_)
+            ConsensusEvent::Warning(_)
         ));
     }
 

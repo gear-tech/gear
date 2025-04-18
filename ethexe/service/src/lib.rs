@@ -21,9 +21,9 @@ use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
 use ethexe_common::ProducerBlock;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
-use ethexe_control::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ControlEvent, ControlService,
-    SimpleConnectService, ValidatorConfig, ValidatorService,
+use ethexe_consensus::{
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
+    ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
@@ -52,7 +52,7 @@ pub enum Event {
     ServiceStarted,
     // Services events.
     Compute(ComputeEvent),
-    Control(ControlEvent),
+    Consensus(ConsensusEvent),
     Network(NetworkEvent),
     Observer(ObserverEvent),
     Prometheus(PrometheusEvent),
@@ -65,7 +65,7 @@ pub struct Service {
     observer: ObserverService,
     router_query: RouterQuery,
     compute: ComputeService,
-    control: Pin<Box<dyn ControlService>>,
+    consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
     tx_pool: TxPoolService,
 
@@ -174,7 +174,7 @@ impl Service {
             Self::get_config_public_key(config.node.validator_session, &signer)
                 .with_context(|| "failed to get validator session private key")?;
 
-        let control: Pin<Box<dyn ControlService>> = if let Some(pub_key) = validator_pub_key {
+        let consensus: Pin<Box<dyn ConsensusService>> = if let Some(pub_key) = validator_pub_key {
             Box::pin(
                 ValidatorService::new(
                     signer.clone(),
@@ -222,7 +222,7 @@ impl Service {
             network,
             observer,
             compute,
-            control,
+            consensus,
             router_query,
             signer,
             prometheus,
@@ -249,7 +249,7 @@ impl Service {
         processor: Processor,
         signer: Signer,
         tx_pool: TxPoolService,
-        control: Pin<Box<dyn ControlService>>,
+        consensus: Pin<Box<dyn ConsensusService>>,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
@@ -261,7 +261,7 @@ impl Service {
             db,
             observer,
             compute,
-            control,
+            consensus,
             router_query,
             signer,
             network,
@@ -285,7 +285,7 @@ impl Service {
             mut observer,
             mut router_query,
             mut compute,
-            mut control,
+            mut consensus,
             signer: _signer,
             tx_pool,
             mut prometheus,
@@ -303,7 +303,7 @@ impl Service {
             (None, None)
         };
 
-        let roles = vec!["Observer".to_string(), control.role()];
+        let roles = vec!["Observer".to_string(), consensus.role()];
         log::info!("⚙️ Node service starting, roles: {roles:?}");
 
         // Broadcast service started event.
@@ -317,7 +317,7 @@ impl Service {
         loop {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
-                event = control.select_next_some() => event?.into(),
+                event = consensus.select_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
@@ -361,7 +361,7 @@ impl Service {
                             block_data.header.parent_hash,
                         );
 
-                        control.receive_new_chain_head(block_data)?
+                        consensus.receive_new_chain_head(block_data)?
                     }
                     ObserverEvent::BlockSynced(data) => {
                         // NOTE: Observer guarantees that, if this event is emitted,
@@ -369,12 +369,12 @@ impl Service {
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
                         // 2) all approved(at least) codes are loaded and available in database.
 
-                        control.receive_synced_block(data)?
+                        consensus.receive_synced_block(data)?
                     }
                 },
                 Event::Compute(event) => match event {
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
-                        control.receive_computed_block(block_hash)?
+                        consensus.receive_computed_block(block_hash)?
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
@@ -399,13 +399,13 @@ impl Service {
 
                             match message {
                                 NetworkMessage::ProducerBlock(block) => {
-                                    control.receive_block_from_producer(block)?
+                                    consensus.receive_block_from_producer(block)?
                                 }
                                 NetworkMessage::RequestBatchValidation(request) => {
-                                    control.receive_validation_request(request)?
+                                    consensus.receive_validation_request(request)?
                                 }
                                 NetworkMessage::ApproveBatch(reply) => {
-                                    control.receive_validation_reply(reply)?
+                                    consensus.receive_validation_reply(reply)?
                                 }
                                 NetworkMessage::OffchainTransaction { transaction } => {
                                     if let Err(e) = Self::process_offchain_transaction(
@@ -450,7 +450,7 @@ impl Service {
 
                             p.update_observer_metrics(status.eth_best_height, status.pending_codes);
 
-                            // TODO +_+_+: support metrics for control service
+                            // TODO +_+_+: support metrics for consensus service
                         }
                     }
                 }
@@ -482,9 +482,9 @@ impl Service {
                         }
                     }
                 }
-                Event::Control(event) => match event {
-                    ControlEvent::ComputeBlock(block) => compute.receive_synced_head(block),
-                    ControlEvent::ComputeProducerBlock(producer_block) => {
+                Event::Consensus(event) => match event {
+                    ConsensusEvent::ComputeBlock(block) => compute.receive_synced_head(block),
+                    ConsensusEvent::ComputeProducerBlock(producer_block) => {
                         if !producer_block.off_chain_transactions.is_empty()
                             || producer_block.gas_allowance.is_none()
                         {
@@ -493,32 +493,32 @@ impl Service {
 
                         compute.receive_synced_head(producer_block.block_hash);
                     }
-                    ControlEvent::PublishProducerBlock(block) => {
+                    ConsensusEvent::PublishProducerBlock(block) => {
                         let Some(n) = network.as_mut() else {
                             continue;
                         };
 
                         n.publish_message(NetworkMessage::from(block).encode());
                     }
-                    ControlEvent::PublishValidationRequest(request) => {
+                    ConsensusEvent::PublishValidationRequest(request) => {
                         let Some(n) = network.as_mut() else {
                             continue;
                         };
 
                         n.publish_message(NetworkMessage::from(request).encode());
                     }
-                    ControlEvent::PublishValidationReply(reply) => {
+                    ConsensusEvent::PublishValidationReply(reply) => {
                         let Some(n) = network.as_mut() else {
                             continue;
                         };
 
                         n.publish_message(NetworkMessage::from(reply).encode());
                     }
-                    ControlEvent::CommitmentSubmitted(tx) => {
+                    ConsensusEvent::CommitmentSubmitted(tx) => {
                         log::info!("Commitment submitted, tx: {tx}");
                     }
-                    ControlEvent::Warning(msg) => {
-                        log::warn!("Control service warning: {msg}");
+                    ConsensusEvent::Warning(msg) => {
+                        log::warn!("Consensus service warning: {msg}");
                     }
                 },
             }
