@@ -104,6 +104,7 @@ use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
 use gprimitives::{ActorId, H256};
+use itertools::Itertools;
 
 use crate::host::{InstanceCreator, InstanceWrapper};
 
@@ -114,11 +115,11 @@ pub async fn run(
     in_block_transitions: &mut InBlockTransitions,
 ) {
     let mut join_set = tokio::task::JoinSet::new();
-    let max_chunk_size = queues_processing_threads;
+    let chunk_size = queues_processing_threads;
 
     loop {
-        let chunks: Vec<_> = split_to_chunks(
-            queues_processing_threads,
+        let chunks = split_to_chunks(
+            chunk_size,
             &in_block_transitions
                 .states_iter()
                 .filter_map(|(actor_id, state)| {
@@ -129,11 +130,9 @@ pub async fn run(
                     Some((*actor_id, state.hash, state.cached_queue_size as usize))
                 })
                 .collect::<Vec<_>>(),
-        )
-        .into_iter()
-        .collect();
+        );
 
-        for chunk in chunks.chunks(max_chunk_size) {
+        for chunk in chunks.iter() {
             for (program_id, state_hash, _) in chunk.iter() {
                 let db = db.clone();
                 let mut executor = instance_creator
@@ -190,16 +189,15 @@ pub async fn run(
 // `split_to_chunks` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)``),
 // but rather partitioning into subsets (chunks) of programs with approximately similar queue sizes.
 fn split_to_chunks(
-    queues_processing_threads: usize,
+    chunk_size: usize,
     states: &[(ActorId, H256, usize)],
-) -> impl IntoIterator<Item = (ActorId, H256, usize)> {
+) -> Vec<Vec<(ActorId, H256, usize)>> {
     fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
         // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
         queue_size.clamp(1, number_of_chunks) - 1
     }
 
-    let max_size_of_chunk = queues_processing_threads;
-    let number_of_chunks = states.len().div_ceil(max_size_of_chunk);
+    let number_of_chunks = states.len().div_ceil(chunk_size);
 
     let mut chunks = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_chunks));
 
@@ -208,7 +206,13 @@ fn split_to_chunks(
         chunks[chunk_idx].push((*actor_id, *state_hash, *queue_size));
     }
 
-    chunks.into_iter().flatten().rev()
+    // Merge uneven chunks in reverse order
+    let chunks = chunks.into_iter().flatten().rev().chunks(chunk_size);
+    // Repartition chunks to ensure all chunks have an equal number of elements
+    chunks
+        .into_iter()
+        .map(|c| c.into_iter().collect())
+        .collect()
 }
 
 fn run_runtime(
@@ -229,7 +233,6 @@ fn run_runtime(
 #[cfg(test)]
 mod tests {
     use gprimitives::ActorId;
-    use itertools::Itertools;
 
     use super::*;
 
@@ -255,9 +258,11 @@ mod tests {
         // Checking chunks partitioning
         let accum_chunks = chunks
             .into_iter()
-            .chunks(VIRT_THREADS_NUM)
-            .into_iter()
-            .map(|chunk| chunk.fold(0, |acc, (_, _, queue_size)| acc + queue_size))
+            .map(|chunk| {
+                chunk
+                    .into_iter()
+                    .fold(0, |acc, (_, _, queue_size)| acc + queue_size)
+            })
             .collect::<Vec<_>>();
 
         for i in 0..accum_chunks.len() - 1 {
