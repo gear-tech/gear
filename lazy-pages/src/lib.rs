@@ -78,9 +78,8 @@ thread_local! {
 pub enum Error {
     #[display("WASM memory native address {_0:#x} is not aligned to the native page size")]
     WasmMemAddrIsNotAligned(usize),
-    #[display("{_0}")]
-    #[from]
     Mprotect(MprotectError),
+    #[from(skip)]
     #[display("Wasm memory end addr is out of usize: begin addr = {_0:#x}, size = {_1:#x}")]
     WasmMemoryEndAddrOverflow(usize, usize),
     #[display("Prefix of storage with memory pages was not set")]
@@ -97,9 +96,8 @@ pub enum Error {
     NothingToChange,
     #[display("Wasm memory addr must be set, when trying to change something in lazy pages")]
     WasmMemAddrIsNotSet,
-    #[display("{_0}")]
-    #[from]
     GlobalContext(ContextError),
+    #[from(skip)]
     #[display("Wrong costs amount: get {_0}, must be {_1}")]
     WrongCostsAmount(usize, usize),
 }

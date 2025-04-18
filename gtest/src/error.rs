@@ -64,15 +64,12 @@ pub enum TestError {
     UnsupportedFunction(String),
 
     /// Wrapper for [`ExtError`].
-    #[display("{_0}")]
     ExecutionError(ExtError),
 
     /// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
-    #[display("{_0}")]
     MemoryError(gear_core_errors::MemoryError),
 
     /// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
-    #[display("{_0}")]
     ScaleCodecError(CodecError),
 
     /// Instrumentation of binary code failed.

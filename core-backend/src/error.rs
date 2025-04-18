@@ -81,7 +81,6 @@ pub enum ActorTerminationReason {
     Success,
     Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
-    #[from]
     Trap(TrapExplanation),
 }
 

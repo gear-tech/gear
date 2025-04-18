@@ -41,26 +41,28 @@ pub enum Error {
     #[display("WASM memory begin address is not set")]
     WasmMemAddrIsNotSet,
     #[display("Page data in storage must contain {expected} bytes, actually has {actual}")]
-    InvalidPageDataSize { expected: u32, actual: u32 },
+    InvalidPageDataSize {
+        expected: u32,
+        actual: u32,
+    },
+    #[from(skip)]
     #[display("Any page cannot be write accessed twice: {_0:?}")]
     DoubleWriteAccess(GearPage),
+    #[from(skip)]
     #[display("Any page cannot be read charged twice: {_0:?}")]
     DoubleReadCharge(GearPage),
     #[display("Memory protection error: {_0}")]
-    #[from]
     MemoryProtection(MprotectError),
     #[display("Given instance host pointer is invalid")]
     HostInstancePointerIsInvalid,
     #[display("Given pointer to globals access provider dyn object is invalid")]
     DynGlobalsAccessPointerIsInvalid,
     #[display("Something goes wrong when trying to access globals: {_0:?}")]
-    #[from]
     AccessGlobal(GlobalsAccessError),
     #[display("It's unknown whether memory access is read or write")]
     ReadOrWriteIsUnknown,
     #[display("Cannot receive signal from wasm memory, when status is gas limit exceed")]
     SignalWhenStatusGasExceeded,
-    #[from]
     GlobalContext(ContextError),
 }
 
