@@ -679,7 +679,7 @@ async fn incoming_transfers() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn ping_reorg() {
     utils::init_logger();
 
@@ -841,6 +841,7 @@ async fn ping_deep_sync() {
 
     node.start_service().await;
 
+    // Important: mine one block to sent block event to the started service.
     env.force_new_block().await;
 
     let res = send_message.wait_for().await.unwrap();
@@ -851,7 +852,7 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn multiple_validators() {
     utils::init_logger();
 
@@ -1017,7 +1018,7 @@ async fn multiple_validators() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn tx_pool_gossip() {
     utils::init_logger();
 
