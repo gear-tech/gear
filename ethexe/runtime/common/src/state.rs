@@ -69,14 +69,22 @@ mod private {
     // TODO (breathx): consider using HashOf<ProgramState> everywhere.
     // impl Sealed for ProgramState {}
     impl Sealed for Waitlist {}
+}
 
-    #[allow(dead_code)]
-    pub fn shortname<S: Any>() -> &'static str {
-        core::any::type_name::<S>()
-            .split("::")
-            .last()
-            .expect("name is empty")
-    }
+#[allow(unused)]
+fn shortname<S: Any>() -> &'static str {
+    core::any::type_name::<S>()
+        .split("::")
+        .last()
+        .expect("name is empty")
+}
+
+#[allow(unused)]
+fn option_string<S: ToString>(value: &Option<S>) -> String {
+    value
+        .as_ref()
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| "<none>".to_string())
 }
 
 /// Represents payload provider (lookup).
@@ -146,7 +154,7 @@ impl PayloadLookup {
 
 #[derive(Encode, Decode, derive_more::Into, derive_more::Debug, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-#[debug("HashOf<{}>({hash:?})", private::shortname::<S>())]
+#[debug("HashOf<{}>({hash:?})", shortname::<S>())]
 #[display("{hash}")]
 pub struct HashOf<S: Sealed + 'static> {
     hash: H256,
@@ -214,8 +222,8 @@ impl<S: Sealed> HashOf<S> {
     derive(serde::Serialize, serde::Deserialize),
     serde(bound = "")
 )]
-#[debug("MaybeHashOf<{}>({})", private::shortname::<S>(), self.hash().map(|v| v.to_string()).unwrap_or_else(|| "<none>".to_string()))]
-#[display("{}", _0.map(|v| v.to_string()).unwrap_or_else(|| "<none>".to_string()))]
+#[debug("MaybeHashOf<{}>({})", shortname::<S>(), option_string(&self.hash()))]
+#[display("{}", option_string(_0))]
 pub struct MaybeHashOf<S: Sealed + 'static>(Option<HashOf<S>>);
 
 impl<S: Sealed> Clone for MaybeHashOf<S> {
