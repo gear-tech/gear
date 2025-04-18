@@ -65,7 +65,7 @@ pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 frame-executive = { workspace = true, features = ["std"] }
 frame-support-test = { workspace = true, features = ["std"] }
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 hex-literal.workspace = true
 ark-bls12-381.workspace = true
 ark-ec.workspace = true

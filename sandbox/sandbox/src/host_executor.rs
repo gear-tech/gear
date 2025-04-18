@@ -16,7 +16,7 @@
 
 //! A WASM executor utilizing the sandbox runtime interface of the host.
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 use crate::{
     env, AsContextExt, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxStore, Value,
