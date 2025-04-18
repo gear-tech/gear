@@ -349,12 +349,11 @@ mod tests {
         with_batch(|batch| {
             let batch = batch.expect("Expected that batch is committed");
             assert_eq!(batch.signatures().len(), 1);
-            assert_eq!(batch.batch().block_commitments.len(), 2);
-            assert_eq!(batch.batch().block_commitments[0], block2_commitment);
-            assert_eq!(batch.batch().block_commitments[1], block1_commitment);
-            assert_eq!(batch.batch().code_commitments.len(), 2);
-            assert_eq!(batch.batch().code_commitments[0], code1);
-            assert_eq!(batch.batch().code_commitments[1], code2);
+            assert_eq!(
+                batch.batch().block_commitments,
+                vec![block2_commitment, block1_commitment]
+            );
+            assert_eq!(batch.batch().code_commitments, vec![code1, code2]);
         });
 
         // If threshold is 2, producer must goes to coordinator state and emit validation request
