@@ -21,10 +21,10 @@
 //! ## Overview
 //!
 //! This approach speeds up the processing of multiple programs in parallel.
-//! The main idea is to split programs into buckets based on their queue sizes or, in the future, another computation weight metric.
+//! The main idea is to split programs into chunks based on their queue sizes or, in the future, another computation weight metric.
 //!
 //! Bucket processing helps reduce waiting time, as it minimizes the delay caused by the slowest message among all concurrently executed messages.
-//! This works because, in sorted buckets, the computation time for each bucket element (queue messages) should be approximately equal.
+//! This works because, in sorted chunks, the computation time for each chunk element (queue messages) should be approximately equal.
 //!
 //! The second part of the approach is executing an entire program queue in one go within a single runtime instance.
 //! This reduces overhead by minimizing calls within the WASM runtime.
@@ -47,21 +47,21 @@
 //! |    2 |         3 |         1 |         1 | ... |         0 |
 //! |    3 |         0 |         0 |         0 | ... |         0 |
 //!
-//! Before executing the programs, we need to split them into buckets.
-//! The maximum bucket size is equal to the number of virtual threads.
-//! The number of buckets is calculated as the total number of programs divided by the maximum bucket size.
+//! Before executing the programs, we need to split them into chunks.
+//! The maximum chunk size is equal to the number of virtual threads.
+//! The number of chunks is calculated as the total number of programs divided by the maximum chunk size.
 //!
-//! For example, given M buckets (virtual threads) and N program states, a sorted bucket structure will look like this:
+//! For example, given M chunks (virtual threads) and N program states, a sorted chunk structure will look like this:
 //!
-//! | bucket 0 | bucket 1 | bucket 2 | bucket 3 | ... | bucket M |
+//! | chunk 0 | chunk 1 | chunk 2 | chunk 3 | ... | chunk M |
 //! |---------:|---------:|---------:|---------:|----:|---------:|
 //! |        9 |        7 |        4 |        3 | ... |        1 |
 //! |        7 |        7 |        3 |        3 | ... |        1 |
 //! |        8 |        6 |        4 |        3 | ... |        1 |
 //! |       10 |        5 |        4 |        3 | ... |        1 |
 //!
-//! As you can see, the bucket contents are not strictly sorted, but this is not an issue.
-//! We only need buckets with approximately equal queue sizes to ensure efficient parallel execution.
+//! As you can see, the chunk contents are not strictly sorted, but this is not an issue.
+//! We only need chunks with approximately equal queue sizes to ensure efficient parallel execution.
 //! The entire queue is processed in a single runtime instance in one go, so prioritizing larger queues improves efficiency.
 //!
 //! Once all program queues have been processed, we deterministically merge journals and handle them.
@@ -70,7 +70,7 @@
 //!
 //! **High-level overview of the algorithm:**
 //!
-//!   1. Split programs into buckets based on their queue sizes.
+//!   1. Split programs into chunks based on their queue sizes.
 //!   2. Execute program queues in parallel using runtime instances per program.
 //!   3. Merge journals and handle them deterministically.
 //!   4. Repeat steps 1-3 until no messages are processed, or we run out of processing time/gas allowance.
@@ -79,21 +79,21 @@
 //!
 //! ## Simplest Bucket Splitting Algorithm
 //!
-//! A basic bucket-splitting algorithm is implemented as follows:
+//! A basic chunk-splitting algorithm is implemented as follows:
 //!
-//!   1. First, calculate a temporary bucket index based on the program queue size.
-//!   2. Next, store the required data in a temporary bucket list.
+//!   1. First, calculate a temporary chunk index based on the program queue size.
+//!   2. Next, store the required data in a temporary chunk list.
 //!   3. Repeat this process for all programs.
-//!   4. Since the number of elements in each temporary bucket is random, they need to be redistributed
-//!      to ensure all final buckets contain an equal number of elements.
-//!      To achieve this, we first merge all temporary bucket lists sequentially
-//!      and then redistribute the data according to the expected bucket size.
+//!   4. Since the number of elements in each temporary chunk is random, they need to be redistributed
+//!      to ensure all final chunks contain an equal number of elements.
+//!      To achieve this, we first merge all temporary chunk lists sequentially
+//!      and then redistribute the data according to the expected chunk size.
 //!
 //! ---
 //!
 //! ## Future Improvements
 //!
-//! Currently, the bucket partitioning algorithm is simple and does not consider a program’s execution time.
+//! Currently, the chunk partitioning algorithm is simple and does not consider a program’s execution time.
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
@@ -114,12 +114,10 @@ pub async fn run(
     in_block_transitions: &mut InBlockTransitions,
 ) {
     let mut join_set = tokio::task::JoinSet::new();
-    let max_bucket_size = queues_processing_threads;
+    let max_chunk_size = queues_processing_threads;
 
     loop {
-        let mut no_message_processed = true;
-
-        let buckets: Vec<_> = split_to_buckets(
+        let chunks: Vec<_> = split_to_chunks(
             queues_processing_threads,
             &in_block_transitions
                 .states_iter()
@@ -135,8 +133,8 @@ pub async fn run(
         .into_iter()
         .collect();
 
-        for bucket in buckets.chunks(max_bucket_size) {
-            for (program_id, state_hash, _) in bucket.iter() {
+        for chunk in chunks.chunks(max_chunk_size) {
+            for (program_id, state_hash, _) in chunk.iter() {
                 let db = db.clone();
                 let mut executor = instance_creator
                     .instantiate()
@@ -151,25 +149,23 @@ pub async fn run(
                 });
             }
 
-            let mut super_journal = Vec::new();
+            let mut chunk_journal = Vec::new();
             while let Some(result) = join_set
                 .join_next()
                 .await
                 .transpose()
                 .expect("Failed to join task")
             {
-                super_journal.push(result);
+                chunk_journal.push(result);
             }
 
-            for (program_id, new_state_hash, program_journals) in super_journal {
+            for (program_id, new_state_hash, program_journals) in chunk_journal {
                 // State was updated during journal handling inside the runtime (allocations, pages)
                 in_block_transitions.modify(program_id, |state, _| {
                     state.hash = new_state_hash;
                 });
 
                 if !program_journals.is_empty() {
-                    no_message_processed = false;
-
                     for (journal, dispatch_origin) in program_journals {
                         let mut journal_handler = JournalHandler {
                             program_id,
@@ -185,34 +181,34 @@ pub async fn run(
             }
         }
 
-        if no_message_processed {
+        if chunks.is_empty() {
             break;
         }
     }
 }
 
-// `split_to_buckets` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)``),
-// but rather partitioning into subsets (buckets) of programs with approximately similar queue sizes.
-fn split_to_buckets(
+// `split_to_chunks` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)``),
+// but rather partitioning into subsets (chunks) of programs with approximately similar queue sizes.
+fn split_to_chunks(
     queues_processing_threads: usize,
     states: &[(ActorId, H256, usize)],
 ) -> impl IntoIterator<Item = (ActorId, H256, usize)> {
-    fn bucket_idx(queue_size: usize, number_of_buckets: usize) -> usize {
-        // Simplest implementation of bucket partitioning '| 1 | 2 | 3 | 4 | ..'
-        queue_size.clamp(1, number_of_buckets) - 1
+    fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
+        // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
+        queue_size.clamp(1, number_of_chunks) - 1
     }
 
-    let max_size_of_bucket = queues_processing_threads;
-    let number_of_buckets = states.len().div_ceil(max_size_of_bucket);
+    let max_size_of_chunk = queues_processing_threads;
+    let number_of_chunks = states.len().div_ceil(max_size_of_chunk);
 
-    let mut buckets = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_buckets));
+    let mut chunks = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_chunks));
 
     for (actor_id, state_hash, queue_size) in states {
-        let bucket_idx = bucket_idx(*queue_size, number_of_buckets);
-        buckets[bucket_idx].push((*actor_id, *state_hash, *queue_size));
+        let chunk_idx = chunk_idx(*queue_size, number_of_chunks);
+        chunks[chunk_idx].push((*actor_id, *state_hash, *queue_size));
     }
 
-    buckets.into_iter().flatten().rev()
+    chunks.into_iter().flatten().rev()
 }
 
 fn run_runtime(
@@ -238,7 +234,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_test_bucket_partitioning() {
+    fn it_test_chunk_partitioning() {
         const STATE_SIZE: usize = 1_000;
         const VIRT_THREADS_NUM: usize = 16;
         const MAX_QUEUE_SIZE: u8 = 20;
@@ -254,19 +250,19 @@ mod tests {
             .take(STATE_SIZE),
         );
 
-        let buckets = split_to_buckets(VIRT_THREADS_NUM, &states);
+        let chunks = split_to_chunks(VIRT_THREADS_NUM, &states);
 
-        // Checking buckets partitioning
-        let accum_buckets = buckets
+        // Checking chunks partitioning
+        let accum_chunks = chunks
             .into_iter()
             .chunks(VIRT_THREADS_NUM)
             .into_iter()
-            .map(|bucket| bucket.fold(0, |acc, (_, _, queue_size)| acc + queue_size))
+            .map(|chunk| chunk.fold(0, |acc, (_, _, queue_size)| acc + queue_size))
             .collect::<Vec<_>>();
 
-        for i in 0..accum_buckets.len() - 1 {
+        for i in 0..accum_chunks.len() - 1 {
             assert!(
-                accum_buckets[i] >= accum_buckets[i + 1],
+                accum_chunks[i] >= accum_chunks[i + 1],
                 "Buckets are not sorted"
             );
         }

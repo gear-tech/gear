@@ -404,6 +404,11 @@ where
                     } => {
                         allocations_update.insert(program_id, allocations);
                     }
+                    // TODO(romanm): handle the listed journal notes here:
+                    // * WakeMessage
+                    // * SendDispatch to self
+                    // * SendValue to self
+                    // * GasBurned
                     note => not_processed = Some(note),
                 }
 
