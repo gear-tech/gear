@@ -59,6 +59,11 @@ $ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $MAIN
 $ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
 $ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 $ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
+
+$ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
+$ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
+$ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
+$ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 ```
 
 ### Upgrade
