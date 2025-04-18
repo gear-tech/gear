@@ -87,7 +87,7 @@ use self::{
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
 pub struct ValidatorService {
-    inner: Option<Box<dyn ValidatorSubService>>,
+    inner: Option<Box<dyn StateHandler>>,
 }
 
 /// Configuration parameters for the validator service.
@@ -152,7 +152,7 @@ impl ValidatorService {
 
     fn update_inner(
         &mut self,
-        update: impl FnOnce(Box<dyn ValidatorSubService>) -> Result<Box<dyn ValidatorSubService>>,
+        update: impl FnOnce(Box<dyn StateHandler>) -> Result<Box<dyn StateHandler>>,
     ) -> Result<()> {
         let inner = self
             .inner
@@ -232,58 +232,54 @@ enum PendingEvent {
     ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
 }
 
-/// Trait defining the interface for validator sub-services.
-/// Each sub-service represents a different state in the validation state machine.
-trait ValidatorSubService: fmt::Display + fmt::Debug + Any + Unpin + Send + 'static {
-    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService>;
+/// Trait defining the interface for validator inner state and events handler.
+trait StateHandler: fmt::Display + fmt::Debug + Any + Unpin + Send + 'static {
+    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler>;
     fn context(&self) -> &ValidatorContext;
     fn context_mut(&mut self) -> &mut ValidatorContext;
     fn into_context(self: Box<Self>) -> ValidatorContext;
 
-    fn process_new_head(
-        self: Box<Self>,
-        block: SimpleBlockData,
-    ) -> Result<Box<dyn ValidatorSubService>> {
-        DefaultProcessing::new_head(self.to_dyn(), block)
+    fn process_new_head(self: Box<Self>, block: SimpleBlockData) -> Result<Box<dyn StateHandler>> {
+        DefaultProcessing::new_head(self.into_dyn(), block)
     }
 
     fn process_synced_block(
         self: Box<Self>,
         data: BlockSyncedData,
-    ) -> Result<Box<dyn ValidatorSubService>> {
-        DefaultProcessing::synced_block(self.to_dyn(), data)
+    ) -> Result<Box<dyn StateHandler>> {
+        DefaultProcessing::synced_block(self.into_dyn(), data)
     }
 
     fn process_computed_block(
         self: Box<Self>,
         computed_block: H256,
-    ) -> Result<Box<dyn ValidatorSubService>> {
-        DefaultProcessing::computed_block(self.to_dyn(), computed_block)
+    ) -> Result<Box<dyn StateHandler>> {
+        DefaultProcessing::computed_block(self.into_dyn(), computed_block)
     }
 
     fn process_block_from_producer(
         self: Box<Self>,
         block: SignedData<ProducerBlock>,
-    ) -> Result<Box<dyn ValidatorSubService>> {
-        DefaultProcessing::block_from_producer(self.to_dyn(), block)
+    ) -> Result<Box<dyn StateHandler>> {
+        DefaultProcessing::block_from_producer(self.into_dyn(), block)
     }
 
     fn process_validation_request(
         self: Box<Self>,
         request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn ValidatorSubService>> {
-        DefaultProcessing::validation_request(self.to_dyn(), request)
+    ) -> Result<Box<dyn StateHandler>> {
+        DefaultProcessing::validation_request(self.into_dyn(), request)
     }
 
     fn process_validation_reply(
         self: Box<Self>,
         reply: BatchCommitmentValidationReply,
-    ) -> Result<Box<dyn ValidatorSubService>> {
-        DefaultProcessing::validation_reply(self.to_dyn(), reply)
+    ) -> Result<Box<dyn StateHandler>> {
+        DefaultProcessing::validation_reply(self.into_dyn(), reply)
     }
 
-    fn poll(self: Box<Self>, _cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
-        Ok(self.to_dyn())
+    fn poll(self: Box<Self>, _cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
+        Ok(self.into_dyn())
     }
 
     fn warning(&mut self, warning: String) {
@@ -299,35 +295,32 @@ trait ValidatorSubService: fmt::Display + fmt::Debug + Any + Unpin + Send + 'sta
 struct DefaultProcessing;
 
 impl DefaultProcessing {
-    fn new_head(
-        s: Box<dyn ValidatorSubService>,
-        block: SimpleBlockData,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    fn new_head(s: Box<dyn StateHandler>, block: SimpleBlockData) -> Result<Box<dyn StateHandler>> {
         Initial::create_with_chain_head(s.into_context(), block)
     }
 
     fn synced_block(
-        mut s: Box<dyn ValidatorSubService>,
+        mut s: Box<dyn StateHandler>,
         data: BlockSyncedData,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         s.warning(format!("unexpected synced block: {}", data.block_hash));
 
         Ok(s)
     }
 
     fn computed_block(
-        mut s: Box<dyn ValidatorSubService>,
+        mut s: Box<dyn StateHandler>,
         computed_block: H256,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         s.warning(format!("unexpected computed block: {computed_block}"));
 
         Ok(s)
     }
 
     fn block_from_producer(
-        mut s: Box<dyn ValidatorSubService>,
+        mut s: Box<dyn StateHandler>,
         block: SignedData<ProducerBlock>,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         s.warning(format!(
             "unexpected block from producer: {block:?}, saved for later."
         ));
@@ -338,9 +331,9 @@ impl DefaultProcessing {
     }
 
     fn validation_request(
-        mut s: Box<dyn ValidatorSubService>,
+        mut s: Box<dyn StateHandler>,
         request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         s.warning(format!(
             "unexpected validation request: {request:?}, saved for later."
         ));
@@ -351,9 +344,9 @@ impl DefaultProcessing {
     }
 
     fn validation_reply(
-        s: Box<dyn ValidatorSubService>,
+        s: Box<dyn StateHandler>,
         reply: BatchCommitmentValidationReply,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         log::trace!("Skip validation reply: {reply:?}");
 
         Ok(s)

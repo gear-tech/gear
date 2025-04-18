@@ -30,7 +30,7 @@ use futures::FutureExt;
 use gprimitives::H256;
 use std::task::Context;
 
-use super::{coordinator::Coordinator, initial::Initial, ValidatorContext, ValidatorSubService};
+use super::{coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext};
 use crate::ConsensusEvent;
 
 #[derive(Debug, Display)]
@@ -44,15 +44,15 @@ pub struct Producer {
 
 #[derive(Debug)]
 enum State {
-    CollectOffChainTransactions {
+    CollectCodes {
         #[debug(skip)]
         timer: Timer,
     },
     WaitingBlockComputed(H256),
 }
 
-impl ValidatorSubService for Producer {
-    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
+impl StateHandler for Producer {
+    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
         self
     }
 
@@ -71,7 +71,7 @@ impl ValidatorSubService for Producer {
     fn process_computed_block(
         mut self: Box<Self>,
         computed_block: H256,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         if !matches!(&self.state, State::WaitingBlockComputed(hash) if *hash == computed_block) {
             self.warning(format!("unexpected computed block {computed_block}"));
 
@@ -94,9 +94,9 @@ impl ValidatorSubService for Producer {
         Coordinator::create(self.ctx, self.validators, batch)
     }
 
-    fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
+    fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
         match &mut self.state {
-            State::CollectOffChainTransactions { timer } => {
+            State::CollectCodes { timer } => {
                 if timer.poll_unpin(cx).is_ready() {
                     self.create_producer_block()?
                 }
@@ -113,13 +113,14 @@ impl Producer {
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         validators: Vec<Address>,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         ensure!(
             validators.contains(&ctx.pub_key.to_address()),
             "Producer is not in the list of validators"
         );
 
-        let mut timer = Timer::new("collect off-chain transactions", ctx.slot_duration / 6);
+        // TODO +_+_+: collect codes timer should be configurable
+        let mut timer = Timer::new("collect codes", ctx.slot_duration / 6);
         timer.start(());
 
         ctx.pending_events.clear();
@@ -128,7 +129,7 @@ impl Producer {
             ctx,
             block,
             validators,
-            state: State::CollectOffChainTransactions { timer },
+            state: State::CollectCodes { timer },
         }))
     }
 
@@ -230,7 +231,7 @@ impl Producer {
         let pb = ProducerBlock {
             block_hash: self.block.hash,
             // TODO +_+_+: set gas allowance here
-            gas_allowance: Some(3_000_000_000_000),
+            gas_allowance: None,
             // TODO +_+_+: append off-chain transactions
             off_chain_transactions: Vec::new(),
         };
@@ -294,7 +295,7 @@ mod tests {
         let block = mock_simple_block_data();
         prepare_mock_empty_block(&ctx.db, &block, H256::random());
 
-        let producer = producer_create_skip_timer(ctx, block.clone(), validators)
+        let producer = create_producer_skip_timer(ctx, block.clone(), validators)
             .await
             .unwrap()
             .0;
@@ -333,7 +334,7 @@ mod tests {
         );
 
         // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
-        let submitter = producer_create_skip_timer(ctx, block1.clone(), validators.clone())
+        let submitter = create_producer_skip_timer(ctx, block1.clone(), validators.clone())
             .await
             .unwrap()
             .0
@@ -359,7 +360,7 @@ mod tests {
         // If threshold is 2, producer must goes to coordinator state and emit validation request
         let mut ctx = initial.into_context();
         ctx.threshold = 2;
-        let (coordinator, request) = producer_create_skip_timer(ctx, block1.clone(), validators)
+        let (coordinator, request) = create_producer_skip_timer(ctx, block1.clone(), validators)
             .await
             .unwrap()
             .0
@@ -387,7 +388,7 @@ mod tests {
         ctx.db
             .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
 
-        let submitter = producer_create_skip_timer(ctx, block.clone(), validators.clone())
+        let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
             .unwrap()
             .0
@@ -404,11 +405,11 @@ mod tests {
         });
     }
 
-    async fn producer_create_skip_timer(
+    async fn create_producer_skip_timer(
         ctx: ValidatorContext,
         block: SimpleBlockData,
         validators: Vec<Address>,
-    ) -> Result<(Box<dyn ValidatorSubService>, ConsensusEvent, ConsensusEvent)> {
+    ) -> Result<(Box<dyn StateHandler>, ConsensusEvent, ConsensusEvent)> {
         let producer = Producer::create(ctx, block.clone(), validators)?;
         assert_eq!(producer.type_id(), TypeId::of::<Producer>());
 

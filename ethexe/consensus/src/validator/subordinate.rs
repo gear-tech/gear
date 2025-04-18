@@ -23,9 +23,7 @@ use ethexe_signer::{Address, SignedData};
 use gprimitives::H256;
 use std::mem;
 
-use super::{
-    initial::Initial, DefaultProcessing, PendingEvent, ValidatorContext, ValidatorSubService,
-};
+use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext};
 use crate::{validator::participant::Participant, ConsensusEvent};
 
 const MAX_PENDING_EVENTS: usize = 10;
@@ -49,8 +47,8 @@ enum State {
     },
 }
 
-impl ValidatorSubService for Subordinate {
-    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
+impl StateHandler for Subordinate {
+    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
         self
     }
 
@@ -69,7 +67,7 @@ impl ValidatorSubService for Subordinate {
     fn process_block_from_producer(
         mut self: Box<Self>,
         block: SignedData<ProducerBlock>,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         if self.state == State::WaitingForProducerBlock
             && block.verify_address(self.producer).is_ok()
             && block.data().block_hash == self.block.hash
@@ -90,7 +88,7 @@ impl ValidatorSubService for Subordinate {
     fn process_validation_request(
         mut self: Box<Self>,
         request: SignedData<crate::BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         if request.verify_address(self.producer).is_ok() {
             log::trace!("Receive validation request from producer: {request:?}, saved for later.");
             self.ctx.pending(request);
@@ -104,7 +102,7 @@ impl ValidatorSubService for Subordinate {
     fn process_computed_block(
         self: Box<Self>,
         computed_block: H256,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         match &self.state {
             _ if computed_block == self.block.header.parent_hash => {
                 // Earlier we sent a task for parent block computation.
@@ -129,7 +127,7 @@ impl Subordinate {
         block: SimpleBlockData,
         producer: Address,
         is_validator: bool,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         let mut earlier_producer_block = None;
 
         // Search for already received producer blocks.

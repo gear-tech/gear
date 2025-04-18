@@ -22,7 +22,7 @@ use ethexe_common::gear::BatchCommitment;
 use ethexe_signer::Address;
 use std::collections::BTreeSet;
 
-use super::{submitter::Submitter, ValidatorContext, ValidatorSubService};
+use super::{submitter::Submitter, StateHandler, ValidatorContext};
 use crate::{
     utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
     BatchCommitmentValidationReply, ConsensusEvent,
@@ -36,8 +36,8 @@ pub struct Coordinator {
     multisigned_batch: MultisignedBatchCommitment,
 }
 
-impl ValidatorSubService for Coordinator {
-    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
+impl StateHandler for Coordinator {
+    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
         self
     }
 
@@ -56,7 +56,7 @@ impl ValidatorSubService for Coordinator {
     fn process_validation_reply(
         mut self: Box<Self>,
         reply: BatchCommitmentValidationReply,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         if let Err(err) = self
             .multisigned_batch
             .accept_batch_commitment_validation_reply(reply, |addr| {
@@ -82,7 +82,7 @@ impl Coordinator {
         mut ctx: ValidatorContext,
         validators: Vec<Address>,
         batch: BatchCommitment,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         ensure!(
             validators.len() as u64 >= ctx.threshold,
             "Number of validators is less than threshold"

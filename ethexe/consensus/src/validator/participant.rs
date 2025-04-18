@@ -23,9 +23,7 @@ use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
 use ethexe_signer::{Address, Digest, SignedData, ToDigest};
 use gprimitives::H256;
 
-use super::{
-    initial::Initial, DefaultProcessing, PendingEvent, ValidatorContext, ValidatorSubService,
-};
+use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext};
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
@@ -43,8 +41,8 @@ pub struct Participant {
     producer: Address,
 }
 
-impl ValidatorSubService for Participant {
-    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
+impl StateHandler for Participant {
+    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
         self
     }
 
@@ -63,7 +61,7 @@ impl ValidatorSubService for Participant {
     fn process_validation_request(
         self: Box<Self>,
         request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         if request.verify_address(self.producer).is_ok() {
             self.process_validation_request(request.into_parts().0)
         } else {
@@ -77,7 +75,7 @@ impl Participant {
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         producer: Address,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         let mut earlier_validation_request = None;
         ctx.pending_events.retain(|event| match event {
             PendingEvent::ValidationRequest(signed_data)
@@ -110,7 +108,7 @@ impl Participant {
     fn process_validation_request(
         mut self: Box<Self>,
         request: BatchCommitmentValidationRequest,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         match self.process_validation_request_inner(request) {
             Ok(reply) => self.output(ConsensusEvent::PublishValidationReply(reply)),
             Err(err) => self.warning(format!("reject validation request: {err}")),

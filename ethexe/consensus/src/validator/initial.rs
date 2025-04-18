@@ -23,8 +23,7 @@ use ethexe_observer::BlockSyncedData;
 use ethexe_signer::Address;
 
 use super::{
-    producer::Producer, subordinate::Subordinate, DefaultProcessing, ValidatorContext,
-    ValidatorSubService,
+    producer::Producer, subordinate::Subordinate, DefaultProcessing, StateHandler, ValidatorContext,
 };
 
 #[derive(Debug, Display)]
@@ -40,8 +39,8 @@ enum State {
     WaitingForSyncedBlock(SimpleBlockData),
 }
 
-impl ValidatorSubService for Initial {
-    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
+impl StateHandler for Initial {
+    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
         self
     }
 
@@ -60,7 +59,7 @@ impl ValidatorSubService for Initial {
     fn process_synced_block(
         self: Box<Self>,
         data: BlockSyncedData,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         match &self.state {
             State::WaitingForSyncedBlock(block) if block.hash == data.block_hash => {
                 let producer = self.producer_for(block.header.timestamp, &data.validators);
@@ -95,7 +94,7 @@ impl ValidatorSubService for Initial {
 }
 
 impl Initial {
-    pub fn create(ctx: ValidatorContext) -> Result<Box<dyn ValidatorSubService>> {
+    pub fn create(ctx: ValidatorContext) -> Result<Box<dyn StateHandler>> {
         Ok(Box::new(Self {
             ctx,
             state: State::WaitingForChainHead,
@@ -106,7 +105,7 @@ impl Initial {
     pub fn create_with_chain_head(
         ctx: ValidatorContext,
         block: SimpleBlockData,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         Ok(Box::new(Self {
             ctx,
             state: State::WaitingForSyncedBlock(block),

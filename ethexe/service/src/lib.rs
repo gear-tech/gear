@@ -486,7 +486,7 @@ impl Service {
                     ConsensusEvent::ComputeBlock(block) => compute.receive_synced_head(block),
                     ConsensusEvent::ComputeProducerBlock(producer_block) => {
                         if !producer_block.off_chain_transactions.is_empty()
-                            || producer_block.gas_allowance.is_none()
+                            || producer_block.gas_allowance.is_some()
                         {
                             todo!("+_+_+ off-chain transactions and gas allowance are not supported yet");
                         }

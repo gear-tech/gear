@@ -24,7 +24,7 @@ use futures::{future::BoxFuture, FutureExt};
 use gprimitives::H256;
 use std::task::{Context, Poll};
 
-use super::{initial::Initial, BatchCommitter, ValidatorContext, ValidatorSubService};
+use super::{initial::Initial, BatchCommitter, StateHandler, ValidatorContext};
 use crate::{utils::MultisignedBatchCommitment, ConsensusEvent};
 
 #[derive(Debug, Display)]
@@ -35,8 +35,8 @@ pub struct Submitter {
     future: BoxFuture<'static, Result<H256>>,
 }
 
-impl ValidatorSubService for Submitter {
-    fn to_dyn(self: Box<Self>) -> Box<dyn ValidatorSubService> {
+impl StateHandler for Submitter {
+    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
         self
     }
 
@@ -52,7 +52,7 @@ impl ValidatorSubService for Submitter {
         self.ctx
     }
 
-    fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn ValidatorSubService>> {
+    fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
         match self.future.poll_unpin(cx) {
             Poll::Ready(Ok(tx)) => {
                 self.output(ConsensusEvent::CommitmentSubmitted(tx));
@@ -73,7 +73,7 @@ impl Submitter {
     pub fn create(
         ctx: ValidatorContext,
         batch: MultisignedBatchCommitment,
-    ) -> Result<Box<dyn ValidatorSubService>> {
+    ) -> Result<Box<dyn StateHandler>> {
         let future = ctx.committer.clone_boxed().commit_batch(batch);
         Ok(Box::new(Self { ctx, future }))
     }
