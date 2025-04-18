@@ -94,3 +94,9 @@ pub enum ControlEvent {
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }
+
+// TODO #4553: temporary implementation, should be improved
+/// Returns block producer for time slot. Next slot is the next validator in the list.
+pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
+    (slot % validators_amount as u64) as usize
+}

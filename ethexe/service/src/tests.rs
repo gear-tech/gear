@@ -857,34 +857,28 @@ async fn multiple_validators() {
 
     let config = TestEnvConfig {
         validators: ValidatorsConfig::PreDefined(3),
-        continuous_block_generation: true,
+        network: Some(None),
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
 
-    log::info!("📗 Starting validator 0");
-    let mut validator0 = env.new_node(
-        NodeConfig::named("validator-0")
-            .validator(env.validators[0])
-            .network(None, None),
+    assert_eq!(
+        env.validators.len(),
+        3,
+        "Currently only 3 validators are supported for this test"
     );
-    validator0.start_service().await;
+    assert!(
+        !env.continuous_block_generation,
+        "Currently continuous block generation is not supported for this test"
+    );
 
-    log::info!("📗 Starting validator 1");
-    let mut validator1 = env.new_node(
-        NodeConfig::named("validator-1")
-            .validator(env.validators[1])
-            .network(None, validator0.multiaddr.clone()),
-    );
-    validator1.start_service().await;
-
-    log::info!("📗 Starting validator 2");
-    let mut validator2 = env.new_node(
-        NodeConfig::named("validator-2")
-            .validator(env.validators[2])
-            .network(None, validator0.multiaddr.clone()),
-    );
-    validator2.start_service().await;
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        validator.start_service().await;
+        validators.push(validator);
+    }
 
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
@@ -967,8 +961,13 @@ async fn multiple_validators() {
     assert_eq!(res.value, 0);
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 
-    log::info!("📗 Stop validator 2 and check that all is still working");
-    validator2.stop_service().await;
+    log::info!("📗 Stop validator 0 and check, that ethexe is still working");
+    if env.next_block_producer_index().await == 0 {
+        log::info!("📗 Skip one block to be sure validator 0 is not a producer for next block");
+        env.force_new_block().await;
+    }
+    validators[0].stop_service().await;
+
     let res = env
         .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
         .await
@@ -978,8 +977,12 @@ async fn multiple_validators() {
         .unwrap();
     assert_eq!(res.payload, res.message_id.encode().as_slice());
 
-    log::info!("📗 Stop validator 1 and check that it's not working");
-    validator1.stop_service().await;
+    log::info!("📗 Stop validator 1 and check, that ethexe is not working after");
+    if env.next_block_producer_index().await == 1 {
+        log::info!("📗 Skip one block to be sure validator 1 is not a producer for next block");
+        env.force_new_block().await;
+    }
+    validators[1].stop_service().await;
 
     let wait_for_reply_to = env
         .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
@@ -990,16 +993,21 @@ async fn multiple_validators() {
         .await
         .expect_err("Timeout expected");
 
-    log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
-    // TODO #4210: impossible to restart validator 2 with the same network address
-    let mut validator2 = env.new_node(
-        NodeConfig::named("validator-2-restarted")
-            .validator(env.validators[2])
-            .network(None, validator0.multiaddr.clone())
-            .db(validator2.db),
+    log::info!(
+        "📗 Re-start validator 0 and check, that now ethexe is working, validator 1 is still stopped"
     );
+    // TODO #4210: impossible to restart node with the same network address
+    validators[0] = env.new_node(
+        NodeConfig::named("validator-0")
+            .validator(env.validators[0])
+            .db(validators[0].db.clone()),
+    );
+    validators[0].start_service().await;
 
-    validator2.start_service().await;
+    if env.next_block_producer_index().await == 1 {
+        log::info!("📗 Skip one block to be sure validator 1 is not a producer for next block");
+        env.force_new_block().await;
+    }
 
     // IMPORTANT: mine one block to sent a new block event.
     env.force_new_block().await;
@@ -1015,6 +1023,7 @@ async fn tx_pool_gossip() {
 
     let test_env_config = TestEnvConfig {
         validators: ValidatorsConfig::PreDefined(2),
+        network: Some(None),
         ..Default::default()
     };
 
@@ -1025,17 +1034,12 @@ async fn tx_pool_gossip() {
     let mut node0 = env.new_node(
         NodeConfig::default()
             .validator(env.validators[0])
-            .service_rpc(9505)
-            .network(None, None),
+            .service_rpc(9505),
     );
     node0.start_service().await;
 
     log::info!("📗 Starting node 1");
-    let mut node1 = env.new_node(
-        NodeConfig::default()
-            .validator(env.validators[1])
-            .network(None, node0.multiaddr.clone()),
-    );
+    let mut node1 = env.new_node(NodeConfig::default().validator(env.validators[1]));
     node1.start_service().await;
 
     log::info!("Populate node-0 and node-1 with 2 valid blocks");
@@ -1112,7 +1116,7 @@ mod utils {
     use ethexe_common::SimpleBlockData;
     use ethexe_control::{ControlService, SimpleConnectService, ValidatorService};
     use ethexe_db::OnChainStorage;
-    use ethexe_network::{export::Multiaddr, NetworkEvent};
+    use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
     use ethexe_signer::{PrivateKey, PublicKey};
@@ -1159,6 +1163,9 @@ mod utils {
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Sender<ObserverEvent>,
         db: Database,
+        /// If network is enabled by test, then we store here:
+        /// network service polling thread, bootstrap address and nonce for new node address generation.
+        network_context: Option<(JoinHandle<()>, String, usize)>,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
     }
@@ -1172,6 +1179,7 @@ mod utils {
                 wallets,
                 router_address,
                 continuous_block_generation,
+                network,
             } = config;
 
             log::info!(
@@ -1188,7 +1196,13 @@ mod utils {
                     let anvil = if continuous_block_generation {
                         Anvil::new().block_time(block_time.as_secs()).spawn()
                     } else {
-                        Anvil::new().spawn()
+                        // By default anvil uses system time, but we need to set it to a fixed timestamp.
+                        let timestamp = 1_000_000_000;
+
+                        Anvil::new()
+                            .arg("--timestamp")
+                            .arg(timestamp.to_string())
+                            .spawn()
                     };
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
@@ -1351,6 +1365,45 @@ mod utils {
                 })
                 .collect();
 
+            let network_context = network.map(|maybe_address| {
+                static NONCE: AtomicUsize = AtomicUsize::new(1);
+
+                // * 1000 to avoid address collision between different test-threads
+                let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * 1000;
+                let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
+
+                let config_path = tempfile::tempdir().unwrap().into_path();
+                let multiaddr: Multiaddr = address.parse().unwrap();
+
+                let mut config = NetworkConfig::new_test(config_path);
+                config.listen_addresses = [multiaddr.clone()].into();
+                config.external_addresses = [multiaddr.clone()].into();
+                let mut service = NetworkService::new(config, &signer, db.clone()).unwrap();
+
+                let local_peer_id = service.local_peer_id();
+
+                let handle = task::spawn(
+                    async move {
+                        loop {
+                            let _event = service.select_next_some().await;
+                        }
+                    }
+                    .instrument(tracing::trace_span!("network-stream")),
+                );
+
+                let bootstrap_address = format!("{address}/p2p/{}", local_peer_id);
+
+                (handle, bootstrap_address, nonce)
+            });
+
+            // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
+            if anvil.is_some() && !continuous_block_generation {
+                provider
+                    .anvil_set_block_timestamp_interval(block_time.as_secs())
+                    .await
+                    .unwrap();
+            }
+
             Ok(TestEnv {
                 eth_cfg,
                 wallets,
@@ -1366,6 +1419,7 @@ mod utils {
                 continuous_block_generation,
                 broadcaster,
                 db,
+                network_context,
                 _anvil: anvil,
                 _events_stream,
             })
@@ -1376,21 +1430,19 @@ mod utils {
                 name,
                 db,
                 validator_config,
-                network,
                 rpc: service_rpc_config,
             } = config;
 
             let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
 
-            let network_address = network.as_ref().map(|network| {
-                network.address.clone().unwrap_or_else(|| {
-                    static NONCE: AtomicUsize = AtomicUsize::new(1);
-                    let nonce = NONCE.fetch_add(1, Ordering::Relaxed);
-                    format!("/memory/{nonce}")
+            let (network_address, network_bootstrap_address) = self
+                .network_context
+                .as_mut()
+                .map(|(_, bootstrap_address, nonce)| {
+                    *nonce += 1;
+                    (format!("/memory/{nonce}"), bootstrap_address.clone())
                 })
-            });
-
-            let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
+                .unzip();
 
             Node {
                 name,
@@ -1535,6 +1587,27 @@ mod utils {
             }
         }
 
+        /// Returns the index in validators list of the next block producer.
+        ///
+        /// ## Note
+        /// This function is not thread-safe.
+        /// If you have some other threads or processes, that can produce blocks,
+        /// then the return may be incorrect.
+        pub async fn next_block_producer_index(&self) -> usize {
+            let timestamp = self
+                .provider
+                .get_block_by_number(Default::default())
+                .await
+                .unwrap()
+                .unwrap()
+                .header
+                .timestamp;
+            ethexe_control::block_producer_index(
+                self.validators.len(),
+                (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
+            )
+        }
+
         #[allow(unused)]
         pub async fn process_already_uploaded_code(&self, code: &[u8], tx_hash: &str) -> CodeId {
             let code_id = CodeId::generate(code);
@@ -1654,6 +1727,9 @@ mod utils {
         pub router_address: Option<String>,
         /// Identify whether networks works (or have to works) in continuous block generation mode.
         pub continuous_block_generation: bool,
+        /// If [`Some`] (by default [`None`]) - separate network service would start.
+        /// Network address could be provided inside, or will be generated.
+        pub network: Option<Option<String>>,
     }
 
     impl Default for TestEnvConfig {
@@ -1665,6 +1741,7 @@ mod utils {
                 wallets: None,
                 router_address: None,
                 continuous_block_generation: false,
+                network: None,
             }
         }
     }
@@ -1678,8 +1755,6 @@ mod utils {
         pub db: Option<Database>,
         /// Validator configuration, if provided then new node starts as validator.
         pub validator_config: Option<ValidatorConfig>,
-        /// Network configuration, if provided then new node starts with network.
-        pub network: Option<NodeNetworkConfig>,
         /// RPC configuration, if provided then new node starts with RPC service.
         pub rpc: Option<RpcConfig>,
     }
@@ -1702,18 +1777,6 @@ mod utils {
             self
         }
 
-        pub fn network(
-            mut self,
-            address: Option<String>,
-            bootstrap_address: Option<String>,
-        ) -> Self {
-            self.network = Some(NodeNetworkConfig {
-                address,
-                bootstrap_address,
-            });
-            self
-        }
-
         pub fn service_rpc(mut self, rpc_port: u16) -> Self {
             let service_rpc_config = RpcConfig {
                 listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
@@ -1732,14 +1795,6 @@ mod utils {
         pub public_key: PublicKey,
         /// Validator session public key.
         pub session_public_key: PublicKey,
-    }
-
-    #[derive(Default)]
-    pub struct NodeNetworkConfig {
-        /// Network address, if not provided, will be generated by test env.
-        pub address: Option<String>,
-        /// Network bootstrap address, if not provided, then no bootstrap address will be used.
-        pub bootstrap_address: Option<String>,
     }
 
     /// Provides access to hardcoded anvil wallets or custom set wallets.
@@ -1818,16 +1873,14 @@ mod utils {
                 let config_path = tempfile::tempdir().unwrap().into_path();
                 let multiaddr: Multiaddr = addr.parse().unwrap();
 
-                let mut config = ethexe_network::NetworkConfig::new_test(config_path);
+                let mut config = NetworkConfig::new_test(config_path);
                 config.listen_addresses = [multiaddr.clone()].into();
                 config.external_addresses = [multiaddr.clone()].into();
                 if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
                     let multiaddr = bootstrap_addr.parse().unwrap();
                     config.bootstrap_addresses = [multiaddr].into();
                 }
-                let network =
-                    ethexe_network::NetworkService::new(config, &self.signer, self.db.clone())
-                        .unwrap();
+                let network = NetworkService::new(config, &self.signer, self.db.clone()).unwrap();
                 self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
                 network
             });

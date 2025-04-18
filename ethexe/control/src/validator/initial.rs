@@ -120,16 +120,11 @@ impl Initial {
 
     fn producer_for(&self, timestamp: u64, validators: &[Address]) -> Address {
         let slot = timestamp / self.ctx.slot_duration.as_secs();
-        let index = Self::block_producer_index(validators.len(), slot);
+        let index = crate::block_producer_index(validators.len(), slot);
         validators
             .get(index)
             .cloned()
             .unwrap_or_else(|| unreachable!("index must be valid"))
-    }
-
-    // TODO #4553: temporary implementation - next slot is the next validator in the list.
-    const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
-        (slot % validators_amount as u64) as usize
     }
 }
 
@@ -249,13 +244,5 @@ mod tests {
         }
         .producer_for(timestamp, &validators);
         assert_eq!(producer, validators[10 % validators.len()]);
-    }
-
-    #[test]
-    fn block_producer_index_calculates_correct_index() {
-        let validators_amount = 5;
-        let slot = 7;
-        let index = Initial::block_producer_index(validators_amount, slot);
-        assert_eq!(index, 2);
     }
 }
