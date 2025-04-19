@@ -34,9 +34,30 @@ interface IMiddleware {
     error UnknownStakerRewards();
     error InvalidStakerRewardsVault();
 
+    struct InitParams {
+        address owner;
+        uint48 eraDuration;
+        uint48 minVaultEpochDuration;
+        uint48 operatorGracePeriod;
+        uint48 vaultGracePeriod;
+        uint48 minVetoDuration;
+        uint48 minSlashExecutionDelay;
+        uint64 allowedVaultImplVersion;
+        uint64 vetoSlasherImplType;
+        uint256 maxResolverSetEpochsDelay;
+        address collateral;
+        uint256 maxAdminFee;
+        address operatorRewards;
+        address router;
+        address roleSlashRequester;
+        address roleSlashExecutor;
+        address vetoResolver;
+        Gear.SymbioticRegistries registries;
+    }
     /**
      * @notice ...
      */
+
     struct Storage {
         uint48 eraDuration;
         uint48 minVaultEpochDuration;

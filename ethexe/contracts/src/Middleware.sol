@@ -55,58 +55,39 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _disableInitializers();
     }
 
-    function initialize(
-        address _owner,
-        uint48 _eraDuration,
-        uint48 _minVaultEpochDuration,
-        uint48 _operatorGracePeriod,
-        uint48 _vaultGracePeriod,
-        uint48 _minVetoDuration,
-        uint48 _minSlashExecutionDelay,
-        uint64 _allowedVaultImplVersion,
-        uint64 _vetoSlasherImplType,
-        uint256 _maxResolverSetEpochsDelay,
-        address _collateral,
-        uint256 _maxAdminFee,
-        address _operatorRewards,
-        address _router,
-        address _roleSlashRequester,
-        address _roleSlashExecutor,
-        address _vetoResolver,
-        Gear.SymbioticRegistries memory _registries
-    ) public initializer {
-        __Ownable_init(_owner);
+    function initialize(InitParams calldata _params) public initializer {
+        __Ownable_init(_params.owner);
         __ReentrancyGuardTransient_init();
 
         _setStorageSlot("middleware.storage.MiddlewareV1");
         Storage storage $ = _storage();
 
-        $.eraDuration = _eraDuration;
-        $.minVaultEpochDuration = _minVaultEpochDuration;
-        $.operatorGracePeriod = _operatorGracePeriod;
-        $.vaultGracePeriod = _vaultGracePeriod;
-        $.minVetoDuration = _minVetoDuration;
-        $.minSlashExecutionDelay = _minSlashExecutionDelay;
-        $.maxResolverSetEpochsDelay = _maxResolverSetEpochsDelay;
-        $.allowedVaultImplVersion = _allowedVaultImplVersion;
-        $.vetoSlasherImplType = _vetoSlasherImplType;
+        $.eraDuration = _params.eraDuration;
+        $.minVaultEpochDuration = _params.minVaultEpochDuration;
+        $.operatorGracePeriod = _params.operatorGracePeriod;
+        $.vaultGracePeriod = _params.vaultGracePeriod;
+        $.minVetoDuration = _params.minVetoDuration;
+        $.minSlashExecutionDelay = _params.minSlashExecutionDelay;
+        $.maxResolverSetEpochsDelay = _params.maxResolverSetEpochsDelay;
+        $.allowedVaultImplVersion = _params.allowedVaultImplVersion;
+        $.vetoSlasherImplType = _params.vetoSlasherImplType;
 
-        $.collateral = _collateral;
+        $.collateral = _params.collateral;
         $.subnetwork = address(this).subnetwork(NETWORK_IDENTIFIER);
-        $.maxAdminFee = _maxAdminFee;
+        $.maxAdminFee = _params.maxAdminFee;
 
-        $.operatorRewards = _operatorRewards;
+        $.operatorRewards = _params.operatorRewards;
 
-        $.router = _router;
+        $.router = _params.router;
 
-        $.roleSlashRequester = _roleSlashRequester;
-        $.roleSlashExecutor = _roleSlashExecutor;
-        $.vetoResolver = _vetoResolver;
+        $.roleSlashRequester = _params.roleSlashRequester;
+        $.roleSlashExecutor = _params.roleSlashExecutor;
+        $.vetoResolver = _params.vetoResolver;
 
-        $.registries = _registries;
+        $.registries = _params.registries;
 
-        INetworkRegistry(_registries.networkRegistry).registerNetwork();
-        INetworkMiddlewareService(_registries.middlewareService).setMiddleware(address(this));
+        INetworkRegistry(_params.registries.networkRegistry).registerNetwork();
+        INetworkMiddlewareService(_params.registries.middlewareService).setMiddleware(address(this));
 
         _validateStorage($);
     }

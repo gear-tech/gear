@@ -91,38 +91,35 @@ contract Base is POCBaseTest {
             stakerRewardsFactory: address(defaultStakerRewardsFactory)
         });
 
+        IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
+            owner: admin,
+            eraDuration: eraDuration,
+            minVaultEpochDuration: eraDuration * 2,
+            operatorGracePeriod: eraDuration * 2,
+            vaultGracePeriod: eraDuration * 2,
+            minVetoDuration: eraDuration / 3,
+            minSlashExecutionDelay: eraDuration / 3,
+            allowedVaultImplVersion: 1,
+            vetoSlasherImplType: 1,
+            maxResolverSetEpochsDelay: type(uint256).max,
+            collateral: address(wrappedVara),
+            maxAdminFee: 10000,
+            operatorRewards: defaultOperatorRewards_,
+            // TODO: replace with real Router address
+            // Now it doesn't work because of test bytecode size becomes too large
+            //address(router),
+            router: address(0),
+            roleSlashRequester: admin,
+            roleSlashExecutor: admin,
+            vetoResolver: admin,
+            registries: registries
+        });
+
         vm.startPrank(admin, admin);
         {
             middleware = Middleware(
                 Upgrades.deployTransparentProxy(
-                    "Middleware.sol",
-                    admin,
-                    abi.encodeCall(
-                        Middleware.initialize,
-                        (
-                            admin,
-                            eraDuration,
-                            eraDuration * 2,
-                            eraDuration * 2,
-                            eraDuration * 2,
-                            eraDuration / 3,
-                            eraDuration / 3,
-                            1,
-                            1,
-                            type(uint256).max,
-                            address(wrappedVara),
-                            10000,
-                            defaultOperatorRewards_,
-                            // TODO: replace with real Router address
-                            // Now it doesn't work because of test bytecode size becomes too large
-                            //address(router),
-                            address(0),
-                            admin,
-                            admin,
-                            admin,
-                            registries
-                        )
-                    )
+                    "Middleware.sol", admin, abi.encodeCall(Middleware.initialize, (initParams))
                 )
             );
         }
