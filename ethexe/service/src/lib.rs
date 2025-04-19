@@ -28,7 +28,8 @@ use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{
-    BlobData, BlobReader, BlockSyncedData, MockBlobReader, ObserverEvent, ObserverService,
+    BlobData, BlobReader, BlockSyncedData, ConsensusLayerBlobReader, MockBlobReader, ObserverEvent,
+    ObserverService,
 };
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
@@ -102,8 +103,6 @@ pub enum NetworkMessage {
         transaction: SignedOffchainTransaction,
     },
 }
-
-use ethexe_observer::ConsensusLayerBlobReader;
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {

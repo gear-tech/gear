@@ -57,7 +57,6 @@ use std::{
     thread,
     time::Duration,
 };
-// Removed Arc import
 use tempfile::tempdir;
 use tokio::task::{self, JoinHandle};
 use utils::{NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
