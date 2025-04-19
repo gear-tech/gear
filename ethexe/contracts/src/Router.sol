@@ -251,7 +251,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer) external returns (address) {
         address mirror = _createProgram(_codeId, _salt, true);
 
-        IMirror(mirror).initialize(_overrideInitializer == address(0) ? msg.sender : _overrideInitializer, mirrorImpl());
+        IMirror(mirror).initialize(
+            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, mirrorImpl(), true
+        );
 
         return mirror;
     }
@@ -265,7 +267,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         address mirror = _createProgram(_codeId, _salt, false);
 
         IMirror(mirror).initialize(
-            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface
+            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface, false
         );
 
         return mirror;

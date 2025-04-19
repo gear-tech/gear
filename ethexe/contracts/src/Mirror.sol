@@ -20,6 +20,7 @@ contract Mirror is IMirror {
     address public inheritor;
     /// @dev This nonce is the source for message ids unique generations. Must be bumped on each send. Zeroed nonce is always represent init message by eligible account.
     address public initializer;
+    bool isSmall;
     bytes32 public stateHash;
     uint256 public nonce;
 
@@ -110,13 +111,15 @@ contract Mirror is IMirror {
 
     /* Router-driven state and funds management */
 
-    function initialize(address _initializer, address _abiInterface) public onlyRouter {
+    function initialize(address _initializer, address _abiInterface, bool _isSmall) public onlyRouter {
         require(initializer == address(0), "initializer could only be set once");
+        require(!isSmall, "isSmall could only be set once");
         StorageSlot.AddressSlot storage implementationSlot =
             StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT);
         require(implementationSlot.value == address(0), "abi interface could only be set once");
 
         initializer = _initializer;
+        isSmall = _isSmall;
         implementationSlot.value = _abiInterface;
     }
 
@@ -344,26 +347,24 @@ contract Mirror is IMirror {
     }
 
     fallback() external payable {
+        require(!isSmall);
+
         StorageSlot.AddressSlot storage implementationSlot =
             StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT);
         address _abiInterface = implementationSlot.value;
 
-        if (_abiInterface != IRouter(router).mirrorImpl()) {
-            require(msg.data.length >= 0x24);
+        require(msg.data.length >= 0x24);
 
-            uint256 value;
-            assembly ("memory-safe") {
-                value := calldataload(0x04)
-            }
+        uint256 value;
+        assembly ("memory-safe") {
+            value := calldataload(0x04)
+        }
 
-            bytes32 messageId = sendMessage(msg.data, uint128(value));
+        bytes32 messageId = sendMessage(msg.data, uint128(value));
 
-            assembly ("memory-safe") {
-                mstore(0x00, messageId)
-                return(0x00, 0x20)
-            }
-        } else {
-            revert();
+        assembly ("memory-safe") {
+            mstore(0x00, messageId)
+            return(0x00, 0x20)
         }
     }
 }
