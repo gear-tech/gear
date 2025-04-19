@@ -46,10 +46,9 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
     // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant SLOT_STORAGE = 0x0b8c56af6cc9ad401ad225bfe96df77f3049ba17eadac1cb95ee89df1e69d100;
-    // keccak256(abi.encode(uint256(keccak256("middleware.storage.Transient")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant TRANSIENT_STORAGE = 0x73876f026a773bae22469952d32d3168edbdf0b4d56318eb37d0685bd3936300;
 
     bytes32 private constant DEFAULT_ADMIN_ROLE = 0x00;
+    uint8 private constant NETWORK_IDENTIFIER = 0;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -58,7 +57,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
     function initialize(
         address _owner,
-        uint96 _networkIdentifier,
         uint48 _eraDuration,
         uint48 _minVaultEpochDuration,
         uint48 _operatorGracePeriod,
@@ -83,8 +81,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _setStorageSlot("middleware.storage.MiddlewareV1");
         Storage storage $ = _storage();
 
-        $.networkIdentifier = _networkIdentifier;
-
         $.eraDuration = _eraDuration;
         $.minVaultEpochDuration = _minVaultEpochDuration;
         $.operatorGracePeriod = _operatorGracePeriod;
@@ -96,7 +92,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         $.vetoSlasherImplType = _vetoSlasherImplType;
 
         $.collateral = _collateral;
-        $.subnetwork = address(this).subnetwork(_networkIdentifier);
+        $.subnetwork = address(this).subnetwork(NETWORK_IDENTIFIER);
         $.maxAdminFee = _maxAdminFee;
 
         $.operatorRewards = _operatorRewards;
@@ -121,7 +117,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _setStorageSlot("middleware.storage.MiddlewareV2");
         Storage storage newStorage = _storage();
 
-        newStorage.networkIdentifier = oldStorage.networkIdentifier;
         newStorage.eraDuration = oldStorage.eraDuration;
         newStorage.minVaultEpochDuration = oldStorage.minVaultEpochDuration;
         newStorage.operatorGracePeriod = oldStorage.operatorGracePeriod;
@@ -567,7 +562,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         IBaseDelegator delegator = IBaseDelegator(IVault(_vault).delegator());
         if (delegator.maxNetworkLimit($.subnetwork) != type(uint256).max) {
-            delegator.setMaxNetworkLimit($.networkIdentifier, type(uint256).max);
+            delegator.setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
         }
         _delegatorHookCheck(IBaseDelegator(delegator).hook());
 
@@ -600,7 +595,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         address resolver = IVetoSlasher(slasher).resolver($.subnetwork, new bytes(0));
         if (resolver == address(0)) {
-            IVetoSlasher(slasher).setResolver($.networkIdentifier, $.vetoResolver, new bytes(0));
+            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, $.vetoResolver, new bytes(0));
         } else if (resolver != $.vetoResolver) {
             // TODO: consider how to support this case
             revert ResolverMismatch();

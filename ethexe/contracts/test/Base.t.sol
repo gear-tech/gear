@@ -101,7 +101,6 @@ contract Base is POCBaseTest {
                         Middleware.initialize,
                         (
                             admin,
-                            0,
                             eraDuration,
                             eraDuration * 2,
                             eraDuration * 2,

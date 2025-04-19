@@ -38,7 +38,6 @@ interface IMiddleware {
      * @notice ...
      */
     struct Storage {
-        uint96 networkIdentifier;
         uint48 eraDuration;
         uint48 minVaultEpochDuration;
         uint48 operatorGracePeriod;
