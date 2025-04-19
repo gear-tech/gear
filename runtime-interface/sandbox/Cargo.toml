@@ -17,7 +17,7 @@ workspace = true
 sp-runtime-interface.workspace = true
 sp-wasm-interface.workspace = true
 
-codec = { workspace = true }
+parity-scale-codec.workspace = true
 gear-sandbox-host = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
 
@@ -26,7 +26,7 @@ default = ["std"]
 std = [
   "gear-sandbox-host",
 
-  "codec/std",
+  "parity-scale-codec/std",
   "log",
 
   "sp-runtime-interface/std",

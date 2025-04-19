@@ -17,14 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use actor_system_error::actor_system_error;
-use codec::{Decode, Encode};
 use gear_core::{
     gas::{ChargeError, CounterType},
     ids::ProgramId,
-    message::MessageWaitedType,
-    str::LimitedStr,
+    message::{MessageWaitedType, PanicBuffer},
 };
 use gear_core_errors::ExtError as FallibleExtError;
+use parity_scale_codec::{Decode, Encode};
 
 actor_system_error! {
     pub type TerminationReason = ActorSystemError<ActorTerminationReason, SystemTerminationReason>;
@@ -76,7 +75,6 @@ impl<E: BackendSyscallError> From<E> for UndefinedTerminationReason {
 }
 
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
-#[codec(crate = codec)]
 pub enum ActorTerminationReason {
     Exit(ProgramId),
     Leave,
@@ -117,18 +115,17 @@ pub struct SystemTerminationReason;
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum UnrecoverableExecutionError {
     #[display(fmt = "Invalid debug string passed in `gr_debug` syscall")]
     InvalidDebugString,
     #[display(fmt = "Not enough gas for operation")]
     NotEnoughGas,
-    #[display(fmt = "Length is overflowed to read payload")]
-    TooBigReadLen,
     #[display(fmt = "Cannot take data in payload range from message with size")]
     ReadWrongRange,
     #[display(fmt = "Unsupported version of environment variables encountered")]
     UnsupportedEnvVarsVersion,
+    #[display(fmt = "Length is overflowed to read panic payload")]
+    PanicBufferIsTooBig,
 }
 
 /// Memory error in infallible syscall.
@@ -144,7 +141,6 @@ pub enum UnrecoverableExecutionError {
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum UnrecoverableMemoryError {
     /// The error occurs in attempt to access memory outside wasm program memory.
     #[display(fmt = "Trying to access memory outside wasm program memory")]
@@ -167,7 +163,6 @@ pub enum UnrecoverableMemoryError {
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum UnrecoverableWaitError {
     /// An error occurs in attempt to wait for or wait up to zero blocks.
     #[display(fmt = "Waiting duration cannot be zero")]
@@ -189,7 +184,6 @@ pub enum UnrecoverableWaitError {
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum UnrecoverableExtError {
     #[display(fmt = "Execution error: {_0}")]
     Execution(UnrecoverableExecutionError),
@@ -211,7 +205,6 @@ pub enum UnrecoverableExtError {
     derive_more::Display,
     derive_more::From,
 )]
-#[codec(crate = codec)]
 pub enum TrapExplanation {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
@@ -226,7 +219,7 @@ pub enum TrapExplanation {
     #[display(fmt = "Syscall unrecoverable error: {_0}")]
     UnrecoverableExt(UnrecoverableExtError),
     #[display(fmt = "Panic occurred: {_0}")]
-    Panic(LimitedStr<'static>),
+    Panic(PanicBuffer),
     #[display(fmt = "Stack limit exceeded")]
     StackLimitExceeded,
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
