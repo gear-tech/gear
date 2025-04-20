@@ -53,7 +53,6 @@ use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
-    sync::Arc,
     time::Duration,
 };
 use tempfile::tempdir;
