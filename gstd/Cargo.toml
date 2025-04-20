@@ -15,7 +15,7 @@ rust-version.workspace = true
 [dependencies]
 arrayvec = { workspace = true, optional = true }
 const_format = { version = "0.2.32", optional = true }
-document-features = { version = "0.2.10", optional = true }
+document-features = { version = "0.2.11", optional = true }
 galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
 gstd-codegen.workspace = true
