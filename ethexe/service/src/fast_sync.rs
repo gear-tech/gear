@@ -162,7 +162,7 @@ struct RequestManager {
     total_pending_requests: u64,
 
     /// Buffered requests are either:
-    /// * Skipped if they are simple
+    /// * Skipped if they are `RequestMetadata::Data`
     /// * Completed if the database has keys
     /// * Converted into one network request, and after that
     ///   we convert them into `pending_requests` because `RequestId` is known
@@ -186,7 +186,6 @@ impl RequestManager {
     fn request(&mut self, network: &mut NetworkService, db: &Database) -> bool {
         debug_assert!(!self.buffered_requests.is_empty());
 
-        let mut network_request = BTreeSet::new();
         let mut pending_requests = HashMap::new();
         for (hash, metadata) in self.buffered_requests.drain() {
             if metadata.is_data() && db.has_hash(hash) {
@@ -197,14 +196,14 @@ impl RequestManager {
                 self.responses.insert(hash, (metadata, data));
                 self.total_completed_requests += 1;
             } else {
-                network_request.insert(hash);
                 pending_requests.insert(hash, metadata);
             }
 
             self.total_pending_requests += 1;
         }
 
-        if !network_request.is_empty() {
+        if !pending_requests.is_empty() {
+            let network_request = pending_requests.keys().collect();
             let request_id = network.db_sync().request(db_sync::Request(network_request));
             for (hash, metadata) in pending_requests {
                 self.pending_requests.insert((request_id, hash), metadata);
