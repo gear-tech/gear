@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! # Bucketed parallel program execution
+//! # Chunked parallel program execution
 //!
 //! ## Overview
 //!
 //! This approach speeds up the processing of multiple programs in parallel.
 //! The main idea is to split programs into chunks based on their queue sizes or, in the future, another computation weight metric.
 //!
-//! Bucket processing helps reduce waiting time, as it minimizes the delay caused by the slowest message among all concurrently executed messages.
+//! Chunk processing helps reduce waiting time, as it minimizes the delay caused by the slowest message among all concurrently executed messages.
 //! This works because, in sorted chunks, the computation time for each chunk element (queue messages) should be approximately equal.
 //!
 //! The second part of the approach is executing an entire program queue in one go within a single runtime instance.
@@ -77,7 +77,7 @@
 //!
 //! ---
 //!
-//! ## Simplest Bucket Splitting Algorithm
+//! ## Simplest Chunk Splitting Algorithm
 //!
 //! A basic chunk-splitting algorithm is implemented as follows:
 //!
@@ -268,7 +268,7 @@ mod tests {
         for i in 0..accum_chunks.len() - 1 {
             assert!(
                 accum_chunks[i] >= accum_chunks[i + 1],
-                "Buckets are not sorted"
+                "Chunks are not sorted"
             );
         }
     }
