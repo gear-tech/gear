@@ -17,10 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Event, Service};
-use alloy::{
-    eips::{BlockId, BlockNumberOrTag},
-    providers::Provider,
-};
+use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
@@ -41,7 +38,7 @@ use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     pin::pin,
 };
 
@@ -162,13 +159,16 @@ struct RequestManager {
     total_pending_requests: u64,
 
     /// Buffered requests are either:
-    /// * Skipped if they are `RequestMetadata::Data`
+    /// * Skipped if they are `RequestMetadata::Data` and exist in the database
     /// * Completed if the database has keys
     /// * Converted into one network request, and after that
     ///   we convert them into `pending_requests` because `RequestId` is known
     buffered_requests: HashMap<H256, RequestMetadata>,
-    /// Pending requests, we remove one by one on each hash from a network response
-    pending_requests: HashMap<(RequestId, H256), RequestMetadata>,
+    /// Pending requests, we remove on network response
+    ///
+    /// Network does not guarantee that a response has all hashes,
+    /// so missing hashes are passed into `buffered_requests` again
+    pending_requests: HashMap<RequestId, HashMap<H256, RequestMetadata>>,
     /// Completed requests
     responses: HashMap<H256, (RequestMetadata, Vec<u8>)>,
 }
@@ -203,11 +203,9 @@ impl RequestManager {
         }
 
         if !pending_requests.is_empty() {
-            let network_request = pending_requests.keys().collect();
+            let network_request = pending_requests.keys().copied().collect();
             let request_id = network.db_sync().request(db_sync::Request(network_request));
-            for (hash, metadata) in pending_requests {
-                self.pending_requests.insert((request_id, hash), metadata);
-            }
+            self.pending_requests.insert(request_id, pending_requests);
         }
 
         !self.pending_requests.is_empty()
@@ -221,10 +219,14 @@ impl RequestManager {
     ) {
         let db_sync::Response(data) = response;
 
+        let mut pending_requests = self
+            .pending_requests
+            .remove(&request_id)
+            .expect("unknown request");
+
         for (hash, data) in data {
-            let metadata = self
-                .pending_requests
-                .remove(&(request_id, hash))
+            let metadata = pending_requests
+                .remove(&hash)
                 .expect("unknown pending request");
 
             let db_hash = db.write(&data);
@@ -232,6 +234,11 @@ impl RequestManager {
 
             self.responses.insert(hash, (metadata, data));
             self.total_completed_requests += 1;
+        }
+
+        // network does not guarantee it gathers all hashes
+        if !pending_requests.is_empty() {
+            self.buffered_requests.extend(pending_requests);
         }
     }
 
@@ -277,7 +284,7 @@ async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
         // we get finalized block to avoid block reorganization
         // because we restore the database only for the latest block of a chain,
         // and thus the reorganization can lead us to an empty block
-        .get_block(BlockId::Number(BlockNumberOrTag::Finalized))
+        .get_block(BlockId::finalized())
         .await
         .context("failed to get latest block")?
         .expect("latest block always exist");
