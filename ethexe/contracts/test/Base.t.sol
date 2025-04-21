@@ -118,6 +118,8 @@ contract Base is POCBaseTest {
 
         address mirrorAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 2);
 
+        address middlewareAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
+
         vm.startPrank(admin, admin);
         {
             router = Router(
@@ -130,6 +132,7 @@ contract Base is POCBaseTest {
                             admin,
                             mirrorAddress,
                             wrappedVaraAddress,
+                            middlewareAddress,
                             uint256(eraDuration),
                             uint256(electionDuration),
                             uint256(validationDelay),
@@ -214,9 +217,13 @@ contract Base is POCBaseTest {
         }
 
         router.commitBatch(
-            Gear.BatchCommitment({codeCommitments: _commitments, blockCommitments: new Gear.BlockCommitment[](0)}),
+            Gear.BatchCommitment({
+                codeCommitments: _commitments,
+                blockCommitments: new Gear.BlockCommitment[](0),
+                rewardCommitments: new Gear.RewardsCommitment[](0)
+            }),
             Gear.SignatureType.FROST,
-            signBytes(_privateKeys, abi.encodePacked(keccak256(_codesBytes), keccak256("")))
+            signBytes(_privateKeys, abi.encodePacked(keccak256(_codesBytes), keccak256(""), keccak256("")))
         );
     }
 
@@ -235,9 +242,13 @@ contract Base is POCBaseTest {
         }
 
         router.commitBatch(
-            Gear.BatchCommitment({codeCommitments: new Gear.CodeCommitment[](0), blockCommitments: _commitments}),
+            Gear.BatchCommitment({
+                codeCommitments: new Gear.CodeCommitment[](0),
+                blockCommitments: _commitments,
+                rewardCommitments: new Gear.RewardsCommitment[](0)
+            }),
             Gear.SignatureType.FROST,
-            signBytes(_privateKeys, abi.encodePacked(keccak256(""), keccak256(_message)))
+            signBytes(_privateKeys, abi.encodePacked(keccak256(""), keccak256(_message), keccak256("")))
         );
     }
 

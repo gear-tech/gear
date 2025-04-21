@@ -35,6 +35,7 @@ contract DeploymentScript is Script {
         );
 
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
+        address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
 
         router = Router(
             Upgrades.deployTransparentProxy(
@@ -46,6 +47,7 @@ contract DeploymentScript is Script {
                         deployerAddress,
                         mirrorAddress,
                         address(wrappedVara),
+                        middlewareAddress,
                         1 days,
                         2 hours,
                         5 minutes,

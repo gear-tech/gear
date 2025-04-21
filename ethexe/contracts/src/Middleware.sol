@@ -62,7 +62,7 @@ contract Middleware is IMiddleware {
     address public immutable NETWORK_OPT_IN;
     address public immutable MIDDLEWARE_SERVICE;
 
-    // TODO: think about multiple assets as collateral
+    // TODO #4609
     address public immutable COLLATERAL;
     address public immutable VETO_RESOLVER;
     bytes32 public immutable SUBNETWORK;
@@ -159,34 +159,48 @@ contract Middleware is IMiddleware {
         operators.remove(operator);
     }
 
-    function distributeOperatorRewards(Gear.OperatorRewardsCommitment memory _rewards) external _onlyRouter {
-        if (_rewards.token != COLLATERAL) {
+    function distributeOperatorRewards(address token, uint256 amount, bytes32 root)
+        external
+        _onlyRouter
+        returns (bytes32)
+    {
+        if (token != COLLATERAL) {
             revert UnknownCollateral();
         }
 
-        IDefaultOperatorRewards(OPERATOR_REWARDS).distributeRewards(
-            ROUTER, _rewards.token, _rewards.amount, _rewards.root
-        );
+        IDefaultOperatorRewards(OPERATOR_REWARDS).distributeRewards(ROUTER, token, amount, root);
+
+        return keccak256(abi.encodePacked(token, amount, root));
     }
 
-    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _commitment) external _onlyRouter {
+    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _commitment)
+        external
+        _onlyRouter
+        returns (bytes32)
+    {
+        if (_commitment.token != COLLATERAL) {
+            revert UnknownCollateral();
+        }
+
+        bytes memory rewardsHashes;
         for (uint256 i = 0; i < _commitment.distribution.length; ++i) {
-            Gear.StakerRewards memory stakerRewards = _commitment.distribution[i];
+            Gear.StakerRewards memory rewards = _commitment.distribution[i];
 
-            if (stakerRewards.token != COLLATERAL) {
-                revert UnknownCollateral();
-            }
-
-            if (!vaults.contains(stakerRewards.vault)) {
+            if (!vaults.contains(rewards.vault)) {
                 revert UnknownVault();
             }
 
-            address rewards = address(vaults.getPinnedData(stakerRewards.vault));
+            address rewardsAddress = address(vaults.getPinnedData(rewards.vault));
 
-            // TODO: consider to add hints instead of bytes("")
             bytes memory data = abi.encode(_commitment.timestamp, MAX_ADMIN_FEE, bytes(""), bytes(""));
-            IDefaultStakerRewards(rewards).distributeRewards(ROUTER, stakerRewards.token, stakerRewards.amount, data);
+            IDefaultStakerRewards(rewardsAddress).distributeRewards(ROUTER, _commitment.token, rewards.amount, data);
+
+            bytes32 rewardsHash =
+                keccak256(abi.encodePacked(_commitment.token, rewards.amount, rewards.vault, _commitment.timestamp));
+            rewardsHashes = bytes.concat(rewardsHashes, rewardsHash);
         }
+
+        return keccak256(rewardsHashes);
     }
 
     function registerVault(address _vault, address _rewards) external _vaultOwner(_vault) {

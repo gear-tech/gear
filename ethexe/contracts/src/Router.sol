@@ -13,6 +13,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {ReentrancyGuardTransientUpgradeable} from
     "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
@@ -29,7 +30,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         address _owner,
         address _mirror,
         address _wrappedVara,
-        // address _middleware,
+        address _middleware,
         uint256 _eraDuration,
         uint256 _electionDuration,
         uint256 _validationDelay,
@@ -52,7 +53,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         Storage storage router = _router();
 
         router.genesisBlock = Gear.newGenesis();
-        router.implAddresses = Gear.AddressBook(_mirror, _wrappedVara);
+        router.implAddresses = Gear.AddressBook(_mirror, _wrappedVara, _middleware);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
@@ -281,6 +282,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             "no commitments to commit"
         );
 
+        require(
+            _batchCommitment.rewardCommitments.length < 2,
+            "rewards commitment must be empty or contains only one commitment"
+        );
+
         uint256 maxTimestamp = 0;
 
         /* Commit Codes */
@@ -322,6 +328,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             }
         }
 
+        /* Commit Rewards */
+
+        bytes memory rewardsCommitmentHash;
+        if (_batchCommitment.rewardCommitments.length == 1) {
+            rewardsCommitmentHash = _commitRewards(router, _batchCommitment.rewardCommitments[0]);
+        }
+
         // NOTE: Use maxTimestamp to validate signatures for all commitments.
         // This means that if at least one commitment is for block from current era,
         // then all commitments should be checked with current era validators.
@@ -330,7 +343,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             Gear.validateSignaturesAt(
                 router,
                 TRANSIENT_STORAGE,
-                keccak256(abi.encodePacked(keccak256(codeCommitmentsHashes), keccak256(blockCommitmentsHashes))),
+                keccak256(
+                    abi.encodePacked(
+                        keccak256(codeCommitmentsHashes),
+                        keccak256(blockCommitmentsHashes),
+                        keccak256(rewardsCommitmentHash)
+                    )
+                ),
                 _signatureType,
                 _signatures,
                 maxTimestamp
@@ -463,13 +482,26 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return keccak256(transitionsHashes);
     }
 
-    function _commitRewards(Storage storage, Gear.RewardsCommitment calldata _rewardsCommitment) private {
-        // TODO: replace for this after implementing OwnableUpgreadable logic for Middleware
-        // address middleware = router.implAddresses.middleware;
-        address middleware = address(0);
+    function _commitRewards(Storage storage router, Gear.RewardsCommitment calldata _rewardsCommitment)
+        private
+        returns (bytes memory)
+    {
+        // TODO #4609
+        address middleware = router.implAddresses.middleware;
 
-        IMiddleware(middleware).distributeOperatorRewards(_rewardsCommitment.operators);
-        IMiddleware(middleware).distributeStakerRewards(_rewardsCommitment.stakers);
+        bytes memory rewardsCommitmentHash;
+
+        IERC20(router.implAddresses.wrappedVara).approve(middleware, _rewardsCommitment.operators.amount);
+        bytes32 operatorRewardsHash = IMiddleware(middleware).distributeOperatorRewards(
+            router.implAddresses.wrappedVara, _rewardsCommitment.operators.amount, _rewardsCommitment.operators.root
+        );
+        rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, operatorRewardsHash);
+
+        IERC20(router.implAddresses.wrappedVara).approve(middleware, _rewardsCommitment.stakers.totalAmount);
+        bytes32 stakerRewardsHash = IMiddleware(middleware).distributeStakerRewards(_rewardsCommitment.stakers);
+        rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, stakerRewardsHash);
+
+        return rewardsCommitmentHash;
     }
 
     function _resetValidators(
