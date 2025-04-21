@@ -1,17 +1,19 @@
 use crate::{
     state::{
-        Dispatch, DispatchStash, Expiring, MailboxMessage, PayloadLookup, Storage, UserMailbox,
-        Waitlist, MAILBOX_VALIDITY,
+        Dispatch, DispatchStash, Expiring, MailboxMessage, PayloadLookup, ProgramState, Storage,
+        UserMailbox, Waitlist, MAILBOX_VALIDITY,
     },
     TransitionController,
 };
+use alloc::collections::{BTreeMap, BTreeSet};
+use anyhow::Context;
 use ethexe_common::{
     db::{Rfm, Schedule, ScheduledTask, Sd, Sum},
     gear::ValueClaim,
 };
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;
-use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
+use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
 pub struct Handler<'a, S: Storage> {
     pub controller: TransitionController<'a, S>,
@@ -168,6 +170,63 @@ impl Restorer {
         }
     }
 
+    /// Creates a restorer from storage.
+    ///
+    /// Tries to fully restore schedule
+    pub fn from_storage<T: Storage>(
+        storage: &T,
+        program_states: &BTreeMap<ActorId, H256>,
+        current_block: u32,
+    ) -> anyhow::Result<Self> {
+        let program_states: BTreeMap<H256, BTreeSet<ActorId>> =
+            program_states
+                .iter()
+                .fold(BTreeMap::new(), |mut acc, (&program_id, &state)| {
+                    acc.entry(state).or_default().insert(program_id);
+                    acc
+                });
+
+        let mut restorer = Self::new(current_block);
+
+        for (hash, program_ids) in program_states {
+            let program_state = storage
+                .read_state(hash)
+                .context("failed to read ['Waitlist'] from storage by hash")?;
+            let ProgramState {
+                waitlist_hash,
+                stash_hash,
+                mailbox_hash,
+                ..
+            } = program_state;
+
+            if let Ok(waitlist) = waitlist_hash.query(storage) {
+                for &program_id in &program_ids {
+                    restorer.waitlist(program_id, &waitlist);
+                }
+            }
+
+            if let Ok(stash) = stash_hash.query(storage) {
+                for &program_id in &program_ids {
+                    restorer.stash(program_id, &stash);
+                }
+            }
+
+            if let Ok(mailbox) = mailbox_hash.query(storage) {
+                for (&user_id, &user_mailbox) in mailbox.as_ref() {
+                    let user_mailbox = storage
+                        .read_user_mailbox(user_mailbox)
+                        .context("failed to read ['UserMailbox'] from storage by hash")?;
+
+                    for &program_id in &program_ids {
+                        restorer.user_mailbox(program_id, user_id, &user_mailbox)
+                    }
+                }
+            }
+        }
+
+        Ok(restorer)
+    }
+
     pub fn waitlist(&mut self, program_id: ActorId, waitlist: &Waitlist) {
         for (
             &message_id,
@@ -190,8 +249,13 @@ impl Restorer {
         }
     }
 
-    pub fn mailbox(&mut self, program_id: ActorId, user_id: ActorId, mailbox: &UserMailbox) {
-        for (&message_id, &Expiring { value: _, expiry }) in mailbox.as_ref() {
+    pub fn user_mailbox(
+        &mut self,
+        program_id: ActorId,
+        user_id: ActorId,
+        user_mailbox: &UserMailbox,
+    ) {
+        for (&message_id, &Expiring { value: _, expiry }) in user_mailbox.as_ref() {
             if expiry <= self.current_block {
                 continue;
             }
@@ -304,7 +368,7 @@ mod tests {
             .unwrap();
 
         let mut restorer = Restorer::new(999);
-        restorer.mailbox(program_id, user_id, &user_mailbox);
+        restorer.user_mailbox(program_id, user_id, &user_mailbox);
         assert_eq!(
             restorer.restore(),
             BTreeMap::from([(
@@ -317,7 +381,7 @@ mod tests {
         );
 
         let mut restorer = Restorer::new(1000);
-        restorer.mailbox(program_id, user_id, &user_mailbox);
+        restorer.user_mailbox(program_id, user_id, &user_mailbox);
         assert_eq!(restorer.restore(), BTreeMap::new());
     }
 

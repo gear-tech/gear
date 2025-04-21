@@ -23,7 +23,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Context, Result};
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage, OnChainStorage, Schedule},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::CodeCommitment,
 };
@@ -33,8 +33,7 @@ use ethexe_network::{db_sync, db_sync::RequestId, NetworkEvent, NetworkService};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_runtime_common::{
     state::{
-        ActiveProgram, DispatchStash, Mailbox, MaybeHashOf, MemoryPages, MemoryPagesRegion,
-        Program, ProgramState, UserMailbox, Waitlist,
+        ActiveProgram, Mailbox, MaybeHashOf, MemoryPages, MemoryPagesRegion, Program, ProgramState,
     },
     ScheduleRestorer,
 };
@@ -140,43 +139,23 @@ impl EventData {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum RequestMetadata<'a> {
-    ProgramState {
-        program_ids: &'a HashSet<ActorId>,
-    },
+enum RequestMetadata {
+    ProgramState,
     MemoryPages,
     MemoryPagesRegion,
-    Waitlist {
-        program_ids: &'a HashSet<ActorId>,
-    },
-    Mailbox {
-        program_ids: &'a HashSet<ActorId>,
-    },
-    UserMailbox {
-        program_ids: &'a HashSet<ActorId>,
-        user_id: ActorId,
-    },
-    DispatchStash {
-        program_ids: &'a HashSet<ActorId>,
-    },
+    Mailbox,
     /// Any data we only insert into the database.
     Data,
 }
 
-impl RequestMetadata<'_> {
-    /// Simple request metadata means that there is no need to process its content
-    /// if it's already in the database because it has no fields that affect data flow.
-    ///
-    /// For example, `ProgramState` has a list of program IDs,
-    /// so we need to process the whole request tree up to `Waitlist`, `UserMailbox` and others
-    /// because they can change `ScheduleRestorer`.
-    fn is_simple(self) -> bool {
+impl RequestMetadata {
+    fn is_data(self) -> bool {
         matches!(self, RequestMetadata::Data)
     }
 }
 
 #[derive(Debug, Default)]
-struct RequestManager<'a> {
+struct RequestManager {
     /// Total completed requests
     total_completed_requests: u64,
     /// Total pending requests
@@ -187,15 +166,15 @@ struct RequestManager<'a> {
     /// * Completed if the database has keys
     /// * Converted into one network request, and after that
     ///   we convert them into `pending_requests` because `RequestId` is known
-    buffered_requests: HashMap<H256, RequestMetadata<'a>>,
+    buffered_requests: HashMap<H256, RequestMetadata>,
     /// Pending requests, we remove one by one on each hash from a network response
-    pending_requests: HashMap<(RequestId, H256), RequestMetadata<'a>>,
+    pending_requests: HashMap<(RequestId, H256), RequestMetadata>,
     /// Completed requests
-    responses: HashMap<H256, (RequestMetadata<'a>, Vec<u8>)>,
+    responses: HashMap<H256, (RequestMetadata, Vec<u8>)>,
 }
 
-impl<'a> RequestManager<'a> {
-    fn add(&mut self, hash: H256, metadata: RequestMetadata<'a>) {
+impl RequestManager {
+    fn add(&mut self, hash: H256, metadata: RequestMetadata) {
         let old = self.buffered_requests.insert(hash, metadata);
 
         #[cfg(debug_assertions)]
@@ -210,7 +189,7 @@ impl<'a> RequestManager<'a> {
         let mut network_request = BTreeSet::new();
         let mut pending_requests = HashMap::new();
         for (hash, metadata) in self.buffered_requests.drain() {
-            if metadata.is_simple() && db.has_hash(hash) {
+            if metadata.is_data() && db.has_hash(hash) {
                 continue;
             }
 
@@ -257,7 +236,7 @@ impl<'a> RequestManager<'a> {
         }
     }
 
-    fn take_responses(&mut self) -> Vec<(RequestMetadata<'a>, Vec<u8>)> {
+    fn take_responses(&mut self) -> Vec<(RequestMetadata, Vec<u8>)> {
         self.responses.drain().map(|(_hash, value)| value).collect()
     }
 
@@ -274,7 +253,7 @@ impl<'a> RequestManager<'a> {
     }
 }
 
-impl Drop for RequestManager<'_> {
+impl Drop for RequestManager {
     fn drop(&mut self) {
         #[cfg(debug_assertions)]
         {
@@ -327,20 +306,10 @@ async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
     program_states: &BTreeMap<ActorId, H256>,
-    latest_block_header: &BlockHeader,
-) -> Schedule {
-    let mut schedule_restorer = ScheduleRestorer::new(latest_block_header.height);
-
-    let program_states: HashMap<H256, HashSet<ActorId>> =
-        program_states
-            .iter()
-            .fold(HashMap::new(), |mut acc, (&program_id, &state)| {
-                acc.entry(state).or_default().insert(program_id);
-                acc
-            });
+) {
     let mut manager = RequestManager::default();
-    for (&state, program_ids) in &program_states {
-        manager.add(state, RequestMetadata::ProgramState { program_ids });
+    for &state in program_states.values() {
+        manager.add(state, RequestMetadata::ProgramState);
     }
 
     loop {
@@ -377,7 +346,7 @@ async fn sync_from_network(
 
         for (metadata, data) in manager.take_responses() {
             match metadata {
-                RequestMetadata::ProgramState { program_ids } => {
+                RequestMetadata::ProgramState => {
                     let state: ProgramState =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
 
@@ -409,15 +378,14 @@ async fn sync_from_network(
                     if let Some(queue_hash) = queue_hash.hash() {
                         manager.add(queue_hash, RequestMetadata::Data);
                     }
-
                     if let Some(waitlist_hash) = waitlist_hash.hash() {
-                        manager.add(waitlist_hash, RequestMetadata::Waitlist { program_ids });
+                        manager.add(waitlist_hash, RequestMetadata::Data);
                     }
                     if let Some(mailbox_hash) = mailbox_hash.hash() {
-                        manager.add(mailbox_hash, RequestMetadata::Mailbox { program_ids });
+                        manager.add(mailbox_hash, RequestMetadata::Mailbox);
                     }
                     if let Some(stash_hash) = stash_hash.hash() {
-                        manager.add(stash_hash, RequestMetadata::DispatchStash { program_ids });
+                        manager.add(stash_hash, RequestMetadata::Data);
                     }
                 }
                 RequestMetadata::MemoryPages => {
@@ -444,41 +412,11 @@ async fn sync_from_network(
                         manager.add(page_buf_hash, RequestMetadata::Data);
                     }
                 }
-                RequestMetadata::Waitlist { program_ids } => {
-                    let waitlist: Waitlist =
-                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    for &program_id in program_ids {
-                        schedule_restorer.waitlist(program_id, &waitlist);
-                    }
-                }
-                RequestMetadata::Mailbox { program_ids } => {
+                RequestMetadata::Mailbox => {
                     let mailbox: Mailbox =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    for (&user_id, user_mailbox) in mailbox.as_ref() {
-                        manager.add(
-                            user_mailbox.hash(),
-                            RequestMetadata::UserMailbox {
-                                program_ids,
-                                user_id,
-                            },
-                        );
-                    }
-                }
-                RequestMetadata::UserMailbox {
-                    program_ids,
-                    user_id,
-                } => {
-                    let user_mailbox: UserMailbox =
-                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    for &program_id in program_ids {
-                        schedule_restorer.mailbox(program_id, user_id, &user_mailbox);
-                    }
-                }
-                RequestMetadata::DispatchStash { program_ids } => {
-                    let stash: DispatchStash =
-                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    for &program_id in program_ids {
-                        schedule_restorer.stash(program_id, &stash);
+                    for user_mailbox in mailbox.as_ref().values() {
+                        manager.add(user_mailbox.hash(), RequestMetadata::Data);
                     }
                 }
                 RequestMetadata::Data => {}
@@ -492,8 +430,6 @@ async fn sync_from_network(
 
     let (completed, pending) = manager.stats();
     log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
-
-    schedule_restorer.restore()
 }
 
 async fn instrument_codes(
@@ -559,13 +495,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let latest_block_header =
         OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
 
-    let schedule = sync_from_network(
-        network,
-        db,
-        &event_data.program_states,
-        &latest_block_header,
-    )
-    .await;
+    sync_from_network(network, db, &event_data.program_states).await;
+
+    let schedule =
+        ScheduleRestorer::from_storage(db, &event_data.program_states, latest_block_header.height)?
+            .restore();
 
     for (program_id, code_id) in event_data.program_code_ids {
         db.set_program_code_id(program_id, code_id);
