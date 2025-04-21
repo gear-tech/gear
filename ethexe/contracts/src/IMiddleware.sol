@@ -25,6 +25,7 @@ interface IMiddleware {
     error VetoDurationTooShort();
     error VetoDurationTooLong();
     error IncompatibleVaultVersion();
+    error IncompatibleStakerRewardsVersion();
     error NotRegisteredVault();
     error NotRegisteredOperator();
     error RoleMismatch();

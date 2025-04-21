@@ -479,6 +479,10 @@ contract Middleware is IMiddleware {
         if (IDefaultStakerRewards(_rewards).VAULT() != _vault) {
             revert InvalidStakerRewardsVault();
         }
+
+        if (IDefaultStakerRewards(_rewards).version() != 1) {
+            revert IncompatibleStakerRewardsVersion();
+        }
     }
 
     // Timestamp must be always in the past, but not too far,
