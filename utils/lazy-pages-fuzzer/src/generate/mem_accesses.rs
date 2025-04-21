@@ -36,11 +36,11 @@ impl Default for InjectMemoryAccessesConfig {
 
 #[derive(Debug, Display, Error, From)]
 pub enum InjectMemoryAccessesError {
-    #[display(fmt = "No memory imports found")]
+    #[display("No memory imports found")]
     NoMemoryImports,
-    #[display(fmt = "No code section found")]
+    #[display("No code section found")]
     NoCodeSection,
-    #[display(fmt = "")]
+    #[display("")]
     Arbitrary(arbitrary::Error),
 }
 
