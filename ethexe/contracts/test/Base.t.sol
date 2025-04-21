@@ -180,7 +180,7 @@ contract Base is POCBaseTest {
     }
 
     function createVaultForOperator(address _operator) internal returns (address _vault) {
-        _vault = newVault(eraDuration * 2, _operator);
+        _vault = newVault(_operator, _defaultVaultInitParams(_operator));
         address _rewards = newStakerRewards(_vault, _operator);
 
         vm.startPrank(_operator);
@@ -301,7 +301,7 @@ contract Base is POCBaseTest {
         vm.stopPrank();
     }
 
-    function newVault(uint48 _epochDuration, address _operator) internal returns (address _vault) {
+    function newVault(address _operator, IVault.InitParams memory _vaultParams) internal returns (address _vault) {
         address[] memory networkLimitSetRoleHolders = new address[](1);
         networkLimitSetRoleHolders[0] = _operator;
 
@@ -309,21 +309,7 @@ contract Base is POCBaseTest {
             IVaultConfigurator.InitParams({
                 version: 1,
                 owner: _operator,
-                vaultParams: abi.encode(
-                    IVault.InitParams({
-                        collateral: address(wrappedVara),
-                        burner: address(middleware),
-                        epochDuration: _epochDuration,
-                        depositWhitelist: false,
-                        isDepositLimit: false,
-                        depositLimit: 0,
-                        defaultAdminRoleHolder: _operator,
-                        depositWhitelistSetRoleHolder: _operator,
-                        depositorWhitelistRoleHolder: _operator,
-                        isDepositLimitSetRoleHolder: _operator,
-                        depositLimitSetRoleHolder: _operator
-                    })
-                ),
+                vaultParams: abi.encode(_vaultParams),
                 delegatorIndex: 2,
                 delegatorParams: abi.encode(
                     IOperatorSpecificDelegator.InitParams({
@@ -347,6 +333,27 @@ contract Base is POCBaseTest {
                 )
             })
         );
+    }
+
+    // This function is used to create default vault params for tests and ability to override them in tests
+    function _defaultVaultInitParams(address _operator)
+        internal
+        view
+        returns (IVault.InitParams memory defaultVaultParams)
+    {
+        defaultVaultParams = IVault.InitParams({
+            collateral: address(wrappedVara),
+            burner: address(middleware),
+            epochDuration: eraDuration * 2,
+            depositWhitelist: false,
+            isDepositLimit: false,
+            depositLimit: 0,
+            defaultAdminRoleHolder: _operator,
+            depositWhitelistSetRoleHolder: _operator,
+            depositorWhitelistRoleHolder: _operator,
+            isDepositLimitSetRoleHolder: _operator,
+            depositLimitSetRoleHolder: _operator
+        });
     }
 
     function newStakerRewards(address _vault, address _operator) internal returns (address _rewards) {

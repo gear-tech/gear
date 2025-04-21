@@ -5,7 +5,7 @@ import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 import {NetworkRegistry} from "symbiotic-core/src/contracts/NetworkRegistry.sol";
@@ -19,6 +19,8 @@ import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.s
 import {DefaultStakerRewardsFactory} from
     "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
 import {DefaultStakerRewards} from "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewards.sol";
+import {Vault} from "symbiotic-core/src/contracts/vault/Vault.sol";
+import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
@@ -187,7 +189,7 @@ contract MiddlewareTest is Base {
         }
         vm.stopPrank();
 
-        address vault = newVault(eraDuration * 2, _operator);
+        address vault = newVault(_operator, _defaultVaultInitParams(_operator));
         address _rewards = newStakerRewards(vault, _operator);
 
         // Register vault
@@ -195,22 +197,11 @@ contract MiddlewareTest is Base {
         vm.startPrank(_operator);
         {
             middleware.registerVault(vault, newStakerRewards(vault, _operator));
-            console.log("1 PART test passed");
+        }
+        vm.stopPrank();
 
-            // Try to register unknown vault
-            // vm.expectRevert(abi.encodeWithSelector(IMiddleware.UnknownVault.selector));
-            // middleware.registerVault(address(0xdead), _rewards);
-
-            // Try to register vault with wrong epoch duration
-            // address vault2 = newVault(eraDuration, _operator);
-            // vm.expectRevert(abi.encodeWithSelector(IMiddleware.VaultWrongEpochDuration.selector));
-            // middleware.registerVault(vault2, _rewards);
-
-            // Try to register vault with unknown collateral
-            // address vault3 = address(sym.vault1());
-            // vm.expectRevert(abi.encodeWithSelector(IMiddleware.UnknownCollateral.selector));
-            // middleware.registerVault(vault3, _rewards);
-
+        vm.startPrank(_operator);
+        {
             // Try to enable vault once more
             vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyEnabled.selector));
             middleware.enableVault(vault);
@@ -219,6 +210,28 @@ contract MiddlewareTest is Base {
             middleware.disableVault(vault);
             vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.NotEnabled.selector));
             middleware.disableVault(vault);
+        }
+        vm.stopPrank();
+
+        // Try to register vault with wrong parameters
+        vm.startPrank(_operator);
+        {
+            IVault.InitParams memory initParams = _defaultVaultInitParams(_operator);
+            initParams.epochDuration = eraDuration;
+            address vault2 = newVault(_operator, initParams);
+
+            // Try to register vault with wrong epoch duration
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.VaultWrongEpochDuration.selector));
+            middleware.registerVault(vault2, _rewards);
+
+            // Make eraDuration correct, but collateral doesn't
+            initParams.epochDuration = eraDuration * 2;
+            initParams.collateral = address(0xabc);
+            address vault3 = newVault(_operator, initParams);
+
+            // Try to register vault with unknown collateral
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.UnknownCollateral.selector));
+            middleware.registerVault(vault3, _rewards);
         }
         vm.stopPrank();
 
