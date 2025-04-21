@@ -109,6 +109,7 @@ impl EventData {
 
         if let Some(latest_block) = latest_block {
             // recover data we haven't seen in events by the latest computed block
+            // TODO: .context()
             if let Some((computed_block, _computed_header)) = db.latest_computed_block() {
                 let computed_program_states = db
                     .block_program_states(computed_block)
@@ -170,12 +171,7 @@ impl RequestMetadata<'_> {
     /// so we need to process the whole request tree up to `Waitlist`, `UserMailbox` and others
     /// because they can change `ScheduleRestorer`.
     fn is_simple(self) -> bool {
-        matches!(
-            self,
-            RequestMetadata::MemoryPages
-                | RequestMetadata::MemoryPagesRegion
-                | RequestMetadata::Data
-        )
+        matches!(self, RequestMetadata::Data)
     }
 }
 
@@ -265,7 +261,7 @@ impl<'a> RequestManager<'a> {
         self.responses.drain().map(|(_hash, value)| value).collect()
     }
 
-    fn is_empty(&self) -> bool {
+    fn any_new_requests(&self) -> bool {
         self.buffered_requests.is_empty()
     }
 
@@ -374,6 +370,7 @@ async fn sync_from_network(
                 Err((request, err)) => {
                     network.db_sync().retry(request);
                     log::warn!("{request_id:?} failed: {err}. Retrying...");
+                    continue;
                 }
             }
         }
@@ -488,7 +485,7 @@ async fn sync_from_network(
             }
         }
 
-        if manager.is_empty() {
+        if manager.any_new_requests() {
             break;
         }
     }
