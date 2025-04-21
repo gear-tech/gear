@@ -105,14 +105,14 @@ impl EventData {
 
         if let Some(latest_block) = latest_block {
             // recover data we haven't seen in events by the latest computed block
-            // TODO: .context()
-            if let Some((computed_block, _computed_header)) = db.latest_computed_block() {
-                let computed_program_states = db
-                    .block_program_states(computed_block)
-                    .context("program states of latest computed block not found")?;
-                for (program_id, state) in computed_program_states {
-                    program_states.entry(program_id).or_insert(state);
-                }
+            let (computed_block, _computed_header) = db
+                .latest_computed_block()
+                .context("latest computed block not found")?;
+            let computed_program_states = db
+                .block_program_states(computed_block)
+                .context("program states of latest computed block not found")?;
+            for (program_id, state) in computed_program_states {
+                program_states.entry(program_id).or_insert(state);
             }
 
             #[cfg(debug_assertions)]
