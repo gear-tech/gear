@@ -309,35 +309,31 @@ pub type Result<T, E = ModuleError> = core::result::Result<T, E>;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum ModuleError {
-    #[from]
-    #[display(fmt = "Binary reader error: {}", _0)]
+    #[display("Binary reader error: {_0}")]
     BinaryReader(BinaryReaderError),
-    #[from]
-    #[display(fmt = "Reencode error: {}", _0)]
+    #[display("Reencode error: {_0}")]
     Reencode(reencode::Error),
-    #[from]
-    #[display(fmt = "Int conversion error: {}", _0)]
+    #[display("Int conversion error: {_0}")]
     TryFromInt(core::num::TryFromIntError),
-    #[display(fmt = "Unsupported instruction: {}", _0)]
+    #[display("Unsupported instruction: {_0}")]
     UnsupportedInstruction(String),
-    #[display(fmt = "Multiple tables")]
+    #[display("Multiple tables")]
     MultipleTables,
-    #[display(fmt = "Multiple memories")]
+    #[display("Multiple memories")]
     MultipleMemories,
-    #[display(fmt = "Memory index must be zero (actual: {})", _0)]
+    #[from(skip)]
+    #[display("Memory index must be zero (actual: {_0})")]
     NonZeroMemoryIdx(u32),
-    #[display(
-        fmt = "Optional table index of element segment is not supported (index: {})",
-        _0
-    )]
+    #[from(skip)]
+    #[display("Optional table index of element segment is not supported (index: {_0})")]
     ElementTableIdx(u32),
-    #[display(fmt = "Passive data is not supported")]
+    #[display("Passive data is not supported")]
     PassiveDataKind,
-    #[display(fmt = "Element expressions are not supported")]
+    #[display("Element expressions are not supported")]
     ElementExpressions,
-    #[display(fmt = "Only active element is supported")]
+    #[display("Only active element is supported")]
     NonActiveElementKind,
-    #[display(fmt = "Table init expression is not supported")]
+    #[display("Table init expression is not supported")]
     TableInitExpr,
 }
 
@@ -459,8 +455,8 @@ impl TryFrom<wasmparser::BrTable<'_>> for BrTable {
     }
 }
 
-#[derive(Default, Clone, derive_more::DebugCustom, Eq, PartialEq)]
-#[debug(fmt = "ConstExpr {{ .. }}")]
+#[derive(Default, Clone, derive_more::Debug, Eq, PartialEq)]
+#[debug("ConstExpr {{ .. }}")]
 pub struct ConstExpr {
     pub instructions: Vec<Instruction>,
 }
@@ -1264,8 +1260,8 @@ pub type CodeSection = Vec<Function>;
 pub type DataSection = Vec<Data>;
 pub type CustomSection = (Cow<'static, str>, Vec<u8>);
 
-#[derive(derive_more::DebugCustom, Clone, Default)]
-#[debug(fmt = "Module {{ .. }}")]
+#[derive(derive_more::Debug, Clone, Default)]
+#[debug("Module {{ .. }}")]
 pub struct Module {
     pub type_section: Option<TypeSection>,
     pub import_section: Option<Vec<Import>>,

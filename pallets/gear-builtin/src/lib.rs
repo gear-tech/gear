@@ -87,16 +87,16 @@ pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
 pub enum BuiltinActorError {
     /// Occurs if the underlying call has the weight greater than the `gas_limit`.
-    #[display(fmt = "Not enough gas supplied")]
+    #[display("Not enough gas supplied")]
     InsufficientGas,
     /// Occurs if the dispatch's message can't be decoded into a known type.
-    #[display(fmt = "Failure to decode message")]
+    #[display("Failure to decode message")]
     DecodingError,
     /// Actor's inner error encoded as a String.
-    #[display(fmt = "Builtin execution resulted in error: {_0}")]
+    #[display("Builtin execution resulted in error: {_0}")]
     Custom(LimitedStr<'static>),
     /// Occurs if a builtin actor execution does not fit in the current block.
-    #[display(fmt = "Block gas allowance exceeded")]
+    #[display("Block gas allowance exceeded")]
     GasAllowanceExceeded,
 }
 
