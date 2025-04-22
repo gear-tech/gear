@@ -12,6 +12,9 @@ library ClonesSmall {
         uint256 size = 0x5a;
         uint256 memPtr = Memory.allocate(size);
 
+        /// @dev This bytecode is taken from `cat out/MirrorProxySmall.sol/MirrorProxySmall.json | jq -r ".deployedBytecode.object"`
+        //       The bytecode "0x3d605080600a3d3981f3" is responsible for deploy and is modified version of ERC1167 from OpenZeppelin:
+        //       - https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/Clones.sol
         Memory.writeWord(memPtr, 0x00, 0x3d605080600a3d3981f3608060405263e6fabc0960e01b5f5260205f60048173);
         Memory.writeWord(
             memPtr,
