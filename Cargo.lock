@@ -16,7 +16,7 @@ dependencies = [
 name = "actor-system-error"
 version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
 ]
 
 [[package]]
@@ -2766,6 +2766,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
+name = "convert_case"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb402b8d4c85569410425650ce3eddc7d698ed96d39a73f941b08fb63082f1e7"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4023,7 +4032,7 @@ version = "0.99.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
 dependencies = [
- "convert_case",
+ "convert_case 0.4.0",
  "proc-macro2",
  "quote",
  "rustc_version 0.4.0",
@@ -4065,6 +4074,7 @@ version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
 dependencies = [
+ "convert_case 0.7.1",
  "proc-macro2",
  "quote",
  "syn 2.0.100",
@@ -4793,7 +4803,7 @@ name = "ethexe-runtime-common"
 version = "1.8.0"
 dependencies = [
  "anyhow",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "gear-core",
  "gear-core-errors",
@@ -4832,7 +4842,7 @@ dependencies = [
  "demo-async",
  "demo-async-init",
  "demo-ping",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-compute",
  "ethexe-db",
@@ -4880,7 +4890,7 @@ version = "1.8.0"
 dependencies = [
  "alloy",
  "anyhow",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "gprimitives",
  "hex",
@@ -6058,7 +6068,7 @@ name = "gear-cli"
 version = "1.8.0"
 dependencies = [
  "clap 4.5.23",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-metadata-hash-extension",
@@ -6125,7 +6135,7 @@ version = "1.8.0"
 dependencies = [
  "blake2 0.10.6",
  "byteorder",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "gear-core-errors",
  "gear-wasm-instrument",
@@ -6154,7 +6164,7 @@ version = "1.8.0"
 dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "gear-core",
  "gear-core-errors",
  "gear-lazy-pages-common",
@@ -6171,7 +6181,7 @@ dependencies = [
 name = "gear-core-errors"
 version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "scale-info",
  "serde",
@@ -6182,7 +6192,7 @@ name = "gear-core-processor"
 version = "1.8.0"
 dependencies = [
  "actor-system-error",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "gear-core",
  "gear-core-backend",
@@ -6221,7 +6231,7 @@ name = "gear-lazy-pages"
 version = "1.8.0"
 dependencies = [
  "cfg-if",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "errno",
  "gear-core",
  "gear-lazy-pages-common",
@@ -6634,7 +6644,7 @@ name = "gear-wasm-instrument"
 version = "1.8.0"
 dependencies = [
  "arbitrary",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "diff",
  "enum-iterator 1.5.0",
  "log",
@@ -6668,7 +6678,7 @@ version = "1.8.0"
 dependencies = [
  "bytes",
  "demo-constructor",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "fs4",
  "log",
  "loom",
@@ -6890,7 +6900,7 @@ version = "1.8.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "gear-ss58",
  "hex",
  "primitive-types",
@@ -7038,7 +7048,7 @@ dependencies = [
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "etc",
  "gear-common",
  "gear-core",
@@ -8427,7 +8437,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arbitrary",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-wasm-gen",
@@ -10616,7 +10626,7 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 name = "numerated"
 version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "log",
  "num-traits",
  "proptest",
@@ -11005,7 +11015,7 @@ dependencies = [
  "demo-wait-timeout",
  "demo-waiter",
  "demo-waiting-proxy",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -11086,7 +11096,7 @@ dependencies = [
  "demo-proxy-broker",
  "demo-staking-broker",
  "demo-waiting-proxy",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -11466,7 +11476,7 @@ dependencies = [
 name = "pallet-gear-voucher"
 version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

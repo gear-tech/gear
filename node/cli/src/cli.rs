@@ -22,9 +22,9 @@ use std::str::FromStr;
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Parser, derive_more::Display)]
 pub enum SandboxBackend {
-    #[display(fmt = "wasmer")]
+    #[display("wasmer")]
     Wasmer,
-    #[display(fmt = "wasmi")]
+    #[display("wasmi")]
     Wasmi,
 }
 

@@ -54,16 +54,16 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
 pub enum ConversionError {
     /// Invalid slice length.
-    #[display(fmt = "Slice should be 32 length")]
+    #[display("Slice should be 32 length")]
     InvalidSliceLength,
     /// Invalid hex string.
-    #[display(fmt = "Invalid hex string")]
+    #[display("Invalid hex string")]
     InvalidHexString,
     /// Invalid SS58 address.
-    #[display(fmt = "Invalid SS58 address")]
+    #[display("Invalid SS58 address")]
     InvalidSs58Address,
     /// SS58 encoding failed.
-    #[display(fmt = "SS58 encoding failed")]
+    #[display("SS58 encoding failed")]
     Ss58Encode,
 }
 
