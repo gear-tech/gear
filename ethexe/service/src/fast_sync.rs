@@ -45,18 +45,20 @@ use std::{
 struct EventData {
     program_states: BTreeMap<ActorId, H256>,
     program_code_ids: Vec<(ActorId, CodeId)>,
-    code_ids: HashSet<CodeId>,
-    latest_block: Option<H256>,
-    previous_block: Option<H256>,
+    needs_instrumentation_codes: HashSet<CodeId>,
+    /// Latest committed on the chain and not computed local block
+    latest_committed_block: Option<H256>,
+    /// Previous committed block
+    previous_committed_block: Option<H256>,
 }
 
 impl EventData {
     async fn collect(db: &Database, highest_block: H256) -> Result<Self> {
         let mut program_states = BTreeMap::new();
         let mut program_code_ids = Vec::new();
-        let mut code_ids = HashSet::new();
-        let mut previous_block = None;
-        let mut latest_block = None;
+        let mut needs_instrumentation_codes = HashSet::new();
+        let mut previous_committed_block = None;
+        let mut latest_committed_block = None;
 
         let mut block = highest_block;
         while !db.block_computed(block) {
@@ -70,18 +72,18 @@ impl EventData {
                     BlockEvent::Mirror {
                         actor_id,
                         event: MirrorEvent::StateChanged { state_hash },
-                    } if latest_block.is_some() => {
+                    } if latest_committed_block.is_some() => {
                         program_states.entry(actor_id).or_insert(state_hash);
                     }
                     BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
-                        if latest_block.is_some() {
-                            previous_block.get_or_insert(hash);
+                        if latest_committed_block.is_some() {
+                            previous_committed_block.get_or_insert(hash);
                         } else {
-                            latest_block = Some(hash);
+                            latest_committed_block = Some(hash);
                         }
                     }
                     BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id })
-                        if latest_block.is_some() =>
+                        if latest_committed_block.is_some() =>
                     {
                         program_code_ids.push((actor_id, code_id));
                     }
@@ -90,7 +92,7 @@ impl EventData {
                         valid: true,
                     }) => {
                         if !db.instrumented_code_exists(ethexe_runtime::VERSION, code_id) {
-                            code_ids.insert(code_id);
+                            needs_instrumentation_codes.insert(code_id);
                         }
                     }
                     _ => {}
@@ -103,7 +105,7 @@ impl EventData {
             block = parent;
         }
 
-        if let Some(latest_block) = latest_block {
+        if let Some(latest_block) = latest_committed_block {
             // recover data we haven't seen in events by the latest computed block
             let (computed_block, _computed_header) = db
                 .latest_computed_block()
@@ -116,7 +118,7 @@ impl EventData {
             }
 
             #[cfg(debug_assertions)]
-            if let Some(previous_block) = previous_block {
+            if let Some(previous_block) = previous_committed_block {
                 let latest_block_header = OnChainStorage::block_header(db, latest_block)
                     .expect("observer must fulfill database");
                 let previous_block_header = OnChainStorage::block_header(db, previous_block)
@@ -128,9 +130,9 @@ impl EventData {
         Ok(Self {
             program_states,
             program_code_ids,
-            code_ids,
-            latest_block,
-            previous_block,
+            needs_instrumentation_codes,
+            latest_committed_block,
+            previous_committed_block,
         })
     }
 }
@@ -492,9 +494,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let finalized_block = sync_finalized_head(observer).await?;
     let event_data = EventData::collect(db, finalized_block).await?;
 
-    instrument_codes(db, compute, event_data.code_ids).await?;
+    instrument_codes(db, compute, event_data.needs_instrumentation_codes).await?;
 
-    let Some(latest_block) = event_data.latest_block else {
+    let Some(latest_block) = event_data.latest_committed_block else {
         log::info!("No any committed block found. Skipping...");
         return Ok(());
     };
@@ -522,7 +524,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     }
     db.set_previous_not_empty_block(
         latest_block,
-        event_data.previous_block.unwrap_or_else(H256::zero),
+        event_data
+            .previous_committed_block
+            .unwrap_or_else(H256::zero),
     );
     db.set_block_computed(latest_block);
     db.set_latest_computed_block(latest_block, latest_block_header);
