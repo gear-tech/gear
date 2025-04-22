@@ -220,7 +220,8 @@ impl RequestManager {
 
         let continue_processing = !(self.pending_requests.is_empty() && self.responses.is_empty());
         if continue_processing {
-            let responses = self.responses.drain().map(|(_hash, value)| value).collect();
+            let responses: Vec<_> = self.responses.drain().map(|(_hash, value)| value).collect();
+            self.total_completed_requests += responses.len() as u64;
             Some(responses)
         } else {
             None
@@ -235,13 +236,11 @@ impl RequestManager {
         let mut pending_requests = HashMap::new();
         for (hash, metadata) in self.pending_requests.drain() {
             if metadata.is_data() && db.has_hash(hash) {
-                self.total_completed_requests += 1;
                 continue;
             }
 
             if let Some(data) = db.read_by_hash(hash) {
                 self.responses.insert(hash, (metadata, data));
-                self.total_completed_requests += 1;
                 continue;
             }
 
@@ -278,7 +277,6 @@ impl RequestManager {
             debug_assert_eq!(hash, db_hash);
 
             self.responses.insert(hash, (metadata, data));
-            self.total_completed_requests += 1;
         }
 
         // network does not guarantee it gathers all hashes
