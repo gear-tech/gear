@@ -171,11 +171,6 @@ struct RequestManager {
     /// * Converted into one network request, and after that
     ///   we convert them into `pending_requests` because `RequestId` is known
     pending_requests: HashMap<H256, RequestMetadata>,
-    /// Pending network requests, we remove each on network response
-    ///
-    /// Network does not guarantee that a response has all hashes,
-    /// so missing hashes are passed into `buffered_requests` again
-    pending_network_requests: HashMap<RequestId, HashMap<H256, RequestMetadata>>,
     /// Completed requests
     responses: HashMap<H256, (RequestMetadata, Vec<u8>)>,
 }
@@ -196,9 +191,9 @@ impl RequestManager {
         network: &mut NetworkService,
         db: &Database,
     ) -> Option<Vec<(RequestMetadata, Vec<u8>)>> {
-        self.handle_pending_requests(network, db);
+        let pending_network_request = self.handle_pending_requests(network, db);
 
-        if !self.pending_network_requests.is_empty() {
+        if let Some(pending_network_request) = pending_network_request {
             let stream = network.filter_map(|event| async move {
                 if let NetworkEvent::DbResponse { request_id, result } = event {
                     Some((request_id, result))
@@ -214,7 +209,7 @@ impl RequestManager {
 
             match result {
                 Ok(response) => {
-                    self.handle_response(request_id, response, db);
+                    self.handle_response(pending_network_request, request_id, response, db);
                 }
                 Err((request, err)) => {
                     network.db_sync().retry(request);
@@ -223,9 +218,7 @@ impl RequestManager {
             }
         }
 
-        let continue_processing = !(self.pending_network_requests.is_empty()
-            && self.pending_requests.is_empty()
-            && self.responses.is_empty());
+        let continue_processing = !(self.pending_requests.is_empty() && self.responses.is_empty());
         if continue_processing {
             let responses = self.responses.drain().map(|(_hash, value)| value).collect();
             Some(responses)
@@ -234,7 +227,11 @@ impl RequestManager {
         }
     }
 
-    fn handle_pending_requests(&mut self, network: &mut NetworkService, db: &Database) {
+    fn handle_pending_requests(
+        &mut self,
+        network: &mut NetworkService,
+        db: &Database,
+    ) -> Option<(RequestId, HashMap<H256, RequestMetadata>)> {
         let mut pending_requests = HashMap::new();
         for (hash, metadata) in self.pending_requests.drain() {
             if metadata.is_data() && db.has_hash(hash) {
@@ -254,23 +251,23 @@ impl RequestManager {
         if !pending_requests.is_empty() {
             let network_request = pending_requests.keys().copied().collect();
             let request_id = network.db_sync().request(db_sync::Request(network_request));
-            self.pending_network_requests
-                .insert(request_id, pending_requests);
+            return Some((request_id, pending_requests));
         }
+
+        None
     }
 
     fn handle_response(
         &mut self,
+        pending_network_request: (RequestId, HashMap<H256, RequestMetadata>),
         request_id: RequestId,
         response: db_sync::Response,
         db: &Database,
     ) {
         let db_sync::Response(data) = response;
 
-        let mut pending_requests = self
-            .pending_network_requests
-            .remove(&request_id)
-            .expect("unknown request");
+        let (pending_request_id, mut pending_requests) = pending_network_request;
+        assert_eq!(pending_request_id, request_id, "unknown request");
 
         for (hash, data) in data {
             let metadata = pending_requests
@@ -307,12 +304,10 @@ impl Drop for RequestManager {
                 total_completed_requests,
                 total_pending_requests,
                 pending_requests,
-                pending_network_requests,
                 responses,
             } = self;
             assert_eq!(total_completed_requests, total_pending_requests);
             assert_eq!(*pending_requests, HashMap::new());
-            assert_eq!(*pending_network_requests, HashMap::new());
             assert_eq!(*responses, HashMap::new());
         }
     }
