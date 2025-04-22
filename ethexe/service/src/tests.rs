@@ -1431,6 +1431,8 @@ mod utils {
                     } else {
                         Anvil::new()
                     };
+                    // speeds up block finalization, so we don't have to calculate
+                    // when the next finalized block is produced, which is convenient for tests
                     let anvil = anvil.arg("--slots-in-an-epoch=1").spawn();
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
