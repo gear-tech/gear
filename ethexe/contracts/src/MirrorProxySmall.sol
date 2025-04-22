@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+/// @dev This is custom implementation of ERC1167 that supports upgrades.
+///      Used for contracts that have their own communication protocol
+///      (contracts not using the Sails framework).
 contract MirrorProxySmall {
     address internal constant ROUTER = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
