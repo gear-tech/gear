@@ -18,8 +18,8 @@
 
 //! Wasmer specific impls for sandbox
 
-use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
+use parity_scale_codec::{Decode, Encode};
 use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use wasmer::{AsStoreMut, RuntimeError, Store};

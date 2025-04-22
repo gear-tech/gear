@@ -22,11 +22,13 @@
 //! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 
-use alloc::vec::Vec;
-use core::{fmt, str};
-
 pub use gcore::errors::{Error as CoreError, *};
 pub use scale_info::scale::Error as CodecError;
+
+use crate::ActorId;
+use alloc::vec::Vec;
+use core::{fmt, str};
+use parity_scale_codec::Decode;
 
 /// `Result` type with a predefined error type ([`Error`]).
 pub type Result<T, E = Error> = core::result::Result<T, E>;
@@ -60,6 +62,7 @@ pub enum Error {
     /// Received error reply while awaited response from another actor.
     ///
     /// NOTE: this error could only be returned from async messaging.
+    // TODO: consider to load payload lazily (#4595)
     ErrorReply(ErrorReplyPayload, ErrorReplyReason),
 
     /// Received reply that couldn't be identified as successful or not
@@ -80,11 +83,39 @@ impl Error {
         matches!(self, Error::Timeout(..))
     }
 
-    /// Check whether an error is [`Error::ErrorReply`] and return its str
-    /// representation.
-    pub fn error_reply_str(&self) -> Option<&str> {
-        if let Self::ErrorReply(payload, _) = self {
-            payload.try_as_str()
+    /// Check whether an error is [`SimpleExecutionError::UserspacePanic`] from
+    /// error reply and return its decoded message's payload of
+    /// a custom type.
+    pub fn error_reply_panic<T: Decode>(&self) -> Option<Result<T, Self>> {
+        self.error_reply_panic_bytes()
+            .map(|mut bytes| T::decode(&mut bytes).map_err(Error::Decode))
+    }
+
+    /// Check whether an error is [`SimpleExecutionError::UserspacePanic`] from
+    /// error reply and return its payload as bytes.
+    pub fn error_reply_panic_bytes(&self) -> Option<&[u8]> {
+        if let Self::ErrorReply(
+            payload,
+            ErrorReplyReason::Execution(SimpleExecutionError::UserspacePanic),
+        ) = self
+        {
+            Some(&payload.0)
+        } else {
+            None
+        }
+    }
+
+    /// Check whether an error is [`SimpleUnavailableActorError::ProgramExited`]
+    /// from error reply and return inheritor of exited program.
+    pub fn error_reply_exit_inheritor(&self) -> Option<ActorId> {
+        if let Self::ErrorReply(
+            payload,
+            ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramExited),
+        ) = self
+        {
+            let id = ActorId::try_from(payload.0.as_slice())
+                .unwrap_or_else(|e| unreachable!("protocol always returns valid `ActorId`: {e}"));
+            Some(id)
         } else {
             None
         }
@@ -126,16 +157,19 @@ impl From<ConversionError> for Error {
 pub struct ErrorReplyPayload(pub Vec<u8>);
 
 impl ErrorReplyPayload {
+    /// Returns byte slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
     /// Represents self as utf-8 str, if possible.
     pub fn try_as_str(&self) -> Option<&str> {
         str::from_utf8(&self.0).ok()
     }
 
-    /// Similar to [`Self::try_as_str`], but panics in `None` case.
-    /// Preferable to use only for test purposes.
-    #[track_caller]
-    pub fn as_str(&self) -> &str {
-        str::from_utf8(&self.0).expect("Failed to create `str`")
+    /// Returns inner byte vector.
+    pub fn into_inner(self) -> Vec<u8> {
+        self.0
     }
 }
 

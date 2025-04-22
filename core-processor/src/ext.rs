@@ -138,7 +138,7 @@ impl ProcessorContext {
             forbidden_funcs: Default::default(),
             reserve_for: 0,
             random_data: ([0u8; 32].to_vec(), 0),
-            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(100),
             existential_deposit: Default::default(),
             mailbox_threshold: Default::default(),
             costs: Default::default(),
@@ -280,10 +280,8 @@ impl From<FallibleExtError> for RunFallibleError {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
 pub enum AllocExtError {
     /// Charge error
-    #[display(fmt = "{_0}")]
     Charge(ChargeError),
     /// Allocation error
-    #[display(fmt = "{_0}")]
     Alloc(AllocError),
 }
 
@@ -1138,7 +1136,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         let program_id = self.program_id()?;
         let message_id = self.message_id()?;
 
-        log::debug!(target: "gwasm", "DEBUG: [handle({message_id:.2?})] {program_id:.2?}: {data}");
+        log::debug!(target: "gwasm", "[handle({message_id:.2?})] {program_id:.2?}: {data}");
 
         Ok(())
     }

@@ -51,7 +51,6 @@ pub use weights::WeightInfo;
 use alloc::{
     collections::{btree_map::Entry, BTreeMap},
     format,
-    string::ToString,
 };
 use common::{storage::Limiter, BlockLimiter};
 use core::marker::PhantomData;
@@ -88,16 +87,16 @@ pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
 pub enum BuiltinActorError {
     /// Occurs if the underlying call has the weight greater than the `gas_limit`.
-    #[display(fmt = "Not enough gas supplied")]
+    #[display("Not enough gas supplied")]
     InsufficientGas,
     /// Occurs if the dispatch's message can't be decoded into a known type.
-    #[display(fmt = "Failure to decode message")]
+    #[display("Failure to decode message")]
     DecodingError,
     /// Actor's inner error encoded as a String.
-    #[display(fmt = "Builtin execution resulted in error: {_0}")]
+    #[display("Builtin execution resulted in error: {_0}")]
     Custom(LimitedStr<'static>),
     /// Occurs if a builtin actor execution does not fit in the current block.
-    #[display(fmt = "Block gas allowance exceeded")]
+    #[display("Block gas allowance exceeded")]
     GasAllowanceExceeded,
 }
 
@@ -109,10 +108,10 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
             }
             BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
-                TrapExplanation::Panic("Message decoding error".to_string().into()),
+                TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
             ),
             BuiltinActorError::Custom(e) => {
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e))
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
             }
             BuiltinActorError::GasAllowanceExceeded => {
                 unreachable!("Never supposed to be converted to error reply reason")

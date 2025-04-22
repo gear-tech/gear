@@ -119,6 +119,9 @@ pub fn testnet_genesis(
             // Assign network admin rights.
             key: Some(root_key),
         },
+        gear_bank: GearBankConfig {
+            _config: Default::default(),
+        },
         ..Default::default()
     }
 }
@@ -185,7 +188,7 @@ pub fn development_genesis() -> RuntimeGenesisConfig {
             get_account_id_from_seed::<sr25519::Public>("Alice"),
             get_account_id_from_seed::<sr25519::Public>("Bob"),
         ],
-        BANK_ADDRESS.into(),
+        GearBank::bank_address(),
         true,
     )
 }
@@ -208,7 +211,7 @@ pub fn local_testnet_genesis() -> RuntimeGenesisConfig {
             get_account_id_from_seed::<sr25519::Public>("Eve"),
             get_account_id_from_seed::<sr25519::Public>("Ferdie"),
         ],
-        BANK_ADDRESS.into(),
+        GearBank::bank_address(),
         true,
     )
 }
