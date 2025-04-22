@@ -100,10 +100,7 @@ impl Debug for MemoryInterval {
 
 /// Error in attempt to make wrong size page buffer.
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Clone, TypeInfo, derive_more::Display)]
-#[display(
-    fmt = "Trying to make wrong size page buffer, must be {:#x}",
-    GearPage::SIZE
-)]
+#[display("Trying to make wrong size page buffer, must be {:#x}", GearPage::SIZE)]
 pub struct IntoPageBufError;
 
 /// Alias for inner type of page buffer.
@@ -213,7 +210,7 @@ const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 #[derive(Default, Debug, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum MemoryError {
     /// The error occurs in attempt to access memory outside wasm program memory.
-    #[display(fmt = "Trying to access memory outside wasm program memory")]
+    #[display("Trying to access memory outside wasm program memory")]
     #[default]
     AccessOutOfBounds,
 }
@@ -287,7 +284,7 @@ impl<Context> GrowHandler<Context> for NoopGrowHandler {
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum MemorySetupError {
     /// Memory size exceeds max pages
-    #[display(fmt = "Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
+    #[display("Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
     MemorySizeExceedsMaxPages {
         /// Memory size
         memory_size: WasmPagesAmount,
@@ -295,7 +292,7 @@ pub enum MemorySetupError {
         max_pages: WasmPagesAmount,
     },
     /// Insufficient memory size
-    #[display(fmt = "Memory size {memory_size:?} must be at least {static_pages:?}")]
+    #[display("Memory size {memory_size:?} must be at least {static_pages:?}")]
     InsufficientMemorySize {
         /// Memory size
         memory_size: WasmPagesAmount,
@@ -303,7 +300,7 @@ pub enum MemorySetupError {
         static_pages: WasmPagesAmount,
     },
     /// Stack end is out of static memory
-    #[display(fmt = "Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
+    #[display("Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
     StackEndOutOfStaticMemory {
         /// Stack end
         stack_end: WasmPage,
@@ -312,7 +309,7 @@ pub enum MemorySetupError {
     },
     /// Allocated page is out of allowed memory interval
     #[display(
-        fmt = "Allocated page {page:?} is out of allowed memory interval {static_pages:?}..{memory_size:?}"
+        "Allocated page {page:?} is out of allowed memory interval {static_pages:?}..{memory_size:?}"
     )]
     AllocatedPageOutOfAllowedInterval {
         /// Allocated page
@@ -329,18 +326,16 @@ pub enum MemorySetupError {
 pub enum AllocError {
     /// The error occurs when a program tries to allocate more memory than
     /// allowed.
-    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
+    #[display("Trying to allocate more wasm program memory than allowed")]
     ProgramAllocOutOfBounds,
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
-    #[display(fmt = "{_0:?} cannot be freed by the current program")]
+    #[display("{_0:?} cannot be freed by the current program")]
     InvalidFree(WasmPage),
     /// Invalid range for free_range
-    #[display(fmt = "Invalid range {_0:?}..={_1:?} for free_range")]
+    #[display("Invalid range {_0:?}..={_1:?} for free_range")]
     InvalidFreeRange(WasmPage, WasmPage),
     /// Gas charge error
-    #[from]
-    #[display(fmt = "{_0}")]
     GasCharge(ChargeError),
 }
 

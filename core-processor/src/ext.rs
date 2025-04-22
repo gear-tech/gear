@@ -294,10 +294,8 @@ impl From<FallibleExtError> for RunFallibleError {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
 pub enum AllocExtError {
     /// Charge error
-    #[display(fmt = "{_0}")]
     Charge(ChargeError),
     /// Allocation error
-    #[display(fmt = "{_0}")]
     Alloc(AllocError),
 }
 

@@ -281,10 +281,10 @@ impl GasAllowanceCounter {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum ChargeError {
     /// An error occurs in attempt to charge more gas than available during execution.
-    #[display(fmt = "Not enough gas to continue execution")]
+    #[display("Not enough gas to continue execution")]
     GasLimitExceeded,
     /// Gas allowance exceeded
-    #[display(fmt = "Gas allowance exceeded")]
+    #[display("Gas allowance exceeded")]
     GasAllowanceExceeded,
 }
 
