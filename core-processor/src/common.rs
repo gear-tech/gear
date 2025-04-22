@@ -437,7 +437,7 @@ actor_system_error! {
 
 /// Actor execution error.
 #[derive(Debug, derive_more::Display)]
-#[display(fmt = "{reason}")]
+#[display("{reason}")]
 pub struct ActorExecutionError {
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
@@ -449,13 +449,12 @@ pub struct ActorExecutionError {
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum ActorExecutionErrorReplyReason {
     /// Not enough gas to perform an operation during precharge.
-    #[display(fmt = "Not enough gas to {_0}")]
+    #[display("Not enough gas to {_0}")]
     PreChargeGasLimitExceeded(PreChargeGasOperation),
     /// Backend error
-    #[display(fmt = "Environment error: <host error stripped>")]
+    #[display("Environment error: <host error stripped>")]
     Environment,
     /// Trap explanation
-    #[display(fmt = "{_0}")]
     Trap(TrapExplanation),
 }
 
@@ -483,22 +482,20 @@ impl ActorExecutionErrorReplyReason {
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SystemExecutionError {
     /// Incorrect memory parameters
-    #[from]
-    #[display(fmt = "Memory parameters error: {_0}")]
+    #[display("Memory parameters error: {_0}")]
     MemoryParams(MemorySetupError),
     /// Environment error
-    #[display(fmt = "Backend error: {_0}")]
+    #[display("Backend error: {_0}")]
     Environment(SystemEnvironmentError),
     /// Termination reason
-    #[from]
-    #[display(fmt = "Syscall function error: {_0}")]
+    #[display("Syscall function error: {_0}")]
     UndefinedTerminationReason(SystemTerminationReason),
     /// Error during `into_ext_info()` call
-    #[display(fmt = "`into_ext_info()` error: {_0}")]
+    #[display("`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
     // TODO: uncomment when #3751
     // /// Incoming dispatch store has too many outgoing messages total bytes.
-    // #[display(fmt = "Incoming dispatch store has too many outgoing messages total bytes")]
+    // #[display("Incoming dispatch store has too many outgoing messages total bytes")]
     // MessageStoreOutgoingBytesOverflow,
 }
 

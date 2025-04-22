@@ -69,7 +69,7 @@ impl<BlockNumber: Copy> Program<BlockNumber> {
 
 /// Program is not an active one.
 #[derive(Clone, Debug, derive_more::Display)]
-#[display(fmt = "Program is not an active one")]
+#[display("Program is not an active one")]
 pub struct InactiveProgramError;
 
 impl<BlockNumber: Copy> core::convert::TryFrom<Program<BlockNumber>>

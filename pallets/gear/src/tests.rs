@@ -15985,7 +15985,6 @@ pub(crate) mod utils {
     #[derive(derive_more::Display, derive_more::From)]
     pub(super) enum AssertFailedError {
         Panic(String),
-        #[from]
         SimpleReply(ErrorReplyReason),
     }
 

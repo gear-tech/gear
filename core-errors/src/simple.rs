@@ -43,17 +43,17 @@ use scale_info::{
 /// Enum representing reply code with reason of its creation.
 pub enum ReplyCode {
     /// Success reply.
-    #[display(fmt = "Success reply sent due to {_0}")]
+    #[display("Success reply sent due to {_0}")]
     Success(SuccessReplyReason) = 0,
 
     /// Error reply.
-    #[display(fmt = "Error reply sent due to {_0}")]
+    #[display("Error reply sent due to {_0}")]
     Error(ErrorReplyReason) = 1,
 
     /// Unsupported code.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display(fmt = "<unsupported reply code>")]
+    #[display("<unsupported reply code>")]
     Unsupported = 255,
 }
 
@@ -133,17 +133,17 @@ impl ReplyCode {
 /// Reason of success reply creation.
 pub enum SuccessReplyReason {
     /// Success reply was created by system automatically.
-    #[display(fmt = "automatic sending")]
+    #[display("automatic sending")]
     Auto = 0,
 
     /// Success reply was created by actor manually.
-    #[display(fmt = "manual sending")]
+    #[display("manual sending")]
     Manual = 1,
 
     /// Unsupported reason of success reply.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display(fmt = "<unsupported reason>")]
+    #[display("<unsupported reason>")]
     Unsupported = 255,
 }
 
@@ -183,21 +183,21 @@ impl SuccessReplyReason {
 // `ErrorReplyReason::from_bytes` methods.
 pub enum ErrorReplyReason {
     /// Error reply was created due to underlying execution error.
-    #[display(fmt = "execution error ({_0})")]
+    #[display("execution error ({_0})")]
     Execution(SimpleExecutionError) = 0,
 
     /// Destination actor is unavailable, so it can't process the message.
-    #[display(fmt = "destination actor is unavailable ({_0})")]
+    #[display("destination actor is unavailable ({_0})")]
     UnavailableActor(SimpleUnavailableActorError) = 2,
 
     /// Message has died in Waitlist as out of rent one.
-    #[display(fmt = "removal from waitlist")]
+    #[display("removal from waitlist")]
     RemovedFromWaitlist = 3,
 
     /// Unsupported reason of error reply.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display(fmt = "<unsupported reason>")]
+    #[display("<unsupported reason>")]
     Unsupported = 255,
 }
 
@@ -271,35 +271,35 @@ impl ErrorReplyReason {
 /// Simplified error occurred during execution.
 pub enum SimpleExecutionError {
     /// Message ran out of gas while executing.
-    #[display(fmt = "Message ran out of gas")]
+    #[display("Message ran out of gas")]
     RanOutOfGas = 0,
 
     /// Program has reached memory limit while executing.
-    #[display(fmt = "Program reached memory limit")]
+    #[display("Program reached memory limit")]
     MemoryOverflow = 1,
 
     /// Execution failed with backend error that couldn't been caught.
-    #[display(fmt = "Message ran into uncatchable error")]
+    #[display("Message ran into uncatchable error")]
     BackendError = 2,
 
     /// Execution failed with userspace panic.
     ///
     /// **PAYLOAD**: Arbitrary payload given by the program as `gr_panic` argument.
-    #[display(fmt = "Message panicked")]
+    #[display("Message panicked")]
     UserspacePanic = 3,
 
     /// Execution failed with `unreachable` instruction call.
-    #[display(fmt = "Program called WASM `unreachable` instruction")]
+    #[display("Program called WASM `unreachable` instruction")]
     UnreachableInstruction = 4,
 
     /// Program has reached stack limit while executing.
-    #[display(fmt = "Program reached stack limit")]
+    #[display("Program reached stack limit")]
     StackLimitExceeded = 5,
 
     /// Unsupported reason of execution error.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display(fmt = "<unsupported error>")]
+    #[display("<unsupported error>")]
     Unsupported = 255,
 }
 
@@ -342,33 +342,33 @@ pub enum SimpleUnavailableActorError {
     /// Program called `gr_exit` syscall.
     ///
     /// **PAYLOAD**: `ActorId` of the exited program's inheritor (`gr_exit` argument).
-    #[display(fmt = "Program exited")]
+    #[display("Program exited")]
     ProgramExited = 0,
 
     /// Program was terminated due to failed initialization.
-    #[display(fmt = "Program was terminated due failed initialization")]
+    #[display("Program was terminated due failed initialization")]
     InitializationFailure = 1,
 
     /// Program is not initialized yet.
-    #[display(fmt = "Program is not initialized yet")]
+    #[display("Program is not initialized yet")]
     Uninitialized = 2,
 
     /// Program was not created.
-    #[display(fmt = "Program was not created")]
+    #[display("Program was not created")]
     ProgramNotCreated = 3,
 
     /// Program metadata verification failed.
-    #[display(fmt = "Program metadata verification failed")]
+    #[display("Program metadata verification failed")]
     MetadataVerificationFailure = 4,
 
     /// Program re-instrumentation failed.
-    #[display(fmt = "Program re-instrumentation failed")]
+    #[display("Program re-instrumentation failed")]
     ReinstrumentationFailure = 5,
 
     /// Unsupported reason of inactive actor error.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display(fmt = "<unsupported error>")]
+    #[display("<unsupported error>")]
     Unsupported = 255,
 }
 
@@ -412,12 +412,12 @@ impl SimpleUnavailableActorError {
 /// See [this document](../signal-code-testing.md).
 pub enum SignalCode {
     /// Signal was sent due to some execution errors.
-    #[display(fmt = "Signal message sent due to execution error ({_0})")]
+    #[display("Signal message sent due to execution error ({_0})")]
     Execution(SimpleExecutionError),
 
     /// Signal was sent due to removal from waitlist as out of rent.
     #[default]
-    #[display(fmt = "Signal message sent due to removal from waitlist")]
+    #[display("Signal message sent due to removal from waitlist")]
     RemovedFromWaitlist,
 }
 
