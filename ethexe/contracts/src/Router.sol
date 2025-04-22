@@ -283,7 +283,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         );
 
         require(
-            _batchCommitment.rewardCommitments.length < 2,
+            _batchCommitment.rewardCommitments.length <= 1,
             "rewards commitment must be empty or contains only one commitment"
         );
 
@@ -331,7 +331,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         /* Commit Rewards */
 
         bytes memory rewardsCommitmentHash;
-        if (_batchCommitment.rewardCommitments.length == 1) {
+        if (_batchCommitment.rewardCommitments.length > 0) {
             rewardsCommitmentHash = _commitRewards(router, _batchCommitment.rewardCommitments[0]);
         }
 
@@ -498,7 +498,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, operatorRewardsHash);
 
         IERC20(router.implAddresses.wrappedVara).approve(middleware, _rewardsCommitment.stakers.totalAmount);
-        bytes32 stakerRewardsHash = IMiddleware(middleware).distributeStakerRewards(_rewardsCommitment.stakers);
+        bytes32 stakerRewardsHash =
+            IMiddleware(middleware).distributeStakerRewards(_rewardsCommitment.stakers, _rewardsCommitment.timestamp);
         rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, stakerRewardsHash);
 
         return rewardsCommitmentHash;

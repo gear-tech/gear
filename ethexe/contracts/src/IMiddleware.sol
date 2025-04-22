@@ -50,6 +50,7 @@ interface IMiddleware {
         uint64 allowedVaultImplVersion;
         uint64 vetoSlasherImplType;
         uint256 maxResolverSetEpochsDelay;
+        address router;
         address vaultRegistry;
         address operatorRegistry;
         address networkRegistry;
@@ -266,7 +267,9 @@ interface IMiddleware {
     /**
      * @notice ...
      */
-    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _rewards) external returns (bytes32);
+    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _rewards, uint48 timestamp)
+        external
+        returns (bytes32);
 
     /**
      * @notice ...

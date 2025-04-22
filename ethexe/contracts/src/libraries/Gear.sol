@@ -75,6 +75,7 @@ library Gear {
     struct RewardsCommitment {
         OperatorRewardsCommitment operators;
         StakerRewardsCommitment stakers;
+        uint48 timestamp;
     }
 
     struct OperatorRewardsCommitment {
@@ -84,7 +85,6 @@ library Gear {
 
     struct StakerRewardsCommitment {
         StakerRewards[] distribution;
-        uint48 timestamp;
         uint256 totalAmount;
         address token;
     }

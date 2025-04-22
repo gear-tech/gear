@@ -89,7 +89,7 @@ contract Middleware is IMiddleware {
     constructor(InitParams memory params) {
         _validateInitParams(params);
 
-        ROUTER = msg.sender;
+        ROUTER = params.router;
 
         ERA_DURATION = params.eraDuration;
         MIN_VAULT_EPOCH_DURATION = params.minVaultEpochDuration;
@@ -173,7 +173,7 @@ contract Middleware is IMiddleware {
         return keccak256(abi.encodePacked(token, amount, root));
     }
 
-    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _commitment)
+    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _commitment, uint48 timestamp)
         external
         _onlyRouter
         returns (bytes32)
@@ -192,11 +192,11 @@ contract Middleware is IMiddleware {
 
             address rewardsAddress = address(vaults.getPinnedData(rewards.vault));
 
-            bytes memory data = abi.encode(_commitment.timestamp, MAX_ADMIN_FEE, bytes(""), bytes(""));
+            bytes memory data = abi.encode(timestamp, MAX_ADMIN_FEE, bytes(""), bytes(""));
             IDefaultStakerRewards(rewardsAddress).distributeRewards(ROUTER, _commitment.token, rewards.amount, data);
 
             bytes32 rewardsHash =
-                keccak256(abi.encodePacked(_commitment.token, rewards.amount, rewards.vault, _commitment.timestamp));
+                keccak256(abi.encodePacked(_commitment.token, rewards.amount, rewards.vault, timestamp));
             rewardsHashes = bytes.concat(rewardsHashes, rewardsHash);
         }
 

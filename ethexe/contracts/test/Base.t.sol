@@ -87,6 +87,7 @@ contract Base is POCBaseTest {
             minVetoDuration: eraDuration / 3,
             minSlashExecutionDelay: eraDuration / 3,
             maxResolverSetEpochsDelay: type(uint256).max,
+            router: address(router),
             vaultRegistry: address(vaultFactory),
             allowedVaultImplVersion: 1,
             vetoSlasherImplType: 1,
