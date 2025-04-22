@@ -68,32 +68,37 @@ impl EventData {
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in events.into_iter().rev() {
+                if let BlockEvent::Router(RouterEvent::CodeGotValidated {
+                    code_id,
+                    valid: true,
+                }) = event
+                {
+                    if !db.instrumented_code_exists(ethexe_runtime::VERSION, code_id) {
+                        needs_instrumentation_codes.insert(code_id);
+                    }
+                    continue;
+                }
+
+                if latest_committed_block.is_none() {
+                    if let BlockEvent::Router(RouterEvent::BlockCommitted { hash }) = event {
+                        latest_committed_block = Some(hash);
+                    }
+                    // we don't collect any further info until the latest committed block is known
+                    continue;
+                }
+
                 match event {
                     BlockEvent::Mirror {
                         actor_id,
                         event: MirrorEvent::StateChanged { state_hash },
-                    } if latest_committed_block.is_some() => {
+                    } => {
                         program_states.entry(actor_id).or_insert(state_hash);
                     }
                     BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
-                        if latest_committed_block.is_some() {
-                            previous_committed_block.get_or_insert(hash);
-                        } else {
-                            latest_committed_block = Some(hash);
-                        }
+                        previous_committed_block.get_or_insert(hash);
                     }
-                    BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id })
-                        if latest_committed_block.is_some() =>
-                    {
+                    BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
                         program_code_ids.push((actor_id, code_id));
-                    }
-                    BlockEvent::Router(RouterEvent::CodeGotValidated {
-                        code_id,
-                        valid: true,
-                    }) => {
-                        if !db.instrumented_code_exists(ethexe_runtime::VERSION, code_id) {
-                            needs_instrumentation_codes.insert(code_id);
-                        }
                     }
                     _ => {}
                 }
