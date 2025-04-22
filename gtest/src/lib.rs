@@ -241,10 +241,10 @@
 //! let prog = sys.get_program(105).unwrap();
 //! ```
 //!
-//! ## Initialization of styled `env_logger`
+//! ## Initialization of styled `tracing-subscriber`
 //!
-//! Initialization of styled `env_logger` to print logs (only from `gwasm` by
-//! default) into stdout:
+//! Initialization of styled `tracing-subscriber` to
+//! print logs (only from gwasm` by default) into stdout:
 //!
 //! ```no_run
 //! # let sys = gtest::System::new();
@@ -349,7 +349,7 @@
 //! let log = Log::builder();
 //!
 //! // Constructor for error reply log.
-//! let log = Log::error_builder(ErrorReplyReason::InactiveActor);
+//! let log = Log::error_builder(ErrorReplyReason::RemovedFromWaitlist);
 //! # let sys = gtest::System::new();
 //! # let prog = gtest::Program::current(&sys);
 //! // Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
@@ -500,8 +500,8 @@ mod state;
 mod system;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
-pub use codec;
 pub use error::{Result, TestError};
+pub use parity_scale_codec;
 pub use program::{
     calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
     WasmProgram,

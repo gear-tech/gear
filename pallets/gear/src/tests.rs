@@ -36,7 +36,6 @@ use common::{
     event::*, scheduler::*, storage::*, CodeStorage, GasTree, GearPage, LockId, LockableTree,
     Origin as _, Program, ProgramStorage, ReservableTree,
 };
-use core_processor::common::ActorExecutionErrorReplyReason;
 use demo_constructor::{Calls, Scheme};
 use frame_support::{
     assert_noop, assert_ok,
@@ -60,12 +59,9 @@ use gear_core::{
         WasmPage,
     },
     program::ActiveProgram,
-    str::LimitedStr,
     tasks::ScheduledTask,
 };
-use gear_core_backend::error::{
-    TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
-};
+use gear_core_backend::error::TrapExplanation;
 use gear_core_errors::*;
 use gear_wasm_instrument::{Instruction, Module, STACK_END_EXPORT_NAME};
 use gstd::{
@@ -122,13 +118,11 @@ fn calculate_reply_for_handle_works() {
         assert_eq!(
             res,
             ReplyInfo {
-                payload: ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
-                    .to_string()
-                    .into_bytes(),
+                payload: vec![],
                 value: 0,
                 code: ReplyCode::Error(ErrorReplyReason::Execution(
                     SimpleExecutionError::RanOutOfGas
-                ))
+                )),
             }
         );
 
@@ -347,12 +341,7 @@ fn test_failing_delayed_reservation_send() {
                 MessageError::InsufficientGasForDelayedSending
             ))
         );
-        assert_failed(
-            mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                LimitedStr::from(error_text).into(),
-            )),
-        );
+        assert_failed(mid, AssertFailedError::Panic(error_text));
 
         // Possibly sent message from reservation with a 1 block delay duration.
         let outgoing = MessageId::generate_outgoing(mid, 0);
@@ -420,7 +409,7 @@ fn cascading_delayed_gasless_send_work() {
 
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
         );
 
         // Similar case when two of two goes into mailbox.
@@ -463,7 +452,7 @@ fn cascading_delayed_gasless_send_work() {
 
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
         );
     });
 }
@@ -576,12 +565,7 @@ fn delayed_reservations_sending_validation() {
             ))
         );
 
-        assert_failed(
-            mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                LimitedStr::from(error_text).into(),
-            )),
-        );
+        assert_failed(mid, AssertFailedError::Panic(error_text));
 
         // II. After-wait sending can't appear if not enough gas limit in gas reservation.
         let wait_for = 5;
@@ -615,12 +599,7 @@ fn delayed_reservations_sending_validation() {
             ))
         );
 
-        assert_failed(
-            mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                LimitedStr::from(error_text).into(),
-            )),
-        );
+        assert_failed(mid, AssertFailedError::Panic(error_text));
     });
 }
 
@@ -751,12 +730,7 @@ fn default_wait_lock_timeout() {
             )
         );
 
-        assert_failed(
-            mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                LimitedStr::from(error_text).into(),
-            )),
-        );
+        assert_failed(mid, AssertFailedError::Panic(error_text));
     })
 }
 
@@ -3648,7 +3622,7 @@ fn gas_limit_exceeded_oob_case() {
         // which is bigger than provided `gas_limit`.
         assert_failed(
             message_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
         );
     });
 }
@@ -4028,12 +4002,12 @@ fn block_gas_limit_works() {
 
         assert_failed(
             failed1,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
         );
 
         assert_failed(
             failed2,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
         );
 
         // =========== BLOCK 4 ============
@@ -4151,8 +4125,8 @@ fn init_message_logging_works() {
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReplyReason::Trap(
-                    TrapExplanation::GasLimitExceeded,
+                Some(ErrorReplyReason::Execution(
+                    SimpleExecutionError::RanOutOfGas,
                 )),
             ),
         ];
@@ -4256,37 +4230,38 @@ fn events_logging_works() {
     new_test_ext().execute_with(|| {
         let mut next_block = 2u64;
 
-        let tests: [(_, _, Option<AssertFailedError>); 5] = [
+        let tests: [(_, _, Option<ErrorReplyReason>); 5] = [
             // Code, init failure reason, handle succeed flag
             (ProgramCodeKind::Default, None, None),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReplyReason::Trap(
-                    TrapExplanation::GasLimitExceeded,
+                Some(ErrorReplyReason::Execution(
+                    SimpleExecutionError::RanOutOfGas,
                 )),
-                Some(ErrorReplyReason::InactiveActor.into()),
+                None,
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
-                Some(ActorExecutionErrorReplyReason::Trap(
-                    TrapExplanation::Unknown,
+                Some(ErrorReplyReason::Execution(
+                    SimpleExecutionError::UnreachableInstruction,
                 )),
-                Some(ErrorReplyReason::InactiveActor.into()),
+                None,
             ),
             // First try asserts by status code.
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(
-                    ErrorReplyReason::Execution(SimpleExecutionError::UnreachableInstruction)
-                        .into(),
-                ),
+                Some(ErrorReplyReason::Execution(
+                    SimpleExecutionError::UnreachableInstruction,
+                )),
             ),
             // Second similar try asserts by error payload explanation.
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown).into()),
+                Some(ErrorReplyReason::Execution(
+                    SimpleExecutionError::UnreachableInstruction,
+                )),
             ),
         ];
 
@@ -4943,13 +4918,12 @@ fn messages_to_uninitialized_program_wait() {
         let auto_reply = maybe_last_message(USER_1).expect("Should be");
         assert!(auto_reply.details().is_some());
         assert_eq!(
-            auto_reply.payload_bytes(),
-            ErrorReplyReason::InactiveActor.to_string().as_bytes()
-        );
-        assert_eq!(
             auto_reply.reply_code().expect("Should be"),
-            ReplyCode::Error(ErrorReplyReason::InactiveActor)
+            ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::Uninitialized
+            ))
         );
+        assert_eq!(auto_reply.payload_bytes(), &[] as &[u8]);
     })
 }
 
@@ -5120,7 +5094,9 @@ fn wake_messages_after_program_inited() {
                 {
                     assert_eq!(
                         message.reply_code(),
-                        Some(ReplyCode::Error(ErrorReplyReason::InactiveActor))
+                        Some(ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+                            SimpleUnavailableActorError::Uninitialized
+                        )))
                     );
                     Some(())
                 }
@@ -5342,9 +5318,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
-                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
-            )),
+            ErrorReplyReason::Execution(SimpleExecutionError::BackendError),
         );
 
         // Command::WaitFor case no gas.
@@ -5379,9 +5353,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
-                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
-            )),
+            ErrorReplyReason::Execution(SimpleExecutionError::BackendError),
         );
 
         // Command::WaitUpTo case no gas.
@@ -5416,9 +5388,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
-                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
-            )),
+            ErrorReplyReason::Execution(SimpleExecutionError::BackendError),
         );
 
         // Command::WaitFor case invalid argument.
@@ -5454,9 +5424,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
-                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
-            )),
+            ErrorReplyReason::Execution(SimpleExecutionError::BackendError),
         );
 
         // Command::WaitUpTo case invalid argument.
@@ -5492,9 +5460,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_arg,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
-                UnrecoverableExtError::Wait(UnrecoverableWaitError::ZeroDuration),
-            )),
+            ErrorReplyReason::Execution(SimpleExecutionError::BackendError),
         );
     });
 }
@@ -5536,9 +5502,7 @@ fn wait_after_reply() {
             run_to_next_block(None);
             assert_failed(
                 message_id,
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
-                    UnrecoverableExtError::Wait(UnrecoverableWaitError::WaitAfterReply),
-                )),
+                ErrorReplyReason::Execution(SimpleExecutionError::BackendError),
             );
         });
     };
@@ -6347,7 +6311,7 @@ fn terminated_locking_funds() {
         assert_succeed(reply_id);
         assert_failed(
             message_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
         );
         assert!(Gear::is_terminated(program_id));
         // ED has been returned to the beneficiary as a part of the `free` balance.
@@ -7434,8 +7398,12 @@ fn init_wait_reply_exit_cleaned_storage() {
         // - check program status
         run_to_block(3, None);
 
-        let mut responses =
-            vec![Assertion::ReplyCode(ReplyCode::Error(ErrorReplyReason::InactiveActor)); count];
+        let mut responses = vec![
+            Assertion::ReplyCode(ReplyCode::Error(
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::Uninitialized)
+            ));
+            count
+        ];
         responses.insert(0, Assertion::Payload(vec![])); // init response
         assert_responses_to_user(USER_1, responses);
 
@@ -8079,12 +8047,7 @@ fn test_create_program_with_exceeding_value() {
             "panicked with 'Failed to create program: {:?}'",
             CoreError::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
         );
-        assert_failed(
-            msg_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                LimitedStr::from(error_text).into(),
-            )),
-        );
+        assert_failed(msg_id, AssertFailedError::Panic(error_text));
     })
 }
 
@@ -8166,12 +8129,7 @@ fn demo_constructor_works() {
 
         let error_text = "panicked with 'I just panic every time'".to_owned();
 
-        assert_failed(
-            message_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                LimitedStr::from(error_text).into(),
-            )),
-        );
+        assert_failed(message_id, AssertFailedError::Panic(error_text));
 
         let reply = maybe_any_last_message().expect("Should be");
         assert_eq!(reply.id(), MessageId::generate_reply(message_id));
@@ -8768,7 +8726,7 @@ fn execution_over_blocks() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
         );
     });
 
@@ -9151,12 +9109,9 @@ fn mx_lock_ownership_exceedance() {
                 };
 
             let get_lock_ownership_exceeded_trap = |command_msg_id| {
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                    LimitedStr::from(format!(
-                        "panicked with 'Message 0x{} has exceeded lock ownership time'",
-                        hex::encode(command_msg_id)
-                    ))
-                    .into(),
+                AssertFailedError::Panic(format!(
+                    "panicked with 'Message 0x{} has exceeded lock ownership time'",
+                    hex::encode(command_msg_id)
                 ))
             };
 
@@ -10224,7 +10179,12 @@ fn test_reinstrumentation_failure() {
         assert_eq!(code.instruction_weights_version(), old_version);
 
         // Error reply must be returned with the reason of re-instrumentation failure.
-        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
+        assert_failed(
+            mid,
+            ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::ReinstrumentationFailure,
+            ),
+        );
     })
 }
 
@@ -10261,7 +10221,12 @@ fn test_init_reinstrumentation_failure() {
         assert_eq!(code.instruction_weights_version(), old_version);
 
         // Error reply must be returned with the reason of re-instrumentation failure.
-        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
+        assert_failed(
+            mid,
+            ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::ReinstrumentationFailure,
+            ),
+        );
     })
 }
 
@@ -12713,7 +12678,10 @@ fn async_init() {
             USER_1,
             vec![
                 // `demo_async_init` sent error reply on "PING" message
-                Assertion::ReplyCode(ErrorReplyReason::InactiveActor.into()),
+                Assertion::ReplyCode(
+                    ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::Uninitialized)
+                        .into(),
+                ),
                 // `demo_async_init`'s `init` was successful
                 Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
             ],
@@ -12870,7 +12838,7 @@ fn check_reply_push_payload_exceed() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
+            ErrorReplyReason::Execution(SimpleExecutionError::UnreachableInstruction),
         );
     });
 }
@@ -13299,7 +13267,7 @@ fn oom_handler_works() {
         assert!(Gear::is_terminated(pid));
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::ProgramAllocOutOfBounds),
+            ErrorReplyReason::Execution(SimpleExecutionError::MemoryOverflow),
         );
     });
 }
@@ -13342,7 +13310,7 @@ fn alloc_charge_error() {
         assert!(Gear::is_terminated(pid));
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+            ErrorReplyReason::Execution(SimpleExecutionError::RanOutOfGas),
         );
     });
 }
@@ -13387,7 +13355,7 @@ fn free_usage_error() {
         assert!(Gear::is_terminated(pid));
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
+            ErrorReplyReason::Execution(SimpleExecutionError::UnreachableInstruction),
         );
     });
 }
@@ -13433,7 +13401,7 @@ fn free_range_oob_error() {
         assert!(Gear::is_terminated(pid));
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
+            ErrorReplyReason::Execution(SimpleExecutionError::UnreachableInstruction),
         );
     });
 }
@@ -14236,7 +14204,10 @@ fn test_send_to_terminated_from_program() {
             .expect("internal error: no message from proxy");
         assert_eq!(
             mail_from_proxy.payload_bytes().to_vec(),
-            ReplyCode::Error(ErrorReplyReason::InactiveActor).encode()
+            ReplyCode::Error(ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::InitializationFailure
+            ))
+            .encode()
         );
         assert_eq!(mails_from_proxy_iter.next(), None);
 
@@ -15436,9 +15407,7 @@ fn test_gasless_steal_gas_for_wait() {
 
         assert_failed(
             mid,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::UnrecoverableExt(
-                UnrecoverableExtError::Execution(UnrecoverableExecutionError::NotEnoughGas),
-            )),
+            ErrorReplyReason::Execution(SimpleExecutionError::BackendError),
         );
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
     })
@@ -15623,10 +15592,7 @@ pub(crate) mod utils {
     }
 
     pub fn init_logger() {
-        let _ = env_logger::Builder::from_default_env()
-            .format_module_path(false)
-            .format_level(true)
-            .try_init();
+        let _ = tracing_subscriber::fmt::try_init();
     }
 
     #[track_caller]
@@ -16003,7 +15969,7 @@ pub(crate) mod utils {
     }
 
     #[track_caller]
-    fn get_last_event_error_and_reply_code(message_id: MessageId) -> (String, ReplyCode) {
+    fn get_last_event_error_and_reply_code(message_id: MessageId) -> (Vec<u8>, ReplyCode) {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
@@ -16011,11 +15977,7 @@ pub(crate) mod utils {
                 if let Some(details) = message.details() {
                     let (mid, code) = details.into_parts();
                     if mid == message_id && code.is_error() {
-                        actual_error = Some((
-                            String::from_utf8(message.payload_bytes().to_vec())
-                                .expect("Unable to decode string from error reply"),
-                            code,
-                        ));
+                        actual_error = Some((message.payload_bytes().to_vec(), code));
                     }
                 }
             }
@@ -16024,19 +15986,17 @@ pub(crate) mod utils {
         let (actual_error, reply_code) =
             actual_error.expect("Error message not found in any `RuntimeEvent::UserMessageSent`");
 
-        log::debug!("Actual error: {actual_error:?}\nReply code: {reply_code:?}");
+        log::debug!(
+            "Actual error: '{}'\nReply code: {reply_code:?}",
+            std::str::from_utf8(&actual_error).unwrap_or("<bytes>")
+        );
 
         (actual_error, reply_code)
     }
 
-    #[track_caller]
-    pub(super) fn get_last_event_error(message_id: MessageId) -> String {
-        get_last_event_error_and_reply_code(message_id).0
-    }
-
     #[derive(derive_more::Display, derive_more::From)]
     pub(super) enum AssertFailedError {
-        Execution(ActorExecutionErrorReplyReason),
+        Panic(String),
         SimpleReply(ErrorReplyReason),
     }
 
@@ -16050,15 +16010,19 @@ pub(crate) mod utils {
 
         let (mut actual_error, reply_code) = get_last_event_error_and_reply_code(message_id);
 
-        match error {
-            AssertFailedError::Execution(error) => {
-                let mut expectations = error.to_string();
+        if let ReplyCode::Error(err_reason) = reply_code {
+            if err_reason.is_exited() {
+                // ActorId.
+                assert_eq!(actual_error.len(), 32);
+            } else if !err_reason.is_userspace_panic() {
+                assert!(actual_error.is_empty());
+            }
+        }
 
-                // userspace panic case passes panic payload without any formatting unlike other cases,
-                // so we strip the prefix
-                if let Some(s) = expectations.strip_prefix("Panic occurred: ") {
-                    expectations = s.to_string();
-                }
+        match error {
+            AssertFailedError::Panic(error) => {
+                let mut expectations = error.to_string();
+                let mut actual_error = String::from_utf8(actual_error).unwrap();
 
                 // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
                 // This check handles display of the error inside.

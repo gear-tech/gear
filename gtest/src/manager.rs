@@ -32,7 +32,8 @@ use crate::{
         waitlist::WaitlistManager,
     },
     Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, RESERVE_FOR, VALUE_PER_GAS,
+    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
+    VALUE_PER_GAS,
 };
 use core_processor::{
     common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
@@ -237,7 +238,7 @@ impl ExtManager {
     fn init_failure(&mut self, program_id: ProgramId, origin: ProgramId) {
         Actors::modify(program_id, |actor| {
             let actor = actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"));
-            *actor = TestActor::Dormant
+            *actor = TestActor::FailedInit;
         });
 
         let value = Accounts::balance(program_id);

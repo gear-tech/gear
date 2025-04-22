@@ -1013,16 +1013,12 @@ pub mod runtime_types {
                 pub enum ErrorReplyReason {
                     #[codec(index = 0)]
                     Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
-                    #[codec(index = 1)]
-                    FailedToCreateProgram(
-                        runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
-                    ),
                     #[codec(index = 2)]
-                    InactiveActor,
+                    UnavailableActor(
+                        runtime_types::gear_core_errors::simple::SimpleUnavailableActorError,
+                    ),
                     #[codec(index = 3)]
                     RemovedFromWaitlist,
-                    #[codec(index = 4)]
-                    ReinstrumentationFailure,
                     #[codec(index = 255)]
                     Unsupported,
                 }
@@ -1060,9 +1056,17 @@ pub mod runtime_types {
                     Unsupported,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum SimpleProgramCreationError {
+                pub enum SimpleUnavailableActorError {
                     #[codec(index = 0)]
-                    CodeNotExists,
+                    ProgramExited,
+                    #[codec(index = 1)]
+                    InitializationFailure,
+                    #[codec(index = 2)]
+                    Uninitialized,
+                    #[codec(index = 3)]
+                    ProgramNotCreated,
+                    #[codec(index = 4)]
+                    ReinstrumentationFailure,
                     #[codec(index = 255)]
                     Unsupported,
                 }
@@ -3443,6 +3447,9 @@ pub mod runtime_types {
                         destination: ::subxt::ext::subxt_core::utils::H160,
                         payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
+                    #[codec(index = 3)]
+                    #[doc = "Root extrinsic that sets fee for the transport of messages."]
+                    set_fee { fee: ::core::primitive::u128 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's error."]
@@ -10782,6 +10789,7 @@ pub mod calls {
         Pause,
         Unpause,
         SendEthMessage,
+        SetFee,
     }
     impl CallInfo for GearEthBridgeCall {
         const PALLET: &'static str = "GearEthBridge";
@@ -10790,6 +10798,7 @@ pub mod calls {
                 Self::Pause => "pause",
                 Self::Unpause => "unpause",
                 Self::SendEthMessage => "send_eth_message",
+                Self::SetFee => "set_fee",
             }
         }
     }
@@ -11596,6 +11605,7 @@ pub mod storage {
     #[doc = "Storage of pallet `GearBank`."]
     pub enum GearBankStorage {
         Bank,
+        BankAddress,
         UnusedValue,
         OnFinalizeTransfers,
         OnFinalizeValue,
@@ -11605,6 +11615,7 @@ pub mod storage {
         fn storage_name(&self) -> &'static str {
             match self {
                 Self::Bank => "Bank",
+                Self::BankAddress => "BankAddress",
                 Self::UnusedValue => "UnusedValue",
                 Self::OnFinalizeTransfers => "OnFinalizeTransfers",
                 Self::OnFinalizeValue => "OnFinalizeValue",
@@ -11638,6 +11649,7 @@ pub mod storage {
         ClearTimer,
         MessageNonce,
         QueueChanged,
+        TransportFee,
     }
     impl StorageInfo for GearEthBridgeStorage {
         const PALLET: &'static str = "GearEthBridge";
@@ -11652,6 +11664,7 @@ pub mod storage {
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
+                Self::TransportFee => "TransportFee",
             }
         }
     }
