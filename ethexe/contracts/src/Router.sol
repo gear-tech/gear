@@ -482,22 +482,23 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return keccak256(transitionsHashes);
     }
 
+    // TODO #4609
     function _commitRewards(Storage storage router, Gear.RewardsCommitment calldata _rewardsCommitment)
         private
         returns (bytes memory)
     {
-        // TODO #4609
         address middleware = router.implAddresses.middleware;
+        IERC20(router.implAddresses.wrappedVara).approve(
+            middleware, _rewardsCommitment.operators.amount + _rewardsCommitment.stakers.totalAmount
+        );
 
         bytes memory rewardsCommitmentHash;
 
-        IERC20(router.implAddresses.wrappedVara).approve(middleware, _rewardsCommitment.operators.amount);
         bytes32 operatorRewardsHash = IMiddleware(middleware).distributeOperatorRewards(
             router.implAddresses.wrappedVara, _rewardsCommitment.operators.amount, _rewardsCommitment.operators.root
         );
         rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, operatorRewardsHash);
 
-        IERC20(router.implAddresses.wrappedVara).approve(middleware, _rewardsCommitment.stakers.totalAmount);
         bytes32 stakerRewardsHash =
             IMiddleware(middleware).distributeStakerRewards(_rewardsCommitment.stakers, _rewardsCommitment.timestamp);
         rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, stakerRewardsHash);
