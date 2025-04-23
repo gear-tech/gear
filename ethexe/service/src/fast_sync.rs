@@ -432,8 +432,7 @@ async fn sync_from_network(
         }
     }
 
-    let (completed, pending) = manager.stats();
-    log::info!("[{completed:>05} / {pending:>05}] Getting network data done");
+    log::info!("Network data getting is done");
 }
 
 async fn instrument_codes(
