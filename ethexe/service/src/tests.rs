@@ -35,7 +35,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{EthereumConfig, MockBlobReader};
+use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
@@ -53,7 +53,6 @@ use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
-    sync::Arc,
     time::Duration,
 };
 use tempfile::tempdir;
@@ -1178,7 +1177,7 @@ mod utils {
     pub struct TestEnv {
         pub eth_cfg: EthereumConfig,
         pub wallets: Wallets,
-        pub blob_reader: Arc<MockBlobReader>,
+        pub blob_reader: MockBlobReader,
         pub provider: RootProvider,
         pub ethereum: Ethereum,
         pub router_query: RouterQuery,
@@ -1323,7 +1322,7 @@ mod utils {
             let router_query = router.query();
             let router_address = router.address();
 
-            let blob_reader = Arc::new(MockBlobReader::new());
+            let blob_reader = MockBlobReader::new();
 
             let db = Database::from_one(&MemDb::default());
 
@@ -1334,7 +1333,7 @@ mod utils {
                 block_time: config.block_time,
             };
             let mut observer =
-                ObserverService::new(&eth_cfg, u32::MAX, db.clone(), Some(blob_reader.clone()))
+                ObserverService::new(&eth_cfg, u32::MAX, db.clone(), blob_reader.clone_boxed())
                     .await
                     .unwrap();
 
@@ -1828,7 +1827,7 @@ mod utils {
         eth_cfg: EthereumConfig,
         broadcaster: Option<Sender<Event>>,
         receiver: Option<Receiver<Event>>,
-        blob_reader: Arc<MockBlobReader>,
+        blob_reader: MockBlobReader,
         router_query: RouterQuery,
         signer: Signer,
         validators: Vec<ethexe_signer::Address>,
@@ -1912,7 +1911,7 @@ mod utils {
                 &self.eth_cfg,
                 u32::MAX,
                 self.db.clone(),
-                Some(self.blob_reader.clone()),
+                self.blob_reader.clone_boxed(),
             )
             .await
             .unwrap();

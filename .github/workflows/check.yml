@@ -8,7 +8,6 @@ env:
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
   TERM: xterm-256color
-  BINARYEN_VERSION: version_111
 
 jobs:
   unused-deps:
@@ -154,9 +153,9 @@ jobs:
         run: ./scripts/check-lazy-pages-fuzzer.sh
 
       - name: "Log: fuzzer run output"
-        if: '!cancelled()'
+        if: "!cancelled()"
         run: cat fuzz_run
 
       - name: "Log: lazy pages fuzzer run output"
-        if: '!cancelled()'
+        if: "!cancelled()"
         run: cat lazy_pages_fuzz_run
