@@ -268,10 +268,11 @@ impl RequestManager {
             self.responses.push((metadata, data));
         }
 
-        // network does not guarantee it gathers all hashes
-        if !pending_network_requests.is_empty() {
-            self.pending_requests.extend(pending_network_requests);
-        }
+        debug_assert_eq!(
+            pending_network_requests,
+            HashMap::new(),
+            "network service guarantees it gathers all hashes"
+        );
     }
 
     /// (total completed request, total pending requests)
