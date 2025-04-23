@@ -495,7 +495,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         previous_committed_block,
     }) = EventData::collect(db, finalized_block).await?
     else {
-        log::info!("No any committed block found. Skipping fast synchronization...");
+        log::warn!("No any committed block found. Skipping fast synchronization...");
         return Ok(());
     };
 
