@@ -16,21 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use derive_more::Display;
-use wasmi::core::HostError;
-
-#[derive(Debug, Display)]
-pub struct CustomHostError {
-    message: String,
-}
-
-impl HostError for CustomHostError {}
-
-impl<T> From<T> for CustomHostError
-where
-    T: Into<String>,
-{
-    fn from(s: T) -> CustomHostError {
-        Self { message: s.into() }
-    }
+fn main() {
+    gear_wasm_builder::build();
 }

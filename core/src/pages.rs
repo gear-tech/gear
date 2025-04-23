@@ -138,7 +138,7 @@ impl<const SIZE: u32> Bound<Page<SIZE>> for PagesAmount<SIZE> {
 
 /// Try from u32 error for [PagesAmount].
 #[derive(Debug, Clone, derive_more::Display)]
-#[display(fmt = "Tries to make pages amount from {_0}, which must be less or equal to {_1}")]
+#[display("Tries to make pages amount from {_0}, which must be less or equal to {_1}")]
 pub struct PagesAmountError(u32, u32);
 
 impl<const SIZE: u32> TryFrom<u32> for PagesAmount<SIZE> {
@@ -255,7 +255,7 @@ impl<const SIZE: u32> Page<SIZE> {
 
 /// Try from u32 error for [Page].
 #[derive(Debug, Clone, derive_more::Display)]
-#[display(fmt = "Tries to make page from {_0}, which must be less or equal to {_1}")]
+#[display("Tries to make page from {_0}, which must be less or equal to {_1}")]
 pub struct PageError(u32, u32);
 
 impl<const SIZE: u32> TryFrom<u32> for Page<SIZE> {

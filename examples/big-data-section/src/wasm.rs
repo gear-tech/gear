@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,21 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use derive_more::Display;
-use wasmi::core::HostError;
+use crate::data_access::DataAccess;
+use gstd::{msg, prelude::*};
 
-#[derive(Debug, Display)]
-pub struct CustomHostError {
-    message: String,
-}
+#[unsafe(no_mangle)]
+extern "C" fn init() {
+    let payload = msg::load_bytes().expect("Failed to load payload");
 
-impl HostError for CustomHostError {}
+    let value = DataAccess::from_payload(&payload)
+        .expect("Failed to decode incoming payload")
+        .constant();
 
-impl<T> From<T> for CustomHostError
-where
-    T: Into<String>,
-{
-    fn from(s: T) -> CustomHostError {
-        Self { message: s.into() }
-    }
+    msg::reply_bytes(value.to_be_bytes(), 0).expect("Failed to send reply");
 }

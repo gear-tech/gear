@@ -34,6 +34,7 @@ members = [
     "examples/async-signal-entry",
     "examples/async-tester",
     "examples/autoreply",
+    "examples/big-data-section",
     "examples/bls381",
     "examples/calc-hash",
     "examples/custom",
@@ -132,7 +133,7 @@ color-eyre = "0.6.3"
 colored = "2.1.0"
 const-str = "0.5"
 defer = "0.2.1"
-derive_more = "0.99.18"
+derive_more = { version = "2.0.1", default-features = false, features = ["full"] }
 dirs = "4.0.0"
 dyn-clonable = "0.9.0"
 enum-iterator = "1.5.0"
@@ -446,6 +447,7 @@ demo-async-reply-hook = { path = "examples/async-reply-hook" }
 demo-async-recursion = { path = "examples/async-recursion" }
 demo-async-signal-entry = { path = "examples/async-signal-entry" }
 demo-async-tester = { path = "examples/async-tester" }
+demo-big-data-section = {path = "examples/big-data-section"}
 demo-bls381 = { path = "examples/bls381" }
 demo-calc-hash = { path = "examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
@@ -528,7 +530,6 @@ tower = "0.4.13"                                             # ethexe/rpc
 tower-http = "0.5.2"                                         # ethexe/rpc
 tracing-appender = "0.2"                                     # utils/node-loader
 trybuild = "1"                                               # gstd/codegen
-wasm-opt = "0.116"                                           # utils/wasm-builder
 wasmprinter = "0.225"                                        # utils/wasm-gen
 whoami = "1.5.1"                                             # gcli
 fail = "0.5"                                                 # gear-common

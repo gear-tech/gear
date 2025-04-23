@@ -33,7 +33,7 @@ use num_traits::{
 
 /// Describes not empty interval start..=end.
 #[derive(Clone, Copy, PartialEq, Eq, derive_more::Display)]
-#[display(fmt = "{}..={}", start, end)]
+#[display("{start}..={end}")]
 pub struct Interval<T> {
     start: T,
     end: T,

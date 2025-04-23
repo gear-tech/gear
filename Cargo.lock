@@ -16,7 +16,7 @@ dependencies = [
 name = "actor-system-error"
 version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
 ]
 
 [[package]]
@@ -3392,6 +3392,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-big-data-section"
+version = "1.8.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+ "proptest",
+]
+
+[[package]]
 name = "demo-bls381"
 version = "0.1.0"
 dependencies = [
@@ -4823,7 +4834,7 @@ name = "ethexe-runtime-common"
 version = "1.8.0"
 dependencies = [
  "anyhow",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "gear-core",
  "gear-core-errors",
@@ -4845,7 +4856,7 @@ dependencies = [
  "demo-async",
  "demo-async-init",
  "demo-ping",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-compute",
  "ethexe-consensus",
@@ -4892,7 +4903,7 @@ version = "1.8.0"
 dependencies = [
  "alloy",
  "anyhow",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "gprimitives",
  "hex",
@@ -6055,7 +6066,7 @@ name = "gear-cli"
 version = "1.8.0"
 dependencies = [
  "clap 4.5.23",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-metadata-hash-extension",
@@ -6122,7 +6133,7 @@ version = "1.8.0"
 dependencies = [
  "blake2 0.10.6",
  "byteorder",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "gear-core-errors",
  "gear-wasm-instrument",
@@ -6151,7 +6162,7 @@ version = "1.8.0"
 dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "gear-core",
  "gear-core-errors",
  "gear-lazy-pages-common",
@@ -6168,7 +6179,7 @@ dependencies = [
 name = "gear-core-errors"
 version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "scale-info",
  "serde",
@@ -6179,7 +6190,7 @@ name = "gear-core-processor"
 version = "1.8.0"
 dependencies = [
  "actor-system-error",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "gear-core",
  "gear-core-backend",
@@ -6218,7 +6229,7 @@ name = "gear-lazy-pages"
 version = "1.8.0"
 dependencies = [
  "cfg-if",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "errno",
  "gear-core",
  "gear-lazy-pages-common",
@@ -6631,7 +6642,7 @@ name = "gear-wasm-instrument"
 version = "1.8.0"
 dependencies = [
  "arbitrary",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "diff",
  "enum-iterator 1.5.0",
  "log",
@@ -6652,7 +6663,6 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "regex",
- "wasm-opt",
  "wasmer",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
@@ -6665,7 +6675,7 @@ version = "1.8.0"
 dependencies = [
  "bytes",
  "demo-constructor",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "fs4",
  "log",
  "loom",
@@ -6887,7 +6897,7 @@ version = "1.8.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "gear-ss58",
  "hex",
  "primitive-types",
@@ -7035,7 +7045,7 @@ dependencies = [
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "etc",
  "gear-common",
  "gear-core",
@@ -8424,7 +8434,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arbitrary",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-wasm-gen",
@@ -10613,7 +10623,7 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 name = "numerated"
 version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "log",
  "num-traits",
  "proptest",
@@ -11002,7 +11012,7 @@ dependencies = [
  "demo-wait-timeout",
  "demo-waiter",
  "demo-waiting-proxy",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -11083,7 +11093,7 @@ dependencies = [
  "demo-proxy-broker",
  "demo-staking-broker",
  "demo-waiting-proxy",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -11463,7 +11473,7 @@ dependencies = [
 name = "pallet-gear-voucher"
 version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
