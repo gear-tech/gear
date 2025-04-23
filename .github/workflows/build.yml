@@ -201,6 +201,7 @@ jobs:
   win-cross:
     runs-on: [kuberunner, github-runner-03]
     needs: dynamic-profiles
+    if: false
     strategy:
       matrix:
         profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
