@@ -215,6 +215,7 @@ impl RequestManager {
                 }
                 Err((request, err)) => {
                     network.db_sync().retry(request);
+                    self.pending_requests.extend(pending_network_requests);
                     log::warn!("{request_id:?} failed: {err}. Retrying...");
                 }
             }
