@@ -44,13 +44,13 @@ struct EventData {
     program_code_ids: Vec<(ActorId, CodeId)>,
     needs_instrumentation_codes: HashSet<CodeId>,
     /// Latest committed on the chain and not computed local block
-    latest_committed_block: Option<H256>,
+    latest_committed_block: H256,
     /// Previous committed block
     previous_committed_block: Option<H256>,
 }
 
 impl EventData {
-    async fn collect(db: &Database, highest_block: H256) -> Result<Self> {
+    async fn collect(db: &Database, highest_block: H256) -> Result<Option<Self>> {
         let mut program_states = BTreeMap::new();
         let mut program_code_ids = Vec::new();
         let mut needs_instrumentation_codes = HashSet::new();
@@ -107,35 +107,37 @@ impl EventData {
             block = parent;
         }
 
-        if let Some(latest_block) = latest_committed_block {
-            // recover data we haven't seen in events by the latest computed block
-            let (computed_block, _computed_header) = db
-                .latest_computed_block()
-                .context("latest computed block not found")?;
-            let computed_program_states = db
-                .block_program_states(computed_block)
-                .context("program states of latest computed block not found")?;
-            for (program_id, state) in computed_program_states {
-                program_states.entry(program_id).or_insert(state);
-            }
+        let Some(latest_committed_block) = latest_committed_block else {
+            return Ok(None);
+        };
 
-            #[cfg(debug_assertions)]
-            if let Some(previous_block) = previous_committed_block {
-                let latest_block_header = OnChainStorage::block_header(db, latest_block)
-                    .expect("observer must fulfill database");
-                let previous_block_header = OnChainStorage::block_header(db, previous_block)
-                    .expect("observer must fulfill database");
-                assert!(previous_block_header.height < latest_block_header.height);
-            }
+        // recover data we haven't seen in events by the latest computed block
+        let (computed_block, _computed_header) = db
+            .latest_computed_block()
+            .context("latest computed block not found")?;
+        let computed_program_states = db
+            .block_program_states(computed_block)
+            .context("program states of latest computed block not found")?;
+        for (program_id, state) in computed_program_states {
+            program_states.entry(program_id).or_insert(state);
         }
 
-        Ok(Self {
+        #[cfg(debug_assertions)]
+        if let Some(previous_committed_block) = previous_committed_block {
+            let latest_block_header = OnChainStorage::block_header(db, latest_committed_block)
+                .expect("observer must fulfill database");
+            let previous_block_header = OnChainStorage::block_header(db, previous_committed_block)
+                .expect("observer must fulfill database");
+            assert!(previous_block_header.height < latest_block_header.height);
+        }
+
+        Ok(Some(Self {
             program_states,
             program_code_ids,
             needs_instrumentation_codes,
             latest_committed_block,
             previous_committed_block,
-        })
+        }))
     }
 }
 
@@ -479,51 +481,54 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         ..
     } = service;
     let Some(network) = network else {
-        log::warn!("Network service is disabled. Skipping...");
+        log::warn!("Network service is disabled. Skipping fast synchronization...");
         return Ok(());
     };
 
     log::info!("Fast synchronization is in progress...");
 
     let finalized_block = sync_finalized_head(observer).await?;
-    let event_data = EventData::collect(db, finalized_block).await?;
-
-    instrument_codes(db, compute, event_data.needs_instrumentation_codes).await?;
-
-    let Some(latest_block) = event_data.latest_committed_block else {
-        log::info!("No any committed block found. Skipping...");
+    let Some(EventData {
+        program_states,
+        program_code_ids,
+        needs_instrumentation_codes,
+        latest_committed_block,
+        previous_committed_block,
+    }) = EventData::collect(db, finalized_block).await?
+    else {
+        log::info!("No any committed block found. Skipping fast synchronization...");
         return Ok(());
     };
-    let latest_block_header =
-        OnChainStorage::block_header(db, latest_block).expect("observer must fulfill database");
 
-    sync_from_network(network, db, &event_data.program_states).await;
+    instrument_codes(db, compute, needs_instrumentation_codes).await?;
+
+    let latest_block_header = OnChainStorage::block_header(db, latest_committed_block)
+        .expect("observer must fulfill database");
+
+    sync_from_network(network, db, &program_states).await;
 
     let schedule =
-        ScheduleRestorer::from_storage(db, &event_data.program_states, latest_block_header.height)?
-            .restore();
+        ScheduleRestorer::from_storage(db, &program_states, latest_block_header.height)?.restore();
 
-    for (program_id, code_id) in event_data.program_code_ids {
+    for (program_id, code_id) in program_code_ids {
         db.set_program_code_id(program_id, code_id);
     }
 
     // NOTE: there is no invariant that fast sync should recover queues
-    db.set_block_commitment_queue(latest_block, VecDeque::new());
-    db.set_block_codes_queue(latest_block, VecDeque::new());
+    db.set_block_commitment_queue(latest_committed_block, VecDeque::new());
+    db.set_block_codes_queue(latest_committed_block, VecDeque::new());
 
-    db.set_block_program_states(latest_block, event_data.program_states);
-    db.set_block_schedule(latest_block, schedule);
+    db.set_block_program_states(latest_committed_block, program_states);
+    db.set_block_schedule(latest_committed_block, schedule);
     unsafe {
-        db.set_non_empty_block_outcome(latest_block);
+        db.set_non_empty_block_outcome(latest_committed_block);
     }
     db.set_previous_not_empty_block(
-        latest_block,
-        event_data
-            .previous_committed_block
-            .unwrap_or_else(H256::zero),
+        latest_committed_block,
+        previous_committed_block.unwrap_or_else(H256::zero),
     );
-    db.set_block_computed(latest_block);
-    db.set_latest_computed_block(latest_block, latest_block_header);
+    db.set_block_computed(latest_committed_block);
+    db.set_latest_computed_block(latest_committed_block, latest_block_header);
 
     log::info!("Fast synchronization done");
 
@@ -531,7 +536,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     // Never supposed to be Some in production code.
     if let Some(sender) = sender.as_ref() {
         sender
-            .send(Event::FastSyncDone(latest_block))
+            .send(Event::FastSyncDone(latest_committed_block))
             .expect("failed to broadcast service STARTED event");
     }
 
