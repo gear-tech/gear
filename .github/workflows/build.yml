@@ -211,6 +211,7 @@ jobs:
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      XDG_RUNTIME_DIR: /tmp/xdg-runtime
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -232,6 +233,7 @@ jobs:
 
       - name: "Install: Wine"
         run: |
+          mkdir -p $XDG_RUNTIME_DIR
           wineboot
           winetricks win10
 
