@@ -483,6 +483,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     // TODO #4609
+    // TODO #4611
     function _commitRewards(Storage storage router, Gear.RewardsCommitment calldata _rewardsCommitment)
         private
         returns (bytes memory)
