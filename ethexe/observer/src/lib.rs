@@ -25,6 +25,10 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
+use ethexe_blob_loader::{
+    blobs::{BlobData, BlobReader},
+    utils::read_code_from_tx_hash,
+};
 use ethexe_common::{db::OnChainStorage, SimpleBlockData};
 use ethexe_db::{BlockHeader, CodeInfo, Database};
 use ethexe_ethereum::router::RouterQuery;
@@ -43,16 +47,11 @@ use std::{
     time::Duration,
 };
 use sync::ChainSync;
-use utils::*;
 
-mod blobs;
 mod sync;
-mod utils;
 
 #[cfg(test)]
 mod tests;
-
-pub use blobs::*;
 
 type BlobDownloadFuture = BoxFuture<'static, Result<BlobData>>;
 type SyncFuture = BoxFuture<'static, Result<(BlockSyncedData, Vec<(CodeId, CodeInfo)>)>>;
@@ -74,27 +73,10 @@ pub struct BlockSyncedData {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct BlobData {
-    pub code_id: CodeId,
-    pub timestamp: u64,
-    pub code: Vec<u8>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Blob(BlobData),
     Block(SimpleBlockData),
     BlockSynced(BlockSyncedData),
-}
-
-impl fmt::Debug for BlobData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BlobData")
-            .field("code_id", &self.code_id)
-            .field("timestamp", &self.timestamp)
-            .field("code", &format_args!("{} bytes", self.code.len()))
-            .finish()
-    }
 }
 
 impl fmt::Debug for ObserverEvent {
@@ -336,14 +318,13 @@ impl ObserverService {
     }
 
     fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
-        self.codes_futures
-            .push(Box::pin(utils::read_code_from_tx_hash(
-                self.blobs_reader.clone(),
-                code_id,
-                timestamp,
-                tx_hash,
-                Some(3),
-            )));
+        self.codes_futures.push(Box::pin(read_code_from_tx_hash(
+            self.blobs_reader.clone(),
+            code_id,
+            timestamp,
+            tx_hash,
+            Some(3),
+        )));
     }
 }
 

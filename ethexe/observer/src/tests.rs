@@ -27,6 +27,7 @@ use roast_secp256k1_evm::frost::{
     Identifier,
 };
 use std::time::Duration;
+use ethexe_blob_loader::blobs::MockBlobReader;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
     let code = wat::parse_str(s).unwrap();

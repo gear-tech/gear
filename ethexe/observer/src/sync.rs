@@ -21,6 +21,7 @@
 use crate::{BlobData, BlobReader, BlockSyncedData, RuntimeConfig};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Ok, Result};
+use ethexe_blob_loader::utils::{load_block_data, load_blocks_data_batched};
 use ethexe_common::{
     db::OnChainStorage,
     events::{BlockEvent, RouterEvent},
@@ -110,7 +111,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
             return Ok(Default::default());
         }
 
-        crate::load_blocks_data_batched(
+        load_blocks_data_batched(
             self.provider.clone(),
             latest_synced_block_height as u64,
             header.height as u64,
@@ -135,7 +136,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
                 None => {
-                    crate::load_block_data(
+                    load_block_data(
                         self.provider.clone(),
                         hash,
                         self.config.router_address,

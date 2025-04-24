@@ -24,10 +24,13 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use gprimitives::H256;
+// use ethexe_common::db::{CodesStorage, OnChainStorage};
+// use ethexe_db::Database;
+use gprimitives::{CodeId, H256};
 use reqwest::Client;
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     hash::RandomState,
     sync::Arc,
 };
@@ -35,6 +38,23 @@ use tokio::{
     sync::RwLock,
     time::{self, Duration},
 };
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct BlobData {
+    pub code_id: CodeId,
+    pub timestamp: u64,
+    pub code: Vec<u8>,
+}
+
+impl fmt::Debug for BlobData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BlobData")
+            .field("code_id", &self.code_id)
+            .field("timestamp", &self.timestamp)
+            .field("code", &format_args!("{} bytes", self.code.len()))
+            .finish()
+    }
+}
 
 #[async_trait]
 pub trait BlobReader: Send + Sync {

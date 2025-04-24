@@ -43,7 +43,7 @@ use std::{collections::HashMap, future::IntoFuture};
 /// Max number of blocks to query in alloy.
 pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
 
-pub(crate) async fn read_code_from_tx_hash(
+pub async fn read_code_from_tx_hash(
     blob_reader: Box<dyn BlobReader>,
     expected_code_id: CodeId,
     timestamp: u64,
@@ -150,7 +150,7 @@ pub(crate) fn block_response_to_data(response: Option<Block>) -> Result<(H256, B
     Ok((block_hash, header))
 }
 
-pub(crate) async fn load_block_data(
+pub async fn load_block_data(
     provider: RootProvider,
     block: H256,
     router_address: Address,
@@ -215,7 +215,7 @@ pub(crate) async fn load_block_data(
     })
 }
 
-pub(crate) async fn load_blocks_data_batched(
+pub async fn load_blocks_data_batched(
     provider: RootProvider,
     from_block: u64,
     to_block: u64,

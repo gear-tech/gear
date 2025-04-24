@@ -141,6 +141,7 @@ environmental = "1.1.3"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.3"
 futures-util = "0.3.30"
+mapped_futures = "0.1.13"
 hashbrown = "0.14.5"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
@@ -307,6 +308,7 @@ ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common", default-features = false }
 ethexe-tx-pool = { path = "ethexe/tx-pool", default-features = false }
 ethexe-compute = { path = "ethexe/compute", default-features = false }
+ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { package = "wasmi", version = "0.38" }
@@ -448,7 +450,7 @@ demo-async-reply-hook = { path = "examples/async-reply-hook" }
 demo-async-recursion = { path = "examples/async-recursion" }
 demo-async-signal-entry = { path = "examples/async-signal-entry" }
 demo-async-tester = { path = "examples/async-tester" }
-demo-big-data-section = {path = "examples/big-data-section"}
+demo-big-data-section = { path = "examples/big-data-section" }
 demo-bls381 = { path = "examples/bls381" }
 demo-calc-hash = { path = "examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
