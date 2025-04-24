@@ -494,7 +494,7 @@ contract Middleware is IMiddleware {
             revert InvalidStakerRewardsVault();
         }
 
-        if (IDefaultStakerRewards(_rewards).version() != 1) {
+        if (IDefaultStakerRewards(_rewards).version() != 2) {
             revert IncompatibleStakerRewardsVersion();
         }
     }

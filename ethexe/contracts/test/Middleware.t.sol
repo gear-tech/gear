@@ -238,6 +238,7 @@ contract MiddlewareTest is Base {
         }
         vm.stopPrank();
 
+        // Try to register vault by not its owner
         vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
         middleware.registerVault(vault, _rewards);
 
