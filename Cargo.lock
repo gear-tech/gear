@@ -4692,7 +4692,7 @@ version = "1.8.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-signer",
