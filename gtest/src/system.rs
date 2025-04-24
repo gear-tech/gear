@@ -304,7 +304,7 @@ impl System {
         let program_id = id.into().0;
         Actors::access(program_id, |actor| {
             if let Some(crate::state::actors::TestActor::Exited(inheritor_id)) = actor {
-                Some(inheritor_id.clone())
+                Some(*inheritor_id)
             } else {
                 None
             }
