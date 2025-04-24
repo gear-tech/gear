@@ -39,6 +39,13 @@ use tokio::{
 #[async_trait]
 pub trait BlobReader: Send + Sync {
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>>;
+    fn clone_boxed(&self) -> Box<dyn BlobReader>;
+}
+
+impl Clone for Box<dyn BlobReader> {
+    fn clone(&self) -> Self {
+        self.clone_boxed()
+    }
 }
 
 #[derive(Clone)]
@@ -78,6 +85,10 @@ impl ConsensusLayerBlobReader {
 
 #[async_trait]
 impl BlobReader for ConsensusLayerBlobReader {
+    fn clone_boxed(&self) -> Box<dyn BlobReader> {
+        Box::new(self.clone())
+    }
+
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
         const BEACON_GENESIS_BLOCK_TIME: u64 = 1695902400;
@@ -162,6 +173,10 @@ impl Default for MockBlobReader {
 
 #[async_trait]
 impl BlobReader for MockBlobReader {
+    fn clone_boxed(&self) -> Box<dyn BlobReader> {
+        Box::new(self.clone())
+    }
+
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         let maybe_blob_data = match attempts {
             Some(attempts) => {
