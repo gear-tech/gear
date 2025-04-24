@@ -80,7 +80,32 @@ jobs:
 
       - name: "Show: Versioning"
         run: |
+          echo "=== Rust Version ==="
+          rustc --version
+          
+          echo ""
+          echo "=== Cargo Version ==="
+          cargo --version
+          
+          echo ""
+          echo "=== Git Information ==="
+          echo "Commit: $(git rev-parse HEAD)"
+          echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
+          
+          echo ""
+          echo "=== Project Dependencies ==="
+          cargo tree --locked
+          
+          echo ""
+          echo "=== Gear Script Output ==="
           ./scripts/gear.sh show
+          
+          echo ""
+          echo "=== Binaryen Version ==="
+          wasm-opt --version
+          
+          echo ""
+          echo "=== Foundry Version ==="
           forge --version
 
       - name: "Build: Init"
@@ -230,7 +255,26 @@ jobs:
         run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
 
       - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
+        run: |
+          echo "=== Rust Version ==="
+          rustc --version
+          
+          echo ""
+          echo "=== Cargo Version ==="
+          cargo --version
+          
+          echo ""
+          echo "=== Git Information ==="
+          echo "Commit: $(git rev-parse HEAD)"
+          echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
+          
+          echo ""
+          echo "=== Gear Script Output ==="
+          ./scripts/gear.sh show
+          
+          echo ""
+          echo "=== Binaryen Version ==="
+          wasm-opt --version
 
       - name: "Install: Wine"
         run: |
