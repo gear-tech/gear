@@ -90,7 +90,10 @@ fn process_observer_event() {
         }]
     );
 
-    let _ = processor.process_block_events(ch0, vec![]).unwrap();
+    // Process ch0 and save results
+    let result0 = processor.process_block_events(ch0, vec![]).unwrap();
+    processor.db.set_block_program_states(ch0, result0.states);
+    processor.db.set_block_schedule(ch0, result0.schedule);
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
 
     let actor_id = ActorId::from(42);
@@ -114,11 +117,18 @@ fn process_observer_event() {
         ),
     ];
 
-    let outcomes = processor
+    // Process ch1 and save results
+    let result1 = processor
         .process_block_events(ch1, create_program_events)
         .expect("failed to process create program");
+    processor
+        .db
+        .set_block_program_states(ch1, result1.states.clone());
+    processor
+        .db
+        .set_block_schedule(ch1, result1.schedule.clone());
 
-    log::debug!("\n\nCreate program outcomes: {outcomes:?}\n\n");
+    log::debug!("\n\nCreate processing result: {result1:?}\n\n");
 
     let ch2 = init_new_block_from_parent(&mut processor, ch1);
 
@@ -132,11 +142,18 @@ fn process_observer_event() {
         },
     );
 
-    let outcomes = processor
+    // Process ch2 and save results
+    let result2 = processor
         .process_block_events(ch2, vec![send_message_event])
         .expect("failed to process send message");
+    processor
+        .db
+        .set_block_program_states(ch2, result2.states.clone());
+    processor
+        .db
+        .set_block_schedule(ch2, result2.schedule.clone());
 
-    log::debug!("\n\nSend message outcomes: {outcomes:?}\n\n");
+    log::debug!("\n\nSend message processing result: {result2:?}\n\n");
 }
 
 #[test]
