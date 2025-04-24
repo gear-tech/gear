@@ -30,14 +30,14 @@ use void::Void;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum LimitExceededKind {
-    #[display(fmt = "established incoming per peer")]
+    #[display("established incoming per peer")]
     EstablishedIncomingPerPeer,
-    #[display(fmt = "established outbound per peer")]
+    #[display("established outbound per peer")]
     EstablishedOutboundPerPeer,
 }
 
 #[derive(Debug, Eq, PartialEq, derive_more::Display)]
-#[display(fmt = "custom connection limit exceeded: at most {limit} {kind} are allowed")]
+#[display("custom connection limit exceeded: at most {limit} {kind} are allowed")]
 pub struct LimitExceeded {
     pub limit: u32,
     pub kind: LimitExceededKind,

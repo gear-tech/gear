@@ -164,10 +164,10 @@ pub enum NewRequestRoundReason {
 #[derive(Clone, Debug, Eq, PartialEq, derive_more::Display)]
 pub enum RequestFailure {
     /// Request exceeded its round limit
-    #[display(fmt = "Request exceeded its round limit")]
+    #[display("Request exceeded its round limit")]
     OutOfRounds,
     /// Request had been processing for too long
-    #[display(fmt = "Request had been processing for too long")]
+    #[display("Request had been processing for too long")]
     Timeout,
 }
 
