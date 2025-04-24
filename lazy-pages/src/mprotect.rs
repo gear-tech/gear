@@ -26,16 +26,16 @@ use std::fmt::Debug;
 #[derive(Debug, derive_more::Display)]
 pub enum MprotectError {
     #[display(
-        fmt = "Syscall mprotect error for interval {interval:#x?}, mask = {mask}, reason: {reason}"
+        "Syscall mprotect error for interval {interval:#x?}, mask = {mask}, reason: {reason}"
     )]
     SyscallError {
         interval: RangeInclusive<usize>,
         mask: region::Protection,
         reason: region::Error,
     },
-    #[display(fmt = "Interval size or page address overflow")]
+    #[display("Interval size or page address overflow")]
     Overflow,
-    #[display(fmt = "Zero size is restricted for mprotect")]
+    #[display("Zero size is restricted for mprotect")]
     ZeroSizeError,
 }
 

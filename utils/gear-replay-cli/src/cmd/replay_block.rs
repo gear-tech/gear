@@ -25,7 +25,7 @@ use crate::{
     state_machine_call, BlockHashOrNumber, LOG_TARGET,
 };
 use clap::Parser;
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
 #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]

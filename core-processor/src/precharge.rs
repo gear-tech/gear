@@ -37,25 +37,25 @@ use gear_core::{
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum PreChargeGasOperation {
     /// Handle memory static pages.
-    #[display(fmt = "handle memory static pages")]
+    #[display("handle memory static pages")]
     StaticPages,
     /// Handle program data.
-    #[display(fmt = "handle program data")]
+    #[display("handle program data")]
     ProgramData,
     /// Obtain code length.
-    #[display(fmt = "obtain program code length")]
+    #[display("obtain program code length")]
     ProgramCodeLen,
     /// Handle program code.
-    #[display(fmt = "handle program code")]
+    #[display("handle program code")]
     ProgramCode,
     /// Instantiate the type section of the Wasm module.
-    #[display(fmt = "instantiate {_0} of Wasm module")]
+    #[display("instantiate {_0} of Wasm module")]
     ModuleInstantiation(SectionName),
     /// Instrument Wasm module.
-    #[display(fmt = "instrument Wasm module")]
+    #[display("instrument Wasm module")]
     ModuleInstrumentation,
     /// Obtain program allocations.
-    #[display(fmt = "obtain program allocations")]
+    #[display("obtain program allocations")]
     Allocations,
 }
 

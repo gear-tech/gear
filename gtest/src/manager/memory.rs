@@ -41,7 +41,7 @@ impl ExtManager {
                 Some(data.allocations),
                 Some((*program_id, Default::default())),
                 payload,
-                GAS_ALLOWANCE,
+                MAX_USER_GAS_LIMIT,
                 self.blocks_manager.get(),
             )
             .map_err(TestError::ReadStateError)
@@ -61,7 +61,9 @@ impl ExtManager {
             {
                 TestActor::Initialized(program) => program,
                 TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
-                TestActor::Dormant => panic!("Actor {program_id} isn't dormant"),
+                TestActor::Exited(_) => panic!("Actor {program_id} is exited"),
+                TestActor::FailedInit => panic!("Actor {program_id} failed to init"),
+                TestActor::CodeNotExists => panic!("Actor {program_id} code not exists"),
             };
 
             match program {

@@ -26,7 +26,7 @@ use ethexe_common::{
     SimpleBlockData,
 };
 use ethexe_db::Database;
-use ethexe_processor::{LocalOutcome, Processor};
+use ethexe_processor::{BlockProcessingResult, Processor};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
 use std::{
@@ -188,29 +188,25 @@ impl ChainHeadProcessContext {
             .filter_map(|event| event.to_request())
             .collect();
 
-        let block_outcomes = self
+        let processing_result = self
             .processor
             .process_block_events(block, block_request_events)?;
 
-        let outcomes: Vec<_> = block_outcomes
-            .into_iter()
-            .map(|outcome| {
-                if let LocalOutcome::Transition(transition) = outcome {
-                    transition
-                } else {
-                    unreachable!("Only transitions are expected here")
-                }
-            })
-            .collect();
+        let BlockProcessingResult {
+            transitions,
+            states,
+            schedule,
+        } = processing_result;
 
-        if !outcomes.is_empty() {
+        if !transitions.is_empty() {
             commitments_queue.push_back(block);
         }
         self.db.set_block_commitment_queue(block, commitments_queue);
 
-        self.db.set_block_outcome(block, outcomes);
+        self.db.set_block_outcome(block, transitions);
 
-        // TODO #4551: move set_program_states here from processor
+        self.db.set_block_program_states(block, states);
+        self.db.set_block_schedule(block, schedule);
 
         // Set block as valid - means state db has all states for the end of the block
         self.db.set_block_computed(block);

@@ -70,13 +70,22 @@ mod private {
     // TODO (breathx): consider using HashOf<ProgramState> everywhere.
     // impl Sealed for ProgramState {}
     impl Sealed for Waitlist {}
+}
 
-    pub fn shortname<S: Any>() -> &'static str {
-        core::any::type_name::<S>()
-            .split("::")
-            .last()
-            .expect("name is empty")
-    }
+#[allow(unused)]
+fn shortname<S: Any>() -> &'static str {
+    core::any::type_name::<S>()
+        .split("::")
+        .last()
+        .expect("name is empty")
+}
+
+#[allow(unused)]
+fn option_string<S: ToString>(value: &Option<S>) -> String {
+    value
+        .as_ref()
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| "<none>".to_string())
 }
 
 /// Represents payload provider (lookup).
@@ -144,10 +153,10 @@ impl PayloadLookup {
     }
 }
 
-#[derive(Encode, Decode, derive_more::Into, derive_more::DebugCustom, derive_more::Display)]
+#[derive(Encode, Decode, derive_more::Into, derive_more::Debug, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-#[debug(fmt = "HashOf<{}>({hash:?})", "private::shortname::<S>()")]
-#[display(fmt = "{hash}")]
+#[debug("HashOf<{}>({hash:?})", shortname::<S>())]
+#[display("{hash}")]
 pub struct HashOf<S: Sealed + 'static> {
     hash: H256,
     #[into(ignore)]
@@ -206,7 +215,7 @@ impl<S: Sealed> HashOf<S> {
     Eq,
     derive_more::Into,
     derive_more::From,
-    derive_more::DebugCustom,
+    derive_more::Debug,
     derive_more::Display,
 )]
 #[cfg_attr(
@@ -214,15 +223,8 @@ impl<S: Sealed> HashOf<S> {
     derive(serde::Serialize, serde::Deserialize),
     serde(bound = "")
 )]
-#[debug(
-    fmt = "MaybeHashOf<{}>({})",
-    "private::shortname::<S>()",
-    "self.hash().map(|v| v.to_string()).unwrap_or_else(|| String::from(\"<none>\"))"
-)]
-#[display(
-    fmt = "{}",
-    "_0.map(|v| v.to_string()).unwrap_or_else(|| String::from(\"<none>\"))"
-)]
+#[debug("MaybeHashOf<{}>({})", shortname::<S>(), option_string(&self.hash()))]
+#[display("{}", option_string(_0))]
 pub struct MaybeHashOf<S: Sealed + 'static>(Option<HashOf<S>>);
 
 impl<S: Sealed> Clone for MaybeHashOf<S> {
