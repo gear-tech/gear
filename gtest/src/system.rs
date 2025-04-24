@@ -294,6 +294,23 @@ impl System {
         Actors::is_active_program(program_id)
     }
 
+    /// Returns `Some(ProgramId)` if a program is exited with inheritor.
+    ///
+    /// Returns [`None`] otherwise.
+    pub fn is_exited_program_with_inheritor<ID: Into<ProgramIdWrapper>>(
+        &self,
+        id: ID,
+    ) -> Option<ProgramId> {
+        let program_id = id.into().0;
+        Actors::access(program_id, |actor| {
+            if let Some(crate::state::actors::TestActor::Exited(inheritor_id)) = actor {
+                Some(inheritor_id.clone())
+            } else {
+                None
+            }
+        })
+    }
+
     /// Saves code to the storage and returns its code hash
     ///
     /// Same as ['submit_code_file'], but the path is provided as relative to
