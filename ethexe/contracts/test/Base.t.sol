@@ -27,6 +27,7 @@ import {DefaultStakerRewardsFactory} from
 import {DefaultOperatorRewards} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewards.sol";
 import {DefaultOperatorRewardsFactory} from
     "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewardsFactory.sol";
+import {console} from "forge-std/console.sol";
 
 contract Base is POCBaseTest {
     using MessageHashUtils for address;
@@ -46,6 +47,7 @@ contract Base is POCBaseTest {
     Mirror public mirror;
 
     DefaultStakerRewardsFactory defaultStakerRewardsFactory;
+    DefaultOperatorRewardsFactory defaultOperatorRewardsFactory;
 
     function setUp() public virtual override {
         revert("Must not be called");
@@ -77,40 +79,7 @@ contract Base is POCBaseTest {
         SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
         super.setUp();
 
-        address defaultStakerRewards_ =
-            address(new DefaultStakerRewards(address(vaultFactory), address(networkMiddlewareService)));
-        defaultStakerRewardsFactory = new DefaultStakerRewardsFactory(defaultStakerRewards_);
-
-        address defaultOperatorRewards_ = address(new DefaultOperatorRewards(address(networkMiddlewareService)));
-        DefaultOperatorRewardsFactory defaultOperatorRewardsFactory =
-            new DefaultOperatorRewardsFactory(defaultOperatorRewards_);
-
-        Middleware.InitParams memory cfg = IMiddleware.InitParams({
-            eraDuration: eraDuration,
-            minVaultEpochDuration: eraDuration * 2,
-            operatorGracePeriod: eraDuration * 2,
-            vaultGracePeriod: eraDuration * 2,
-            minVetoDuration: eraDuration / 3,
-            minSlashExecutionDelay: eraDuration / 3,
-            maxResolverSetEpochsDelay: type(uint256).max,
-            router: address(router),
-            vaultRegistry: address(vaultFactory),
-            allowedVaultImplVersion: 1,
-            vetoSlasherImplType: 1,
-            operatorRegistry: address(operatorRegistry),
-            networkRegistry: address(networkRegistry),
-            networkOptIn: address(operatorNetworkOptInService),
-            middlewareService: address(networkMiddlewareService),
-            collateral: address(wrappedVara),
-            roleSlashRequester: admin,
-            roleSlashExecutor: admin,
-            vetoResolver: admin,
-            operatorRewards: defaultOperatorRewardsFactory.create(),
-            operatorRewardsFactory: address(defaultOperatorRewardsFactory),
-            stakerRewardsFactory: address(defaultStakerRewardsFactory)
-        });
-
-        middleware = new Middleware(cfg);
+        middleware = new Middleware(_defaultMiddlewareInitParams());
     }
 
     function setUpRouter(Gear.AggregatedPublicKey memory _aggregatedPublicKey, address[] memory _validators) internal {
@@ -120,12 +89,15 @@ contract Base is POCBaseTest {
         require(electionDuration > 0, "Base: electionDuration should be greater than 0");
         require(blockDuration > 0, "Base: blockDuration should be greater than 0");
 
+        SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
+        super.setUp();
+
         address wrappedVaraAddress = address(wrappedVara);
 
         address mirrorAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 2);
 
-        address middlewareAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
-
+        // Here nonce is 7 because of extra 4 calls in the _defaultMiddlewareInitParams
+        address middlewareAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 7);
         vm.startPrank(admin, admin);
         {
             router = Router(
@@ -158,6 +130,12 @@ contract Base is POCBaseTest {
         vm.startPrank(admin, admin);
         {
             mirror = new Mirror(address(router));
+        }
+        vm.stopPrank();
+
+        vm.startPrank(admin, admin);
+        {
+            middleware = new Middleware(_defaultMiddlewareInitParams());
         }
         vm.stopPrank();
 
@@ -352,27 +330,6 @@ contract Base is POCBaseTest {
         );
     }
 
-    // This function is used to create default vault params for tests and ability to override them in tests
-    function _defaultVaultInitParams(address _operator)
-        internal
-        view
-        returns (IVault.InitParams memory defaultVaultParams)
-    {
-        defaultVaultParams = IVault.InitParams({
-            collateral: address(wrappedVara),
-            burner: address(middleware),
-            epochDuration: eraDuration * 2,
-            depositWhitelist: false,
-            isDepositLimit: false,
-            depositLimit: 0,
-            defaultAdminRoleHolder: _operator,
-            depositWhitelistSetRoleHolder: _operator,
-            depositorWhitelistRoleHolder: _operator,
-            isDepositLimitSetRoleHolder: _operator,
-            depositLimitSetRoleHolder: _operator
-        });
-    }
-
     function newStakerRewards(address _vault, address _operator) internal returns (address _rewards) {
         _rewards = defaultStakerRewardsFactory.create(
             IDefaultStakerRewards.InitParams({
@@ -405,5 +362,60 @@ contract Base is POCBaseTest {
 
     function blockHash(uint256 _blockNumber) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(_blockNumber));
+    }
+
+    // This function is used to create default vault params for tests and ability to override them in tests
+    function _defaultVaultInitParams(address _operator)
+        internal
+        view
+        returns (IVault.InitParams memory defaultVaultParams)
+    {
+        defaultVaultParams = IVault.InitParams({
+            collateral: address(wrappedVara),
+            burner: address(middleware),
+            epochDuration: eraDuration * 2,
+            depositWhitelist: false,
+            isDepositLimit: false,
+            depositLimit: 0,
+            defaultAdminRoleHolder: _operator,
+            depositWhitelistSetRoleHolder: _operator,
+            depositorWhitelistRoleHolder: _operator,
+            isDepositLimitSetRoleHolder: _operator,
+            depositLimitSetRoleHolder: _operator
+        });
+    }
+
+    function _defaultMiddlewareInitParams() internal returns (IMiddleware.InitParams memory params) {
+        address defaultStakerRewards_ =
+            address(new DefaultStakerRewards(address(vaultFactory), address(networkMiddlewareService)));
+        defaultStakerRewardsFactory = new DefaultStakerRewardsFactory(defaultStakerRewards_);
+
+        address defaultOperatorRewards_ = address(new DefaultOperatorRewards(address(networkMiddlewareService)));
+        defaultOperatorRewardsFactory = new DefaultOperatorRewardsFactory(defaultOperatorRewards_);
+
+        params = IMiddleware.InitParams({
+            eraDuration: eraDuration,
+            minVaultEpochDuration: eraDuration * 2,
+            operatorGracePeriod: eraDuration * 2,
+            vaultGracePeriod: eraDuration * 2,
+            minVetoDuration: eraDuration / 3,
+            minSlashExecutionDelay: eraDuration / 3,
+            maxResolverSetEpochsDelay: type(uint256).max,
+            router: address(router),
+            vaultRegistry: address(vaultFactory),
+            allowedVaultImplVersion: 1,
+            vetoSlasherImplType: 1,
+            operatorRegistry: address(operatorRegistry),
+            networkRegistry: address(networkRegistry),
+            networkOptIn: address(operatorNetworkOptInService),
+            middlewareService: address(networkMiddlewareService),
+            collateral: address(wrappedVara),
+            roleSlashRequester: admin,
+            roleSlashExecutor: admin,
+            vetoResolver: admin,
+            operatorRewards: defaultOperatorRewardsFactory.create(),
+            operatorRewardsFactory: address(defaultOperatorRewardsFactory),
+            stakerRewardsFactory: address(defaultStakerRewardsFactory)
+        });
     }
 }
