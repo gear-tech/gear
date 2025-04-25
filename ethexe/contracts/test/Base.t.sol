@@ -22,9 +22,11 @@ import {Gear} from "../src/libraries/Gear.sol";
 
 import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
 import {DefaultStakerRewards} from "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewards.sol";
-import {DefaultStakerRewardsTest} from "symbiotic-rewards/test/defaultStakerRewards/DefaultStakerRewards.t.sol";
 import {DefaultStakerRewardsFactory} from
     "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
+import {DefaultOperatorRewards} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewards.sol";
+import {DefaultOperatorRewardsFactory} from
+    "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewardsFactory.sol";
 
 contract Base is POCBaseTest {
     using MessageHashUtils for address;
@@ -79,6 +81,10 @@ contract Base is POCBaseTest {
             address(new DefaultStakerRewards(address(vaultFactory), address(networkMiddlewareService)));
         defaultStakerRewardsFactory = new DefaultStakerRewardsFactory(defaultStakerRewards_);
 
+        address defaultOperatorRewards_ = address(new DefaultOperatorRewards(address(networkMiddlewareService)));
+        DefaultOperatorRewardsFactory defaultOperatorRewardsFactory =
+            new DefaultOperatorRewardsFactory(defaultOperatorRewards_);
+
         Middleware.InitParams memory cfg = IMiddleware.InitParams({
             eraDuration: eraDuration,
             minVaultEpochDuration: eraDuration * 2,
@@ -99,9 +105,8 @@ contract Base is POCBaseTest {
             roleSlashRequester: admin,
             roleSlashExecutor: admin,
             vetoResolver: admin,
-            // TODO: add real addresses for testing associated functions
-            operatorRewards: address(0),
-            operatorRewardsFactory: address(0),
+            operatorRewards: defaultOperatorRewardsFactory.create(),
+            operatorRewardsFactory: address(defaultOperatorRewardsFactory),
             stakerRewardsFactory: address(defaultStakerRewardsFactory)
         });
 
