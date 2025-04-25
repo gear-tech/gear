@@ -62,12 +62,15 @@ where
         use CoreDispatchOutcome::*;
 
         let status = match outcome {
-            Exit { program_id } => {
+            Exit {
+                program_id,
+                value_destination,
+            } => {
                 log::trace!("Dispatch outcome exit: {:?}", message_id);
 
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,
-                    change: ProgramChangeKind::Inactive,
+                    change: ProgramChangeKind::Inactive { value_destination },
                 });
 
                 DispatchStatus::Success

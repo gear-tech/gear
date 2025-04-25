@@ -21,7 +21,10 @@
 //! This module contains components for depositing proper
 //! and extensive data about actions happen.
 
-use gear_core::{ids::MessageId, message::MessageWaitedType};
+use gear_core::{
+    ids::{MessageId, ProgramId},
+    message::MessageWaitedType,
+};
 use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
@@ -221,7 +224,7 @@ pub enum ProgramChangeKind<BlockNumber> {
     Active { expiration: BlockNumber },
 
     /// Program become inactive forever due to `gr_exit` call.
-    Inactive,
+    Inactive { value_destination: ProgramId },
 
     /// Paused status.
     ///

@@ -129,7 +129,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         outcome: DispatchOutcome,
     ) {
         match outcome {
-            DispatchOutcome::Exit { program_id } => {
+            DispatchOutcome::Exit { program_id, .. } => {
                 log::trace!("Dispatch outcome exit: {message_id} for program {program_id}")
             }
 

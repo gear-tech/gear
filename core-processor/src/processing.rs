@@ -669,7 +669,10 @@ pub fn process_success(
                 value_destination,
             });
 
-            DispatchOutcome::Exit { program_id }
+            DispatchOutcome::Exit {
+                program_id,
+                value_destination,
+            }
         }
     };
 

@@ -147,6 +147,9 @@ pub enum DispatchOutcome {
     Exit {
         /// Id of the program that was successfully exited.
         program_id: ProgramId,
+        /// Address where all remaining value of the program should
+        /// be transferred to.
+        value_destination: ProgramId,
     },
     /// Message was an initialization success.
     InitSuccess {
