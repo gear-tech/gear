@@ -332,7 +332,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         bytes memory rewardsCommitmentHash;
         if (_batchCommitment.rewardCommitments.length > 0) {
-            rewardsCommitmentHash = _commitRewards(router, _batchCommitment.rewardCommitments[0]);
+            Gear.RewardsCommitment calldata rewardsCommitment = _batchCommitment.rewardCommitments[0];
+            rewardsCommitmentHash = _commitRewards(router, rewardsCommitment);
+
+            if (rewardsCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = rewardsCommitment.timestamp;
+            }
         }
 
         // NOTE: Use maxTimestamp to validate signatures for all commitments.
