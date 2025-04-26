@@ -357,9 +357,13 @@ pub enum SimpleUnavailableActorError {
     #[display("Program was not created")]
     ProgramNotCreated = 3,
 
+    /// Program metadata verification failed.
+    #[display("Program metadata verification failed")]
+    MetadataVerificationFailure = 4,
+
     /// Program re-instrumentation failed.
     #[display("Program re-instrumentation failed")]
-    ReinstrumentationFailure = 4,
+    ReinstrumentationFailure = 5,
 
     /// Unsupported reason of inactive actor error.
     /// Variant exists for backward compatibility.
@@ -379,6 +383,7 @@ impl SimpleUnavailableActorError {
             b if Self::InitializationFailure as u8 == b => Self::InitializationFailure,
             b if Self::Uninitialized as u8 == b => Self::Uninitialized,
             b if Self::ProgramNotCreated as u8 == b => Self::ProgramNotCreated,
+            b if Self::MetadataVerificationFailure as u8 == b => Self::MetadataVerificationFailure,
             b if Self::ReinstrumentationFailure as u8 == b => Self::ReinstrumentationFailure,
             _ => Self::Unsupported,
         }

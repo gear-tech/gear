@@ -19,13 +19,14 @@
 use crate::{
     common::{
         ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
-        ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, JournalNote, SuccessfulDispatchResultKind, SystemExecutionError,
+        WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
     executor,
     ext::ProcessorExternalities,
-    precharge::SuccessfulDispatchResultKind,
+    ContextCharged, ForCodeMetadata, ForInstrumentedCode, ForProgram,
 };
 use alloc::{string::ToString, vec::Vec};
 use core::{fmt, fmt::Formatter};
@@ -57,7 +58,7 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
-    use crate::precharge::SuccessfulDispatchResultKind::*;
+    use crate::common::SuccessfulDispatchResultKind::*;
 
     let BlockConfig {
         block_info,
@@ -210,6 +211,8 @@ enum ProcessErrorCase {
     Uninitialized,
     /// Given code id for program creation doesn't exist.
     CodeNotExists,
+    /// Message is executable, but it's execution failed due to code metadata verification.
+    MetadataVerificationFailed,
     /// Message is executable, but its execution failed due to re-instrumentation.
     ReinstrumentationFailed,
     /// Error is considered as an execution failure.
@@ -240,6 +243,9 @@ impl ProcessErrorCase {
             ProcessErrorCase::CodeNotExists => {
                 ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramNotCreated)
             }
+            ProcessErrorCase::MetadataVerificationFailed => ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::MetadataVerificationFailure,
+            ),
             ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::UnavailableActor(
                 SimpleUnavailableActorError::ReinstrumentationFailure,
             ),
@@ -349,7 +355,9 @@ fn process_error(
     }
 
     let outcome = match case {
-        ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
+        ProcessErrorCase::ExecutionFailed { .. }
+        | ProcessErrorCase::ReinstrumentationFailed
+        | ProcessErrorCase::MetadataVerificationFailed => {
             let err_msg = case.to_string();
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
@@ -398,15 +406,10 @@ pub fn process_execution_error(
 
 /// Helper function for journal creation in program exited case.
 pub fn process_program_exited(
-    context: ContextChargedForProgram,
+    context: ContextCharged<ForProgram>,
     inheritor: ProgramId,
 ) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
@@ -420,13 +423,8 @@ pub fn process_program_exited(
 }
 
 /// Helper function for journal creation in program failed init case.
-pub fn process_failed_init(context: ContextChargedForProgram) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
+pub fn process_failed_init(context: ContextCharged<ForProgram>) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
@@ -440,13 +438,8 @@ pub fn process_failed_init(context: ContextChargedForProgram) -> Vec<JournalNote
 }
 
 /// Helper function for journal creation in program uninitialized case.
-pub fn process_uninitialized(context: ContextChargedForProgram) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
+pub fn process_uninitialized(context: ContextCharged<ForProgram>) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
@@ -460,13 +453,8 @@ pub fn process_uninitialized(context: ContextChargedForProgram) -> Vec<JournalNo
 }
 
 /// Helper function for journal creation in code not exists case.
-pub fn process_code_not_exists(context: ContextChargedForProgram) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
+pub fn process_code_not_exists(context: ContextCharged<ForProgram>) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
@@ -481,19 +469,35 @@ pub fn process_code_not_exists(context: ContextChargedForProgram) -> Vec<Journal
 
 /// Helper function for journal creation in case of re-instrumentation error.
 pub fn process_reinstrumentation_error(
-    context: ContextChargedForInstrumentation,
+    context: ContextCharged<ForInstrumentedCode>,
 ) -> Vec<JournalNote> {
-    let dispatch = context.data.dispatch;
-    let program_id = context.data.destination_id;
-    let gas_burned = context.data.gas_counter.burned();
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+
+    let gas_burned = gas_counter.burned();
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
         dispatch,
-        program_id,
+        destination_id,
         gas_burned,
         system_reservation_ctx,
         ProcessErrorCase::ReinstrumentationFailed,
+    )
+}
+
+/// Helper function for journal creation in case of metadata verification error.
+pub fn process_code_metadata_error(context: ContextCharged<ForCodeMetadata>) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+
+    let gas_burned = gas_counter.burned();
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_burned,
+        system_reservation_ctx,
+        ProcessErrorCase::MetadataVerificationFailed,
     )
 }
 
@@ -502,7 +506,7 @@ pub fn process_success(
     kind: SuccessfulDispatchResultKind,
     dispatch_result: DispatchResult,
 ) -> Vec<JournalNote> {
-    use crate::precharge::SuccessfulDispatchResultKind::*;
+    use crate::common::SuccessfulDispatchResultKind::*;
 
     let DispatchResult {
         dispatch,
