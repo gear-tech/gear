@@ -179,6 +179,13 @@ contract Mirror is IMirror {
 
     /// @dev Value never sent since goes to mailbox.
     function _sendMailboxedMessage(Gear.Message calldata _message) private {
+        if (!_tryParseAndEmitSailsEvent(_message)) {
+            emit Message(_message.id, _message.destination, _message.payload, _message.value);
+        }
+    }
+
+    /// @dev Tries to parse and emit Sails Event. Returns `true` in case of success and `false` in case of error.
+    function _tryParseAndEmitSailsEvent(Gear.Message calldata _message) private returns (bool) {
         bytes calldata payload = _message.payload;
 
         // The format in which the Sails contract sends events is as follows:
@@ -211,11 +218,11 @@ contract Mirror is IMirror {
                         topic1 := calldataload(add(payload.offset, 1))
                     }
 
-                    /*
-                    * @dev SECURITY:
-                    *      Very important check because custom events can match our hashes!
-                    *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
-                    */
+                    /**
+                     * @dev SECURITY:
+                     *      Very important check because custom events can match our hashes!
+                     *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
+                     */
                     if (
                         topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
                             && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
@@ -261,19 +268,20 @@ contract Mirror is IMirror {
                             }
                         }
 
-                        return;
+                        return true;
                     }
                 }
             }
         }
 
-        emit Message(_message.id, _message.destination, _message.payload, _message.value);
+        return false;
     }
 
     /// @dev Non-zero value always sent since never goes to mailbox.
     function _sendReplyMessage(Gear.Message calldata _message) private {
         _transferValue(_message.destination, _message.value);
 
+        //TODO: find some other way to get `encodeReply`
         if (_message.destination.code.length > 0) {
             bytes4 replyCode = _message.replyDetails.code;
             uint8 replyCodeDiscriminant = uint8(bytes1(replyCode));
@@ -283,10 +291,12 @@ contract Mirror is IMirror {
             if (replyCodeDiscriminant == 0) {
                 /* gear_core::message::ReplyCode::Success = 0 */
                 payload = _message.payload;
-            } else {
-                /* gear_core::message::ReplyCode::{Error = 1, Unsupported = 255} */
+            } else if (replyCodeDiscriminant == 1) {
+                /* gear_core::message::ReplyCode::Error = 1 */
                 payload =
                     abi.encodeWithSelector(ICallbacks.onErrorReply.selector, _message.id, _message.payload, replyCode);
+            } else {
+                revert("unknown replyCode");
             }
 
             (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
@@ -294,9 +304,9 @@ contract Mirror is IMirror {
             if (success) {
                 return;
             }
-        } else {
-            emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
         }
+
+        emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
     }
 
     function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32) {
