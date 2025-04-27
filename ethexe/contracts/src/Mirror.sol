@@ -198,83 +198,91 @@ contract Mirror is IMirror {
         // - `bytes32 topic4` (optional)
         // - `bytes payload` (optional)
         //    contains encoded data of event in form of `abi.encode(...)`.
-        if (_message.destination == ETH_EVENT_ADDR && _message.value == 0 && payload.length > 0) {
-            uint256 topicsLength;
+        if (!(_message.destination == ETH_EVENT_ADDR && _message.value == 0 && payload.length > 0)) {
+            return false;
+        }
+
+        uint256 topicsLength;
+        assembly ("memory-safe") {
+            // `248` right bit shift is required to remove extra bits since `calldataload` returns `uint256`
+            topicsLength := shr(248, calldataload(payload.offset))
+        }
+
+        if (!(topicsLength >= 1 && topicsLength <= 4)) {
+            return false;
+        }
+
+        uint256 topicsLengthInBytes;
+        unchecked {
+            topicsLengthInBytes = 1 + topicsLength * 32;
+        }
+
+        if (!(payload.length >= topicsLengthInBytes)) {
+            return false;
+        }
+
+        // we use offset 1 to skip `uint8 topicsLength`
+        bytes32 topic1;
+        assembly ("memory-safe") {
+            topic1 := calldataload(add(payload.offset, 1))
+        }
+
+        /**
+         * @dev SECURITY:
+         *      Very important check because custom events can match our hashes!
+         *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
+         */
+        if (
+            !(
+                topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
+                    && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
+                    && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
+                    && topic1 != Reply.selector && topic1 != ValueClaimed.selector
+            )
+        ) {
+            return false;
+        }
+
+        uint256 size;
+        unchecked {
+            size = payload.length - topicsLengthInBytes;
+        }
+
+        uint256 memPtr = Memory.allocate(size);
+        assembly ("memory-safe") {
+            calldatacopy(memPtr, add(payload.offset, topicsLengthInBytes), size)
+        }
+
+        // we use offset 1 to skip `uint8 topicsLength`
+        // regular offsets: `32`, `64`, `96`
+        bytes32 topic2;
+        bytes32 topic3;
+        bytes32 topic4;
+        assembly ("memory-safe") {
+            topic2 := calldataload(add(payload.offset, 33))
+            topic3 := calldataload(add(payload.offset, 65))
+            topic4 := calldataload(add(payload.offset, 97))
+        }
+
+        if (topicsLength == 1) {
             assembly ("memory-safe") {
-                // `248` right bit shift is required to remove extra bits since `calldataload` returns `uint256`
-                topicsLength := shr(248, calldataload(payload.offset))
+                log1(memPtr, size, topic1)
             }
-
-            if (topicsLength >= 1 && topicsLength <= 4) {
-                uint256 topicsLengthInBytes;
-                unchecked {
-                    topicsLengthInBytes = 1 + topicsLength * 32;
-                }
-
-                if (payload.length >= topicsLengthInBytes) {
-                    // we use offset 1 to skip `uint8 topicsLength`
-                    bytes32 topic1;
-                    assembly ("memory-safe") {
-                        topic1 := calldataload(add(payload.offset, 1))
-                    }
-
-                    /**
-                     * @dev SECURITY:
-                     *      Very important check because custom events can match our hashes!
-                     *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
-                     */
-                    if (
-                        topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
-                            && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
-                            && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
-                            && topic1 != Reply.selector && topic1 != ValueClaimed.selector
-                    ) {
-                        uint256 size;
-                        unchecked {
-                            size = payload.length - topicsLengthInBytes;
-                        }
-
-                        uint256 memPtr = Memory.allocate(size);
-                        assembly ("memory-safe") {
-                            calldatacopy(memPtr, add(payload.offset, topicsLengthInBytes), size)
-                        }
-
-                        // we use offset 1 to skip `uint8 topicsLength`
-                        // regular offsets: `32`, `64`, `96`
-                        bytes32 topic2;
-                        bytes32 topic3;
-                        bytes32 topic4;
-                        assembly ("memory-safe") {
-                            topic2 := calldataload(add(payload.offset, 33))
-                            topic3 := calldataload(add(payload.offset, 65))
-                            topic4 := calldataload(add(payload.offset, 97))
-                        }
-
-                        if (topicsLength == 1) {
-                            assembly ("memory-safe") {
-                                log1(memPtr, size, topic1)
-                            }
-                        } else if (topicsLength == 2) {
-                            assembly ("memory-safe") {
-                                log2(memPtr, size, topic1, topic2)
-                            }
-                        } else if (topicsLength == 3) {
-                            assembly ("memory-safe") {
-                                log3(memPtr, size, topic1, topic2, topic3)
-                            }
-                        } else if (topicsLength == 4) {
-                            assembly ("memory-safe") {
-                                log4(memPtr, size, topic1, topic2, topic3, topic4)
-                            }
-                        }
-
-                        return true;
-                    }
-                }
+        } else if (topicsLength == 2) {
+            assembly ("memory-safe") {
+                log2(memPtr, size, topic1, topic2)
+            }
+        } else if (topicsLength == 3) {
+            assembly ("memory-safe") {
+                log3(memPtr, size, topic1, topic2, topic3)
+            }
+        } else if (topicsLength == 4) {
+            assembly ("memory-safe") {
+                log4(memPtr, size, topic1, topic2, topic3, topic4)
             }
         }
 
-        return false;
+        return true;
     }
 
     /// @dev Non-zero value always sent since never goes to mailbox.
@@ -304,9 +312,9 @@ contract Mirror is IMirror {
             if (success) {
                 return;
             }
+        } else {
+            emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
         }
-
-        emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
     }
 
     function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32) {
