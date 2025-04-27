@@ -24,7 +24,6 @@ use crate::{
     system::System,
     Result, Value, MAX_USER_GAS_LIMIT,
 };
-use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     gas_metering::Schedule,
@@ -32,6 +31,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
+use parity_scale_codec::{Codec, Decode, Encode};
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -713,7 +713,9 @@ mod tests {
     use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
     use demo_constructor::{Arg, Scheme};
     use gear_core::ids::ActorId;
-    use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
+    use gear_core_errors::{
+        ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
+    };
 
     #[test]
     fn test_handle_signal() {
@@ -765,9 +767,11 @@ mod tests {
 
         res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
 
-        let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor)
-            .source(prog.id())
-            .dest(user_id);
+        let expected_log = Log::error_builder(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::InitializationFailure,
+        ))
+        .source(prog.id())
+        .dest(user_id);
 
         assert!(res.not_executed.contains(&skipped_mid));
         assert!(res.contains(&expected_log));

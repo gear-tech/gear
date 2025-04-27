@@ -20,7 +20,6 @@ use derive_more::Display;
 use wasmi::core::HostError;
 
 #[derive(Debug, Display)]
-#[display(fmt = "{message}")]
 pub struct CustomHostError {
     message: String,
 }

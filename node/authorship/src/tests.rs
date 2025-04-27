@@ -29,13 +29,13 @@ use crate::{
     block_builder::{BlockBuilder, BlockBuilderBuilder},
     ProposerFactory,
 };
-use codec::{Decode, Encode};
 use core::convert::TryFrom;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use frame_support::{assert_ok, storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
 use gear_core::program::Program;
 use pallet_gear_rpc_runtime_api::GearApi;
+use parity_scale_codec::{Decode, Encode};
 use parking_lot::{Mutex, RwLock};
 use runtime_primitives::{Block as TestBlock, BlockNumber};
 use sc_client_api::Backend as _;

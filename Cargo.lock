@@ -14,9 +14,9 @@ dependencies = [
 
 [[package]]
 name = "actor-system-error"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
 ]
 
 [[package]]
@@ -155,9 +155,9 @@ checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
 
 [[package]]
 name = "alloy"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f245ea9ef9be909776941c6c0ce829fb6b79cd6bfafa43762af7a702c4eb8ee4"
+checksum = "3287a60462d933cbc753a1a87439016d4eb717401f3052ff72742c6dd0dbce3f"
 dependencies = [
  "alloy-consensus",
  "alloy-contract",
@@ -191,9 +191,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2179ba839ac532f50279f5da2a6c5047f791f03f6f808b4dfab11327b97902f"
+checksum = "94ee204a7795e56b8e78013f5824d6ea6e4da457a4aaf6c72e4800c4d4987fce"
 dependencies = [
  "alloy-eips",
  "alloy-primitives 1.0.0",
@@ -214,9 +214,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus-any"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aec6f67bdc62aa277e0ec13c1b1fb396c8a62b65c8e9bd8c1d3583cc6d1a8dd3"
+checksum = "a16df75c656be4465ab411b88c5ec6bae4931ce806834efbf375ca85b8db6f9a"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -228,9 +228,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-contract"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5084cf42388dff75b255308194f9d3e67ae2a93ce7e24262a512cc4043ac1838"
+checksum = "258feff52f1e3be58b4d235ef85f5c0224905e371fb023dfbf758d5a7e027672"
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -317,9 +317,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "609515c1955b33af3d78d26357540f68c5551a90ef58fd53def04f2aa074ec43"
+checksum = "fd8ce6197b2cc38968c80c676372f383ed46051fb8600a421b5259f3f2d13a15"
 dependencies = [
  "alloy-eip2124",
  "alloy-eip2930",
@@ -337,9 +337,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-genesis"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dfec8348d97bd624901c6a4b22bb4c24df8a3128fc3d5e42d24f7b79dfa8588"
+checksum = "bc13f76f34587a9d5efd1d141dd6a596983be715922ccc488209e58dc643ec65"
 dependencies = [
  "alloy-eips",
  "alloy-primitives 1.0.0",
@@ -375,9 +375,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-rpc"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3994ab6ff6bdeb5aebe65381a8f6a47534789817570111555e8ac413e242ce06"
+checksum = "3593ce03c82601517eee458f67bb5dc642b9baff7016063f03a4ccbcfb52a387"
 dependencies = [
  "alloy-primitives 1.0.0",
  "alloy-sol-types 1.0.0",
@@ -389,9 +389,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-network"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0be3aa020a6d3aa7601185b4c1a7d6f3a5228cb5424352db63064b29a455c891"
+checksum = "36be8015a205bf2e6784b0367c0f29e87f901f5f9b80b0a9bb4e1411c65242fd"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -415,9 +415,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-network-primitives"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "498f2ee2eef38a6db0fc810c7bf7daebdf5f2fa8d04adb8bd53e54e91ddbdea3"
+checksum = "3449fdd0908f50fb68eef8c43201d73d4ff51882b36e2adaadab277a7539ce4f"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -428,9 +428,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-node-bindings"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60dd250ffe9514728daf5e84cac7193e221b85feffe3bea7d45f2b9fcbe6b885"
+checksum = "42972e4e6e05dd21d4e35b33c2cbacacb3ed9c678c944e8fdb303fda91751a5b"
 dependencies = [
  "alloy-genesis",
  "alloy-hardforks",
@@ -492,9 +492,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-provider"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d6ba76d476f475668925f858cc4db51781f12abdaa4e0274eb57a09f574e869"
+checksum = "16db7e6c225828a4540b1cce6047f06777c057df58386db9641827a2d1afb4f5"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -535,9 +535,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-pubsub"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04135d2fd7fa1fba3afe9f79ec2967259dbc0948e02fa0cd0e33a4a812e2cb0a"
+checksum = "2fbf7f3b22f7d34eb9aedf637bcdc5d4f47f5e028d3f7520f6ecc7fc75a7a027"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives 1.0.0",
@@ -578,9 +578,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-client"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d6a6985b48a536b47aa0aece56e6a0f49240ce5d33a7f0c94f1b312eda79aa1"
+checksum = "821fca097f02720cd2a53e785776e265f36288f8210aa9177c9de05e2c2724c3"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives 1.0.0",
@@ -605,9 +605,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bf27873220877cb15125eb6eec2f86c6e9b41473aca85844bd3d9d755bfc0a0"
+checksum = "30890a9856721a376e989283a17b2698acc3e1a612415abbca980aa4d29d7367"
 dependencies = [
  "alloy-primitives 1.0.0",
  "alloy-rpc-types-anvil",
@@ -620,9 +620,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-anvil"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c349f7339476f13e23308111dfeb67d136c11e7b2a6b1d162f6a124ad4ffb9b"
+checksum = "8702ccf7d241cb52fc6730561f7429c15158dacffe68c9127d2ab79d1657b862"
 dependencies = [
  "alloy-primitives 1.0.0",
  "alloy-rpc-types-eth",
@@ -632,9 +632,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-any"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1a40595b927dfb07218459037837dbc8de8500a26024bb6ff0548dd2ccc13e0"
+checksum = "93017fb350fe2c0cccda41f9be45352012696a5fbd08c5fef4be0df838999bfa"
 dependencies = [
  "alloy-consensus-any",
  "alloy-rpc-types-eth",
@@ -643,9 +643,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-beacon"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c08a6f2593a8b6401e579996a887b22794543e0ff5976c5c21ddd361755dec"
+checksum = "d77f86139dd3789a3b43201377844f40654f0038fcf34b5f167def6fa6f4c64f"
 dependencies = [
  "alloy-eips",
  "alloy-primitives 1.0.0",
@@ -657,9 +657,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-engine"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4235d79af20fe5583ca26096258fe9307571a345745c433cfd8c91b41aa2611e"
+checksum = "4f09bac3a6651e3e9e292e946a1fc393128aa1a572254e2ff641e9911f024f61"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -674,9 +674,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-eth"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2a9f64e0f69cfb6029e2a044519a1bdd44ce9fc334d5315a7b9837f7a6748e5"
+checksum = "d9f96bc409dee49f68d70bf1303c3b34d7153e185dda75caa8b72919a28cd6ac"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -694,9 +694,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-serde"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4dba6ff08916bc0a9cbba121ce21f67c0b554c39cf174bc7b9df6c651bd3c3b"
+checksum = "3fa2fc7f82a9884ff1632d2a2137d35fef4db9270c85668634a603be5948fcdc"
 dependencies = [
  "alloy-primitives 1.0.0",
  "serde",
@@ -705,9 +705,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c580da7f00f3999e44e327223044d6732358627f93043e22d92c583f6583556"
+checksum = "44eaf520bbb527ba90a3dd963aadf0c339595932169fb10f7330fe779336436e"
 dependencies = [
  "alloy-primitives 1.0.0",
  "async-trait",
@@ -720,9 +720,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer-local"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a00f0f07862bd8f6bc66c953660693c5903062c2c9d308485b2a6eee411089e7"
+checksum = "1f8d1f2edc446b52985a5af71cdbce86e8646865b889e38410594eea97804380"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -868,9 +868,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e1f1a55f9ff9a48aa0b4a8c616803754620010fbb266edae2f4548f4304373b"
+checksum = "609f69c9153df716e7e6ef002cba69f94b7635eb2c603fff69b664aa6acea93a"
 dependencies = [
  "alloy-json-rpc",
  "base64 0.22.1",
@@ -890,9 +890,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-http"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "171b3d8824b6697d6c8325373ec410d230b6c59ce552edfbfabe4e7b8a26aac3"
+checksum = "c2e60987afbc49b8719578355726059579a1a197741a2adae52f860d5d7464cc"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
@@ -905,9 +905,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-ws"
-version = "0.14.0"
+version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdde5b241745076bcbf2fcad818f2c42203bd2c5f4b50ea43b628ccbd2147ad6"
+checksum = "f48cc4f88d59463992251b89381760be901c4789a4721c657b832994331aff05"
 dependencies = [
  "alloy-pubsub",
  "alloy-transport",
@@ -2276,7 +2276,7 @@ dependencies = [
 
 [[package]]
 name = "calc-stack-height"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "gear-core",
@@ -2300,7 +2300,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-gbuild"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "cargo_metadata 0.19.2",
@@ -2818,18 +2818,18 @@ checksum = "3618cccc083bb987a415d85c02ca6c9994ea5b44731ec28b9ecf09658655fba9"
 
 [[package]]
 name = "const_format"
-version = "0.2.32"
+version = "0.2.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3a214c7af3d04997541b18d432afaff4c455e79e2029079647e72fc2bd27673"
+checksum = "126f97965c8ad46d6d9163268ff28432e8f6a1196a55578867832e3049df63dd"
 dependencies = [
  "const_format_proc_macros",
 ]
 
 [[package]]
 name = "const_format_proc_macros"
-version = "0.2.32"
+version = "0.2.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7f6ff08fd20f4f299298a28e2dfa8a8ba1036e6cd2460ac1de7b425d76f2500"
+checksum = "1d57c2eccfb16dbac1f4e61e206105db5820c9d26c3c472bc17c774259ef7744"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2865,6 +2865,15 @@ name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
+
+[[package]]
+name = "convert_case"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb402b8d4c85569410425650ce3eddc7d698ed96d39a73f941b08fb63082f1e7"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "core-foundation"
@@ -3022,7 +3031,7 @@ dependencies = [
 
 [[package]]
 name = "crates-io"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "cargo-http-registry",
@@ -3484,6 +3493,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-big-data-section"
+version = "1.8.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+ "proptest",
+]
+
+[[package]]
 name = "demo-bls381"
 version = "0.1.0"
 dependencies = [
@@ -3544,7 +3564,7 @@ dependencies = [
 
 [[package]]
 name = "demo-create-program-reentrance"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
@@ -3631,6 +3651,17 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-inheritor-in-error-reply"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
  "parity-scale-codec",
 ]
 
@@ -4113,7 +4144,7 @@ version = "0.99.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
 dependencies = [
- "convert_case",
+ "convert_case 0.4.0",
  "proc-macro2",
  "quote",
  "rustc_version 0.4.0",
@@ -4155,6 +4186,7 @@ version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
 dependencies = [
+ "convert_case 0.7.1",
  "proc-macro2",
  "quote",
  "syn 2.0.100",
@@ -4666,7 +4698,7 @@ checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 
 [[package]]
 name = "ethexe-cli"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
@@ -4691,7 +4723,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-common"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gear-core",
  "gprimitives",
@@ -4703,7 +4735,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-compute"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "ethexe-common",
@@ -4716,7 +4748,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-db"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "dashmap 5.5.3",
@@ -4734,7 +4766,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-ethereum"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "alloy",
  "anyhow",
@@ -4753,7 +4785,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-network"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4775,7 +4807,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-observer"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "alloy",
  "anyhow",
@@ -4799,7 +4831,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-processor"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "demo-async",
@@ -4826,7 +4858,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-prometheus"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "futures",
@@ -4838,7 +4870,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-rpc"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "ethexe-common",
@@ -4864,7 +4896,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "ethexe-common",
  "ethexe-runtime-common",
@@ -4879,10 +4911,10 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime-common"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "gear-core",
  "gear-core-errors",
@@ -4897,7 +4929,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-sequencer"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "ethexe-common",
@@ -4914,14 +4946,14 @@ dependencies = [
 
 [[package]]
 name = "ethexe-service"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "alloy",
  "anyhow",
  "demo-async",
  "demo-async-init",
  "demo-ping",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-compute",
  "ethexe-db",
@@ -4956,7 +4988,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-service-utils"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "futures",
  "log",
@@ -4965,11 +4997,11 @@ dependencies = [
 
 [[package]]
 name = "ethexe-signer"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "alloy",
  "anyhow",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "ethexe-common",
  "gprimitives",
  "hex",
@@ -4982,7 +5014,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-tx-pool"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "ethexe-common",
@@ -4996,7 +5028,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-validator"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "ethexe-common",
@@ -5946,14 +5978,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gear-dlmalloc",
 ]
 
 [[package]]
 name = "gbuiltin-bls381"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -5965,7 +5997,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-eth-bridge"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -5974,7 +6006,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-proxy"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -5982,7 +6014,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-staking"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -5990,7 +6022,7 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6025,7 +6057,7 @@ dependencies = [
 
 [[package]]
 name = "gclient"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "ark-bls12-381",
@@ -6071,7 +6103,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -6083,7 +6115,7 @@ dependencies = [
 
 [[package]]
 name = "gear-authorship"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "demo-constructor",
  "frame-support",
@@ -6155,10 +6187,10 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "clap 4.5.23",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-metadata-hash-extension",
@@ -6188,7 +6220,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "enum-iterator 1.5.0",
  "fail",
@@ -6213,7 +6245,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "quote",
  "syn 2.0.100",
@@ -6221,11 +6253,11 @@ dependencies = [
 
 [[package]]
 name = "gear-core"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "blake2 0.10.6",
  "byteorder",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "gear-core-errors",
  "gear-wasm-instrument",
@@ -6250,11 +6282,11 @@ dependencies = [
 
 [[package]]
 name = "gear-core-backend"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "gear-core",
  "gear-core-errors",
  "gear-lazy-pages-common",
@@ -6269,9 +6301,9 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "scale-info",
  "serde",
@@ -6279,10 +6311,10 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "actor-system-error",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "gear-core",
  "gear-core-backend",
@@ -6310,7 +6342,7 @@ dependencies = [
 
 [[package]]
 name = "gear-key-finder"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "directories",
  "hex",
@@ -6318,10 +6350,10 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "cfg-if",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "errno",
  "gear-core",
  "gear-lazy-pages-common",
@@ -6341,7 +6373,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-common"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gear-core",
  "num_enum 0.6.1",
@@ -6350,7 +6382,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-interface"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "byteorder",
  "gear-core",
@@ -6362,7 +6394,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-native-interface"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gear-core",
  "gear-lazy-pages",
@@ -6372,7 +6404,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
@@ -6399,7 +6431,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-testing"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-metadata-hash-extension",
  "frame-system",
@@ -6419,7 +6451,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-wrapper"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -6456,7 +6488,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-common"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6474,7 +6506,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-interface"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -6495,7 +6527,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-primitives"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "sp-core",
  "sp-runtime",
@@ -6503,7 +6535,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "assert_matches",
  "gear-sandbox-env",
@@ -6523,7 +6555,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-env"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "parity-scale-codec",
  "sp-debug-derive",
@@ -6533,7 +6565,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-host"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "atomic_enum",
  "defer",
@@ -6554,7 +6586,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-interface"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gear-sandbox-host",
  "log",
@@ -6565,7 +6597,7 @@ dependencies = [
 
 [[package]]
 name = "gear-service"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -6637,7 +6669,7 @@ dependencies = [
 
 [[package]]
 name = "gear-ss58"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "blake2 0.10.6",
  "bs58 0.5.1",
@@ -6646,14 +6678,14 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "gear-utils"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gear-core",
  "hex",
@@ -6684,7 +6716,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-builder"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "cargo_metadata 0.19.2",
@@ -6731,10 +6763,10 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "arbitrary",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "diff",
  "enum-iterator 1.5.0",
  "log",
@@ -6748,14 +6780,13 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-optimizer"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "colored",
  "gear-wasm-instrument",
  "log",
  "regex",
- "wasm-opt",
  "wasmer",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
@@ -6764,11 +6795,11 @@ dependencies = [
 
 [[package]]
 name = "gear-wasmer-cache"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "bytes",
  "demo-constructor",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "fs4",
  "log",
  "loom",
@@ -6986,11 +7017,11 @@ dependencies = [
 
 [[package]]
 name = "gprimitives"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "alloy-primitives 0.8.22",
  "alloy-sol-types 0.8.22",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "gear-ss58",
  "hex",
  "primitive-types",
@@ -7000,7 +7031,7 @@ dependencies = [
 
 [[package]]
 name = "gring"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7031,7 +7062,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7084,7 +7115,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-codegen"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7093,7 +7124,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "arrayvec 0.7.4",
  "const_format",
@@ -7112,7 +7143,7 @@ dependencies = [
 
 [[package]]
 name = "gstd-codegen"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gprimitives",
  "gstd",
@@ -7124,11 +7155,11 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "1.7.1"
+version = "1.8.0"
 
 [[package]]
 name = "gtest"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "cargo_toml",
  "colored",
@@ -7138,7 +7169,7 @@ dependencies = [
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "etc",
  "gear-common",
  "gear-core",
@@ -7847,13 +7878,13 @@ dependencies = [
 
 [[package]]
 name = "impl-trait-for-tuples"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11d7a9f6330b71fea57921c9b61c47ee6e84f72d394754eff6163ae67e7395eb"
+checksum = "a0eb5a3343abf848c0984fe4604b2b105da9539376e24fc0a3b0007411ae4fd9"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -8527,7 +8558,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arbitrary",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-wasm-gen",
@@ -10725,9 +10756,9 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "numerated"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "log",
  "num-traits",
  "proptest",
@@ -11068,7 +11099,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "blake2 0.10.6",
  "demo-async",
@@ -11116,7 +11147,7 @@ dependencies = [
  "demo-wait-timeout",
  "demo-waiter",
  "demo-waiting-proxy",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -11167,7 +11198,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-bank"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11186,7 +11217,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -11197,7 +11228,7 @@ dependencies = [
  "demo-proxy-broker",
  "demo-staking-broker",
  "demo-waiting-proxy",
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -11244,7 +11275,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "jsonrpsee 0.24.7",
  "pallet-gear-builtin-rpc-runtime-api",
@@ -11256,7 +11287,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc-runtime-api"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -11264,7 +11295,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-debug"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "demo-vec",
  "frame-benchmarking",
@@ -11300,7 +11331,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "binary-merkle-tree",
  "frame-benchmarking",
@@ -11342,7 +11373,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "jsonrpsee 0.24.7",
  "pallet-gear-eth-bridge-rpc-runtime-api",
@@ -11354,7 +11385,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc-runtime-api"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "pallet-gear-eth-bridge",
  "sp-api",
@@ -11363,7 +11394,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-gas"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11383,7 +11414,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-messenger"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11406,7 +11437,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-payment"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11435,7 +11466,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-proc-macro"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11444,7 +11475,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-program"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -11468,7 +11499,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "gear-common",
  "gear-core-errors",
@@ -11482,7 +11513,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc-runtime-api"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "pallet-gear",
  "sp-api",
@@ -11493,7 +11524,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-scheduler"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11523,7 +11554,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -11556,7 +11587,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "jsonrpsee 0.24.7",
  "pallet-gear-staking-rewards-rpc-runtime-api",
@@ -11567,7 +11598,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc-runtime-api"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "pallet-gear-staking-rewards",
  "sp-api",
@@ -11575,9 +11606,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-voucher"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
- "derive_more 0.99.18",
+ "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -12040,29 +12071,31 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "3.6.12"
+version = "3.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "306800abfa29c7f16596b5970a588435e3d5b3149683d00c12b699cc19f895ee"
+checksum = "c9fde3d0718baf5bc92f577d652001da0f8d54cd03a7974e118d04fc888dc23d"
 dependencies = [
  "arrayvec 0.7.4",
  "bitvec",
  "byte-slice-cast",
  "bytes",
+ "const_format",
  "impl-trait-for-tuples",
  "parity-scale-codec-derive",
+ "rustversion",
  "serde",
 ]
 
 [[package]]
 name = "parity-scale-codec-derive"
-version = "3.6.12"
+version = "3.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d830939c76d294956402033aee57a6da7b438f2294eb94864c37b0569053a42c"
+checksum = "581c837bb6b9541ce7faa9377c20616e4fb7650f6b0f68bc93c827ee504fb7b3"
 dependencies = [
  "proc-macro-crate 3.1.0",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -13129,9 +13162,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.37"
+version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
+checksum = "1885c039570dc00dcb4ff087a89e185fd56bae234ddc7f056a945bf36467248d"
 dependencies = [
  "proc-macro2",
 ]
@@ -15534,9 +15567,9 @@ checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "serde"
-version = "1.0.210"
+version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8e3592472072e6e22e0a54d5904d9febf8508f65fb8552499a1abc7d1078c3a"
+checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
 dependencies = [
  "serde_derive",
 ]
@@ -15582,9 +15615,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.210"
+version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "243902eda00fad750862fc144cea25caca5e20d615af0a81bee94ca738f1df1f"
+checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -18458,7 +18491,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vara-runtime"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "const-str",
  "frame-benchmarking",
@@ -18834,7 +18867,7 @@ dependencies = [
 
 [[package]]
 name = "wasm-proc"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "clap 4.5.23",
  "gear-wasm-builder",

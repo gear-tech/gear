@@ -4,7 +4,10 @@ pragma solidity ^0.8.28;
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Gear} from "./libraries/Gear.sol";
 
+import {IMiddleware} from "./IMiddleware.sol";
+import {IRouter} from "./IRouter.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {IRegistry} from "symbiotic-core/src/interfaces/common/IRegistry.sol";
@@ -15,135 +18,108 @@ import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService
 import {INetworkMiddlewareService} from "symbiotic-core/src/interfaces/service/INetworkMiddlewareService.sol";
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratableEntity.sol";
+import {IDefaultOperatorRewards} from
+    "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
+import {IDefaultOperatorRewardsFactory} from
+    "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
+import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
+import {IDefaultStakerRewardsFactory} from
+    "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewardsFactory.sol";
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 // TODO (asap): document all functions and variables
-// TODO (asap): implement rewards distribution
 // TODO (asap): add validators commission
 // TODO: introduce common struct for address and balance/value
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
-contract Middleware {
+// TODO: implement migreatable or upgreadable logic
+contract Middleware is IMiddleware {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
+
+    using EnumerableMap for EnumerableMap.AddressToAddressMap;
+    using MapWithTimeData for EnumerableMap.AddressToAddressMap;
+
     using Subnetwork for address;
 
-    error NotKnownVault();
-    error VaultWrongEpochDuration();
-    error UnknownCollateral();
-    error OperatorGracePeriodNotPassed();
-    error VaultGracePeriodNotPassed();
-    error NotVaultOwner();
-    error IncorrectTimestamp();
-    error OperatorDoesNotExist();
-    error OperatorDoesNotOptIn();
-    error UnsupportedHook();
-    error UnsupportedBurner();
-    error DelegatorNotInitialized();
-    error SlasherNotInitialized();
-    error IncompatibleSlasherType();
-    error BurnerHookNotSupported();
-    error VetoDurationTooShort();
-    error VetoDurationTooLong();
-    error IncompatibleVaultVersion();
-    error NotRegisteredVault();
-    error NotRegisteredOperator();
-    error RoleMismatch();
-    error ResolverMismatch();
-    error ResolverSetDelayTooLong();
-
-    struct VaultSlashData {
-        address vault;
-        uint256 amount;
-    }
-
-    struct SlashData {
-        address operator;
-        uint48 ts;
-        VaultSlashData[] vaults;
-    }
-
-    struct SlashIdentifier {
-        address vault;
-        uint256 index;
-    }
-
-    struct Config {
-        uint48 eraDuration;
-        uint48 minVaultEpochDuration;
-        uint48 operatorGracePeriod;
-        uint48 vaultGracePeriod;
-        uint48 minVetoDuration;
-        uint48 minSlashExecutionDelay;
-        uint256 maxResolverSetEpochsDelay;
-        address vaultRegistry;
-        uint64 allowedVaultImplVersion;
-        uint64 vetoSlasherImplType;
-        address operatorRegistry;
-        address networkRegistry;
-        address networkOptIn;
-        address middlewareService;
-        address collateral;
-        address roleSlashRequester;
-        address roleSlashExecutor;
-        address vetoResolver;
-    }
-
     uint96 public constant NETWORK_IDENTIFIER = 0;
+    uint48 public immutable ERA_DURATION;
+    uint48 public immutable MIN_VAULT_EPOCH_DURATION;
+    uint48 public immutable OPERATOR_GRACE_PERIOD;
+    uint48 public immutable VAULT_GRACE_PERIOD;
+    uint48 public immutable MIN_VETO_DURATION;
+    uint48 public immutable MIN_SLASH_EXECUTION_DELAY;
+    uint64 public immutable ALLOWED_VAULT_IMPL_VERSION;
+    uint64 public immutable VETO_SLASHER_IMPL_TYPE;
+    uint256 public immutable MAX_RESOLVER_SET_EPOCHS_DELAY;
 
-    uint48 public immutable eraDuration;
-    uint48 public immutable minVaultEpochDuration;
-    uint48 public immutable operatorGracePeriod;
-    uint48 public immutable vaultGracePeriod;
-    uint48 public immutable minVetoDuration;
-    uint48 public immutable minSlashExecutionDelay;
-    uint256 public immutable maxResolverSetEpochsDelay;
-    address public immutable vaultRegistry;
-    uint64 public immutable allowedVaultImplVersion;
-    uint64 public immutable vetoSlasherImplType;
-    address public immutable operatorRegistry;
-    address public immutable networkRegistry;
-    address public immutable networkOptIn;
-    address public immutable middlewareService;
-    address public immutable collateral;
-    address public immutable vetoResolver;
-    bytes32 public immutable subnetwork;
+    address public immutable VAULT_REGISTRY;
+    address public immutable OPERATOR_REGISTRY;
+    address public immutable NETWORK_REGISTRY;
+    address public immutable NETWORK_OPT_IN;
+    address public immutable MIDDLEWARE_SERVICE;
+
+    // TODO #4609
+    address public immutable COLLATERAL;
+    address public immutable VETO_RESOLVER;
+    bytes32 public immutable SUBNETWORK;
+
+    address public immutable OPERATOR_REWARDS;
+    address public immutable OPERATOR_REWARDS_FACTORY;
+    address public immutable STAKER_REWARDS_FACTORY;
+
+    // TODO: calculate better commission for admin fee
+    uint256 public MAX_ADMIN_FEE = 1000;
+
+    address public immutable ROUTER;
 
     address public roleSlashRequester;
     address public roleSlashExecutor;
 
+    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
+
     EnumerableMap.AddressToUintMap private operators;
+
+    // vault -> (enableTime, disableTime, rewards)
     EnumerableMap.AddressToUintMap private vaults;
 
-    constructor(Config memory cfg) {
-        _validateConfiguration(cfg);
+    constructor(InitParams memory params) {
+        _validateInitParams(params);
 
-        eraDuration = cfg.eraDuration;
-        minVaultEpochDuration = cfg.minVaultEpochDuration;
-        operatorGracePeriod = cfg.operatorGracePeriod;
-        vaultGracePeriod = cfg.vaultGracePeriod;
-        minVetoDuration = cfg.minVetoDuration;
-        minSlashExecutionDelay = cfg.minSlashExecutionDelay;
-        maxResolverSetEpochsDelay = cfg.maxResolverSetEpochsDelay;
-        vaultRegistry = cfg.vaultRegistry;
-        allowedVaultImplVersion = cfg.allowedVaultImplVersion;
-        vetoSlasherImplType = cfg.vetoSlasherImplType;
-        operatorRegistry = cfg.operatorRegistry;
-        networkRegistry = cfg.networkRegistry;
-        networkOptIn = cfg.networkOptIn;
-        middlewareService = cfg.middlewareService;
-        collateral = cfg.collateral;
-        roleSlashRequester = cfg.roleSlashRequester;
-        roleSlashExecutor = cfg.roleSlashExecutor;
-        vetoResolver = cfg.vetoResolver;
+        ROUTER = params.router;
 
-        subnetwork = address(this).subnetwork(NETWORK_IDENTIFIER);
+        ERA_DURATION = params.eraDuration;
+        MIN_VAULT_EPOCH_DURATION = params.minVaultEpochDuration;
+        OPERATOR_GRACE_PERIOD = params.operatorGracePeriod;
+        VAULT_GRACE_PERIOD = params.vaultGracePeriod;
+        MIN_VETO_DURATION = params.minVetoDuration;
+        MIN_SLASH_EXECUTION_DELAY = params.minSlashExecutionDelay;
+        MAX_RESOLVER_SET_EPOCHS_DELAY = params.maxResolverSetEpochsDelay;
+        VAULT_REGISTRY = params.vaultRegistry;
+        ALLOWED_VAULT_IMPL_VERSION = params.allowedVaultImplVersion;
+        VETO_SLASHER_IMPL_TYPE = params.vetoSlasherImplType;
+        OPERATOR_REGISTRY = params.operatorRegistry;
+        NETWORK_REGISTRY = params.networkRegistry;
+        NETWORK_OPT_IN = params.networkOptIn;
+        MIDDLEWARE_SERVICE = params.middlewareService;
+        COLLATERAL = params.collateral;
+        VETO_RESOLVER = params.vetoResolver;
+
+        roleSlashRequester = params.roleSlashRequester;
+        roleSlashExecutor = params.roleSlashExecutor;
+
+        SUBNETWORK = address(this).subnetwork(NETWORK_IDENTIFIER);
+
+        OPERATOR_REWARDS = params.operatorRewards;
+        OPERATOR_REWARDS_FACTORY = params.operatorRewardsFactory;
+        STAKER_REWARDS_FACTORY = params.stakerRewardsFactory;
 
         // Presently network and middleware are the same address
-        INetworkRegistry(networkRegistry).registerNetwork();
-        INetworkMiddlewareService(middlewareService).setMiddleware(address(this));
+        INetworkRegistry(NETWORK_REGISTRY).registerNetwork();
+        INetworkMiddlewareService(MIDDLEWARE_SERVICE).setMiddleware(address(this));
     }
 
     function changeSlashRequester(address newRole) external _onlyRole(roleSlashRequester) {
@@ -156,10 +132,10 @@ contract Middleware {
 
     // TODO: Check that total stake is big enough
     function registerOperator() external {
-        if (!IRegistry(operatorRegistry).isEntity(msg.sender)) {
+        if (!IRegistry(OPERATOR_REGISTRY).isEntity(msg.sender)) {
             revert OperatorDoesNotExist();
         }
-        if (!IOptInService(networkOptIn).isOptedIn(msg.sender, address(this))) {
+        if (!IOptInService(NETWORK_OPT_IN).isOptedIn(msg.sender, address(this))) {
             revert OperatorDoesNotOptIn();
         }
         operators.append(msg.sender, 0);
@@ -176,108 +152,83 @@ contract Middleware {
     function unregisterOperator(address operator) external {
         (, uint48 disabledTime) = operators.getTimes(operator);
 
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + operatorGracePeriod) {
+        if (disabledTime == 0 || Time.timestamp() < disabledTime + OPERATOR_GRACE_PERIOD) {
             revert OperatorGracePeriodNotPassed();
         }
 
         operators.remove(operator);
     }
 
-    // TODO: check vault has enough stake
-    function registerVault(address vault) external {
-        if (!IRegistry(vaultRegistry).isEntity(vault)) {
-            revert NotKnownVault();
-        }
-
-        if (IMigratableEntity(vault).version() != allowedVaultImplVersion) {
-            revert IncompatibleVaultVersion();
-        }
-
-        uint48 vaultEpochDuration = IVault(vault).epochDuration();
-        if (vaultEpochDuration < minVaultEpochDuration) {
-            revert VaultWrongEpochDuration();
-        }
-
-        if (IVault(vault).collateral() != collateral) {
+    function distributeOperatorRewards(address token, uint256 amount, bytes32 root)
+        external
+        _onlyRouter
+        returns (bytes32)
+    {
+        if (token != COLLATERAL) {
             revert UnknownCollateral();
         }
 
-        if (!IVault(vault).isDelegatorInitialized()) {
-            revert DelegatorNotInitialized();
-        }
+        IDefaultOperatorRewards(OPERATOR_REWARDS).distributeRewards(ROUTER, token, amount, root);
 
-        if (!IVault(vault).isSlasherInitialized()) {
-            revert SlasherNotInitialized();
-        }
-
-        IBaseDelegator delegator = IBaseDelegator(IVault(vault).delegator());
-        if (delegator.maxNetworkLimit(subnetwork) != type(uint256).max) {
-            delegator.setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
-        }
-        _delegatorHookCheck(IBaseDelegator(delegator).hook());
-
-        address slasher = IVault(vault).slasher();
-        if (IEntity(slasher).TYPE() != vetoSlasherImplType) {
-            revert IncompatibleSlasherType();
-        }
-        if (IVetoSlasher(slasher).isBurnerHook()) {
-            revert BurnerHookNotSupported();
-        }
-        uint48 vetoDuration = IVetoSlasher(slasher).vetoDuration();
-        if (vetoDuration < minVetoDuration) {
-            revert VetoDurationTooShort();
-        }
-        if (vetoDuration + minSlashExecutionDelay > vaultEpochDuration) {
-            revert VetoDurationTooLong();
-        }
-        if (IVetoSlasher(slasher).resolverSetEpochsDelay() > maxResolverSetEpochsDelay) {
-            revert ResolverSetDelayTooLong();
-        }
-
-        address resolver = IVetoSlasher(slasher).resolver(subnetwork, new bytes(0));
-        if (resolver == address(0)) {
-            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, vetoResolver, new bytes(0));
-        } else if (resolver != vetoResolver) {
-            // TODO: consider how to support this case
-            revert ResolverMismatch();
-        }
-
-        _burnerCheck(IVault(vault).burner());
-
-        vaults.append(vault, uint160(msg.sender));
+        return keccak256(abi.encodePacked(token, amount, root));
     }
 
-    function disableVault(address vault) external {
-        address vault_owner = address(vaults.getPinnedData(vault));
-
-        if (vault_owner != msg.sender) {
-            revert NotVaultOwner();
+    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _commitment, uint48 timestamp)
+        external
+        _onlyRouter
+        returns (bytes32)
+    {
+        if (_commitment.token != COLLATERAL) {
+            revert UnknownCollateral();
         }
 
+        bytes memory rewardsHashes;
+        for (uint256 i = 0; i < _commitment.distribution.length; ++i) {
+            Gear.StakerRewards memory rewards = _commitment.distribution[i];
+
+            if (!vaults.contains(rewards.vault)) {
+                revert UnknownVault();
+            }
+
+            address rewardsAddress = address(vaults.getPinnedData(rewards.vault));
+
+            bytes memory data = abi.encode(timestamp, MAX_ADMIN_FEE, bytes(""), bytes(""));
+            IDefaultStakerRewards(rewardsAddress).distributeRewards(ROUTER, _commitment.token, rewards.amount, data);
+
+            bytes32 rewardsHash =
+                keccak256(abi.encodePacked(_commitment.token, rewards.amount, rewards.vault, timestamp));
+            rewardsHashes = bytes.concat(rewardsHashes, rewardsHash);
+        }
+
+        return keccak256(rewardsHashes);
+    }
+
+    function registerVault(address _vault, address _rewards) external _vaultOwner(_vault) {
+        _validateVault(_vault);
+        _validateStakerRewards(_vault, _rewards);
+
+        vaults.append(_vault, uint160(_rewards));
+    }
+
+    function disableVault(address vault) external _vaultOwner(vault) {
         vaults.disable(vault);
     }
 
-    function enableVault(address vault) external {
-        address vault_owner = address(vaults.getPinnedData(vault));
-
-        if (vault_owner != msg.sender) {
-            revert NotVaultOwner();
-        }
-
+    function enableVault(address vault) external _vaultOwner(vault) {
         vaults.enable(vault);
     }
 
-    function unregisterVault(address vault) external {
+    function unregisterVault(address vault) external _vaultOwner(vault) {
         (, uint48 disabledTime) = vaults.getTimes(vault);
 
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + vaultGracePeriod) {
+        if (disabledTime == 0 || Time.timestamp() < disabledTime + VAULT_GRACE_PERIOD) {
             revert VaultGracePeriodNotPassed();
         }
 
         vaults.remove(vault);
     }
 
-    function makeElectionAt(uint48 ts, uint256 maxValidators) public view returns (address[] memory) {
+    function makeElectionAt(uint48 ts, uint256 maxValidators) external view returns (address[] memory) {
         require(maxValidators > 0, "Max validators must be greater than zero");
 
         (address[] memory activeOperators, uint256[] memory stakes) = getActiveOperatorsStakeAt(ts);
@@ -320,7 +271,12 @@ contract Middleware {
         return activeOperators;
     }
 
-    function getOperatorStakeAt(address operator, uint48 ts) public view _validTimestamp(ts) returns (uint256 stake) {
+    function getOperatorStakeAt(address operator, uint48 ts)
+        external
+        view
+        _validTimestamp(ts)
+        returns (uint256 stake)
+    {
         (uint48 enabledTime, uint48 disabledTime) = operators.getTimes(operator);
         if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
             return 0;
@@ -375,7 +331,7 @@ contract Middleware {
 
                 address slasher = IVault(vaultData.vault).slasher();
                 IVetoSlasher(slasher).requestSlash(
-                    subnetwork, slashData.operator, vaultData.amount, slashData.ts, new bytes(0)
+                    SUBNETWORK, slashData.operator, vaultData.amount, slashData.ts, new bytes(0)
                 );
             }
         }
@@ -401,7 +357,7 @@ contract Middleware {
                 continue;
             }
 
-            stake += IBaseDelegator(IVault(vault).delegator()).stakeAt(subnetwork, operator, ts, new bytes(0));
+            stake += IBaseDelegator(IVault(vault).delegator()).stakeAt(SUBNETWORK, operator, ts, new bytes(0));
         }
     }
 
@@ -416,51 +372,131 @@ contract Middleware {
         }
     }
 
-    // Supports only null burner for now
-    function _burnerCheck(address burner) private pure {
-        if (burner == address(0)) {
-            revert UnsupportedBurner();
-        }
-    }
-
-    function _validateConfiguration(Config memory cfg) private pure {
-        require(cfg.eraDuration > 0, "Era duration cannot be zero");
+    function _validateInitParams(InitParams memory params) private pure {
+        require(params.eraDuration > 0, "Era duration cannot be zero");
 
         // Middleware must support cases when election for next era is made before the start of the next era,
         // so the min vaults epoch duration must be bigger than `eraDuration + electionDelay`.
         // The election delay is less than or equal to the era duration, so limit `2 * eraDuration` is enough.
         require(
-            cfg.minVaultEpochDuration >= 2 * cfg.eraDuration, "Min vaults epoch duration must be bigger than 2 eras"
+            params.minVaultEpochDuration >= 2 * params.eraDuration,
+            "Min vaults epoch duration must be bigger than 2 eras"
         );
 
         // Operator grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
         require(
-            cfg.operatorGracePeriod >= cfg.minVaultEpochDuration,
+            params.operatorGracePeriod >= params.minVaultEpochDuration,
             "Operator grace period must be bigger than min vaults epoch duration"
         );
 
         // Vault grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
         require(
-            cfg.vaultGracePeriod >= cfg.minVaultEpochDuration,
+            params.vaultGracePeriod >= params.minVaultEpochDuration,
             "Vault grace period must be bigger than min vaults epoch duration"
         );
 
         // Give some time for the resolvers to veto slashes.
-        require(cfg.minVetoDuration > 0, "Veto duration cannot be zero");
+        require(params.minVetoDuration > 0, "Veto duration cannot be zero");
 
         // Symbiotic guarantees that any veto slasher has veto duration less than vault epoch duration.
         // But we also want to guarantee that there is some time to execute the slash.
-        require(cfg.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
+        require(params.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
         require(
-            cfg.minVetoDuration + cfg.minSlashExecutionDelay <= cfg.minVaultEpochDuration,
+            params.minVetoDuration + params.minSlashExecutionDelay <= params.minVaultEpochDuration,
             "Veto duration and slash execution delay must be less than or equal to min vaults epoch duration"
         );
 
         // In order to be able to change resolver, we need to limit max delay in epochs.
         // `3` - is minimal number of epochs, which is symbiotic veto slasher impl restrictions.
-        require(cfg.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
+        require(params.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
+    }
+
+    // TODO: check vault has enough stake
+    function _validateVault(address _vault) private {
+        if (!IRegistry(VAULT_REGISTRY).isEntity(_vault)) {
+            revert NonFactoryVault();
+        }
+
+        if (IMigratableEntity(_vault).version() != ALLOWED_VAULT_IMPL_VERSION) {
+            revert IncompatibleVaultVersion();
+        }
+
+        if (IVault(_vault).collateral() != COLLATERAL) {
+            revert UnknownCollateral();
+        }
+
+        /* Checking time */
+        uint48 vaultEpochDuration = IVault(_vault).epochDuration();
+        if (vaultEpochDuration < MIN_VAULT_EPOCH_DURATION) {
+            revert VaultWrongEpochDuration();
+        }
+
+        /* Validate delegator */
+        if (!IVault(_vault).isDelegatorInitialized()) {
+            revert DelegatorNotInitialized();
+        }
+
+        IBaseDelegator delegator = IBaseDelegator(IVault(_vault).delegator());
+        if (delegator.maxNetworkLimit(SUBNETWORK) != type(uint256).max) {
+            delegator.setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
+        }
+        _delegatorHookCheck(IBaseDelegator(delegator).hook());
+
+        /* Validate Slasher */
+        if (!IVault(_vault).isSlasherInitialized()) {
+            revert SlasherNotInitialized();
+        }
+
+        address slasher = IVault(_vault).slasher();
+        if (IEntity(slasher).TYPE() != VETO_SLASHER_IMPL_TYPE) {
+            revert IncompatibleSlasherType();
+        }
+
+        if (IVetoSlasher(slasher).isBurnerHook()) {
+            revert BurnerHookNotSupported();
+        }
+
+        uint48 vetoDuration = IVetoSlasher(slasher).vetoDuration();
+        if (vetoDuration < MIN_VETO_DURATION) {
+            revert VetoDurationTooShort();
+        }
+
+        if (vetoDuration + MIN_SLASH_EXECUTION_DELAY > vaultEpochDuration) {
+            revert VetoDurationTooLong();
+        }
+
+        if (IVetoSlasher(slasher).resolverSetEpochsDelay() > MAX_RESOLVER_SET_EPOCHS_DELAY) {
+            revert ResolverSetDelayTooLong();
+        }
+
+        address resolver = IVetoSlasher(slasher).resolver(SUBNETWORK, new bytes(0));
+        if (resolver == address(0)) {
+            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, VETO_RESOLVER, new bytes(0));
+        } else if (resolver != VETO_RESOLVER) {
+            // TODO: consider how to support this case
+            revert ResolverMismatch();
+        }
+
+        // TODO: consider allow transfer burned funds to ROUTER address
+        if (IVault(_vault).burner() == address(0)) {
+            revert UnsupportedBurner();
+        }
+    }
+
+    function _validateStakerRewards(address _vault, address _rewards) private view {
+        if (!IRegistry(STAKER_REWARDS_FACTORY).isEntity(_rewards)) {
+            revert UnknownStakerRewards();
+        }
+
+        if (IDefaultStakerRewards(_rewards).VAULT() != _vault) {
+            revert InvalidStakerRewardsVault();
+        }
+
+        if (IDefaultStakerRewards(_rewards).version() != 2) {
+            revert IncompatibleStakerRewardsVersion();
+        }
     }
 
     // Timestamp must be always in the past, but not too far,
@@ -470,7 +506,7 @@ contract Middleware {
             revert IncorrectTimestamp();
         }
 
-        uint48 gracePeriod = operatorGracePeriod < vaultGracePeriod ? operatorGracePeriod : vaultGracePeriod;
+        uint48 gracePeriod = OPERATOR_GRACE_PERIOD < VAULT_GRACE_PERIOD ? OPERATOR_GRACE_PERIOD : VAULT_GRACE_PERIOD;
         if (ts + gracePeriod <= Time.timestamp()) {
             revert IncorrectTimestamp();
         }
@@ -478,9 +514,24 @@ contract Middleware {
         _;
     }
 
+    // TODO: consider to remove this
     modifier _onlyRole(address role) {
         if (msg.sender != role) {
             revert RoleMismatch();
+        }
+        _;
+    }
+
+    modifier _vaultOwner(address vault) {
+        if (!IAccessControl(vault).hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert NotVaultOwner();
+        }
+        _;
+    }
+
+    modifier _onlyRouter() {
+        if (msg.sender != ROUTER) {
+            revert NotRouter();
         }
         _;
     }

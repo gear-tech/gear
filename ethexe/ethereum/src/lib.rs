@@ -167,6 +167,7 @@ impl Ethereum {
                     _owner: deployer_address,
                     _mirror: mirror_address,
                     _wrappedVara: wvara_address,
+                    _middleware: Address::ZERO,
                     _eraDuration: U256::from(24 * 60 * 60),
                     _electionDuration: U256::from(2 * 60 * 60),
                     _validationDelay: U256::from(60),
