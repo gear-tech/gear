@@ -2,8 +2,14 @@
 pragma solidity ^0.8.28;
 
 /// @dev This is custom implementation of ERC1167 that supports upgrades.
+///
+///      Unlike ERC1167, which stores `implementation` address in bytecode
+///      and then does `delegatecall` on it, we store `ROUTER` address
+///      in bytecode and call `IRouter(ROUTER.mirrorImpl())` to get
+///      last address of latest `Mirror` implementation.
+///
 ///      Used for contracts that have their own communication protocol
-///      (contracts not using the Sails framework).
+///      (contracts not using Sails framework).
 contract MirrorProxySmall {
     address internal constant ROUTER = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
