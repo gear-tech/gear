@@ -53,7 +53,7 @@ use gear_core_backend::{
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
     },
-    BackendExternalities,
+    BackendExternalities, MemoryStorer,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
@@ -168,18 +168,8 @@ pub trait ProcessorExternalities {
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
-    /// Dump current program memory.
-    fn dump_memory<Context>(
-        ctx: &Context,
-        memory: &impl Memory<Context>,
-    ) -> Result<MemoryDump, MemoryError>;
-
-    /// Set current program memory.
-    fn set_memory<Context>(
-        ctx: &mut Context,
-        memory: &impl Memory<Context>,
-        memory_dump: &MemoryDump,
-    ) -> Result<(), MemoryError>;
+    /// Create MemoryDumper
+    fn memory_dumper() -> impl MemoryStorer;
 
     /// Convert externalities into info.
     fn into_ext_info<Context>(
@@ -307,6 +297,43 @@ impl BackendAllocSyscallError for AllocExtError {
             Self::Charge(err) => Ok(err.into()),
             err => Err(err),
         }
+    }
+}
+
+pub struct MemoryDumper<LP: LazyPagesInterface> {
+    dump: MemoryDump,
+    _phantom: PhantomData<LP>,
+}
+
+impl<LP: LazyPagesInterface> MemoryStorer for MemoryDumper<LP> {
+    fn dump_memory<Context>(
+        &mut self,
+        ctx: &Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<MemoryDump, MemoryError> {
+        let accessed_pages = LP::get_write_accessed_pages();
+
+        let mut pages_data = MemoryDump::new();
+        for page in accessed_pages {
+            let mut data = PageBuf::new_zeroed();
+            memory.read(ctx, page.offset(), &mut data)?;
+            pages_data.try_push(PageDump { page, data })?;
+        }
+
+        Ok(pages_data)
+    }
+
+    fn revert_memory<Context>(
+        &self,
+        ctx: &mut Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<(), MemoryError> {
+        for page_dump in self.dump.inner() {
+            let page = page_dump.page;
+            memory.write(ctx, page.offset(), &page_dump.data)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -575,33 +602,11 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
         }
     }
 
-    fn dump_memory<Context>(
-        ctx: &Context,
-        memory: &impl Memory<Context>,
-    ) -> Result<MemoryDump, MemoryError> {
-        let accessed_pages = LP::get_write_accessed_pages();
-
-        let mut pages_data = MemoryDump::new();
-        for page in accessed_pages {
-            let mut data = PageBuf::new_zeroed();
-            memory.read(ctx, page.offset(), &mut data)?;
-            pages_data.try_push(PageDump { page, data })?;
+    fn memory_dumper() -> impl MemoryStorer {
+        MemoryDumper {
+            dump: MemoryDump::new(),
+            _phantom: PhantomData::<LP>,
         }
-
-        Ok(pages_data)
-    }
-
-    fn set_memory<Context>(
-        ctx: &mut Context,
-        memory: &impl Memory<Context>,
-        memory_dump: &MemoryDump,
-    ) -> Result<(), MemoryError> {
-        for page_dump in memory_dump.inner() {
-            let page = page_dump.page;
-            memory.write(ctx, page.offset(), &page_dump.data)?;
-        }
-
-        Ok(())
     }
 
     fn into_ext_info<Context>(

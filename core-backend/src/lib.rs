@@ -35,7 +35,7 @@ pub mod state;
 use gear_core::{
     env::Externalities,
     gas::{CountersOwner, GasAmount},
-    memory::MemoryInterval,
+    memory::{Memory, MemoryDump, MemoryError, MemoryInterval},
 };
 use gear_lazy_pages_common::ProcessAccessError;
 
@@ -50,6 +50,20 @@ pub trait BackendExternalities: Externalities + CountersOwner {
         writes: &[MemoryInterval],
         gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError>;
+}
+
+pub trait MemoryStorer {
+    fn dump_memory<Context>(
+        &mut self,
+        ctx: &Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<MemoryDump, MemoryError>;
+
+    fn revert_memory<Context>(
+        &self,
+        ctx: &mut Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<(), MemoryError>;
 }
 
 #[cfg(test)]

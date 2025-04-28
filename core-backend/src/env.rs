@@ -26,7 +26,7 @@ use crate::{
     funcs::FuncsHandler,
     memory::{BackendMemory, ExecutorMemory},
     state::{HostState, State},
-    BackendExternalities,
+    BackendExternalities, MemoryStorer,
 };
 use alloc::{collections::BTreeSet, format, string::String};
 use core::{
@@ -37,7 +37,7 @@ use core::{
 use gear_core::{
     env::Externalities,
     gas::GasAmount,
-    memory::{HostPointer, MemoryDump, MemoryError},
+    memory::{HostPointer, MemoryError},
     message::{DispatchKind, WasmEntryPoint},
     pages::WasmPagesAmount,
     str::LimitedStr,
@@ -114,6 +114,8 @@ pub enum SystemEnvironmentError {
     CreateEnvMemory(gear_sandbox::Error),
     #[display("Gas counter not found or has wrong type")]
     WrongInjectedGas,
+    #[display("Failed to access env memory during dump creation: {_0:?}")]
+    DumpMemoryError(MemoryError),
 }
 
 pub struct ReadyToExecute;
@@ -474,10 +476,14 @@ where
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
 {
-    pub fn execute(
+    pub fn execute<M>(
         self,
         entry_point: impl WasmEntryPoint,
-    ) -> Result<EnvironmentExecutionResult<'a, EnvExt>, EnvironmentError> {
+        memory_storer: &mut M,
+    ) -> Result<EnvironmentExecutionResult<'a, EnvExt>, EnvironmentError>
+    where
+        M: MemoryStorer,
+    {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
 
@@ -500,15 +506,15 @@ where
             .set_global_val(&mut store, GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| System(WrongInjectedGas))?;
 
-        #[cfg(feature = "std")]
-        let globals_provider_dyn_ref = globals_holder.accessor_ref();
-
         let needs_execution = entry_point
             .try_into_kind()
             .map(|kind| entries.contains(&kind))
             .unwrap_or(true);
 
         let res = if needs_execution {
+            #[cfg(feature = "std")]
+            let globals_provider_dyn_ref = globals_holder.accessor_ref();
+
             #[cfg(feature = "std")]
             let res = {
                 let store_option = &mut globals_provider_dyn_ref
@@ -550,6 +556,10 @@ where
         } else {
             Ok(ReturnValue::Unit)
         };
+
+        memory_storer
+            .dump_memory(&store, &memory)
+            .map_err(|e| System(DumpMemoryError(e)))?;
 
         if res.is_ok() {
             Ok(Ok(Environment {
@@ -623,18 +633,6 @@ where
             _phantom: PhantomData,
         })
     }
-
-    pub fn dump_memory(
-        &self,
-        dumping_fn: impl FnOnce(
-            &Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>>,
-            &BackendMemory<ExecutorMemory>,
-        ) -> Result<MemoryDump, MemoryError>,
-    ) -> Result<MemoryDump, MemoryError> {
-        let Self { store, memory, .. } = self;
-
-        dumping_fn(store, memory)
-    }
 }
 
 impl<'a, EnvExt> Environment<'a, EnvExt, FailedExecution>
@@ -648,25 +646,25 @@ where
         self.report_impl()
     }
 
-    pub fn set_memory(
+    pub fn revert<M>(
         self,
-        setting_fn: impl FnOnce(
-            &mut Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>>,
-            &BackendMemory<ExecutorMemory>,
-        ) -> Result<(), MemoryError>,
-    ) -> Result<Environment<'a, EnvExt, SuccessExecution>, MemoryError> {
+        memory_storer: &M,
+    ) -> Result<Environment<'a, EnvExt, SuccessExecution>, MemoryError>
+    where
+        M: MemoryStorer,
+    {
         let Self {
             instance,
             entries,
             mut store,
-            memory,
+            mut memory,
             code,
             #[cfg(feature = "std")]
             globals_holder,
             ..
         } = self;
 
-        setting_fn(&mut store, &memory)?;
+        memory_storer.revert_memory(&mut store, &mut memory)?;
 
         Ok(Environment {
             instance,

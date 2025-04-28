@@ -5,14 +5,14 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, ProgramId},
-    memory::{AllocationsContext, MemoryDump, MemoryError},
+    memory::AllocationsContext,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
     },
 };
-use gear_core_backend::env::{
-    BackendReport, Environment, EnvironmentExecutionResult, FailedExecution, ReadyToExecute,
-    SuccessExecution,
+use gear_core_backend::{
+    env::{BackendReport, Environment, EnvironmentExecutionResult, ReadyToExecute},
+    MemoryStorer,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
@@ -102,9 +102,9 @@ fn execute_environment_multiple_times_with_memory_replacing() {
         },
     ];
 
-    let mut memory_dump = MemoryDump::new();
+    let mut memory_dumper = Ext::memory_dumper();
 
-    let _ext_info = chain_execute(configs, &mut memory_dump);
+    let _ext_info = chain_execute(configs, &mut memory_dumper);
 }
 
 #[test]
@@ -231,12 +231,12 @@ fn execute_environment_multiple_times_and_compare_results() {
         },
     ];
 
-    let mut memory_dump = MemoryDump::new();
+    let mut memory_dumper = Ext::memory_dumper();
 
     let ext_info_failed_with_memory_replace =
-        chain_execute(configs_failed_execution_memory_replace, &mut memory_dump);
-    let ext_info_normal = chain_execute(configs_normal_execution, &mut memory_dump);
-    let ext_info_normal_2 = chain_execute(configs_normal_execution_2, &mut memory_dump);
+        chain_execute(configs_failed_execution_memory_replace, &mut memory_dumper);
+    let ext_info_normal = chain_execute(configs_normal_execution, &mut memory_dumper);
+    let ext_info_normal_2 = chain_execute(configs_normal_execution_2, &mut memory_dumper);
 
     assert_eq!(
         ext_info_failed_with_memory_replace,
@@ -257,7 +257,7 @@ fn execute_environment_multiple_times_and_compare_results() {
     );
 }
 
-fn chain_execute(test_configs: Vec<TestConfig>, memory_dump: &mut MemoryDump) -> ExtInfo {
+fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryStorer) -> ExtInfo {
     use demo_fungible_token::WASM_BINARY;
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_multiple_times_test";
 
@@ -328,7 +328,7 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dump: &mut MemoryDump) ->
                 &code,
                 test_config.payload,
                 previous_expectation,
-                memory_dump,
+                memory_dumper,
                 previous_config_name,
             );
         }
@@ -337,12 +337,15 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dump: &mut MemoryDump) ->
         previous_expectation = test_config.expectation;
         previous_config_name = test_config.name;
 
-        execution_result = Some(env.execute(test_config.dispatch_kind).unwrap_or_else(|_| {
-            panic!(
-                "Failed to execute WASM module, config_name: {}",
-                test_config.name
-            );
-        }));
+        execution_result = Some(
+            env.execute(test_config.dispatch_kind, memory_dumper)
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to execute WASM module, config_name: {}",
+                        test_config.name
+                    );
+                }),
+        );
     }
 
     let env = match execution_result {
@@ -383,24 +386,12 @@ fn inspect_and_set_payload<'a>(
     code: &Code,
     payload: Payload,
     expectation: ExecutionExpectation,
-    memory_dump: &mut MemoryDump,
+    memory_dumper: &mut impl MemoryStorer,
     config_name: &str,
 ) -> Environment<'a, Ext, ReadyToExecute> {
     match execution_result {
         Ok(success_execution) => match expectation {
             ExecutionExpectation::Success => {
-                let new_memory_dump = dump_memory(&success_execution).unwrap_or_else(|_| {
-                    panic!("Failed to dump memory, config name: {}", config_name)
-                });
-                memory_dump
-                    .try_replace(new_memory_dump)
-                    .unwrap_or_else(|_| {
-                        panic!(
-                            "Failed to replace memory dump, config name: {}",
-                            config_name
-                        )
-                    });
-
                 let ext = make_ext(dispatch_kind, program_id, code, payload);
 
                 success_execution
@@ -425,7 +416,7 @@ fn inspect_and_set_payload<'a>(
                 let ext = make_ext(dispatch_kind, program_id, code, payload);
 
                 let success_execution =
-                    set_memory(failed_execution, memory_dump).unwrap_or_else(|_| {
+                    failed_execution.revert(memory_dumper).unwrap_or_else(|_| {
                         panic!("Failed to set memory, config name: {}", config_name)
                     });
 
@@ -476,17 +467,6 @@ fn make_ext(
     };
 
     Ext::new(processor_context)
-}
-
-fn dump_memory(env: &Environment<Ext, SuccessExecution>) -> Result<MemoryDump, MemoryError> {
-    env.dump_memory(Ext::dump_memory)
-}
-
-fn set_memory<'a>(
-    env: Environment<'a, Ext, FailedExecution>,
-    dump: &MemoryDump,
-) -> Result<Environment<'a, Ext, SuccessExecution>, MemoryError> {
-    env.set_memory(|ctx, memory| Ext::set_memory(ctx, memory, dump))
 }
 
 fn message_sender() -> ProgramId {

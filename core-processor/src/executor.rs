@@ -132,6 +132,8 @@ where
     // Creating externalities.
     let ext = Ext::new(context);
 
+    let mut memory_dumper = Ext::memory_dumper();
+
     // Execute program in backend env.
     let execute = || {
         let env = Environment::new(
@@ -151,7 +153,7 @@ where
                 )
             },
         )?;
-        env.execute(kind)
+        env.execute(kind, &mut memory_dumper)
     };
 
     let (termination, mut store, memory, ext) = match execute() {
@@ -358,6 +360,8 @@ where
     // Creating externalities.
     let ext = Ext::new(context);
 
+    let mut memory_dumper = Ext::memory_dumper();
+
     // Execute program in backend env.
     let execute = || {
         let env = Environment::new(
@@ -377,7 +381,7 @@ where
                 )
             },
         )?;
-        env.execute(function)
+        env.execute(function, &mut memory_dumper)
     };
 
     let (termination, mut store, memory, ext) = match execute() {
