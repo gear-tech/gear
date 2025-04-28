@@ -70,7 +70,7 @@ impl Optimizer {
     pub fn strip_custom_sections(&mut self) {
         // we also should strip `reloc` section
         // if it will be present in the module in the future
-        self.module.custom_section = None;
+        self.module.custom_sections = None;
         self.module.name_section = None;
     }
 
