@@ -590,9 +590,8 @@ pub fn process_success(
 
     // Sending auto-generated reply about success execution.
     if !matches!(kind, SuccessfulDispatchResultKind::Wait(_, _))
+        && !matches!(dispatch.kind(), DispatchKind::Reply | DispatchKind::Signal)
         && !reply_sent
-        && !dispatch.is_reply()
-        && dispatch.kind() != DispatchKind::Signal
     {
         let auto_reply = ReplyMessage::auto(dispatch.id()).into_dispatch(
             program_id,
