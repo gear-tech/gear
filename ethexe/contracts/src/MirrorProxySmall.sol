@@ -8,43 +8,12 @@ pragma solidity ^0.8.28;
 ///      in bytecode and call `IRouter(ROUTER.mirrorImpl())` to get
 ///      last address of latest `Mirror` implementation.
 ///
-///      Used for contracts that were written using Sails framework.
-///
-///      Here we also define methods and public `Mirror` fields such as
-///      `sendMessage`, `sendReply`, etc. to be displayed on "Write Contract"
-///      tab on Etherscan. Sails smart contract methods will be displayed on
-///      "Write As Proxy" tab on Etherscan.
-contract MirrorProxy {
+///      Used for contracts that have their own communication protocol
+///      (contracts not using Sails framework).
+contract MirrorProxySmall {
     address internal constant ROUTER = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    address public inheritor;
-    address public initializer;
-    bytes32 public stateHash;
-    uint256 public nonce;
-
     constructor() payable {}
-
-    /* Primary Gear logic */
-
-    function sendMessage(bytes calldata payload, uint128 value) external /*returns (bytes32)*/ {
-        _delegate();
-    }
-
-    function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external {
-        _delegate();
-    }
-
-    function claimValue(bytes32 claimedId) external {
-        _delegate();
-    }
-
-    function executableBalanceTopUp(uint128 value) external {
-        _delegate();
-    }
-
-    function transferLockedValueToInheritor() external {
-        _delegate();
-    }
 
     /* MirrorProxy implementation */
 
