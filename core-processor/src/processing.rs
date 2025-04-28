@@ -589,7 +589,7 @@ pub fn process_success(
     }
 
     // Sending auto-generated reply about success execution.
-    if matches!(kind, SuccessfulDispatchResultKind::Success)
+    if !matches!(kind, SuccessfulDispatchResultKind::Wait(_, _))
         && !reply_sent
         && !dispatch.is_reply()
         && dispatch.kind() != DispatchKind::Signal

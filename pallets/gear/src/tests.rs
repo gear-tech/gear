@@ -82,7 +82,6 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
-#[should_panic(expected = "Failed to query reply: \"Queue is empty, but reply wasn't found\"")]
 fn auto_reply_on_exit_exists() {
     init_logger();
     new_test_ext().execute_with(|| {
