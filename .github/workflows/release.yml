@@ -77,7 +77,7 @@ jobs:
         run: cargo build -p vara-runtime --profile production --no-default-features --features std,metadata-hash
 
       - name: "Test: Production `vara-runtime`"
-        run: ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
+        run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev false target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Artifact: Production `vara-runtime` metadata"
         run: |
@@ -90,7 +90,7 @@ jobs:
         run: cargo build -p gear-cli --profile production --features metadata-hash
 
       - name: "Test: Development `vara-runtime`"
-        run: ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
+        run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev true target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Artifact: Development `vara-runtime` metadata"
         run: |

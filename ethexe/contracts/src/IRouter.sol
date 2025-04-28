@@ -107,11 +107,14 @@ interface IRouter {
     /// @dev CodeValidationRequested Emitted on success.
     function requestCodeValidation(bytes32 codeId) external;
     /// @dev ProgramCreated Emitted on success.
-    function createProgram(bytes32 codeId, bytes32 salt) external returns (address);
+    function createProgram(bytes32 codeId, bytes32 salt, address overrideInitializer) external returns (address);
     /// @dev ProgramCreated Emitted on success.
-    function createProgramWithAbiInterface(bytes32 codeId, bytes32 salt, address abiInterface)
-        external
-        returns (address);
+    function createProgramWithAbiInterface(
+        bytes32 codeId,
+        bytes32 salt,
+        address overrideInitializer,
+        address abiInterface
+    ) external returns (address);
 
     /// @dev CodeGotValidated Emitted for each code in commitment.
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
