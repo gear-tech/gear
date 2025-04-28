@@ -1196,7 +1196,7 @@ impl ModuleBuilder {
     }
 
     fn custom_section(&mut self) -> &mut Vec<CustomSection> {
-        self.module.custom_section.get_or_insert_with(Vec::new)
+        self.module.custom_sections.get_or_insert_with(Vec::new)
     }
 
     pub fn push_custom_section(
@@ -1275,7 +1275,7 @@ pub struct Module {
     pub code_section: Option<CodeSection>,
     pub data_section: Option<DataSection>,
     pub name_section: Option<Vec<Name>>,
-    pub custom_section: Option<Vec<CustomSection>>,
+    pub custom_sections: Option<Vec<CustomSection>>,
 }
 
 impl Module {
@@ -1292,6 +1292,7 @@ impl Module {
         let mut code_section = None;
         let mut data_section = None;
         let mut name_section = None;
+        let mut custom_sections = None;
 
         let mut parser = wasmparser::Parser::new(0);
         parser.set_features(GEAR_SUPPORTED_FEATURES);
@@ -1415,6 +1416,11 @@ impl Module {
                                 .map(|name| name.map_err(Into::into).and_then(Name::parse))
                                 .collect::<Result<Vec<_>>>()?,
                         );
+                    } else {
+                        let custom_sections = custom_sections.get_or_insert_with(Vec::new);
+                        let name = section.name().to_string().into();
+                        let data = section.data().to_vec();
+                        custom_sections.push((name, data));
                     }
                 }
                 Payload::UnknownSection { .. } => {}
@@ -1435,7 +1441,7 @@ impl Module {
             code_section,
             data_section,
             name_section,
-            custom_section: None,
+            custom_sections,
         })
     }
 
@@ -1537,6 +1543,16 @@ impl Module {
                 name.reencode(&mut encoder_section);
             }
             module.section(&encoder_section);
+        }
+
+        if let Some(custom_sections) = &self.custom_sections {
+            for (name, data) in custom_sections {
+                let encoder_section = wasm_encoder::CustomSection {
+                    name: Cow::Borrowed(name),
+                    data: Cow::Borrowed(data),
+                };
+                module.section(&encoder_section);
+            }
         }
 
         Ok(module.finish())
@@ -1663,5 +1679,18 @@ mod tests {
         } else {
             panic!("{err}");
         }
+    }
+
+    #[test]
+    fn custom_section_kept() {
+        let mut builder = ModuleBuilder::default();
+        builder.push_custom_section("dummy", [1, 2, 3]);
+        let module = builder.build();
+        let module_bytes = module.serialize().unwrap();
+        let wat = wasmprinter::print_bytes(&module_bytes).unwrap();
+
+        let parsed_module_bytes = Module::new(&module_bytes).unwrap().serialize().unwrap();
+        let parsed_wat = wasmprinter::print_bytes(&parsed_module_bytes).unwrap();
+        assert_eq!(wat, parsed_wat);
     }
 }
