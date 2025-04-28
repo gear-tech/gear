@@ -30,7 +30,6 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardTransientUpgradeable} from
     "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
-import {DefaultOperatorRewards} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewards.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 // TODO (asap): document all functions and variables
@@ -42,6 +41,10 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
+
+    using EnumerableMap for EnumerableMap.AddressToAddressMap;
+    using MapWithTimeData for EnumerableMap.AddressToAddressMap;
+
     using Subnetwork for address;
 
     // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
@@ -72,6 +75,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         $.allowedVaultImplVersion = _params.allowedVaultImplVersion;
         $.vetoSlasherImplType = _params.vetoSlasherImplType;
 
+        // TODO #4609
         $.collateral = _params.collateral;
         $.subnetwork = address(this).subnetwork(NETWORK_IDENTIFIER);
         $.maxAdminFee = _params.maxAdminFee;
@@ -249,46 +253,58 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         $.operators.remove(operator);
     }
 
-    function distributeOperatorRewards(Gear.OperatorRewardsCommitment memory _rewards) external {
+    function distributeOperatorRewards(address token, uint256 amount, bytes32 root) external returns (bytes32) {
         Storage storage $ = _storage();
 
         if (msg.sender != $.router) {
             revert NotRouter();
         }
 
-        if (_rewards.token != $.collateral) {
+        if (token != $.collateral) {
             revert UnknownCollateral();
         }
 
-        IDefaultOperatorRewards($.operatorRewards).distributeRewards(
-            $.router, _rewards.token, _rewards.amount, _rewards.root
-        );
+        IDefaultOperatorRewards($.operatorRewards).distributeRewards($.router, token, amount, root);
+        return keccak256(abi.encodePacked(token, amount, root));
     }
 
-    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _commitment) external {
+    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _commitment, uint48 timestamp)
+        external
+        returns (bytes32)
+    {
         Storage storage $ = _storage();
 
         if (msg.sender != $.router) {
             revert NotRouter();
         }
 
+        if (_commitment.token != $.collateral) {
+            revert UnknownCollateral();
+        }
+
+        bytes memory rewardsHashes;
         for (uint256 i = 0; i < _commitment.distribution.length; ++i) {
-            Gear.StakerRewards memory stakerRewards = _commitment.distribution[i];
+            Gear.StakerRewards memory rewards = _commitment.distribution[i];
 
-            if (stakerRewards.token != $.collateral) {
-                revert UnknownCollateral();
-            }
-
-            if (!$.vaults.contains(stakerRewards.vault)) {
+            if (!$.vaults.contains(rewards.vault)) {
                 revert UnknownVault();
             }
 
-            address rewards = address($.vaults.getPinnedData(stakerRewards.vault));
+            // if (stakerRewards.token != $.collateral) {
+            //     revert UnknownCollateral();
+            // }
 
-            // TODO: consider to add hints instead of bytes("")
-            bytes memory data = abi.encode(_commitment.timestamp, $.maxAdminFee, bytes(""), bytes(""));
-            IDefaultStakerRewards(rewards).distributeRewards($.router, stakerRewards.token, stakerRewards.amount, data);
+            address rewardsAddress = address($.vaults.getPinnedData(rewards.vault));
+
+            bytes memory data = abi.encode(timestamp, $.maxAdminFee, bytes(""), bytes(""));
+            IDefaultStakerRewards(rewardsAddress).distributeRewards($.router, _commitment.token, rewards.amount, data);
+
+            bytes32 rewardsHash =
+                keccak256(abi.encodePacked(_commitment.token, rewards.amount, rewards.vault, timestamp));
+            rewardsHashes = bytes.concat(rewardsHashes, rewardsHash);
         }
+
+        return keccak256(rewardsHashes);
     }
 
     function registerVault(address _vault, address _rewards) external _vaultOwner(_vault) {
@@ -473,45 +489,42 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         }
     }
 
-    function _validateStorage(Storage storage middleware) private view {
-        require(middleware.eraDuration > 0, "Era duration cannot be zero");
+    function _validateStorage(Storage storage $) private view {
+        require($.eraDuration > 0, "Era duration cannot be zero");
 
         // Middleware must support cases when election for next era is made before the start of the next era,
         // so the min vaults epoch duration must be bigger than `eraDuration + electionDelay`.
         // The election delay is less than or equal to the era duration, so limit `2 * eraDuration` is enough.
-        require(
-            middleware.minVaultEpochDuration >= 2 * middleware.eraDuration,
-            "Min vaults epoch duration must be bigger than 2 eras"
-        );
+        require($.minVaultEpochDuration >= 2 * $.eraDuration, "Min vaults epoch duration must be bigger than 2 eras");
 
         // Operator grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
         require(
-            middleware.operatorGracePeriod >= middleware.minVaultEpochDuration,
+            $.operatorGracePeriod >= $.minVaultEpochDuration,
             "Operator grace period must be bigger than min vaults epoch duration"
         );
 
         // Vault grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
         require(
-            middleware.vaultGracePeriod >= middleware.minVaultEpochDuration,
+            $.vaultGracePeriod >= $.minVaultEpochDuration,
             "Vault grace period must be bigger than min vaults epoch duration"
         );
 
         // Give some time for the resolvers to veto slashes.
-        require(middleware.minVetoDuration > 0, "Veto duration cannot be zero");
+        require($.minVetoDuration > 0, "Veto duration cannot be zero");
 
         // Symbiotic guarantees that any veto slasher has veto duration less than vault epoch duration.
         // But we also want to guarantee that there is some time to execute the slash.
-        require(middleware.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
+        require($.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
         require(
-            middleware.minVetoDuration + middleware.minSlashExecutionDelay <= middleware.minVaultEpochDuration,
+            $.minVetoDuration + $.minSlashExecutionDelay <= $.minVaultEpochDuration,
             "Veto duration and slash execution delay must be less than or equal to min vaults epoch duration"
         );
 
         // In order to be able to change resolver, we need to limit max delay in epochs.
         // `3` - is minimal number of epochs, which is symbiotic veto slasher impl restrictions.
-        require(middleware.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
+        require($.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
     }
 
     // TODO: check vault has enough stake
@@ -595,6 +608,10 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         if (IDefaultStakerRewards(_rewards).VAULT() != _vault) {
             revert InvalidStakerRewardsVault();
+        }
+
+        if (IDefaultStakerRewards(_rewards).version() != 2) {
+            revert IncompatibleStakerRewardsVersion();
         }
     }
 

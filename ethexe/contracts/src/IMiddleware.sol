@@ -24,6 +24,7 @@ interface IMiddleware {
     error VetoDurationTooShort();
     error VetoDurationTooLong();
     error IncompatibleVaultVersion();
+    error IncompatibleStakerRewardsVersion();
     error NotRegisteredVault();
     error NotRegisteredOperator();
     error RoleMismatch();
@@ -175,12 +176,14 @@ interface IMiddleware {
     /**
      * @notice Get a claimed amount of rewards for a particular account, network, and token.
      */
-    function distributeOperatorRewards(Gear.OperatorRewardsCommitment memory _rewards) external;
+    function distributeOperatorRewards(address token, uint256 amount, bytes32 root) external returns (bytes32);
 
     /**
      * @notice ...
      */
-    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _rewards) external;
+    function distributeStakerRewards(Gear.StakerRewardsCommitment memory _rewards, uint48 timestamp)
+        external
+        returns (bytes32);
 
     /**
      * @notice ...

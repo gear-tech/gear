@@ -42,6 +42,7 @@ library Gear {
     struct AddressBook {
         address mirror;
         address wrappedVara;
+        address middleware;
     }
 
     struct CodeCommitment {
@@ -68,27 +69,26 @@ library Gear {
     struct BatchCommitment {
         CodeCommitment[] codeCommitments;
         BlockCommitment[] blockCommitments;
+        RewardsCommitment[] rewardCommitments;
     }
-    //RewardsCommitment rewardsCommitment;
 
     struct RewardsCommitment {
         OperatorRewardsCommitment operators;
         StakerRewardsCommitment stakers;
+        uint48 timestamp;
     }
 
     struct OperatorRewardsCommitment {
-        address token;
         uint256 amount;
         bytes32 root;
     }
 
     struct StakerRewardsCommitment {
         StakerRewards[] distribution;
-        uint48 timestamp;
-    }
-
-    struct StakerRewards {
+        uint256 totalAmount;
         address token;
+    }
+    struct StakerRewards {
         address vault;
         uint256 amount;
     }

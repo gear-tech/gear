@@ -5,20 +5,25 @@ import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 import {NetworkRegistry} from "symbiotic-core/src/contracts/NetworkRegistry.sol";
 import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
 import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
+import {IVaultFactory} from "symbiotic-core/src/interfaces/IVaultFactory.sol";
 import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
+import {IDelegatorFactory} from "symbiotic-core/src/interfaces/IDelegatorFactory.sol";
 import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegator/IOperatorSpecificDelegator.sol";
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
+import {ISlasherFactory} from "symbiotic-core/src/interfaces/ISlasherFactory.sol";
 import {DefaultStakerRewardsFactory} from
     "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
 import {DefaultStakerRewards} from "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewards.sol";
+import {Vault} from "symbiotic-core/src/contracts/vault/Vault.sol";
+import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
@@ -187,7 +192,7 @@ contract MiddlewareTest is Base {
         }
         vm.stopPrank();
 
-        address vault = newVault(eraDuration * 2, _operator);
+        address vault = newVault(_operator, _defaultVaultInitParams(_operator));
         address _rewards = newStakerRewards(vault, _operator);
 
         // Register vault
@@ -195,22 +200,11 @@ contract MiddlewareTest is Base {
         vm.startPrank(_operator);
         {
             middleware.registerVault(vault, newStakerRewards(vault, _operator));
-            console.log("1 PART test passed");
+        }
+        vm.stopPrank();
 
-            // Try to register unknown vault
-            // vm.expectRevert(abi.encodeWithSelector(IMiddleware.UnknownVault.selector));
-            // middleware.registerVault(address(0xdead), _rewards);
-
-            // Try to register vault with wrong epoch duration
-            // address vault2 = newVault(eraDuration, _operator);
-            // vm.expectRevert(abi.encodeWithSelector(IMiddleware.VaultWrongEpochDuration.selector));
-            // middleware.registerVault(vault2, _rewards);
-
-            // Try to register vault with unknown collateral
-            // address vault3 = address(sym.vault1());
-            // vm.expectRevert(abi.encodeWithSelector(IMiddleware.UnknownCollateral.selector));
-            // middleware.registerVault(vault3, _rewards);
-
+        vm.startPrank(_operator);
+        {
             // Try to enable vault once more
             vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyEnabled.selector));
             middleware.enableVault(vault);
@@ -222,6 +216,29 @@ contract MiddlewareTest is Base {
         }
         vm.stopPrank();
 
+        // Try to register vault with wrong parameters
+        vm.startPrank(_operator);
+        {
+            IVault.InitParams memory initParams = _defaultVaultInitParams(_operator);
+            initParams.epochDuration = eraDuration;
+            address vault2 = newVault(_operator, initParams);
+
+            // Register vault with wrong epoch duration
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.VaultWrongEpochDuration.selector));
+            middleware.registerVault(vault2, _rewards);
+
+            // Make eraDuration correct, but collateral doesn't
+            initParams.epochDuration = eraDuration * 2;
+            initParams.collateral = address(0xabc);
+            address vault3 = newVault(_operator, initParams);
+
+            // Try to register vault with unknown collateral
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.UnknownCollateral.selector));
+            middleware.registerVault(vault3, _rewards);
+        }
+        vm.stopPrank();
+
+        // Try to register vault by not its owner
         vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
         middleware.registerVault(vault, _rewards);
 
@@ -250,7 +267,6 @@ contract MiddlewareTest is Base {
         vm.stopPrank();
 
         // Register vault again, disable and unregister it not by vault owner
-
         vm.startPrank(_operator);
         {
             middleware.registerVault(vault, _rewards);
@@ -266,17 +282,47 @@ contract MiddlewareTest is Base {
         }
         vm.stopPrank();
 
-        // Try to enable unknown vault
-        // vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, address(0xdead)));
-        // middleware.enableVault(address(0xdead));
+        address unknownVault = newVault(_operator, _defaultVaultInitParams(_operator));
+        vm.startPrank(_operator);
+        {
+            // Try to enable unknown vault
+            vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, unknownVault));
+            middleware.enableVault(unknownVault);
 
-        // Try to disable unknown vault
-        // vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, address(0xdead)));
-        // middleware.disableVault(address(0xdead));
+            // Try to disable unknown vault
+            vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, unknownVault));
+            middleware.disableVault(unknownVault);
 
-        // Try to unregister unknown vault
-        // vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, address(0xdead)));
-        // middleware.unregisterVault(address(0xdead));
+            // Try to unregister unknown vault
+            vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, unknownVault));
+            middleware.unregisterVault(unknownVault);
+        }
+        vm.stopPrank();
+
+        /* Try to register vault from another factory*/
+
+        IVaultFactory vaultFactory2 = IVaultFactory(
+            deployCode(
+                string.concat(SYMBIOTIC_CORE_PROJECT_ROOT, "out/VaultFactory.sol/VaultFactory.json"), abi.encode(owner)
+            )
+        );
+
+        address vaultImpl = deployCode(
+            string.concat(SYMBIOTIC_CORE_PROJECT_ROOT, "out/Vault.sol/Vault.json"),
+            abi.encode(address(delegatorFactory), address(slasherFactory), address(vaultFactory2))
+        );
+
+        vaultFactory2.whitelist(vaultImpl);
+
+        address vaultFromAnotherFactory =
+            vaultFactory2.create(1, _operator, abi.encode(_defaultVaultInitParams(_operator)));
+
+        vm.startPrank(_operator);
+        {
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.NonFactoryVault.selector));
+            middleware.registerVault(vaultFromAnotherFactory, _rewards);
+        }
+        vm.stopPrank();
     }
 
     function test_stake() public {
