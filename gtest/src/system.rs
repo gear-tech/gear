@@ -297,7 +297,7 @@ impl System {
     /// Returns `Some(ProgramId)` if a program is exited with inheritor.
     ///
     /// Returns [`None`] otherwise.
-    pub fn is_exited_program_with_inheritor<ID: Into<ProgramIdWrapper>>(
+    pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(
         &self,
         id: ID,
     ) -> Option<ProgramId> {
