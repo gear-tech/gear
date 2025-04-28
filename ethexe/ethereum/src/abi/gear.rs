@@ -85,6 +85,7 @@ impl From<BatchCommitment> for Gear::BatchCommitment {
                 .map(Into::into)
                 .collect(),
             codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
+            rewardCommitments: vec![],
         }
     }
 }
