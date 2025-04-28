@@ -183,7 +183,7 @@ impl Participant {
         let BlockCommitmentValidationRequest {
             block_hash,
             block_timestamp,
-            previous_not_empty_block,
+            previous_non_empty_block,
             predecessor_block,
             transitions_digest,
         } = request;
@@ -212,7 +212,7 @@ impl Participant {
 
         if db.previous_not_empty_block(block_hash).ok_or_else(|| {
             anyhow!("Cannot get from db previous not empty for block {block_hash}")
-        })? != previous_not_empty_block
+        })? != previous_non_empty_block
         {
             return Err(anyhow!(
                 "Requested and local previous commitment block hash mismatch"
@@ -409,7 +409,7 @@ mod tests {
             mock_block_commitment(H256::random(), H256::random(), H256::random()),
         );
 
-        let request = BlockCommitmentValidationRequest::from(&block_commitment);
+        let request = BlockCommitmentValidationRequest::new(&block_commitment);
 
         Participant::validate_block_commitment(&db, request.clone()).unwrap();
 
@@ -425,7 +425,7 @@ mod tests {
 
         // Incorrect previous committed block
         let mut incorrect_request = request.clone();
-        incorrect_request.previous_not_empty_block = H256::random();
+        incorrect_request.previous_non_empty_block = H256::random();
         Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
 
         // Incorrect transitions digest

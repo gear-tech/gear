@@ -102,7 +102,7 @@ impl Coordinator {
 
         let validation_request = ctx.signer.create_signed_data(
             ctx.pub_key,
-            BatchCommitmentValidationRequest::from(multisigned_batch.batch()),
+            BatchCommitmentValidationRequest::new(multisigned_batch.batch()),
         )?;
 
         ctx.output(ConsensusEvent::PublishValidationRequest(validation_request));

@@ -41,13 +41,13 @@ pub struct BatchCommitmentValidationRequest {
     pub codes: Vec<CodeCommitment>,
 }
 
-impl From<&BatchCommitment> for BatchCommitmentValidationRequest {
-    fn from(batch: &BatchCommitment) -> Self {
+impl BatchCommitmentValidationRequest {
+    pub fn new(batch: &BatchCommitment) -> Self {
         BatchCommitmentValidationRequest {
             blocks: batch
                 .block_commitments
                 .iter()
-                .map(BlockCommitmentValidationRequest::from)
+                .map(BlockCommitmentValidationRequest::new)
                 .collect(),
             codes: batch.code_commitments.clone(),
         }
@@ -73,19 +73,19 @@ pub struct BlockCommitmentValidationRequest {
     /// Timestamp of the block
     pub block_timestamp: u64,
     /// Hash of the previous non-empty block
-    pub previous_not_empty_block: H256,
+    pub previous_non_empty_block: H256,
     /// Hash of the predecessor block
     pub predecessor_block: H256,
     /// Digest of the block's state transitions
     pub transitions_digest: Digest,
 }
 
-impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
-    fn from(commitment: &BlockCommitment) -> Self {
+impl BlockCommitmentValidationRequest {
+    pub fn new(commitment: &BlockCommitment) -> Self {
         BlockCommitmentValidationRequest {
             block_hash: commitment.hash,
             block_timestamp: commitment.timestamp,
-            previous_not_empty_block: commitment.previous_committed_block,
+            previous_non_empty_block: commitment.previous_committed_block,
             predecessor_block: commitment.predecessor_block,
             transitions_digest: commitment.transitions.to_digest(),
         }
@@ -94,12 +94,19 @@ impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
 
 impl ToDigest for BlockCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut ethexe_signer::sha3::Keccak256) {
-        hasher.update(self.block_hash.as_bytes());
-        hasher
-            .update(ethexe_common::u64_into_uint48_be_bytes_lossy(self.block_timestamp).as_slice());
-        hasher.update(self.previous_not_empty_block.as_bytes());
-        hasher.update(self.predecessor_block.as_bytes());
-        hasher.update(self.transitions_digest.as_ref());
+        let Self {
+            block_hash,
+            block_timestamp,
+            previous_non_empty_block,
+            predecessor_block,
+            transitions_digest,
+        } = self;
+
+        hasher.update(block_hash.as_bytes());
+        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*block_timestamp).as_slice());
+        hasher.update(previous_non_empty_block.as_bytes());
+        hasher.update(predecessor_block.as_bytes());
+        hasher.update(transitions_digest.as_ref());
     }
 }
 
@@ -166,9 +173,7 @@ impl MultisignedBatchCommitment {
     ) -> Result<()> {
         let BatchCommitmentValidationReply { digest, signature } = reply;
 
-        if digest != self.batch_digest {
-            anyhow::bail!("Invalid digest");
-        }
+        anyhow::ensure!(digest == self.batch_digest, "Invalid reply digest");
 
         let origin = signature.recover(self.router_address, digest)?.to_address();
 
@@ -329,7 +334,7 @@ mod tests {
                 valid: false,
             }],
         };
-        let batch_validation_request = BatchCommitmentValidationRequest::from(&batch);
+        let batch_validation_request = BatchCommitmentValidationRequest::new(&batch);
         assert_eq!(batch.to_digest(), batch_validation_request.to_digest());
 
         let contract_address = Address([42; 20]);

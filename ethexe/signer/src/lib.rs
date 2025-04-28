@@ -464,8 +464,7 @@ mod tests {
     fn signed_data() {
         let signer = Signer::tmp();
 
-        let private_key = PrivateKey([1; 32]);
-        let public_key = signer.add_key(private_key).unwrap();
+        let public_key = signer.generate_key().unwrap();
 
         let signed_data = signer
             .create_signed_data(public_key, b"hello world".as_slice())
