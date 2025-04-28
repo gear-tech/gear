@@ -297,10 +297,7 @@ impl System {
     /// Returns `Some(ProgramId)` if a program is exited with inheritor.
     ///
     /// Returns [`None`] otherwise.
-    pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(
-        &self,
-        id: ID,
-    ) -> Option<ProgramId> {
+    pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ProgramId> {
         let program_id = id.into().0;
         Actors::access(program_id, |actor| {
             if let Some(crate::state::actors::TestActor::Exited(inheritor_id)) = actor {
