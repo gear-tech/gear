@@ -88,6 +88,7 @@ library Gear {
         uint256 totalAmount;
         address token;
     }
+
     struct StakerRewards {
         address vault;
         uint256 amount;
