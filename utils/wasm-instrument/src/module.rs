@@ -1195,7 +1195,7 @@ impl ModuleBuilder {
         self.module.data_section.get_or_insert_with(Vec::new)
     }
 
-    fn custom_section(&mut self) -> &mut Vec<CustomSection> {
+    fn custom_sections(&mut self) -> &mut Vec<CustomSection> {
         self.module.custom_sections.get_or_insert_with(Vec::new)
     }
 
@@ -1204,7 +1204,7 @@ impl ModuleBuilder {
         name: impl Into<Cow<'static, str>>,
         data: impl Into<Vec<u8>>,
     ) {
-        self.custom_section().push((name.into(), data.into()));
+        self.custom_sections().push((name.into(), data.into()));
     }
 
     /// Adds a new function to the module.
