@@ -55,10 +55,8 @@ interface IMiddleware {
         address vetoResolver;
         Gear.SymbioticRegistries registries;
     }
-    /**
-     * @notice ...
-     */
 
+    /// @custom:storage-location erc7201:middleware.storage.Middleware.
     struct Storage {
         uint48 eraDuration;
         uint48 minVaultEpochDuration;
@@ -77,6 +75,8 @@ interface IMiddleware {
         address roleSlashRequester;
         address roleSlashExecutor;
         address vetoResolver;
+        /// @notice Stores the addreses for Symbiotic Ecosystem contracts.
+        /// @dev These addresses was taken from official documentation.
         Gear.SymbioticRegistries registries;
         EnumerableMap.AddressToUintMap operators;
         EnumerableMap.AddressToUintMap vaults;
