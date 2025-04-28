@@ -77,17 +77,17 @@ pub type EnvironmentExecutionResult<Ext> = Result<BackendReport<Ext>, Environmen
 
 #[derive(Debug, derive_more::Display)]
 pub enum EnvironmentError {
-    #[display(fmt = "Actor backend error: {_1}")]
+    #[display("Actor backend error: {_1}")]
     Actor(GasAmount, String),
-    #[display(fmt = "System backend error: {_0}")]
+    #[display("System backend error: {_0}")]
     System(SystemEnvironmentError),
 }
 
 #[derive(Debug, derive_more::Display)]
 pub enum SystemEnvironmentError {
-    #[display(fmt = "Failed to create env memory: {_0:?}")]
+    #[display("Failed to create env memory: {_0:?}")]
     CreateEnvMemory(gear_sandbox::Error),
-    #[display(fmt = "Gas counter not found or has wrong type")]
+    #[display("Gas counter not found or has wrong type")]
     WrongInjectedGas,
 }
 

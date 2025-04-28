@@ -115,8 +115,8 @@ pub use frame_support::{
 };
 pub use gear_runtime_common::{
     constants::{
-        BANK_ADDRESS, RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR,
-        RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR,
+        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
+        RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
     GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
@@ -180,7 +180,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
 
-    spec_version: 1710,
+    spec_version: 1800,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -196,7 +196,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 1710,
+    spec_version: 1800,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -1138,7 +1138,7 @@ parameter_types! {
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
-    pub BankAddress: AccountId = BANK_ADDRESS.into();
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const TreasuryGasFeeShare: Percent = Percent::one();
     pub const TreasuryTxFeeShare: Percent = Percent::one();
@@ -1146,7 +1146,7 @@ parameter_types! {
 
 impl pallet_gear_bank::Config for Runtime {
     type Currency = Balances;
-    type BankAddress = BankAddress;
+    type PalletId = BankPalletId;
     type GasMultiplier = GasMultiplier;
     type TreasuryAddress = TreasuryAccount;
     type TreasuryGasFeeShare = TreasuryGasFeeShare;
@@ -1223,12 +1223,15 @@ pub type BuiltinActors = (
     ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
 );
 
+#[cfg(feature = "dev")]
+const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
+
 /// Builtin actors arranged in a tuple.
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
-    ActorWithId<3, pallet_gear_eth_bridge::Actor<Runtime>>,
+    ActorWithId<{ ETH_BRIDGE_BUILTIN_ID }, pallet_gear_eth_bridge::Actor<Runtime>>,
     ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
 );
 
@@ -1244,6 +1247,12 @@ parameter_types! {
 
     pub GearEthBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
     pub GearEthBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
+}
+
+#[cfg(feature = "dev")]
+parameter_types! {
+    pub GearEthBridgeBuiltinAddress: AccountId
+        = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
 }
 
 /// Provides the set of accounts allowed to control the Gear ETH Bridge (admin and pauser).
@@ -1263,10 +1272,21 @@ impl SortedMembers<AccountId> for GearEthBridgeControlAccounts {
 }
 
 #[cfg(feature = "dev")]
+pub struct GearEthBridgeAdminAccounts;
+#[cfg(feature = "dev")]
+impl SortedMembers<AccountId> for GearEthBridgeAdminAccounts {
+    fn sorted_members() -> Vec<AccountId> {
+        vec![GearEthBridgeAdminAccount::get()]
+    }
+}
+
+#[cfg(feature = "dev")]
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
+    type BuiltinAddress = GearEthBridgeBuiltinAddress;
     type ControlOrigin = frame_system::EnsureSignedBy<GearEthBridgeControlAccounts, AccountId>;
+    type AdminOrigin = frame_system::EnsureSignedBy<GearEthBridgeAdminAccounts, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;

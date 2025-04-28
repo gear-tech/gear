@@ -1,4 +1,8 @@
-use crate::{builtin, mock::*, Config, EthMessage, WeightInfo};
+use crate::{
+    builtin,
+    mock::{mock_builtin_id as builtin_id, *},
+    Config, EthMessage, WeightInfo,
+};
 use common::Origin as _;
 use frame_support::{
     assert_noop, assert_ok, assert_storage_noop, traits::Get, Blake2_256, StorageHasher,
@@ -26,6 +30,7 @@ type Initialized = crate::Initialized<Test>;
 type Paused = crate::Paused<Test>;
 type Event = crate::Event<Test>;
 type Error = crate::Error<Test>;
+type Currency = crate::CurrencyOf<Test>;
 
 #[test]
 fn bridge_got_initialized() {
@@ -163,6 +168,10 @@ fn bridge_send_eth_message_works() {
     new_test_ext().execute_with(|| {
         run_to_block(WHEN_INITIALIZED);
 
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         assert_noop!(
@@ -173,8 +182,15 @@ fn bridge_send_eth_message_works() {
         assert_eq!(MessageNonce::get(), 0.into());
         assert!(Queue::get().is_empty());
 
+        // Send a message via the pallet extrinsic
+
         let destination = H160::random();
         let payload = H256::random().as_bytes().to_vec();
+        let mut gas_meter = GasSpentMeter::start();
+        let mut signer_balance = balance_of(&SIGNER);
+        let builtin_id = AccountId::from_origin(builtin_id().into());
+        let mut builtin_balance = balance_of(&builtin_id);
+        let fee = MockTransportFee::get();
 
         let message = EthMessage::new(0.into(), SIGNER.cast(), destination, payload.clone());
         let hash = message.hash();
@@ -186,10 +202,16 @@ fn bridge_send_eth_message_works() {
             payload
         ));
 
+        signer_balance -= gas_meter.spent() + fee;
+        builtin_balance += fee;
+
         System::assert_last_event(Event::MessageQueued { message, hash }.into());
 
         assert_eq!(MessageNonce::get(), 1.into());
         assert_eq!(Queue::get(), queue);
+        // Check that the fee was charged and transferred to the builtin
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&builtin_id), builtin_balance);
 
         let destination = H160::random();
         let payload = H256::random().as_bytes().to_vec();
@@ -207,8 +229,11 @@ fn bridge_send_eth_message_works() {
                 payload,
             },
             None,
-            0,
+            fee,
         );
+
+        signer_balance -= gas_meter.spent() + fee;
+        builtin_balance += fee;
 
         let response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
 
@@ -218,6 +243,9 @@ fn bridge_send_eth_message_works() {
 
         assert_eq!(MessageNonce::get(), 2.into());
         assert_eq!(Queue::get(), queue);
+        // Check that the fee was charged and transferred to the builtin
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&builtin_id), builtin_balance);
     })
 }
 
@@ -489,7 +517,14 @@ fn bridge_incorrect_value_applied_err() {
 
         run_to_block(WHEN_INITIALIZED);
 
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let signer_balance = balance_of(&SIGNER);
+        let mut gas_meter = GasSpentMeter::start();
 
         let (response, _) = run_block_with_builtin_call(
             SIGNER,
@@ -505,6 +540,9 @@ fn bridge_incorrect_value_applied_err() {
             String::from_utf8_lossy(&response),
             builtin::error_to_str(&ERR)
         );
+
+        // Check that value/fee was not charged
+        assert_eq!(balance_of(&SIGNER), signer_balance - gas_meter.spent());
     })
 }
 
@@ -537,12 +575,8 @@ fn bridge_insufficient_gas_err() {
 mod utils {
     use super::*;
     use crate::builtin;
-    use gear_core::message::UserMessage;
-    use gprimitives::{ActorId, MessageId};
-
-    pub(crate) fn builtin_id() -> ActorId {
-        GearBuiltin::generate_actor_id(BUILTIN_ID)
-    }
+    use gear_core::message::{UserMessage, Value};
+    use gprimitives::MessageId;
 
     #[track_caller]
     pub(crate) fn run_block_and_assert_bridge_error(error: Error) {
@@ -670,5 +704,31 @@ mod utils {
         }
 
         System::reset_events();
+    }
+
+    pub(crate) fn balance_of(account: &AccountId) -> Value {
+        Currency::free_balance(account)
+    }
+
+    pub(crate) fn balance_of_author() -> Value {
+        balance_of(&Authorship::author().expect("author exist"))
+    }
+
+    pub(crate) struct GasSpentMeter {
+        current: Value,
+    }
+
+    impl GasSpentMeter {
+        pub(crate) fn start() -> Self {
+            Self {
+                current: balance_of_author(),
+            }
+        }
+
+        pub(crate) fn spent(&mut self) -> Value {
+            let spent = balance_of_author() - self.current;
+            self.current = balance_of_author();
+            spent
+        }
     }
 }

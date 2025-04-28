@@ -36,7 +36,6 @@ use wasmparser::{FuncType, TypeRef, ValType};
 
 #[derive(Debug, derive_more::From)]
 pub enum GasMeteringError {
-    #[from]
     Counter(CounterError),
     LocalsInitCost,
     NoActiveControlBlock,

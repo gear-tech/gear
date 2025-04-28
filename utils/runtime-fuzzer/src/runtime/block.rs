@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::Encode;
 use frame_support::{
     dispatch::{DispatchClass, RawOrigin},
     traits::{OnFinalize, OnInitialize},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use pallet_gear::Event as GearEvent;
+use parity_scale_codec::Encode;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     BABE_ENGINE_ID,

@@ -10,7 +10,7 @@ path = "bin/run_corpus.rs"
 
 [dependencies]
 anyhow.workspace = true
-codec = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 log.workspace = true
 sha-1.workspace = true
