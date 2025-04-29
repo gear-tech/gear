@@ -4624,15 +4624,13 @@ dependencies = [
 name = "ethexe-common"
 version = "1.8.0"
 dependencies = [
- "futures",
+ "anyhow",
  "gear-core",
  "gprimitives",
  "hex",
- "log",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
- "tokio",
 ]
 
 [[package]]
@@ -4693,8 +4691,8 @@ dependencies = [
  "anyhow",
  "async-trait",
  "derive_more 2.0.1",
- "ethexe-common",
  "ethexe-db",
+ "ethexe-service-utils",
  "ethexe-signer",
  "futures",
  "gprimitives",
@@ -4838,6 +4836,7 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-ethereum",
+ "ethexe-service-utils",
  "ethexe-signer",
  "futures",
  "gprimitives",
@@ -4895,7 +4894,10 @@ dependencies = [
 name = "ethexe-service-utils"
 version = "1.8.0"
 dependencies = [
+ "anyhow",
  "futures",
+ "log",
+ "tokio",
 ]
 
 [[package]]

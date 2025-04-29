@@ -106,7 +106,7 @@ impl<T: Debug + Unpin> Future for Timer<T> {
 
             let data = self.inner.take().map(|(_, data)| data).unwrap();
 
-            log::trace!("Timer '{}' with data {:?} rings", self.name, data);
+            log::debug!("Timer '{}' with data {:?} rings", self.name, data);
 
             return Poll::Ready(data);
         }

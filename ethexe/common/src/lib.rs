@@ -25,8 +25,6 @@ extern crate alloc;
 pub mod db;
 pub mod events;
 pub mod gear;
-#[cfg(feature = "std")]
-pub mod timer;
 pub mod tx_pool;
 
 pub use gear_core;

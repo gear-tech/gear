@@ -22,8 +22,8 @@ use crate::{
     peer_score::Handle,
     utils::ConnectionMap,
 };
-use ethexe_common::timer::Timer;
 use ethexe_db::Database;
+use ethexe_service_utils::Timer;
 use futures::FutureExt;
 use libp2p::{
     request_response,
