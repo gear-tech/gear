@@ -689,7 +689,9 @@ impl<T> From<(T, u32)> for Expiring<T> {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(
+    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueue(VecDeque<Dispatch>);
 
@@ -715,9 +717,12 @@ impl MessageQueue {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(
+    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Waitlist {
+    #[as_ref]
     inner: BTreeMap<MessageId, Expiring<Dispatch>>,
     #[into(ignore)]
     #[codec(skip)]
@@ -754,13 +759,9 @@ impl Waitlist {
     }
 }
 
-impl AsRef<BTreeMap<MessageId, Expiring<Dispatch>>> for Waitlist {
-    fn as_ref(&self) -> &BTreeMap<MessageId, Expiring<Dispatch>> {
-        &self.inner
-    }
-}
-
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(
+    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct DispatchStash(BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>);
 
@@ -823,12 +824,6 @@ impl DispatchStash {
     }
 }
 
-impl AsRef<BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>> for DispatchStash {
-    fn as_ref(&self) -> &BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>> {
-        &self.0
-    }
-}
-
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MailboxMessage {
@@ -886,9 +881,12 @@ impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(
+    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mailbox {
+    #[as_ref]
     inner: BTreeMap<ActorId, HashOf<UserMailbox>>,
     #[into(ignore)]
     #[codec(skip)]
@@ -974,12 +972,6 @@ impl Mailbox {
                 )
             })
             .collect()
-    }
-}
-
-impl AsRef<BTreeMap<ActorId, HashOf<UserMailbox>>> for Mailbox {
-    fn as_ref(&self) -> &BTreeMap<ActorId, HashOf<UserMailbox>> {
-        &self.inner
     }
 }
 

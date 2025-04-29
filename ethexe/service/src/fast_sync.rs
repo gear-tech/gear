@@ -30,7 +30,9 @@ use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_runtime_common::{
     state::{
-        ActiveProgram, Mailbox, MaybeHashOf, MemoryPages, MemoryPagesRegion, Program, ProgramState,
+        ActiveProgram, DispatchStash, Expiring, Mailbox, MaybeHashOf, MemoryPages,
+        MemoryPagesRegion, MessageQueue, PayloadLookup, Program, ProgramState, UserMailbox,
+        Waitlist,
     },
     ScheduleRestorer,
 };
@@ -146,7 +148,11 @@ enum RequestMetadata {
     ProgramState,
     MemoryPages,
     MemoryPagesRegion,
+    MessageQueue,
+    Waitlist,
     Mailbox,
+    UserMailbox,
+    DispatchStash,
     /// Any data we only insert into the database.
     Data,
 }
@@ -339,6 +345,13 @@ async fn sync_from_network(
     db: &Database,
     program_states: &BTreeMap<ActorId, H256>,
 ) {
+    let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
+        PayloadLookup::Direct(_) => {}
+        PayloadLookup::Stored(hash) => {
+            manager.add(hash.hash(), RequestMetadata::Data);
+        }
+    };
+
     let mut manager = RequestManager::default();
     for &state in program_states.values() {
         manager.add(state, RequestMetadata::ProgramState);
@@ -384,16 +397,16 @@ async fn sync_from_network(
                     }
 
                     if let Some(queue_hash) = queue_hash.hash() {
-                        manager.add(queue_hash, RequestMetadata::Data);
+                        manager.add(queue_hash, RequestMetadata::MessageQueue);
                     }
                     if let Some(waitlist_hash) = waitlist_hash.hash() {
-                        manager.add(waitlist_hash, RequestMetadata::Data);
+                        manager.add(waitlist_hash, RequestMetadata::Waitlist);
                     }
                     if let Some(mailbox_hash) = mailbox_hash.hash() {
                         manager.add(mailbox_hash, RequestMetadata::Mailbox);
                     }
                     if let Some(stash_hash) = stash_hash.hash() {
-                        manager.add(stash_hash, RequestMetadata::Data);
+                        manager.add(stash_hash, RequestMetadata::DispatchStash);
                     }
                 }
                 RequestMetadata::MemoryPages => {
@@ -420,11 +433,51 @@ async fn sync_from_network(
                         manager.add(page_buf_hash, RequestMetadata::Data);
                     }
                 }
+                RequestMetadata::MessageQueue => {
+                    let message_queue: MessageQueue =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+                    for dispatch in message_queue.as_ref() {
+                        add_payload(&mut manager, &dispatch.payload);
+                    }
+                }
+                RequestMetadata::Waitlist => {
+                    let waitlist: Waitlist =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+                    for Expiring {
+                        value: dispatch,
+                        expiry: _,
+                    } in waitlist.as_ref().values()
+                    {
+                        add_payload(&mut manager, &dispatch.payload);
+                    }
+                }
                 RequestMetadata::Mailbox => {
                     let mailbox: Mailbox =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
                     for user_mailbox in mailbox.as_ref().values() {
-                        manager.add(user_mailbox.hash(), RequestMetadata::Data);
+                        manager.add(user_mailbox.hash(), RequestMetadata::UserMailbox);
+                    }
+                }
+                RequestMetadata::UserMailbox => {
+                    let user_mailbox: UserMailbox =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+                    for Expiring {
+                        value: msg,
+                        expiry: _,
+                    } in user_mailbox.as_ref().values()
+                    {
+                        add_payload(&mut manager, &msg.payload);
+                    }
+                }
+                RequestMetadata::DispatchStash => {
+                    let dispatch_stash: DispatchStash =
+                        Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
+                    for Expiring {
+                        value: (dispatch, _user_id),
+                        expiry: _,
+                    } in dispatch_stash.as_ref().values()
+                    {
+                        add_payload(&mut manager, &dispatch.payload);
                     }
                 }
                 RequestMetadata::Data => {}
