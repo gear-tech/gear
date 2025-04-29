@@ -252,7 +252,7 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: Sleep
-        run: sleep 21600
+        run: echo $HOSTNAME && sleep 21600
 
       # These tests randomly stops responding
 
