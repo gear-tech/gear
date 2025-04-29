@@ -241,7 +241,7 @@ impl RequestManager {
     fn handle_pending_requests(&mut self, db: &Database) -> HashMap<H256, RequestMetadata> {
         let mut pending_requests = HashMap::new();
         for (hash, metadata) in self.pending_requests.drain() {
-            if metadata.is_data() && db.has_hash(hash) {
+            if metadata.is_data() && db.contains_hash(hash) {
                 self.total_completed_requests += 1;
                 continue;
             }

@@ -59,7 +59,7 @@ pub trait KVDatabase: Send + Sync {
     fn take(&self, key: &[u8]) -> Option<Vec<u8>>;
 
     /// Check if data exists by key.
-    fn has(&self, key: &[u8]) -> bool;
+    fn contains(&self, key: &[u8]) -> bool;
 
     /// Put (insert) value by key.
     fn put(&self, key: &[u8], data: Vec<u8>);

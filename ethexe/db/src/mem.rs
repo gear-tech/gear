@@ -57,7 +57,7 @@ impl KVDatabase for MemDb {
         self.inner.remove(&key.to_vec()).map(|(_, value)| value)
     }
 
-    fn has(&self, key: &[u8]) -> bool {
+    fn contains(&self, key: &[u8]) -> bool {
         self.inner.contains_key(key)
     }
 

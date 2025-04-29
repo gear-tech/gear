@@ -80,7 +80,7 @@ impl KVDatabase for RocksDatabase {
         data
     }
 
-    fn has(&self, key: &[u8]) -> bool {
+    fn contains(&self, key: &[u8]) -> bool {
         self.inner.key_may_exist(key)
             && self
                 .inner

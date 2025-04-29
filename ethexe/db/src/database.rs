@@ -149,8 +149,8 @@ impl Database {
         self.cas.read(hash)
     }
 
-    pub fn has_hash(&self, hash: H256) -> bool {
-        self.kv.has(hash.as_bytes())
+    pub fn contains_hash(&self, hash: H256) -> bool {
+        self.kv.contains(hash.as_bytes())
     }
 
     pub fn write(&self, data: &[u8]) -> H256 {
@@ -391,7 +391,7 @@ impl BlockMetaStorage for Database {
 
 impl CodesStorage for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
-        self.kv.has(code_id.as_ref())
+        self.kv.contains(code_id.as_ref())
     }
 
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
@@ -438,7 +438,7 @@ impl CodesStorage for Database {
 
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool {
         self.kv
-            .has(&Key::InstrumentedCode(runtime_id, code_id).to_bytes())
+            .contains(&Key::InstrumentedCode(runtime_id, code_id).to_bytes())
     }
 
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {

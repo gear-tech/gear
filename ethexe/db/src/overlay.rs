@@ -82,8 +82,8 @@ impl KVDatabase for KVOverlay {
         unimplemented!()
     }
 
-    fn has(&self, key: &[u8]) -> bool {
-        self.mem.has(key) || self.db.has(key)
+    fn contains(&self, key: &[u8]) -> bool {
+        self.mem.contains(key) || self.db.contains(key)
     }
 
     fn put(&self, key: &[u8], value: Vec<u8>) {
