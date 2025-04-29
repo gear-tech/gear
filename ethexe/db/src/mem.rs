@@ -37,11 +37,6 @@ impl CASDatabase for MemDb {
         self.inner.get(key).map(|v| v.value().clone())
     }
 
-    fn has(&self, hash: H256) -> bool {
-        let key = hash.as_bytes();
-        self.inner.contains_key(key)
-    }
-
     fn write(&self, data: &[u8]) -> H256 {
         let hash = crate::hash(data);
         self.inner.insert(hash.as_bytes().to_vec(), data.to_vec());
@@ -60,6 +55,10 @@ impl KVDatabase for MemDb {
 
     fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
         self.inner.remove(&key.to_vec()).map(|(_, value)| value)
+    }
+
+    fn has(&self, key: &[u8]) -> bool {
+        self.inner.contains_key(key)
     }
 
     fn put(&self, key: &[u8], value: Vec<u8>) {
