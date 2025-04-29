@@ -105,7 +105,7 @@ mod tests {
     use std::any::TypeId;
 
     use super::*;
-    use crate::{tests::*, validator::tests::*};
+    use crate::{mock::*, validator::mock::*};
     use ethexe_common::gear::BatchCommitment;
 
     #[tokio::test]

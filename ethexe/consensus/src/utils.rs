@@ -207,7 +207,7 @@ impl MultisignedBatchCommitment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::*;
+    use crate::mock::*;
 
     #[test]
     fn multisigned_batch_commitment_creation() {

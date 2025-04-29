@@ -260,8 +260,8 @@ enum AggregationError {
 mod tests {
     use super::*;
     use crate::{
-        tests::*,
-        validator::{submitter::Submitter, tests::*},
+        mock::*,
+        validator::{mock::*, submitter::Submitter},
     };
     use std::{any::TypeId, vec};
 

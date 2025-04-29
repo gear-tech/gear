@@ -129,7 +129,7 @@ mod tests {
     use gprimitives::H256;
 
     use super::*;
-    use crate::{tests::*, validator::tests::*, ConsensusEvent};
+    use crate::{mock::*, validator::mock::*, ConsensusEvent};
 
     #[test]
     fn create_initial_success() {

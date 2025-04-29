@@ -36,7 +36,7 @@ mod utils;
 mod validator;
 
 #[cfg(test)]
-mod tests;
+mod mock;
 
 pub use connect::SimpleConnectService;
 pub use utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
@@ -99,4 +99,12 @@ pub enum ConsensusEvent {
 /// Returns block producer for time slot. Next slot is the next validator in the list.
 pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
     (slot % validators_amount as u64) as usize
+}
+
+#[test]
+fn block_producer_index_calculates_correct_index() {
+    let validators_amount = 5;
+    let slot = 7;
+    let index = crate::block_producer_index(validators_amount, slot);
+    assert_eq!(index, 2);
 }

@@ -123,7 +123,7 @@ mod tests {
     use gprimitives::H256;
 
     use super::*;
-    use crate::{tests::*, validator::tests::*};
+    use crate::{mock::*, validator::mock::*};
 
     #[test]
     fn coordinator_create_success() {

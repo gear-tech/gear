@@ -182,7 +182,7 @@ mod tests {
     use std::any::TypeId;
 
     use super::*;
-    use crate::{tests::*, validator::tests::mock_validator_context};
+    use crate::{mock::*, validator::mock::mock_validator_context};
 
     #[test]
     fn create_empty() {

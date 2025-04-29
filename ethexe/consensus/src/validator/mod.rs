@@ -66,8 +66,9 @@ mod participant;
 mod producer;
 mod submitter;
 mod subordinate;
+
 #[cfg(test)]
-mod tests;
+mod mock;
 
 use crate::{
     utils::{

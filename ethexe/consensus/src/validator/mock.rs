@@ -19,7 +19,6 @@
 use std::cell::RefCell;
 
 use super::*;
-use crate::tests::init_signer_with_keys;
 
 thread_local! {
     static BATCH: RefCell<Option<MultisignedBatchCommitment>> = const { RefCell::new(None) };
@@ -56,7 +55,7 @@ impl WaitForEvent for Box<dyn StateHandler> {
 }
 
 pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
-    let (signer, _, mut keys) = init_signer_with_keys(10);
+    let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
 
     let ctx = ValidatorContext {
         slot_duration: Duration::from_secs(1),
