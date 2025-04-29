@@ -27,14 +27,6 @@ use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Database,
 use ethexe_signer::{Address, Digest, PrivateKey, PublicKey, SignedData, Signer};
 use gprimitives::H256;
 
-#[test]
-fn block_producer_index_calculates_correct_index() {
-    let validators_amount = 5;
-    let slot = 7;
-    let index = crate::block_producer_index(validators_amount, slot);
-    assert_eq!(index, 2);
-}
-
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
     let signer = Signer::tmp();
     let private_keys: Vec<_> = (0..amount).map(|i| PrivateKey([i + 1; 32])).collect();
