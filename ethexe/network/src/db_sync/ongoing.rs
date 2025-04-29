@@ -68,7 +68,7 @@ pub(crate) struct PeerFailed {
     pub(crate) request_id: RequestId,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OngoingRequest {
     request_id: RequestId,
     original_request: Request,
@@ -77,20 +77,6 @@ pub struct OngoingRequest {
     tried_peers: HashSet<PeerId>,
     timer: Timer,
     peer_score_handle: Handle,
-}
-
-impl Clone for OngoingRequest {
-    fn clone(&self) -> Self {
-        Self {
-            request_id: self.request_id,
-            original_request: self.original_request.clone(),
-            request: self.request.clone(),
-            response: self.response.clone(),
-            tried_peers: self.tried_peers.clone(),
-            timer: self.timer.clone(),
-            peer_score_handle: self.peer_score_handle.clone(),
-        }
-    }
 }
 
 impl PartialEq for OngoingRequest {
