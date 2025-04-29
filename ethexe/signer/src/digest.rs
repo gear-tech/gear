@@ -224,6 +224,7 @@ impl ToDigest for BatchCommitment {
 
         hasher.update(code_commitments.to_digest().as_ref());
         hasher.update(block_commitments.to_digest().as_ref());
+        hasher.update([0u8; 0].to_digest().as_ref()); // Placeholder for the rewards commitment
     }
 }
 
