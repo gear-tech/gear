@@ -114,11 +114,10 @@ impl EventData {
         };
 
         // recover data we haven't seen in events by the latest computed block
-        let (computed_block, _computed_header) = db
-            .latest_computed_block()
-            .context("latest computed block not found")?;
+        // NOTE: we use `block` instead of `db.latest_computed_block()` so
+        // possible reorganization have no effect
         let computed_program_states = db
-            .block_program_states(computed_block)
+            .block_program_states(block)
             .context("program states of latest computed block not found")?;
         for (program_id, state) in computed_program_states {
             program_states.entry(program_id).or_insert(state);
