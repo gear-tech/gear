@@ -589,7 +589,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     if let Some(sender) = sender.as_ref() {
         sender
             .send(Event::FastSyncDone(latest_committed_block))
-            .expect("failed to broadcast service STARTED event");
+            .expect("failed to broadcast fast sync done event");
     }
 
     Ok(())
