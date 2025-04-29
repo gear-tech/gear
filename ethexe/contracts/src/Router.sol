@@ -296,6 +296,18 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         uint256 maxTimestamp = 0;
 
+        /* Commit Blocks */
+
+        bytes memory blockCommitmentsHashes;
+
+        for (uint256 i = 0; i < _batchCommitment.blockCommitments.length; i++) {
+            Gear.BlockCommitment calldata blockCommitment = _batchCommitment.blockCommitments[i];
+            blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
+            if (blockCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = blockCommitment.timestamp;
+            }
+        }
+
         /* Commit Codes */
 
         bytes memory codeCommitmentsHashes;
@@ -323,18 +335,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             }
         }
 
-        /* Commit Blocks */
-
-        bytes memory blockCommitmentsHashes;
-
-        for (uint256 i = 0; i < _batchCommitment.blockCommitments.length; i++) {
-            Gear.BlockCommitment calldata blockCommitment = _batchCommitment.blockCommitments[i];
-            blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
-            if (blockCommitment.timestamp > maxTimestamp) {
-                maxTimestamp = blockCommitment.timestamp;
-            }
-        }
-
         /* Commit Rewards */
 
         bytes memory rewardsCommitmentHash;
@@ -357,8 +357,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
                 TRANSIENT_STORAGE,
                 keccak256(
                     abi.encodePacked(
-                        keccak256(codeCommitmentsHashes),
                         keccak256(blockCommitmentsHashes),
+                        keccak256(codeCommitmentsHashes),
                         keccak256(rewardsCommitmentHash)
                     )
                 ),

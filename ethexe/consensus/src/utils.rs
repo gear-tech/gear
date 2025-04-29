@@ -56,8 +56,8 @@ impl BatchCommitmentValidationRequest {
 
 impl ToDigest for BatchCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut ethexe_signer::sha3::Keccak256) {
-        hasher.update(self.codes.to_digest().as_ref());
         hasher.update(self.blocks.to_digest().as_ref());
+        hasher.update(self.codes.to_digest().as_ref());
         hasher.update([0u8; 0].to_digest().as_ref());
     }
 }
