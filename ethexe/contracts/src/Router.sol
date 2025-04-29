@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Clones} from "./libraries/Clones.sol";
+import {ClonesSmall} from "./libraries/ClonesSmall.sol";
 import {Gear} from "./libraries/Gear.sol";
 import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
@@ -250,21 +251,27 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         emit CodeValidationRequested(_codeId);
     }
 
-    function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {
-        address mirror = _createProgram(_codeId, _salt);
+    function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer) external returns (address) {
+        address mirror = _createProgram(_codeId, _salt, true);
 
-        IMirror(mirror).initialize(msg.sender, address(0));
+        IMirror(mirror).initialize(
+            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, mirrorImpl(), true
+        );
 
         return mirror;
     }
 
-    function createProgramWithAbiInterface(bytes32 _codeId, bytes32 _salt, address _abiInterface)
-        external
-        returns (address)
-    {
-        address mirror = _createProgram(_codeId, _salt);
+    function createProgramWithAbiInterface(
+        bytes32 _codeId,
+        bytes32 _salt,
+        address _overrideInitializer,
+        address _abiInterface
+    ) external returns (address) {
+        address mirror = _createProgram(_codeId, _salt, false);
 
-        IMirror(mirror).initialize(msg.sender, _abiInterface);
+        IMirror(mirror).initialize(
+            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface, false
+        );
 
         return mirror;
     }
@@ -404,7 +411,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
     /* Helper private functions */
 
-    function _createProgram(bytes32 _codeId, bytes32 _salt) private returns (address) {
+    function _createProgram(bytes32 _codeId, bytes32 _salt, bool _isSmall) private returns (address) {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
@@ -415,7 +422,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
-        address actorId = Clones.cloneDeterministic(address(this), keccak256(abi.encodePacked(_codeId, _salt)));
+        bytes32 salt = keccak256(abi.encodePacked(_codeId, _salt));
+        address actorId = _isSmall
+            ? ClonesSmall.cloneDeterministic(address(this), salt)
+            : Clones.cloneDeterministic(address(this), salt);
 
         router.protocolData.programs[actorId] = _codeId;
         router.protocolData.programsCount++;
