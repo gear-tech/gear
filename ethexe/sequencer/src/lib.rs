@@ -267,6 +267,7 @@ impl SequencerService {
             &[
                 self.codes_candidate.as_ref(),
                 self.blocks_candidate.as_ref(),
+                None,
             ],
             &mut self.signatures,
         )

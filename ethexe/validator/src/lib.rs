@@ -207,9 +207,13 @@ impl Validator {
 
         let block_commitments_digest: Digest = block_commitment_digests.iter().collect();
 
-        let batch_commitment_digest = [code_commitments_digest, block_commitments_digest]
-            .iter()
-            .collect();
+        let batch_commitment_digest = [
+            code_commitments_digest,
+            block_commitments_digest,
+            [0u8; 0].to_digest(),
+        ]
+        .iter()
+        .collect();
 
         agro::sign_commitments_digest(
             batch_commitment_digest,
