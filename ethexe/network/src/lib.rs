@@ -653,8 +653,8 @@ mod tests {
         // second service
         let db = Database::from_one(&MemDb::default());
 
-        let hello = db.write(b"hello");
-        let world = db.write(b"world");
+        let hello = db.write_hash(b"hello");
+        let world = db.write_hash(b"world");
 
         let (_tmp_dir, mut service2) = new_service_with_db(db);
 

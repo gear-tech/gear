@@ -47,6 +47,10 @@ impl CASDatabase for CASOverlay {
         self.mem.read(hash).or_else(|| self.db.read(hash))
     }
 
+    fn contains(&self, hash: H256) -> bool {
+        CASDatabase::contains(&self.mem, hash) || CASDatabase::contains(&*self.db, hash)
+    }
+
     fn write(&self, data: &[u8]) -> H256 {
         self.mem.write(data)
     }
@@ -83,7 +87,7 @@ impl KVDatabase for KVOverlay {
     }
 
     fn contains(&self, key: &[u8]) -> bool {
-        self.mem.contains(key) || self.db.contains(key)
+        KVDatabase::contains(&self.mem, key) || KVDatabase::contains(&*self.db, key)
     }
 
     fn put(&self, key: &[u8], value: Vec<u8>) {

@@ -637,8 +637,8 @@ mod tests {
         let (mut bob, bob_db) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
-        let hello_hash = bob_db.write(b"hello");
-        let world_hash = bob_db.write(b"world");
+        let hello_hash = bob_db.write_hash(b"hello");
+        let world_hash = bob_db.write_hash(b"world");
 
         alice.connect(&mut bob).await;
         tokio::spawn(async move {
@@ -895,9 +895,9 @@ mod tests {
         tokio::spawn(charlie.loop_on_next());
         tokio::spawn(dave.loop_on_next());
 
-        let hello_hash = bob_db.write(b"hello");
-        let world_hash = charlie_db.write(b"world");
-        let mark_hash = dave_db.write(b"!");
+        let hello_hash = bob_db.write_hash(b"hello");
+        let world_hash = charlie_db.write_hash(b"world");
+        let mark_hash = dave_db.write_hash(b"!");
 
         let request_id = alice
             .behaviour_mut()
@@ -948,8 +948,8 @@ mod tests {
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
 
-        let hello_hash = bob_db.write(b"hello");
-        let world_hash = charlie_db.write(b"world");
+        let hello_hash = bob_db.write_hash(b"hello");
+        let world_hash = charlie_db.write_hash(b"world");
 
         let request_id = alice
             .behaviour_mut()
@@ -1126,7 +1126,7 @@ mod tests {
         alice.connect(&mut charlie).await;
         tokio::spawn(charlie.loop_on_next());
 
-        let key = charlie_db.write(b"test");
+        let key = charlie_db.write_hash(b"test");
         assert_eq!(request_key, key);
         alice.behaviour_mut().retry(ongoing_request);
 

@@ -37,6 +37,10 @@ impl CASDatabase for MemDb {
         self.inner.get(key).map(|v| v.value().clone())
     }
 
+    fn contains(&self, hash: H256) -> bool {
+        self.inner.contains_key(hash.as_bytes())
+    }
+
     fn write(&self, data: &[u8]) -> H256 {
         let hash = crate::hash(data);
         self.inner.insert(hash.as_bytes().to_vec(), data.to_vec());

@@ -43,6 +43,9 @@ pub trait CASDatabase: Send + Sync {
     /// Read data by hash.
     fn read(&self, hash: H256) -> Option<Vec<u8>>;
 
+    /// Check if data exists by key.
+    fn contains(&self, hash: H256) -> bool;
+
     /// Write data, returns data hash.
     fn write(&self, data: &[u8]) -> H256;
 }

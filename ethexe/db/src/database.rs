@@ -150,10 +150,10 @@ impl Database {
     }
 
     pub fn contains_hash(&self, hash: H256) -> bool {
-        self.kv.contains(hash.as_bytes())
+        self.cas.contains(hash)
     }
 
-    pub fn write(&self, data: &[u8]) -> H256 {
+    pub fn write_hash(&self, data: &[u8]) -> H256 {
         self.cas.write(data)
     }
 

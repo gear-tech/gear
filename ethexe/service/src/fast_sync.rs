@@ -270,7 +270,7 @@ impl RequestManager {
                 .remove(&hash)
                 .expect("unknown pending request");
 
-            let db_hash = db.write(&data);
+            let db_hash = db.write_hash(&data);
             debug_assert_eq!(hash, db_hash);
 
             self.responses.push((metadata, data));
