@@ -30,7 +30,9 @@ use futures::FutureExt;
 use gprimitives::H256;
 use std::task::Context;
 
-use super::{coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext};
+use super::{
+    coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
+};
 use crate::ConsensusEvent;
 
 #[derive(Debug, Display)]
@@ -52,10 +54,6 @@ enum State {
 }
 
 impl StateHandler for Producer {
-    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
-        self
-    }
-
     fn context(&self) -> &ValidatorContext {
         &self.ctx
     }
@@ -64,18 +62,15 @@ impl StateHandler for Producer {
         &mut self.ctx
     }
 
-    fn into_context(self: Box<Self>) -> ValidatorContext {
+    fn into_context(self) -> ValidatorContext {
         self.ctx
     }
 
-    fn process_computed_block(
-        mut self: Box<Self>,
-        computed_block: H256,
-    ) -> Result<Box<dyn StateHandler>> {
+    fn process_computed_block(mut self, computed_block: H256) -> Result<ValidatorState> {
         if !matches!(&self.state, State::WaitingBlockComputed(hash) if *hash == computed_block) {
             self.warning(format!("unexpected computed block {computed_block}"));
 
-            return Ok(self);
+            return Ok(self.into());
         }
 
         let batch = match Self::aggregate_commitments_for_block(&self.ctx, computed_block) {
@@ -94,7 +89,7 @@ impl StateHandler for Producer {
         Coordinator::create(self.ctx, self.validators, batch)
     }
 
-    fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
+    fn poll(mut self, cx: &mut Context<'_>) -> Result<ValidatorState> {
         match &mut self.state {
             State::CollectCodes { timer } => {
                 if timer.poll_unpin(cx).is_ready() {
@@ -104,7 +99,7 @@ impl StateHandler for Producer {
             State::WaitingBlockComputed(_) => {}
         }
 
-        Ok(self)
+        Ok(self.into())
     }
 }
 
@@ -113,7 +108,7 @@ impl Producer {
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         validators: Vec<Address>,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         ensure!(
             validators.contains(&ctx.pub_key.to_address()),
             "Producer is not in the list of validators"
@@ -125,12 +120,13 @@ impl Producer {
 
         ctx.pending_events.clear();
 
-        Ok(Box::new(Self {
+        Ok(Self {
             ctx,
             block,
             validators,
             state: State::CollectCodes { timer },
-        }))
+        }
+        .into())
     }
 
     fn aggregate_commitments_for_block(
@@ -259,11 +255,8 @@ enum AggregationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        tests::*,
-        validator::{submitter::Submitter, tests::*},
-    };
-    use std::{any::TypeId, vec};
+    use crate::{tests::*, validator::tests::*};
+    use std::vec;
 
     #[tokio::test]
     async fn create() {
@@ -301,9 +294,9 @@ mod tests {
             .0;
 
         // No commitments - no batch and goes to initial state
-        let initial = producer.process_computed_block(block.hash).unwrap();
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
-        assert_eq!(initial.context().output.len(), 0);
+        let state = producer.process_computed_block(block.hash).unwrap();
+        assert!(state.is_initial());
+        assert_eq!(state.context().output.len(), 0);
         with_batch(|batch| assert!(batch.is_none()));
     }
 
@@ -334,18 +327,18 @@ mod tests {
         );
 
         // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
-        let submitter = create_producer_skip_timer(ctx, block1.clone(), validators.clone())
+        let state = create_producer_skip_timer(ctx, block1.clone(), validators.clone())
             .await
             .unwrap()
             .0
             .process_computed_block(block1.hash)
             .unwrap();
-        assert_eq!(submitter.type_id(), TypeId::of::<Submitter>());
-        assert_eq!(submitter.context().output.len(), 0);
+        assert!(state.is_submitter());
+        assert_eq!(state.context().output.len(), 0);
 
         // Check that we have a batch with code commitments after submitting
-        let initial = submitter.wait_for_event().await.unwrap().0;
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        let state = state.wait_for_event().await.unwrap().0;
+        assert!(state.is_initial());
         with_batch(|batch| {
             let batch = batch.expect("Expected that batch is committed");
             assert_eq!(batch.signatures().len(), 1);
@@ -357,9 +350,9 @@ mod tests {
         });
 
         // If threshold is 2, producer must goes to coordinator state and emit validation request
-        let mut ctx = initial.into_context();
+        let mut ctx = state.into_context();
         ctx.threshold = 2;
-        let (coordinator, request) = create_producer_skip_timer(ctx, block1.clone(), validators)
+        let (state, request) = create_producer_skip_timer(ctx, block1.clone(), validators)
             .await
             .unwrap()
             .0
@@ -368,7 +361,7 @@ mod tests {
             .wait_for_event()
             .await
             .unwrap();
-        assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
+        assert!(state.is_coordinator());
         assert!(matches!(
             request,
             ConsensusEvent::PublishValidationRequest(_)
@@ -387,15 +380,15 @@ mod tests {
         ctx.db
             .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
 
-        let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
+        let state = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
             .unwrap()
             .0
             .process_computed_block(block.hash)
             .unwrap();
 
-        let initial = submitter.wait_for_event().await.unwrap().0;
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        let state = state.wait_for_event().await.unwrap().0;
+        assert!(state.is_initial());
         with_batch(|batch| {
             let batch = batch.expect("Expected that batch is committed");
             assert_eq!(batch.signatures().len(), 1);
@@ -408,24 +401,23 @@ mod tests {
         ctx: ValidatorContext,
         block: SimpleBlockData,
         validators: Vec<Address>,
-    ) -> Result<(Box<dyn StateHandler>, ConsensusEvent, ConsensusEvent)> {
-        let producer = Producer::create(ctx, block.clone(), validators)?;
-        assert_eq!(producer.type_id(), TypeId::of::<Producer>());
+    ) -> Result<(ValidatorState, ConsensusEvent, ConsensusEvent)> {
+        let state: ValidatorState = Producer::create(ctx, block.clone(), validators)?;
 
-        let (producer, publish_event) = producer.wait_for_event().await?;
-        assert_eq!(producer.type_id(), TypeId::of::<Producer>());
+        let (state, publish_event) = state.wait_for_event().await?;
+        assert!(state.is_producer());
         assert!(matches!(
             publish_event,
             ConsensusEvent::PublishProducerBlock(_)
         ));
 
-        let (producer, compute_event) = producer.wait_for_event().await?;
-        assert_eq!(producer.type_id(), TypeId::of::<Producer>());
+        let (state, compute_event) = state.wait_for_event().await?;
+        assert!(state.is_producer());
         assert!(matches!(
             compute_event,
             ConsensusEvent::ComputeProducerBlock(_)
         ));
 
-        Ok((producer, publish_event, compute_event))
+        Ok((state, publish_event, compute_event))
     }
 }
