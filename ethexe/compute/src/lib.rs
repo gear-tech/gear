@@ -20,7 +20,7 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,
@@ -162,7 +162,6 @@ impl ChainHeadProcessContext {
             }) = event
             {
                 // TODO: test branch
-                use ethexe_common::db::CodesStorage;
                 if !self
                     .db
                     .instrumented_code_exists(ethexe_runtime::VERSION, *code_id)
