@@ -18,14 +18,11 @@
 
 use crate::*;
 use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent};
-use ethexe_db::{
-    BlockHeader, BlockMetaStorage, CodesStorage, MemDb, OnChainStorage, ScheduledTask,
-};
-use ethexe_runtime_common::state::Expiring;
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, OnChainStorage};
+use ethexe_runtime_common::ScheduleRestorer;
 use gear_core::ids::{prelude::CodeIdExt, ProgramId};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
-use std::collections::{BTreeMap, BTreeSet};
 use utils::*;
 
 fn init_genesis_block(processor: &mut Processor) -> H256 {
@@ -547,33 +544,11 @@ fn many_waits() {
     let schedule = processor.db.block_schedule(block).unwrap();
 
     // Reproducibility test.
-    {
-        let mut expected_schedule = BTreeMap::<_, BTreeSet<_>>::new();
-
-        for (pid, state_hash) in &states {
-            let state = processor.db.read_state(*state_hash).unwrap();
-            let waitlist_hash = state.waitlist_hash.to_inner().unwrap();
-            let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
-
-            for (
-                mid,
-                Expiring {
-                    value: dispatch,
-                    expiry,
-                },
-            ) in waitlist.into_inner()
-            {
-                assert_eq!(mid, dispatch.id);
-                expected_schedule
-                    .entry(expiry)
-                    .or_default()
-                    .insert(ScheduledTask::WakeMessage(*pid, mid));
-            }
-        }
-
-        // This could fail in case of handling more scheduled ops: please, update test than.
-        assert_eq!(schedule, expected_schedule);
-    }
+    let restored_schedule = ScheduleRestorer::from_storage(&processor.db, &states, 0)
+        .unwrap()
+        .restore();
+    // This could fail in case of handling more scheduled ops: please, update test than.
+    assert_eq!(schedule, restored_schedule);
 
     let mut handler = processor.handler(ch11).unwrap();
     handler.run_schedule();

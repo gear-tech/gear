@@ -61,7 +61,7 @@ fn write(caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
 
     let data = memory.slice(&caller, ptr as usize, len as usize);
 
-    let hash = threads::with_db(|db| db.write(data));
+    let hash = threads::with_db(|db| db.write_hash(data));
 
     let (_caller, res) = super::allocate_and_write(caller, hash);
 
