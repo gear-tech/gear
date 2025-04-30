@@ -27,6 +27,9 @@ use ethexe_common::gear::BatchCommitment;
 use ethexe_signer::Address;
 use std::collections::BTreeSet;
 
+/// [`Coordinator`] sends batch commitment validation request to other validators
+/// and waits for validation replies.
+/// Switches to [`Submitter`], after receiving enough validators replies from other validators.
 #[derive(Debug, Display)]
 #[display("COORDINATOR")]
 pub struct Coordinator {

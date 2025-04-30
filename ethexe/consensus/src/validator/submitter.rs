@@ -26,6 +26,9 @@ use futures::{future::BoxFuture, FutureExt};
 use gprimitives::H256;
 use std::task::{Context, Poll};
 
+/// [`Submitter`] is the last state of the current block producer validator.
+/// It submits the batch commitment to the Ethereum network.
+/// After the submission it switches to [`Initial`] state.
 #[derive(Debug, Display)]
 #[display("SUBMITTER")]
 pub struct Submitter {

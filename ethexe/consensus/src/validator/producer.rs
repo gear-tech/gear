@@ -32,6 +32,9 @@ use futures::FutureExt;
 use gprimitives::H256;
 use std::task::Context;
 
+/// [`Producer`] is the state of the validator, which creates a new block
+/// and publish it to the network. It waits for the block to be computed
+/// and then switches to [`Coordinator`] state.
 #[derive(Debug, Display)]
 #[display("PRODUCER in {:?}", self.state)]
 pub struct Producer {

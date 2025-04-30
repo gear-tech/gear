@@ -31,6 +31,10 @@ use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
 use ethexe_signer::{Address, Digest, SignedData, ToDigest};
 use gprimitives::H256;
 
+/// [`Participant`] is a state of the validator that processes validation requests,
+/// which are sent by the current block producer (from the coordinator state).
+/// After replying to the request, it switches back to the [`Initial`] state
+/// and waits for the next block.
 #[derive(Debug, Display)]
 #[display("PARTICIPANT")]
 pub struct Participant {

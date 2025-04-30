@@ -25,6 +25,9 @@ use ethexe_common::SimpleBlockData;
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::Address;
 
+/// [`Initial`] is the first state of the validator.
+/// It waits for the chain head and this block on-chain information sync.
+/// After block is fully synced it switches to either [`Producer`] or [`Subordinate`].
 #[derive(Debug, Display)]
 #[display("INITIAL in {:?}", self.state)]
 pub struct Initial {

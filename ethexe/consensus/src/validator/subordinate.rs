@@ -30,6 +30,9 @@ use std::mem;
 /// and also removes old events if we overflow this limit:
 const MAX_PENDING_EVENTS: usize = 10;
 
+/// [`Subordinate`] is the state of the validator which is not a producer.
+/// It waits for the producer block, the waits for the block computing
+/// and then switches to [`Participant`] state.
 #[derive(Debug, Display)]
 #[display("SUBORDINATE in {:?}", self.state)]
 pub struct Subordinate {
