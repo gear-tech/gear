@@ -1025,17 +1025,9 @@ async fn multiple_validators() {
         .expect_err("Timeout expected");
 
     log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
-    // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
-    let mut validator2 = env.new_node(
-        NodeConfig::named("validator-2")
-            .validator(env.validators[2], env.validator_session_public_keys[2])
-            .network(None, sequencer.multiaddr.clone())
-            .db(validator2.db),
-    );
-
     validator2.start_service().await;
 
-    // IMPORTANT: mine one block to sent a new block event.
+    // IMPORTANT: mine one block to send a new block event.
     env.force_new_block().await;
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
@@ -1399,7 +1391,6 @@ mod utils {
         pub fn new_node(&mut self, config: NodeConfig) -> Node {
             let NodeConfig {
                 name,
-                db,
                 sequencer_public_key,
                 validator_public_key,
                 validator_session_public_key,
@@ -1407,7 +1398,7 @@ mod utils {
                 rpc: service_rpc_config,
             } = config;
 
-            let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
+            let db = Database::from_one(&MemDb::default());
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
@@ -1704,8 +1695,6 @@ mod utils {
     pub struct NodeConfig {
         /// Node name.
         pub name: Option<String>,
-        /// Database, if not provided, will be created with MemDb.
-        pub db: Option<Database>,
         /// Sequencer public key, if provided then new node starts as sequencer.
         pub sequencer_public_key: Option<ethexe_signer::PublicKey>,
         /// Validator public key, if provided then new node starts as validator.
@@ -1724,11 +1713,6 @@ mod utils {
                 name: Some(name.into()),
                 ..Default::default()
             }
-        }
-
-        pub fn db(mut self, db: Database) -> Self {
-            self.db = Some(db);
-            self
         }
 
         pub fn sequencer(mut self, sequencer_public_key: ethexe_signer::PublicKey) -> Self {
