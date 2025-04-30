@@ -37,6 +37,7 @@ extern "C" fn handle() {
         // Send message to receive an auto-reply
         let msg_id = msg::send_bytes(destination, b"Hi", 0).expect("Failed to send message");
         debug!("Sent message with ID: {msg_id:?}");
+
         exec::reply_deposit(msg_id, 10_000_000_000).expect("Failed to deposit reply");
     }
 }

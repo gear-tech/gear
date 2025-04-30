@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
-use alloy::primitives::U256;
 use anyhow::{bail, Context, Result};
 use ethexe_common::ProducerBlock;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
@@ -27,7 +26,7 @@ use ethexe_consensus::{
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{db_sync, NetworkEvent, NetworkService};
+use ethexe_network::{NetworkEvent, NetworkService};
 use ethexe_observer::{
     BlobData, BlobReader, ConsensusLayerBlobReader, MockBlobReader, ObserverEvent, ObserverService,
 };
@@ -45,11 +44,14 @@ use tokio::sync::broadcast::Sender;
 
 pub mod config;
 
+mod fast_sync;
 #[cfg(test)]
 mod tests;
 
 #[derive(Debug, Clone, derive_more::From)]
 pub enum Event {
+    // Fast sync done. Sent just once.
+    FastSyncDone(H256),
     // Basic event to notify that service has started. Sent just once.
     ServiceStarted,
     // Services events.
@@ -65,7 +67,6 @@ pub enum Event {
 pub struct Service {
     db: Database,
     observer: ObserverService,
-    router_query: RouterQuery,
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
@@ -75,6 +76,8 @@ pub struct Service {
     network: Option<NetworkService>,
     prometheus: Option<PrometheusService>,
     rpc: Option<RpcService>,
+
+    fast_sync: bool,
 
     // Optional global event broadcaster.
     sender: Option<Sender<Event>>,
@@ -228,18 +231,20 @@ impl Service {
 
         let compute = ComputeService::new(db.clone(), processor);
 
+        let fast_sync = config.node.fast_sync;
+
         Ok(Self {
             db,
             network,
             observer,
             compute,
             consensus,
-            router_query,
             signer,
             prometheus,
             rpc,
             tx_pool,
             sender: None,
+            fast_sync,
         })
     }
 
@@ -256,7 +261,6 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
-        router_query: RouterQuery,
         processor: Processor,
         signer: Signer,
         tx_pool: TxPoolService,
@@ -265,6 +269,7 @@ impl Service {
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
         sender: Option<Sender<Event>>,
+        fast_sync: bool,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor);
 
@@ -273,17 +278,21 @@ impl Service {
             observer,
             compute,
             consensus,
-            router_query,
             signer,
             network,
             prometheus,
             rpc,
             tx_pool,
             sender,
+            fast_sync,
         }
     }
 
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
+        if self.fast_sync {
+            fast_sync::sync(&mut self).await?;
+        }
+
         self.run_inner().await.inspect_err(|err| {
             log::error!("Service finished work with error: {err:?}");
         })
@@ -294,7 +303,6 @@ impl Service {
             db,
             mut network,
             mut observer,
-            mut router_query,
             mut compute,
             mut consensus,
             signer: _signer,
@@ -302,6 +310,7 @@ impl Service {
             mut prometheus,
             rpc,
             sender,
+            fast_sync: _,
         } = self;
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
@@ -350,7 +359,9 @@ impl Service {
             }
 
             match event {
-                Event::ServiceStarted => unreachable!("never handled here"),
+                Event::FastSyncDone(_) | Event::ServiceStarted => {
+                    unreachable!("never handled here")
+                }
                 Event::Observer(event) => match event {
                     ObserverEvent::Blob(BlobData {
                         code_id,
@@ -397,14 +408,13 @@ impl Service {
                     };
 
                     match event {
-                        NetworkEvent::Message { source, data } => {
-                            log::trace!("Received a network message from peer {source:?}");
-
+                        NetworkEvent::Message { source: _, data } => {
                             let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
                                 .inspect_err(|e| {
                                     log::warn!("Failed to decode network message: {e}")
                                 })
                             else {
+                                // TODO: use peer scoring for this case
                                 continue;
                             };
 
@@ -430,22 +440,7 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::ExternalValidation(validating_response) => {
-                            let validated = Self::process_response_validation(
-                                &validating_response,
-                                &mut router_query,
-                            )
-                            .await?;
-
-                            let res = if validated {
-                                Ok(validating_response)
-                            } else {
-                                Err(validating_response)
-                            };
-
-                            n.request_validated(res);
-                        }
-                        NetworkEvent::DbResponse(_)
+                        NetworkEvent::DbResponse { .. }
                         | NetworkEvent::PeerBlocked(_)
                         | NetworkEvent::PeerConnected(_) => (),
                     }
@@ -534,30 +529,6 @@ impl Service {
                 },
             }
         }
-    }
-
-    async fn process_response_validation(
-        validating_response: &db_sync::ValidatingResponse,
-        router_query: &mut RouterQuery,
-    ) -> Result<bool> {
-        let response = validating_response.response();
-
-        if let db_sync::Response::ProgramIds(ids) = response {
-            let ethereum_programs = router_query.programs_count().await?;
-            if ethereum_programs != U256::from(ids.len()) {
-                return Ok(false);
-            }
-
-            // TODO: #4309
-            for &id in ids {
-                let code_id = router_query.program_code_id(id).await?;
-                if code_id.is_none() {
-                    return Ok(false);
-                }
-            }
-        }
-
-        Ok(true)
     }
 
     fn process_offchain_transaction(

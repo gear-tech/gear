@@ -69,6 +69,11 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(rename = "virtual-threads")]
     pub virtual_threads: Option<NonZero<u8>>,
+
+    /// Do P2P database synchronization before the main loop
+    #[arg(long, default_value = "false")]
+    #[serde(default, rename = "fast-sync")]
+    pub fast_sync: bool,
 }
 
 impl NodeParams {
@@ -99,6 +104,7 @@ impl NodeParams {
                 .unwrap_or(Self::DEFAULT_VIRTUAL_THREADS)
                 .get() as usize,
             dev: self.dev,
+            fast_sync: self.fast_sync,
         })
     }
 
@@ -165,6 +171,8 @@ impl MergeParams for NodeParams {
 
             physical_threads: self.physical_threads.or(with.physical_threads),
             virtual_threads: self.virtual_threads.or(with.virtual_threads),
+
+            fast_sync: self.fast_sync || with.fast_sync,
         }
     }
 }
