@@ -1138,6 +1138,9 @@ mod utils {
     use tracing::Instrument;
     use tracing_subscriber::EnvFilter;
 
+    /// Max network services which can be created in one test environment.
+    const MAX_NETWORK_PEERS_ONE_TEST: usize = 1000;
+
     pub fn init_logger() {
         let _ = tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::from_default_env())
@@ -1165,7 +1168,7 @@ mod utils {
         db: Database,
         /// If network is enabled by test, then we store here:
         /// network service polling thread, bootstrap address and nonce for new node address generation.
-        network_context: Option<(JoinHandle<()>, String, usize)>,
+        bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
     }
@@ -1371,11 +1374,11 @@ mod utils {
                 EnvNetworkConfig::EnabledWithCustomAddress(address) => Some(Some(address)),
             };
 
-            let network_context = network_address.map(|maybe_address| {
+            let bootstrap_network = network_address.map(|maybe_address| {
                 static NONCE: AtomicUsize = AtomicUsize::new(1);
 
-                // * 1000 to avoid address collision between different test-threads
-                let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * 1000;
+                // * MAX_NETWORK_PEERS_ONE_TEST to avoid address collision between different test-threads
+                let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_PEERS_ONE_TEST;
                 let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
                 let config_path = tempfile::tempdir().unwrap().into_path();
@@ -1425,7 +1428,7 @@ mod utils {
                 continuous_block_generation,
                 broadcaster,
                 db,
-                network_context,
+                bootstrap_network,
                 _anvil: anvil,
                 _events_stream,
             })
@@ -1442,10 +1445,15 @@ mod utils {
             let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
 
             let (network_address, network_bootstrap_address) = self
-                .network_context
+                .bootstrap_network
                 .as_mut()
                 .map(|(_, bootstrap_address, nonce)| {
                     *nonce += 1;
+
+                    if *nonce % MAX_NETWORK_PEERS_ONE_TEST == 0 {
+                        panic!("Too many network services created by one test env: max is {MAX_NETWORK_PEERS_ONE_TEST}");
+                    }
+
                     (format!("/memory/{nonce}"), bootstrap_address.clone())
                 })
                 .unzip();
