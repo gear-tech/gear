@@ -56,7 +56,7 @@ use std::{
 };
 use tempfile::tempdir;
 use tokio::task::{self, JoinHandle};
-use utils::{NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
+use utils::{EnvNetworkConfig, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
 
 #[ignore = "until rpc fixed"]
 #[tokio::test]
@@ -857,7 +857,7 @@ async fn multiple_validators() {
 
     let config = TestEnvConfig {
         validators: ValidatorsConfig::PreDefined(3),
-        network: Some(None),
+        network: EnvNetworkConfig::Enabled,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
@@ -1023,7 +1023,7 @@ async fn tx_pool_gossip() {
 
     let test_env_config = TestEnvConfig {
         validators: ValidatorsConfig::PreDefined(2),
-        network: Some(None),
+        network: EnvNetworkConfig::Enabled,
         ..Default::default()
     };
 
@@ -1365,7 +1365,13 @@ mod utils {
                 })
                 .collect();
 
-            let network_context = network.map(|maybe_address| {
+            let network_address = match network {
+                EnvNetworkConfig::Disabled => None,
+                EnvNetworkConfig::Enabled => Some(None),
+                EnvNetworkConfig::EnabledWithCustomAddress(address) => Some(Some(address)),
+            };
+
+            let network_context = network_address.map(|maybe_address| {
                 static NONCE: AtomicUsize = AtomicUsize::new(1);
 
                 // * 1000 to avoid address collision between different test-threads
@@ -1712,6 +1718,17 @@ mod utils {
         Custom(Vec<String>),
     }
 
+    /// Configuration for the network service.
+    pub enum EnvNetworkConfig {
+        /// Network service is disabled.
+        Disabled,
+        /// Network service is enabled. Network address will be generated.
+        Enabled,
+        #[allow(unused)]
+        /// Network service is enabled. Network address is provided as String.
+        EnabledWithCustomAddress(String),
+    }
+
     pub struct TestEnvConfig {
         /// How many validators will be in deployed router.
         /// By default uses 1 auto generated validator.
@@ -1729,7 +1746,7 @@ mod utils {
         pub continuous_block_generation: bool,
         /// If [`Some`] (by default [`None`]) - separate network service would start.
         /// Network address could be provided inside, or will be generated.
-        pub network: Option<Option<String>>,
+        pub network: EnvNetworkConfig,
     }
 
     impl Default for TestEnvConfig {
@@ -1741,7 +1758,7 @@ mod utils {
                 wallets: None,
                 router_address: None,
                 continuous_block_generation: false,
-                network: None,
+                network: EnvNetworkConfig::Disabled,
             }
         }
     }

@@ -25,7 +25,6 @@ use ethexe_signer::{Address, SignedData};
 use gprimitives::H256;
 use std::mem;
 
-
 /// In order to avoid too big size of pending events queue,
 /// subordinate state handler removes redundant pending events
 /// and also removes old events if we overflow this limit:
