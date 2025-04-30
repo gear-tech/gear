@@ -153,6 +153,7 @@ impl NetworkConfig {
 
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
+    // `MemoryTransport` doesn't unregister its ports on drop so we do it
     listeners: Vec<ListenerId>,
 }
 
@@ -475,6 +476,14 @@ impl NetworkService {
 
     pub fn db_sync(&mut self) -> &mut db_sync::Behaviour {
         &mut self.swarm.behaviour_mut().db_sync
+    }
+}
+
+impl Drop for NetworkService {
+    fn drop(&mut self) {
+        for id in self.listeners.drain(..) {
+            self.swarm.remove_listener(id);
+        }
     }
 }
 
