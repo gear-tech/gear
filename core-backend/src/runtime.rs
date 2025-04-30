@@ -45,6 +45,16 @@ where
     }
 
     #[track_caller]
+    pub fn state(&self) -> &State<Ext, Mem> {
+        self.caller.data().as_ref().unwrap_or_else(|| {
+            let err_msg = "CallerWrap::state: host_state must be set before execution";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        })
+    }
+
+    #[track_caller]
     pub fn state_mut(&mut self) -> &mut State<Ext, Mem> {
         self.caller.data_mut().as_mut().unwrap_or_else(|| {
             let err_msg = "CallerWrap::state_mut: host_state must be set before execution";
@@ -66,6 +76,10 @@ where
 
     pub fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
         self.state_mut().termination_reason = reason;
+    }
+
+    pub fn ext(&self) -> &Ext {
+        &self.state().ext
     }
 
     pub fn ext_mut(&mut self) -> &mut Ext {

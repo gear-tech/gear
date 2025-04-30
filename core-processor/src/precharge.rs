@@ -288,6 +288,7 @@ pub fn precharge_for_code_length(
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
         return Err(process_success(
+            dispatch,
             SuccessfulDispatchResultKind::Success,
             DispatchResult::success(dispatch, destination_id, gas_counter.to_amount()),
         ));

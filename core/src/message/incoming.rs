@@ -29,6 +29,34 @@ use scale_info::{
     TypeInfo,
 };
 
+pub struct DispatchInfo {
+    /// Message id.
+    id: MessageId,
+    /// Message source.
+    source: ProgramId,
+    /// Message gas limit. Required here.
+    gas_limit: GasLimit,
+    /// Message value.
+    value: Value,
+    /// Entry point.
+    kind: DispatchKind,
+    ///
+    context_presented: bool,
+}
+
+impl From<&IncomingDispatch> for DispatchInfo {
+    fn from(dispatch: &IncomingDispatch) -> Self {
+        Self {
+            id: dispatch.id(),
+            source: dispatch.source(),
+            gas_limit: dispatch.gas_limit(),
+            value: dispatch.value(),
+            kind: dispatch.kind(),
+            context_presented: dispatch.context().is_some(),
+        }
+    }
+}
+
 /// Incoming message.
 ///
 /// Used for program execution.

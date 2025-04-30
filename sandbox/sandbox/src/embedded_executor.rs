@@ -248,6 +248,10 @@ impl<T> wasmer::AsStoreMut for Store<T> {
 impl<T: Send + 'static> AsContextExt for Store<T> {
     type State = T;
 
+    fn data(&self) -> &Self::State {
+        &self.state.as_ref(&self.inner).inner
+    }
+
     fn data_mut(&mut self) -> &mut Self::State {
         &mut self.state.as_mut(&mut self.inner).inner
     }
@@ -276,6 +280,10 @@ impl<T> wasmer::AsStoreMut for Caller<'_, T> {
 
 impl<T: Send + 'static> AsContextExt for Caller<'_, T> {
     type State = T;
+
+    fn data(&self) -> &Self::State {
+        &self.0.data().inner
+    }
 
     fn data_mut(&mut self) -> &mut Self::State {
         &mut self.0.data_mut().inner
@@ -317,7 +325,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         Ok(())
     }
 
-    fn write<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
+    fn write<Context>(&self, ctx: &Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
         Context: AsContextExt<State = T>,
     {

@@ -26,7 +26,7 @@ use alloc::{collections::BTreeSet, vec::Vec};
 use core::{fmt, fmt::Debug, mem};
 use gear_core::{
     costs::CostToken,
-    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    env::Externalities,
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
@@ -197,6 +197,17 @@ impl Externalities for MockExt {
     fn debug(&self, _data: &str) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
+    fn payload_bytes_write<Job>(
+        &mut self,
+        _at: u32,
+        _len: u32,
+        _payload: Job,
+    ) -> Result<(), Self::FallibleError>
+    where
+        Job: FnOnce(&[u8]) -> Result<(), Self::FallibleError>,
+    {
+        Ok(())
+    }
     fn size(&self) -> Result<usize, Self::UnrecoverableError> {
         Ok(0)
     }
@@ -279,18 +290,6 @@ impl Externalities for MockExt {
 
     fn signal_from(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(MessageId::default())
-    }
-
-    fn lock_payload(
-        &mut self,
-        _at: u32,
-        _len: u32,
-    ) -> Result<PayloadSliceLock, Self::UnrecoverableError> {
-        unimplemented!()
-    }
-
-    fn unlock_payload(&mut self, _payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
-        unimplemented!()
     }
 }
 
@@ -409,7 +408,7 @@ mod with_std_feature {
             self.lock().size()
         }
 
-        fn write(&self, _ctx: &mut Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        fn write(&self, _ctx: &Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
             self.lock().write(offset, buffer)
         }
 

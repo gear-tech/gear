@@ -211,8 +211,7 @@ impl ContextStore {
 /// Context of currently processing incoming message.
 #[derive(Debug)]
 pub struct MessageContext {
-    kind: DispatchKind,
-    current: IncomingMessage,
+    dispatch: IncomingDispatch,
     outcome: ContextOutcome,
     store: ContextStore,
     outgoing_payloads: OutgoingPayloads,
@@ -227,13 +226,18 @@ impl MessageContext {
         program_id: ProgramId,
         settings: ContextSettings,
     ) -> Self {
-        let (kind, message, store) = dispatch.into_parts();
-
         Self {
-            kind,
-            outcome: ContextOutcome::new(program_id, message.source(), message.id()),
-            current: message,
-            store: store.unwrap_or_default(),
+            dispatch,
+            outcome: ContextOutcome::new(
+                program_id,
+                dispatch.message().source(),
+                dispatch.message().id(),
+            ),
+            store: dispatch
+                .context()
+                .as_ref()
+                .map(|s| s.clone())
+                .unwrap_or_default(),
             outgoing_payloads: OutgoingPayloads::default(),
             settings,
         }
@@ -246,11 +250,14 @@ impl MessageContext {
 
     /// Getter for inner dispatch kind
     pub fn kind(&self) -> DispatchKind {
-        self.kind
+        self.dispatch.kind()
     }
 
     fn check_reply_availability(&self) -> Result<(), ExecutionError> {
-        if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
+        if !matches!(
+            self.dispatch.kind(),
+            DispatchKind::Init | DispatchKind::Handle
+        ) {
             return Err(ExecutionError::IncorrectEntryForReply);
         }
 
@@ -290,7 +297,7 @@ impl MessageContext {
             return Err(Error::OutgoingMessagesAmountLimitExceeded);
         }
 
-        let message_id = MessageId::generate_outgoing(self.current.id(), last);
+        let message_id = MessageId::generate_outgoing(self.dispatch.message().id(), last);
         let message = InitMessage::from_packet(message_id, packet);
         self.store.local_nonce += 1;
         self.outgoing_payloads.handles.insert(last, None);
@@ -331,7 +338,7 @@ impl MessageContext {
                 .try_prepend(data)
                 .map_err(|data| (Error::MaxMessageSizeExceed, data))?;
 
-            let message_id = MessageId::generate_outgoing(self.current.id(), handle);
+            let message_id = MessageId::generate_outgoing(self.dispatch.message().id(), handle);
             let message = HandleMessage::from_packet(message_id, packet);
 
             self.outcome.handle.push((message, delay, reservation));
@@ -415,7 +422,7 @@ impl MessageContext {
         )
         .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
-        data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+        data.try_extend_from_slice(&self.dispatch.message().payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
@@ -428,7 +435,7 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
-        let input = self.current.payload_bytes();
+        let input = self.dispatch.message().payload_bytes();
         let offset = offset as usize;
         let len = len as usize;
 
@@ -472,7 +479,7 @@ impl MessageContext {
             return Err(Error::MaxMessageSizeExceed.into());
         }
 
-        let message_id = MessageId::generate_reply(self.current.id());
+        let message_id = MessageId::generate_reply(self.dispatch.message().id());
         let message = ReplyMessage::from_packet(message_id, packet);
 
         self.outcome.reply = Some((message, reservation));
@@ -518,7 +525,7 @@ impl MessageContext {
         self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
-            .try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+            .try_extend_from_slice(&self.dispatch.message().payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed.into())
     }
 
@@ -568,12 +575,12 @@ impl MessageContext {
 
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
-        &self.current
+        &self.dispatch.message()
     }
 
-    /// Mutable reference to currently processed incoming message.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        self.current.payload_mut()
+    /// Return bytes of current payload
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.dispatch.message().payload_bytes()
     }
 
     /// Current program's id.
@@ -582,10 +589,15 @@ impl MessageContext {
     }
 
     /// Destructs context after execution and returns provided outcome and store.
-    pub fn drain(self) -> (ContextOutcome, ContextStore) {
-        let Self { outcome, store, .. } = self;
+    pub fn drain(self) -> (ContextOutcome, ContextStore, IncomingDispatch) {
+        let Self {
+            outcome,
+            store,
+            dispatch,
+            ..
+        } = self;
 
-        (outcome, store)
+        (outcome, store, dispatch)
     }
 }
 
@@ -771,7 +783,7 @@ mod tests {
 
         // Creating a message context
         let mut message_context = MessageContext::new(
-            incoming_dispatch,
+            &incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, 10),
         );
@@ -930,7 +942,7 @@ mod tests {
 
         // Creating a message context
         let mut context = MessageContext::new(
-            incoming_dispatch,
+            &incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
@@ -1070,7 +1082,7 @@ mod tests {
         let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
 
         let mut context = MessageContext::new(
-            incoming_dispatch,
+            &incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
@@ -1097,7 +1109,7 @@ mod tests {
         let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
 
         let mut message_context = MessageContext::new(
-            incoming_dispatch,
+            &incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
@@ -1131,7 +1143,7 @@ mod tests {
         let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
 
         let mut message_context = MessageContext::new(
-            incoming_dispatch,
+            &incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );

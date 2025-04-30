@@ -401,13 +401,16 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 // Builtin actor call was successful and returned some payload.
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
 
-                let mut dispatch_result =
-                    DispatchResult::success(dispatch.clone(), actor_id, gas_amount);
+                let mut dispatch_result = DispatchResult::success(
+                    SystemReservationContext::from_dispatch(&dispatch),
+                    actor_id,
+                    gas_amount,
+                );
 
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
                 let mut message_context =
-                    MessageContext::new(dispatch, actor_id, Default::default());
+                    MessageContext::new(&dispatch, actor_id, Default::default());
                 let packet = ReplyPacket::new(response_payload, 0);
 
                 // Mark reply as sent

@@ -1034,8 +1034,10 @@ fn execute_wasm_with_custom_configs(
         Default::default(),
         Default::default(),
     );
+    let incoming_dispatch = IncomingDispatch::new(DispatchKind::Init, incoming_message, None);
+
     let mut message_context = MessageContext::new(
-        IncomingDispatch::new(DispatchKind::Init, incoming_message, None),
+        &incoming_dispatch,
         program_id,
         ContextSettings::with_outgoing_limits(outgoing_limit, u32::MAX),
     );

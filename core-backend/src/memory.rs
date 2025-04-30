@@ -75,7 +75,7 @@ where
         })
     }
 
-    fn write(&self, ctx: &mut Caller, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+    fn write(&self, ctx: &Caller, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
         self.inner
             .write(ctx, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
@@ -340,7 +340,7 @@ where
 
     pub(crate) fn write(
         &mut self,
-        ctx: &mut CallerWrap<Context>,
+        ctx: &CallerWrap<Context>,
         write: WasmMemoryWrite,
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
@@ -368,7 +368,7 @@ where
 
     pub(crate) fn write_as<T: Sized>(
         &mut self,
-        ctx: &mut CallerWrap<Context>,
+        ctx: &CallerWrap<Context>,
         write: WasmMemoryWriteAs<T>,
         obj: T,
     ) -> Result<(), MemoryAccessError> {
@@ -576,7 +576,7 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let buffer = &[5u8; 10];
-        memory.write(&mut (), 0, buffer).unwrap();
+        memory.write(&(), 0, buffer).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read(0, 10);
@@ -598,7 +598,7 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let encoded = MockEncodeData { data: 1234 }.encode();
-        memory.write(&mut (), 0, &encoded).unwrap();
+        memory.write(&(), 0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<u64>(0);
@@ -633,7 +633,7 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let encoded = alloc::vec![7u8; WasmPage::SIZE as usize];
-        memory.write(&mut (), 0, &encoded).unwrap();
+        memory.write(&(), 0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<InvalidDecode>(0);
@@ -668,7 +668,7 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let encoded = 1234u64.to_le_bytes();
-        memory.write(&mut (), 0, &encoded).unwrap();
+        memory.write(&(), 0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_as::<u64>(0);

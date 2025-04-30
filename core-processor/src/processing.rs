@@ -130,7 +130,7 @@ where
 
     let exec_result = executor::execute_wasm::<Ext>(
         balance,
-        dispatch.clone(),
+        dispatch,
         execution_context,
         execution_settings,
         msg_ctx_settings,
@@ -183,7 +183,7 @@ where
                     process_success(Exit(value_destination), res)
                 }
                 DispatchResultKind::GasAllowanceExceed => {
-                    process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
+                    process_allowance_exceed(res.dispatch, program_id, res.gas_amount.burned())
                 }
             })
         }
