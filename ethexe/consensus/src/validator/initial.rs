@@ -16,15 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::{
+    producer::Producer, subordinate::Subordinate, DefaultProcessing, StateHandler, ValidatorContext,
+};
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::SimpleBlockData;
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::Address;
-
-use super::{
-    producer::Producer, subordinate::Subordinate, DefaultProcessing, StateHandler, ValidatorContext,
-};
 
 #[derive(Debug, Display)]
 #[display("INITIAL in {:?}", self.state)]
@@ -124,12 +123,10 @@ impl Initial {
 
 #[cfg(test)]
 mod tests {
-    use std::any::TypeId;
-
-    use gprimitives::H256;
-
     use super::*;
     use crate::{mock::*, validator::mock::*, ConsensusEvent};
+    use gprimitives::H256;
+    use std::any::TypeId;
 
     #[test]
     fn create_initial_success() {

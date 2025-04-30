@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::cell::RefCell;
-
 use super::*;
+use std::cell::RefCell;
 
 thread_local! {
     static BATCH: RefCell<Option<MultisignedBatchCommitment>> = const { RefCell::new(None) };

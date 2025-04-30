@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::{coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext};
+use crate::ConsensusEvent;
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -29,9 +31,6 @@ use ethexe_signer::Address;
 use futures::FutureExt;
 use gprimitives::H256;
 use std::task::Context;
-
-use super::{coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext};
-use crate::ConsensusEvent;
 
 #[derive(Debug, Display)]
 #[display("PRODUCER in {:?}", self.state)]

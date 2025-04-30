@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::{initial::Initial, BatchCommitter, StateHandler, ValidatorContext};
+use crate::{utils::MultisignedBatchCommitment, ConsensusEvent};
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
@@ -23,9 +25,6 @@ use ethexe_ethereum::router::Router;
 use futures::{future::BoxFuture, FutureExt};
 use gprimitives::H256;
 use std::task::{Context, Poll};
-
-use super::{initial::Initial, BatchCommitter, StateHandler, ValidatorContext};
-use crate::{utils::MultisignedBatchCommitment, ConsensusEvent};
 
 #[derive(Debug, Display)]
 #[display("SUBMITTER")]
@@ -102,11 +101,10 @@ impl BatchCommitter for EthereumCommitter {
 
 #[cfg(test)]
 mod tests {
-    use std::any::TypeId;
-
     use super::*;
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::gear::BatchCommitment;
+    use std::any::TypeId;
 
     #[tokio::test]
     async fn submitter() {

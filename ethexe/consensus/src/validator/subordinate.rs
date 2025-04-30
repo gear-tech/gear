@@ -16,15 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext};
+use crate::{validator::participant::Participant, ConsensusEvent};
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_signer::{Address, SignedData};
 use gprimitives::H256;
 use std::mem;
-
-use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext};
-use crate::{validator::participant::Participant, ConsensusEvent};
 
 const MAX_PENDING_EVENTS: usize = 10;
 
@@ -179,10 +178,9 @@ impl Subordinate {
 
 #[cfg(test)]
 mod tests {
-    use std::any::TypeId;
-
     use super::*;
     use crate::{mock::*, validator::mock::mock_validator_context};
+    use std::any::TypeId;
 
     #[test]
     fn create_empty() {

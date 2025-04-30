@@ -16,13 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, ensure, Result};
-use derive_more::{Debug, Display};
-use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
-use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
-use ethexe_signer::{Address, Digest, SignedData, ToDigest};
-use gprimitives::H256;
-
 use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext};
 use crate::{
     utils::{
@@ -31,6 +24,12 @@ use crate::{
     },
     ConsensusEvent,
 };
+use anyhow::{anyhow, ensure, Result};
+use derive_more::{Debug, Display};
+use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
+use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
+use ethexe_signer::{Address, Digest, SignedData, ToDigest};
+use gprimitives::H256;
 
 #[derive(Debug, Display)]
 #[display("PARTICIPANT")]
@@ -275,11 +274,10 @@ impl Participant {
 
 #[cfg(test)]
 mod tests {
-    use ethexe_db::{BlockHeader, Database, OnChainStorage};
-    use std::any::TypeId;
-
     use super::*;
     use crate::{mock::*, validator::mock::*};
+    use ethexe_db::{BlockHeader, Database, OnChainStorage};
+    use std::any::TypeId;
 
     #[test]
     fn create() {

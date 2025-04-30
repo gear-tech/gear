@@ -40,6 +40,18 @@
 //! * [`Submitter`] switches to [`Initial`] after submitting the batch commitment to the blockchain.
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
+#[cfg(doc)]
+use self::{
+    coordinator::Coordinator, participant::Participant, producer::Producer, submitter::Submitter,
+    subordinate::Subordinate,
+};
+use crate::{
+    utils::{
+        BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
+        MultisignedBatchCommitment,
+    },
+    ConsensusEvent, ConsensusService,
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
@@ -50,6 +62,7 @@ use ethexe_observer::BlockSyncedData;
 use ethexe_signer::{Address, PublicKey, SignedData, Signer};
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
+use initial::Initial;
 use std::{
     any::Any,
     collections::VecDeque,
@@ -69,21 +82,6 @@ mod subordinate;
 
 #[cfg(test)]
 mod mock;
-
-use crate::{
-    utils::{
-        BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
-        MultisignedBatchCommitment,
-    },
-    ConsensusEvent, ConsensusService,
-};
-use initial::Initial;
-
-#[cfg(doc)]
-use self::{
-    coordinator::Coordinator, participant::Participant, producer::Producer, submitter::Submitter,
-    subordinate::Subordinate,
-};
 
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.

@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::vec;
-
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment, Message, StateTransition},
@@ -26,6 +24,7 @@ use ethexe_common::{
 use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Database, OnChainStorage};
 use ethexe_signer::{Address, Digest, PrivateKey, PublicKey, SignedData, Signer};
 use gprimitives::H256;
+use std::vec;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
     let signer = Signer::tmp();

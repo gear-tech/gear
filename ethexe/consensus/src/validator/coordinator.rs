@@ -16,17 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, ensure, Result};
-use derive_more::{Debug, Display};
-use ethexe_common::gear::BatchCommitment;
-use ethexe_signer::Address;
-use std::collections::BTreeSet;
-
 use super::{submitter::Submitter, StateHandler, ValidatorContext};
 use crate::{
     utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
     BatchCommitmentValidationReply, ConsensusEvent,
 };
+use anyhow::{anyhow, ensure, Result};
+use derive_more::{Debug, Display};
+use ethexe_common::gear::BatchCommitment;
+use ethexe_signer::Address;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Display)]
 #[display("COORDINATOR")]
@@ -117,13 +116,11 @@ impl Coordinator {
 
 #[cfg(test)]
 mod tests {
-    use std::any::TypeId;
-
-    use ethexe_signer::ToDigest;
-    use gprimitives::H256;
-
     use super::*;
     use crate::{mock::*, validator::mock::*};
+    use ethexe_signer::ToDigest;
+    use gprimitives::H256;
+    use std::any::TypeId;
 
     #[test]
     fn coordinator_create_success() {
