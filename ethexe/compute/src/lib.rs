@@ -135,6 +135,9 @@ struct ChainHeadProcessContext {
 }
 
 impl ChainHeadProcessContext {
+    /// Processes the chain of not computed blocks starting from the given `head`.
+    ///
+    /// If there is a chain of blocks to be processed, then `head` is the latest block.
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
@@ -146,12 +149,22 @@ impl ChainHeadProcessContext {
         Ok(BlockProcessed { block_hash: head })
     }
 
+    /// Processes events from the provided block.
+    ///
+    /// The processing is a complex task, which involves:
+    /// - Instrumenting validated codes and setting the instrumented version, if not already done.
+    /// - Building commitments from outcomes resulted from processing block events, which itself
+    ///   returns state transition for ethexe actors.
+    /// - Merging the fresh commitments with those from the parent block. Parent block commitments
+    ///   can remain pending (not fully processed by the sequencer service).
+    /// - Setting the block as computed, it's outcome from events processing and the final commitment queue.
     async fn process_one_block(&mut self, block_data: SimpleBlockData) -> Result<()> {
         let SimpleBlockData {
             hash: block,
             header,
         } = block_data;
 
+        // Events must be set for all synced blocks.
         let events = OnChainStorage::block_events(&self.db, block)
             .ok_or_else(|| anyhow!("events not found for synced block {block}"))?;
 
@@ -212,6 +225,13 @@ impl ChainHeadProcessContext {
         Ok(())
     }
 
+    /// Gets `wait for commitment` blocks queue from the `parent` of the `block`.
+    ///
+    /// The returned data doesn't contain waiting for commitment blocks included
+    /// into current (`block`) block.
+    ///
+    /// The `block` can have requests for code validation. These requests are united with those
+    /// from the `parent` block and set to the `block`'s codes queue.
     fn propagate_data_from_parent<'a>(
         db: &Database,
         block: H256,
@@ -279,6 +299,7 @@ impl ChainHeadProcessContext {
                 return Err(anyhow!("Block {block} is not synced, but must be"));
             }
 
+            // Headers must be set for all synced blocks.
             let header = OnChainStorage::block_header(db, block)
                 .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
 

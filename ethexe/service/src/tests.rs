@@ -38,7 +38,10 @@ use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
+use ethexe_rpc::{
+    test_utils::{JsonRpcResponse, RpcClient},
+    RpcConfig,
+};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
@@ -1106,6 +1109,7 @@ async fn tx_pool_gossip() {
             transaction: ethexe_tx,
         }
     };
+    let tx_hash = signed_ethexe_tx.tx_hash();
 
     // Send request
     log::info!("Sending tx pool request to node-1");
@@ -1117,15 +1121,12 @@ async fn tx_pool_gossip() {
         )
         .await
         .expect("failed sending request");
-    assert!(resp.status().is_success());
-
-    // This way the response from RPC server is checked to be `Ok`.
-    // In case of error RPC returns the `Ok` response with error message.
-    let resp = resp
-        .json::<serde_json::Value>()
+    let resp_tx_hash = JsonRpcResponse::new(resp)
         .await
-        .expect("failed to deserialize json response from rpc");
-    assert!(resp.get("result").is_some());
+        .expect("failed to deserialize json response from rpc")
+        .try_extract_res::<H256>()
+        .expect("failed to deserialize reply info");
+    assert_eq!(resp_tx_hash, tx_hash);
 
     // Tx executable validation takes time.
     // Sleep for a while so tx is processed by both nodes.

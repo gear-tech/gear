@@ -63,6 +63,12 @@ pub trait RuntimeInterface<S: Storage> {
     fn storage(&self) -> &S;
 }
 
+/// A main low-level interface to perform state changes
+/// for programs.
+///
+/// Has a main method [`update_state`] which allows to update program state
+/// along with writing the updated state to the storage.
+/// By design updates are stored in-memory inside the [`InBlockTransitions`].
 pub struct TransitionController<'a, S: Storage> {
     pub storage: &'a S,
     pub transitions: &'a mut InBlockTransitions,

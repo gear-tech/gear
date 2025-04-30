@@ -27,6 +27,11 @@ use gprimitives::{ActorId, CodeId, H256};
 pub(crate) mod events;
 pub(crate) mod run;
 
+/// A high-level interface for executing ops,
+/// which mutate states based on the current block request events.
+///
+/// This is based a wrapper which hols data needed to instantiate [`TransitionController`],
+/// which itself performs recording actual state transitions.
 pub struct ProcessingHandler {
     pub block_hash: H256,
     pub db: Database,
@@ -41,6 +46,7 @@ impl ProcessingHandler {
         }
     }
 
+    /// A wrapper for the lower level [`TransitionController::update_state`].
     pub fn update_state<T>(
         &mut self,
         program_id: ActorId,
@@ -51,6 +57,11 @@ impl ProcessingHandler {
 }
 
 impl Processor {
+    /// Creates a new [`ProcessingHandler`] for the given block hash.
+    ///
+    /// The [`InBlockTransitions`] is created using states of the parent of the block with `block_hash` hash.
+    /// That's done because the parent actually has the latest view on program states. Also program states
+    /// for the `block_hash` block are written to database only after the block is processed.
     pub fn handler(&self, block_hash: H256) -> Result<ProcessingHandler> {
         let header = self
             .db
