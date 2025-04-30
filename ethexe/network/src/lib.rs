@@ -487,14 +487,6 @@ impl Drop for NetworkService {
     }
 }
 
-impl Drop for NetworkService {
-    fn drop(&mut self) {
-        for id in self.listeners.drain(..) {
-            self.swarm.remove_listener(id);
-        }
-    }
-}
-
 #[cfg(test)]
 impl NetworkService {
     async fn connect(&mut self, service: &mut Self) {
