@@ -56,7 +56,7 @@ use common::{storage::Limiter, BlockLimiter};
 use core::marker::PhantomData;
 use core_processor::{
     common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
-    process_allowance_exceed, process_execution_error, process_success,
+    process_allowance_exceed, process_execution_error_with_dispatch, process_success,
     SuccessfulDispatchResultKind, SystemReservationContext,
 };
 use frame_support::dispatch::extract_actual_weight;
@@ -401,21 +401,18 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 // Builtin actor call was successful and returned some payload.
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
 
-                let mut dispatch_result = DispatchResult::success(
-                    SystemReservationContext::from_dispatch(&dispatch),
-                    actor_id,
-                    gas_amount,
-                );
+                let mut dispatch_result =
+                    DispatchResult::success(dispatch.clone(), actor_id, gas_amount);
 
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
                 let mut message_context =
-                    MessageContext::new(&dispatch, actor_id, Default::default());
+                    MessageContext::new(dispatch, actor_id, Default::default());
                 let packet = ReplyPacket::new(response_payload, 0);
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
-                    let (outcome, context_store) = message_context.drain();
+                    let (outcome, context_store, _) = message_context.drain();
 
                     dispatch_result.context_store = context_store;
                     let ContextOutcomeDrain {
@@ -443,7 +440,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
                 // The core processor will take care of creating necessary `JournalNote`'s.
-                process_execution_error(
+                process_execution_error_with_dispatch(
                     dispatch,
                     actor_id,
                     gas_amount.burned(),

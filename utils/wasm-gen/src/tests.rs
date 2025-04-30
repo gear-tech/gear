@@ -420,7 +420,7 @@ fn test_existing_address_as_address_param() {
     );
 
     let dispatch = {
-        let (context_outcome, _) = backend_report.ext.context.message_context.drain();
+        let (context_outcome, _, _) = backend_report.ext.context.message_context.drain();
 
         let mut dispatches = context_outcome.drain().outgoing_dispatches;
         assert_eq!(dispatches.len(), 1);
@@ -549,7 +549,8 @@ fn test_msg_value_ptr_dest() {
 
             if !dest_var.is_random() {
                 let dispatch = {
-                    let (context_outcome, _) = backend_report.ext.context.message_context.drain();
+                    let (context_outcome, _, _) =
+                        backend_report.ext.context.message_context.drain();
 
                     let mut dispatches = context_outcome.drain().outgoing_dispatches;
                     assert_eq!(dispatches.len(), 1);
@@ -1037,7 +1038,7 @@ fn execute_wasm_with_custom_configs(
     let incoming_dispatch = IncomingDispatch::new(DispatchKind::Init, incoming_message, None);
 
     let mut message_context = MessageContext::new(
-        &incoming_dispatch,
+        incoming_dispatch,
         program_id,
         ContextSettings::with_outgoing_limits(outgoing_limit, u32::MAX),
     );

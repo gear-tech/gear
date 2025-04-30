@@ -66,6 +66,10 @@ impl<T> SandboxStore for Store<T> {
 impl<T> AsContextExt for Store<T> {
     type State = T;
 
+    fn data(&self) -> &T {
+        &self.0
+    }
+
     fn data_mut(&mut self) -> &mut T {
         &mut self.0
     }
@@ -77,6 +81,10 @@ pub struct Caller<'a, T>(&'a mut T);
 
 impl<T> AsContextExt for Caller<'_, T> {
     type State = T;
+
+    fn data(&self) -> &T {
+        self.0
+    }
 
     fn data_mut(&mut self) -> &mut T {
         self.0
@@ -141,7 +149,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         }
     }
 
-    fn write<Context>(&self, _ctx: &mut Context, offset: u32, val: &[u8]) -> Result<(), Error>
+    fn write<Context>(&self, _ctx: &Context, offset: u32, val: &[u8]) -> Result<(), Error>
     where
         Context: AsContextExt<State = T>,
     {

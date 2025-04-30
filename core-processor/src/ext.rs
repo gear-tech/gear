@@ -1470,7 +1470,7 @@ mod tests {
 
         fn build(self) -> MessageContext {
             MessageContext::new(
-                &self.incoming_dispatch,
+                self.incoming_dispatch,
                 self.program_id,
                 self.context_settings,
             )
@@ -1743,7 +1743,7 @@ mod tests {
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
         );
 
-        let (outcome, _) = ext.context.message_context.drain();
+        let (outcome, _, _) = ext.context.message_context.drain();
         let ContextOutcomeDrain {
             mut outgoing_dispatches,
             ..
@@ -1756,88 +1756,89 @@ mod tests {
         assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
     }
 
-    // #[test]
-    // // This function tests:
-    // //
-    // // - `send_push_input` on non-existent handle
-    // // - `send_push_input` on valid handle
-    // // - `send_push_input` on used handle
-    // // - `send_push_input` data is added to buffer
-    // fn test_send_push_input() {
-    //     let mut ext = Ext::new(
-    //         ProcessorContextBuilder::new()
-    //             .with_message_context(MessageContextBuilder::new().build())
-    //             .build(),
-    //     );
+    #[test]
+    // This function tests:
     //
-    //     let res = ext
-    //         .context
-    //         .message_context
-    //         .payload_mut()
-    //         .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
-    //     assert!(res.is_ok());
-    //
-    //     let fake_handle = 0;
-    //
-    //     let res = ext.send_push_input(fake_handle, 0, 1);
-    //     assert_eq!(
-    //         res.unwrap_err(),
-    //         FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
-    //     );
-    //
-    //     let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
-    //
-    //     let res = ext.send_push_input(handle, 2, 3);
-    //     assert!(res.is_ok());
-    //     let res = ext.send_push_input(handle, 5, 1);
-    //     assert!(res.is_ok());
-    //
-    //     // Len too big
-    //     let res = ext.send_push_input(handle, 0, 7);
-    //     assert_eq!(
-    //         res.unwrap_err(),
-    //         FallibleExtError::Core(FallibleExtErrorCore::Message(
-    //             MessageError::OutOfBoundsInputSliceLength
-    //         ))
-    //     );
-    //     let res = ext.send_push_input(handle, 5, 2);
-    //     assert_eq!(
-    //         res.unwrap_err(),
-    //         FallibleExtError::Core(FallibleExtErrorCore::Message(
-    //             MessageError::OutOfBoundsInputSliceLength
-    //         ))
-    //     );
-    //
-    //     // Too big offset
-    //     let res = ext.send_push_input(handle, 6, 0);
-    //     assert_eq!(
-    //         res.unwrap_err(),
-    //         FallibleExtError::Core(FallibleExtErrorCore::Message(
-    //             MessageError::OutOfBoundsInputSliceOffset
-    //         ))
-    //     );
-    //
-    //     let msg = ext.send_commit(handle, HandlePacket::default(), 0);
-    //     assert!(msg.is_ok());
-    //
-    //     let res = ext.send_push_input(handle, 0, 1);
-    //     assert_eq!(
-    //         res.unwrap_err(),
-    //         FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
-    //     );
-    //
-    //     let (outcome, _) = ext.context.message_context.drain();
-    //     let ContextOutcomeDrain {
-    //         mut outgoing_dispatches,
-    //         ..
-    //     } = outcome.drain();
-    //     let dispatch = outgoing_dispatches
-    //         .pop()
-    //         .map(|(dispatch, _, _)| dispatch)
-    //         .expect("Send commit was ok");
-    //
-    //     assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5, 6]);
-    // }
+    // - `send_push_input` on non-existent handle
+    // - `send_push_input` on valid handle
+    // - `send_push_input` on used handle
+    // - `send_push_input` data is added to buffer
+    fn test_send_push_input() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(MessageContextBuilder::new().build())
+                .build(),
+        );
+
+        let res = unsafe {
+            ext.context
+                .message_context
+                .payload_mut()
+                .try_extend_from_slice(&[1, 2, 3, 4, 5, 6])
+        };
+        assert!(res.is_ok());
+
+        let fake_handle = 0;
+
+        let res = ext.send_push_input(fake_handle, 0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::OutOfBounds))
+        );
+
+        let handle = ext.send_init().expect("Outgoing limit is u32::MAX");
+
+        let res = ext.send_push_input(handle, 2, 3);
+        assert!(res.is_ok());
+        let res = ext.send_push_input(handle, 5, 1);
+        assert!(res.is_ok());
+
+        // Len too big
+        let res = ext.send_push_input(handle, 0, 7);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+        let res = ext.send_push_input(handle, 5, 2);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+
+        // Too big offset
+        let res = ext.send_push_input(handle, 6, 0);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceOffset
+            ))
+        );
+
+        let msg = ext.send_commit(handle, HandlePacket::default(), 0);
+        assert!(msg.is_ok());
+
+        let res = ext.send_push_input(handle, 0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5, 6]);
+    }
 
     #[test]
     // This function requires `reply_push` to work to add extra data.
@@ -1916,7 +1917,7 @@ mod tests {
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
         );
 
-        let (outcome, _) = ext.context.message_context.drain();
+        let (outcome, _, _) = ext.context.message_context.drain();
         let ContextOutcomeDrain {
             mut outgoing_dispatches,
             ..
@@ -1929,77 +1930,78 @@ mod tests {
         assert_eq!(dispatch.message().payload_bytes(), &[1, 2, 3, 4, 5, 6]);
     }
 
-    // #[test]
-    // // This function tests:
-    // //
-    // // - `reply_push_input` with valid data
-    // // - `reply_push_input` after `reply_commit`
-    // // - `reply_push_input` data is added to buffer
-    // fn test_reply_push_input() {
-    //     let mut ext = Ext::new(
-    //         ProcessorContextBuilder::new()
-    //             .with_message_context(MessageContextBuilder::new().build())
-    //             .build(),
-    //     );
+    #[test]
+    // This function tests:
     //
-    //     let res = ext
-    //         .context
-    //         .message_context
-    //         .payload_mut()
-    //         .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
-    //     assert!(res.is_ok());
-    //
-    //     let res = ext.reply_push_input(2, 3);
-    //     assert!(res.is_ok());
-    //     let res = ext.reply_push_input(5, 1);
-    //     assert!(res.is_ok());
-    //
-    //     // Len too big
-    //     let res = ext.reply_push_input(0, 7);
-    //     assert_eq!(
-    //         res.unwrap_err(),
-    //         FallibleExtError::Core(FallibleExtErrorCore::Message(
-    //             MessageError::OutOfBoundsInputSliceLength
-    //         ))
-    //     );
-    //     let res = ext.reply_push_input(5, 2);
-    //     assert_eq!(
-    //         res.unwrap_err(),
-    //         FallibleExtError::Core(FallibleExtErrorCore::Message(
-    //             MessageError::OutOfBoundsInputSliceLength
-    //         ))
-    //     );
-    //
-    //     // Too big offset
-    //     let res = ext.reply_push_input(6, 0);
-    //     assert_eq!(
-    //         res.unwrap_err(),
-    //         FallibleExtError::Core(FallibleExtErrorCore::Message(
-    //             MessageError::OutOfBoundsInputSliceOffset
-    //         ))
-    //     );
-    //
-    //     let msg = ext.reply_commit(ReplyPacket::auto());
-    //     assert!(msg.is_ok());
-    //
-    //     let res = ext.reply_push_input(0, 1);
-    //     assert_eq!(
-    //         res.unwrap_err(),
-    //         FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
-    //     );
-    //
-    //     let (outcome, _) = ext.context.message_context.drain();
-    //     let ContextOutcomeDrain {
-    //         mut outgoing_dispatches,
-    //         ..
-    //     } = outcome.drain();
-    //     let dispatch = outgoing_dispatches
-    //         .pop()
-    //         .map(|(dispatch, _, _)| dispatch)
-    //         .expect("Send commit was ok");
-    //
-    //     assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5, 6]);
-    // }
+    // - `reply_push_input` with valid data
+    // - `reply_push_input` after `reply_commit`
+    // - `reply_push_input` data is added to buffer
+    fn test_reply_push_input() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(MessageContextBuilder::new().build())
+                .build(),
+        );
+
+        let res = unsafe {
+            ext.context
+                .message_context
+                .payload_mut()
+                .try_extend_from_slice(&[1, 2, 3, 4, 5, 6])
+        };
+        assert!(res.is_ok());
+
+        let res = ext.reply_push_input(2, 3);
+        assert!(res.is_ok());
+        let res = ext.reply_push_input(5, 1);
+        assert!(res.is_ok());
+
+        // Len too big
+        let res = ext.reply_push_input(0, 7);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+        let res = ext.reply_push_input(5, 2);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceLength
+            ))
+        );
+
+        // Too big offset
+        let res = ext.reply_push_input(6, 0);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(
+                MessageError::OutOfBoundsInputSliceOffset
+            ))
+        );
+
+        let msg = ext.reply_commit(ReplyPacket::auto());
+        assert!(msg.is_ok());
+
+        let res = ext.reply_push_input(0, 1);
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
+        );
+
+        let (outcome, _, _) = ext.context.message_context.drain();
+        let ContextOutcomeDrain {
+            mut outgoing_dispatches,
+            ..
+        } = outcome.drain();
+        let dispatch = outgoing_dispatches
+            .pop()
+            .map(|(dispatch, _, _)| dispatch)
+            .expect("Send commit was ok");
+
+        assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5, 6]);
+    }
 
     // TODO: fix me (issue #3881)
     #[test]

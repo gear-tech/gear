@@ -221,18 +221,14 @@ pub struct MessageContext {
 impl MessageContext {
     /// Create new message context.
     /// Returns `None` if outgoing messages bytes limit exceeded.
+    #[allow(clippy::useless_asref)]
     pub fn new(
         dispatch: IncomingDispatch,
         program_id: ProgramId,
         settings: ContextSettings,
     ) -> Self {
         Self {
-            dispatch,
-            outcome: ContextOutcome::new(
-                program_id,
-                dispatch.message().source(),
-                dispatch.message().id(),
-            ),
+            outcome: ContextOutcome::new(program_id, dispatch.source(), dispatch.id()),
             store: dispatch
                 .context()
                 .as_ref()
@@ -240,6 +236,7 @@ impl MessageContext {
                 .unwrap_or_default(),
             outgoing_payloads: OutgoingPayloads::default(),
             settings,
+            dispatch,
         }
     }
 
@@ -575,7 +572,7 @@ impl MessageContext {
 
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
-        &self.dispatch.message()
+        self.dispatch.message()
     }
 
     /// Return bytes of current payload
@@ -583,12 +580,21 @@ impl MessageContext {
         self.dispatch.message().payload_bytes()
     }
 
+    /// Return mut payload
+    ///
+    /// # Safety
+    ///
+    /// Use only in tests or when you are sure what you are doing.
+    pub unsafe fn payload_mut(&mut self) -> &mut Payload {
+        unsafe { self.dispatch.message_mut().payload_mut() }
+    }
+
     /// Current program's id.
     pub fn program_id(&self) -> ProgramId {
         self.outcome.program_id
     }
 
-    /// Destructs context after execution and returns provided outcome and store.
+    /// Destructs context after execution and returns provided outcome, store and dispatch.
     pub fn drain(self) -> (ContextOutcome, ContextStore, IncomingDispatch) {
         let Self {
             outcome,
@@ -783,7 +789,7 @@ mod tests {
 
         // Creating a message context
         let mut message_context = MessageContext::new(
-            &incoming_dispatch,
+            incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, 10),
         );
@@ -942,7 +948,7 @@ mod tests {
 
         // Creating a message context
         let mut context = MessageContext::new(
-            &incoming_dispatch,
+            incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
@@ -1063,7 +1069,7 @@ mod tests {
         );
 
         // Checking that on drain we get only messages that were fully formed (directly sent or committed)
-        let (expected_result, _) = context.drain();
+        let (expected_result, _, _) = context.drain();
         assert_eq!(expected_result.handle.len(), 1);
         assert_eq!(expected_result.handle[0].0.payload_bytes(), vec![5, 7, 9]);
     }
@@ -1082,7 +1088,7 @@ mod tests {
         let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
 
         let mut context = MessageContext::new(
-            &incoming_dispatch,
+            incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
@@ -1109,7 +1115,7 @@ mod tests {
         let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
 
         let mut message_context = MessageContext::new(
-            &incoming_dispatch,
+            incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
@@ -1143,7 +1149,7 @@ mod tests {
         let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
 
         let mut message_context = MessageContext::new(
-            &incoming_dispatch,
+            incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );

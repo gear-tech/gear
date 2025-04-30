@@ -280,7 +280,7 @@ where
         .map(|p| p.inc())
         .unwrap_or(static_pages);
 
-    let incomming_message = IncomingDispatch::new(
+    let incoming_message = IncomingDispatch::new(
         DispatchKind::Handle,
         IncomingMessage::new(
             Default::default(),
@@ -295,7 +295,7 @@ where
         None,
     );
 
-    let message_context = MessageContext::new(&incomming_message, program.id, Default::default());
+    let message_context = MessageContext::new(incoming_message, program.id, Default::default());
 
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),

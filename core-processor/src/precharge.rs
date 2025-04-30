@@ -21,7 +21,9 @@ use crate::{
         ContextChargedForAllocations, ContextChargedForCodeLength, ContextChargedForMemory,
         ContextChargedForProgram, ContextData, SystemReservationContext,
     },
-    processing::{process_allowance_exceed, process_execution_error, process_success},
+    processing::{
+        process_allowance_exceed, process_execution_error_with_dispatch, process_success,
+    },
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
 use alloc::vec::Vec;
@@ -209,7 +211,7 @@ pub fn precharge_for_program(
         Err(PrechargeError::GasExceeded(op)) => {
             let gas_burned = gas_counter.burned();
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            Err(process_execution_error(
+            Err(process_execution_error_with_dispatch(
                 dispatch,
                 destination_id,
                 gas_burned,
@@ -255,7 +257,7 @@ pub fn precharge_for_allocations(
         Err(PrechargeError::GasExceeded(op)) => {
             let gas_burned = context.gas_counter.burned();
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.dispatch);
-            Err(process_execution_error(
+            Err(process_execution_error_with_dispatch(
                 context.dispatch,
                 context.destination_id,
                 gas_burned,
@@ -288,7 +290,6 @@ pub fn precharge_for_code_length(
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
         return Err(process_success(
-            dispatch,
             SuccessfulDispatchResultKind::Success,
             DispatchResult::success(dispatch, destination_id, gas_counter.to_amount()),
         ));
@@ -316,7 +317,7 @@ pub fn precharge_for_code_length(
         )),
         Err(PrechargeError::GasExceeded(op)) => {
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            Err(process_execution_error(
+            Err(process_execution_error_with_dispatch(
                 dispatch,
                 destination_id,
                 gas_counter.burned(),
@@ -349,7 +350,7 @@ pub fn precharge_for_code(
         Err(PrechargeError::GasExceeded(op)) => {
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
-            Err(process_execution_error(
+            Err(process_execution_error_with_dispatch(
                 context.data.dispatch,
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
@@ -382,7 +383,7 @@ pub fn precharge_for_instrumentation(
         Err(PrechargeError::GasExceeded(op)) => {
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
-            Err(process_execution_error(
+            Err(process_execution_error_with_dispatch(
                 context.data.dispatch,
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
@@ -469,7 +470,7 @@ pub fn precharge_for_module_instantiation(
                 PrechargeError::GasExceeded(op) => {
                     let system_reservation_ctx =
                         SystemReservationContext::from_dispatch(&context.data.dispatch);
-                    Err(process_execution_error(
+                    Err(process_execution_error_with_dispatch(
                         context.data.dispatch,
                         context.data.destination_id,
                         context.data.gas_counter.burned(),

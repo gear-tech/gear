@@ -621,15 +621,9 @@ where
             let buffer = registry.register_write(buffer_ptr, len);
             let mut io = registry.pre_process(ctx)?;
 
-            let payload_charge = ctx
-                .ext_mut()
-                .payload_bytes_charge(at, len)
-                .map_err(Into::into)?;
+            let payload_charge = ctx.ext_mut().payload_bytes_charge(at, len)?;
 
-            let bytes = ctx
-                .ext()
-                .payload_bytes(payload_charge)
-                .map_err(Into::into)?;
+            let bytes = ctx.ext().payload_bytes(payload_charge)?;
 
             io.write(ctx, buffer, bytes).map_err(Into::into)
         })

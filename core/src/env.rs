@@ -30,8 +30,11 @@ use core::fmt::Display;
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SyscallName;
 
+/// Struct returned by `payload_bytes_charge`, indicates that gas was charged for payload reading.
 pub struct PayloadCharge {
+    /// Start of the payload in memory.
     pub at: u32,
+    /// End of the payload in memory.
     pub end: u32,
 }
 
@@ -178,12 +181,14 @@ pub trait Externalities {
     /// This should be no-op in release builds.
     fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError>;
 
+    /// Precharge gas for message payload reading.
     fn payload_bytes_charge(
         &mut self,
         at: u32,
         len: u32,
     ) -> Result<PayloadCharge, Self::FallibleError>;
 
+    /// Read message payload bytes.
     fn payload_bytes(&self, charge: PayloadCharge) -> Result<&[u8], Self::FallibleError>;
 
     /// Size of currently handled message payload.

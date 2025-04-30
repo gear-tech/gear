@@ -544,7 +544,7 @@ impl ExtManager {
                 let err_reply_reason = ActorExecutionErrorReplyReason::Trap(
                     TrapExplanation::Panic(LimitedStr::from_small_str(expl).into()),
                 );
-                core_processor::process_execution_error(
+                core_processor::process_execution_error_with_dispatch(
                     dispatch,
                     program_id,
                     gas_counter.burned(),
