@@ -158,19 +158,19 @@ impl Participant {
             .ok_or_else(|| anyhow!("Code {id} blob info is not in storage"))?
             .timestamp;
 
-        if local_timestamp != timestamp {
-            return Err(anyhow!("Requested and local code timestamps mismatch"));
-        }
+        ensure!(
+            local_timestamp == timestamp,
+            "Requested and local code timestamps mismatch"
+        );
 
         let local_valid = db
             .code_valid(id)
             .ok_or_else(|| anyhow!("Code {id} is not validated by this node"))?;
 
-        if local_valid != valid {
-            return Err(anyhow!(
-                "Requested and local code validation results mismatch"
-            ));
-        }
+        ensure!(
+            local_valid == valid,
+            "Requested and local code validation results mismatch"
+        );
 
         Ok(())
     }
@@ -187,11 +187,10 @@ impl Participant {
             transitions_digest,
         } = request;
 
-        if !db.block_computed(block_hash) {
-            return Err(anyhow!(
-                "Requested block {block_hash} is not processed by this node"
-            ));
-        }
+        ensure!(
+            db.block_computed(block_hash),
+            "Requested block {block_hash} is not processed by this node"
+        );
 
         let header = db.block_header(block_hash).ok_or_else(|| {
             anyhow!("Requested block {block_hash} header wasn't found in storage")
@@ -199,31 +198,30 @@ impl Participant {
 
         ensure!(header.timestamp == block_timestamp, "Timestamps mismatch");
 
-        if db
+        let local_outcome_digest = db
             .block_outcome(block_hash)
             .ok_or_else(|| anyhow!("Cannot get from db outcome for block {block_hash}"))?
             .iter()
-            .collect::<Digest>()
-            != transitions_digest
-        {
-            return Err(anyhow!("Requested and local transitions digest mismatch"));
-        }
+            .collect::<Digest>();
+        ensure!(
+            local_outcome_digest == transitions_digest,
+            "Requested and local transitions digests length mismatch"
+        );
 
-        if db.previous_not_empty_block(block_hash).ok_or_else(|| {
-            anyhow!("Cannot get from db previous not empty for block {block_hash}")
-        })? != previous_non_empty_block
-        {
-            return Err(anyhow!(
-                "Requested and local previous commitment block hash mismatch"
-            ));
-        }
+        let local_previous_not_empty_block =
+            db.previous_not_empty_block(block_hash).ok_or_else(|| {
+                anyhow!("Cannot get from db previous not empty for block {block_hash}")
+            })?;
+        ensure!(
+            local_previous_not_empty_block == previous_non_empty_block,
+            "Requested and local previous commitment block hash mismatch"
+        );
 
         // TODO: #4579 rename max_distance and make it configurable
-        if !Self::verify_is_predecessor(db, predecessor_block, block_hash, None)? {
-            return Err(anyhow!(
-                "{block_hash} is not a predecessor of {predecessor_block}"
-            ));
-        }
+        ensure!(
+            Self::verify_is_predecessor(db, predecessor_block, block_hash, None)?,
+            "{block_hash} is not a predecessor of {predecessor_block}"
+        );
 
         Ok(())
     }

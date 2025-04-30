@@ -40,7 +40,7 @@ use std::{
 /// in order to keep the program states in local database actual.
 #[derive(Debug, Default)]
 pub struct SimpleConnectService {
-    block: Option<SimpleBlockData>,
+    chain_head: Option<SimpleBlockData>,
     output: VecDeque<ConsensusEvent>,
 }
 
@@ -57,13 +57,13 @@ impl ConsensusService for SimpleConnectService {
     }
 
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
-        self.block = Some(block);
+        self.chain_head = Some(block);
 
         Ok(())
     }
 
     fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()> {
-        let Some(block) = self.block.as_ref() else {
+        let Some(block) = self.chain_head.as_ref() else {
             self.output.push_back(ConsensusEvent::Warning(format!(
                 "Received synced block {}, but no chain-head was received yet",
                 data.block_hash
