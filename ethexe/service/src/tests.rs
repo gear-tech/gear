@@ -999,7 +999,7 @@ async fn multiple_validators() {
     log::info!(
         "📗 Re-start validator 0 and check, that now ethexe is working, validator 1 is still stopped"
     );
-    validator2.start_service().await;
+    validators[0].start_service().await;
 
     if env.next_block_producer_index().await == 1 {
         log::info!("📗 Skip one block to be sure validator 1 is not a producer for next block");
@@ -1163,27 +1163,14 @@ async fn fast_sync() {
     };
 
     let config = TestEnvConfig {
-        validators: ValidatorsConfig::Generated(3),
+        validators: ValidatorsConfig::PreDefined(2),
+        network: EnvNetworkConfig::Enabled,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
 
-    log::info!("Starting sequencer");
-    let sequencer_pub_key = env.wallets.next();
-    let mut sequencer = env.new_node(
-        NodeConfig::named("sequencer")
-            .sequencer(sequencer_pub_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0])
-            .network(None, None),
-    );
-    sequencer.start_service().await;
-
     log::info!("Starting Alice");
-    let mut alice = env.new_node(
-        NodeConfig::named("Alice")
-            .validator(env.validators[1])
-            .network(None, sequencer.multiaddr.clone()),
-    );
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[1]));
     alice.start_service().await;
 
     log::info!("Creating `demo-autoreply` programs");
@@ -1230,7 +1217,6 @@ async fn fast_sync() {
     let mut bob = env.new_node(
         NodeConfig::named("Bob")
             .validator(env.validators[2])
-            .network(None, sequencer.multiaddr.clone())
             .fast_sync(),
     );
     bob.start_service().await;
@@ -1285,10 +1271,6 @@ async fn fast_sync() {
     env.skip_blocks(100).await;
 
     let latest_block = env.latest_block().await;
-    sequencer
-        .listener()
-        .wait_for_block_processed(latest_block)
-        .await;
     alice
         .listener()
         .wait_for_block_processed(latest_block)
@@ -1383,7 +1365,7 @@ mod utils {
             let TestEnvConfig {
                 validators,
                 block_time,
-                rpc_url,
+                rpc,
                 wallets,
                 router_address,
                 continuous_block_generation,
@@ -1395,27 +1377,29 @@ mod utils {
                 continuous_block_generation
             );
 
-            let (rpc_url, anvil) = match rpc_url {
-                Some(rpc_url) => {
+            let (rpc_url, anvil) = match rpc {
+                EnvRpcConfig::ProvidedURL(rpc_url) => {
                     log::info!("📍 Using provided RPC URL: {}", rpc_url);
                     (rpc_url, None)
                 }
-                None => {
-                    let anvil = if continuous_block_generation {
-                        Anvil::new().block_time(block_time.as_secs())
-                    } else {
-                        // By default anvil uses system time, but we need to set it to a fixed timestamp.
-                        let timestamp = 1_000_000_000;
+                EnvRpcConfig::CustomAnvil {
+                    slots_in_epoch,
+                    genesis_timestamp,
+                } => {
+                    let mut anvil = Anvil::new();
 
-                        Anvil::new()
-                            .arg("--timestamp")
-                            .arg(timestamp.to_string())
-                            .spawn()
-                    };
+                    if continuous_block_generation {
+                        anvil = anvil.block_time(block_time.as_secs())
+                    }
+                    if let Some(slots_in_epoch) = slots_in_epoch {
+                        anvil = anvil.arg(format!("--slots-in-an-epoch={}", slots_in_epoch));
+                    }
+                    if let Some(genesis_timestamp) = genesis_timestamp {
+                        anvil = anvil.arg(format!("--timestamp={}", genesis_timestamp));
+                    }
 
-                    // speeds up block finalization, so we don't have to calculate
-                    // when the next finalized block is produced, which is convenient for tests
-                    let anvil = anvil.arg("--slots-in-an-epoch=1").spawn();
+                    let anvil = anvil.spawn();
+
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
                 }
@@ -1651,7 +1635,7 @@ mod utils {
                 fast_sync,
             } = config;
 
-            let db = Database::from_one(&MemDb::default());
+            let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
 
             let (network_address, network_bootstrap_address) = self
                 .bootstrap_network
@@ -1958,6 +1942,15 @@ mod utils {
         EnabledWithCustomAddress(String),
     }
 
+    pub enum EnvRpcConfig {
+        #[allow(unused)]
+        ProvidedURL(String),
+        CustomAnvil {
+            slots_in_epoch: Option<u64>,
+            genesis_timestamp: Option<u64>,
+        },
+    }
+
     pub struct TestEnvConfig {
         /// How many validators will be in deployed router.
         /// By default uses 1 auto generated validator.
@@ -1965,7 +1958,7 @@ mod utils {
         /// By default uses 1 second block time.
         pub block_time: Duration,
         /// By default creates new anvil instance if rpc is not provided.
-        pub rpc_url: Option<String>,
+        pub rpc: EnvRpcConfig,
         /// By default uses anvil hardcoded wallets if wallets are not provided.
         pub wallets: Option<Vec<String>>,
         /// If None (by default) new router will be deployed.
@@ -1983,7 +1976,13 @@ mod utils {
             Self {
                 validators: ValidatorsConfig::PreDefined(1),
                 block_time: Duration::from_secs(1),
-                rpc_url: None,
+                rpc: EnvRpcConfig::CustomAnvil {
+                    // speeds up block finalization, so we don't have to calculate
+                    // when the next finalized block is produced, which is convenient for tests
+                    slots_in_epoch: Some(1),
+                    // For deterministic tests we need to set fixed genesis timestamp
+                    genesis_timestamp: Some(1_000_000_000),
+                },
                 wallets: None,
                 router_address: None,
                 continuous_block_generation: false,
@@ -2015,6 +2014,7 @@ mod utils {
             }
         }
 
+        #[allow(unused)]
         pub fn db(mut self, db: Database) -> Self {
             self.db = Some(db);
             self

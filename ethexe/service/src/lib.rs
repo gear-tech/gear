@@ -403,7 +403,7 @@ impl Service {
                     }
                 },
                 Event::Network(event) => {
-                    let Some(n) = network.as_mut() else {
+                    let Some(_) = network.as_mut() else {
                         unreachable!("couldn't produce event without network");
                     };
 
