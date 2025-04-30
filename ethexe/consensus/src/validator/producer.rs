@@ -207,21 +207,23 @@ impl Producer {
             .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
 
         let mut commitments = Vec::new();
-        for (id, valid) in codes_queue
+        codes_queue
             .into_iter()
             .filter_map(|id| ctx.db.code_valid(id).map(|valid| (id, valid)))
-        {
-            let CodeInfo { timestamp, .. } = ctx
-                .db
-                .code_blob_info(id)
-                .ok_or_else(|| anyhow!("Validated code {id} blob info is not in storage"))?;
+            .try_for_each(|(id, valid)| -> Result<()> {
+                let CodeInfo { timestamp, .. } = ctx
+                    .db
+                    .code_blob_info(id)
+                    .ok_or_else(|| anyhow!("Validated code {id} blob info is not in storage"))?;
 
-            commitments.push(CodeCommitment {
-                id,
-                timestamp,
-                valid,
-            });
-        }
+                commitments.push(CodeCommitment {
+                    id,
+                    timestamp,
+                    valid,
+                });
+
+                Ok(())
+            })?;
 
         Ok(commitments)
     }
