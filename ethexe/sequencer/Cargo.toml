@@ -8,10 +8,10 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-ethexe-service-utils.workspace = true
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
+ethexe-service-utils.workspace = true
 gprimitives = { workspace = true, features = ["codec"] }
 
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
