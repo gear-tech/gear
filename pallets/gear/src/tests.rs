@@ -82,6 +82,49 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+#[should_panic]
+fn err_reply_comes_with_value() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const VALUE: u128 = 10_000_000_000_000;
+
+        let (_init_mid, pid) = init_constructor(Scheme::empty());
+
+        run_to_next_block(None);
+
+        let user_balance = Balances::free_balance(USER_1);
+        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            0,
+            VALUE,
+            false,
+        ));
+        assert_balance(USER_1, user_balance - VALUE, VALUE);
+        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+
+        run_to_next_block(None);
+
+        assert_balance(USER_1, user_balance, 0u8);
+        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+
+        let err_reply = maybe_last_message(USER_1).expect("Message should be");
+
+        assert_eq!(
+            err_reply.reply_code().expect("must be"),
+            ReplyCode::Error(ErrorReplyReason::Execution(
+                SimpleExecutionError::RanOutOfGas
+            ))
+        );
+
+        assert_eq!(err_reply.value(), VALUE);
+    })
+}
+
+#[test]
 fn auto_reply_on_exit_exists() {
     init_logger();
     new_test_ext().execute_with(|| {
