@@ -1265,7 +1265,7 @@ async fn fast_sync() {
         );
     }
 
-    env.skip_blocks(100 as u32).await;
+    env.skip_blocks(100).await;
 
     let latest_block = env.latest_block().await.hash.0.into();
     alice
