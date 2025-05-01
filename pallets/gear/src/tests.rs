@@ -69,6 +69,7 @@ use gstd::{
     errors::{CoreError, Error as GstdError},
 };
 use pallet_gear_voucher::PrepaidCall;
+use sp_core::H256;
 use sp_runtime::{
     codec::{Decode, Encode},
     traits::{Dispatchable, One, UniqueSaturatedInto},
@@ -82,7 +83,6 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
-#[should_panic]
 fn err_reply_comes_with_value() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -90,8 +90,8 @@ fn err_reply_comes_with_value() {
 
         let (_init_mid, pid) = init_constructor(Scheme::empty());
 
-        run_to_next_block(None);
-
+        // Case #1.
+        // If non-reply message quits with error, value is attached to the reply.
         let user_balance = Balances::free_balance(USER_1);
         assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
 
@@ -121,6 +121,83 @@ fn err_reply_comes_with_value() {
         );
 
         assert_eq!(err_reply.value(), VALUE);
+
+        // Case #2.
+        // If successful reply quits with error, value is silently returned.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pid,
+            Calls::builder()
+                .send(USER_1.into_origin().0, b"Hello, world!".to_vec())
+                .encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        let mail = get_last_mail(USER_1);
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            mail.id(),
+            vec![],
+            0,
+            VALUE,
+            false,
+        ));
+
+        assert_balance(USER_1, user_balance - VALUE, VALUE);
+
+        run_to_next_block(None);
+
+        assert_balance(USER_1, user_balance, 0u8);
+        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+
+        // Case #3.
+        // If error reply quits with error, value is silently kept.
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            Calls::builder().send_value(
+                pid.into_bytes(),
+                Calls::builder().panic(None).encode(),
+                VALUE,
+            ),
+            Calls::builder().panic(None),
+            Calls::builder().noop(),
+        );
+
+        let (_, pid2) =
+            submit_constructor_with_args(USER_1, H256::random().as_bytes(), scheme, VALUE);
+
+        run_to_next_block(None);
+        assert!(is_active(pid2));
+
+        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+        assert_eq!(
+            Balances::free_balance(pid2.cast::<AccountId>()),
+            get_ed() + VALUE
+        );
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid2,
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        assert_last_dequeued(3);
+
+        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+        assert_eq!(
+            Balances::free_balance(pid2.cast::<AccountId>()),
+            get_ed() + VALUE
+        );
     })
 }
 
