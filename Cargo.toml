@@ -564,9 +564,6 @@ ignored = [
     "sha-1"
 ]
 
-[profile.dev.package.corosensei]
-opt-level = 3
-
 [profile.release]
 panic = "unwind"
 
