@@ -42,7 +42,7 @@ pub fn testnet_genesis(
     endowed_accounts: Vec<AccountId>,
     _enable_println: bool,
 ) -> RuntimeGenesisConfig {
-    const ENDOWMENT: u128 = 1_000_000 * TOKEN;
+    const ENDOWMENT: u128 = 1_000_000_000 * TOKEN;
     const STASH: u128 = 100 * TOKEN;
     const MIN_NOMINATOR_BOND: u128 = 50 * TOKEN;
 
