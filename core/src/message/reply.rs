@@ -62,10 +62,11 @@ impl ReplyMessage {
     pub fn system(
         origin_msg_id: MessageId,
         payload: Payload,
+        value: Value,
         err: impl Into<ErrorReplyReason>,
     ) -> Self {
         let id = MessageId::generate_reply(origin_msg_id);
-        let packet = ReplyPacket::system(payload, err);
+        let packet = ReplyPacket::system(payload, value, err);
 
         Self::from_packet(id, packet)
     }
@@ -204,9 +205,10 @@ impl ReplyPacket {
     // TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
     // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new system generated ReplyPacket.
-    pub fn system(payload: Payload, err: impl Into<ErrorReplyReason>) -> Self {
+    pub fn system(payload: Payload, value: Value, err: impl Into<ErrorReplyReason>) -> Self {
         Self {
             payload,
+            value,
             code: ReplyCode::error(err),
             ..Default::default()
         }
