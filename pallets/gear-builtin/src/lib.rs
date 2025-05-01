@@ -261,6 +261,20 @@ pub mod pallet {
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     impl<T: Config> Pallet<T> {
+        /// Returns list of known builtins.
+        ///
+        /// This fn has some overhead, therefore it should be called only when necessary.
+        pub fn list_builtins() -> Vec<T::AccountId>
+        where
+            T::AccountId: Origin,
+        {
+            BuiltinRegistry::<T>::new()
+                .list()
+                .into_iter()
+                .map(Origin::cast)
+                .collect()
+        }
+
         /// Generate an `actor_id` given a builtin ID.
         ///
         ///
@@ -324,6 +338,7 @@ pub struct BuiltinRegistry<T: Config> {
     pub registry: BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
+
 impl<T: Config> BuiltinRegistry<T> {
     fn new() -> Self {
         let mut registry = BTreeMap::new();
@@ -333,6 +348,10 @@ impl<T: Config> BuiltinRegistry<T> {
             registry,
             _phantom: Default::default(),
         }
+    }
+
+    pub fn list(&self) -> Vec<ProgramId> {
+        self.registry.keys().copied().collect()
     }
 }
 
