@@ -1763,7 +1763,7 @@ mod utils {
         /// This function is not completely thread-safe.
         /// If you have some other threads or processes,
         /// that can produce blocks for the same rpc node,
-        /// then the return may be incorrect ot outdated.
+        /// then the return may be outdated.
         pub async fn next_block_producer_index(&self) -> usize {
             let timestamp = self.latest_block().await.timestamp;
             ethexe_consensus::block_producer_index(
