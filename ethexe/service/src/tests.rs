@@ -1277,7 +1277,7 @@ async fn fast_sync() {
     bob.start_service().await;
 
     // mine a block so Bob can produce the event we will wait for
-    env.force_new_block().await;
+    env.skip_blocks(1).await;
 
     let latest_block = env.latest_block().await.hash.0.into();
     alice
