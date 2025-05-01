@@ -26,7 +26,7 @@ use crate::{
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider as _, RootProvider},
-    rpc::types::anvil::MineOptions,
+    rpc::types::{anvil::MineOptions, Header as RpcHeader},
 };
 use anyhow::Result;
 use ethexe_common::{
@@ -266,7 +266,7 @@ async fn uninitialized_program() {
         }
         .encode();
 
-        let mut listener = env.events_publisher().subscribe().await;
+        let mut listener = env.observer_events_publisher().subscribe().await;
 
         let init_res = env
             .create_program(code_id, 500_000_000_000_000)
@@ -411,7 +411,7 @@ async fn mailbox() {
     let mid_expected_message = MessageId::generate_outgoing(original_mid, 0);
     let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
 
-    let mut listener = env.events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe().await;
     let block_data = listener
         .apply_until_block_event_with_header(|event, block_data| match event {
             BlockEvent::Mirror { actor_id, event } if actor_id == pid => {
@@ -633,7 +633,7 @@ async fn incoming_transfers() {
     // 1_000 tokens
     const VALUE_SENT: u128 = 1_000_000_000_000_000;
 
-    let mut listener = env.events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe().await;
 
     env.transfer_wvara(ping_id, VALUE_SENT).await;
 
@@ -1163,14 +1163,13 @@ async fn fast_sync() {
     };
 
     let config = TestEnvConfig {
-        validators: ValidatorsConfig::PreDefined(2),
         network: EnvNetworkConfig::Enabled,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("Starting Alice");
-    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[1]));
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
     alice.start_service().await;
 
     log::info!("Creating `demo-autoreply` programs");
@@ -1207,21 +1206,19 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    let latest_block = env.latest_block().await;
+    let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
         .wait_for_block_processed(latest_block)
         .await;
 
     log::info!("Starting Bob (fast-sync)");
-    let mut bob = env.new_node(
-        NodeConfig::named("Bob")
-            .validator(env.validators[2])
-            .fast_sync(),
-    );
+    let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync());
+
     bob.start_service().await;
 
     log::info!("Sending messages to programs");
+
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let reply_info = env
             .send_message(program_id, &(i as u64).encode(), 0)
@@ -1236,7 +1233,7 @@ async fn fast_sync() {
         );
     }
 
-    let latest_block = env.latest_block().await;
+    let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
         .wait_for_block_processed(latest_block)
@@ -1268,9 +1265,9 @@ async fn fast_sync() {
         );
     }
 
-    env.skip_blocks(100).await;
+    env.skip_blocks(100 as u32).await;
 
-    let latest_block = env.latest_block().await;
+    let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
         .wait_for_block_processed(latest_block)
@@ -1280,9 +1277,9 @@ async fn fast_sync() {
     bob.start_service().await;
 
     // mine a block so Bob can produce the event we will wait for
-    env.skip_blocks(1).await;
+    env.force_new_block().await;
 
-    let latest_block = env.latest_block().await;
+    let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
         .wait_for_block_processed(latest_block)
@@ -1313,11 +1310,10 @@ mod utils {
     use gear_core::message::ReplyCode;
     use rand::{rngs::StdRng, SeedableRng};
     use roast_secp256k1_evm::frost::{
-        keys::{self, IdentifierList, PublicKeyPackage},
+        keys::{self, IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
         Identifier, SigningKey,
     };
     use std::{
-        ops::Mul,
         pin::Pin,
         str::FromStr,
         sync::atomic::{AtomicUsize, Ordering},
@@ -1426,51 +1422,8 @@ mod utils {
                     .collect(),
             };
 
-            let max_signers: u16 = validators.len().try_into().expect("conversion failed");
-            let min_signers = max_signers
-                .checked_mul(2)
-                .expect("multiplication failed")
-                .div_ceil(3);
-
-            let maybe_validator_identifiers: Result<Vec<_>, _> = validators
-                .iter()
-                .map(|public_key| {
-                    Identifier::deserialize(&ActorId::from(public_key.to_address()).into_bytes())
-                })
-                .collect();
-            let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
-            let identifiers = IdentifierList::Custom(&validator_identifiers);
-
-            let mut rng = StdRng::seed_from_u64(123);
-
-            let secret = SigningKey::deserialize(&[0x01; 32]).expect("conversion failed");
-
-            let (secret_shares, public_key_package1) =
-                keys::split(&secret, max_signers, min_signers, identifiers, &mut rng)
-                    .expect("key split failed");
-
-            let verifiable_secret_sharing_commitment = secret_shares
-                .values()
-                .map(|secret_share| secret_share.commitment().clone())
-                .next()
-                .expect("conversion failed");
-
-            let identifiers = validator_identifiers.clone().into_iter().collect();
-            let public_key_package2 = PublicKeyPackage::from_commitment(
-                &identifiers,
-                &verifiable_secret_sharing_commitment,
-            )
-            .expect("conversion failed");
-            assert_eq!(public_key_package1, public_key_package2);
-
-            let validator_session_public_keys: Vec<_> = validator_identifiers
-                .iter()
-                .map(|id| {
-                    let signing_share = *secret_shares[id].signing_share();
-                    let private_key = PrivateKey(signing_share.serialize().try_into().unwrap());
-                    signer.add_key(private_key).unwrap()
-                })
-                .collect();
+            let (validators, verifiable_secret_sharing_commitment) =
+                Self::define_session_keys(&signer, validators);
 
             let sender_address = wallets.next().to_address();
 
@@ -1487,7 +1440,10 @@ mod utils {
                 log::info!("📗 Deploying new router");
                 Ethereum::deploy(
                     &rpc_url,
-                    validators.iter().map(|k| k.to_address()).collect(),
+                    validators
+                        .iter()
+                        .map(|k| k.public_key.to_address())
+                        .collect(),
                     signer.clone(),
                     sender_address,
                     verifiable_secret_sharing_commitment,
@@ -1550,16 +1506,8 @@ mod utils {
 
                 (sender, handle)
             };
-            let threshold = router_query.threshold().await?;
 
-            let validators = validators
-                .into_iter()
-                .zip(validator_session_public_keys.iter())
-                .map(|(public_key, session_public_key)| ValidatorConfig {
-                    public_key,
-                    session_public_key: *session_public_key,
-                })
-                .collect();
+            let threshold = router_query.threshold().await?;
 
             let network_address = match network {
                 EnvNetworkConfig::Disabled => None,
@@ -1674,7 +1622,7 @@ mod utils {
         pub async fn upload_code(&self, code: &[u8]) -> Result<WaitForUploadCode> {
             log::info!("📗 Upload code, len {}", code.len());
 
-            let listener = self.events_publisher().subscribe().await;
+            let listener = self.observer_events_publisher().subscribe().await;
 
             let pending_builder = self
                 .ethereum
@@ -1699,7 +1647,7 @@ mod utils {
         ) -> Result<WaitForProgramCreation> {
             log::info!("📗 Create program, code_id {code_id}");
 
-            let listener = self.events_publisher().subscribe().await;
+            let listener = self.observer_events_publisher().subscribe().await;
 
             let router = self.ethereum.router();
 
@@ -1733,7 +1681,7 @@ mod utils {
         ) -> Result<WaitForReplyTo> {
             log::info!("📗 Send message to {target}, payload len {}", payload.len());
 
-            let listener = self.events_publisher().subscribe().await;
+            let listener = self.observer_events_publisher().subscribe().await;
 
             let program_address = ethexe_signer::Address::try_from(target)?;
             let program = self.ethereum.mirror(program_address);
@@ -1765,13 +1713,17 @@ mod utils {
                 .unwrap();
         }
 
-        pub fn events_publisher(&self) -> ObserverEventsPublisher {
+        pub fn observer_events_publisher(&self) -> ObserverEventsPublisher {
             ObserverEventsPublisher {
                 broadcaster: self.broadcaster.clone(),
                 db: self.db.clone(),
             }
         }
 
+        /// Force new block generation on rpc node.
+        /// The difference between this method and `skip_blocks` is that
+        /// `skip_blocks` will wait for the block event to be generated,
+        /// while this method does not guarantee that.
         pub async fn force_new_block(&self) {
             if self.continuous_block_generation {
                 // nothing to do: new block will be generated automatically
@@ -1780,9 +1732,20 @@ mod utils {
             }
         }
 
+        /// Force new `blocks_amount` blocks generation on rpc node,
+        /// and wait for the block event to be generated.
         pub async fn skip_blocks(&self, blocks_amount: u32) {
             if self.continuous_block_generation {
-                tokio::time::sleep(self.block_time.mul(blocks_amount)).await;
+                let mut blocks_count = 0;
+                self.observer_events_publisher()
+                    .subscribe()
+                    .await
+                    .apply_until_block_event(|_| {
+                        blocks_count += 1;
+                        Ok((blocks_count >= blocks_amount).then_some(()))
+                    })
+                    .await
+                    .unwrap();
             } else {
                 self.provider
                     .evm_mine(Some(MineOptions::Options {
@@ -1802,29 +1765,78 @@ mod utils {
         /// that can produce blocks for the same rpc node,
         /// then the return may be incorrect ot outdated.
         pub async fn next_block_producer_index(&self) -> usize {
-            let timestamp = self
-                .provider
-                .get_block_by_number(Default::default())
-                .await
-                .unwrap()
-                .unwrap()
-                .header
-                .timestamp;
+            let timestamp = self.latest_block().await.timestamp;
             ethexe_consensus::block_producer_index(
                 self.validators.len(),
                 (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
             )
         }
 
-        pub async fn latest_block(&self) -> H256 {
-            let latest_block = self
-                .provider
+        pub async fn latest_block(&self) -> RpcHeader {
+            self.provider
                 .get_block(BlockId::latest())
                 .await
                 .unwrap()
                 .expect("latest block always exist")
-                .header;
-            H256(latest_block.hash.0)
+                .header
+        }
+
+        pub fn define_session_keys(
+            signer: &Signer,
+            validators: Vec<PublicKey>,
+        ) -> (Vec<ValidatorConfig>, VerifiableSecretSharingCommitment) {
+            let max_signers: u16 = validators.len().try_into().expect("conversion failed");
+            let min_signers = max_signers
+                .checked_mul(2)
+                .expect("multiplication failed")
+                .div_ceil(3);
+
+            let maybe_validator_identifiers: Result<Vec<_>, _> = validators
+                .iter()
+                .map(|public_key| {
+                    Identifier::deserialize(&ActorId::from(public_key.to_address()).into_bytes())
+                })
+                .collect();
+            let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
+            let identifiers = IdentifierList::Custom(&validator_identifiers);
+
+            let mut rng = StdRng::seed_from_u64(123);
+
+            let secret = SigningKey::deserialize(&[0x01; 32]).expect("conversion failed");
+
+            let (secret_shares, public_key_package1) =
+                keys::split(&secret, max_signers, min_signers, identifiers, &mut rng)
+                    .expect("key split failed");
+
+            let verifiable_secret_sharing_commitment = secret_shares
+                .values()
+                .map(|secret_share| secret_share.commitment().clone())
+                .next()
+                .expect("conversion failed");
+
+            let identifiers = validator_identifiers.clone().into_iter().collect();
+            let public_key_package2 = PublicKeyPackage::from_commitment(
+                &identifiers,
+                &verifiable_secret_sharing_commitment,
+            )
+            .expect("conversion failed");
+            assert_eq!(public_key_package1, public_key_package2);
+
+            (
+                validators
+                    .into_iter()
+                    .zip(validator_identifiers.iter())
+                    .map(|(public_key, id)| {
+                        let signing_share = *secret_shares[id].signing_share();
+                        let private_key = PrivateKey(signing_share.serialize().try_into().unwrap());
+                        ValidatorConfig {
+                            public_key,
+                            session_public_key: signer.add_key(private_key).unwrap(),
+                        }
+                    })
+                    .collect(),
+                verifiable_secret_sharing_commitment,
+            )
         }
 
         #[allow(unused)]
@@ -1959,15 +1971,14 @@ mod utils {
         pub block_time: Duration,
         /// By default creates new anvil instance if rpc is not provided.
         pub rpc: EnvRpcConfig,
-        /// By default uses anvil hardcoded wallets if wallets are not provided.
+        /// By default uses anvil hardcoded wallets if custom wallets are not provided.
         pub wallets: Option<Vec<String>>,
         /// If None (by default) new router will be deployed.
         /// In case of Some(_), will connect to existing router contract.
         pub router_address: Option<String>,
-        /// Identify whether networks works (or have to works) in continuous block generation mode.
+        /// Identify whether networks works (or have to works) in continuous block generation mode, false by default.
         pub continuous_block_generation: bool,
-        /// If [`Some`] (by default [`None`]) - separate network service would start.
-        /// Network address could be provided inside, or will be generated.
+        /// Network service configuration, disabled by default.
         pub network: EnvNetworkConfig,
     }
 

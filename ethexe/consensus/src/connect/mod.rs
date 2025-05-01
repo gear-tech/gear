@@ -82,7 +82,7 @@ impl ConsensusService for SimpleConnectService {
         }
 
         self.output
-            .push_back(ConsensusEvent::ComputeBlock(block.header.parent_hash));
+            .push_back(ConsensusEvent::ComputeBlock(block.hash));
 
         Ok(())
     }
