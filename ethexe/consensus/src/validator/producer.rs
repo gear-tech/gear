@@ -18,7 +18,7 @@
 
 use super::{coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext};
 use crate::ConsensusEvent;
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
@@ -116,7 +116,7 @@ impl Producer {
         block: SimpleBlockData,
         validators: Vec<Address>,
     ) -> Result<Box<dyn StateHandler>> {
-        ensure!(
+        assert!(
             validators.contains(&ctx.pub_key.to_address()),
             "Producer is not in the list of validators"
         );
@@ -285,11 +285,6 @@ mod tests {
             0,
             "Producer must ignore external events"
         );
-
-        let ctx = producer.into_context();
-        let validators = vec![keys[0].to_address(), keys[1].to_address()];
-        let block = mock_simple_block_data();
-        assert!(Producer::create(ctx, block, validators).is_err());
     }
 
     #[tokio::test]
