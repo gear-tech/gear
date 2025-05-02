@@ -80,7 +80,7 @@ async fn wait_for_event_inner(
         type Output = Result<ConsensusEvent>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            let mut s = self.0.take().unwrap().poll(cx)?;
+            let mut s = self.0.take().unwrap().poll_next_state(cx)?;
             let res = s
                 .context_mut()
                 .output

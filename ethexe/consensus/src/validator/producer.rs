@@ -96,7 +96,7 @@ impl StateHandler for Producer {
         Coordinator::create(self.ctx, self.validators, batch)
     }
 
-    fn poll(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
+    fn poll_next_state(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
         match &mut self.state {
             State::CollectCodes { timer } => {
                 if timer.poll_unpin(cx).is_ready() {

@@ -203,7 +203,7 @@ impl Stream for ValidatorService {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut event = None;
         self.update_inner(|inner| {
-            let mut inner = inner.poll(cx)?;
+            let mut inner = inner.poll_next_state(cx)?;
 
             event = inner.context_mut().output.pop_front();
 
@@ -277,7 +277,7 @@ trait StateHandler: fmt::Display + fmt::Debug + Any + Unpin + Send + 'static {
         DefaultProcessing::validation_reply(self.into_dyn(), reply)
     }
 
-    fn poll(self: Box<Self>, _cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
+    fn poll_next_state(self: Box<Self>, _cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
         Ok(self.into_dyn())
     }
 
