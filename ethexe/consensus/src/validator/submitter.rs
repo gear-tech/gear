@@ -62,6 +62,7 @@ impl StateHandler for Submitter {
                 Initial::create(self.ctx)
             }
             Poll::Ready(Err(err)) => {
+                // TODO: consider retries
                 self.warning(format!("failed to submit batch commitment: {err:?}"));
 
                 Initial::create(self.ctx)
