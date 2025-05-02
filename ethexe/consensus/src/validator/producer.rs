@@ -209,26 +209,21 @@ impl Producer {
             .block_codes_queue(block_hash)
             .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
 
-        let mut commitments = Vec::new();
         codes_queue
             .into_iter()
-            .filter_map(|id| ctx.db.code_valid(id).map(|valid| (id, valid)))
-            .try_for_each(|(id, valid)| -> Result<()> {
-                let CodeInfo { timestamp, .. } = ctx
-                    .db
+            .filter_map(|id| Some((id, ctx.db.code_valid(id)?)))
+            .map(|(id, valid)| {
+                ctx.db
                     .code_blob_info(id)
-                    .ok_or_else(|| anyhow!("Validated code {id} blob info is not in storage"))?;
-
-                commitments.push(CodeCommitment {
-                    id,
-                    timestamp,
-                    valid,
-                });
-
-                Ok(())
-            })?;
-
-        Ok(commitments)
+                    .ok_or_else(|| anyhow!("Validated code {id} blob info is not in storage"))
+                    .map(|CodeInfo { timestamp, .. }| CodeCommitment {
+                        id,
+                        timestamp,
+                        valid,
+                    })
+            })
+            .collect::<Result<Vec<CodeCommitment>>>()
+            .map_err(Into::into)
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
