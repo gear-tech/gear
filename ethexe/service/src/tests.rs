@@ -1323,7 +1323,7 @@ mod utils {
     use tracing_subscriber::EnvFilter;
 
     /// Max network services which can be created in one test environment.
-    const MAX_NETWORK_PEERS_ONE_TEST: usize = 1000;
+    const MAX_NETWORK_SERVICES_PER_TEST: usize = 1000;
 
     pub fn init_logger() {
         let _ = tracing_subscriber::fmt()
@@ -1519,7 +1519,7 @@ mod utils {
                 static NONCE: AtomicUsize = AtomicUsize::new(1);
 
                 // * MAX_NETWORK_PEERS_ONE_TEST to avoid address collision between different test-threads
-                let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_PEERS_ONE_TEST;
+                let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
                 let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
                 let config_path = tempfile::tempdir().unwrap().into_path();
@@ -1591,8 +1591,8 @@ mod utils {
                 .map(|(_, bootstrap_address, nonce)| {
                     *nonce += 1;
 
-                    if *nonce % MAX_NETWORK_PEERS_ONE_TEST == 0 {
-                        panic!("Too many network services created by one test env: max is {MAX_NETWORK_PEERS_ONE_TEST}");
+                    if *nonce % MAX_NETWORK_SERVICES_PER_TEST == 0 {
+                        panic!("Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}");
                     }
 
                     (format!("/memory/{nonce}"), bootstrap_address.clone())
