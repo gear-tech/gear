@@ -2159,7 +2159,7 @@ mod utils {
                                 ethereum_rpc: self.eth_cfg.rpc.clone(),
                                 pub_key: config.public_key,
                                 router_address: self.eth_cfg.router_address,
-                                threshold: self.threshold,
+                                signatures_threshold: self.threshold,
                                 slot_duration: self.block_time,
                             },
                         )

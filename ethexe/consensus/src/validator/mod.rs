@@ -99,7 +99,7 @@ pub struct ValidatorConfig {
     pub router_address: Address,
     /// ECDSA multi-signature threshold
     // TODO +_+_+: threshold should be a ratio (and maybe also a block dependent value)
-    pub threshold: u64,
+    pub signatures_threshold: u64,
     /// Duration of ethexe slot (only to identify producer for the incoming blocks)
     pub slot_duration: Duration,
 }
@@ -127,7 +127,7 @@ impl ValidatorService {
 
         let ctx = ValidatorContext {
             slot_duration: config.slot_duration,
-            threshold: config.threshold,
+            signatures_threshold: config.signatures_threshold,
             router_address: config.router_address,
             pub_key: config.pub_key,
             signer,
@@ -355,7 +355,7 @@ impl DefaultProcessing {
 #[derive(Debug)]
 struct ValidatorContext {
     slot_duration: Duration,
-    threshold: u64,
+    signatures_threshold: u64,
     router_address: Address,
     pub_key: PublicKey,
 

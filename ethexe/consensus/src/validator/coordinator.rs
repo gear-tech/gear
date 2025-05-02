@@ -71,7 +71,7 @@ impl StateHandler for Coordinator {
             self.warning(format!("validation reply rejected: {err}"));
         }
 
-        if self.multisigned_batch.signatures().len() as u64 >= self.ctx.threshold {
+        if self.multisigned_batch.signatures().len() as u64 >= self.ctx.signatures_threshold {
             Submitter::create(self.ctx, self.multisigned_batch)
         } else {
             Ok(self)
@@ -86,11 +86,14 @@ impl Coordinator {
         batch: BatchCommitment,
     ) -> Result<Box<dyn StateHandler>> {
         ensure!(
-            validators.len() as u64 >= ctx.threshold,
+            validators.len() as u64 >= ctx.signatures_threshold,
             "Number of validators is less than threshold"
         );
 
-        ensure!(ctx.threshold > 0, "Threshold should be greater than 0");
+        ensure!(
+            ctx.signatures_threshold > 0,
+            "Threshold should be greater than 0"
+        );
 
         let multisigned_batch = MultisignedBatchCommitment::new(
             batch,
@@ -98,7 +101,7 @@ impl Coordinator {
             ctx.pub_key,
         )?;
 
-        if multisigned_batch.signatures().len() as u64 >= ctx.threshold {
+        if multisigned_batch.signatures().len() as u64 >= ctx.signatures_threshold {
             return Submitter::create(ctx, multisigned_batch);
         }
 
@@ -128,7 +131,7 @@ mod tests {
     #[test]
     fn coordinator_create_success() {
         let (mut ctx, keys) = mock_validator_context();
-        ctx.threshold = 2;
+        ctx.signatures_threshold = 2;
         let validators: Vec<_> = keys.iter().take(3).map(|k| k.to_address()).collect();
         let batch = BatchCommitment::default();
 
@@ -143,7 +146,7 @@ mod tests {
     #[test]
     fn coordinator_create_insufficient_validators() {
         let (mut ctx, keys) = mock_validator_context();
-        ctx.threshold = 3;
+        ctx.signatures_threshold = 3;
         let validators = keys.iter().take(2).map(|k| k.to_address()).collect();
         let batch = BatchCommitment::default();
 
@@ -156,7 +159,7 @@ mod tests {
     #[test]
     fn coordinator_create_zero_threshold() {
         let (mut ctx, keys) = mock_validator_context();
-        ctx.threshold = 0;
+        ctx.signatures_threshold = 0;
         let validators: Vec<_> = keys.iter().take(1).map(|k| k.to_address()).collect();
         let batch = BatchCommitment::default();
 
@@ -169,7 +172,7 @@ mod tests {
     #[test]
     fn process_validation_reply() {
         let (mut ctx, keys) = mock_validator_context();
-        ctx.threshold = 3;
+        ctx.signatures_threshold = 3;
         let validators: Vec<_> = keys.iter().take(3).map(|k| k.to_address()).collect();
         let batch = BatchCommitment::default();
         let digest = batch.to_digest();

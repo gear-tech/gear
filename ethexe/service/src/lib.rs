@@ -197,7 +197,7 @@ impl Service {
                         ethereum_rpc: config.ethereum.rpc.clone(),
                         router_address: config.ethereum.router_address,
                         pub_key,
-                        threshold,
+                        signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
                     },
                 )

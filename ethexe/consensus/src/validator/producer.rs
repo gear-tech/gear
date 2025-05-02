@@ -357,7 +357,7 @@ mod tests {
 
         // If threshold is 2, producer must goes to coordinator state and emit validation request
         let mut ctx = initial.into_context();
-        ctx.threshold = 2;
+        ctx.signatures_threshold = 2;
         let (coordinator, request) = create_producer_skip_timer(ctx, block1.clone(), validators)
             .await
             .unwrap()
