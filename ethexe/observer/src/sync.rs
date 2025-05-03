@@ -18,38 +18,54 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{BlobData, BlobReader, BlockSyncedData, RuntimeConfig};
-use alloy::{providers::RootProvider, rpc::types::eth::Header};
-use anyhow::{anyhow, Ok, Result};
+use crate::{BlobData, BlobReader, BlockSyncedData, ObserverEvent, RuntimeConfig};
+use alloy::{primitives::Address, providers::RootProvider, rpc::types::eth::Header};
+use anyhow::{anyhow, Result};
 use ethexe_blob_loader::utils::{load_block_data, load_blocks_data_batched};
 use ethexe_common::{
     db::OnChainStorage,
     events::{BlockEvent, RouterEvent},
     BlockData,
 };
-use ethexe_db::{BlockHeader, CodeInfo, CodesStorage};
+use ethexe_db::{BlockHeader, CodeInfo, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use futures::{
-    future::{self},
-    stream::FuturesUnordered,
+    future::BoxFuture,
+    stream::{FuturesUnordered, Stream},
     FutureExt,
 };
 use gprimitives::{CodeId, H256};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    task::Poll,
+};
+use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender};
 
-// TODO #4552: make tests for ChainSync
-pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
-    pub provider: RootProvider,
-    pub db: DB,
-    pub blobs_reader: Box<dyn BlobReader>,
-    pub config: RuntimeConfig,
+#[derive(Clone)]
+pub(crate) enum ChainSyncState {
+    WaitingForBlock,
+    LoadingChain,
+    WaitingForCodes,
+    Finalize,
 }
 
-impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
-    pub async fn sync(
+struct ChainFinalizer {
+    pub router_address: Address,
+    pub db: Database,
+    pub provider: RootProvider,
+}
+
+struct ChainLoader {
+    pub config: RuntimeConfig,
+    pub db: Database,
+    pub provider: RootProvider,
+}
+
+impl ChainLoader {
+    pub async fn load(
         self,
         chain_head: Header,
-    ) -> Result<(BlockSyncedData, Vec<(CodeId, CodeInfo)>)> {
+    ) -> Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
             height: chain_head.number as u32,
@@ -58,26 +74,95 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         };
 
         let blocks_data = self.pre_load_data(&header).await?;
+        Ok(self.load_chain(block, header, blocks_data).await?)
+    }
 
-        let (chain, codes_to_load_now, codes_to_load_later) =
-            self.load_chain(block, header, blocks_data).await?;
+    async fn load_chain(
+        &self,
+        block: H256,
+        header: BlockHeader,
+        mut blocks_data: HashMap<H256, BlockData>,
+    ) -> Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)> {
+        let mut chain = Vec::new();
 
-        self.load_codes(codes_to_load_now.into_iter()).await?;
+        // let mut codes_to_load = Vec::new();
+        let mut codes_to_load_now = HashSet::new();
+        let mut codes_to_load_later = HashSet::new();
 
-        // NOTE: reverse order is important here, because by default chain was loaded in order from head to past.
-        self.mark_chain_as_synced(chain.into_iter().rev());
+        let mut hash = block;
+        while !self.db.block_is_synced(hash) {
+            let block_data = match blocks_data.remove(&hash) {
+                Some(data) => data,
+                None => {
+                    load_block_data(
+                        self.provider.clone(),
+                        hash,
+                        self.config.router_address,
+                        self.config.wvara_address,
+                        (hash == block).then_some(header.clone()),
+                    )
+                    .await?
+                }
+            };
 
-        let validators =
-            RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
-                .validators_at(block)
-                .await?;
+            if hash != block_data.hash {
+                unreachable!(
+                    "Expected data for block hash {hash}, got for {}",
+                    block_data.hash
+                );
+            }
 
-        let res = BlockSyncedData {
-            block_hash: block,
-            validators,
-        };
+            for event in &block_data.events {
+                match event {
+                    BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                        code_id,
+                        timestamp,
+                        tx_hash,
+                    }) => {
+                        let code_info = CodeInfo {
+                            timestamp: *timestamp,
+                            tx_hash: *tx_hash,
+                        };
+                        self.db.set_code_blob_info(*code_id, code_info.clone());
 
-        Ok((res, codes_to_load_later))
+                        if !self.db.original_code_exists(*code_id)
+                            && !codes_to_load_now.contains(code_id)
+                        {
+                            // codes_to_load_later.insert(*code_id, code_info);
+                            codes_to_load_later.insert(*code_id);
+                        }
+                    }
+                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
+                        if codes_to_load_later.contains(code_id) {
+                            return Err(anyhow!("Code {code_id} is validated before requested"));
+                        };
+
+                        if !self.db.original_code_exists(*code_id) {
+                            codes_to_load_now.insert(*code_id);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            let parent_hash = block_data.header.parent_hash;
+
+            self.db.set_block_header(hash, block_data.header);
+            self.db.set_block_events(hash, &block_data.events);
+
+            chain.push(hash);
+
+            hash = parent_hash;
+        }
+
+        codes_to_load_later.extend(codes_to_load_now.clone().into_iter());
+
+        Ok((
+            chain,
+            codes_to_load_now,
+            // codes_to_load_later.into_iter().collect(),
+            codes_to_load_later.into_iter().collect(),
+        ))
     }
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
@@ -120,124 +205,21 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         )
         .await
     }
+}
 
-    async fn load_chain(
-        &self,
-        block: H256,
-        header: BlockHeader,
-        mut blocks_data: HashMap<H256, BlockData>,
-    ) -> Result<(Vec<H256>, HashSet<CodeId>, Vec<(CodeId, CodeInfo)>)> {
-        let mut chain = Vec::new();
-        let mut codes_to_load_now = HashSet::new();
-        let mut codes_to_load_later = HashMap::new();
+impl ChainFinalizer {
+    pub async fn finalize(self, chain: Vec<H256>, block_hash: H256) -> Result<BlockSyncedData> {
+        // NOTE: reverse order is important here, because by default chain was loaded in order from head to past.
+        self.mark_chain_as_synced(chain.into_iter().rev());
 
-        let mut hash = block;
-        while !self.db.block_is_synced(hash) {
-            let block_data = match blocks_data.remove(&hash) {
-                Some(data) => data,
-                None => {
-                    load_block_data(
-                        self.provider.clone(),
-                        hash,
-                        self.config.router_address,
-                        self.config.wvara_address,
-                        (hash == block).then_some(header.clone()),
-                    )
-                    .await?
-                }
-            };
+        let validators = RouterQuery::from_provider(self.router_address, self.provider.clone())
+            .validators_at(block_hash)
+            .await?;
 
-            if hash != block_data.hash {
-                unreachable!(
-                    "Expected data for block hash {hash}, got for {}",
-                    block_data.hash
-                );
-            }
-
-            for event in &block_data.events {
-                match event {
-                    BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                        code_id,
-                        timestamp,
-                        tx_hash,
-                    }) => {
-                        let code_info = CodeInfo {
-                            timestamp: *timestamp,
-                            tx_hash: *tx_hash,
-                        };
-                        self.db.set_code_blob_info(*code_id, code_info.clone());
-
-                        if !self.db.original_code_exists(*code_id)
-                            && !codes_to_load_now.contains(code_id)
-                        {
-                            codes_to_load_later.insert(*code_id, code_info);
-                        }
-                    }
-                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
-                        if codes_to_load_later.contains_key(code_id) {
-                            return Err(anyhow!("Code {code_id} is validated before requested"));
-                        };
-
-                        if !self.db.original_code_exists(*code_id) {
-                            codes_to_load_now.insert(*code_id);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
-            let parent_hash = block_data.header.parent_hash;
-
-            self.db.set_block_header(hash, block_data.header);
-            self.db.set_block_events(hash, &block_data.events);
-
-            chain.push(hash);
-
-            hash = parent_hash;
-        }
-
-        Ok((
-            chain,
-            codes_to_load_now,
-            codes_to_load_later.into_iter().collect(),
-        ))
-    }
-
-    async fn load_codes(&self, codes: impl Iterator<Item = CodeId>) -> Result<()> {
-        // TODO #4564: consider to change this behaviour of loading already validated codes.
-        // Should be done with ObserverService::codes_futures together.
-        // May be we should use futures_bounded::FuturesMap for this.
-        let codes_futures = FuturesUnordered::new();
-        for code_id in codes {
-            let code_info = self
-                .db
-                .code_blob_info(code_id)
-                .ok_or_else(|| anyhow!("Code info for code {code_id} is missing"))?;
-
-            codes_futures.push(
-                crate::read_code_from_tx_hash(
-                    self.blobs_reader.clone(),
-                    code_id,
-                    code_info.timestamp,
-                    code_info.tx_hash,
-                    None,
-                )
-                .boxed(),
-            );
-        }
-
-        for res in future::join_all(codes_futures).await {
-            let BlobData { code_id, code, .. } = res?;
-
-            let real_id = self.db.set_original_code(code.as_slice());
-            if real_id != code_id {
-                return Err(anyhow!(
-                    "Approved code {code_id} is not equal to real code id {real_id}"
-                ));
-            }
-        }
-
-        Ok(())
+        Ok(BlockSyncedData {
+            block_hash,
+            validators,
+        })
     }
 
     fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
@@ -251,5 +233,126 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
 
             self.db.set_latest_synced_block_height(block_header.height);
         }
+    }
+}
+
+// TODO #4552: make tests for ChainSync
+pub(crate) struct ChainSync {
+    pub blobs_reader: Box<dyn BlobReader>,
+    pub db: Database,
+    pub config: RuntimeConfig,
+    pub provider: RootProvider,
+
+    pub codes_sender: UnboundedSender<Vec<CodeId>>,
+
+    pub load_chain_fut:
+        Option<BoxFuture<'static, Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)>>>,
+    pub finalize_sync_fut: Option<BoxFuture<'static, Result<BlockSyncedData>>>,
+    pub codes_to_wait: Option<HashSet<CodeId>>,
+    pub chain: Option<Vec<H256>>,
+
+    pub state: ChainSyncState,
+    pub loaded_codes: HashSet<CodeId>,
+    pub pending_blocks: VecDeque<Header>,
+}
+
+impl Future for ChainSync {
+    type Output = Result<BlockSyncedData>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        match self.state.clone() {
+            ChainSyncState::WaitingForBlock => {
+                log::info!("State: waiting for block, pending blocks len: {}", self.pending_blocks.len());
+                if let Some(header) = self.pending_blocks.back() {
+                    let chain_loader = ChainLoader {
+                        config: self.config.clone(),
+                        db: self.db.clone(),
+                        provider: self.provider.clone(),
+                    };
+                    self.as_mut().load_chain_fut =
+                        Some(Box::pin(chain_loader.load(header.clone())));
+                    self.as_mut().state = ChainSyncState::LoadingChain;
+                    cx.waker().wake_by_ref();
+                }
+                return Poll::Pending;
+            }
+            ChainSyncState::LoadingChain => {
+                log::info!("State: loading chain");
+                let result = self.load_chain_fut.as_mut().unwrap().poll_unpin(cx);
+                match result {
+                    Poll::Pending => Poll::Pending,
+                    Poll::Ready(result) => match result {
+                        Ok((chain, codes_load_now, codes_to_load)) => {
+                            if let Err(e) = self.codes_sender.send(codes_to_load) {
+                                return Poll::Ready(Err(e.into()));
+                            }
+                            self.codes_to_wait = Some(codes_load_now);
+                            self.chain = Some(chain);
+                            self.load_chain_fut = None;
+                            self.state = ChainSyncState::WaitingForCodes;
+                            cx.waker().wake_by_ref();
+                            //  (chain, codes_load_now));
+                            return Poll::Pending;
+                        }
+                        Err(e) => return Poll::Ready(Err(e)),
+                    },
+                }
+            }
+            ChainSyncState::WaitingForCodes => {
+                log::info!("State: waiting for codes");
+                for code in self.loaded_codes.clone().into_iter() {
+                    if self.codes_to_wait.as_ref().unwrap().contains(&code) {
+                        self.codes_to_wait.as_mut().unwrap().remove(&code);
+                        self.loaded_codes.remove(&code);
+                    }
+                }
+
+                if self.codes_to_wait.as_ref().unwrap().is_empty() {
+                    // TODO: remove unwrap
+                    let chain_head = self.pending_blocks.pop_back().unwrap();
+                    self.state = ChainSyncState::Finalize;
+
+                    let chain_finalizer = ChainFinalizer {
+                        router_address: self.config.router_address.0.into(),
+                        db: self.db.clone(),
+                        provider: self.provider.clone(),
+                    };
+
+                    self.finalize_sync_fut = Some(Box::pin(
+                        chain_finalizer
+                            .finalize(self.chain.clone().unwrap(), (*chain_head.hash).into()),
+                    ));
+                    cx.waker().wake_by_ref();
+                }
+
+                return Poll::Pending;
+            }
+
+            ChainSyncState::Finalize => {
+                log::info!("State: finalizing");
+                match self.finalize_sync_fut.as_mut().unwrap().poll_unpin(cx) {
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(result) => {
+                        self.finalize_sync_fut = None;
+                        self.as_mut().state = ChainSyncState::WaitingForBlock;
+                        // cx.waker().wake_by_ref();
+                        return Poll::Ready(result);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl ChainSync {
+    pub fn receive_loaded_code(&mut self, code_id: CodeId) {
+        self.loaded_codes.insert(code_id);
+    }
+
+    pub fn sync_chain_header(&mut self, header: Header) {
+        self.pending_blocks.push_front(header);
     }
 }

@@ -23,7 +23,7 @@ use apis::{
 };
 use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
-use ethexe_observer::MockBlobReader;
+use ethexe_blob_loader::blobs::MockBlobReader;
 use futures::{stream::FusedStream, FutureExt, Stream};
 use gprimitives::H256;
 use jsonrpsee::{

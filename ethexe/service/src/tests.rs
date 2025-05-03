@@ -28,6 +28,7 @@ use alloy::{
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Result;
+use ethexe_blob_loader::blobs::{BlobReader, MockBlobReader};
 use ethexe_common::{
     db::CodesStorage,
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -35,7 +36,7 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader};
+use ethexe_observer::EthereumConfig;
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
@@ -381,6 +382,7 @@ async fn mailbox() {
             .validator(env.validators[0], env.validator_session_public_keys[0]),
     );
     node.start_service().await;
+    log::info!("Service started");
 
     let res = env
         .upload_code(demo_async::WASM_BINARY)
@@ -389,6 +391,7 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
+    log::info!("code uploaded");
 
     assert!(res.valid);
 
@@ -401,6 +404,7 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
+    log::info!("program created");
 
     let init_res = env
         .send_message(res.program_id, &env.sender_id.encode(), 0)
@@ -409,6 +413,7 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
+    log::info!("sended message");
     assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
     let pid = res.program_id;
@@ -1143,6 +1148,7 @@ async fn tx_pool_gossip() {
 mod utils {
     use super::*;
     use crate::Event;
+    use ethexe_blob_loader::BlobLoaderService;
     use ethexe_common::SimpleBlockData;
     use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkEvent};
@@ -1915,6 +1921,9 @@ mod utils {
             )
             .await
             .unwrap();
+        
+            let blob_loader =
+                BlobLoaderService::new(self.blob_reader.clone_boxed(), self.db.clone());
 
             let tx_pool_service = TxPoolService::new(self.db.clone());
 
@@ -1928,6 +1937,7 @@ mod utils {
             let service = Service::new_from_parts(
                 self.db.clone(),
                 observer,
+                blob_loader,
                 self.router_query.clone(),
                 processor,
                 self.signer.clone(),
@@ -2038,12 +2048,15 @@ mod utils {
             let mut valid_info = None;
 
             self.listener
-                .apply_until(|event| match event {
-                    ObserverEvent::Blob(blob) if blob.code_id == self.code_id => {
-                        code_info = Some(blob.code);
-                        Ok(Some(()))
+                .apply_until(|event| {
+                    log::info!("observer event: {event:?}");
+                    match event {
+                        ObserverEvent::Blob(blob) if blob.code_id == self.code_id => {
+                            code_info = Some(blob.code);
+                            Ok(Some(()))
+                        }
+                        _ => Ok(None),
                     }
-                    _ => Ok(None),
                 })
                 .await?;
 

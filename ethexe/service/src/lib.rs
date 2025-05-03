@@ -19,6 +19,10 @@
 use crate::config::{Config, ConfigPublicKey};
 use alloy::primitives::U256;
 use anyhow::{anyhow, bail, Context, Result};
+use ethexe_blob_loader::{
+    blobs::{BlobData, BlobReader, ConsensusLayerBlobReader, MockBlobReader},
+    BlobLoaderEvent, BlobLoaderService,
+};
 use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment},
     SimpleBlockData,
@@ -27,10 +31,7 @@ use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{
-    BlobData, BlobReader, BlockSyncedData, ConsensusLayerBlobReader, MockBlobReader, ObserverEvent,
-    ObserverService,
-};
+use ethexe_observer::{BlockSyncedData, ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
@@ -59,6 +60,7 @@ pub enum Event {
     Compute(ComputeEvent),
     Network(NetworkEvent),
     Observer(ObserverEvent),
+    BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
     Sequencer(SequencerEvent),
@@ -68,6 +70,7 @@ pub enum Event {
 pub struct Service {
     db: Database,
     observer: ObserverService,
+    blob_loader: BlobLoaderService,
     router_query: RouterQuery,
     compute: ComputeService,
     signer: Signer,
@@ -133,10 +136,12 @@ impl Service {
             &config.ethereum,
             config.node.eth_max_sync_depth,
             db.clone(),
-            blob_reader,
+            blob_reader.clone(),
         )
         .await
         .context("failed to create observer service")?;
+
+        let blob_loader = BlobLoaderService::new(blob_reader, db.clone());
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -262,6 +267,7 @@ impl Service {
             db,
             network,
             observer,
+            blob_loader,
             compute,
             router_query,
             sequencer,
@@ -287,6 +293,7 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
+        blob_loader: BlobLoaderService,
         router_query: RouterQuery,
         processor: Processor,
         signer: Signer,
@@ -303,6 +310,7 @@ impl Service {
         Self {
             db,
             observer,
+            blob_loader,
             compute,
             router_query,
             signer,
@@ -327,6 +335,7 @@ impl Service {
             db,
             mut network,
             mut observer,
+            mut blob_loader,
             mut router_query,
             mut compute,
             mut sequencer,
@@ -376,6 +385,7 @@ impl Service {
                 event = compute.select_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
+                event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
                 event = sequencer.maybe_next_some() => event.into(),
@@ -435,6 +445,17 @@ impl Service {
                             );
                             compute.receive_synced_head(data.block_hash);
                         }
+                    }
+                    ObserverEvent::RequestLoadBlobs(codes) => {
+                        blob_loader.load_codes(codes, None);
+                    }
+                },
+                Event::BlobLoader(event) => match event {
+                    BlobLoaderEvent::BlobLoaded(blob_data) => {
+                        if let Err(e) = observer.receive_loaded_blob(blob_data) {
+                            // TODO
+                            log::error!("Error in receiving loaded blob: {e:?}");
+                        };
                     }
                 },
                 Event::Compute(event) => match event {

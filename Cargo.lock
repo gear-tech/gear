@@ -4625,6 +4625,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-blob-sub"
+version = "1.8.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "async-trait",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "ethexe-signer",
+ "futures",
+ "futures-util",
+ "gear-core",
+ "gprimitives",
+ "log",
+ "mapped_futures",
+ "reqwest",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "ethexe-cli"
 version = "1.8.0"
 dependencies = [
@@ -4800,6 +4822,7 @@ name = "ethexe-rpc"
 version = "1.8.0"
 dependencies = [
  "anyhow",
+ "ethexe-blob-loader",
  "ethexe-common",
  "ethexe-db",
  "ethexe-observer",
@@ -4881,6 +4904,7 @@ dependencies = [
  "demo-async-init",
  "demo-ping",
  "derive_more 2.0.1",
+ "ethexe-blob-loader",
  "ethexe-common",
  "ethexe-compute",
  "ethexe-db",
@@ -13447,10 +13471,12 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-rustls 0.26.0",
+ "tokio-util",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams",
  "web-sys",
  "webpki-roots 0.26.3",
  "windows-registry",
@@ -18784,6 +18810,19 @@ dependencies = [
  "flagset",
  "wasm-encoder 0.225.0 (git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225)",
  "wasmparser 0.225.0 (git+https://github.com/gear-tech/wasm-tools?branch=gear-stable-1.225)",
+]
+
+[[package]]
+name = "wasm-streams"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e072d4e72f700fb3443d8fe94a39315df013eef1104903cdb0a2abd322bbecd"
+dependencies = [
+ "futures-util",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

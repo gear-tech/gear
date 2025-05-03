@@ -30,7 +30,7 @@ alloy = { workspace = true, features = [
     "rpc-types-beacon",
     "signer-local",
 ] }
-tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "fs", "sync"] }
 futures.workspace = true
 log.workspace = true
 

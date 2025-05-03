@@ -1,56 +1,115 @@
 use crate::blobs::{BlobData, BlobReader};
-use anyhow::{Error, Result};
+use alloy::rpc::types::Header;
+use anyhow::{anyhow, Error, Result};
+use ethexe_common::db::{CodesStorage, OnChainStorage};
 use ethexe_db::Database;
-use gprimitives::{CodeId, H256};
-use mapped_futures::mapped_futures::MappedFutures;
-use std::{collections::HashSet, pin::Pin};
+use futures::{
+    future::BoxFuture,
+    stream::{FusedStream, FuturesUnordered},
+    FutureExt, Stream, StreamExt,
+};
+use gprimitives::CodeId;
+use std::{collections::HashSet, fmt, pin::Pin, task::Poll};
 
+use blobs::*;
 use utils::*;
 
 pub mod blobs;
 pub mod utils;
 
-type CodeLoadFuture = Pin<Box<dyn Future<Output = Result<BlobData, Error>> + Send>>;
-
+#[derive(Clone)]
 pub enum BlobLoaderEvent {
-    LoadedCodes(Vec<CodeId>),
+    BlobLoaded(BlobData),
+}
+
+impl fmt::Debug for BlobLoaderEvent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            BlobLoaderEvent::BlobLoaded(data) => data.fmt(f),
+        }
+    }
 }
 
 #[allow(unused)]
 pub struct BlobLoaderService {
+    futures: FuturesUnordered<BoxFuture<'static, Result<BlobData>>>,
+    codes_loading: HashSet<CodeId>,
+
     blob_reader: Box<dyn BlobReader>,
-    codes_futures: MappedFutures<CodeId, CodeLoadFuture>,
     db: Database,
+}
+
+impl Stream for BlobLoaderService {
+    type Item = Result<BlobLoaderEvent>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        let future = self.futures.poll_next_unpin(cx);
+        match future {
+            Poll::Ready(Some(result)) => match result {
+                Ok(blob_data) => {
+                    let code_id = &blob_data.code_id;
+                    self.codes_loading.remove(code_id);
+                    return Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))));
+                }
+                Err(e) => return Poll::Ready(Some(Err(e))),
+            },
+            Poll::Ready(None) => {
+                // all futures are done
+                if self.futures.is_empty() {
+                    return Poll::Ready(None);
+                }
+
+                return Poll::Pending;
+            }
+            Poll::Pending => return Poll::Pending,
+        }
+    }
+}
+
+impl FusedStream for BlobLoaderService {
+    fn is_terminated(&self) -> bool {
+        false
+    }
 }
 
 impl BlobLoaderService {
     pub fn new(blob_reader: Box<dyn BlobReader>, db: Database) -> Self {
         Self {
+            futures: FuturesUnordered::new(),
+            codes_loading: HashSet::new(),
             blob_reader,
-            codes_futures: MappedFutures::new(),
             db,
         }
     }
 
-    pub fn load_code(
-        &mut self,
-        _code_id: CodeId,
-        _timestamp: u64,
-        _tx_hash: H256,
-        _attempts: Option<u8>,
-    ) {
-        todo!();
-    }
+    pub fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()> {
+        log::info!("Request load codes: {codes:?}");
+        for code_id in codes {
+            if self.codes_loading.contains(&code_id) || self.db.original_code_exists(code_id) {
+                continue;
+            }
 
-    pub async fn load_codes_now(&self, _codes: HashSet<CodeId>) -> Result<()> {
-        todo!();
-    }
+            let code_info = self
+                .db
+                .code_blob_info(code_id)
+                .ok_or_else(|| anyhow!("Not found {code_id} in db"))?;
 
-    pub fn receive_load_request(&mut self, _codes: HashSet<CodeId>) {
-        todo!();
-    }
+            self.codes_loading.insert(code_id);
+            self.futures.push(
+                crate::read_code_from_tx_hash(
+                    self.blob_reader.clone(),
+                    code_id,
+                    code_info.timestamp,
+                    code_info.tx_hash,
+                    attempts,
+                )
+                .boxed(),
+            );
+        }
 
-    pub fn poll_next(&mut self) -> Result<BlobData> {
-        todo!()
+        Ok(())
     }
 }
