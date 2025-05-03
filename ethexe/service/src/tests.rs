@@ -20,6 +20,7 @@
 
 use crate::{
     config::{self, Config},
+    tests::utils::Node,
     Service,
 };
 use alloy::{
@@ -29,12 +30,13 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_common::{
-    db::CodesStorage,
+    db::{CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
 };
+use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
-use ethexe_ethereum::{router::RouterQuery, Ethereum};
+use ethexe_ethereum::Ethereum;
 use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
@@ -77,6 +79,7 @@ async fn basics() {
         worker_threads_override: None,
         virtual_threads: 16,
         dev: true,
+        fast_sync: false,
     };
 
     let eth_cfg = EthereumConfig {
@@ -1025,17 +1028,9 @@ async fn multiple_validators() {
         .expect_err("Timeout expected");
 
     log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
-    // TODO: impossible to restart validator 2 with the same network address, need to fix it #4210
-    let mut validator2 = env.new_node(
-        NodeConfig::named("validator-2")
-            .validator(env.validators[2], env.validator_session_public_keys[2])
-            .network(None, sequencer.multiaddr.clone())
-            .db(validator2.db),
-    );
-
     validator2.start_service().await;
 
-    // IMPORTANT: mine one block to sent a new block event.
+    // IMPORTANT: mine one block to send a new block event.
     env.force_new_block().await;
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
@@ -1140,9 +1135,218 @@ async fn tx_pool_gossip() {
     assert_eq!(node1_db_tx, signed_ethexe_tx);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(120_000)]
+async fn fast_sync() {
+    utils::init_logger();
+
+    let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
+        log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
+
+        assert_eq!(alice.db.program_ids(), bob.db.program_ids());
+        assert_eq!(
+            alice.db.latest_computed_block(),
+            bob.db.latest_computed_block()
+        );
+
+        let mut block = latest_block;
+        loop {
+            if fast_synced_block == block {
+                break;
+            }
+
+            log::trace!("assert block {block}");
+
+            assert_eq!(
+                alice.db.block_commitment_queue(block),
+                bob.db.block_commitment_queue(block)
+            );
+            assert_eq!(
+                alice.db.block_codes_queue(block),
+                bob.db.block_codes_queue(block)
+            );
+
+            assert_eq!(alice.db.block_computed(block), bob.db.block_computed(block));
+            assert_eq!(
+                alice.db.previous_not_empty_block(block),
+                bob.db.previous_not_empty_block(block)
+            );
+            assert_eq!(
+                alice.db.block_program_states(block),
+                bob.db.block_program_states(block)
+            );
+            assert_eq!(alice.db.block_outcome(block), bob.db.block_outcome(block));
+            assert_eq!(alice.db.block_schedule(block), bob.db.block_schedule(block));
+
+            assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
+            assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
+            assert_eq!(
+                alice.db.block_is_synced(block),
+                bob.db.block_is_synced(block)
+            );
+
+            let header = alice.db.block_header(block).unwrap();
+            block = header.parent_hash;
+        }
+    };
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::Generated(3),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("Starting sequencer");
+    let sequencer_pub_key = env.wallets.next();
+    let mut sequencer = env.new_node(
+        NodeConfig::named("sequencer")
+            .sequencer(sequencer_pub_key)
+            .validator(env.validators[0], env.validator_session_public_keys[0])
+            .network(None, None),
+    );
+    sequencer.start_service().await;
+
+    log::info!("Starting Alice");
+    let mut alice = env.new_node(
+        NodeConfig::named("Alice")
+            .validator(env.validators[1], env.validator_session_public_keys[1])
+            .network(None, sequencer.multiaddr.clone()),
+    );
+    alice.start_service().await;
+
+    log::info!("Creating `demo-autoreply` programs");
+
+    let code_info = env
+        .upload_code(demo_mul_by_const::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = code_info.code_id;
+    let mut program_ids = [ActorId::zero(); 8];
+
+    for (i, program_id) in program_ids.iter_mut().enumerate() {
+        let program_info = env
+            .create_program(code_id, 500_000_000_000_000)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        *program_id = program_info.program_id;
+
+        let value = i as u64 % 3;
+        let _reply_info = env
+            .send_message(program_info.program_id, &value.encode(), 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+    }
+
+    let latest_block = env.latest_block().await;
+    alice
+        .listener()
+        .wait_for_block_processed(latest_block)
+        .await;
+
+    log::info!("Starting Bob (fast-sync)");
+    let mut bob = env.new_node(
+        NodeConfig::named("Bob")
+            .validator(env.validators[2], env.validator_session_public_keys[2])
+            .network(None, sequencer.multiaddr.clone())
+            .fast_sync(),
+    );
+    bob.start_service().await;
+
+    log::info!("Sending messages to programs");
+    for (i, program_id) in program_ids.into_iter().enumerate() {
+        let reply_info = env
+            .send_message(program_id, &(i as u64).encode(), 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Manual)
+        );
+    }
+
+    let latest_block = env.latest_block().await;
+    alice
+        .listener()
+        .wait_for_block_processed(latest_block)
+        .await;
+    bob.listener().wait_for_block_processed(latest_block).await;
+
+    log::info!("Stopping Bob");
+    bob.stop_service().await;
+
+    assert_chain(
+        latest_block,
+        bob.latest_fast_synced_block.take().unwrap(),
+        &alice,
+        &bob,
+    );
+
+    for (i, program_id) in program_ids.into_iter().enumerate() {
+        let i = (i * 3) as u64;
+        let reply_info = env
+            .send_message(program_id, &i.encode(), 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Manual)
+        );
+    }
+
+    env.skip_blocks(100).await;
+
+    let latest_block = env.latest_block().await;
+    sequencer
+        .listener()
+        .wait_for_block_processed(latest_block)
+        .await;
+    alice
+        .listener()
+        .wait_for_block_processed(latest_block)
+        .await;
+
+    log::info!("Starting Bob again to check how it handles partially empty database");
+    bob.start_service().await;
+
+    // mine a block so Bob can produce the event we will wait for
+    env.skip_blocks(1).await;
+
+    let latest_block = env.latest_block().await;
+    alice
+        .listener()
+        .wait_for_block_processed(latest_block)
+        .await;
+    bob.listener().wait_for_block_processed(latest_block).await;
+
+    assert_chain(
+        latest_block,
+        bob.latest_fast_synced_block.take().unwrap(),
+        &alice,
+        &bob,
+    );
+}
+
 mod utils {
     use super::*;
     use crate::Event;
+    use alloy::eips::BlockId;
     use ethexe_common::SimpleBlockData;
     use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkEvent};
@@ -1180,7 +1384,6 @@ mod utils {
         pub blob_reader: MockBlobReader,
         pub provider: RootProvider,
         pub ethereum: Ethereum,
-        pub router_query: RouterQuery,
         pub signer: Signer,
         pub validators: Vec<ethexe_signer::PublicKey>,
         pub validator_session_public_keys: Vec<ethexe_signer::PublicKey>,
@@ -1219,10 +1422,13 @@ mod utils {
                 }
                 None => {
                     let anvil = if continuous_block_generation {
-                        Anvil::new().block_time(block_time.as_secs()).spawn()
+                        Anvil::new().block_time(block_time.as_secs())
                     } else {
-                        Anvil::new().spawn()
+                        Anvil::new()
                     };
+                    // speeds up block finalization, so we don't have to calculate
+                    // when the next finalized block is produced, which is convenient for tests
+                    let anvil = anvil.arg("--slots-in-an-epoch=1").spawn();
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
                 }
@@ -1381,7 +1587,6 @@ mod utils {
                 blob_reader,
                 provider,
                 ethereum,
-                router_query,
                 signer,
                 validators,
                 validator_session_public_keys,
@@ -1399,15 +1604,15 @@ mod utils {
         pub fn new_node(&mut self, config: NodeConfig) -> Node {
             let NodeConfig {
                 name,
-                db,
                 sequencer_public_key,
                 validator_public_key,
                 validator_session_public_key,
                 network,
                 rpc: service_rpc_config,
+                fast_sync,
             } = config;
 
-            let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
+            let db = Database::from_one(&MemDb::default());
 
             let network_address = network.as_ref().map(|network| {
                 network.address.clone().unwrap_or_else(|| {
@@ -1416,16 +1621,14 @@ mod utils {
                     format!("/memory/{nonce}")
                 })
             });
-
             let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
 
             Node {
                 name,
                 db,
                 multiaddr: None,
+                latest_fast_synced_block: None,
                 eth_cfg: self.eth_cfg.clone(),
-                router_query: self.router_query.clone(),
-                broadcaster: None,
                 receiver: None,
                 blob_reader: self.blob_reader.clone(),
                 signer: self.signer.clone(),
@@ -1439,6 +1642,7 @@ mod utils {
                 network_address,
                 network_bootstrap_address,
                 service_rpc_config,
+                fast_sync,
             }
         }
 
@@ -1563,6 +1767,17 @@ mod utils {
                     .await
                     .unwrap();
             }
+        }
+
+        pub async fn latest_block(&self) -> H256 {
+            let latest_block = self
+                .provider
+                .get_block(BlockId::latest())
+                .await
+                .unwrap()
+                .expect("latest block always exist")
+                .header;
+            H256(latest_block.hash.0)
         }
 
         #[allow(unused)]
@@ -1704,8 +1919,6 @@ mod utils {
     pub struct NodeConfig {
         /// Node name.
         pub name: Option<String>,
-        /// Database, if not provided, will be created with MemDb.
-        pub db: Option<Database>,
         /// Sequencer public key, if provided then new node starts as sequencer.
         pub sequencer_public_key: Option<ethexe_signer::PublicKey>,
         /// Validator public key, if provided then new node starts as validator.
@@ -1716,6 +1929,8 @@ mod utils {
         pub network: Option<NodeNetworkConfig>,
         /// RPC configuration, if provided then new node starts with RPC service.
         pub rpc: Option<RpcConfig>,
+        /// Do P2P database synchronization before the main loop
+        pub fast_sync: bool,
     }
 
     impl NodeConfig {
@@ -1724,11 +1939,6 @@ mod utils {
                 name: Some(name.into()),
                 ..Default::default()
             }
-        }
-
-        pub fn db(mut self, db: Database) -> Self {
-            self.db = Some(db);
-            self
         }
 
         pub fn sequencer(mut self, sequencer_public_key: ethexe_signer::PublicKey) -> Self {
@@ -1766,6 +1976,11 @@ mod utils {
             };
             self.rpc = Some(service_rpc_config);
 
+            self
+        }
+
+        pub fn fast_sync(mut self) -> Self {
+            self.fast_sync = true;
             self
         }
     }
@@ -1823,12 +2038,11 @@ mod utils {
         pub name: Option<String>,
         pub db: Database,
         pub multiaddr: Option<String>,
+        pub latest_fast_synced_block: Option<H256>,
 
         eth_cfg: EthereumConfig,
-        broadcaster: Option<Sender<Event>>,
         receiver: Option<Receiver<Event>>,
         blob_reader: MockBlobReader,
-        router_query: RouterQuery,
         signer: Signer,
         validators: Vec<ethexe_signer::Address>,
         threshold: u64,
@@ -1840,6 +2054,7 @@ mod utils {
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
         service_rpc_config: Option<RpcConfig>,
+        fast_sync: bool,
     }
 
     impl Node {
@@ -1923,12 +2138,10 @@ mod utils {
             });
 
             self.receiver = Some(receiver);
-            self.broadcaster = Some(sender.clone());
 
             let service = Service::new_from_parts(
                 self.db.clone(),
                 observer,
-                self.router_query.clone(),
                 processor,
                 self.signer.clone(),
                 tx_pool_service,
@@ -1938,6 +2151,7 @@ mod utils {
                 None,
                 rpc,
                 Some(sender),
+                self.fast_sync,
             );
 
             let handle = task::spawn(
@@ -1947,9 +2161,25 @@ mod utils {
             );
             self.running_service_handle = Some(handle);
 
+            if self.fast_sync {
+                self.latest_fast_synced_block = self
+                    .listener()
+                    .apply_until(|e| {
+                        if let Event::FastSyncDone(block) = e {
+                            Ok(Some(block))
+                        } else {
+                            Ok(None)
+                        }
+                    })
+                    .await
+                    .map(Some)
+                    .unwrap();
+            }
+
             self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
 
-            if wait_for_network {
+            // fast sync implies network has connections
+            if wait_for_network && !self.fast_sync {
                 self.wait_for(|e| matches!(e, Event::Network(NetworkEvent::PeerConnected(_))))
                     .await;
             }
@@ -1964,7 +2194,6 @@ mod utils {
 
             assert!(handle.await.unwrap_err().is_cancelled());
 
-            self.broadcaster = None;
             self.multiaddr = None;
             self.receiver = None;
         }
@@ -1990,6 +2219,14 @@ mod utils {
         }
     }
 
+    impl Drop for Node {
+        fn drop(&mut self) {
+            if let Some(handle) = &self.running_service_handle {
+                handle.abort();
+            }
+        }
+    }
+
     pub struct ServiceEventsListener<'a> {
         receiver: &'a mut Receiver<Event>,
     }
@@ -2002,6 +2239,15 @@ mod utils {
         pub async fn wait_for(&mut self, f: impl Fn(Event) -> Result<bool>) -> Result<()> {
             self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
                 .await
+        }
+
+        pub async fn wait_for_block_processed(&mut self, block_hash: H256) {
+            self.wait_for(|event| {
+                Ok(matches!(
+                    event,
+                    Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash: b })) if b == block_hash
+                ))
+            }).await.unwrap();
         }
 
         pub async fn apply_until<R: Sized>(
