@@ -115,15 +115,14 @@ impl MirrorQuery {
         Self(QueryInstance::new(Address::new(mirror_address.0), provider))
     }
 
-    pub async fn state_hash_at(&self, block: H256) -> Result<Option<H256>> {
-        let hash = self
-            .0
+    pub async fn state_hash_at(&self, block: H256) -> Result<H256> {
+        self.0
             .stateHash()
             .block(BlockId::hash(block.0.into()))
             .call()
-            .await?;
-        let hash = H256(*hash._0);
-        Ok(if hash.is_zero() { None } else { Some(hash) })
+            .await
+            .map(|res| H256(*res._0))
+            .map_err(Into::into)
     }
 
     pub async fn state_hash(&self) -> Result<H256> {

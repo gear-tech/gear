@@ -160,14 +160,15 @@ async fn collect_program_states(
     for &actor_id in program_code_ids.keys() {
         let mirror = Address::try_from(actor_id).expect("invalid actor id");
         let mirror = MirrorQuery::new(provider.clone(), mirror);
-        let state_hash = mirror
-            .state_hash_at(at)
-            .await
-            .with_context(|| {
-                format!("Failed to get state hash for actor {actor_id} at block {at}",)
-            })?
-            // TODO: remove Option from `state_hash_at` signature
-            .with_context(|| format!("State hash not found for actor {actor_id} at block {at}"))?;
+
+        let state_hash = mirror.state_hash_at(at).await.with_context(|| {
+            format!("Failed to get state hash for actor {actor_id} at block {at}",)
+        })?;
+        assert!(
+            !state_hash.is_zero(),
+            "we request state hash only for initialized mirrors"
+        );
+
         program_states.insert(actor_id, state_hash);
     }
 
