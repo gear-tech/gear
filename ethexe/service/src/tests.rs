@@ -2204,13 +2204,10 @@ mod utils {
             );
 
             let name = self.name.clone();
-            let handle = task::spawn(async move {
-                service
-                    .run()
-                    .instrument(tracing::info_span!("node", name))
-                    .await
-                    .unwrap()
-            });
+            let handle = task::spawn(
+                async { service.run().await.unwrap() }
+                    .instrument(tracing::info_span!("node", name)),
+            );
             self.running_service_handle = Some(handle);
 
             if self.fast_sync {
