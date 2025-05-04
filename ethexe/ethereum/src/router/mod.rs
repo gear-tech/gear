@@ -355,7 +355,10 @@ impl RouterQuery {
         Ok(code_id)
     }
 
-    pub async fn programs_code_ids(&self, program_ids: Vec<ProgramId>) -> Result<Vec<CodeId>> {
+    pub async fn programs_code_ids(
+        &self,
+        program_ids: impl IntoIterator<Item = ProgramId>,
+    ) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
                 program_ids
