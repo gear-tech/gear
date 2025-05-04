@@ -27,8 +27,8 @@ pub(crate) use crate::{
     peer_score,
     utils::ParityScaleCodec,
 };
-use ethexe_db::Database;
-use gprimitives::H256;
+use ethexe_db::{BlockMetaStorage, Database};
+use gprimitives::{ActorId, H256};
 use libp2p::{
     core::{transport::PortUse, Endpoint},
     request_response,
@@ -57,16 +57,24 @@ pub struct RequestId(u64);
 pub struct ResponseId(u64);
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
-pub struct Request(pub BTreeSet<H256>);
+pub enum Request {
+    Hashes(BTreeSet<H256>),
+    ProgramIdsAt(H256),
+}
 
 impl fmt::Debug for Request {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if f.alternate() {
-            f.debug_tuple("Request").field(&self.0).finish()
-        } else {
-            f.debug_tuple("Request")
-                .field(&format_args!("{} keys", self.0.len()))
-                .finish()
+        match self {
+            Request::Hashes(hashes) => {
+                if f.alternate() {
+                    f.debug_tuple("Hashes").field(hashes).finish()
+                } else {
+                    f.debug_tuple("Hashes")
+                        .field(&format_args!("{} keys", hashes.len()))
+                        .finish()
+                }
+            }
+            Request::ProgramIdsAt(block) => f.debug_tuple("ProgramIdsAt").field(block).finish(),
         }
     }
 }
@@ -74,13 +82,19 @@ impl fmt::Debug for Request {
 impl Request {
     /// Calculate missing request keys in response and create a new request with these keys
     fn difference(&self, resp: &Response) -> Option<Self> {
-        let hashes_keys = resp.0.keys().copied().collect();
-        let new_requested_hashes: BTreeSet<H256> =
-            self.0.difference(&hashes_keys).copied().collect();
-        if !new_requested_hashes.is_empty() {
-            Some(Self(new_requested_hashes))
-        } else {
-            None
+        match (self, resp) {
+            (Self::Hashes(req), Response::Hashes(resp)) => {
+                let resp_keys = resp.keys().copied().collect();
+                let new_requested_hashes: BTreeSet<H256> =
+                    req.difference(&resp_keys).copied().collect();
+                if !new_requested_hashes.is_empty() {
+                    Some(Self::Hashes(new_requested_hashes))
+                } else {
+                    None
+                }
+            }
+            (Self::ProgramIdsAt(_), Response::ProgramIdsAt(_, _)) => None,
+            _ => unreachable!(),
         }
     }
 }
@@ -92,15 +106,27 @@ enum ResponseValidationError {
 }
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
-pub struct Response(pub BTreeMap<H256, Vec<u8>>);
+pub enum Response {
+    Hashes(BTreeMap<H256, Vec<u8>>),
+    ProgramIdsAt(H256, BTreeSet<ActorId>),
+}
 
 impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let (name, values, len) = match self {
+            Response::Hashes(hashes) => ("Hashes", hashes as &dyn fmt::Debug, hashes.len()),
+            Response::ProgramIdsAt(block, program_ids) => (
+                "ProgramCodeIdsAt",
+                &(block, program_ids) as &dyn fmt::Debug,
+                program_ids.len(),
+            ),
+        };
+
         if f.alternate() {
-            f.debug_tuple("Response").field(&self.0).finish()
+            f.debug_tuple(name).field(values).finish()
         } else {
-            f.debug_tuple("Response")
-                .field(&format_args!("{} entries", self.0.len()))
+            f.debug_tuple(name)
+                .field(&format_args!("{len} entries"))
                 .finish()
         }
     }
@@ -108,46 +134,80 @@ impl fmt::Debug for Response {
 
 impl Response {
     fn from_db(request: Request, db: &Database) -> Self {
-        Self(
-            request
-                .0
-                .into_iter()
-                .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                .collect(),
-        )
+        match request {
+            Request::Hashes(hashes) => Self::Hashes({
+                hashes
+                    .into_iter()
+                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
+                    .collect()
+            }),
+            Request::ProgramIdsAt(block) => Self::ProgramIdsAt(
+                block,
+                db.block_program_states(block)
+                    .unwrap_or_default()
+                    .into_keys()
+                    .collect(),
+            ),
+        }
     }
 
     fn merge(&mut self, new_response: Response) {
-        self.0.extend(new_response.0);
+        match (self, new_response) {
+            (Self::Hashes(hashes), Response::Hashes(new_hashes)) => {
+                hashes.extend(new_hashes);
+            }
+            (Self::ProgramIdsAt(_, program_ids), Response::ProgramIdsAt(_, new_program_ids)) => {
+                program_ids.extend(new_program_ids);
+            }
+            _ => unreachable!(),
+        }
     }
 
     /// Validates response against request.
     ///
     /// Returns `false` if external validation is required.
     fn validate(&self) -> Result<(), ResponseValidationError> {
-        for (hash, data) in &self.0 {
-            if *hash != ethexe_db::hash(data) {
-                return Err(ResponseValidationError::DataHashMismatch);
+        match self {
+            Response::Hashes(hashes) => {
+                for (hash, data) in hashes {
+                    if *hash != ethexe_db::hash(data) {
+                        return Err(ResponseValidationError::DataHashMismatch);
+                    }
+                }
+            }
+            Response::ProgramIdsAt(_, _) => {
+                // TODO
             }
         }
 
         Ok(())
     }
 
-    fn strip(&mut self, request: &Request) -> bool {
-        let hashes_keys: BTreeSet<H256> = self.0.keys().copied().collect();
-        let excessive_requested_hashes: BTreeSet<H256> =
-            hashes_keys.difference(&request.0).copied().collect();
+    fn strip_btree<K: Copy + Ord, V>(request: &BTreeSet<K>, response: &mut BTreeMap<K, V>) -> bool {
+        let hashes_keys: BTreeSet<K> = response.keys().copied().collect();
+        let excessive_requested_hashes: BTreeSet<K> =
+            hashes_keys.difference(request).copied().collect();
 
         if excessive_requested_hashes.is_empty() {
             return false;
         }
 
         for excessive_key in excessive_requested_hashes {
-            self.0.remove(&excessive_key);
+            response.remove(&excessive_key);
         }
 
         true
+    }
+
+    fn strip(&mut self, request: &Request) -> bool {
+        match (request, self) {
+            (Request::Hashes(req), Self::Hashes(resp)) => Self::strip_btree(req, resp),
+            (Request::ProgramIdsAt(_), Self::ProgramIdsAt(_, _resp)) => {
+                // TODO: maybe external strip required
+                false
+            }
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -602,8 +662,8 @@ mod tests {
         let hash2 = ethexe_db::hash(b"2");
         let hash3 = ethexe_db::hash(b"3");
 
-        let request = Request([hash1, hash2].into());
-        let mut response = Response(
+        let request = Request::Hashes([hash1, hash2].into());
+        let mut response = Response::Hashes(
             [
                 (hash1, b"1".to_vec()),
                 (hash2, b"2".to_vec()),
@@ -614,7 +674,7 @@ mod tests {
         assert!(response.strip(&request));
         assert_eq!(
             response,
-            Response([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into())
+            Response::Hashes([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into())
         );
     }
 
@@ -622,7 +682,7 @@ mod tests {
     fn validate_data_hash_mismatch() {
         let hash1 = ethexe_db::hash(b"1");
 
-        let response = Response([(hash1, b"2".to_vec())].into());
+        let response = Response::Hashes([(hash1, b"2".to_vec())].into());
         assert_eq!(
             response.validate(),
             Err(ResponseValidationError::DataHashMismatch)
@@ -672,7 +732,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request([hello_hash, world_hash].into()));
+            .request(Request::Hashes([hello_hash, world_hash].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -689,7 +749,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response(
+                response: Response::Hashes(
                     [
                         (hello_hash, b"hello".to_vec()),
                         (world_hash, b"world".to_vec())
@@ -715,7 +775,7 @@ mod tests {
         });
         bob.connect(&mut alice).await;
 
-        let request_id = alice.behaviour_mut().request(Request([].into()));
+        let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -737,7 +797,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request([].into()));
+                    assert_eq!(request, Request::Hashes([].into()));
                     drop(channel);
                 }
             }
@@ -766,7 +826,7 @@ mod tests {
         });
         bob.connect(&mut alice).await;
 
-        let request_id = alice.behaviour_mut().request(Request([].into()));
+        let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -788,7 +848,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request([].into()));
+                    assert_eq!(request, Request::Hashes([].into()));
                     // just ignore request
                     mem::forget(channel);
                 }
@@ -829,7 +889,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request([data_0, data_1].into()));
+            .request(Request::Hashes([data_0, data_1].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -851,11 +911,11 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request([data_0, data_1].into()));
+                    assert_eq!(request, Request::Hashes([data_0, data_1].into()));
                     bob.behaviour_mut()
                         .send_response(
                             channel,
-                            Response(
+                            Response::Hashes(
                                 [
                                     (data_0, DATA[0].to_vec()),
                                     (data_1, DATA[1].to_vec()),
@@ -874,7 +934,9 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response([(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()),
+                response: Response::Hashes(
+                    [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
+                ),
             }
         );
     }
@@ -901,7 +963,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request([hello_hash, world_hash, mark_hash].into()));
+            .request(Request::Hashes([hello_hash, world_hash, mark_hash].into()));
 
         // first round
         let event = alice.next_behaviour_event().await;
@@ -924,7 +986,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response(
+                response: Response::Hashes(
                     [
                         (hello_hash, b"hello".to_vec()),
                         (world_hash, b"world".to_vec()),
@@ -953,7 +1015,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request([hello_hash, world_hash].into()));
+            .request(Request::Hashes([hello_hash, world_hash].into()));
 
         // first round
         let event = alice.next_behaviour_event().await;
@@ -980,7 +1042,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response(
+                response: Response::Hashes(
                     [
                         (hello_hash, b"hello".to_vec()),
                         (world_hash, b"world".to_vec())
@@ -1005,7 +1067,7 @@ mod tests {
         bob.connect(&mut alice).await;
         tokio::spawn(bob.loop_on_next());
 
-        let request_id = alice.behaviour_mut().request(Request([].into()));
+        let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -1037,7 +1099,7 @@ mod tests {
         alice.connect(&mut bob).await;
 
         // make request way heavier so there definitely will be a few simultaneous requests
-        let request = Request(
+        let request = Request::Hashes(
             iter::from_fn(|| Some(H256::random()))
                 .take(16 * 1024)
                 .collect(),
@@ -1081,7 +1143,9 @@ mod tests {
         bob.connect(&mut alice).await;
 
         let request_key = ethexe_db::hash(b"test");
-        let request_id = alice.behaviour_mut().request(Request([request_key].into()));
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request::Hashes([request_key].into()));
 
         // first round
         let event = alice.next_behaviour_event().await;
@@ -1099,7 +1163,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request([request_key].into()));
+                    assert_eq!(request, Request::Hashes([request_key].into()));
                     // just ignore request
                     mem::forget(channel);
                 }
@@ -1141,7 +1205,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response([(request_key, b"test".to_vec())].into())
+                response: Response::Hashes([(request_key, b"test".to_vec())].into())
             }
         );
     }
