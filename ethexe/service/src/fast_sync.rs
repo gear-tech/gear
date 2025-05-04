@@ -18,10 +18,10 @@
 
 use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
-use anyhow::{Context, Result};
+use anyhow::{ensure, Context, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodesStorage, OnChainStorage},
-    events::{BlockEvent, RouterEvent},
+    events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::CodeCommitment,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -46,27 +46,27 @@ use std::{
     iter,
 };
 
-struct CommittedBlocks {
-    // FIXME: we might want to keep events because there are can be a few block commitments
-    /// Block which we found the latest committed block in
-    latest_committed_block_found_at: H256,
+struct EventData {
     /// Latest committed on the chain and not computed local block
     latest_committed_block: H256,
     /// Previous committed block
     previous_committed_block: Option<H256>,
+    /// Events between the latest and previous blocks (inclusively) from top to bottom
+    events_in_between: Vec<BlockEvent>,
 }
 
-impl CommittedBlocks {
-    async fn find(
+impl EventData {
+    async fn collect(
         observer: &mut ObserverService,
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
         let mut previous_committed_block = None;
-        let mut latest_committed_blocks = None;
+        let mut latest_committed_block = None;
+        let mut events_in_between = Vec::new();
 
         let mut block = highest_block;
-        'a: while !db.block_computed(block) {
+        while !db.block_computed(block) {
             let (header, events) = match db.block_events(block) {
                 Some(events) => {
                     let header = db
@@ -81,24 +81,29 @@ impl CommittedBlocks {
             };
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
-            for event in events.into_iter().rev() {
+            for event in events.iter().rev() {
                 if let BlockEvent::Router(RouterEvent::BlockCommitted { hash }) = event {
-                    if latest_committed_blocks.is_none() {
-                        latest_committed_blocks = Some((block, hash));
+                    if latest_committed_block.is_none() {
+                        latest_committed_block = Some(*hash);
                     } else {
-                        previous_committed_block = Some(hash);
-                        break 'a;
+                        previous_committed_block = Some(*hash);
                     }
                 }
+            }
+
+            if latest_committed_block.is_some() || previous_committed_block.is_some() {
+                events_in_between.extend(events.into_iter().rev());
+            }
+
+            if previous_committed_block.is_some() {
+                break;
             }
 
             let parent = header.parent_hash;
             block = parent;
         }
 
-        let Some((latest_committed_block_found_at, latest_committed_block)) =
-            latest_committed_blocks
-        else {
+        let Some(latest_committed_block) = latest_committed_block else {
             return Ok(None);
         };
 
@@ -113,9 +118,9 @@ impl CommittedBlocks {
         // }
 
         Ok(Some(Self {
-            latest_committed_block_found_at,
             latest_committed_block,
             previous_committed_block,
+            events_in_between,
         }))
     }
 }
@@ -150,10 +155,12 @@ async fn collect_program_code_ids(
 
 async fn collect_program_states(
     observer: &mut ObserverService,
+    latest_committed_block: H256,
     program_code_ids: &BTreeMap<ActorId, CodeId>,
-    at: H256,
+    events_in_between: Vec<BlockEvent>,
 ) -> Result<BTreeMap<ActorId, H256>> {
     let mut program_states = BTreeMap::new();
+    let mut uninitialized_mirrors = Vec::new();
 
     let provider = observer.provider();
 
@@ -161,15 +168,39 @@ async fn collect_program_states(
         let mirror = Address::try_from(actor_id).expect("invalid actor id");
         let mirror = MirrorQuery::new(provider.clone(), mirror);
 
-        let state_hash = mirror.state_hash_at(at).await.with_context(|| {
-            format!("Failed to get state hash for actor {actor_id} at block {at}",)
-        })?;
-        assert!(
-            !state_hash.is_zero(),
-            "we request state hash only for initialized mirrors"
-        );
+        let state_hash = mirror
+            .state_hash_at(latest_committed_block)
+            .await
+            .with_context(|| {
+                format!("Failed to get state hash for actor {actor_id} at block {latest_committed_block}",)
+            })?;
+
+        if state_hash.is_zero() {
+            uninitialized_mirrors.push(actor_id);
+            continue;
+        }
 
         program_states.insert(actor_id, state_hash);
+    }
+
+    // NOTE: iteration goes from bottom to top
+    for event in events_in_between.into_iter().rev() {
+        if let BlockEvent::Mirror {
+            actor_id,
+            event: MirrorEvent::StateChanged { state_hash },
+        } = event
+        {
+            // the latest committed block and its `BlockCommitted` event can be a few blocks apart,
+            // so some mirror state changes must be obtained from Ethereum events
+            program_states.insert(actor_id, state_hash);
+        }
+    }
+
+    for actor_id in uninitialized_mirrors {
+        ensure!(
+            program_states.contains_key(&actor_id),
+            "mirror {actor_id} expected to be initialized, but it is not"
+        );
     }
 
     Ok(program_states)
@@ -582,11 +613,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         .expect("latest block always exist");
     let finalized_block = H256(finalized_block.header.hash.0);
 
-    let Some(CommittedBlocks {
-        latest_committed_block_found_at,
+    let Some(EventData {
         latest_committed_block,
         previous_committed_block,
-    }) = CommittedBlocks::find(observer, db, finalized_block).await?
+        events_in_between,
+    }) = EventData::collect(observer, db, finalized_block).await?
     else {
         log::warn!("No any committed block found. Skipping fast synchronization...");
         return Ok(());
@@ -595,9 +626,13 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let program_code_ids =
         collect_program_code_ids(observer, network, latest_committed_block).await?;
 
-    let program_states =
-        collect_program_states(observer, &program_code_ids, latest_committed_block_found_at)
-            .await?;
+    let program_states = collect_program_states(
+        observer,
+        latest_committed_block,
+        &program_code_ids,
+        events_in_between,
+    )
+    .await?;
 
     sync_from_network(network, db, &program_code_ids, &program_states).await;
 
