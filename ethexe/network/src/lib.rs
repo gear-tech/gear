@@ -664,7 +664,7 @@ mod tests {
 
         let request_id = service1
             .db_sync()
-            .request(db_sync::Request([hello, world].into()));
+            .request(db_sync::Request::Hashes([hello, world].into()));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -674,7 +674,7 @@ mod tests {
             event,
             NetworkEvent::DbResponse {
                 request_id,
-                result: Ok(db_sync::Response(
+                result: Ok(db_sync::Response::Hashes(
                     [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
                 ))
             }

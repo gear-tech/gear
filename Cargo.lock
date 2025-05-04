@@ -4773,6 +4773,7 @@ dependencies = [
  "sp-allocator",
  "sp-wasm-interface",
  "tokio",
+ "tracing",
  "tracing-subscriber",
  "wasmtime",
  "wat",
