@@ -18,8 +18,9 @@
 
 use crate::{abi::IMirror, AlloyProvider, TryGetReceipt};
 use alloy::{
+    eips::BlockId,
     primitives::{Address, U256},
-    providers::{Provider, ProviderBuilder, RootProvider},
+    providers::{Provider, RootProvider},
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::Address as LocalAddress;
@@ -110,13 +111,19 @@ impl Mirror {
 pub struct MirrorQuery(QueryInstance);
 
 impl MirrorQuery {
-    pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = ProviderBuilder::default().connect(rpc_url).await?;
+    pub fn new(provider: RootProvider, mirror_address: LocalAddress) -> Self {
+        Self(QueryInstance::new(Address::new(mirror_address.0), provider))
+    }
 
-        Ok(Self(QueryInstance::new(
-            Address::new(router_address.0),
-            provider,
-        )))
+    pub async fn state_hash_at(&self, block: H256) -> Result<Option<H256>> {
+        let hash = self
+            .0
+            .stateHash()
+            .block(BlockId::hash(block.0.into()))
+            .call()
+            .await?;
+        let hash = H256(*hash._0);
+        Ok(if hash.is_zero() { None } else { Some(hash) })
     }
 
     pub async fn state_hash(&self) -> Result<H256> {
