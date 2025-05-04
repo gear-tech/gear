@@ -351,6 +351,7 @@ pub struct Program<'a> {
     pub(crate) id: ProgramId,
 }
 
+/// Program creation related impl.
 impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
@@ -449,7 +450,10 @@ impl<'a> Program<'a> {
     {
         Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
+}
 
+/// Program messaging related impl.
+impl<'a> Program<'a> {
     /// Send message to the program.
     pub fn send<ID, C>(&self, from: ID, payload: C) -> MessageId
     where
@@ -562,7 +566,10 @@ impl<'a> Program<'a> {
 
         system.validate_and_route_dispatch(Dispatch::new(kind, message))
     }
+}
 
+/// Program misc ops impl.
+impl<'a> Program<'a> {
     /// Get program id.
     pub fn id(&self) -> ProgramId {
         self.id

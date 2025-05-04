@@ -24,15 +24,20 @@ use crate::{
     state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
     Gas, Value, GAS_ALLOWANCE,
 };
+use gear_common::MessageId;
 use gear_core::{
-    ids::{prelude::CodeIdExt, CodeId, ProgramId},
+    ids::{
+        prelude::{CodeIdExt, MessageIdExt},
+        CodeId, ProgramId,
+    },
+    message::Message,
     pages::GearPage,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use parity_scale_codec::{Decode, DecodeAll};
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, mem, path::Path};
+use std::{borrow::Cow, cell::RefCell, env, fs, mem, panic, path::Path, thread};
 use tracing_subscriber::EnvFilter;
 
 thread_local! {
@@ -407,6 +412,27 @@ impl System {
         let actor_id = id.into().0;
         self.0.borrow().balance_of(&actor_id)
     }
+
+    /// Calculate reply that would be received when sending
+    /// message to initialized program with any of `Program::send*` methods.
+    pub fn calculate_reply_for_handle(
+        &self,
+        origin: ProgramId,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: Value,
+    ) -> Result<(), String> {
+        // Todo: the impl
+        // The impl must be the following:
+        // All managers for the states (like actors, accounts, etc.)
+        // must have a special option to enter overlay mode.
+        // Entering the overlay mode copies all the data in the original storage
+        // to the overlay storage.
+        // Finishing the overlay mode must clear all the overlay storage.
+
+        Ok(())
+    }
 }
 
 impl Drop for System {
@@ -427,6 +453,8 @@ impl Drop for System {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{DEFAULT_USER_ALICE, MAX_USER_GAS_LIMIT};
+    use std::{thread, time::Duration};
 
     #[test]
     #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]
@@ -450,7 +478,11 @@ mod tests {
             assert_eq!(second_instance.block_height(), 10);
         });
 
+        thread::sleep(Duration::from_secs(1));
+
         h.join().expect("internal error failed joining thread");
+
+        assert_eq!(first_instance.block_height(), 5);
     }
 
     #[test]
@@ -496,4 +528,34 @@ mod tests {
 
         assert_eq!(last_run.block_info.height, 15);
     }
+
+    #[test]
+    #[should_panic]
+    fn panic_calculate_reply_no_actor() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let origin = DEFAULT_USER_ALICE.into();
+        let pid = 42;
+        let ping_program = Program::from_binary_with_id(&sys, pid, demo_ping::WASM_BINARY);
+        let destination = ping_program.id();
+
+        log::warn!("Program id: {destination:?}");
+
+        log::warn!("{:#?}", Actors::program_ids());
+
+        // Try send calculate reply for handle.
+        // Must fail because the program is not initialized.
+        let res = sys.calculate_reply_for_handle(
+            origin,
+            destination,
+            b"PING".to_vec(),
+            MAX_USER_GAS_LIMIT,
+            0,
+        );
+    }
+
+    // TODO test
+    // 1. Test doesn't affect the System storage
+    // 2. Test async.
 }
