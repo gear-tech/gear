@@ -93,6 +93,10 @@ impl Bank {
 
     // Transfer value.
     pub(crate) fn transfer_value(&mut self, from: ProgramId, to: ProgramId, value: Value) {
+        if value == 0 {
+            return;
+        }
+
         self.accounts
             .get_mut(&from)
             .unwrap_or_else(|| panic!("Bank::transfer_value: actor id {from:?} not found in bank"))
@@ -109,9 +113,15 @@ impl Bank {
 
     // Transfer locked value.
     pub(crate) fn transfer_locked_value(&mut self, from: ProgramId, to: ProgramId, value: Value) {
+        if value == 0 {
+            return;
+        }
+
         self.accounts
             .get_mut(&from)
-            .unwrap_or_else(|| panic!("Bank::transfer_value: actor id {from:?} not found in bank"))
+            .unwrap_or_else(|| {
+                panic!("Bank::transfer_locked_value: actor id {from:?} not found in bank")
+            })
             .value -= value;
 
         self.accounts
