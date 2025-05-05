@@ -98,7 +98,7 @@ pub struct ValidatorConfig {
     /// Address of the router contract
     pub router_address: Address,
     /// ECDSA multi-signature threshold
-    // TODO +_+_+: threshold should be a ratio (and maybe also a block dependent value)
+    // TODO #4637: threshold should be a ratio (and maybe also a block dependent value)
     pub signatures_threshold: u64,
     /// Duration of ethexe slot (only to identify producer for the incoming blocks)
     pub slot_duration: Duration,

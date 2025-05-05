@@ -72,7 +72,7 @@ impl StateHandler for Initial {
 
                     Producer::create(self.ctx, block.clone(), data.validators)
                 } else {
-                    // TODO +_+_+: add test (in ethexe-service) for case where is not validator for current block
+                    // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
                     let is_validator_for_current_block =
                         data.validators.iter().any(|v| *v == my_address);
 

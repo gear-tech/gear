@@ -183,7 +183,7 @@ impl Service {
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
 
-        // TODO +_+_+: use validator session key
+        // TODO #4642: use validator session key
         let _validator_pub_key_session =
             Self::get_config_public_key(config.node.validator_session, &signer)
                 .with_context(|| "failed to get validator session private key")?;
@@ -456,7 +456,7 @@ impl Service {
 
                             p.update_observer_metrics(status.eth_best_height, status.pending_codes);
 
-                            // TODO +_+_+: support metrics for consensus service
+                            // TODO #4643: support metrics for consensus service
                         }
                     }
                 }
@@ -494,7 +494,7 @@ impl Service {
                         if !producer_block.off_chain_transactions.is_empty()
                             || producer_block.gas_allowance.is_some()
                         {
-                            todo!("+_+_+ off-chain transactions and gas allowance are not supported yet");
+                            todo!("#4638 #4639 off-chain transactions and gas allowance are not supported yet");
                         }
 
                         compute.receive_synced_head(producer_block.block_hash);

@@ -121,7 +121,6 @@ impl Producer {
             "Producer is not in the list of validators"
         );
 
-        // TODO +_+_+: collect codes timer should be configurable
         let mut timer = Timer::new("collect codes", ctx.slot_duration / 6);
         timer.start(());
 
@@ -229,9 +228,9 @@ impl Producer {
     fn create_producer_block(&mut self) -> Result<()> {
         let pb = ProducerBlock {
             block_hash: self.block.hash,
-            // TODO +_+_+: set gas allowance here
+            // TODO #4638: set gas allowance here
             gas_allowance: None,
-            // TODO +_+_+: append off-chain transactions
+            // TODO #4639: append off-chain transactions
             off_chain_transactions: Vec::new(),
         };
 

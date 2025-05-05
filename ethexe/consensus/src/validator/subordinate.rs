@@ -47,7 +47,7 @@ pub struct Subordinate {
 enum State {
     WaitingForProducerBlock,
     WaitingProducerBlockComputed {
-        // TODO +_+_+: change this to producer-block digest when off-chain transactions added
+        // TODO #4640: change this to producer-block digest when off-chain transactions added
         block_hash: H256,
     },
 }
@@ -137,7 +137,7 @@ impl Subordinate {
 
         // Search for already received producer blocks.
         // If events amount is eq to MAX_PENDING_EVENTS, then oldest ones would be removed.
-        // TODO +_+_+: potential abuse can be here. If we receive a lot of fake events,
+        // TODO #4641: potential abuse can be here. If we receive a lot of fake events,
         // important ones can be removed. What to do:
         // 1) Check event is sent by current or next or previous era validator.
         // 2) Malicious validator can send a lot of events (consider what to do).
