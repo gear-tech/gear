@@ -73,7 +73,7 @@ contract Mirror is IMirror {
 
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata _payload, uint128 _value)
+    function sendMessage(bytes calldata _payload, uint128 _value, bool _callReply)
         public
         whileActive
         whenInitMessageCreatedOrFromInitializer
@@ -82,7 +82,7 @@ contract Mirror is IMirror {
     {
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
 
-        emit MessageQueueingRequested(id, msg.sender, _payload, _value);
+        emit MessageQueueingRequested(id, msg.sender, _payload, _value, _callReply);
 
         return id;
     }
@@ -365,20 +365,25 @@ contract Mirror is IMirror {
     }
 
     fallback() external payable {
+        // We only allow arbitrary calls to full mirror contracts, which are
+        // more likely to come from their ERC1967 implementor.
         require(!isSmall);
 
-        StorageSlot.AddressSlot storage implementationSlot =
-            StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT);
-        address _abiInterface = implementationSlot.value;
-
-        require(msg.data.length >= 0x24);
+        // The minimum call data length is 0x44 (68 bytes) because:
+        // - 0x04 (4 bytes) for the function selector   [0x00..0x04)
+        // - 0x20 (32 bytes) for the uint128 `value`    [0x04..0x24)
+        // - 0x20 (32 bytes) for the bool `callReply`   [0x24..0x44)
+        require(msg.data.length >= 0x44);
 
         uint256 value;
+        uint256 callReply;
+
         assembly ("memory-safe") {
             value := calldataload(0x04)
+            callReply := calldataload(0x24)
         }
 
-        bytes32 messageId = sendMessage(msg.data, uint128(value));
+        bytes32 messageId = sendMessage(msg.data, uint128(value), callReply != 0);
 
         assembly ("memory-safe") {
             mstore(0x00, messageId)

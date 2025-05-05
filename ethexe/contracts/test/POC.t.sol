@@ -142,7 +142,7 @@ contract POCTest is Base {
             vm.expectEmit(true, false, false, false);
             emit IRouter.ProgramCreated(address(0), bytes32(uint256(1)));
             _ping = router.createProgram(_codeId, "salt", address(0));
-            IMirror(_ping).sendMessage("PING", 0);
+            IMirror(_ping).sendMessage("PING", 0, false);
         }
         vm.stopPrank();
 
@@ -192,7 +192,7 @@ contract POCTest is Base {
         {
             uint256 _allowanceBefore = wrappedVara.allowance(admin, _ping);
             wrappedVara.approve(_ping, type(uint256).max);
-            IMirror(_ping).sendMessage("PING", 0);
+            IMirror(_ping).sendMessage("PING", 0, false);
             wrappedVara.approve(_ping, _allowanceBefore);
         }
         vm.stopPrank();

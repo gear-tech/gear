@@ -20,7 +20,7 @@ interface IMirror {
      * NOTE:    It's event for NODES:
      *  it requires to insert message in the program's queue.
      */
-    event MessageQueueingRequested(bytes32 id, address indexed source, bytes payload, uint128 value);
+    event MessageQueueingRequested(bytes32 id, address indexed source, bytes payload, uint128 value, bool callReply);
 
     /**
      * @dev Emitted when a new reply is sent and requested to be verified and queued.
@@ -87,7 +87,7 @@ interface IMirror {
 
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata payload, uint128 value) external returns (bytes32);
+    function sendMessage(bytes calldata payload, uint128 value, bool callReply) external returns (bytes32);
 
     function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external;
 
