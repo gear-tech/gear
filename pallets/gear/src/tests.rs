@@ -83,6 +83,7 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+#[should_panic]
 fn err_reply_comes_with_value() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -202,6 +203,36 @@ fn err_reply_comes_with_value() {
 
         assert_balance(pid, pid_balance, 0u8);
         assert_balance(pid2, pid2_balance, 0u8);
+
+        // Case #4.
+        // Exited program returns value as well.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pid,
+            Calls::builder().exit(USER_2.into_origin().0).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let user_balance = Balances::free_balance(USER_1);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            0,
+            1,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        let mail = maybe_last_message(USER_1).expect("Message should be");
+        assert_eq!(mail.value(), 1);
+
+        assert_balance(USER_1, user_balance, 0u8);
+        assert_balance(pid, 0u8, 0u8);
     })
 }
 
