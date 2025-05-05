@@ -53,7 +53,12 @@ pub fn run(
         &ri,
     );
 
-    log::debug!("Done creating journal: {} notes", journals.len());
+    for (journal, origin) in &journals {
+        for note in journal {
+            log::debug!("{note:?}");
+        }
+        log::debug!("Origin: {origin:?}");
+    }
 
     journals
 }

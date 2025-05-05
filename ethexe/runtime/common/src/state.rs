@@ -386,11 +386,12 @@ impl MaybeHashOf<MemoryPages> {
     }
 }
 
+// TODO(romanm): consider to make it into general primitive: `HashOf`, `SizedHashOf`, `MaybeHashOf`, `SizedMaybeHashOf`
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueueHashWithSize {
     pub hash: MaybeHashOf<MessageQueue>,
-    // NOTE: only here to propagate queue size to the parent state (`ProgramStateHashAndSize`).
+    // NOTE: only here to propagate queue size to the parent state (`StateHashWithQueueSize`).
     pub cached_queue_size: u64,
 }
 

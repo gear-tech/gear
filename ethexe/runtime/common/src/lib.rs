@@ -81,7 +81,8 @@ impl<S: Storage> TransitionController<'_, S> {
         let state_hash = self
             .transitions
             .state_of(&program_id)
-            .expect("failed to find program in known states");
+            .expect("failed to find program in known states")
+            .hash;
 
         let mut state = self
             .storage
@@ -121,11 +122,15 @@ where
         return Vec::new();
     }
 
-    let mut queue = program_state.queue.hash.map_or_default(|hash| {
-        ri.storage()
-            .read_queue(hash)
-            .expect("Cannot get message queue")
-    });
+    let mut queue = program_state
+        .queue
+        .hash
+        .map(|hash| {
+            ri.storage()
+                .read_queue(hash)
+                .expect("Cannot get message queue")
+        })
+        .expect("Queue cannot be empty at this point");
 
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {

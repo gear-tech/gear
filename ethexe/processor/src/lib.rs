@@ -194,7 +194,8 @@ impl OverlaidProcessor {
         let state_hash = handler
             .transitions
             .state_of(&program_id)
-            .ok_or_else(|| anyhow!("unknown program at specified block hash"))?;
+            .ok_or_else(|| anyhow!("unknown program at specified block hash"))?
+            .hash;
 
         let state = handler
             .db

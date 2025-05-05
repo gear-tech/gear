@@ -58,8 +58,8 @@ impl InBlockTransitions {
         self.states.contains_key(actor_id)
     }
 
-    pub fn state_of(&self, actor_id: &ActorId) -> Option<H256> {
-        self.states.get(actor_id).map(|s| s.hash)
+    pub fn state_of(&self, actor_id: &ActorId) -> Option<StateHashWithQueueSize> {
+        self.states.get(actor_id).cloned()
     }
 
     pub fn states_amount(&self) -> usize {
