@@ -25,7 +25,7 @@ use ethexe_common::{
     gear::CodeCommitment,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
-use ethexe_db::{Database, ProgramStateHashAndSize};
+use ethexe_db::{Database, StateHashWithQueueSize};
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_runtime_common::{
@@ -347,7 +347,7 @@ async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
     program_states: BTreeMap<ActorId, H256>,
-) -> BTreeMap<ActorId, ProgramStateHashAndSize> {
+) -> BTreeMap<ActorId, StateHashWithQueueSize> {
     let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
         PayloadLookup::Direct(_) => {}
         PayloadLookup::Stored(hash) => {
@@ -505,7 +505,7 @@ async fn sync_from_network(
                 .expect("program state cached queue size must be restored");
             (
                 program_id,
-                ProgramStateHashAndSize {
+                StateHashWithQueueSize {
                     hash,
                     cached_queue_size,
                 },

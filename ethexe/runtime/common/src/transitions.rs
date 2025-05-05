@@ -23,7 +23,7 @@ use alloc::{
 use anyhow::{anyhow, Result};
 use core::num::NonZero;
 use ethexe_common::{
-    db::{BlockHeader, ProgramStateHashAndSize, Schedule, ScheduledTask},
+    db::{BlockHeader, Schedule, ScheduledTask, StateHashWithQueueSize},
     gear::{Message, StateTransition, ValueClaim},
 };
 use gprimitives::{ActorId, H256};
@@ -31,7 +31,7 @@ use gprimitives::{ActorId, H256};
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
     header: BlockHeader,
-    states: BTreeMap<ActorId, ProgramStateHashAndSize>,
+    states: BTreeMap<ActorId, StateHashWithQueueSize>,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
 }
@@ -39,7 +39,7 @@ pub struct InBlockTransitions {
 impl InBlockTransitions {
     pub fn new(
         header: BlockHeader,
-        states: BTreeMap<ActorId, ProgramStateHashAndSize>,
+        states: BTreeMap<ActorId, StateHashWithQueueSize>,
         schedule: Schedule,
     ) -> Self {
         Self {
@@ -66,7 +66,7 @@ impl InBlockTransitions {
         self.states.len()
     }
 
-    pub fn states_iter(&self) -> Iter<ActorId, ProgramStateHashAndSize> {
+    pub fn states_iter(&self) -> Iter<ActorId, StateHashWithQueueSize> {
         self.states.iter()
     }
 
@@ -117,8 +117,7 @@ impl InBlockTransitions {
     }
 
     pub fn register_new(&mut self, actor_id: ActorId) {
-        self.states
-            .insert(actor_id, ProgramStateHashAndSize::zero());
+        self.states.insert(actor_id, StateHashWithQueueSize::zero());
         self.modifications.insert(actor_id, Default::default());
     }
 
@@ -140,7 +139,7 @@ impl InBlockTransitions {
     pub fn modify<T>(
         &mut self,
         actor_id: ActorId,
-        f: impl FnOnce(&mut ProgramStateHashAndSize, &mut NonFinalTransition) -> T,
+        f: impl FnOnce(&mut StateHashWithQueueSize, &mut NonFinalTransition) -> T,
     ) -> T {
         let initial_state = self
             .states
@@ -162,7 +161,7 @@ impl InBlockTransitions {
         self,
     ) -> (
         Vec<StateTransition>,
-        BTreeMap<ActorId, ProgramStateHashAndSize>,
+        BTreeMap<ActorId, StateHashWithQueueSize>,
         Schedule,
     ) {
         let Self {

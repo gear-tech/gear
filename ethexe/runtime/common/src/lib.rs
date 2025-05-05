@@ -37,11 +37,11 @@ use gear_core::{
 use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::{CodeId, H256};
 use gsys::{GasMultiplier, Percent};
-use journal::MessageJournalHandler;
+use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
-pub use journal::ChunkJournalHandler as JournalHandler;
+pub use journal::NativeJournalHandler as JournalHandler;
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{InBlockTransitions, NonFinalTransition};
 
@@ -186,7 +186,7 @@ where
             code_id,
             ri,
         );
-        let mut handler = MessageJournalHandler {
+        let mut handler = RuntimeJournalHandler {
             storage: ri.storage(),
             program_state: &mut program_state,
         };

@@ -31,7 +31,7 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<()> {
         "ext_get_block_timestamp_version_1",
         get_block_timestamp,
     )?;
-    linker.func_wrap("env", "ext_gear_ri_update_state_hash_1", update_state_hash)?;
+    linker.func_wrap("env", "ext_update_state_hash_version_1", update_state_hash)?;
 
     Ok(())
 }

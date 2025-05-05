@@ -237,7 +237,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_test_chunk_partitioning() {
+    fn chunk_partitioning() {
         const STATE_SIZE: usize = 1_000;
         const VIRT_THREADS_NUM: usize = 16;
         const MAX_QUEUE_SIZE: u8 = 20;

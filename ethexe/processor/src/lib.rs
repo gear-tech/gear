@@ -24,7 +24,7 @@ use ethexe_common::{
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
 };
-use ethexe_db::{CodesStorage, Database, ProgramStateHashAndSize};
+use ethexe_db::{CodesStorage, Database, StateHashWithQueueSize};
 use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
@@ -45,7 +45,7 @@ mod tests;
 #[derive(Clone, Debug)]
 pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
-    pub states: BTreeMap<ActorId, ProgramStateHashAndSize>,
+    pub states: BTreeMap<ActorId, StateHashWithQueueSize>,
     pub schedule: Schedule,
 }
 

@@ -67,12 +67,12 @@ impl BlockHeader {
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
-pub struct ProgramStateHashAndSize {
+pub struct StateHashWithQueueSize {
     pub hash: H256,
     pub cached_queue_size: u64,
 }
 
-impl ProgramStateHashAndSize {
+impl StateHashWithQueueSize {
     pub fn zero() -> Self {
         Self {
             hash: H256::zero(),
@@ -104,11 +104,11 @@ pub trait BlockMetaStorage: Send + Sync {
     fn block_program_states(
         &self,
         block_hash: H256,
-    ) -> Option<BTreeMap<ActorId, ProgramStateHashAndSize>>;
+    ) -> Option<BTreeMap<ActorId, StateHashWithQueueSize>>;
     fn set_block_program_states(
         &self,
         block_hash: H256,
-        map: BTreeMap<ActorId, ProgramStateHashAndSize>,
+        map: BTreeMap<ActorId, StateHashWithQueueSize>,
     );
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;

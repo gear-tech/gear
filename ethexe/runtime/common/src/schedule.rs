@@ -8,7 +8,7 @@ use crate::{
 use alloc::collections::{BTreeMap, BTreeSet};
 use anyhow::Context;
 use ethexe_common::{
-    db::{ProgramStateHashAndSize, Rfm, Schedule, ScheduledTask, Sd, Sum},
+    db::{Rfm, Schedule, ScheduledTask, Sd, StateHashWithQueueSize, Sum},
     gear::ValueClaim,
 };
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
@@ -175,7 +175,7 @@ impl Restorer {
     /// Tries to fully restore schedule
     pub fn from_storage<T: Storage>(
         storage: &T,
-        program_states: &BTreeMap<ActorId, ProgramStateHashAndSize>,
+        program_states: &BTreeMap<ActorId, StateHashWithQueueSize>,
         current_block: u32,
     ) -> anyhow::Result<Self> {
         let program_states: BTreeMap<H256, BTreeSet<ActorId>> =
