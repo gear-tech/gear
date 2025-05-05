@@ -101,6 +101,7 @@ impl<S: Storage> TransitionController<'_, S> {
     }
 }
 
+// TODO(romanm): implement gas limit/allowance
 pub fn process_queue<S, RI>(
     program_id: ProgramId,
     mut program_state: ProgramState,

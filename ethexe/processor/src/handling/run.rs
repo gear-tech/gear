@@ -19,14 +19,16 @@
 //! # Chunked parallel program execution
 //!
 //! ## Overview
-//!
-//! This approach speeds up the processing of multiple programs in parallel.
+//! 
 //! The main idea is to split programs into chunks based on their queue sizes or, in the future, another computation weight metric.
+//! 
+//! The *chunk* is defined as a subset of programs that are executed in parallel and grouped by their queue sizes.
 //!
-//! Chunk processing helps reduce waiting time, as it minimizes the delay caused by the slowest message among all concurrently executed messages.
+//! This approach should speed up the processing of multiple programs in parallel.
+//! Processing in chunks helps reduce wasted CPU time, as it minimizes the delay caused by the slowest message among all concurrently executed messages.
 //! This works because, in sorted chunks, the computation time for each chunk element (queue messages) should be approximately equal.
 //!
-//! The second part of the approach is executing an entire program queue in one go within a single runtime instance.
+//! The second part of the approach is executing an entire program queue (ideally) in one go within a single runtime instance.
 //! This reduces overhead by minimizing calls within the WASM runtime.
 //!
 //! Due to this approach, we must handle journals deterministically in two stages:
@@ -38,31 +40,34 @@
 //! ## How It Works:
 //!
 //! For example, we have program states with the following queue sizes,
-//! where the "iter" column represents a computation step, and the "program" columns represent the queue sizes of each program:
+//! where in parentheses we denote the queue size of each program and N is the total number of programs:
 //!
-//! | iter | program 1 | program 2 | program 3 | ... | program N |
-//! |-----:|----------:|----------:|----------:|----:|----------:|
-//! |    0 |        10 |         1 |         5 | ... |         7 |
-//! |    1 |         3 |         0 |         0 | ... |         0 |
-//! |    2 |         3 |         1 |         1 | ... |         0 |
-//! |    3 |         0 |         0 |         0 | ... |         0 |
+//! |                          Programs                        |
+//! |------------:|-----------:|-----------:|----:|-----------:|
+//! |     P_1(10) |     P_5(2) |     P_9(5) | ... |   P_N-3(7) |
+//! |     P_2(3)  |     P_6(1) |    P_10(1) | ... |   P_N-2(1) |
+//! |     P_3(3)  |     P_7(2) |    P_11(1) | ... |   P_N-1(2) |
+//! |     P_4(1)  |     P_8(1) |    P_12(2) | ... |     P_N(3) |
 //!
 //! Before executing the programs, we need to split them into chunks.
-//! The maximum chunk size is equal to the number of virtual threads.
+//! The maximum chunk size is equal to the number of *chunk processing threads*.
 //! The number of chunks is calculated as the total number of programs divided by the maximum chunk size.
 //!
-//! For example, given M chunks (virtual threads) and N program states, a sorted chunk structure will look like this:
+//! For example, given N programs and M chunks, a sorted chunk structure will look like this:
 //!
-//! | chunk 0 | chunk 1 | chunk 2 | chunk 3 | ... | chunk M |
-//! |---------:|---------:|---------:|---------:|----:|---------:|
-//! |        9 |        7 |        4 |        3 | ... |        1 |
-//! |        7 |        7 |        3 |        3 | ... |        1 |
-//! |        8 |        6 |        4 |        3 | ... |        1 |
-//! |       10 |        5 |        4 |        3 | ... |        1 |
+//! |     chunk 0 |    chunk 1 |    chunk 2 | ... |    chunk M |
+//! |------------:|-----------:|-----------:|----:|-----------:|
+//! |     P_1(10) |     P_2(3) |     P_N(3) | ... |    P_4(1)  |
+//! |     P_6(5)  |     P_3(3) |    P_12(2) | ... |    P_8(1)  |
+//! |     P_N-3(7)|     P_5(2) |    P_11(1) | ... |    P_10(1) |
+//! |     P_9(5)  |     P_7(2) |   P_N-1(2) | ... |    P_N-2(1)|
 //!
 //! As you can see, the chunk contents are not strictly sorted, but this is not an issue.
 //! We only need chunks with approximately equal queue sizes to ensure efficient parallel execution.
-//! The entire queue is processed in a single runtime instance in one go, so prioritizing larger queues improves efficiency.
+//!
+//! Chunks are sorted in reverse order (descending), so the first chunk contains the largest queue size.
+//! In hypothetic high-load scenarios, this measure may prevent (arguably) starvation of programs with large queue sizes.
+//! Also as the entire queue is processed in a single runtime instance in one go, so prioritizing larger queues improves efficiency.
 //!
 //! Once all program queues have been processed, we deterministically merge journals and handle them.
 //! After that, we repeat the process until no more messages remain
@@ -83,11 +88,13 @@
 //!
 //!   1. First, calculate a temporary chunk index based on the program queue size.
 //!   2. Next, store the required data in a temporary chunk list.
-//!   3. Repeat this process for all programs.
+//!   3. Repeat this process for all programs with non-empty queues.
 //!   4. Since the number of elements in each temporary chunk is random, they need to be redistributed
 //!      to ensure all final chunks contain an equal number of elements.
 //!      To achieve this, we first merge all temporary chunk lists sequentially
 //!      and then redistribute the data according to the expected chunk size.
+//!   5. Reverse the order of the chunks to ensure that the first chunk contains the largest queue size.
+//!   5. Finally, we return the final chunk list.
 //!
 //! ---
 //!
