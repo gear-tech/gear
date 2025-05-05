@@ -161,15 +161,15 @@ impl Service {
 
         let processor = Processor::with_config(
             ProcessorConfig {
-                queues_processing_threads: config.node.virtual_threads,
+                chunk_processing_threads: config.node.chunk_processing_threads,
             },
             db.clone(),
         )
         .with_context(|| "failed to create processor")?;
 
         log::info!(
-            "🔧 Amount of virtual threads for programs processing: {}",
-            processor.config().queues_processing_threads
+            "🔧 Amount of chunk processing threads for programs processing: {}",
+            processor.config().chunk_processing_threads
         );
 
         let signer =

@@ -109,13 +109,13 @@ use itertools::Itertools;
 use crate::host::{InstanceCreator, InstanceWrapper};
 
 pub async fn run(
-    queues_processing_threads: usize,
+    chunk_processing_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
     let mut join_set = tokio::task::JoinSet::new();
-    let chunk_size = queues_processing_threads;
+    let chunk_size = chunk_processing_threads;
 
     loop {
         let chunks = split_to_chunks(

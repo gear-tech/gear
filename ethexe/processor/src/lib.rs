@@ -51,13 +51,13 @@ pub struct BlockProcessingResult {
 
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
-    pub queues_processing_threads: usize,
+    pub chunk_processing_threads: usize,
 }
 
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
-            queues_processing_threads: 16,
+            chunk_processing_threads: 16,
         }
     }
 }
@@ -165,7 +165,7 @@ impl Processor {
         self.creator.set_chain_head(handler.block_hash);
 
         run::run(
-            self.config().queues_processing_threads,
+            self.config().chunk_processing_threads,
             self.db.clone(),
             self.creator.clone(),
             &mut handler.transitions,
