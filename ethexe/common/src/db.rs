@@ -69,7 +69,7 @@ impl BlockHeader {
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,
-    pub cached_queue_size: u64,
+    pub cached_queue_size: u8,
 }
 
 impl StateHashWithQueueSize {

@@ -392,7 +392,7 @@ impl MaybeHashOf<MemoryPages> {
 pub struct MessageQueueHashWithSize {
     pub hash: MaybeHashOf<MessageQueue>,
     // NOTE: only here to propagate queue size to the parent state (`StateHashWithQueueSize`).
-    pub cached_queue_size: u64,
+    pub cached_queue_size: u8,
 }
 
 impl MessageQueueHashWithSize {
@@ -413,7 +413,8 @@ impl MessageQueueHashWithSize {
 
         let r = f(&mut queue);
 
-        self.cached_queue_size = queue.len() as u64;
+        // Emulate saturating behavior for queue size.
+        self.cached_queue_size = queue.len().min(u8::MAX as usize) as u8;
         self.hash = queue.store(storage);
 
         r
