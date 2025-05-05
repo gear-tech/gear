@@ -95,8 +95,12 @@ impl ExtManager {
             Accounts::transfer(source, destination, EXISTENTIAL_DEPOSIT, false);
         }
 
+        // It's necessary to deposit value so the source would have enough
+        // balance locked (in gear-bank) for future value processing.
+        //
+        // In case of error replies, we don't need to do it, since original
+        // message value is already on locked balance in gear-bank.
         if dispatch.value() != 0 && !dispatch.is_error_reply() {
-            // Deposit message value
             self.bank.deposit_value(source, dispatch.value(), false);
         }
 

@@ -862,6 +862,11 @@ where
             delay_hold.expected()
         };
 
+        // It's necessary to deposit value so the source would have enough
+        // balance locked (in gear-bank) for future value processing.
+        //
+        // In case of error replies, we don't need to do it, since original
+        // message value is already on locked balance in gear-bank.
         if !dispatch.value().is_zero() && !dispatch.is_error_reply() {
             // Reserving value from source for future transfer or unreserve.
             GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
@@ -974,6 +979,11 @@ where
         let to = message.destination().cast::<T::AccountId>();
         let value: BalanceOf<T> = message.value().unique_saturated_into();
 
+        // It's necessary to deposit value so the source would have enough
+        // balance locked (in gear-bank) for future value processing.
+        //
+        // In case of error replies, we don't need to do it, since original
+        // message value is already on locked balance in gear-bank.
         if !value.is_zero() && !is_error_reply {
             // Reserving value from source for future transfer or unreserve.
             GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {

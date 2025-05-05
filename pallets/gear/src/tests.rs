@@ -160,8 +160,7 @@ fn err_reply_comes_with_value() {
         assert_balance(USER_1, user_balance - VALUE, 0u8);
         assert_balance(pid, pid_balance, 0u8);
 
-        // Case #3.
-        // Case #2: error reply quits with error.
+        // Case #3: error reply quits with error.
         const VALUE_2: u128 = 15_000_000_000_000;
 
         let scheme = Scheme::predefined(
