@@ -409,9 +409,9 @@ where
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.clone());
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128, locked: bool) {
-        let to = to.unwrap_or(from).cast();
+    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128, locked: bool) {
         let from = from.cast();
+        let to = to.cast();
         let value = value.unique_saturated_into();
 
         if locked {

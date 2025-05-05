@@ -275,13 +275,11 @@ impl JournalHandler for ExtManager {
         .expect("no genuine program was found");
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Value, locked: bool) {
+    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: Value, locked: bool) {
         if value.is_zero() {
             // Nothing to do
             return;
         }
-
-        let to = to.unwrap_or(from);
 
         if locked {
             self.bank.transfer_locked_value(from, to, value);

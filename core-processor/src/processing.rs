@@ -299,7 +299,7 @@ fn process_error(
         // Value on error is always delivered to the program, but may return with error reply.
         journal.push(JournalNote::SendValue {
             from: origin,
-            to: Some(program_id),
+            to: program_id,
             value,
             // in case of upcoming error reply, we want to send locked value,
             // instead of deposit, to avoid ED manipulations.
@@ -585,7 +585,7 @@ pub fn process_success(
         // Send value further
         journal.push(JournalNote::SendValue {
             from: origin,
-            to: Some(program_id),
+            to: program_id,
             value,
             locked: false,
         });
