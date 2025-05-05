@@ -5,7 +5,6 @@ import {Mirror} from "../src/Mirror.sol";
 import {Gear} from "../src/libraries/Gear.sol";
 import {Router} from "../src/Router.sol";
 import {Script, console} from "forge-std/Script.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 
@@ -15,8 +14,6 @@ import {IDefaultOperatorRewardsFactory} from
     "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
 
 contract DeploymentScript is Script {
-    using Strings for uint160;
-
     WrappedVara public wrappedVara;
     Router public router;
     Mirror public mirror;
@@ -96,6 +93,11 @@ contract DeploymentScript is Script {
 
         wrappedVara.approve(address(router), type(uint256).max);
 
+        if (vm.envExists("SENDER_ADDRESS")) {
+            address senderAddress = vm.envAddress("SENDER_ADDRESS");
+            wrappedVara.transfer(senderAddress, 500_000 * (10 ** wrappedVara.decimals()));
+        }
+
         vm.roll(vm.getBlockNumber() + 1);
         router.lookupGenesisHash();
 
@@ -111,7 +113,6 @@ contract DeploymentScript is Script {
 
     function printContractInfo(string memory contractName, address contractAddress, address expectedImplementation)
         public
-        pure
     {
         console.log("================================================================================================");
         console.log("[ CONTRACT  ]", contractName);
@@ -123,16 +124,23 @@ contract DeploymentScript is Script {
             );
             console.log("                       Alternatively, run the following curl request.");
             console.log("```");
-            console.log("curl --request POST 'https://api-holesky.etherscan.io/api' \\");
+            uint256 chainId = block.chainid;
+            if (chainId == 1) {
+                console.log("curl --request POST 'https://api.etherscan.io/api' \\");
+            } else {
+                console.log(
+                    string.concat(
+                        "curl --request POST 'https://api-", vm.getChain(chainId).chainAlias, ".etherscan.io/api' \\"
+                    )
+                );
+            }
             console.log("   --header 'Content-Type: application/x-www-form-urlencoded' \\");
             console.log("   --data-urlencode 'module=contract' \\");
             console.log("   --data-urlencode 'action=verifyproxycontract' \\");
-            console.log(string.concat("   --data-urlencode 'address=", uint160(contractAddress).toHexString(), "' \\"));
+            console.log(string.concat("   --data-urlencode 'address=", vm.toString(contractAddress), "' \\"));
             console.log(
                 string.concat(
-                    "   --data-urlencode 'expectedimplementation=",
-                    uint160(expectedImplementation).toHexString(),
-                    "' \\"
+                    "   --data-urlencode 'expectedimplementation=", vm.toString(expectedImplementation), "' \\"
                 )
             );
             console.log("   --data-urlencode \"apikey=$ETHERSCAN_API_KEY\"");

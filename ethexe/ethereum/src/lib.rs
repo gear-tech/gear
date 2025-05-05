@@ -167,6 +167,7 @@ impl Ethereum {
                     _owner: deployer_address,
                     _mirror: mirror_address,
                     _wrappedVara: wvara_address,
+                    _middleware: Address::ZERO,
                     _eraDuration: U256::from(24 * 60 * 60),
                     _electionDuration: U256::from(2 * 60 * 60),
                     _validationDelay: U256::from(60),
@@ -328,7 +329,7 @@ impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
         };
 
         log::trace!("Failed to get transaction receipt for {tx_hash}. Retrying...");
-        for n in 0..3 {
+        for n in 0..20 {
             log::trace!("Attempt {n}. Error - {err}");
             match err {
                 PendingTransactionError::TransportError(RpcError::NullResp) => {}

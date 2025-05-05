@@ -82,6 +82,29 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+fn auto_reply_on_exit_exists() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, pid) =
+            init_constructor(Scheme::with_handle(Calls::builder().exit([1; 32])));
+
+        run_to_next_block(None);
+
+        let res = Gear::calculate_reply_for_handle(USER_1, pid, vec![], 100_000_000_000, 0)
+            .expect("Failed to query reply");
+
+        assert_eq!(
+            res,
+            ReplyInfo {
+                payload: vec![],
+                value: 0,
+                code: ReplyCode::Success(SuccessReplyReason::Auto)
+            }
+        );
+    });
+}
+
+#[test]
 fn calculate_reply_for_handle_works() {
     use demo_constructor::demo_ping;
 

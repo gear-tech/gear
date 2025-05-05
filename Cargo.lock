@@ -4691,8 +4691,30 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
+ "ethexe-runtime",
  "futures",
  "gprimitives",
+ "tokio",
+]
+
+[[package]]
+name = "ethexe-consensus"
+version = "1.8.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "derive_more 2.0.1",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "ethexe-observer",
+ "ethexe-service-utils",
+ "ethexe-signer",
+ "futures",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "rand 0.8.5",
  "tokio",
 ]
 
@@ -4739,10 +4761,11 @@ version = "1.8.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "derive_more 2.0.1",
  "ethexe-db",
+ "ethexe-service-utils",
  "ethexe-signer",
  "futures",
- "gear-core",
  "gprimitives",
  "libp2p 0.54.1",
  "libp2p-swarm-test",
@@ -4878,23 +4901,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-sequencer"
-version = "1.8.0"
-dependencies = [
- "anyhow",
- "ethexe-common",
- "ethexe-ethereum",
- "ethexe-service-utils",
- "ethexe-signer",
- "futures",
- "gprimitives",
- "indexmap 2.7.1",
- "log",
- "parity-scale-codec",
- "rand 0.8.5",
-]
-
-[[package]]
 name = "ethexe-service"
 version = "1.8.0"
 dependencies = [
@@ -4902,11 +4908,13 @@ dependencies = [
  "anyhow",
  "demo-async",
  "demo-async-init",
+ "demo-mul-by-const",
  "demo-ping",
  "derive_more 2.0.1",
  "ethexe-blob-loader",
  "ethexe-common",
  "ethexe-compute",
+ "ethexe-consensus",
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-network",
@@ -4914,12 +4922,11 @@ dependencies = [
  "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
+ "ethexe-runtime",
  "ethexe-runtime-common",
- "ethexe-sequencer",
  "ethexe-service-utils",
  "ethexe-signer",
  "ethexe-tx-pool",
- "ethexe-validator",
  "futures",
  "gear-core",
  "gear-core-errors",
@@ -4975,21 +4982,6 @@ dependencies = [
  "gprimitives",
  "parity-scale-codec",
  "tokio",
-]
-
-[[package]]
-name = "ethexe-validator"
-version = "1.8.0"
-dependencies = [
- "anyhow",
- "ethexe-common",
- "ethexe-db",
- "ethexe-sequencer",
- "ethexe-signer",
- "gprimitives",
- "log",
- "parity-scale-codec",
- "rand 0.8.5",
 ]
 
 [[package]]

@@ -12,6 +12,7 @@ repository.workspace = true
 [dependencies]
 ethexe-processor.workspace = true
 ethexe-common.workspace = true
+ethexe-runtime.workspace = true
 ethexe-db.workspace = true
 gprimitives.workspace = true
 anyhow.workspace = true
