@@ -410,7 +410,7 @@ impl Service {
                         consensus.receive_synced_block(data)?
                     }
                     ObserverEvent::RequestLoadBlobs(codes) => {
-                        blob_loader.load_codes(codes, None);
+                        blob_loader.load_codes(codes, None).unwrap();
                     }
                 },
                 Event::BlobLoader(event) => match event {

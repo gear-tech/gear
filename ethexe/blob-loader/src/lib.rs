@@ -58,9 +58,9 @@ impl Stream for BlobLoaderService {
             },
             Poll::Ready(None) => {
                 // all futures are done
-                if self.futures.is_empty() {
-                    return Poll::Ready(None);
-                }
+                // if self.futures.is_empty() {
+                //     return Poll::Ready(None);
+                // }
 
                 return Poll::Pending;
             }
