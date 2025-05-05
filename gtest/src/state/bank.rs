@@ -106,4 +106,17 @@ impl Bank {
 
         Accounts::increase(to, value);
     }
+
+    // Transfer locked value.
+    pub(crate) fn transfer_locked_value(&mut self, from: ProgramId, to: ProgramId, value: Value) {
+        self.accounts
+            .get_mut(&from)
+            .unwrap_or_else(|| panic!("Bank::transfer_value: actor id {from:?} not found in bank"))
+            .value -= value;
+
+        self.accounts
+            .entry(to)
+            .or_insert(BankBalance { gas: 0, value: 0 })
+            .value += value;
+    }
 }

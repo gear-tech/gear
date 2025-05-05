@@ -301,6 +301,9 @@ fn process_error(
             from: origin,
             to: Some(program_id),
             value,
+            // in case of upcoming error reply, we want to send locked value,
+            // instead of deposit, to avoid ED manipulations.
+            locked: to_send_reply,
         });
     }
 
@@ -584,6 +587,7 @@ pub fn process_success(
             from: origin,
             to: Some(program_id),
             value,
+            locked: false,
         });
     }
 

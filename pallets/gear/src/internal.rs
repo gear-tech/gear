@@ -19,9 +19,9 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    AccountIdOf, Config, CostsPerBlockOf, DispatchStashOf, Event, ExtManager, GasBalanceOf,
-    GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf, SchedulingCostOf, TaskPoolOf,
-    WaitlistOf,
+    AccountIdOf, BalanceOf, Config, CostsPerBlockOf, DispatchStashOf, Event, ExtManager,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
+    SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::{collections::BTreeSet, format};
 use common::{
@@ -862,7 +862,7 @@ where
             delay_hold.expected()
         };
 
-        if !dispatch.value().is_zero() {
+        if !dispatch.value().is_zero() && !dispatch.is_error_reply() {
             // Reserving value from source for future transfer or unreserve.
             GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
                 let err_msg = format!(
@@ -954,6 +954,7 @@ where
         let message_id = message.id();
         let from = message.source();
         let to = message.destination();
+        let is_error_reply = message.is_error_reply();
 
         // Converting message into stored one and user one.
         let message = message.into_stored();
@@ -971,18 +972,21 @@ where
         // Taking data for funds manipulations.
         let from = message.source().cast();
         let to = message.destination().cast::<T::AccountId>();
-        let value = message.value().unique_saturated_into();
+        let value: BalanceOf<T> = message.value().unique_saturated_into();
 
-        // Reserving value from source for future transfer or unreserve.
-        GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
-            let err_msg = format!(
-                "send_user_message: failed depositting value on gear bank. \
-                                From - {from:?}, value - {value:?}. Got error - {e:?}",
-            );
+        if !value.is_zero() && !is_error_reply {
+            // Reserving value from source for future transfer or unreserve.
+            GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message: failed depositting value on gear bank. \
+                                    From - {from:?}, value - {value:?}. Got error - {e:?}",
+                );
 
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}");
-        });
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+        }
+
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
         let expiration = if message.details().is_none() && gas_limit >= threshold {

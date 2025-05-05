@@ -224,7 +224,7 @@ impl ExtManager {
             delay_hold.expected()
         };
 
-        if !dispatch.value().is_zero() {
+        if !dispatch.value().is_zero() && !dispatch.is_error_reply() {
             self.bank.deposit_value(from, value, false);
         }
 

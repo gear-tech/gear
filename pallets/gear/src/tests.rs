@@ -83,7 +83,6 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
-#[should_panic]
 fn err_reply_comes_with_value() {
     init_logger();
     new_test_ext().execute_with(|| {

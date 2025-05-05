@@ -95,7 +95,7 @@ impl ExtManager {
             Accounts::transfer(source, destination, EXISTENTIAL_DEPOSIT, false);
         }
 
-        if dispatch.value() != 0 {
+        if dispatch.value() != 0 && !dispatch.is_error_reply() {
             // Deposit message value
             self.bank.deposit_value(source, dispatch.value(), false);
         }

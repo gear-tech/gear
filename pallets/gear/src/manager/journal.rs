@@ -230,7 +230,7 @@ where
                 gas_limit,
             );
 
-            if dispatch.value() != 0 {
+            if dispatch.value() != 0 && !dispatch.is_error_reply() {
                 GearBank::<T>::deposit_value(
                     &dispatch.source().cast(),
                     dispatch.value().unique_saturated_into(),
@@ -409,20 +409,32 @@ where
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.clone());
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128, locked: bool) {
         let to = to.unwrap_or(from).cast();
         let from = from.cast();
         let value = value.unique_saturated_into();
 
-        GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
-            let err_msg = format!(
-                "JournalHandler::send_value: failed transferring bank value. \
-                From - {from:?}, to - {to:?}, value - {value:?}. Got error: {e:?}"
-            );
+        if locked {
+            GearBank::<T>::transfer_locked_value(&from, &to, value).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "JournalHandler::send_value: failed transferring bank locked value. \
+                    From - {from:?}, to - {to:?}, value - {value:?}. Got error: {e:?}"
+                );
 
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}");
-        });
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+        } else {
+            GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "JournalHandler::send_value: failed transferring bank value. \
+                    From - {from:?}, to - {to:?}, value - {value:?}. Got error: {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+        }
     }
 
     fn store_new_programs(
