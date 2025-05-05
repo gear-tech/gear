@@ -296,13 +296,10 @@ fn process_error(
     // being waken, so the value were already transferred in
     // execution, where `gr_wait` was called.
     if dispatch.context().is_none() && value != 0 {
-        // Value should be received by program if it will send error reply or
-        // if it has processed error reply on its earlier message.
-        //
-        // In other cases, value should be sent back.
+        // Value on error is always delivered to the program, but may return with error reply.
         journal.push(JournalNote::SendValue {
             from: origin,
-            to: (to_send_reply || dispatch.is_error_reply()).then_some(program_id),
+            to: Some(program_id),
             value,
         });
     }

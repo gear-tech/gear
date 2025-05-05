@@ -91,7 +91,7 @@ fn err_reply_comes_with_value() {
         let (_init_mid, pid) = init_constructor(Scheme::empty());
 
         // Case #1.
-        // If non-reply message quits with error, value is attached to the reply.
+        // If reply-able message quits with error, value is attached to the reply.
         let user_balance = Balances::free_balance(USER_1);
         assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
 
@@ -122,8 +122,10 @@ fn err_reply_comes_with_value() {
 
         assert_eq!(err_reply.value(), VALUE);
 
-        // Case #2.
-        // If successful reply quits with error, value is silently returned.
+        // Cases #2-3.
+        // If non-reply-able message quits with error, value is kept by program.
+        //
+        // Case #2: success reply quits with error.
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             pid,
@@ -152,33 +154,38 @@ fn err_reply_comes_with_value() {
 
         run_to_next_block(None);
 
-        assert_balance(USER_1, user_balance, 0u8);
-        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+        let pid_balance = Balances::free_balance(pid.cast::<AccountId>());
+        assert_eq!(pid_balance, get_ed() + VALUE);
+
+        assert_balance(USER_1, user_balance - VALUE, 0u8);
+        assert_balance(pid, pid_balance, 0u8);
 
         // Case #3.
-        // If error reply quits with error, value is silently kept.
+        // Case #2: error reply quits with error.
+        const VALUE_2: u128 = 15_000_000_000_000;
+
         let scheme = Scheme::predefined(
             Calls::builder().noop(),
             Calls::builder().send_value(
                 pid.into_bytes(),
                 Calls::builder().panic(None).encode(),
-                VALUE,
+                VALUE_2,
             ),
             Calls::builder().panic(None),
             Calls::builder().noop(),
         );
 
         let (_, pid2) =
-            submit_constructor_with_args(USER_1, H256::random().as_bytes(), scheme, VALUE);
+            submit_constructor_with_args(USER_1, H256::random().as_bytes(), scheme, VALUE_2);
 
         run_to_next_block(None);
         assert!(is_active(pid2));
 
-        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
-        assert_eq!(
-            Balances::free_balance(pid2.cast::<AccountId>()),
-            get_ed() + VALUE
-        );
+        let pid2_balance = Balances::free_balance(pid2.cast::<AccountId>());
+        assert_eq!(pid2_balance, get_ed() + VALUE_2);
+
+        assert_balance(pid, pid_balance, 0u8);
+        assert_balance(pid2, pid2_balance, 0u8);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -193,11 +200,8 @@ fn err_reply_comes_with_value() {
 
         assert_last_dequeued(3);
 
-        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
-        assert_eq!(
-            Balances::free_balance(pid2.cast::<AccountId>()),
-            get_ed() + VALUE
-        );
+        assert_balance(pid, pid_balance, 0u8);
+        assert_balance(pid2, pid2_balance, 0u8);
     })
 }
 
