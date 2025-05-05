@@ -22,3 +22,8 @@
 	path = ethexe/contracts/lib/frost-secp256k1-evm
 	url = https://github.com/StackOverflowExcept1on/frost-secp256k1-evm
 	branch = "master"
+
+[submodule "ethexe/contracts/lib/symbiotic-rewards"]
+	path = ethexe/contracts/lib/symbiotic-rewards
+	url = https://github.com/gear-tech/symbiotic-rewards
+	branch = gear-main
