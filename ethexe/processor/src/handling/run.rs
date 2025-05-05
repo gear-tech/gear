@@ -19,9 +19,9 @@
 //! # Chunked parallel program execution
 //!
 //! ## Overview
-//! 
+//!
 //! The main idea is to split programs into chunks based on their queue sizes or, in the future, another computation weight metric.
-//! 
+//!
 //! The *chunk* is defined as a subset of programs that are executed in parallel and grouped by their queue sizes.
 //!
 //! This approach should speed up the processing of multiple programs in parallel.
