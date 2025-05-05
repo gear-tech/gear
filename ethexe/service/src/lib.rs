@@ -25,8 +25,7 @@ use ethexe_blob_loader::{
 };
 use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment},
-    SimpleBlockData,
-    ProducerBlock
+    ProducerBlock, SimpleBlockData,
 };
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -35,7 +34,7 @@ use ethexe_consensus::{
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{db_sync, NetworkEvent, NetworkService, db_sync};
+use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{BlockSyncedData, ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
@@ -365,6 +364,7 @@ impl Service {
             };
 
             log::trace!("Primary service produced event, start handling: {event:?}");
+            log::info!("❓❓❓ Service event: {event:?}");
 
             // Broadcast event.
             // Never supposed to be Some in production.
@@ -415,10 +415,16 @@ impl Service {
                 },
                 Event::BlobLoader(event) => match event {
                     BlobLoaderEvent::BlobLoaded(blob_data) => {
-                        if let Err(e) = observer.receive_loaded_blob(blob_data) {
+                        if let Err(e) = observer.receive_loaded_blob(blob_data.clone()) {
                             // TODO
                             log::error!("Error in receiving loaded blob: {e:?}");
                         };
+
+                        compute.receive_code(
+                            blob_data.code_id,
+                            blob_data.timestamp,
+                            blob_data.code,
+                        );
                     }
                 },
                 Event::Compute(event) => match event {

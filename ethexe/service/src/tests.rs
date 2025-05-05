@@ -38,7 +38,7 @@ use ethexe_common::{
 use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader};
+use ethexe_observer::EthereumConfig;
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
@@ -1302,8 +1302,8 @@ async fn fast_sync() {
 mod utils {
     use super::*;
     use crate::Event;
-    use ethexe_blob_loader::BlobLoaderService;
     use alloy::eips::BlockId;
+    use ethexe_blob_loader::BlobLoaderService;
     use ethexe_common::SimpleBlockData;
     use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
     use ethexe_db::OnChainStorage;
@@ -2186,7 +2186,7 @@ mod utils {
             )
             .await
             .unwrap();
-        
+
             let blob_loader =
                 BlobLoaderService::new(self.blob_reader.clone_boxed(), self.db.clone());
 

@@ -333,6 +333,7 @@ async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
                 debug_assert_eq!(highest_block, data.block_hash);
                 break;
             }
+            ObserverEvent::RequestLoadBlobs(codes) => todo!("xzy"),
         }
     }
 
