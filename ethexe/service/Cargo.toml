@@ -19,6 +19,7 @@ ethexe-sequencer.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-validator.workspace = true
 ethexe-common.workspace = true
+ethexe-runtime.workspace = true
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
@@ -68,3 +69,4 @@ tracing-subscriber.workspace = true
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-async-init = { workspace = true, features = ["debug", "ethexe"] }
+demo-mul-by-const = { workspace = true, features = ["debug"] }

@@ -60,6 +60,7 @@ pub struct NodeConfig {
     pub eth_max_sync_depth: u32,
     pub virtual_threads: usize,
     pub dev: bool,
+    pub fast_sync: bool,
 }
 
 impl NodeConfig {

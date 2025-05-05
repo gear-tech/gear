@@ -43,7 +43,7 @@ impl<S: Storage> ChunkJournalHandler<'_, S> {
                     );
 
                     state.stash_hash.modify_stash(storage, |stash| {
-                        stash.add_to_program(dispatch.id, dispatch, expiry);
+                        stash.add_to_program(dispatch, expiry);
                     })
                 } else {
                     state
@@ -86,7 +86,7 @@ impl<S: Storage> ChunkJournalHandler<'_, S> {
                     let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
 
                     state.stash_hash.modify_stash(storage, |stash| {
-                        stash.add_to_user(dispatch.id, dispatch, expiry, user_id);
+                        stash.add_to_user(dispatch, expiry, user_id);
                     });
                 } else {
                     let expiry = transitions.schedule_task(
@@ -238,7 +238,7 @@ impl<S: Storage> JournalHandler for ChunkJournalHandler<'_, S> {
                 });
 
                 state.waitlist_hash.modify_waitlist(storage, |waitlist| {
-                    waitlist.wait(dispatch.id, dispatch, expiry);
+                    waitlist.wait(dispatch, expiry);
                 });
             });
     }

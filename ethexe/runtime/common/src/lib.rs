@@ -42,7 +42,7 @@ use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
 pub use journal::ChunkJournalHandler as JournalHandler;
-pub use schedule::Handler as ScheduleHandler;
+pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{InBlockTransitions, NonFinalTransition};
 
 pub mod state;

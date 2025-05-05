@@ -3392,6 +3392,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-big-data-section"
+version = "1.8.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+ "proptest",
+]
+
+[[package]]
 name = "demo-bls381"
 version = "0.1.0"
 dependencies = [
@@ -4629,6 +4640,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
+ "ethexe-runtime",
  "futures",
  "gprimitives",
  "tokio",
@@ -4677,10 +4689,11 @@ version = "1.8.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "derive_more 2.0.1",
  "ethexe-db",
+ "ethexe-service-utils",
  "ethexe-signer",
  "futures",
- "gear-core",
  "gprimitives",
  "libp2p 0.54.1",
  "libp2p-swarm-test",
@@ -4841,6 +4854,7 @@ dependencies = [
  "anyhow",
  "demo-async",
  "demo-async-init",
+ "demo-mul-by-const",
  "demo-ping",
  "derive_more 2.0.1",
  "ethexe-common",
@@ -4852,6 +4866,7 @@ dependencies = [
  "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
+ "ethexe-runtime",
  "ethexe-runtime-common",
  "ethexe-sequencer",
  "ethexe-service-utils",
@@ -6665,7 +6680,6 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "regex",
- "wasm-opt",
  "wasmer",
  "wasmparser 0.225.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",

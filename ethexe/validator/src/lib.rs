@@ -53,8 +53,8 @@ pub struct BlockCommitmentValidationRequest {
     pub transitions_digest: Digest,
 }
 
-impl From<&BlockCommitment> for BlockCommitmentValidationRequest {
-    fn from(commitment: &BlockCommitment) -> Self {
+impl BlockCommitmentValidationRequest {
+    pub fn new(commitment: &BlockCommitment) -> Self {
         // To avoid missing incorrect hashing while developing.
         let BlockCommitment {
             hash,
@@ -207,9 +207,13 @@ impl Validator {
 
         let block_commitments_digest: Digest = block_commitment_digests.iter().collect();
 
-        let batch_commitment_digest = [code_commitments_digest, block_commitments_digest]
-            .iter()
-            .collect();
+        let batch_commitment_digest = [
+            code_commitments_digest,
+            block_commitments_digest,
+            [0u8; 0].to_digest(),
+        ]
+        .iter()
+        .collect();
 
         agro::sign_commitments_digest(
             batch_commitment_digest,
@@ -376,7 +380,7 @@ mod tests {
 
         assert_eq!(
             commitment.to_digest(),
-            BlockCommitmentValidationRequest::from(&commitment).to_digest()
+            BlockCommitmentValidationRequest::new(&commitment).to_digest()
         );
     }
 

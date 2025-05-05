@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
-use alloy::primitives::U256;
 use anyhow::{anyhow, bail, Context, Result};
 use ethexe_common::{
     gear::{BlockCommitment, CodeCommitment},
@@ -26,8 +25,11 @@ use ethexe_common::{
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{db_sync, NetworkEvent, NetworkService};
-use ethexe_observer::{BlobData, BlockSyncedData, MockBlobReader, ObserverEvent, ObserverService};
+use ethexe_network::{NetworkEvent, NetworkService};
+use ethexe_observer::{
+    BlobData, BlobReader, BlockSyncedData, ConsensusLayerBlobReader, MockBlobReader, ObserverEvent,
+    ObserverService,
+};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
@@ -41,16 +43,18 @@ use ethexe_validator::{BlockCommitmentValidationRequest, Validator};
 use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
 
 pub mod config;
 
+mod fast_sync;
 #[cfg(test)]
 mod tests;
 
 #[derive(Debug, Clone, derive_more::From)]
 pub enum Event {
+    // Fast sync done. Sent just once.
+    FastSyncDone(H256),
     // Basic event to notify that service has started. Sent just once.
     ServiceStarted,
     // Services events.
@@ -66,7 +70,6 @@ pub enum Event {
 pub struct Service {
     db: Database,
     observer: ObserverService,
-    router_query: RouterQuery,
     compute: ComputeService,
     signer: Signer,
     tx_pool: TxPoolService,
@@ -78,6 +81,8 @@ pub struct Service {
     validator: Option<Validator>,
     prometheus: Option<PrometheusService>,
     rpc: Option<RpcService>,
+
+    fast_sync: bool,
 
     // Optional global event broadcaster.
     sender: Option<Sender<Event>>,
@@ -104,11 +109,20 @@ pub enum NetworkMessage {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let mock_blob_reader: Option<Arc<MockBlobReader>> = if config.node.dev {
-            Some(Arc::new(MockBlobReader::new()))
-        } else {
-            None
-        };
+        let (blob_reader, mock_blob_reader_for_rpc): (Box<dyn BlobReader>, Option<MockBlobReader>) =
+            if config.node.dev {
+                let reader = MockBlobReader::new();
+                (Box::new(reader.clone()), Some(reader))
+            } else {
+                let reader = ConsensusLayerBlobReader::new(
+                    &config.ethereum.rpc,
+                    &config.ethereum.beacon_rpc,
+                    config.ethereum.block_time,
+                )
+                .await
+                .context("failed to create consensus layer blob reader")?;
+                (Box::new(reader), None)
+            };
 
         let rocks_db = RocksDatabase::open(
             config
@@ -122,7 +136,7 @@ impl Service {
             &config.ethereum,
             config.node.eth_max_sync_depth,
             db.clone(),
-            mock_blob_reader.clone().map(|r| r as _),
+            blob_reader,
         )
         .await
         .context("failed to create observer service")?;
@@ -236,18 +250,19 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone(), mock_blob_reader.clone()));
+            .map(|config| RpcService::new(config.clone(), db.clone(), mock_blob_reader_for_rpc));
 
         let tx_pool = TxPoolService::new(db.clone());
 
         let compute = ComputeService::new(db.clone(), processor);
+
+        let fast_sync = config.node.fast_sync;
 
         Ok(Self {
             db,
             network,
             observer,
             compute,
-            router_query,
             sequencer,
             signer,
             validator,
@@ -255,6 +270,7 @@ impl Service {
             rpc,
             tx_pool,
             sender: None,
+            fast_sync,
         })
     }
 
@@ -271,7 +287,6 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
-        router_query: RouterQuery,
         processor: Processor,
         signer: Signer,
         tx_pool: TxPoolService,
@@ -281,6 +296,7 @@ impl Service {
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
         sender: Option<Sender<Event>>,
+        fast_sync: bool,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor);
 
@@ -288,7 +304,6 @@ impl Service {
             db,
             observer,
             compute,
-            router_query,
             signer,
             network,
             sequencer,
@@ -297,10 +312,15 @@ impl Service {
             rpc,
             tx_pool,
             sender,
+            fast_sync,
         }
     }
 
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
+        if self.fast_sync {
+            fast_sync::sync(&mut self).await?;
+        }
+
         self.run_inner().await.inspect_err(|err| {
             log::error!("Service finished work with error: {err:?}");
         })
@@ -311,7 +331,6 @@ impl Service {
             db,
             mut network,
             mut observer,
-            mut router_query,
             mut compute,
             mut sequencer,
             signer: _signer,
@@ -320,6 +339,7 @@ impl Service {
             mut prometheus,
             rpc,
             sender,
+            fast_sync: _,
         } = self;
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
@@ -380,7 +400,9 @@ impl Service {
             }
 
             match event {
-                Event::ServiceStarted => unreachable!("never handled here"),
+                Event::FastSyncDone(_) | Event::ServiceStarted => {
+                    unreachable!("never handled here")
+                }
                 Event::Observer(event) => match event {
                     ObserverEvent::Blob(BlobData {
                         code_id,
@@ -492,14 +514,13 @@ impl Service {
                     };
 
                     match event {
-                        NetworkEvent::Message { source, data } => {
-                            log::trace!("Received a network message from peer {source:?}");
-
+                        NetworkEvent::Message { source: _, data } => {
                             let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
                                 .inspect_err(|e| {
                                     log::warn!("Failed to decode network message: {e}")
                                 })
                             else {
+                                // TODO: use peer scoring for this case
                                 continue;
                             };
 
@@ -554,22 +575,7 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::ExternalValidation(validating_response) => {
-                            let validated = Self::process_response_validation(
-                                &validating_response,
-                                &mut router_query,
-                            )
-                            .await?;
-
-                            let res = if validated {
-                                Ok(validating_response)
-                            } else {
-                                Err(validating_response)
-                            };
-
-                            n.request_validated(res);
-                        }
-                        NetworkEvent::DbResponse(_)
+                        NetworkEvent::DbResponse { .. }
                         | NetworkEvent::PeerBlocked(_)
                         | NetworkEvent::PeerConnected(_) => (),
                     }
@@ -636,8 +642,13 @@ impl Service {
 
                             let block_requests: Vec<_> = s
                                 .get_candidate_block_commitments()
-                                .map(BlockCommitmentValidationRequest::from)
+                                .map(BlockCommitmentValidationRequest::new)
                                 .collect();
+
+                            if code_requests.is_empty() && block_requests.is_empty() {
+                                log::debug!("No code or block commitments to validate");
+                                continue;
+                            }
 
                             if let Some(n) = network.as_mut() {
                                 // TODO (breathx): remove this clones bypassing as call arguments by ref: anyway we encode.
@@ -660,21 +671,17 @@ impl Service {
                                     block_requests.len()
                                 );
 
-                                // Because sequencer can collect commitments from different sources,
-                                // it's possible that some of collected commitments validation will fail
-                                // on local validator. So we just print warning in this case.
-
-                                if !code_requests.is_empty() || !block_requests.is_empty() {
-                                    match v.validate_batch_commitment(code_requests, block_requests)
-                                    {
-                                        Ok((digest, signature)) => {
-                                            s.receive_batch_commitment_signature(
-                                                digest, signature,
-                                            )?;
-                                        }
-                                        Err(err) => {
-                                            log::warn!("Collected batch commitments validation failed: {err}");
-                                        }
+                                match v.validate_batch_commitment(code_requests, block_requests) {
+                                    Ok((digest, signature)) => {
+                                        s.receive_batch_commitment_signature(digest, signature)?;
+                                    }
+                                    Err(err) => {
+                                        // Because sequencer can collect commitments from different sources,
+                                        // it's possible that some of collected commitments validation will fail
+                                        // on local validator. So we just print warning in this case.
+                                        log::warn!(
+                                            "Collected batch commitments validation failed: {err}"
+                                        );
                                     }
                                 }
                             };
@@ -685,30 +692,6 @@ impl Service {
                 }
             }
         }
-    }
-
-    async fn process_response_validation(
-        validating_response: &db_sync::ValidatingResponse,
-        router_query: &mut RouterQuery,
-    ) -> Result<bool> {
-        let response = validating_response.response();
-
-        if let db_sync::Response::ProgramIds(ids) = response {
-            let ethereum_programs = router_query.programs_count().await?;
-            if ethereum_programs != U256::from(ids.len()) {
-                return Ok(false);
-            }
-
-            // TODO: #4309
-            for &id in ids {
-                let code_id = router_query.program_code_id(id).await?;
-                if code_id.is_none() {
-                    return Ok(false);
-                }
-            }
-        }
-
-        Ok(true)
     }
 
     fn process_offchain_transaction(

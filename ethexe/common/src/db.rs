@@ -113,10 +113,7 @@ pub trait BlockMetaStorage: Send + Sync {
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
-    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool> {
-        self.block_outcome(block_hash)
-            .map(|outcome| outcome.is_empty())
-    }
+    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool>;
 
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
     fn set_block_schedule(&self, block_hash: H256, map: Schedule);
@@ -135,6 +132,7 @@ pub trait CodesStorage: Send + Sync {
     fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId);
     fn program_ids(&self) -> BTreeSet<ProgramId>;
 
+    fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
 

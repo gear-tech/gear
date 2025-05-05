@@ -18,14 +18,11 @@
 
 use crate::*;
 use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent};
-use ethexe_db::{
-    BlockHeader, BlockMetaStorage, CodesStorage, MemDb, OnChainStorage, ScheduledTask,
-};
-use ethexe_runtime_common::state::Expiring;
+use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, OnChainStorage};
+use ethexe_runtime_common::ScheduleRestorer;
 use gear_core::ids::{prelude::CodeIdExt, ProgramId};
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
-use std::collections::{BTreeMap, BTreeSet};
 use utils::*;
 
 fn init_genesis_block(processor: &mut Processor) -> H256 {
@@ -90,7 +87,10 @@ async fn process_observer_event() {
         }]
     );
 
-    let _ = processor.process_block_events(ch0, vec![]).await.unwrap();
+    // Process ch0 and save results
+    let result0 = processor.process_block_events(ch0, vec![]).await.unwrap();
+    processor.db.set_block_program_states(ch0, result0.states);
+    processor.db.set_block_schedule(ch0, result0.schedule);
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
 
     let actor_id = ActorId::from(42);
@@ -114,12 +114,19 @@ async fn process_observer_event() {
         ),
     ];
 
-    let outcomes = processor
+    // Process ch1 and save results
+    let result1 = processor
         .process_block_events(ch1, create_program_events)
         .await
         .expect("failed to process create program");
+    processor
+        .db
+        .set_block_program_states(ch1, result1.states.clone());
+    processor
+        .db
+        .set_block_schedule(ch1, result1.schedule.clone());
 
-    log::debug!("\n\nCreate program outcomes: {outcomes:?}\n\n");
+    log::debug!("\n\nCreate processing result: {result1:?}\n\n");
 
     let ch2 = init_new_block_from_parent(&mut processor, ch1);
 
@@ -133,12 +140,19 @@ async fn process_observer_event() {
         },
     );
 
-    let outcomes = processor
+    // Process ch2 and save results
+    let result2 = processor
         .process_block_events(ch2, vec![send_message_event])
         .await
         .expect("failed to process send message");
+    processor
+        .db
+        .set_block_program_states(ch2, result2.states.clone());
+    processor
+        .db
+        .set_block_schedule(ch2, result2.schedule.clone());
 
-    log::debug!("\n\nSend message outcomes: {outcomes:?}\n\n");
+    log::debug!("\n\nSend message processing result: {result2:?}\n\n");
 }
 
 #[test]
@@ -532,33 +546,11 @@ async fn many_waits() {
     let schedule = processor.db.block_schedule(block).unwrap();
 
     // Reproducibility test.
-    {
-        let mut expected_schedule = BTreeMap::<_, BTreeSet<_>>::new();
-
-        for (pid, state_hash) in &states {
-            let state = processor.db.read_state(state_hash.hash).unwrap();
-            let waitlist_hash = state.waitlist_hash.to_inner().unwrap();
-            let waitlist = processor.db.read_waitlist(waitlist_hash).unwrap();
-
-            for (
-                mid,
-                Expiring {
-                    value: dispatch,
-                    expiry,
-                },
-            ) in waitlist.into_inner()
-            {
-                assert_eq!(mid, dispatch.id);
-                expected_schedule
-                    .entry(expiry)
-                    .or_default()
-                    .insert(ScheduledTask::WakeMessage(*pid, mid));
-            }
-        }
-
-        // This could fail in case of handling more scheduled ops: please, update test than.
-        assert_eq!(schedule, expected_schedule);
-    }
+    let restored_schedule = ScheduleRestorer::from_storage(&processor.db, &states, 0)
+        .unwrap()
+        .restore();
+    // This could fail in case of handling more scheduled ops: please, update test than.
+    assert_eq!(schedule, restored_schedule);
 
     let mut handler = processor.handler(ch11).unwrap();
     handler.run_schedule();
