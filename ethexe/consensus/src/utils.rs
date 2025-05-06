@@ -23,9 +23,10 @@
 
 use anyhow::Result;
 use ethexe_common::{
+    ecdsa::{ContractSignature, PublicKey},
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
     sha3::{self, digest::Update},
-    Address, ContractSignature, Digest, PublicKey, ToDigest,
+    Address, Digest, ToDigest,
 };
 use ethexe_signer::Signer;
 use gprimitives::H256;

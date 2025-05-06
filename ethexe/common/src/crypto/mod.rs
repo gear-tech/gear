@@ -5,5 +5,6 @@ mod signature;
 
 pub use address::*;
 pub use digest::*;
-pub use keys::*;
-pub use signature::*;
+pub mod ecdsa {
+    pub use super::{keys::*, signature::*};
+}

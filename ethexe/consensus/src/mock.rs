@@ -19,9 +19,9 @@
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BlockCommitment, CodeCommitment, Message, StateTransition},
-    Address, BlockHeader, CodeInfo, Digest, PrivateKey, ProducerBlock, PublicKey, SignedData,
-    SimpleBlockData,
+    Address, BlockHeader, CodeInfo, Digest, ProducerBlock, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_signer::{MemoryKeyStorage, Signer};

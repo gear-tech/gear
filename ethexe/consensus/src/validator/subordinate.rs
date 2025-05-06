@@ -20,7 +20,7 @@ use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, Val
 use crate::{validator::participant::Participant, ConsensusEvent};
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, ProducerBlock, SignedData, SimpleBlockData};
+use ethexe_common::{ecdsa::SignedData, Address, ProducerBlock, SimpleBlockData};
 use gprimitives::H256;
 use std::mem;
 

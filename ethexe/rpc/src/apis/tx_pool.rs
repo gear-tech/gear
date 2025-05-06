@@ -20,8 +20,8 @@
 
 use crate::{errors, RpcEvent};
 use ethexe_common::{
+    ecdsa::Signature,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    Signature,
 };
 use gprimitives::H256;
 use jsonrpsee::{

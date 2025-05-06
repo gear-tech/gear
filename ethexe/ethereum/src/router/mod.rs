@@ -29,8 +29,9 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{
+    ecdsa::ContractSignature,
     gear::{AggregatedPublicKey, BatchCommitment, SignatureType},
-    Address as LocalAddress, ContractSignature,
+    Address as LocalAddress,
 };
 use events::signatures;
 use futures::StreamExt;

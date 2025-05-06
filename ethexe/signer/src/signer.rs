@@ -19,8 +19,8 @@
 use crate::storage::{FSKeyStorage, KeyStorage};
 use anyhow::Result;
 use ethexe_common::{
-    k256::{ecdsa::SigningKey, elliptic_curve::rand_core},
-    Address, ContractSignature, Digest, PrivateKey, PublicKey, Signature, SignedData,
+    ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData},
+    Address, Digest,
 };
 use std::{
     fs,
@@ -100,8 +100,7 @@ impl Signer {
 
     /// Generate a new private key and return a public key for it.
     pub fn generate_key(&self) -> Result<PublicKey> {
-        let private_key: PrivateKey = SigningKey::random(&mut rand_core::OsRng).into();
-
+        let private_key = PrivateKey::random();
         let public_key = self.storage_mut().add_key(private_key)?;
 
         log::debug!(

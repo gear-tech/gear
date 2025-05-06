@@ -18,7 +18,10 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{bail, Context, Result};
-use ethexe_common::{ProducerBlock, PublicKey, SignedData};
+use ethexe_common::{
+    ecdsa::{PublicKey, SignedData},
+    ProducerBlock,
+};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,

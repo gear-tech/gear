@@ -21,7 +21,10 @@ use alloc::string::String;
 use core::str::FromStr;
 use derive_more::{Debug, Display, From, Into};
 use hex::FromHexError;
-use k256::ecdsa::{SigningKey, VerifyingKey};
+use k256::{
+    ecdsa::{SigningKey, VerifyingKey},
+    elliptic_curve::rand_core,
+};
 use parity_scale_codec::{Decode, Encode};
 
 /// Private key.
@@ -51,6 +54,13 @@ impl FromStr for PrivateKey {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         crate::decode_to_array(s).map(Self)
+    }
+}
+
+#[cfg(feature = "std")]
+impl PrivateKey {
+    pub fn random() -> Self {
+        SigningKey::random(&mut rand_core::OsRng).into()
     }
 }
 

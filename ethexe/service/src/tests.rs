@@ -1291,7 +1291,11 @@ mod utils {
     use super::*;
     use crate::Event;
     use alloy::eips::BlockId;
-    use ethexe_common::{db::OnChainStorage, Address, PrivateKey, PublicKey, SimpleBlockData};
+    use ethexe_common::{
+        db::OnChainStorage,
+        ecdsa::{PrivateKey, PublicKey},
+        Address, SimpleBlockData,
+    };
     use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
     use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
     use ethexe_observer::{ObserverEvent, ObserverService};

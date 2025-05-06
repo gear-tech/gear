@@ -662,7 +662,7 @@ impl OnChainStorage for Database {
 mod tests {
     use super::*;
     use ethexe_common::{
-        events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage, PrivateKey,
+        ecdsa::PrivateKey, events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage,
     };
     use gear_core::code::InstantiatedSectionSizes;
 

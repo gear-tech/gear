@@ -26,7 +26,7 @@ pub mod export {
 }
 
 use anyhow::{anyhow, Context};
-use ethexe_common::PublicKey;
+use ethexe_common::ecdsa::PublicKey;
 use ethexe_db::Database;
 use ethexe_signer::Signer;
 use futures::{future::Either, ready, stream::FusedStream, Stream};

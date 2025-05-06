@@ -55,7 +55,10 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
-use ethexe_common::{Address, ProducerBlock, PublicKey, SignedData, SimpleBlockData};
+use ethexe_common::{
+    ecdsa::{PublicKey, SignedData},
+    Address, ProducerBlock, SimpleBlockData,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::BlockSyncedData;

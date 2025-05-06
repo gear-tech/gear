@@ -46,7 +46,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use ethexe_common::{gear::AggregatedPublicKey, Address as LocalAddress, Digest, PublicKey};
+use ethexe_common::{ecdsa::PublicKey, gear::AggregatedPublicKey, Address as LocalAddress, Digest};
 use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{ActorId, U256 as GearU256};
 use mirror::Mirror;

@@ -28,8 +28,9 @@ use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    ecdsa::SignedData,
     gear::CodeCommitment,
-    Address, Digest, SignedData, SimpleBlockData, ToDigest,
+    Address, Digest, SimpleBlockData, ToDigest,
 };
 use gprimitives::H256;
 

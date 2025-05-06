@@ -25,7 +25,7 @@ use crate::{
     ConsensusEvent, ConsensusService,
 };
 use anyhow::Result;
-use ethexe_common::{ProducerBlock, SignedData, SimpleBlockData};
+use ethexe_common::{ecdsa::SignedData, ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;

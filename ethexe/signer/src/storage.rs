@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, bail, Result};
-use ethexe_common::{Address, PrivateKey, PublicKey};
+use ethexe_common::{
+    ecdsa::{PrivateKey, PublicKey},
+    Address,
+};
 use std::{collections::BTreeMap, fmt, fs, path::PathBuf, str::FromStr};
 use tempfile::TempDir;
 
