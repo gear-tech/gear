@@ -234,10 +234,7 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        let signed_pb = self
-            .ctx
-            .signer
-            .create_signed_data(self.ctx.pub_key, pb.clone())?;
+        let signed_pb = self.ctx.signer.signed_data(self.ctx.pub_key, pb.clone())?;
 
         self.state = State::WaitingBlockComputed(self.block.hash);
         self.output(ConsensusEvent::PublishProducerBlock(signed_pb));

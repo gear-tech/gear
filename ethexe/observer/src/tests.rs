@@ -20,7 +20,7 @@ use super::*;
 use alloy::node_bindings::Anvil;
 use ethexe_db::{Database, MemDb};
 use ethexe_ethereum::Ethereum;
-use ethexe_signer::Signer;
+use ethexe_signer::{MemoryKeyStorage, Signer};
 use gprimitives::ActorId;
 use roast_secp256k1_evm::frost::{
     keys::{self, IdentifierList},
@@ -48,9 +48,10 @@ async fn test_deployment() -> Result<()> {
 
     let ethereum_rpc = anvil.ws_endpoint();
 
-    let signer = Signer::tmp();
+    let signer = Signer::empty::<MemoryKeyStorage>();
 
     let sender_public_key = signer
+        .storage_mut()
         .add_key("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?)?;
     let sender_address = sender_public_key.to_address();
     let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];

@@ -175,7 +175,7 @@ impl Router {
             SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
-                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .map(|signature| Bytes::from(signature.into_pre_eip155_bytes()))
                 .collect(),
         );
 
