@@ -26,7 +26,7 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 
-use crate::db_sync::requests::{OngoingRequests, OngoingRequestsEvent};
+use crate::db_sync::requests::OngoingRequests;
 use ethexe_db::{BlockMetaStorage, Database};
 use gprimitives::{ActorId, H256};
 use libp2p::{
@@ -515,27 +515,8 @@ impl NetworkBehaviour for Behaviour {
             return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
-        for event in self.ongoing_requests.poll_next_states(cx, &mut self.inner) {
-            let event = match event {
-                OngoingRequestsEvent::SuccessfulResponse(request_id, response) => {
-                    Event::RequestSucceed {
-                        request_id,
-                        response,
-                    }
-                }
-                OngoingRequestsEvent::FailedResponse(request, error) => {
-                    Event::RequestFailed { request, error }
-                }
-                OngoingRequestsEvent::ExternalValidationRequired(request_id, response, sender) => {
-                    Event::ExternalValidationRequired {
-                        request_id,
-                        response,
-                        sender,
-                    }
-                }
-            };
-            self.pending_events.push_back(event);
-        }
+        let request_events = self.ongoing_requests.poll_next_states(cx, &mut self.inner);
+        self.pending_events.extend(request_events);
 
         if let Poll::Ready((peer_id, response_id)) =
             self.ongoing_responses.poll(cx, &mut self.inner)
