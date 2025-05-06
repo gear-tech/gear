@@ -620,19 +620,18 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
-    use ethexe_signer::Signer;
-    use tempfile::TempDir;
+    use ethexe_signer::{FSKeyStorage, Signer};
     use tokio::time::{timeout, Duration};
 
-    fn new_service_with_db(db: Database) -> (TempDir, NetworkService) {
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let config = NetworkConfig::new_test(tmp_dir.path().to_path_buf());
-        let signer = Signer::fs(tmp_dir.path().join("key"));
+    fn new_service_with_db(db: Database) -> NetworkService {
+        let key_storage = FSKeyStorage::tmp();
+        let config = NetworkConfig::new_test(key_storage.path.clone().join("network"));
+        let signer = Signer::new(key_storage);
         let service = NetworkService::new(config.clone(), &signer, db).unwrap();
-        (tmp_dir, service)
+        service
     }
 
-    fn new_service() -> (TempDir, NetworkService) {
+    fn new_service() -> NetworkService {
         new_service_with_db(Database::from_one(&MemDb::default()))
     }
 
@@ -640,8 +639,8 @@ mod tests {
     async fn test_memory_transport() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
-        let (_tmp_dir, mut service2) = new_service();
+        let mut service1 = new_service();
+        let mut service2 = new_service();
 
         service1.connect(&mut service2).await;
     }
@@ -650,7 +649,7 @@ mod tests {
     async fn request_db_data() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
+        let mut service1 = new_service();
 
         // second service
         let db = Database::from_one(&MemDb::default());
@@ -658,7 +657,7 @@ mod tests {
         let hello = db.write_hash(b"hello");
         let world = db.write_hash(b"world");
 
-        let (_tmp_dir, mut service2) = new_service_with_db(db);
+        let mut service2 = new_service_with_db(db);
 
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
@@ -686,11 +685,11 @@ mod tests {
     async fn peer_blocked_by_score() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
+        let mut service1 = new_service();
         let peer_score_handle = service1.score_handle();
 
         // second service
-        let (_tmp_dir, mut service2) = new_service();
+        let mut service2 = new_service();
         let service2_peer_id = service2.local_peer_id();
 
         service1.connect(&mut service2).await;
