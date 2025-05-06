@@ -29,6 +29,8 @@ pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
 pub const SIGNING_THRESHOLD_PERCENTAGE: u16 = 6666;
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
 
+pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
     pub x: U256,
