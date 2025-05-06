@@ -627,8 +627,7 @@ mod tests {
         let key_storage = FSKeyStorage::tmp();
         let config = NetworkConfig::new_test(key_storage.path.clone().join("network"));
         let signer = Signer::new(key_storage);
-        let service = NetworkService::new(config.clone(), &signer, db).unwrap();
-        service
+        NetworkService::new(config.clone(), &signer, db).unwrap()
     }
 
     fn new_service() -> NetworkService {
