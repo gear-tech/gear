@@ -16,12 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Provider;
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
     eips::eip4844::kzg_to_versioned_hash,
-    providers::{Provider as _, ProviderBuilder},
-    rpc::types::{beacon::sidecar::BeaconBlobBundle, eth::BlockTransactionsKind},
+    providers::{Provider as _, ProviderBuilder, RootProvider},
+    rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -40,11 +39,18 @@ use tokio::{
 #[async_trait]
 pub trait BlobReader: Send + Sync {
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>>;
+    fn clone_boxed(&self) -> Box<dyn BlobReader>;
+}
+
+impl Clone for Box<dyn BlobReader> {
+    fn clone(&self) -> Self {
+        self.clone_boxed()
+    }
 }
 
 #[derive(Clone)]
 pub struct ConsensusLayerBlobReader {
-    provider: Provider,
+    provider: RootProvider,
     http_client: Client,
     ethereum_beacon_rpc: String,
     beacon_block_time: Duration,
@@ -57,7 +63,7 @@ impl ConsensusLayerBlobReader {
         beacon_block_time: Duration,
     ) -> Result<Self> {
         Ok(Self {
-            provider: ProviderBuilder::new().on_builtin(ethereum_rpc).await?,
+            provider: ProviderBuilder::default().connect(ethereum_rpc).await?,
             http_client: Client::new(),
             ethereum_beacon_rpc: ethereum_beacon_rpc.into(),
             beacon_block_time,
@@ -79,6 +85,10 @@ impl ConsensusLayerBlobReader {
 
 #[async_trait]
 impl BlobReader for ConsensusLayerBlobReader {
+    fn clone_boxed(&self) -> Box<dyn BlobReader> {
+        Box::new(self.clone())
+    }
+
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
         const BEACON_GENESIS_BLOCK_TIME: u64 = 1695902400;
@@ -97,7 +107,7 @@ impl BlobReader for ConsensusLayerBlobReader {
             .ok_or_else(|| anyhow!("failed to get block hash"))?;
         let block = self
             .provider
-            .get_block_by_hash(block_hash, BlockTransactionsKind::Hashes)
+            .get_block_by_hash(block_hash)
             .await?
             .ok_or_else(|| anyhow!("failed to get block"))?;
         let slot =
@@ -106,7 +116,7 @@ impl BlobReader for ConsensusLayerBlobReader {
             Some(attempts) => {
                 let mut count = 0;
                 loop {
-                    log::debug!("trying to get blob, attempt #{}", count + 1);
+                    log::trace!("trying to get blob, attempt #{}", count + 1);
                     let blob_bundle_result = self.read_blob_bundle(slot).await;
                     if blob_bundle_result.is_ok() || count >= attempts {
                         break blob_bundle_result;
@@ -141,14 +151,12 @@ impl BlobReader for ConsensusLayerBlobReader {
 #[derive(Clone)]
 pub struct MockBlobReader {
     transactions: Arc<RwLock<HashMap<H256, Vec<u8>>>>,
-    block_time: Duration,
 }
 
 impl MockBlobReader {
-    pub fn new(block_time: Duration) -> Self {
+    pub fn new() -> Self {
         Self {
             transactions: Arc::new(RwLock::new(HashMap::new())),
-            block_time,
         }
     }
 
@@ -157,19 +165,28 @@ impl MockBlobReader {
     }
 }
 
+impl Default for MockBlobReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl BlobReader for MockBlobReader {
+    fn clone_boxed(&self) -> Box<dyn BlobReader> {
+        Box::new(self.clone())
+    }
+
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         let maybe_blob_data = match attempts {
             Some(attempts) => {
                 let mut count = 0;
                 loop {
-                    log::debug!("trying to get blob, attempt #{}", count + 1);
+                    log::trace!("trying to get blob, attempt #{}", count + 1);
                     let maybe_blob_data = self.transactions.read().await.get(&tx_hash).cloned();
                     if maybe_blob_data.is_some() || count >= attempts {
                         break maybe_blob_data;
                     } else {
-                        time::sleep(self.block_time).await;
                         count += 1;
                     }
                 }

@@ -17,13 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `upload`
+
 use crate::common::{
     self, env,
     node::{Convert, NodeExec},
     Args, Result,
 };
+use demo_fungible_token::InitConfig;
 use gear_core::ids::{prelude::*, CodeId};
 use gsdk::Api;
+use scale_info::scale::Encode;
 
 #[tokio::test]
 async fn test_command_upload_works() -> Result<()> {
@@ -31,20 +34,26 @@ async fn test_command_upload_works() -> Result<()> {
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice", None)?;
-    let code_id = CodeId::generate(demo_new_meta::WASM_BINARY);
+    let code_id = CodeId::generate(demo_fungible_token::WASM_BINARY);
     assert!(
         signer.api().code_storage(code_id).await.is_err(),
         "code should not exist"
     );
 
-    let output = node.run(Args::new("upload").program(env::wasm_bin("demo_new_meta.opt.wasm")))?;
+    let payload = hex::encode(InitConfig::test_sequence().encode());
+
+    let output = node.run(
+        Args::new("upload")
+            .program(env::wasm_bin("demo_fungible_token.opt.wasm"))
+            .payload(payload),
+    )?;
     assert!(
         output
-            .stderr
+            .stdout
             .convert()
             .contains("Submitted Gear::upload_program"),
-        "code should be uploaded, but got: {:?}",
-        output.stderr
+        "code should be uploaded, but got: {}",
+        output.stderr.convert()
     );
     assert!(
         signer.api().code_storage(code_id).await.is_ok(),
@@ -60,14 +69,16 @@ async fn test_command_upload_code_works() -> Result<()> {
     let output = node.run(
         Args::new("upload")
             .flag("--code-only")
-            .program(env::wasm_bin("demo_new_meta.opt.wasm")),
+            .program(env::wasm_bin("demo_fungible_token.opt.wasm")),
     )?;
 
-    let stderr = output.stderr.convert();
-
     assert!(
-        stderr.contains("Submitted Gear::upload_code"),
-        "code should be uploaded, but got: {stderr:?}",
+        output
+            .stdout
+            .convert()
+            .contains("Submitted Gear::upload_code"),
+        "code should be uploaded, but got: {}",
+        output.stderr.convert()
     );
     Ok(())
 }

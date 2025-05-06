@@ -19,10 +19,13 @@
 use anyhow::{anyhow, Result};
 use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
+    TransactionPoolApi, TransactionPoolServer,
 };
+use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
 use ethexe_observer::MockBlobReader;
 use futures::{stream::FusedStream, FutureExt, Stream};
+use gprimitives::H256;
 use jsonrpsee::{
     server::{
         serve_with_graceful_shutdown, stop_channel, Server, ServerHandle, StopHandle,
@@ -31,15 +34,13 @@ use jsonrpsee::{
     Methods, RpcModule as JsonrpcModule,
 };
 use std::{
-    mem,
     net::SocketAddr,
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
 };
 use tokio::{
     net::TcpListener,
-    sync::mpsc::{self, UnboundedReceiver},
+    sync::{mpsc, oneshot},
 };
 use tower::Service;
 
@@ -47,6 +48,8 @@ mod apis;
 mod common;
 mod errors;
 
+#[cfg(feature = "test-utils")]
+pub mod test_utils;
 pub(crate) mod util;
 
 #[derive(Clone)]
@@ -70,11 +73,11 @@ pub struct RpcConfig {
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    blob_reader: Option<Arc<MockBlobReader>>,
+    blob_reader: Option<MockBlobReader>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<Arc<MockBlobReader>>) -> Self {
+    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<MockBlobReader>) -> Self {
         Self {
             config,
             db,
@@ -88,9 +91,6 @@ impl RpcService {
 
     pub async fn run_server(self) -> Result<(ServerHandle, RpcReceiver)> {
         let (rpc_sender, rpc_receiver) = mpsc::unbounded_channel();
-
-        // TODO: Temporary solution, will be changed with introducing tx pool.
-        mem::forget(rpc_sender);
 
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
@@ -106,6 +106,9 @@ impl RpcService {
         module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
+        module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
+            rpc_sender,
+        )))?;
 
         if self.config.dev {
             module.merge(DevServer::into_rpc(DevApi::new(
@@ -184,7 +187,7 @@ impl RpcService {
     }
 }
 
-pub struct RpcReceiver(UnboundedReceiver<RpcEvent>);
+pub struct RpcReceiver(mpsc::UnboundedReceiver<RpcEvent>);
 
 impl Stream for RpcReceiver {
     type Item = RpcEvent;
@@ -201,4 +204,29 @@ impl FusedStream for RpcReceiver {
 }
 
 #[derive(Debug)]
-pub enum RpcEvent {}
+pub enum RpcEvent {
+    OffchainTransaction {
+        transaction: SignedOffchainTransaction,
+        response_sender: Option<oneshot::Sender<Result<H256>>>,
+    },
+}
+
+/// `Clone` impl is a mechanical (blanket) implementation.
+/// That is done for a future compatibility with centralized
+/// events broadcasting system, which requires events to be clonable.
+///
+///
+/// The response sender of `oneshot::Sender` type can't be cloned, so `Option`
+/// wraps the type and the field will be set to `None` in case the event is cloned.
+///
+/// The event receiver expects response sender to be `Some` and will panic otherwise.  
+impl Clone for RpcEvent {
+    fn clone(&self) -> Self {
+        match self {
+            Self::OffchainTransaction { transaction, .. } => Self::OffchainTransaction {
+                transaction: transaction.clone(),
+                response_sender: None,
+            },
+        }
+    }
+}

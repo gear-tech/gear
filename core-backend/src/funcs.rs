@@ -32,10 +32,7 @@ use crate::{
     state::HostState,
     BackendExternalities,
 };
-use alloc::{
-    format,
-    string::{String, ToString},
-};
+use alloc::{format, string::String};
 use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::marker::PhantomData;
 use gear_core::{
@@ -52,7 +49,7 @@ use gear_core::{
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{AsContextExt, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
-use gear_wasm_instrument::SystemBreakCode;
+use gear_wasm_instrument::{SyscallName, SystemBreakCode};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithGas, ErrorWithHandle, ErrorWithHash,
     ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash, HashWithValue,
@@ -148,6 +145,7 @@ pub(crate) trait Syscall<Caller, T = ()> {
         self,
         caller: &mut CallerWrap<Caller>,
         ctx: Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError>;
 }
 
@@ -224,9 +222,11 @@ impl<F> RawSyscall<F> {
     }
 }
 
-impl<T, F, Caller> Syscall<Caller, T> for RawSyscall<F>
+impl<T, F, Caller, Ext> Syscall<Caller, T> for RawSyscall<F>
 where
     F: FnOnce(&mut CallerWrap<Caller>) -> Result<(Gas, T), HostError>,
+    Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
+    Ext: BackendExternalities + 'static,
 {
     type Context = ();
 
@@ -234,7 +234,10 @@ where
         self,
         caller: &mut CallerWrap<Caller>,
         (): Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
+        caller.check_func_forbiddenness(syscall_name)?;
+
         (self.0)(caller)
     }
 }
@@ -285,9 +288,11 @@ where
         self,
         caller: &mut CallerWrap<Caller>,
         context: Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, ()), HostError> {
         let Self { token, f, .. } = self;
         let FallibleSyscallContext { gas, res_ptr } = context;
+        caller.check_func_forbiddenness(syscall_name)?;
         caller.run_fallible::<T, _, E>(gas, res_ptr, token, f)
     }
 }
@@ -329,9 +334,11 @@ where
         self,
         caller: &mut CallerWrap<Caller>,
         ctx: Self::Context,
+        syscall_name: SyscallName,
     ) -> Result<(Gas, T), HostError> {
         let Self { token, f } = self;
         let InfallibleSyscallContext { gas } = ctx;
+        caller.check_func_forbiddenness(syscall_name)?;
         caller.run_any::<T, _>(gas, token, f)
     }
 }
@@ -352,6 +359,7 @@ where
         caller: &mut Caller,
         args: &[Value],
         builder: Builder,
+        syscall_name: SyscallName,
     ) -> Result<WasmReturnValue, HostError>
     where
         Builder: SyscallBuilder<Caller, Args, Res, Call>,
@@ -365,7 +373,7 @@ where
 
         let (ctx, args) = Call::Context::from_args(args)?;
         let syscall = builder.build(args)?;
-        let (gas, value) = syscall.execute(&mut caller, ctx)?;
+        let (gas, value) = syscall.execute(&mut caller, ctx, syscall_name)?;
         let value = value.into();
 
         Ok(WasmReturnValue {
@@ -391,14 +399,30 @@ where
         }
     }
 
+    fn read_payload(
+        ctx: &mut CallerWrap<Caller>,
+        io: &MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>,
+        read_payload: WasmMemoryRead,
+    ) -> Result<Option<Payload>, MemoryAccessError> {
+        if read_payload.size() as usize > Payload::MAX_LEN {
+            return Ok(None);
+        }
+
+        let payload = io.read(ctx, read_payload)?;
+        let payload: Payload = payload
+            .try_into()
+            .unwrap_or_else(|PayloadSizeError| unreachable!("length is checked above"));
+
+        Ok(Some(payload))
+    }
+
     fn read_message_payload(
         ctx: &mut CallerWrap<Caller>,
         io: &MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>,
         read_payload: WasmMemoryRead,
     ) -> Result<Payload, RunFallibleError> {
-        io.read(ctx, read_payload)?
-            .try_into()
-            .map_err(|PayloadSizeError| MessageError::MaxMessageSizeExceed.into())
+        Self::read_payload(ctx, io, read_payload)?
+            .ok_or_else(|| MessageError::MaxMessageSizeExceed.into())
             .map_err(RunFallibleError::FallibleExt)
     }
 
@@ -1097,13 +1121,13 @@ where
     pub fn panic(data_ptr: u32, data_len: u32) -> impl Syscall<Caller> {
         InfallibleSyscall::new(CostToken::Null, move |ctx: &mut CallerWrap<Caller>| {
             let mut registry = MemoryAccessRegistry::default();
-            let read_data = registry.register_read(data_ptr, data_len);
+            let read_payload = registry.register_read(data_ptr, data_len);
             let io = registry.pre_process(ctx)?;
-            let data = io.read(ctx, read_data).unwrap_or_default();
+            let data = Self::read_payload(ctx, &io, read_payload)?
+                .ok_or_else(|| UnrecoverableExecutionError::PanicBufferIsTooBig.into())
+                .map_err(TrapExplanation::UnrecoverableExt)?;
 
-            let s = String::from_utf8_lossy(&data).to_string();
-
-            Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
+            Err(ActorTerminationReason::Trap(TrapExplanation::Panic(data.into())).into())
         })
     }
 
@@ -1376,12 +1400,6 @@ where
                 )
             },
         )
-    }
-
-    pub fn forbidden(_args: &[Value]) -> impl Syscall<Caller> + use<Caller, Ext> {
-        InfallibleSyscall::new(CostToken::Null, |_: &mut CallerWrap<Caller>| {
-            Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into())
-        })
     }
 
     fn out_of_gas(ctx: &mut CallerWrap<Caller>) -> UndefinedTerminationReason {

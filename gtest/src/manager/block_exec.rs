@@ -66,6 +66,14 @@ impl ExtManager {
         let gas_limit = dispatch
             .gas_limit()
             .unwrap_or_else(|| unreachable!("message from program API always has gas"));
+
+        if gas_limit > MAX_USER_GAS_LIMIT {
+            usage_panic!(
+                "User message gas limit ({gas_limit}) is greater than \
+                maximum allowed ({MAX_USER_GAS_LIMIT})."
+            );
+        };
+
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas_limit);
 
         // Check sender has enough balance to cover dispatch costs
@@ -298,6 +306,7 @@ impl ExtManager {
             }
         };
 
+        #[allow(clippy::large_enum_variant)]
         enum Exec {
             Notes(Vec<JournalNote>),
             ExecutableActor(
@@ -311,10 +320,28 @@ impl ExtManager {
 
             let actor = actor.unwrap_or_else(|| unreachable!("actor must exist for queue message"));
 
-            if actor.is_dormant() {
-                log::debug!("Message {dispatch_id} is sent to non-active program {destination_id}");
-                return Exec::Notes(core_processor::process_non_executable(context));
-            };
+            match actor {
+                Initialized(_) => {}
+                Uninitialized(_, _) => { /* uninit case is checked further */ }
+                FailedInit => {
+                    log::debug!(
+                        "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
+                    );
+                    return Exec::Notes(core_processor::process_failed_init(context));
+                }
+                CodeNotExists => {
+                    log::debug!(
+                        "Message {dispatch_id} is sent to program {destination_id} which code does not exist"
+                    );
+                    return Exec::Notes(core_processor::process_code_not_exists(context));
+                }
+                Exited(inheritor) => {
+                    log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
+                    return Exec::Notes(core_processor::process_program_exited(
+                        context, *inheritor,
+                    ));
+                }
+            }
 
             if actor.is_initialized() && dispatch_kind.is_init() {
                 // Panic is impossible, because gear protocol does not provide functionality
@@ -353,7 +380,7 @@ impl ExtManager {
                     unreachable!("{err_msg}");
                 }
 
-                return Exec::Notes(core_processor::process_non_executable(context));
+                return Exec::Notes(core_processor::process_uninitialized(context));
             }
 
             if let Some(data) = actor.get_executable_actor_data() {
@@ -515,7 +542,7 @@ impl ExtManager {
                 mock.debug(expl);
 
                 let err_reply_reason = ActorExecutionErrorReplyReason::Trap(
-                    TrapExplanation::Panic(LimitedStr::from_small_str(expl)),
+                    TrapExplanation::Panic(LimitedStr::from_small_str(expl).into()),
                 );
                 core_processor::process_execution_error(
                     dispatch,

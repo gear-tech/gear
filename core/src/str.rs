@@ -80,11 +80,16 @@ impl<'a> LimitedStr<'a> {
     pub fn into_bytes(self) -> Vec<u8> {
         self.0.as_bytes().to_vec()
     }
+    
+    /// Return inner value.
+    pub fn into_inner(self) -> Cow<'a, str> {
+        self.0
+    }
 }
 
 /// The error type returned when a conversion from `&str` to [`LimitedStr`] fails.
 #[derive(Clone, Debug, derive_more::Display)]
-#[display(fmt = "String must be less than {} bytes.", TRIMMED_MAX_LEN)]
+#[display("String must be less than {TRIMMED_MAX_LEN} bytes")]
 pub struct LimitedStrTryFromError;
 
 impl<'a> TryFrom<&'a str> for LimitedStr<'a> {

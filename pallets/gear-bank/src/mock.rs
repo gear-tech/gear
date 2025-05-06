@@ -26,8 +26,8 @@ use frame_support::{
 use primitive_types::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
-    traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
-    BuildStorage, Perbill,
+    traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage, Percent,
 };
 
 pub type AccountId = u8;
@@ -48,26 +48,25 @@ mod consts {
 
     pub const BLOCK_AUTHOR: AccountId = 255;
 
-    pub const BANK_ADDRESS: AccountId = 137;
-
     pub const CHARLIE: AccountId = 3;
     pub const EVE: AccountId = 4;
 
+    pub const TREASURY: AccountId = 77;
+
     pub const EXISTENTIAL_DEPOSIT: Balance = 100_000;
 
-    pub const VALUE_PER_GAS: Balance = 6;
+    pub const VALUE_PER_GAS: Balance = 100;
 }
 
 pub use consts::*;
 
 parameter_types! {
-    pub const BankAddress: AccountId = BANK_ADDRESS;
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
-    // TODO: Issue #4058
-    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = Some((Perbill::from_percent(50), PalletId(*b"py/trsry").into_account_truncating()));
-    pub SplitTxFeeRatio: Option<u32> = None;
+    pub const TreasuryAddress: AccountId = TREASURY;
+    pub const TreasuryGasFeeShare: Percent = Percent::from_percent(50);
 }
 
 construct_runtime!(
@@ -83,7 +82,11 @@ construct_runtime!(
 common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_balances!(Test);
-pallet_gear_bank::impl_config!(Test);
+pallet_gear_bank::impl_config!(
+    Test,
+    TreasuryAddress = TreasuryAddress,
+    TreasuryGasFeeShare = TreasuryGasFeeShare
+);
 
 pub fn new_test_ext() -> TestExternalities {
     let mut storage = frame_system::GenesisConfig::<Test>::default()
@@ -93,15 +96,22 @@ pub fn new_test_ext() -> TestExternalities {
     let balances = vec![
         (ALICE, ALICE_BALANCE),
         (BOB, BOB_BALANCE),
-        (BANK_ADDRESS, EXISTENTIAL_DEPOSIT),
+        (GearBank::bank_address(), EXISTENTIAL_DEPOSIT),
         (BLOCK_AUTHOR, EXISTENTIAL_DEPOSIT),
         (CHARLIE, EXISTENTIAL_DEPOSIT),
         (EVE, EXISTENTIAL_DEPOSIT),
+        (TREASURY, EXISTENTIAL_DEPOSIT),
     ];
 
     pallet_balances::GenesisConfig::<Test> { balances }
         .assimilate_storage(&mut storage)
         .unwrap();
+
+    pallet_gear_bank::GenesisConfig::<Test> {
+        _config: Default::default(),
+    }
+    .assimilate_storage(&mut storage)
+    .unwrap();
 
     let mut ext = TestExternalities::new(storage);
     ext.execute_with(|| System::set_block_number(1));

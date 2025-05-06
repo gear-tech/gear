@@ -23,6 +23,8 @@
 
 extern crate alloc;
 
+pub mod migrations;
+
 #[cfg(test)]
 mod mock;
 
@@ -33,22 +35,63 @@ use alloc::format;
 
 pub use pallet::*;
 
-use frame_support::traits::{
-    fungible,
-    tokens::{Fortitude, Preservation, Provenance},
-    Currency, StorageVersion,
+use frame_support::{
+    pallet_prelude::BuildGenesisConfig,
+    traits::{
+        fungible,
+        tokens::{Fortitude, Preservation, Provenance},
+        Currency, StorageVersion,
+    },
+    PalletId,
 };
 
 #[macro_export]
 macro_rules! impl_config {
-    ($runtime:ty) => {
+    ($( $tokens:tt )*) => {
+        #[allow(dead_code)]
+        type GearBankConfigTreasuryAddress = ();
+        #[allow(dead_code)]
+        type GearBankConfigTreasuryGasFeeShare = ();
+        #[allow(dead_code)]
+        type GearBankConfigTreasuryTxFeeShare = ();
+
+        mod pallet_tests_gear_bank_config_impl {
+            use super::*;
+
+            $crate::impl_config_inner!($( $tokens )*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_config_inner {
+    ($runtime:ty$(,)?) => {
         impl pallet_gear_bank::Config for $runtime {
             type Currency = Balances;
-            type BankAddress = BankAddress;
+            type PalletId = BankPalletId;
             type GasMultiplier = GasMultiplier;
-            type SplitGasFeeRatio = SplitGasFeeRatio;
-            type SplitTxFeeRatio = SplitTxFeeRatio;
+            type TreasuryAddress = GearBankConfigTreasuryAddress;
+            type TreasuryGasFeeShare = GearBankConfigTreasuryGasFeeShare;
+            type TreasuryTxFeeShare = GearBankConfigTreasuryTxFeeShare;
         }
+    };
+
+    ($runtime:ty, TreasuryAddress = $treasury_address:ty $(, $( $rest:tt )*)?) => {
+        type GearBankConfigTreasuryAddress = $treasury_address;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, TreasuryGasFeeShare = $treasury_gas_fee_share:ty $(, $( $rest:tt )*)?) => {
+        type GearBankConfigTreasuryGasFeeShare = $treasury_gas_fee_share;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, TreasuryTxFeeShare = $treasury_tx_fee_share:ty $(, $( $rest:tt )*)?) => {
+        type GearBankConfigTreasuryTxFeeShare = $treasury_tx_fee_share;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
 }
 
@@ -59,16 +102,16 @@ pub(crate) type GasMultiplier<T> = common::GasMultiplier<BalanceOf<T>, u64>;
 pub(crate) type GasMultiplierOf<T> = <T as Config>::GasMultiplier;
 
 /// The current storage version.
-pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use core::ops::Add;
+    use core::{marker::PhantomData, ops::Add};
     use frame_support::{
         ensure,
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
-        sp_runtime::Saturating,
+        sp_runtime::{traits::AccountIdConversion, Saturating},
         traits::{
             tokens::DepositConsequence, ExistenceRequirement, Get, Hooks, LockableCurrency,
             ReservableCurrency,
@@ -80,7 +123,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::{traits::Zero, Perbill};
+    use sp_runtime::{traits::Zero, Percent};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -95,18 +138,23 @@ pub mod pallet {
             + LockableCurrency<AccountIdOf<Self>>
             + fungible::Unbalanced<AccountIdOf<Self>, Balance = BalanceOf<Self>>;
 
+        /// The gear bank's pallet id, used for deriving its sovereign account ID.
         #[pallet::constant]
-        /// Bank account address, that will keep all reserved funds.
-        type BankAddress: Get<AccountIdOf<Self>>;
+        type PalletId: Get<PalletId>;
 
-        #[pallet::constant]
         /// Gas price converter.
+        #[pallet::constant]
         type GasMultiplier: Get<GasMultiplier<Self>>;
 
-        type SplitGasFeeRatio: Get<Option<(Perbill, AccountIdOf<Self>)>>;
+        // TODO: consider making treasury related constant as storage items to support onchain updates #4058.
+        #[pallet::constant]
+        type TreasuryAddress: Get<AccountIdOf<Self>>;
 
-        /// The ratio of how much of the tx fees goes to the treasury
-        type SplitTxFeeRatio: Get<Option<u32>>;
+        #[pallet::constant]
+        type TreasuryGasFeeShare: Get<Percent>;
+
+        #[pallet::constant]
+        type TreasuryTxFeeShare: Get<Percent>;
     }
 
     // Funds pallets error.
@@ -186,6 +234,18 @@ pub mod pallet {
     #[pallet::storage]
     type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
 
+    /// The default account ID of the Gear Bank.
+    pub struct DefaultBankAddress<T: Config>(PhantomData<T>);
+    impl<T: Config> Get<AccountIdOf<T>> for DefaultBankAddress<T> {
+        fn get() -> AccountIdOf<T> {
+            Pallet::<T>::bank_address()
+        }
+    }
+
+    // Private storage to hold the GearBank's AccountId.
+    #[pallet::storage]
+    pub type BankAddress<T> = StorageValue<_, AccountIdOf<T>, ValueQuery, DefaultBankAddress<T>>;
+
     // Private storage that keeps amount of value that wasn't sent because owner is inexistent account.
     #[pallet::storage]
     pub type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
@@ -197,6 +257,21 @@ pub mod pallet {
     // Private storage that represents sum of values in OnFinalizeTransfers.
     #[pallet::storage]
     pub(crate) type OnFinalizeValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
+    pub struct GenesisConfig<T: Config> {
+        #[serde(skip)]
+        pub _config: PhantomData<T>,
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            // Ensure the bank address is present in storage from the start.
+            BankAddress::<T>::put(<Pallet<T>>::bank_address());
+        }
+    }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -225,28 +300,8 @@ pub mod pallet {
             while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
                 total = total.saturating_add(value);
 
-                if let Some((gas_split, split_dest)) = T::SplitGasFeeRatio::get() {
-                    // split value by `SplitGasFeeRatio`.
-                    let to_split = gas_split.mul_floor(value);
-                    let to_user = value - to_split;
-
-                    // Withdraw value to user.
-                    if let Err(e) = Self::withdraw(&account_id, to_user) {
-                        log::error!(
-                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                        );
-                    }
-
-                    // Withdraw value to `SplitGasFeeRatio` destination.
-                    if let Err(e) = Self::withdraw(&split_dest, to_split) {
-                        log::error!(
-                            "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                        );
-                    }
-                } else {
-                    let _ = Self::withdraw(&account_id, value).map_err(|e| log::error!(
-                                "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
-                            ));
+                if let Err(e) = Self::withdraw(&account_id, value) {
+                    log::error!("Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}");
                 }
             }
 
@@ -260,13 +315,21 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        /// The account ID of the Gear Bank.
+        ///
+        /// This does some computation. Since GearBank account ID is used often,
+        /// the value should better be cached in the pallet storage.
+        pub fn bank_address() -> T::AccountId {
+            T::PalletId::get().into_account_truncating()
+        }
+
         /// Transfers value from `account_id` to bank address.
         fn deposit(
             account_id: &AccountIdOf<T>,
             value: BalanceOf<T>,
             keep_alive: bool,
         ) -> Result<(), Error<T>> {
-            let bank_address = T::BankAddress::get();
+            let bank_address = BankAddress::<T>::get();
 
             match <CurrencyOf<T> as fungible::Inspect<_>>::can_deposit(
                 &bank_address,
@@ -298,7 +361,7 @@ pub mod pallet {
         /// Ensures that bank account is able to transfer requested value.
         fn ensure_bank_can_transfer(value: BalanceOf<T>) -> Result<(), Error<T>> {
             let available_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
-                &T::BankAddress::get(),
+                &BankAddress::<T>::get(),
                 Preservation::Expendable,
                 Fortitude::Polite,
             )
@@ -335,7 +398,7 @@ pub mod pallet {
 
             // Check on zero value is inside `pallet_balances` implementation.
             CurrencyOf::<T>::transfer(
-                &T::BankAddress::get(),
+                &BankAddress::<T>::get(),
                 account_id,
                 value,
                 // We always require bank account to be alive.
@@ -479,13 +542,32 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
+            let treasury = T::TreasuryAddress::get();
+            let treasury_share = T::TreasuryGasFeeShare::get() * value;
+
+            Self::withdraw_on_finalize(&treasury, treasury_share).unwrap_or_else(|e| {
+                let treasury_balance = Self::reducible_balance(&treasury);
+                let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
+
+                let err_msg = format!(
+                    "pallet_gear_bank::spend_gas_to: withdraw to TREASURY on finalize failed. \
+                    Spending gas from - {account_id:?}, value - {treasury_share:?}, TREASURY reducible balance {treasury_balance:?} \
+                    bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
+                    Got error - {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            });
+
+            let value = value - treasury_share;
             Self::withdraw_on_finalize(to, value).unwrap_or_else(|e| {
                 let to_balance = Self::reducible_balance(to);
                 let (bank_balance, unused_value, on_finalize_value) = Self::bank_balance_full_data();
 
                 let err_msg = format!(
                     "pallet_gear_bank::spend_gas_to: withdraw on finalize failed. \
-                    Spending gas from - {account_id:?}, to - {to:?}, amount - {amount}, receiver reducible balance {to_balance:?} \
+                    Spending gas from - {account_id:?}, to - {to:?}, value - {value:?}, receiver reducible balance {to_balance:?} \
                     bank reducible balance - {bank_balance:?}, unused value - {unused_value:?}, on finalize value - {on_finalize_value:?}. \
                     Got error - {e:?}"
                 );
@@ -638,7 +720,7 @@ pub mod pallet {
 
         fn bank_balance_full_data() -> (BalanceOf<T>, BalanceOf<T>, BalanceOf<T>) {
             (
-                Self::reducible_balance(&T::BankAddress::get()),
+                Self::reducible_balance(&BankAddress::<T>::get()),
                 UnusedValue::<T>::get(),
                 OnFinalizeValue::<T>::get(),
             )

@@ -36,7 +36,6 @@ use wasmparser::{FuncType, TypeRef, ValType};
 
 #[derive(Debug, derive_more::From)]
 pub enum GasMeteringError {
-    #[from]
     Counter(CounterError),
     LocalsInitCost,
     NoActiveControlBlock,
@@ -51,8 +50,8 @@ pub enum GasMeteringError {
 pub trait Rules {
     /// Returns the cost for the passed `instruction`.
     ///
-    /// Returning `None` makes the gas instrumention end with an error. This is meant
-    /// as a way to have a partial rule set where any instruction that is not specifed
+    /// Returning `None` makes the gas instrumentation end with an error. This is meant
+    /// as a way to have a partial rule set where any instruction that is not specified
     /// is considered as forbidden.
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32>;
 
@@ -103,7 +102,7 @@ impl MemoryGrowCost {
 /// # Note
 ///
 /// In a production environment it usually makes no sense to assign every instruction
-/// the same cost. A proper implemention of [`Rules`] should be prived that is probably
+/// the same cost. A proper implementation of [`Rules`] should be prived that is probably
 /// created by benchmarking.
 pub struct ConstantCostRules {
     instruction_cost: u32,

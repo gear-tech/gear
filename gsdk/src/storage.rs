@@ -212,6 +212,19 @@ impl Api {
 
         self.fetch_storage_at(&addr, block_hash).await
     }
+
+    /// Get Gear bank's sovereign account id.
+    pub async fn bank_address(&self) -> Result<AccountId32> {
+        let addr = Self::storage_root(GearBankStorage::BankAddress);
+        let thunk = self
+            .get_storage(None)
+            .await?
+            .fetch(&addr)
+            .await?
+            .ok_or(Error::StorageNotFound)?
+            .into_encoded();
+        Ok(AccountId32::decode(&mut thunk.as_ref())?)
+    }
 }
 
 // pallet-gear
@@ -293,16 +306,7 @@ impl Api {
         program_id: ProgramId,
         block_hash: Option<H256>,
     ) -> Result<ActiveProgram<BlockNumber>> {
-        let addr = Self::storage(
-            GearProgramStorage::ProgramStorage,
-            vec![Value::from_bytes(program_id)],
-        );
-
-        let program = self
-            .fetch_storage_at::<_, Program<BlockNumber>>(&addr, block_hash)
-            .await?;
-
-        match program {
+        match self.program_at(program_id, block_hash).await? {
             Program::Active(p) => Ok(p),
             _ => Err(Error::ProgramTerminated),
         }
@@ -346,6 +350,19 @@ impl Api {
         Ok(pages)
     }
 
+    /// Get inheritor address by program id at specified block.
+    #[storage_fetch]
+    pub async fn inheritor_of_at(
+        &self,
+        program_id: ProgramId,
+        block_hash: Option<H256>,
+    ) -> Result<Option<ProgramId>> {
+        Ok(match self.program_at(program_id, block_hash).await? {
+            Program::Exited(p) => Some(p.into()),
+            _ => None,
+        })
+    }
+
     /// Get pages of active program at specified block.
     #[storage_fetch]
     pub async fn specified_gpages_at(
@@ -385,6 +402,22 @@ impl Api {
         }
 
         Ok(pages)
+    }
+
+    /// Get program by its id at specified block.
+    #[storage_fetch]
+    pub async fn program_at(
+        &self,
+        program_id: ProgramId,
+        block_hash: Option<H256>,
+    ) -> Result<Program<BlockNumber>> {
+        let addr = Self::storage(
+            GearProgramStorage::ProgramStorage,
+            vec![Value::from_bytes(program_id)],
+        );
+
+        self.fetch_storage_at::<_, Program<BlockNumber>>(&addr, block_hash)
+            .await
     }
 }
 

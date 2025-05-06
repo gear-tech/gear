@@ -18,47 +18,20 @@
 
 //! Integration tests for command `send`
 
-use crate::common::{
-    self, node::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS, RENT_POOL_SS58_ADDRESS,
-};
+use crate::common::{self, node::NodeExec, Args, Result, TREASURY_SS58_ADDRESS};
 use gsdk::Api;
 
-const REWARD_PER_BLOCK: u128 = 18_000; // 3_000 gas * 6 value per gas
-const ED: u128 = 1_000_000_000_000; // 1 unit of value
+const REWARD_PER_BLOCK: u128 = 300_000; // 3_000 gas * 100 value per gas
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {
-    // hack to check initial alice balance
-    let (mut initial_balance, initial_stash, rent_pool_initial) = {
-        let node = common::dev()?;
-
-        // Get balance of the testing address
-        let signer = Api::new(node.ws().as_str())
-            .await?
-            .signer("//Alice//stash", None)?;
-        (
-            signer.api().get_balance(ADDRESS).await.unwrap_or(0),
-            signer
-                .api()
-                .get_balance(&signer.address())
-                .await
-                .unwrap_or(0),
-            signer
-                .api()
-                .get_balance(RENT_POOL_SS58_ADDRESS)
-                .await
-                .unwrap_or(0),
-        )
-    };
-
-    // This will entail the ED payment to create program's account
     let node = common::create_messager().await?;
-    initial_balance -= ED;
 
     // Check the mailbox of the testing account
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice//stash", None)?;
+
     let mailbox = signer
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
@@ -67,25 +40,39 @@ async fn test_command_claim_works() -> Result<()> {
     assert_eq!(mailbox.len(), 1, "Mailbox should have 1 message");
     let id = hex::encode(mailbox[0].0.id.0);
 
-    let burned_before = signer.api().get_balance(&signer.address()).await? - initial_stash;
-    let before = signer.api().get_balance(ADDRESS).await?;
+    let treasury_before = signer
+        .api()
+        .get_balance(TREASURY_SS58_ADDRESS)
+        .await
+        .unwrap_or(0);
 
     // Claim value from message id
     let _ = node.run(Args::new("claim").message_id(id))?;
 
-    let burned_after = signer.api().get_balance(&signer.address()).await? - initial_stash;
-    let after = signer.api().get_balance(ADDRESS).await?;
-    let rent_pool = signer.api().get_balance(RENT_POOL_SS58_ADDRESS).await?;
+    let mailbox = signer
+        .api()
+        .mailbox(Some(common::alice_account_id()), 10)
+        .await?;
 
-    assert_eq!(
-        initial_balance - before - burned_before,
-        REWARD_PER_BLOCK,
-        "Reward per block mismatched "
-    );
-    assert_eq!(
-        initial_balance - burned_after - (rent_pool - rent_pool_initial),
-        after,
-        "Transaction spent mismatched"
+    assert!(mailbox.is_empty(), "Mailbox should be empty");
+
+    let treasury_after = signer
+        .api()
+        .get_balance(TREASURY_SS58_ADDRESS)
+        .await
+        .unwrap_or(0);
+
+    let treasury_gas_fee_share = signer.api().treasury_gas_fee_share()?;
+    let treasury_tx_fee_share = signer.api().treasury_tx_fee_share()?;
+
+    // Current settings. Check for ease of testing, otherwise
+    // we need to know exact value of tx and gas payouts.
+    assert_eq!(treasury_gas_fee_share, treasury_tx_fee_share);
+    let treasury_fee_share = treasury_gas_fee_share;
+
+    assert!(
+        treasury_after >= treasury_before + treasury_fee_share * REWARD_PER_BLOCK,
+        "Treasury income mismatched"
     );
 
     Ok(())

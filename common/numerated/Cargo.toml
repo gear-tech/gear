@@ -21,7 +21,7 @@ log = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 
 [dev-dependencies]
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 proptest.workspace = true
 log.workspace = true
 

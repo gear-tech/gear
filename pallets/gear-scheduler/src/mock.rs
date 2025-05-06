@@ -25,6 +25,7 @@ use frame_support::{
     parameter_types,
     traits::{ConstU32, ConstU64, FindAuthor},
     weights::constants::RocksDbWeight,
+    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
@@ -32,7 +33,7 @@ use pallet_gear::GasAllowanceOf;
 use sp_core::{ConstBool, H256};
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage, Perbill,
+    BuildStorage,
 };
 
 use sp_std::convert::{TryFrom, TryInto};
@@ -92,10 +93,8 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
-    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
-    pub SplitTxFeeRatio: Option<u32> = None;
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
 }
 
 // Build genesis storage according to the mock runtime.
@@ -111,7 +110,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
-            (BankAddress::get(), ExistentialDeposit::get()),
+            (GearBank::bank_address(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

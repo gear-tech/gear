@@ -7,28 +7,24 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+ethexe-compute.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-db.workspace = true
 ethexe-network.workspace = true
 ethexe-observer.workspace = true
 ethexe-processor.workspace = true
 ethexe-signer.workspace = true
-ethexe-sequencer.workspace = true
+ethexe-consensus.workspace = true
 ethexe-ethereum.workspace = true
-ethexe-validator.workspace = true
 ethexe-common.workspace = true
+ethexe-runtime.workspace = true
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
+ethexe-tx-pool.workspace = true
 gprimitives.workspace = true
-
-clap = { workspace = true, features = ["derive"] }
 log.workspace = true
-env_logger.workspace = true
-directories.workspace = true
 anyhow.workspace = true
 alloy.workspace = true
 tokio = { workspace = true, features = [
@@ -39,16 +35,10 @@ tokio = { workspace = true, features = [
     "time",
 ] }
 futures.workspace = true
-serde = { workspace = true, features = ["derive"] }
-toml.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
-hex.workspace = true
 rand.workspace = true
 tempfile.workspace = true
-futures-timer.workspace = true
 derive_more.workspace = true
-
-static_init = "1.0.3"
 
 [dev-dependencies]
 alloy = { workspace = true, features = [
@@ -68,8 +58,14 @@ ntest = "0.9.3"
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-utils.workspace = true
+serde_json.workspace = true
 ethexe-network.workspace = true
+roast-secp256k1-evm.workspace = true
+ethexe-rpc = { workspace = true, features = ["test-utils"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-async-init = { workspace = true, features = ["debug", "ethexe"] }
+demo-mul-by-const = { workspace = true, features = ["debug"] }

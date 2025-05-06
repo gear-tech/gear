@@ -21,8 +21,6 @@
 mod apis;
 pub mod constants;
 
-use sp_runtime::traits::Get;
-
 use frame_support::{
     pallet_prelude::DispatchClass,
     parameter_types,
@@ -34,7 +32,7 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use runtime_primitives::{AccountId, BlockNumber};
-use sp_runtime::Perbill;
+use sp_runtime::{traits::Get, Perbill};
 
 /// We assume that ~3% of the block weight is consumed by `on_initialize` handlers.
 /// This is used to limit the maximal weight of a single extrinsic.
@@ -80,7 +78,7 @@ parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
 }
 
-pub const VALUE_PER_GAS: u128 = 6;
+pub const VALUE_PER_GAS: u128 = 100;
 
 pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
     <T as frame_system::Config>::AccountId,
@@ -115,26 +113,20 @@ where
     fn on_unbalanceds(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
         use pallet_treasury::Pallet as Treasury;
 
+        debug_assert_eq!(<Treasury<R>>::account_id(), R::TreasuryAddress::get());
+
         if let Some(fees) = fees_then_tips.next() {
-            let split_tx_fee_ratio = R::SplitTxFeeRatio::get();
-            if let Some(split_tx_fee_ratio) = split_tx_fee_ratio {
-                // for fees, SplitTxFeeRatio to treasury else to author
-                let (mut to_author, to_treasury) =
-                    fees.ration(100 - split_tx_fee_ratio, split_tx_fee_ratio);
-                if let Some(tips) = fees_then_tips.next() {
-                    // for tips, if any, 100% to author
-                    tips.merge_into(&mut to_author);
-                }
-                <Treasury<R> as OnUnbalanced<_>>::on_unbalanced(to_treasury);
-                <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(to_author);
-            } else {
-                let mut to_author = fees;
-                if let Some(tips) = fees_then_tips.next() {
-                    // for tips, if any, 100% to author
-                    tips.merge_into(&mut to_author);
-                }
-                <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(to_author);
+            // Splitting fees between treasury and block author.
+            let treasury_share = R::TreasuryGasFeeShare::get() * fees.peek();
+            let (to_treasury, mut to_author) = fees.split(treasury_share);
+
+            if let Some(tips) = fees_then_tips.next() {
+                // Tips are always 100% to the author.
+                tips.merge_into(&mut to_author);
             }
+
+            <Treasury<R> as OnUnbalanced<_>>::on_unbalanced(to_treasury);
+            <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(to_author);
         }
     }
 }

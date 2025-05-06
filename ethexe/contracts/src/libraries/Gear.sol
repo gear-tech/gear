@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IRouter} from "../IRouter.sol";
+import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
+import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 library Gear {
     using ECDSA for bytes32;
     using MessageHashUtils for address;
+
+    using TransientSlot for *;
+    using SlotDerivation for *;
 
     // 2.5 * 10^9 of gear gas.
     uint64 public constant COMPUTATION_THRESHOLD = 2_500_000_000;
@@ -24,16 +29,11 @@ library Gear {
         uint256 y;
     }
 
-    struct VerifyingShare {
-        uint256 x;
-        uint256 y;
-    }
-
     struct Validators {
         // TODO: After FROST multi signature applied - consider to remove validators map and list.
         // Replace it with list hash. Any node can access the list of validators using this hash from other nodes.
         AggregatedPublicKey aggregatedPublicKey;
-        VerifyingShare[] verifyingShares;
+        address verifiableSecretSharingCommitmentPointer;
         mapping(address => bool) map;
         address[] list;
         uint256 useFromTimestamp;
@@ -41,8 +41,8 @@ library Gear {
 
     struct AddressBook {
         address mirror;
-        address mirrorProxy;
         address wrappedVara;
+        address middleware;
     }
 
     struct CodeCommitment {
@@ -61,7 +61,7 @@ library Gear {
 
     struct ValidatorsCommitment {
         AggregatedPublicKey aggregatedPublicKey;
-        VerifyingShare[] verifyingShares;
+        bytes verifiableSecretSharingCommitment;
         address[] validators;
         uint256 eraIndex;
     }
@@ -69,6 +69,29 @@ library Gear {
     struct BatchCommitment {
         CodeCommitment[] codeCommitments;
         BlockCommitment[] blockCommitments;
+        RewardsCommitment[] rewardCommitments;
+    }
+
+    struct RewardsCommitment {
+        OperatorRewardsCommitment operators;
+        StakerRewardsCommitment stakers;
+        uint48 timestamp;
+    }
+
+    struct OperatorRewardsCommitment {
+        uint256 amount;
+        bytes32 root;
+    }
+
+    struct StakerRewardsCommitment {
+        StakerRewards[] distribution;
+        uint256 totalAmount;
+        address token;
+    }
+
+    struct StakerRewards {
+        address vault;
+        uint256 amount;
     }
 
     enum CodeState {
@@ -226,21 +249,26 @@ library Gear {
     /// @dev Validates signatures of the given data hash.
     function validateSignatures(
         IRouter.Storage storage router,
+        bytes32 routerTransientStorage,
         bytes32 _dataHash,
         Gear.SignatureType _signatureType,
         bytes[] calldata _signatures
-    ) internal view returns (bool) {
-        return validateSignaturesAt(router, _dataHash, _signatureType, _signatures, block.timestamp);
+    ) internal returns (bool) {
+        return validateSignaturesAt(
+            router, routerTransientStorage, _dataHash, _signatureType, _signatures, block.timestamp
+        );
     }
 
     /// @dev Validates signatures of the given data hash at the given timestamp.
+    /// TODO: support native keyword `transient storage`: https://github.com/foundry-rs/foundry/issues/9931
     function validateSignaturesAt(
         IRouter.Storage storage router,
+        bytes32 routerTransientStorage,
         bytes32 _dataHash,
         SignatureType _signatureType,
         bytes[] calldata _signatures,
         uint256 ts
-    ) internal view returns (bool) {
+    ) internal returns (bool) {
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
         if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
             require(ts >= router.genesisBlock.timestamp, "cannot validate before genesis");
@@ -259,7 +287,7 @@ library Gear {
         }
 
         Validators storage validators = validatorsAt(router, ts);
-        bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(abi.encodePacked(_dataHash));
+        bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);
 
         if (_signatureType == SignatureType.FROST) {
             require(_signatures.length == 1, "FROST signature must be single");
@@ -277,12 +305,10 @@ library Gear {
                 _signatureZ := mload(add(_signature, 0x60))
             }
 
-            // extra security check (`FROST.verifySignature()` does not check public key validity)
-            require(
-                FROST.isValidPublicKey(validators.aggregatedPublicKey.x, validators.aggregatedPublicKey.y),
-                "FROST aggregated public key is invalid"
-            );
-
+            /*
+            * @dev SECURITY: `FROST.isValidPublicKey(validators.aggregatedPublicKey.x, validators.aggregatedPublicKey.y)` is not called here,
+            *      because it is already checked in `Router._resetValidators(...)`.
+            */
             return FROST.verifySignature(
                 validators.aggregatedPublicKey.x,
                 validators.aggregatedPublicKey.y,
@@ -303,6 +329,14 @@ library Gear {
                 address validator = _messageHash.recover(signature);
 
                 if (validators.map[validator]) {
+                    bytes32 transientStorageValidatorsSlot = routerTransientStorage.deriveMapping(validator);
+
+                    if (transientStorageValidatorsSlot.asBoolean().tload()) {
+                        continue;
+                    } else {
+                        transientStorageValidatorsSlot.asBoolean().tstore(true);
+                    }
+
                     if (++validSignatures == threshold) {
                         return true;
                     }
@@ -382,16 +416,5 @@ library Gear {
 
     function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
         return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
-    }
-
-    function dummyVerifyingShares(uint256 _count) internal pure returns (Gear.VerifyingShare[] memory) {
-        Gear.VerifyingShare[] memory _verifyingShares = new Gear.VerifyingShare[](_count);
-        for (uint256 i = 0; i < _count; i++) {
-            _verifyingShares[i] = Gear.VerifyingShare({
-                x: 0x0000000000000000000000000000000000000000000000000000000000000001,
-                y: 0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE
-            });
-        }
-        return _verifyingShares;
     }
 }

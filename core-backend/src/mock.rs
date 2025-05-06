@@ -23,7 +23,6 @@ use crate::{
     BackendExternalities,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use codec::{Decode, Encode};
 use core::{fmt, fmt::Debug, mem};
 use gear_core::{
     costs::CostToken,
@@ -32,16 +31,16 @@ use gear_core::{
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval},
-    message::{HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
 use gear_wasm_instrument::syscalls::SyscallName;
+use parity_scale_codec::{Decode, Encode};
 
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
-#[codec(crate = codec)]
 pub struct Error;
 
 impl fmt::Display for Error {
@@ -131,7 +130,7 @@ impl Externalities for MockExt {
                 performance_multiplier: gsys::Percent::new(100),
                 existential_deposit: 10,
                 mailbox_threshold: 20,
-                gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
+                gas_multiplier: gsys::GasMultiplier::from_value_per_gas(100),
             })),
             _ => unreachable!("Unexpected version of environment variables"),
         }
@@ -241,6 +240,9 @@ impl Externalities for MockExt {
     }
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
         &self._forbidden_funcs
+    }
+    fn msg_ctx(&self) -> &MessageContext {
+        unimplemented!()
     }
     fn reserve_gas(
         &mut self,

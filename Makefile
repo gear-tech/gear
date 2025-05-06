@@ -4,7 +4,7 @@ ethexe-pre-commit: ethexe-contracts-pre-commit ethexe-pre-commit-no-contracts
 
 .PHONY: ethexe-pre-commit-no-contracts
 ethexe-pre-commit-no-contracts:
-	@ echo " > Formatting ethexe" && cargo +nightly fmt --all -- --config imports_granularity=Crate,edition=2021
+	@ echo " > Formatting ethexe" && cargo fmt --all
 	@ echo " >> Clippy checking ethexe" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
 	@ echo " >>> Testing ethexe" && cargo nextest run -p "ethexe-*" --no-fail-fast
 
@@ -17,7 +17,6 @@ ethexe-contracts-pre-commit:
 	@ echo " > Testing contracts" && forge test --root ethexe/contracts -vvv
 	@ echo " > Copying Router arfitact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
 	@ echo " > Copying Mirror arfitact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
-	@ echo " > Copying MirrorProxy arfitact" && cp ./ethexe/contracts/out/MirrorProxy.sol/MirrorProxy.json ./ethexe/ethereum
 	@ echo " > Copying WrappedVara arfitact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
 	@ echo " > Copying TransparentUpgradeableProxy arfitact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
 
@@ -233,7 +232,7 @@ test-gsdk-release: node-release
 	@ ./scripts/gear.sh test gsdk --release
 
 .PHONY: test-gcli
-test-gcli: node
+test-gcli: node-release
 	@ ./scripts/gear.sh test gcli
 
 .PHONY: test-gcli-release
@@ -278,7 +277,7 @@ doc:
 	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
 		-p galloc -p gclient -p gcore -p gear-core-backend \
 		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
-		-p gmeta -p gtest -p gear-wasm-builder -p gear-common \
+		-p gtest -p gear-wasm-builder -p gear-common \
 		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
 		-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
 	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \

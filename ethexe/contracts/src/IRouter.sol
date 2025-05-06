@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {Gear} from "./libraries/Gear.sol";
 
@@ -77,11 +77,10 @@ interface IRouter {
     function latestCommittedBlockHash() external view returns (bytes32);
 
     function mirrorImpl() external view returns (address);
-    function mirrorProxyImpl() external view returns (address);
     function wrappedVara() external view returns (address);
 
     function validatorsAggregatedPublicKey() external view returns (Gear.AggregatedPublicKey memory);
-    function validatorsVerifyingShares() external view returns (Gear.VerifyingShare[] memory);
+    function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory);
 
     function areValidators(address[] calldata validators) external view returns (bool);
     function isValidator(address validator) external view returns (bool);
@@ -108,9 +107,14 @@ interface IRouter {
     /// @dev CodeValidationRequested Emitted on success.
     function requestCodeValidation(bytes32 codeId) external;
     /// @dev ProgramCreated Emitted on success.
-    function createProgram(bytes32 codeId, bytes32 salt) external returns (address);
+    function createProgram(bytes32 codeId, bytes32 salt, address overrideInitializer) external returns (address);
     /// @dev ProgramCreated Emitted on success.
-    function createProgramWithDecoder(address decoderImpl, bytes32 codeId, bytes32 salt) external returns (address);
+    function createProgramWithAbiInterface(
+        bytes32 codeId,
+        bytes32 salt,
+        address overrideInitializer,
+        address abiInterface
+    ) external returns (address);
 
     /// @dev CodeGotValidated Emitted for each code in commitment.
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
@@ -121,7 +125,7 @@ interface IRouter {
     ) external;
     /// @dev NextEraValidatorsCommitted Emitted on success.
     function commitValidators(
-        Gear.ValidatorsCommitment calldata validatorsCommitment,
+        Gear.ValidatorsCommitment memory validatorsCommitment,
         Gear.SignatureType signatureType,
         bytes[] calldata signatures
     ) external;

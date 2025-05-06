@@ -19,7 +19,7 @@
 #![allow(dead_code, clippy::new_without_default)]
 
 use abi::{
-    IMirror, IMirrorProxy,
+    IMirror,
     IRouter::{self, initializeCall as RouterInitializeCall},
     ITransparentUpgradeableProxy,
     IWrappedVara::{self, initializeCall as WrappedVaraInitializeCall},
@@ -42,15 +42,20 @@ use alloy::{
         Result as SignerResult, Signer, SignerSync,
     },
     sol_types::{SolCall, SolEvent},
-    transports::{BoxTransport, RpcError, Transport},
+    transports::RpcError,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use ethexe_common::gear::{AggregatedPublicKey, VerifyingShare};
+use ethexe_common::gear::AggregatedPublicKey;
 use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
+use gprimitives::{ActorId, U256 as GearU256};
 use mirror::Mirror;
+use roast_secp256k1_evm::frost::{
+    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
+    Identifier,
+};
 use router::{Router, RouterQuery};
-use std::{iter, sync::Arc, time::Duration};
+use std::time::Duration;
 
 mod abi;
 mod eip1167;
@@ -62,9 +67,7 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
-pub(crate) type AlloyTransport = BoxTransport;
-type AlloyProvider =
-    FillProvider<ExeFiller, RootProvider<AlloyTransport>, AlloyTransport, AlloyEthereum>;
+type AlloyProvider = FillProvider<ExeFiller, RootProvider, AlloyEthereum>;
 
 pub(crate) type ExeFiller = JoinFill<
     JoinFill<
@@ -77,7 +80,7 @@ pub(crate) type ExeFiller = JoinFill<
 pub struct Ethereum {
     router_address: Address,
     wvara_address: Address,
-    provider: Arc<AlloyProvider>,
+    provider: AlloyProvider,
 }
 
 impl Ethereum {
@@ -106,8 +109,23 @@ impl Ethereum {
         validators: Vec<LocalAddress>,
         signer: LocalSigner,
         sender_address: LocalAddress,
+        verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
     ) -> Result<Self> {
-        const VALUE_PER_GAS: u128 = 6;
+        let maybe_validator_identifiers: Result<Vec<_>, _> = validators
+            .iter()
+            .map(|address| Identifier::deserialize(&ActorId::from(*address).into_bytes()))
+            .collect();
+        let validator_identifiers = maybe_validator_identifiers?;
+        let identifiers = validator_identifiers.into_iter().collect();
+        let public_key_package =
+            PublicKeyPackage::from_commitment(&identifiers, &verifiable_secret_sharing_commitment)?;
+        let public_key_compressed: [u8; 33] = public_key_package
+            .verifying_key()
+            .serialize()?
+            .try_into()
+            .unwrap();
+        let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+        let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
         let provider = create_provider(rpc_url, signer, sender_address).await?;
         let validators: Vec<_> = validators
@@ -138,11 +156,6 @@ impl Ethereum {
                 .checked_add(2)
                 .ok_or_else(|| anyhow!("failed to add 2"))?,
         );
-        let mirror_proxy_address = deployer_address.create(
-            nonce
-                .checked_add(3)
-                .ok_or_else(|| anyhow!("failed to add 3"))?,
-        );
 
         let router_impl = IRouter::deploy(provider.clone()).await?;
         let proxy = ITransparentUpgradeableProxy::deploy(
@@ -153,27 +166,19 @@ impl Ethereum {
                 &RouterInitializeCall {
                     _owner: deployer_address,
                     _mirror: mirror_address,
-                    _mirrorProxy: mirror_proxy_address,
                     _wrappedVara: wvara_address,
+                    _middleware: Address::ZERO,
                     _eraDuration: U256::from(24 * 60 * 60),
                     _electionDuration: U256::from(2 * 60 * 60),
                     _validationDelay: U256::from(60),
                     _aggregatedPublicKey: (AggregatedPublicKey {
-                        x: "0x0000000000000000000000000000000000000000000000000000000000000001"
-                            .parse()?,
-                        y: "0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE"
-                            .parse()?,
+                        x: GearU256::from_big_endian(public_key_x_bytes),
+                        y: GearU256::from_big_endian(public_key_y_bytes),
                     })
                     .into(),
-                    _verifyingShares: iter::repeat(VerifyingShare {
-                        x: "0x0000000000000000000000000000000000000000000000000000000000000001"
-                            .parse()?,
-                        y: "0x4218F20AE6C646B363DB68605822FB14264CA8D2587FDD6FBC750D587E76A7EE"
-                            .parse()?,
-                    })
-                    .take(validators.len())
-                    .map(Into::into)
-                    .collect(),
+                    _verifiableSecretSharingCommitment: Bytes::copy_from_slice(
+                        &verifiable_secret_sharing_commitment.serialize()?.concat(),
+                    ),
                     _validators: validators,
                 }
                 .abi_encode(),
@@ -183,17 +188,12 @@ impl Ethereum {
         let router_address = *proxy.address();
         let router = IRouter::new(router_address, provider.clone());
 
-        let mirror = IMirror::deploy(provider.clone()).await?;
-        let mirror_proxy = IMirrorProxy::deploy(provider.clone(), router_address).await?;
+        let mirror = IMirror::deploy(provider.clone(), router_address).await?;
 
         let builder = wrapped_vara.approve(router_address, U256::MAX);
         builder.send().await?.try_get_receipt().await?;
 
         assert_eq!(router.mirrorImpl().call().await?._0, *mirror.address());
-        assert_eq!(
-            router.mirrorProxyImpl().call().await?._0,
-            *mirror_proxy.address()
-        );
 
         let builder = router.lookupGenesisHash();
         builder.send().await?.try_get_receipt().await?;
@@ -208,10 +208,6 @@ impl Ethereum {
         log::debug!("WrappedVara deployed at {wvara_address}");
 
         log::debug!("Mirror impl has been deployed at {}", mirror.address());
-        log::debug!(
-            "Mirror proxy has been deployed at {}",
-            mirror_proxy.address()
-        );
 
         Ok(Self {
             router_address,
@@ -220,7 +216,7 @@ impl Ethereum {
         })
     }
 
-    pub fn provider(&self) -> Arc<AlloyProvider> {
+    pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
     }
 
@@ -241,14 +237,11 @@ async fn create_provider(
     rpc_url: &str,
     signer: LocalSigner,
     sender_address: LocalAddress,
-) -> Result<Arc<AlloyProvider>> {
-    Ok(Arc::new(
-        ProviderBuilder::new()
-            .with_recommended_fillers()
-            .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
-            .on_builtin(rpc_url)
-            .await?,
-    ))
+) -> Result<AlloyProvider> {
+    Ok(ProviderBuilder::new()
+        .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
+        .connect(rpc_url)
+        .await?)
 }
 
 #[derive(Debug, Clone)]
@@ -320,12 +313,12 @@ impl SignerSync for Sender {
 }
 
 // TODO: Maybe better to append solution like this to alloy.
-trait TryGetReceipt<T: Transport + Clone, N: Network> {
+trait TryGetReceipt<N: Network> {
     /// Works like `self.get_receipt().await`, but retries a few times if rpc returns a null response.
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
 }
 
-impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactionBuilder<T, N> {
+impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse> {
         let tx_hash = *self.tx_hash();
         let provider = self.provider().clone();
@@ -336,7 +329,7 @@ impl<T: Transport + Clone, N: Network> TryGetReceipt<T, N> for PendingTransactio
         };
 
         log::trace!("Failed to get transaction receipt for {tx_hash}. Retrying...");
-        for n in 0..3 {
+        for n in 0..20 {
             log::trace!("Attempt {n}. Error - {err}");
             match err {
                 PendingTransactionError::TransportError(RpcError::NullResp) => {}

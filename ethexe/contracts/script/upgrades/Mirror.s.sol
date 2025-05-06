@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
 import {Mirror} from "../../src/Mirror.sol";
@@ -14,7 +14,7 @@ contract MirrorScript is Script {
 
         vm.startBroadcast(privateKey);
 
-        Mirror mirror = new Mirror();
+        Mirror mirror = new Mirror(routerAddress);
         Router(routerAddress).setMirror(address(mirror));
 
         vm.stopBroadcast();

@@ -54,9 +54,10 @@ use gear_wasm_instrument::{
 // we have requirement to pass function pointer for `gear_sandbox`
 // so the only reason this macro exists is const function pointers are not stabilized yet
 // so we create non-capturing closure that can be coerced into function pointer
+#[rustfmt::skip]
 macro_rules! wrap_syscall {
-    ($func:ident) => {
-        |caller, args| FuncsHandler::execute(caller, args, FuncsHandler::$func)
+    ($func:ident, $syscall:ident) => {
+        |caller, args| FuncsHandler::execute(caller, args, FuncsHandler::$func, $syscall)
     };
 }
 
@@ -76,17 +77,17 @@ pub type EnvironmentExecutionResult<Ext> = Result<BackendReport<Ext>, Environmen
 
 #[derive(Debug, derive_more::Display)]
 pub enum EnvironmentError {
-    #[display(fmt = "Actor backend error: {_1}")]
+    #[display("Actor backend error: {_1}")]
     Actor(GasAmount, String),
-    #[display(fmt = "System backend error: {_0}")]
+    #[display("System backend error: {_0}")]
     System(SystemEnvironmentError),
 }
 
 #[derive(Debug, derive_more::Display)]
 pub enum SystemEnvironmentError {
-    #[display(fmt = "Failed to create env memory: {_0:?}")]
+    #[display("Failed to create env memory: {_0:?}")]
     CreateEnvMemory(gear_sandbox::Error),
-    #[display(fmt = "Gas counter not found or has wrong type")]
+    #[display("Gas counter not found or has wrong type")]
     WrongInjectedGas,
 }
 
@@ -117,7 +118,6 @@ where
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
 struct EnvBuilder<Ext: BackendExternalities> {
     env_def_builder: EnvironmentDefinitionBuilder<HostState<Ext, BackendMemory<ExecutorMemory>>>,
-    forbidden_funcs: BTreeSet<SyscallName>,
     funcs_count: usize,
 }
 
@@ -133,12 +133,7 @@ where
         name: SyscallName,
         f: HostFuncType<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     ) {
-        if self.forbidden_funcs.contains(&name) {
-            self.env_def_builder
-                .add_host_func("env", name.to_str(), wrap_syscall!(forbidden));
-        } else {
-            self.env_def_builder.add_host_func("env", name.to_str(), f);
-        }
+        self.env_def_builder.add_host_func("env", name.to_str(), f);
 
         self.funcs_count += 1;
     }
@@ -167,63 +162,69 @@ where
 {
     #[rustfmt::skip]
     fn bind_funcs(builder: &mut EnvBuilder<Ext>) {
-        builder.add_func(EnvVars, wrap_syscall!(env_vars));
-        builder.add_func(BlockHeight, wrap_syscall!(block_height));
-        builder.add_func(BlockTimestamp,wrap_syscall!(block_timestamp));
-        builder.add_func(CreateProgram, wrap_syscall!(create_program));
-        builder.add_func(CreateProgramWGas, wrap_syscall!(create_program_wgas));
-        builder.add_func(Debug, wrap_syscall!(debug));
-        builder.add_func(Panic, wrap_syscall!(panic));
-        builder.add_func(OomPanic, wrap_syscall!(oom_panic));
-        builder.add_func(Exit, wrap_syscall!(exit));
-        builder.add_func(ReplyCode, wrap_syscall!(reply_code));
-        builder.add_func(SignalCode, wrap_syscall!(signal_code));
-        builder.add_func(ReserveGas, wrap_syscall!(reserve_gas));
-        builder.add_func(ReplyDeposit, wrap_syscall!(reply_deposit));
-        builder.add_func(UnreserveGas, wrap_syscall!(unreserve_gas));
-        builder.add_func(GasAvailable, wrap_syscall!(gas_available));
-        builder.add_func(Leave, wrap_syscall!(leave));
-        builder.add_func(MessageId, wrap_syscall!(message_id));
-        builder.add_func(ProgramId, wrap_syscall!(program_id));
-        builder.add_func(Random, wrap_syscall!(random));
-        builder.add_func(Read, wrap_syscall!(read));
-        builder.add_func(Reply, wrap_syscall!(reply));
-        builder.add_func(ReplyCommit, wrap_syscall!(reply_commit));
-        builder.add_func(ReplyCommitWGas, wrap_syscall!(reply_commit_wgas));
-        builder.add_func(ReplyPush, wrap_syscall!(reply_push));
-        builder.add_func(ReplyTo, wrap_syscall!(reply_to));
-        builder.add_func(SignalFrom, wrap_syscall!(signal_from));
-        builder.add_func(ReplyWGas, wrap_syscall!(reply_wgas));
-        builder.add_func(ReplyInput, wrap_syscall!(reply_input));
-        builder.add_func(ReplyPushInput, wrap_syscall!(reply_push_input));
-        builder.add_func(ReplyInputWGas, wrap_syscall!(reply_input_wgas));
-        builder.add_func(Send, wrap_syscall!(send));
-        builder.add_func(SendCommit, wrap_syscall!(send_commit));
-        builder.add_func(SendCommitWGas, wrap_syscall!(send_commit_wgas));
-        builder.add_func(SendInit, wrap_syscall!(send_init));
-        builder.add_func(SendPush, wrap_syscall!(send_push));
-        builder.add_func(SendWGas, wrap_syscall!(send_wgas));
-        builder.add_func(SendInput, wrap_syscall!(send_input));
-        builder.add_func(SendPushInput, wrap_syscall!(send_push_input));
-        builder.add_func(SendInputWGas, wrap_syscall!(send_input_wgas));
-        builder.add_func(Size, wrap_syscall!(size));
-        builder.add_func(Source, wrap_syscall!(source));
-        builder.add_func(Value, wrap_syscall!(value));
-        builder.add_func(ValueAvailable, wrap_syscall!(value_available));
-        builder.add_func(Wait, wrap_syscall!(wait));
-        builder.add_func(WaitFor, wrap_syscall!(wait_for));
-        builder.add_func(WaitUpTo, wrap_syscall!(wait_up_to));
-        builder.add_func(Wake, wrap_syscall!(wake));
-        builder.add_func(SystemReserveGas, wrap_syscall!(system_reserve_gas));
-        builder.add_func(ReservationReply, wrap_syscall!(reservation_reply));
-        builder.add_func(ReservationReplyCommit, wrap_syscall!(reservation_reply_commit));
-        builder.add_func(ReservationSend, wrap_syscall!(reservation_send));
-        builder.add_func(ReservationSendCommit, wrap_syscall!(reservation_send_commit));
-        builder.add_func(SystemBreak, wrap_syscall!(system_break));
+        macro_rules! add_function {
+            ($syscall:ident, $func:ident) => {
+                builder.add_func($syscall, wrap_syscall!($func, $syscall));
+            };
+        }
 
-        builder.add_func(Alloc, wrap_syscall!(alloc));
-        builder.add_func(Free, wrap_syscall!(free));
-        builder.add_func(FreeRange, wrap_syscall!(free_range));
+        add_function!(EnvVars, env_vars);
+        add_function!(BlockHeight, block_height);
+        add_function!(BlockTimestamp, block_timestamp);
+        add_function!(CreateProgram, create_program);
+        add_function!(CreateProgramWGas, create_program_wgas);
+        add_function!(Debug, debug);
+        add_function!(Panic, panic);
+        add_function!(OomPanic, oom_panic);
+        add_function!(Exit, exit);
+        add_function!(ReplyCode, reply_code);
+        add_function!(SignalCode, signal_code);
+        add_function!(ReserveGas, reserve_gas);
+        add_function!(ReplyDeposit, reply_deposit);
+        add_function!(UnreserveGas, unreserve_gas);
+        add_function!(GasAvailable, gas_available);
+        add_function!(Leave, leave);
+        add_function!(MessageId, message_id);
+        add_function!(ProgramId, program_id);
+        add_function!(Random, random);
+        add_function!(Read, read);
+        add_function!(Reply, reply);
+        add_function!(ReplyCommit, reply_commit);
+        add_function!(ReplyCommitWGas, reply_commit_wgas);
+        add_function!(ReplyPush, reply_push);
+        add_function!(ReplyTo, reply_to);
+        add_function!(SignalFrom, signal_from);
+        add_function!(ReplyWGas, reply_wgas);
+        add_function!(ReplyInput, reply_input);
+        add_function!(ReplyPushInput, reply_push_input);
+        add_function!(ReplyInputWGas, reply_input_wgas);
+        add_function!(Send, send);
+        add_function!(SendCommit, send_commit);
+        add_function!(SendCommitWGas, send_commit_wgas);
+        add_function!(SendInit, send_init);
+        add_function!(SendPush, send_push);
+        add_function!(SendWGas, send_wgas);
+        add_function!(SendInput, send_input);
+        add_function!(SendPushInput, send_push_input);
+        add_function!(SendInputWGas, send_input_wgas);
+        add_function!(Size, size);
+        add_function!(Source, source);
+        add_function!(Value, value);
+        add_function!(ValueAvailable, value_available);
+        add_function!(Wait, wait);
+        add_function!(WaitFor, wait_for);
+        add_function!(WaitUpTo, wait_up_to);
+        add_function!(Wake, wake);
+        add_function!(SystemReserveGas, system_reserve_gas);
+        add_function!(ReservationReply, reservation_reply);
+        add_function!(ReservationReplyCommit, reservation_reply_commit);
+        add_function!(ReservationSend, reservation_send);
+        add_function!(ReservationSendCommit, reservation_send_commit);
+        add_function!(SystemBreak, system_break);
+
+        add_function!(Alloc, alloc);
+        add_function!(Free, free);
+        add_function!(FreeRange, free_range);
     }
 }
 
@@ -271,22 +272,10 @@ where
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
 
-        let entry_forbidden = entry_point
-            .try_into_kind()
-            .as_ref()
-            .map(DispatchKind::forbidden_funcs)
-            .unwrap_or_default();
-
         let mut store = Store::new(None);
 
         let mut builder = EnvBuilder::<EnvExt> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
-            forbidden_funcs: ext
-                .forbidden_funcs()
-                .iter()
-                .copied()
-                .chain(entry_forbidden)
-                .collect(),
             funcs_count: 0,
         };
 

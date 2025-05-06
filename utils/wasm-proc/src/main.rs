@@ -19,10 +19,11 @@
 use clap::Parser;
 use gear_wasm_builder::{
     code_validator::validate_program,
-    optimize::{self, OptType, Optimizer},
+    optimize::{self, Optimizer},
 };
 use gear_wasm_instrument::{Module, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
+use tracing_subscriber::EnvFilter;
 
 const RT_ALLOWED_IMPORTS: [&str; 76] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
@@ -151,7 +152,7 @@ fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), S
     let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
 
     let is_dev = module
-        .custom_section
+        .custom_sections
         .as_ref()
         .iter()
         .copied()
@@ -208,16 +209,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         insert_stack_end = false;
     }
 
-    let mut env = env_logger::Env::default();
+    let mut env_filter = EnvFilter::builder();
     if verbose {
-        env = env.default_filter_or("debug");
+        env_filter = env_filter.with_default_directive("debug".parse()?);
     }
-    env_logger::Builder::from_env(env).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter.from_env_lossy())
+        .init();
 
     let rt_allowed_imports: HashSet<&str> = RT_ALLOWED_IMPORTS.into();
 
     for file in &wasm_files {
-        if !file.ends_with(".wasm") || file.ends_with(".meta.wasm") || file.ends_with(".opt.wasm") {
+        if !file.ends_with(".wasm") || file.ends_with(".opt.wasm") {
             continue;
         }
 
@@ -251,7 +254,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("Failed to move mutable globals to static");
         }
 
-        optimizer.strip_exports(OptType::Opt);
+        optimizer.strip_exports();
         optimizer.flush_to_file(&optimized_wasm_path);
 
         // Make generic size optimizations by wasm-opt

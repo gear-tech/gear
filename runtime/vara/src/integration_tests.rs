@@ -159,7 +159,7 @@ impl ExtBuilder {
             )
             .collect::<Vec<_>>();
 
-        balances.push((BankAddress::get(), EXISTENTIAL_DEPOSIT));
+        balances.push((GearBank::bank_address(), EXISTENTIAL_DEPOSIT));
 
         pallet_balances::GenesisConfig::<Runtime> { balances }
             .assimilate_storage(&mut storage)
@@ -239,10 +239,7 @@ pub(crate) fn run_for_n_blocks(n: u32) {
 }
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 pub(crate) fn get_last_program_id() -> [u8; 32] {
@@ -980,8 +977,11 @@ fn test_fees_and_tip_split() {
         .root(alice.into())
         .build()
         .execute_with(|| {
-            let fee = Balances::issue(10);
-            let tip = Balances::issue(20);
+            const FEE: Balance = 137;
+            const TIP: Balance = 42;
+
+            let fee = Balances::issue(FEE);
+            let tip = Balances::issue(TIP);
 
             assert_eq!(
                 Balances::free_balance(Treasury::account_id()),
@@ -991,12 +991,16 @@ fn test_fees_and_tip_split() {
 
             DealWithFees::on_unbalanceds(vec![fee, tip].into_iter());
 
-            // Author gets 100% of the tip and 100% of the fee = 30
-            assert_eq!(Balances::free_balance(alice.to_account_id()), STASH + 30);
-            // Treasury gets 0% of the fee
+            // Current setting.
+            assert_eq!(TreasuryTxFeeShare::get(), Percent::one());
+
+            // Author gets 100% of the tip and 0% of the fee
+            assert_eq!(Balances::free_balance(alice.to_account_id()), STASH + TIP);
+
+            // Treasury gets 100% of the fee and 0% of the tip
             assert_eq!(
                 Balances::free_balance(Treasury::account_id()),
-                EXISTENTIAL_DEPOSIT
+                EXISTENTIAL_DEPOSIT + FEE
             );
         });
 }

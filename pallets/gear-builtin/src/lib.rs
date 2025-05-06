@@ -36,6 +36,7 @@ extern crate alloc;
 pub mod benchmarking;
 
 pub mod bls12_381;
+pub mod migration;
 pub mod proxy;
 pub mod staking;
 pub mod weights;
@@ -51,7 +52,6 @@ pub use weights::WeightInfo;
 use alloc::{
     collections::{btree_map::Entry, BTreeMap},
     format,
-    string::ToString,
 };
 use common::{storage::Limiter, BlockLimiter};
 use core::marker::PhantomData;
@@ -60,14 +60,15 @@ use core_processor::{
     process_allowance_exceed, process_execution_error, process_success,
     SuccessfulDispatchResultKind, SystemReservationContext,
 };
-use frame_support::dispatch::extract_actual_weight;
+use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{hash, ProgramId},
+    ids::ProgramId,
     message::{
         ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
     },
     str::LimitedStr,
+    utils::hash,
 };
 use impl_trait_for_tuples::impl_for_tuples;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
@@ -87,16 +88,16 @@ pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
 pub enum BuiltinActorError {
     /// Occurs if the underlying call has the weight greater than the `gas_limit`.
-    #[display(fmt = "Not enough gas supplied")]
+    #[display("Not enough gas supplied")]
     InsufficientGas,
     /// Occurs if the dispatch's message can't be decoded into a known type.
-    #[display(fmt = "Failure to decode message")]
+    #[display("Failure to decode message")]
     DecodingError,
     /// Actor's inner error encoded as a String.
-    #[display(fmt = "Builtin execution resulted in error: {_0}")]
+    #[display("Builtin execution resulted in error: {_0}")]
     Custom(LimitedStr<'static>),
     /// Occurs if a builtin actor execution does not fit in the current block.
-    #[display(fmt = "Block gas allowance exceeded")]
+    #[display("Block gas allowance exceeded")]
     GasAllowanceExceeded,
 }
 
@@ -108,10 +109,10 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
             }
             BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
-                TrapExplanation::Panic("Message decoding error".to_string().into()),
+                TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
             ),
             BuiltinActorError::Custom(e) => {
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e))
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
             }
             BuiltinActorError::GasAllowanceExceeded => {
                 unreachable!("Never supposed to be converted to error reply reason")
@@ -222,6 +223,9 @@ impl BuiltinCollection for Tuple {
     }
 }
 
+/// The current storage version.
+pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -234,11 +238,6 @@ pub mod pallet {
     use sp_runtime::traits::Dispatchable;
 
     pub(crate) const SEED: [u8; 8] = *b"built/in";
-
-    // This pallet doesn't define a storage version because it doesn't use any storage
-    #[pallet::pallet]
-    #[pallet::without_storage_info]
-    pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -257,10 +256,29 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
     }
 
+    // This pallet doesn't define a storage version because it doesn't use any storage
+    #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
+    pub struct Pallet<T>(_);
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     impl<T: Config> Pallet<T> {
+        /// Returns list of known builtins.
+        ///
+        /// This fn has some overhead, therefore it should be called only when necessary.
+        pub fn list_builtins() -> Vec<T::AccountId>
+        where
+            T::AccountId: Origin,
+        {
+            BuiltinRegistry::<T>::new()
+                .list()
+                .into_iter()
+                .map(Origin::cast)
+                .collect()
+        }
+
         /// Generate an `actor_id` given a builtin ID.
         ///
         ///
@@ -324,6 +342,7 @@ pub struct BuiltinRegistry<T: Config> {
     pub registry: BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
+
 impl<T: Config> BuiltinRegistry<T> {
     fn new() -> Self {
         let mut registry = BTreeMap::new();
@@ -333,6 +352,10 @@ impl<T: Config> BuiltinRegistry<T> {
             registry,
             _phantom: Default::default(),
         }
+    }
+
+    pub fn list(&self) -> Vec<ProgramId> {
+        self.registry.keys().copied().collect()
     }
 }
 

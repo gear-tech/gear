@@ -11,63 +11,36 @@ repository.workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { workspace = true, features = ["derive"] }
-futures.workspace = true
-futures-timer.workspace = true
-log.workspace = true
-parking_lot.workspace = true
-scale-info = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
 
 # Gear
 runtime-primitives.workspace = true
-common.workspace = true
-pallet-gear-rpc-runtime-api.workspace = true
 vara-runtime = { workspace = true, features = ["dev"] }
 gear-runtime-interface.workspace = true
 service = { workspace = true, features = ["vara-native"] }
-
-# Substrate Client
-sc-block-builder.workspace = true
-sc-client-api.workspace = true
-sc-proposer-metrics.workspace = true
 sc-service = { workspace = true, features = [ "test-helpers", "rocksdb" ] }
-sc-telemetry.workspace = true
-sc-transaction-pool.workspace = true
-sc-transaction-pool-api.workspace = true
 substrate-test-client.workspace = true
 
 # Substrate Primitives
 sp-core.workspace = true
 sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
-sp-api.workspace = true
-sp-consensus.workspace = true
 sp-keyring.workspace = true
 sp-runtime.workspace = true
-sp-blockchain.workspace = true
-sp-inherents.workspace = true
 sp-io.workspace = true
-sp-std.workspace = true
 
 # Substrate Other
 frame-system.workspace = true
-frame-support.workspace = true
 frame-metadata-hash-extension.workspace = true
 
 [features]
 default = ["std"]
 std = [
     "runtime-primitives/std",
-    "common/std",
-    "pallet-gear-rpc-runtime-api/std",
     "gear-runtime-interface/std",
     "sp-core/std",
     "sp-crypto-ec-utils/std",
-    "sp-api/std",
     "sp-runtime/std",
-    "sp-inherents/std",
     "sp-io/std",
-    "sp-std/std",
     "frame-system/std",
-    "frame-support/std",
     "vara-runtime/std",
 ]

@@ -15,12 +15,7 @@ color-eyre.workspace = true
 proc-macro2.workspace = true
 quote.workspace = true
 parity-scale-codec.workspace = true
-scale-info.workspace = true
 subxt-codegen.workspace = true
 syn = { workspace = true, features = ["full", "parsing"] }
 heck.workspace = true
 hex.workspace = true
-# NOTE: only required by this package.
-#
-# Same version from `/Cargo.lock`
-frame-metadata = "16.0.0"

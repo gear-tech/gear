@@ -34,12 +34,6 @@ mod mirror_abi {
 }
 
 sol!(
-    #[sol(rpc)]
-    IMirrorProxy,
-    "MirrorProxy.json"
-);
-
-sol!(
     #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IRouter,
@@ -62,6 +56,8 @@ sol!(
 pub(crate) mod utils {
     use alloy::primitives::{FixedBytes, Uint};
     use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
+
+    pub use alloy::primitives::Bytes;
 
     pub type Bytes32 = FixedBytes<32>;
     pub type Uint256 = Uint<256, 4>;

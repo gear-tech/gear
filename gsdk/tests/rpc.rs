@@ -215,7 +215,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
     let git_commit_hash = || -> Cow<str> {
         // This code is taken from
         // https://github.com/paritytech/substrate/blob/ae1a608c91a5da441a0ee7c26a4d5d410713580d/utils/build-script-utils/src/version.rs#L21
-        let commit = if let Ok(hash) = std::env::var("SUBSTRATE_CLI_GIT_COMMIT_HASH") {
+        if let Ok(hash) = std::env::var("SUBSTRATE_CLI_GIT_COMMIT_HASH") {
             Cow::from(hash.trim().to_owned())
         } else {
             // We deliberately set the length here to `11` to ensure that
@@ -238,8 +238,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
                     Cow::from("unknown")
                 }
             }
-        };
-        commit
+        }
     };
 
     // This test relies on the fact the node has been built from the same commit hash
@@ -363,25 +362,23 @@ async fn test_program_counters() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_for_handle() -> Result<()> {
+    use demo_fungible_token::{FTAction, FTEvent, InitConfig, WASM_BINARY};
+
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_new_meta::WASM_BINARY), &salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice", None)?;
 
+    let payload = InitConfig::test_sequence().encode();
+
     signer
         .calls
-        .upload_program(
-            demo_new_meta::WASM_BINARY.to_vec(),
-            salt,
-            vec![],
-            100_000_000_000,
-            0,
-        )
+        .upload_program(WASM_BINARY.to_vec(), salt, payload, 100_000_000_000, 0)
         .await?;
 
     assert!(
@@ -389,19 +386,9 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
         "Program not exists on chain."
     );
 
-    let message_in = demo_new_meta::MessageIn {
-        id: demo_new_meta::Id {
-            decimal: 1,
-            hex: [1].to_vec(),
-        },
-    };
+    let message_in = FTAction::TotalSupply;
 
-    let message_out = demo_new_meta::MessageOut {
-        res: demo_new_meta::Wallet::test_sequence()
-            .iter()
-            .find(|w| w.id.decimal == message_in.id.decimal)
-            .cloned(),
-    };
+    let message_out = FTEvent::TotalSupply(0);
 
     // 2. calculate reply for handle
     let reply_info = signer

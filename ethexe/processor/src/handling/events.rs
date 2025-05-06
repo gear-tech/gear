@@ -20,10 +20,10 @@ use super::ProcessingHandler;
 use anyhow::{ensure, Result};
 use ethexe_common::{
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
-    gear::ValueClaim,
+    gear::{Origin, ValueClaim},
 };
 use ethexe_db::{CodesStorage, ScheduledTask};
-use ethexe_runtime_common::state::{Dispatch, PayloadLookup, ValueWithExpiry};
+use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
 use gear_core::{ids::ProgramId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
@@ -81,7 +81,15 @@ impl ProcessingHandler {
                 self.update_state(actor_id, |state, storage, _| -> Result<()> {
                     let is_init = state.requires_init_message();
 
-                    let dispatch = Dispatch::new(storage, id, source, payload, value, is_init)?;
+                    let dispatch = Dispatch::new(
+                        storage,
+                        id,
+                        source,
+                        payload,
+                        value,
+                        is_init,
+                        Origin::Ethereum,
+                    )?;
 
                     state
                         .queue_hash
@@ -97,12 +105,16 @@ impl ProcessingHandler {
                 value,
             } => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
-                    let Some(ValueWithExpiry {
-                        value: claimed_value,
+                    let Some(Expiring {
+                        value:
+                            MailboxMessage {
+                                value: claimed_value,
+                                ..
+                            },
                         expiry,
-                    }) = state
-                        .mailbox_hash
-                        .modify_mailbox(storage, |mailbox| mailbox.remove(source, replied_to))
+                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                        mailbox.remove_and_store_user_mailbox(storage, source, replied_to)
+                    })
                     else {
                         return Ok(());
                     };
@@ -120,7 +132,14 @@ impl ProcessingHandler {
                         &ScheduledTask::RemoveFromMailbox((actor_id, source), replied_to),
                     )?;
 
-                    let reply = Dispatch::new_reply(storage, replied_to, source, payload, value)?;
+                    let reply = Dispatch::new_reply(
+                        storage,
+                        replied_to,
+                        source,
+                        payload,
+                        value,
+                        Origin::Ethereum,
+                    )?;
 
                     state
                         .queue_hash
@@ -131,17 +150,25 @@ impl ProcessingHandler {
             }
             MirrorRequestEvent::ValueClaimingRequested { claimed_id, source } => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
-                    let Some(ValueWithExpiry { value, expiry }) = state
-                        .mailbox_hash
-                        .modify_mailbox(storage, |mailbox| mailbox.remove(source, claimed_id))
+                    let Some(Expiring {
+                        value:
+                            MailboxMessage {
+                                value: claimed_value,
+                                ..
+                            },
+                        expiry,
+                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                        mailbox.remove_and_store_user_mailbox(storage, source, claimed_id)
+                    })
                     else {
                         return Ok(());
                     };
+
                     transitions.modify_transition(actor_id, |transition| {
                         transition.claims.push(ValueClaim {
                             message_id: claimed_id,
                             destination: source,
-                            value,
+                            value: claimed_value,
                         });
                     });
 
@@ -156,6 +183,7 @@ impl ProcessingHandler {
                         PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
+                        Origin::Ethereum,
                     );
 
                     state

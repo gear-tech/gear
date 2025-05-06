@@ -173,7 +173,7 @@ where
 impl<T: fmt::Debug, E: Default, const N: usize> fmt::Debug for LimitedVec<T, E, N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let len = self.0.len();
-        let median = (len + 1) / 2;
+        let median = len.div_ceil(2);
 
         let mut e1 = median;
         let mut s2 = median;
@@ -260,6 +260,14 @@ impl<T: fmt::Display, E: Default, const N: usize> fmt::Display for LimitedVec<T,
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
 
+impl<T: Clone, E: Default, const N: usize> TryFrom<&[T]> for LimitedVec<T, E, N> {
+    type Error = E;
+    fn try_from(x: &[T]) -> Result<Self, Self::Error> {
+        (x.len() <= N).then_some(()).ok_or_else(E::default)?;
+        Ok(Self(Vec::from(x), PhantomData))
+    }
+}
+
 impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
     type Error = E;
     fn try_from(x: Vec<T>) -> Result<Self, Self::Error> {
@@ -269,6 +277,9 @@ impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
 }
 
 impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
+    /// Maximum length of the vector.
+    pub const MAX_LEN: usize = N;
+
     /// Constructs a new, empty `LimitedVec<T>`.
     pub const fn new() -> Self {
         Self(Vec::new(), PhantomData)
@@ -337,6 +348,11 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
     /// Returns mut ref to the internal data slice.
     pub fn inner_mut(&mut self) -> &mut [T] {
         &mut self.0
+    }
+
+    /// Clones self into vector.
+    pub fn to_vec(&self) -> Vec<T> {
+        self.0.clone()
     }
 
     /// Destruct limited vector and returns inner vector.

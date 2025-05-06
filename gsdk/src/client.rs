@@ -55,6 +55,7 @@ impl ToRpcParams for Params {
 }
 
 /// Either http or websocket RPC client
+#[allow(clippy::large_enum_variant)]
 pub enum RpcClient {
     Ws(WsClient),
     Http(HttpClient),

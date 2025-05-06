@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::Encode;
 use common::Deconstructable;
 use futures::{
     channel::oneshot,
@@ -27,6 +26,7 @@ use futures::{
 use futures_timer::Delay;
 use log::{debug, error, info, trace, warn};
 use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
+use parity_scale_codec::Encode;
 use sc_block_builder::BlockBuilderApi;
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
@@ -269,7 +269,7 @@ where
             parent_hash
         );
 
-        let proposer = Proposer::<_, _, _, PR> {
+        Proposer::<_, _, _, PR> {
             spawn_handle: self.spawn_handle.clone(),
             client: self.client.clone(),
             parent_hash,
@@ -285,9 +285,7 @@ where
             dispatch_ratio: self.dispatch_ratio,
             _phantom: PhantomData,
             include_proof_in_block_size_estimation: self.include_proof_in_block_size_estimation,
-        };
-
-        proposer
+        }
     }
 }
 

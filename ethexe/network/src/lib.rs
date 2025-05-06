@@ -29,9 +29,10 @@ use anyhow::{anyhow, Context};
 use ethexe_db::Database;
 use ethexe_signer::{PublicKey, Signer};
 use futures::{future::Either, ready, stream::FusedStream, Stream};
+use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
     connection_limits,
-    core::{muxing::StreamMuxerBox, upgrade},
+    core::{muxing::StreamMuxerBox, transport::ListenerId, upgrade},
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
@@ -47,7 +48,7 @@ use libp2p::{
 use libp2p_swarm_test::SwarmExt;
 use std::{
     collections::HashSet,
-    fs,
+    fmt, fs,
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
     pin::Pin,
@@ -65,15 +66,48 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum NetworkEvent {
-    Message {
-        source: Option<PeerId>,
-        data: Vec<u8>,
+    DbResponse {
+        request_id: db_sync::RequestId,
+        result: Result<db_sync::Response, (db_sync::OngoingRequest, db_sync::RequestFailure)>,
     },
-    DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
+    Message {
+        data: Vec<u8>,
+        source: Option<PeerId>,
+    },
     PeerBlocked(PeerId),
-    ExternalValidation(db_sync::ValidatingResponse),
+    PeerConnected(PeerId),
+}
+
+impl fmt::Debug for NetworkEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NetworkEvent::DbResponse { request_id, result } => f
+                .debug_struct("DbResponse")
+                .field("request_id", request_id)
+                .field("result", result)
+                .finish(),
+            NetworkEvent::Message { data, source } => f
+                .debug_struct("Message")
+                .field(
+                    "data",
+                    &format_args!(
+                        "{:.8} ({} bytes)",
+                        ByteSliceFormatter::Dynamic(data),
+                        data.len()
+                    ),
+                )
+                .field("source", source)
+                .finish(),
+            NetworkEvent::PeerBlocked(peer_id) => {
+                f.debug_tuple("PeerBlocked").field(peer_id).finish()
+            }
+            NetworkEvent::PeerConnected(peer_id) => {
+                f.debug_tuple("PeerConnected").field(peer_id).finish()
+            }
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -119,6 +153,8 @@ impl NetworkConfig {
 
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
+    // `MemoryTransport` doesn't unregister its ports on drop so we do it
+    listeners: Vec<ListenerId>,
 }
 
 impl Stream for NetworkService {
@@ -163,8 +199,10 @@ impl NetworkService {
             swarm.add_external_address(multiaddr);
         }
 
+        let mut listeners = Vec::new();
         for multiaddr in config.listen_addresses {
-            swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
+            let id = swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
+            listeners.push(id);
         }
 
         for multiaddr in config.bootstrap_addresses {
@@ -182,7 +220,7 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        Ok(Self { swarm })
+        Ok(Self { swarm, listeners })
     }
 
     fn generate_keypair(
@@ -267,9 +305,11 @@ impl NetworkService {
     fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) -> Option<NetworkEvent> {
         log::trace!("new swarm event: {event:?}");
 
-        #[allow(clippy::single_match)]
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
+            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                Some(NetworkEvent::PeerConnected(peer_id))
+            }
             _ => None,
         }
     }
@@ -367,7 +407,7 @@ impl NetworkService {
                         topic,
                     },
                 ..
-            }) if gpu_commitments_topic().hash() == topic => {
+            }) if commitments_topic().hash() == topic || offchain_tx_topic().hash() == topic => {
                 return Some(NetworkEvent::Message { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
@@ -380,20 +420,23 @@ impl NetworkService {
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
-            BehaviourEvent::DbSync(db_sync::Event::ExternalValidation(validating_response)) => {
-                return Some(NetworkEvent::ExternalValidation(validating_response));
-            }
             BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
-                request_id: _,
+                request_id,
                 response,
             }) => {
-                return Some(NetworkEvent::DbResponse(Ok(response)));
+                return Some(NetworkEvent::DbResponse {
+                    request_id,
+                    result: Ok(response),
+                });
             }
             BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
-                request_id: _,
+                ongoing_request,
                 error,
             }) => {
-                return Some(NetworkEvent::DbResponse(Err(error)));
+                return Some(NetworkEvent::DbResponse {
+                    request_id: ongoing_request.id(),
+                    result: Err((ongoing_request, error)),
+                });
             }
             BehaviourEvent::DbSync(_) => {}
         }
@@ -414,21 +457,33 @@ impl NetworkService {
             .swarm
             .behaviour_mut()
             .gossipsub
-            .publish(gpu_commitments_topic(), data)
+            .publish(commitments_topic(), data)
         {
-            log::debug!("gossipsub publishing failed: {e}")
+            log::error!("gossipsub publishing failed: {e}")
         }
     }
 
-    pub fn request_db_data(&mut self, request: db_sync::Request) {
-        self.swarm.behaviour_mut().db_sync.request(request);
+    pub fn publish_offchain_transaction(&mut self, data: Vec<u8>) {
+        if let Err(e) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(offchain_tx_topic(), data)
+        {
+            log::error!("gossipsub publishing failed: {e}")
+        }
     }
 
-    pub fn request_validated(
-        &mut self,
-        res: Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>,
-    ) {
-        self.swarm.behaviour_mut().db_sync.request_validated(res);
+    pub fn db_sync(&mut self) -> &mut db_sync::Behaviour {
+        &mut self.swarm.behaviour_mut().db_sync
+    }
+}
+
+impl Drop for NetworkService {
+    fn drop(&mut self) {
+        for id in self.listeners.drain(..) {
+            self.swarm.remove_listener(id);
+        }
     }
 }
 
@@ -532,7 +587,8 @@ impl Behaviour {
             )
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
 
-        gossipsub.subscribe(&gpu_commitments_topic())?;
+        gossipsub.subscribe(&commitments_topic())?;
+        gossipsub.subscribe(&offchain_tx_topic())?;
 
         let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), peer_score_handle, db);
 
@@ -550,9 +606,13 @@ impl Behaviour {
     }
 }
 
-fn gpu_commitments_topic() -> gossipsub::IdentTopic {
+fn commitments_topic() -> gossipsub::IdentTopic {
     // TODO: use router address in topic name to avoid obsolete router
-    gossipsub::IdentTopic::new("gpu-commitments")
+    gossipsub::IdentTopic::new("ethexe-commitments")
+}
+
+fn offchain_tx_topic() -> gossipsub::IdentTopic {
+    gossipsub::IdentTopic::new("ethexe-tx-pool")
 }
 
 #[cfg(test)]
@@ -572,7 +632,7 @@ mod tests {
     }
 
     fn new_service() -> (TempDir, NetworkService) {
-        new_service_with_db(Database::from_one(&MemDb::default(), [0; 20]))
+        new_service_with_db(Database::from_one(&MemDb::default()))
     }
 
     #[tokio::test]
@@ -592,17 +652,19 @@ mod tests {
         let (_tmp_dir, mut service1) = new_service();
 
         // second service
-        let db = Database::from_one(&MemDb::default(), [0; 20]);
+        let db = Database::from_one(&MemDb::default());
 
-        let hello = db.write(b"hello");
-        let world = db.write(b"world");
+        let hello = db.write_hash(b"hello");
+        let world = db.write_hash(b"world");
 
         let (_tmp_dir, mut service2) = new_service_with_db(db);
 
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        service1.request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
+        let request_id = service1
+            .db_sync()
+            .request(db_sync::Request([hello, world].into()));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -610,9 +672,12 @@ mod tests {
             .unwrap();
         assert_eq!(
             event,
-            NetworkEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
-                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-            )))
+            NetworkEvent::DbResponse {
+                request_id,
+                result: Ok(db_sync::Response(
+                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+                ))
+            }
         );
     }
 
@@ -637,37 +702,5 @@ mod tests {
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
-    }
-
-    #[tokio::test]
-    async fn external_validation() {
-        init_logger();
-
-        let (_tmp_dir, mut service1) = new_service();
-        let (_tmp_dir, mut service2) = new_service();
-
-        service1.connect(&mut service2).await;
-        tokio::spawn(service2.loop_on_next());
-
-        service1.request_db_data(db_sync::Request::ProgramIds);
-
-        let event = timeout(Duration::from_secs(5), service1.next())
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        if let NetworkEvent::ExternalValidation(validating_response) = event {
-            service1.request_validated(Ok(validating_response));
-        } else {
-            unreachable!("{event:?}");
-        }
-
-        let event = timeout(Duration::from_secs(5), service1.next())
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        assert_eq!(
-            event,
-            NetworkEvent::DbResponse(Ok(db_sync::Response::ProgramIds([].into())))
-        );
     }
 }

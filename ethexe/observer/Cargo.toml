@@ -8,7 +8,6 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
@@ -30,9 +29,7 @@ alloy = { workspace = true, features = [
     "rpc-types-beacon",
     "signer-local",
 ] }
-async-stream.workspace = true
 async-trait.workspace = true
-parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
 futures.workspace = true
 reqwest = { workspace = true, features = ["default-tls", "json"] }
@@ -42,3 +39,5 @@ log.workspace = true
 gear-utils.workspace = true
 wasmparser.workspace = true
 wat.workspace = true
+rand.workspace = true
+roast-secp256k1-evm.workspace = true

@@ -32,20 +32,24 @@ impl CASDatabase for MemDb {
         Box::new(self.clone())
     }
 
-    fn read(&self, hash: &H256) -> Option<Vec<u8>> {
-        let key = hash.as_bytes().to_vec();
-        self.inner.get(&key).map(|v| v.value().clone())
+    fn read(&self, hash: H256) -> Option<Vec<u8>> {
+        let key = hash.as_bytes();
+        self.inner.get(key).map(|v| v.value().clone())
     }
 
-    fn write_by_hash(&self, hash: &H256, data: &[u8]) {
-        debug_assert_eq!(*hash, crate::hash(data));
-        let key = hash.as_bytes().to_vec();
-        self.inner.insert(key, data.to_vec());
+    fn contains(&self, hash: H256) -> bool {
+        self.inner.contains_key(hash.as_bytes())
+    }
+
+    fn write(&self, data: &[u8]) -> H256 {
+        let hash = crate::hash(data);
+        self.inner.insert(hash.as_bytes().to_vec(), data.to_vec());
+        hash
     }
 }
 
 impl KVDatabase for MemDb {
-    fn clone_boxed_kv(&self) -> Box<dyn KVDatabase> {
+    fn clone_boxed(&self) -> Box<dyn KVDatabase> {
         Box::new(self.clone())
     }
 
@@ -55,6 +59,10 @@ impl KVDatabase for MemDb {
 
     fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
         self.inner.remove(&key.to_vec()).map(|(_, value)| value)
+    }
+
+    fn contains(&self, key: &[u8]) -> bool {
+        self.inner.contains_key(key)
     }
 
     fn put(&self, key: &[u8], value: Vec<u8>) {

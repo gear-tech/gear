@@ -1,22 +1,26 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {Clones} from "./libraries/Clones.sol";
+import {ClonesSmall} from "./libraries/ClonesSmall.sol";
 import {Gear} from "./libraries/Gear.sol";
-import {Secp256k1} from "frost-secp256k1-evm/utils/cryptography/Secp256k1.sol";
+import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
-import {IMirrorDecoder} from "./IMirrorDecoder.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
+import {IMiddleware} from "./IMiddleware.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {ReentrancyGuardTransientUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-// TODO (gsobol): append middleware for slashing support.
-contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
+contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
+    // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant TRANSIENT_STORAGE = 0xf02b465737fa6045c2ff53fb2df43c66916ac2166fa303264668fb2f6a1d8c00;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -26,16 +30,17 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
     function initialize(
         address _owner,
         address _mirror,
-        address _mirrorProxy,
         address _wrappedVara,
+        address _middleware,
         uint256 _eraDuration,
         uint256 _electionDuration,
         uint256 _validationDelay,
         Gear.AggregatedPublicKey calldata _aggregatedPublicKey,
-        Gear.VerifyingShare[] calldata _verifyingShares,
+        bytes calldata _verifiableSecretSharingCommitment,
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
+        __ReentrancyGuardTransient_init();
 
         // Because of validator storages impl we have to check, that current timestamp is greater than 0.
         require(block.timestamp > 0, "current timestamp must be greater than 0");
@@ -49,17 +54,22 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         Storage storage router = _router();
 
         router.genesisBlock = Gear.newGenesis();
-        router.implAddresses = Gear.AddressBook(_mirror, _mirrorProxy, _wrappedVara);
+        router.implAddresses = Gear.AddressBook(_mirror, _wrappedVara, _middleware);
         router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
 
         // Set validators for the era 0.
         _resetValidators(
-            router.validationSettings.validators0, _aggregatedPublicKey, _verifyingShares, _validators, block.timestamp
+            router.validationSettings.validators0,
+            _aggregatedPublicKey,
+            _verifiableSecretSharingCommitment,
+            _validators,
+            block.timestamp
         );
     }
 
+    // TODO #4558: make reinitialization test.
     function reinitialize() public onlyOwner reinitializer(2) {
         Storage storage oldRouter = _router();
 
@@ -79,13 +89,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             oldRouter.validationSettings.signingThresholdPercentage;
 
         // Copy validators from the old router.
-        // TODO (gsobol): consider what to do. Maybe we should start reelection process.
+        // TODO #4557: consider what to do. Maybe we should start reelection process.
         // Skipping validators1 copying - means we forget election results
         // if an election is already done for the next era.
         _resetValidators(
-            oldRouter.validationSettings.validators0,
+            newRouter.validationSettings.validators0,
             Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
-            Gear.currentEraValidators(oldRouter).verifyingShares,
+            SSTORE2.read(Gear.currentEraValidators(oldRouter).verifiableSecretSharingCommitmentPointer),
             Gear.currentEraValidators(oldRouter).list,
             block.timestamp
         );
@@ -116,10 +126,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return _router().implAddresses.mirror;
     }
 
-    function mirrorProxyImpl() public view returns (address) {
-        return _router().implAddresses.mirrorProxy;
-    }
-
     function wrappedVara() public view returns (address) {
         return _router().implAddresses.wrappedVara;
     }
@@ -128,8 +134,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return Gear.currentEraValidators(_router()).aggregatedPublicKey;
     }
 
-    function validatorsVerifyingShares() public view returns (Gear.VerifyingShare[] memory) {
-        return Gear.currentEraValidators(_router()).verifyingShares;
+    function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory) {
+        return SSTORE2.read(Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer);
     }
 
     function areValidators(address[] calldata _validators) public view returns (bool) {
@@ -245,22 +251,27 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         emit CodeValidationRequested(_codeId);
     }
 
-    function createProgram(bytes32 _codeId, bytes32 _salt) external returns (address) {
-        address mirror = _createProgram(_codeId, _salt);
+    function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer) external returns (address) {
+        address mirror = _createProgram(_codeId, _salt, true);
 
-        IMirror(mirror).initialize(msg.sender, address(0));
+        IMirror(mirror).initialize(
+            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, mirrorImpl(), true
+        );
 
         return mirror;
     }
 
-    function createProgramWithDecoder(address _decoderImpl, bytes32 _codeId, bytes32 _salt)
-        external
-        returns (address)
-    {
-        address mirror = _createProgram(_codeId, _salt);
-        address decoder = _createDecoder(_decoderImpl, keccak256(abi.encodePacked(_codeId, _salt)), mirror);
+    function createProgramWithAbiInterface(
+        bytes32 _codeId,
+        bytes32 _salt,
+        address _overrideInitializer,
+        address _abiInterface
+    ) external returns (address) {
+        address mirror = _createProgram(_codeId, _salt, false);
 
-        IMirror(mirror).initialize(msg.sender, decoder);
+        IMirror(mirror).initialize(
+            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface, false
+        );
 
         return mirror;
     }
@@ -278,7 +289,24 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             "no commitments to commit"
         );
 
+        require(
+            _batchCommitment.rewardCommitments.length <= 1,
+            "rewards commitment must be empty or contains only one commitment"
+        );
+
         uint256 maxTimestamp = 0;
+
+        /* Commit Blocks */
+
+        bytes memory blockCommitmentsHashes;
+
+        for (uint256 i = 0; i < _batchCommitment.blockCommitments.length; i++) {
+            Gear.BlockCommitment calldata blockCommitment = _batchCommitment.blockCommitments[i];
+            blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
+            if (blockCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = blockCommitment.timestamp;
+            }
+        }
 
         /* Commit Codes */
 
@@ -307,15 +335,15 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             }
         }
 
-        /* Commit Blocks */
+        /* Commit Rewards */
 
-        bytes memory blockCommitmentsHashes;
+        bytes memory rewardsCommitmentHash;
+        if (_batchCommitment.rewardCommitments.length > 0) {
+            Gear.RewardsCommitment calldata rewardsCommitment = _batchCommitment.rewardCommitments[0];
+            rewardsCommitmentHash = _commitRewards(router, rewardsCommitment);
 
-        for (uint256 i = 0; i < _batchCommitment.blockCommitments.length; i++) {
-            Gear.BlockCommitment calldata blockCommitment = _batchCommitment.blockCommitments[i];
-            blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
-            if (blockCommitment.timestamp > maxTimestamp) {
-                maxTimestamp = blockCommitment.timestamp;
+            if (rewardsCommitment.timestamp > maxTimestamp) {
+                maxTimestamp = rewardsCommitment.timestamp;
             }
         }
 
@@ -326,7 +354,14 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         require(
             Gear.validateSignaturesAt(
                 router,
-                keccak256(abi.encodePacked(keccak256(codeCommitmentsHashes), keccak256(blockCommitmentsHashes))),
+                TRANSIENT_STORAGE,
+                keccak256(
+                    abi.encodePacked(
+                        keccak256(blockCommitmentsHashes),
+                        keccak256(codeCommitmentsHashes),
+                        keccak256(rewardsCommitmentHash)
+                    )
+                ),
                 _signatureType,
                 _signatures,
                 maxTimestamp
@@ -337,7 +372,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     /// @dev Set validators for the next era.
     function commitValidators(
-        Gear.ValidatorsCommitment calldata _validatorsCommitment,
+        Gear.ValidatorsCommitment memory _validatorsCommitment,
         Gear.SignatureType _signatureType,
         bytes[] calldata _signatures
     ) external {
@@ -357,14 +392,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         bytes32 commitmentHash = Gear.validatorsCommitmentHash(_validatorsCommitment);
         require(
-            Gear.validateSignatures(router, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures),
+            Gear.validateSignatures(
+                router, TRANSIENT_STORAGE, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures
+            ),
             "next era validators signatures verification failed"
         );
 
         _resetValidators(
             _validators,
             _validatorsCommitment.aggregatedPublicKey,
-            _validatorsCommitment.verifyingShares,
+            _validatorsCommitment.verifiableSecretSharingCommitment,
             _validatorsCommitment.validators,
             nextEraStart
         );
@@ -374,7 +411,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
     /* Helper private functions */
 
-    function _createProgram(bytes32 _codeId, bytes32 _salt) private returns (address) {
+    function _createProgram(bytes32 _codeId, bytes32 _salt, bool _isSmall) private returns (address) {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
@@ -385,8 +422,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
-        address actorId =
-            Clones.cloneDeterministic(router.implAddresses.mirrorProxy, keccak256(abi.encodePacked(_codeId, _salt)));
+        bytes32 salt = keccak256(abi.encodePacked(_codeId, _salt));
+        address actorId = _isSmall
+            ? ClonesSmall.cloneDeterministic(address(this), salt)
+            : Clones.cloneDeterministic(address(this), salt);
 
         router.protocolData.programs[actorId] = _codeId;
         router.protocolData.programsCount++;
@@ -394,14 +433,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         emit ProgramCreated(actorId, _codeId);
 
         return actorId;
-    }
-
-    function _createDecoder(address _implementation, bytes32 _salt, address _mirror) private returns (address) {
-        address decoder = Clones.cloneDeterministic(_implementation, _salt);
-
-        IMirrorDecoder(decoder).initialize(_mirror);
-
-        return decoder;
     }
 
     function _commitBlock(Storage storage router, Gear.BlockCommitment calldata _blockCommitment)
@@ -454,7 +485,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
                 router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
             );
 
-            IWrappedVara(router.implAddresses.wrappedVara).transfer(transition.actorId, transition.valueToReceive);
+            if (transition.valueToReceive != 0) {
+                IWrappedVara(router.implAddresses.wrappedVara).transfer(transition.actorId, transition.valueToReceive);
+            }
 
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);
 
@@ -464,10 +497,35 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
         return keccak256(transitionsHashes);
     }
 
+    // TODO #4609
+    // TODO #4611
+    function _commitRewards(Storage storage router, Gear.RewardsCommitment calldata _rewardsCommitment)
+        private
+        returns (bytes memory)
+    {
+        address middleware = router.implAddresses.middleware;
+        IERC20(router.implAddresses.wrappedVara).approve(
+            middleware, _rewardsCommitment.operators.amount + _rewardsCommitment.stakers.totalAmount
+        );
+
+        bytes memory rewardsCommitmentHash;
+
+        bytes32 operatorRewardsHash = IMiddleware(middleware).distributeOperatorRewards(
+            router.implAddresses.wrappedVara, _rewardsCommitment.operators.amount, _rewardsCommitment.operators.root
+        );
+        rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, operatorRewardsHash);
+
+        bytes32 stakerRewardsHash =
+            IMiddleware(middleware).distributeStakerRewards(_rewardsCommitment.stakers, _rewardsCommitment.timestamp);
+        rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, stakerRewardsHash);
+
+        return rewardsCommitmentHash;
+    }
+
     function _resetValidators(
         Gear.Validators storage _validators,
         Gear.AggregatedPublicKey memory _newAggregatedPublicKey,
-        Gear.VerifyingShare[] memory _verifyingShares,
+        bytes memory _verifiableSecretSharingCommitment,
         address[] memory _newValidators,
         uint256 _useFromTimestamp
     ) private {
@@ -481,15 +539,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransient {
             "FROST aggregated public key is invalid"
         );
         _validators.aggregatedPublicKey = _newAggregatedPublicKey;
-        // NOTE: we do not checked that aggregated public key is equal to the sum of verifying shares right now
-        require(
-            _verifyingShares.length == _newValidators.length, "verifying shares count must be equal to validators count"
-        );
-        for (uint256 i = 0; i < _verifyingShares.length; i++) {
-            Gear.VerifyingShare memory verifyingShare = _verifyingShares[i];
-            require(Secp256k1.isOnCurve(verifyingShare.x, verifyingShare.y), "verifying share is not on curve");
-        }
-        _validators.verifyingShares = _verifyingShares;
+        _validators.verifiableSecretSharingCommitmentPointer = SSTORE2.write(_verifiableSecretSharingCommitment);
         for (uint256 i = 0; i < _validators.list.length; i++) {
             address _validator = _validators.list[i];
             _validators.map[_validator] = false;

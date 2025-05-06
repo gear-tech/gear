@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MergeParams;
-use anyhow::{Context, Result};
+use anyhow::{ensure, Context, Result};
 use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
@@ -46,13 +46,14 @@ pub struct NodeParams {
     #[serde(default)]
     pub dev: bool,
 
-    /// Public key of the sequencer, if node should act as one.
-    #[arg(long)]
-    pub sequencer: Option<String>,
-
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
     pub validator: Option<String>,
+
+    /// Public key of the validator session, if node should act as one.
+    #[arg(long)]
+    #[serde(rename = "validator-session")]
+    pub validator_session: Option<String>,
 
     /// Max allowed height diff from head for sync directly from Ethereum.
     #[arg(long)]
@@ -68,31 +69,42 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(rename = "virtual-threads")]
     pub virtual_threads: Option<NonZero<u8>>,
+
+    /// Do P2P database synchronization before the main loop
+    #[arg(long, default_value = "false")]
+    #[serde(default, rename = "fast-sync")]
+    pub fast_sync: bool,
 }
 
 impl NodeParams {
     /// Default max allowed height diff from head for sync directly from Ethereum.
-    pub const DEFAULT_MAX_DEPTH: NonZero<u32> = unsafe { NonZero::new_unchecked(100_000) };
+    pub const DEFAULT_MAX_DEPTH: NonZero<u32> = NonZero::new(100_000).unwrap();
 
     /// Default amount of virtual threads to use for programs processing.
-    pub const DEFAULT_VIRTUAL_THREADS: NonZero<u8> = unsafe { NonZero::new_unchecked(16) };
+    pub const DEFAULT_VIRTUAL_THREADS: NonZero<u8> = NonZero::new(16).unwrap();
 
     /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
+        ensure!(
+            self.validator.is_some() == self.validator_session.is_some(),
+            "`validator` and `validator-session` must be both set or both unset"
+        );
+
         Ok(NodeConfig {
             database_path: self.db_dir(),
             key_path: self.keys_dir(),
-            sequencer: ConfigPublicKey::new(&self.sequencer)
-                .with_context(|| "invalid `sequencer` key")?,
             validator: ConfigPublicKey::new(&self.validator)
                 .with_context(|| "invalid `validator` key")?,
-            max_commitment_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
+            validator_session: ConfigPublicKey::new(&self.validator_session)
+                .with_context(|| "invalid `validator-session` key")?,
+            eth_max_sync_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
             worker_threads_override: self.physical_threads.map(|v| v.get() as usize),
             virtual_threads: self
                 .virtual_threads
                 .unwrap_or(Self::DEFAULT_VIRTUAL_THREADS)
                 .get() as usize,
             dev: self.dev,
+            fast_sync: self.fast_sync,
         })
     }
 
@@ -151,13 +163,16 @@ impl MergeParams for NodeParams {
             base: self.base.or(with.base),
             tmp: self.tmp || with.tmp,
             dev: self.dev || with.dev,
-            sequencer: self.sequencer.or(with.sequencer),
+
             validator: self.validator.or(with.validator),
+            validator_session: self.validator_session.or(with.validator_session),
 
             max_depth: self.max_depth.or(with.max_depth),
 
             physical_threads: self.physical_threads.or(with.physical_threads),
             virtual_threads: self.virtual_threads.or(with.virtual_threads),
+
+            fast_sync: self.fast_sync || with.fast_sync,
         }
     }
 }

@@ -76,31 +76,29 @@ thread_local! {
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
-    #[display(fmt = "WASM memory native address {_0:#x} is not aligned to the native page size")]
+    #[display("WASM memory native address {_0:#x} is not aligned to the native page size")]
     WasmMemAddrIsNotAligned(usize),
-    #[display(fmt = "{_0}")]
-    #[from]
     Mprotect(MprotectError),
-    #[display(fmt = "Wasm memory end addr is out of usize: begin addr = {_0:#x}, size = {_1:#x}")]
+    #[from(skip)]
+    #[display("Wasm memory end addr is out of usize: begin addr = {_0:#x}, size = {_1:#x}")]
     WasmMemoryEndAddrOverflow(usize, usize),
-    #[display(fmt = "Prefix of storage with memory pages was not set")]
+    #[display("Prefix of storage with memory pages was not set")]
     MemoryPagesPrefixNotSet,
-    #[display(fmt = "Memory size must be null when memory host addr is not set")]
+    #[display("Memory size must be null when memory host addr is not set")]
     MemorySizeIsNotNull,
-    #[display(fmt = "Wasm mem size is too big")]
+    #[display("Wasm mem size is too big")]
     WasmMemSizeOverflow,
-    #[display(fmt = "Stack end offset cannot be bigger than memory size")]
+    #[display("Stack end offset cannot be bigger than memory size")]
     StackEndBiggerThanMemSize,
-    #[display(fmt = "Stack end offset is too big")]
+    #[display("Stack end offset is too big")]
     StackEndOverflow,
-    #[display(fmt = "Wasm addr and size are not changed, so host func call is needless")]
+    #[display("Wasm addr and size are not changed, so host func call is needless")]
     NothingToChange,
-    #[display(fmt = "Wasm memory addr must be set, when trying to change something in lazy pages")]
+    #[display("Wasm memory addr must be set, when trying to change something in lazy pages")]
     WasmMemAddrIsNotSet,
-    #[display(fmt = "{_0}")]
-    #[from]
     GlobalContext(ContextError),
-    #[display(fmt = "Wrong costs amount: get {_0}, must be {_1}")]
+    #[from(skip)]
+    #[display("Wrong costs amount: get {_0}, must be {_1}")]
     WrongCostsAmount(usize, usize),
 }
 
@@ -304,17 +302,17 @@ pub fn status() -> Result<Status, Error> {
 
 #[derive(Debug, Clone, derive_more::Display)]
 pub enum InitError {
-    #[display(fmt = "Wrong page sizes amount: get {_0}, must be {_1}")]
+    #[display("Wrong page sizes amount: get {_0}, must be {_1}")]
     WrongSizesAmount(usize, usize),
-    #[display(fmt = "Wrong global names: expected {_0}, found {_1}")]
+    #[display("Wrong global names: expected {_0}, found {_1}")]
     WrongGlobalNames(String, String),
-    #[display(fmt = "Not suitable page sizes")]
+    #[display("Not suitable page sizes")]
     NotSuitablePageSizes,
-    #[display(fmt = "Can not set signal handler: {_0}")]
+    #[display("Can not set signal handler: {_0}")]
     CanNotSetUpSignalHandler(String),
-    #[display(fmt = "Failed to init for thread: {_0}")]
+    #[display("Failed to init for thread: {_0}")]
     InitForThread(String),
-    #[display(fmt = "Provided by runtime memory page size cannot be zero")]
+    #[display("Provided by runtime memory page size cannot be zero")]
     ZeroPageSize,
 }
 
@@ -337,7 +335,7 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
             exception_types::*, kern_return::*, mach_types::*, port::*, thread_status::*, traps::*,
         };
 
-        extern "C" {
+        unsafe extern "C" {
             // See https://web.mit.edu/darwin/src/modules/xnu/osfmk/man/task_set_exception_ports.html
             fn task_set_exception_ports(
                 task: task_t,
@@ -358,13 +356,15 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
         #[cfg(target_arch = "aarch64")]
         static MACHINE_THREAD_STATE: i32 = 6;
 
-        task_set_exception_ports(
-            mach_task_self(),
-            EXC_MASK_BAD_ACCESS,
-            MACH_PORT_NULL,
-            EXCEPTION_STATE_IDENTITY as exception_behavior_t,
-            MACHINE_THREAD_STATE,
-        );
+        unsafe {
+            task_set_exception_ports(
+                mach_task_self(),
+                EXC_MASK_BAD_ACCESS,
+                MACH_PORT_NULL,
+                EXCEPTION_STATE_IDENTITY as exception_behavior_t,
+                MACHINE_THREAD_STATE,
+            )
+        };
     }
 
     LAZY_PAGES_INITIALIZED.get_or_init(|| {

@@ -16,38 +16,104 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::{fmt, str};
+//! Primitives' utils
+
+use core::{
+    fmt,
+    ops::{Index, RangeFrom, RangeTo},
+    str,
+};
 #[cfg(feature = "serde")]
 use {
     core::{marker::PhantomData, str::FromStr},
     serde::de,
 };
 
-const LEN: usize = 32;
-const MEDIAN: usize = (LEN + 1) / 2;
+/// `[u8]` formatter.
+///
+/// So it looks like `0x12ae..ff80`.
+pub enum ByteSliceFormatter<'a> {
+    /// Fixed-size array so it can be formatted on stack.
+    Array(&'a [u8; 32]),
+    /// Slice of any size.
+    ///
+    /// If the size is less or equal to 32, it is formatted on stack,
+    /// on heap otherwise.
+    Dynamic(&'a [u8]),
+}
 
-pub(crate) struct ByteArray<'a>(pub &'a [u8; LEN]);
+impl ByteSliceFormatter<'_> {
+    fn len(&self) -> usize {
+        match self {
+            ByteSliceFormatter::Array(arr) => arr.len(),
+            ByteSliceFormatter::Dynamic(slice) => slice.len(),
+        }
+    }
+}
 
-impl fmt::Display for ByteArray<'_> {
+impl Index<RangeTo<usize>> for ByteSliceFormatter<'_> {
+    type Output = <[u8] as Index<RangeTo<usize>>>::Output;
+
+    fn index(&self, index: RangeTo<usize>) -> &Self::Output {
+        match self {
+            ByteSliceFormatter::Array(arr) => &arr[index],
+            ByteSliceFormatter::Dynamic(slice) => &slice[index],
+        }
+    }
+}
+
+impl Index<RangeFrom<usize>> for ByteSliceFormatter<'_> {
+    type Output = <[u8] as Index<RangeFrom<usize>>>::Output;
+
+    fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
+        match self {
+            ByteSliceFormatter::Array(arr) => &arr[index],
+            ByteSliceFormatter::Dynamic(slice) => &slice[index],
+        }
+    }
+}
+
+impl fmt::Display for ByteSliceFormatter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut e1 = MEDIAN;
-        let mut s2 = MEDIAN;
+        const STACK_LEN: usize = 32;
+
+        let len = self.len();
+        let median = len.div_ceil(2);
+
+        let mut e1 = median;
+        let mut s2 = median;
 
         if let Some(precision) = f.precision() {
-            if precision < MEDIAN {
+            if precision < median {
                 e1 = precision;
-                s2 = LEN - precision;
+                s2 = len - precision;
             }
         }
 
-        let mut out1 = [0; MEDIAN * 2];
-        let mut out2 = [0; MEDIAN * 2];
-
         let out1_len = e1 * 2;
-        let out2_len = (LEN - s2) * 2;
+        let out2_len = (len - s2) * 2;
 
-        let _ = hex::encode_to_slice(&self.0[..e1], &mut out1[..out1_len]);
-        let _ = hex::encode_to_slice(&self.0[s2..], &mut out2[..out2_len]);
+        let mut out1_vec;
+        let mut out2_vec;
+
+        let (out1, out2) = match self {
+            ByteSliceFormatter::Array(_arr) => (
+                &mut [0u8; STACK_LEN] as &mut [u8],
+                &mut [0u8; STACK_LEN] as &mut [u8],
+            ),
+            ByteSliceFormatter::Dynamic(slice) if slice.len() <= STACK_LEN => (
+                &mut [0u8; STACK_LEN] as &mut [u8],
+                &mut [0u8; STACK_LEN] as &mut [u8],
+            ),
+            ByteSliceFormatter::Dynamic(_slice) => {
+                out1_vec = alloc::vec![0u8; out1_len];
+                out2_vec = alloc::vec![0u8; out2_len];
+                (&mut out1_vec[..], &mut out2_vec[..])
+            }
+        };
+
+        let _ = hex::encode_to_slice(&self[..e1], &mut out1[..out1_len]);
+        let _ = hex::encode_to_slice(&self[s2..], &mut out2[..out2_len]);
 
         let p1 = unsafe { str::from_utf8_unchecked(&out1[..out1_len]) };
         let p2 = unsafe { str::from_utf8_unchecked(&out2[..out2_len]) };

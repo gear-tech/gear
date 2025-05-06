@@ -1,6 +1,8 @@
 node_modules/
 target/
+target-rust-analyzer/
 target-no-lazy/
+target-rust-analyzer/
 target-xwin/
 log/
 weight-dumps/

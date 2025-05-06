@@ -28,6 +28,7 @@ use core_processor::{
     configs::{BlockConfig, SyscallName},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
+use ethexe_common::gear::Origin;
 use gear_core::{
     code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     ids::ProgramId,
@@ -40,7 +41,7 @@ use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
 pub use journal::Handler as JournalHandler;
-pub use schedule::Handler as ScheduleHandler;
+pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{InBlockTransitions, NonFinalTransition};
 
 pub mod state;
@@ -99,7 +100,7 @@ pub fn process_next_message<S, RI>(
     instrumented_code: Option<InstrumentedCode>,
     code_id: CodeId,
     ri: &RI,
-) -> Vec<JournalNote>
+) -> (Vec<JournalNote>, Option<Origin>)
 where
     S: Storage,
     RI: RuntimeInterface<S>,
@@ -109,14 +110,14 @@ where
 
     log::trace!("Processing next message for program {program_id}");
 
-    let mut queue = program_state.queue_hash.with_hash_or_default(|hash| {
+    let mut queue = program_state.queue_hash.map_or_default(|hash| {
         ri.storage()
             .read_queue(hash)
             .expect("Cannot get message queue")
     });
 
     if queue.is_empty() {
-        return Vec::new();
+        return (Vec::new(), None);
     }
 
     // TODO: must be set by some runtime configuration
@@ -147,7 +148,7 @@ where
             SyscallName::Random,
         ]
         .into(),
-        gas_multiplier: GasMultiplier::one(),
+        gas_multiplier: GasMultiplier::from_value_per_gas(100),
         costs: Default::default(),
         max_pages: MAX_WASM_PAGES_AMOUNT.into(),
         outgoing_limit: 1024,
@@ -161,6 +162,36 @@ where
         reserve_for: 0,
     };
 
+    let dispatch = queue.dequeue().unwrap();
+    let origin = dispatch.origin;
+
+    let journal = process_dispatch(
+        dispatch,
+        &block_config,
+        program_id,
+        program_state,
+        instrumented_code,
+        code_id,
+        ri,
+    );
+
+    (journal, origin.into())
+}
+
+fn process_dispatch<S, RI>(
+    dispatch: Dispatch,
+    block_config: &BlockConfig,
+    program_id: ProgramId,
+    program_state: ProgramState,
+    instrumented_code: Option<InstrumentedCode>,
+    code_id: CodeId,
+    ri: &RI,
+) -> Vec<JournalNote>
+where
+    S: Storage,
+    RI: RuntimeInterface<S>,
+    <RI as RuntimeInterface<S>>::LazyPages: Send,
+{
     let Dispatch {
         id: dispatch_id,
         kind,
@@ -169,7 +200,8 @@ where
         value,
         details,
         context,
-    } = queue.dequeue().unwrap();
+        ..
+    } = dispatch;
 
     let payload = payload.query(ri.storage()).expect("failed to get payload");
 
@@ -184,7 +216,7 @@ where
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
     let context = match core_processor::precharge_for_program(
-        &block_config,
+        block_config,
         1_000_000_000_000,
         dispatch,
         program_id,
@@ -195,9 +227,13 @@ where
 
     let active_state = match program_state.program {
         state::Program::Active(state) => state,
-        state::Program::Exited(program_id) | state::Program::Terminated(program_id) => {
-            log::trace!("Program {program_id} is not active");
-            return core_processor::process_non_executable(context);
+        state::Program::Terminated(program_id) => {
+            log::trace!("Program {program_id} has failed init");
+            return core_processor::process_failed_init(context);
+        }
+        state::Program::Exited(program_id) => {
+            log::trace!("Program {program_id} has exited");
+            return core_processor::process_program_exited(context, program_id);
         }
     };
 
@@ -214,18 +250,18 @@ where
     // Otherwise, we return error reply.
     if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
         log::trace!("Program {program_id} is not yet finished initialization, so cannot process handle message");
-        return core_processor::process_non_executable(context);
+        return core_processor::process_uninitialized(context);
     }
 
     // TODO: support normal allocations len #4068
-    let allocations = active_state.allocations_hash.with_hash_or_default(|hash| {
+    let allocations = active_state.allocations_hash.map_or_default(|hash| {
         ri.storage()
             .read_allocations(hash)
             .expect("Cannot get allocations")
     });
 
     let context = match core_processor::precharge_for_allocations(
-        &block_config,
+        block_config,
         context,
         allocations.tree_len(),
     ) {
@@ -244,16 +280,16 @@ where
         memory_infix: active_state.memory_infix,
     };
 
-    let context =
-        match core_processor::precharge_for_code_length(&block_config, context, actor_data) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
+    let context = match core_processor::precharge_for_code_length(block_config, context, actor_data)
+    {
+        Ok(context) => context,
+        Err(journal) => return journal,
+    };
 
     let context = ContextChargedForCode::from(context);
     let context = ContextChargedForInstrumentation::from(context);
     let context = match core_processor::precharge_for_module_instantiation(
-        &block_config,
+        block_config,
         context,
         code.instantiated_section_sizes(),
     ) {
@@ -267,7 +303,7 @@ where
 
     ri.init_lazy_pages();
 
-    core_processor::process::<Ext<RI::LazyPages>>(&block_config, execution_context, random_data)
+    core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))
 }
 

@@ -45,35 +45,35 @@ pub use simple::*;
 #[repr(u32)]
 pub enum ExecutionError {
     /// An error occurs in attempt to charge more gas than available for operation.
-    #[display(fmt = "Not enough gas for operation")]
+    #[display("Not enough gas for operation")]
     NotEnoughGas = 100,
 
     /// The error occurs when balance is less than required by operation.
-    #[display(fmt = "Not enough value for operation")]
+    #[display("Not enough value for operation")]
     NotEnoughValue = 101,
 
     /// Overflow in 'gr_read'
-    #[display(fmt = "Length is overflowed to read payload")]
+    #[display("Length is overflowed to read payload")]
     TooBigReadLen = 103,
 
     /// Cannot take data in payload range
-    #[display(fmt = "Cannot take data in payload range from message with size")]
+    #[display("Cannot take data in payload range from message with size")]
     ReadWrongRange = 104,
 
     /// The error occurs when functions related to reply context, used without it.
-    #[display(fmt = "Not running in reply context")]
+    #[display("Not running in reply context")]
     NoReplyContext = 105,
 
     /// The error occurs when functions related to signal context, used without it.
-    #[display(fmt = "Not running in signal context")]
+    #[display("Not running in signal context")]
     NoSignalContext = 106,
 
     /// The error occurs when functions related to status code, used without required context.
-    #[display(fmt = "No status code in reply/signal context")]
+    #[display("No status code in reply/signal context")]
     NoStatusCodeContext = 107,
 
     /// An error occurs in attempt to send or push reply while reply function is banned.
-    #[display(fmt = "Reply sending is only allowed in `init` and `handle` functions")]
+    #[display("Reply sending is only allowed in `init` and `handle` functions")]
     IncorrectEntryForReply = 108,
 }
 
@@ -85,10 +85,10 @@ pub enum ExecutionError {
 #[repr(u32)]
 pub enum MemoryError {
     /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
-    #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
+    #[display("Trying to allocate more memory in block-chain runtime than allowed")]
     RuntimeAllocOutOfBounds = 200,
     /// The error occurs in attempt to access memory outside wasm program memory.
-    #[display(fmt = "Trying to access memory outside wasm program memory")]
+    #[display("Trying to access memory outside wasm program memory")]
     AccessOutOfBounds = 201,
 }
 
@@ -100,81 +100,79 @@ pub enum MemoryError {
 #[repr(u32)]
 pub enum MessageError {
     /// Message has bigger then allowed one message size
-    #[display(fmt = "Max message size exceed")]
+    #[display("Max message size exceed")]
     MaxMessageSizeExceed = 300,
 
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
-    #[display(fmt = "Message limit exceeded")]
+    #[display("Message limit exceeded")]
     OutgoingMessagesAmountLimitExceeded = 301,
 
     /// The error occurs in case of attempt to send more than one replies.
-    #[display(fmt = "Duplicate reply message")]
+    #[display("Duplicate reply message")]
     DuplicateReply = 302,
 
     /// The error occurs in attempt to get the same message from the waitlist
     /// again (which is waked already).
-    #[display(fmt = "Duplicate waking message")]
+    #[display("Duplicate waking message")]
     DuplicateWaking = 303,
 
     /// An attempt to commit or push a payload into an already formed message.
-    #[display(fmt = "An attempt to commit or push a payload into an already formed message")]
+    #[display("An attempt to commit or push a payload into an already formed message")]
     LateAccess = 304,
 
     /// The error occurs in case of not valid identifier specified.
-    #[display(fmt = "Message with given handle is not found")]
+    #[display("Message with given handle is not found")]
     OutOfBounds = 305,
 
     /// The error occurs in attempt to initialize the same program twice within
     /// a single execution.
-    #[display(fmt = "Duplicated program initialization message")]
+    #[display("Duplicated program initialization message")]
     DuplicateInit = 306,
 
     /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
     /// Value between 0 and existential deposit cannot be sent in message.
-    #[display(fmt = "In case of non-zero message value must be greater than existential deposit")]
+    #[display("In case of non-zero message value must be greater than existential deposit")]
     InsufficientValue = 307,
 
     /// Everything less than mailbox threshold but greater than 0 is not considered as available gas limit and
     /// not inserted in mailbox.
     ///
     /// Gas limit between 0 and mailbox threshold cannot be inserted in mailbox.
-    #[display(
-        fmt = "In case of non-zero message gas limit must be greater than mailbox threshold"
-    )]
+    #[display("In case of non-zero message gas limit must be greater than mailbox threshold")]
     InsufficientGasLimit = 308,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that already been created within the execution.
-    #[display(fmt = "Reply deposit already exists for given message")]
+    #[display("Reply deposit already exists for given message")]
     DuplicateReplyDeposit = 309,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that wasn't sent within the execution or for reply.
     #[display(
-        fmt = "Reply deposit could be only created for init or handle message sent within the execution"
+        "Reply deposit could be only created for init or handle message sent within the execution"
     )]
     IncorrectMessageForReplyDeposit = 310,
 
     /// The error occurs when program tries to send messages
     /// with total size bigger than allowed.
-    #[display(fmt = "Outgoing messages bytes limit exceeded")]
+    #[display("Outgoing messages bytes limit exceeded")]
     OutgoingMessagesBytesLimitExceeded = 311,
 
     /// The error occurs when a wrong offset of the input buffer (currently executing message payload)
     /// is provided.
-    #[display(fmt = "Offset value for the input payload is out of it's size bounds")]
+    #[display("Offset value for the input payload is out of it's size bounds")]
     OutOfBoundsInputSliceOffset = 312,
 
     /// The error occurs when a too big length value to form a slice (range) of the input buffer
     /// (currently executing message payload) is provided.
-    #[display(fmt = "Too big length value is set to form a slice (range) of the input buffer")]
+    #[display("Too big length value is set to form a slice (range) of the input buffer")]
     OutOfBoundsInputSliceLength = 313,
 
     // TODO: remove after delay refactoring is done
     /// An error occurs in attempt to charge gas for dispatch stash hold.
-    #[display(fmt = "Not enough gas to hold dispatch message")]
+    #[display("Not enough gas to hold dispatch message")]
     InsufficientGasForDelayedSending = 399,
 }
 
@@ -187,19 +185,19 @@ pub enum MessageError {
 // TODO: refactor after multiple reservations are done
 pub enum ReservationError {
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
-    #[display(fmt = "Invalid reservation ID")]
+    #[display("Invalid reservation ID")]
     InvalidReservationId = 500,
     /// An error occurs in attempt to reserve more times than allowed.
-    #[display(fmt = "Reservation limit has reached")]
+    #[display("Reservation limit has reached")]
     ReservationsLimitReached = 501,
     /// An error occurs in attempt to create reservation for 0 blocks.
-    #[display(fmt = "Reservation duration cannot be zero")]
+    #[display("Reservation duration cannot be zero")]
     ZeroReservationDuration = 502,
     /// An error occurs in attempt to reserve zero gas.
-    #[display(fmt = "Reservation amount cannot be zero")]
+    #[display("Reservation amount cannot be zero")]
     ZeroReservationAmount = 503,
     /// An error occurs in attempt to reserve gas less than mailbox threshold.
-    #[display(fmt = "Reservation amount cannot be below mailbox threshold")]
+    #[display("Reservation amount cannot be below mailbox threshold")]
     ReservationBelowMailboxThreshold = 504,
 }
 
@@ -220,19 +218,19 @@ pub enum ReservationError {
 #[non_exhaustive]
 pub enum ExtError {
     /// Execution error.
-    #[display(fmt = "Execution error: {_0}")]
+    #[display("Execution error: {_0}")]
     Execution(ExecutionError),
 
     /// Memory error.
-    #[display(fmt = "Memory error: {_0}")]
+    #[display("Memory error: {_0}")]
     Memory(MemoryError),
 
     /// Message error.
-    #[display(fmt = "Message error: {_0}")]
+    #[display("Message error: {_0}")]
     Message(MessageError),
 
     /// Reservation error.
-    #[display(fmt = "Reservation error: {_0}")]
+    #[display("Reservation error: {_0}")]
     Reservation(ReservationError),
 
     /// There is a new error variant old program don't support.

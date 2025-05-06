@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
@@ -113,10 +113,7 @@ contract POCTest is Base {
         commitValidators(
             _privateKeys,
             Gear.ValidatorsCommitment(
-                Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY),
-                Gear.dummyVerifyingShares(_validators.length),
-                _validators,
-                2
+                Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 2
             )
         );
 
@@ -144,7 +141,7 @@ contract POCTest is Base {
         {
             vm.expectEmit(true, false, false, false);
             emit IRouter.ProgramCreated(address(0), bytes32(uint256(1)));
-            _ping = router.createProgram(_codeId, "salt");
+            _ping = router.createProgram(_codeId, "salt", address(0));
             IMirror(_ping).sendMessage("PING", 0);
         }
         vm.stopPrank();

@@ -22,7 +22,7 @@ log.workspace = true
 primitive-types = { workspace = true, features = ["scale-info"] }
 gear-wasm-instrument.workspace = true
 derive_more.workspace = true
-env_logger = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 scopeguard.workspace = true
 
 # Internal deps
@@ -59,7 +59,6 @@ gear-sandbox = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
-sp-consensus-slots = { workspace = true, optional = true }
 test-syscalls = { workspace = true, optional = true }
 demo-read-big-state = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
@@ -86,7 +85,7 @@ demo-distributor.workspace = true
 demo-init-fail-sender.workspace = true
 demo-init-wait.workspace = true
 demo-init-wait-reply-exit.workspace = true
-demo-new-meta.workspace = true
+demo-fungible-token.workspace = true
 demo-futures-unordered.workspace = true
 demo-program-factory.workspace = true
 demo-program-generator.workspace = true
@@ -131,14 +130,13 @@ pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
-gmeta.workspace = true
 rand.workspace = true
 
 [features]
 default = ['std']
 std = [
     "parity-scale-codec/std",
-    "env_logger",
+    "tracing-subscriber",
     "log/std",
     "common/std",
     "frame-benchmarking?/std",
@@ -187,7 +185,6 @@ runtime-benchmarks = [
     "gear-core-backend/mock",
     "gear-core-errors/codec",
     "gear-sandbox",
-    "sp-consensus-slots",
     "sp-consensus-babe",
     "rand",
     "rand_pcg",

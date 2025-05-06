@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{CASDatabase, KVDatabase, MemDb};
-use gear_core::ids::hash;
+use gear_core::utils;
 use gprimitives::H256;
 use std::collections::HashSet;
 
@@ -43,12 +43,16 @@ impl CASDatabase for CASOverlay {
         })
     }
 
-    fn read(&self, hash: &H256) -> Option<Vec<u8>> {
+    fn read(&self, hash: H256) -> Option<Vec<u8>> {
         self.mem.read(hash).or_else(|| self.db.read(hash))
     }
 
-    fn write_by_hash(&self, hash: &H256, data: &[u8]) {
-        self.mem.write_by_hash(hash, data)
+    fn contains(&self, hash: H256) -> bool {
+        CASDatabase::contains(&self.mem, hash) || CASDatabase::contains(&*self.db, hash)
+    }
+
+    fn write(&self, data: &[u8]) -> H256 {
+        self.mem.write(data)
     }
 }
 
@@ -67,9 +71,9 @@ impl KVOverlay {
 }
 
 impl KVDatabase for KVOverlay {
-    fn clone_boxed_kv(&self) -> Box<dyn KVDatabase> {
+    fn clone_boxed(&self) -> Box<dyn KVDatabase> {
         Box::new(Self {
-            db: self.db.clone_boxed_kv(),
+            db: self.db.clone_boxed(),
             mem: self.mem.clone(),
         })
     }
@@ -80,6 +84,10 @@ impl KVDatabase for KVOverlay {
 
     fn take(&self, _key: &[u8]) -> Option<Vec<u8>> {
         unimplemented!()
+    }
+
+    fn contains(&self, key: &[u8]) -> bool {
+        KVDatabase::contains(&self.mem, key) || KVDatabase::contains(&*self.db, key)
     }
 
     fn put(&self, key: &[u8], value: Vec<u8>) {
@@ -97,8 +105,8 @@ impl KVDatabase for KVOverlay {
 
         let mut known_keys = HashSet::new();
 
-        let filtered_iter =
-            full_iter.filter_map(move |(k, v)| known_keys.insert(hash(&k)).then_some((k, v)));
+        let filtered_iter = full_iter
+            .filter_map(move |(k, v)| known_keys.insert(utils::hash(&k)).then_some((k, v)));
 
         Box::new(filtered_iter)
     }

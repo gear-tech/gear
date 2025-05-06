@@ -106,6 +106,8 @@ pub mod ext {
 
     /// Panic
     ///
+    /// Can be used to pass some data to error reply payload.
+    ///
     /// Function is completely free in terms of gas usage.
     ///
     /// # Examples
@@ -115,11 +117,29 @@ pub mod ext {
     ///
     /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {
-    ///     ext::panic("I decided to panic");
+    ///     ext::panic(&[0, 1, 2, 3]);
     /// }
     /// ```
-    pub fn panic(data: &str) -> ! {
+    pub fn panic(data: &[u8]) -> ! {
         unsafe { gsys::gr_panic(data.as_ptr(), data.len() as u32) }
+    }
+
+    /// Panic
+    ///
+    /// Function is completely free in terms of gas usage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gcore::ext;
+    ///
+    /// #[unsafe(no_mangle)]
+    /// extern "C" fn handle() {
+    ///     ext::panic_str("I decided to panic");
+    /// }
+    /// ```
+    pub fn panic_str(data: &str) -> ! {
+        panic(data.as_bytes())
     }
 
     /// Out of memory panic

@@ -24,7 +24,6 @@ use crate::{
     system::System,
     Result, Value, MAX_USER_GAS_LIMIT,
 };
-use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     gas_metering::Schedule,
@@ -32,6 +31,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
+use parity_scale_codec::{Codec, Decode, Encode};
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -122,7 +122,7 @@ pub trait WasmProgram: Debug {
     ///
     /// Logging target `gwasm` is used in this method.
     fn debug(&mut self, data: &str) {
-        log::debug!(target: "gwasm", "DEBUG: {data}");
+        log::debug!(target: "gwasm", "{data}");
     }
 }
 
@@ -186,46 +186,6 @@ impl From<&str> for ProgramIdWrapper {
             .expect("invalid identifier")
             .into()
     }
-}
-
-/// Construct state arguments.
-///
-/// Used for reading and decoding the program’s transformed state,
-/// see [`Program::read_state_using_wasm`] for example.
-#[macro_export]
-macro_rules! state_args {
-    () => {
-        Option::<()>::None
-    };
-    ($single:expr) => {
-        Some($single)
-    };
-    ($($multiple:expr),*) => {
-        Some(($($multiple,)*))
-    };
-}
-
-/// Construct encoded state arguments.
-///
-/// Used for reading the program’s transformed state as a byte vector,
-/// see [`Program::read_state_bytes_using_wasm`] for example.
-#[macro_export]
-macro_rules! state_args_encoded {
-    () => {
-        Option::<Vec<u8>>::None
-    };
-    ($single:expr) => {
-        {
-            use $crate::codec::Encode;
-            Some(($single).encode())
-        }
-    };
-    ($($multiple:expr),*) => {
-        {
-            use $crate::codec::Encode;
-            Some((($($multiple,)*)).encode())
-        }
-    };
 }
 
 /// Builder for [`Program`].
@@ -615,125 +575,9 @@ impl<'a> Program<'a> {
             .read_state_bytes(payload, &self.id)
     }
 
-    /// Reads the program’s transformed state as a byte vector. The transformed
-    /// state is a result of applying the `fn_name` function from the `wasm`
-    /// binary with the optional `argument`.
-    ///
-    /// # Usage
-    /// You can pass arguments as `Option<(arg1, arg2, ...).encode()>` or by
-    /// using [`state_args_encoded`] macro.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use gtest::{state_args_encoded, Program, System, WasmProgram, Result};
-    /// # use codec::Encode;
-    /// # fn doctest() -> Result<()> {
-    /// # #[derive(Debug)]
-    /// # struct MockWasm {}
-    /// #
-    /// # impl WasmProgram for MockWasm {
-    /// #     fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
-    /// #     fn handle(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
-    /// #     fn handle_reply(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> {unimplemented!() }
-    /// #     fn handle_signal(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> { unimplemented!()  }
-    /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
-    /// #  }
-    /// # let system = System::new();
-    /// # let program = Program::mock(&system, MockWasm { });
-    /// # let ARG_1 = 0u8;
-    /// # let ARG_2 = 0u8;
-    /// //Read state bytes with no arguments passed to wasm.
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, Option::<Vec<u8>>::None)?;
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, state_args_encoded!())?;
-    /// // Read state bytes with one argument passed to wasm.
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, Some(ARG_1.encode()))?;
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, state_args_encoded!(ARG_1))?;
-    /// // Read state bytes with multiple arguments passed to wasm.
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, Some((ARG_1, ARG_2).encode()))?;
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_bytes_using_wasm(Default::default(), "fn_name", WASM, state_args_encoded!(ARG_1, ARG_2))?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn read_state_bytes_using_wasm(
-        &self,
-        payload: Vec<u8>,
-        fn_name: &str,
-        wasm: Vec<u8>,
-        args: Option<Vec<u8>>,
-    ) -> Result<Vec<u8>> {
-        self.manager
-            .borrow_mut()
-            .read_state_bytes_using_wasm(payload, &self.id, fn_name, wasm, args)
-    }
-
     /// Reads and decodes the program's state .
     pub fn read_state<D: Decode, P: Encode>(&self, payload: P) -> Result<D> {
         let state_bytes = self.read_state_bytes(payload.encode())?;
-        D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
-    }
-
-    /// Reads and decodes the program’s transformed state. The transformed state
-    /// is a result of applying the `fn_name` function from the `wasm`
-    /// binary with the optional `argument`.
-    ///
-    /// # Usage
-    /// You can pass arguments as `Option<(arg1, arg2, ...)>` or by
-    /// using [`state_args`] macro.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use gtest::{state_args, Program, System, WasmProgram, Result};
-    /// # fn doctest() -> Result<()> {
-    /// # #[derive(Debug)]
-    /// # struct MockWasm;
-    /// #
-    /// # impl WasmProgram for MockWasm {
-    /// #     fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
-    /// #     fn handle(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
-    /// #     fn handle_reply(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> {unimplemented!() }
-    /// #     fn handle_signal(&mut self, _payload: Vec<u8>) -> Result<(), &'static str> { unimplemented!()  }
-    /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
-    /// #  }
-    /// # let system = System::new();
-    /// # let program = Program::mock(&system, MockWasm);
-    /// # let ARG_1 = 0u8;
-    /// # let ARG_2 = 0u8;
-    /// //Read state bytes with no arguments passed to wasm.
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, Option::<()>::None)?;
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, state_args!())?;
-    /// // Read state bytes with one argument passed to wasm.
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, Some(ARG_1))?;
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, state_args!(ARG_1))?;
-    /// // Read state bytes with multiple arguments passed to wasm.
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, Some((ARG_1, ARG_2)))?;
-    /// # let WASM = vec![];
-    /// let _ = program.read_state_using_wasm(Vec::<u8>::default(), "fn_name", WASM, state_args!(ARG_1, ARG_2))?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn read_state_using_wasm<E: Encode, P: Encode, D: Decode>(
-        &self,
-        payload: P,
-        fn_name: &str,
-        wasm: Vec<u8>,
-        argument: Option<E>,
-    ) -> Result<D> {
-        let argument_bytes = argument.map(|arg| arg.encode());
-        let state_bytes =
-            self.read_state_bytes_using_wasm(payload.encode(), fn_name, wasm, argument_bytes)?;
         D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
@@ -869,7 +713,9 @@ mod tests {
     use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
     use demo_constructor::{Arg, Scheme};
     use gear_core::ids::ActorId;
-    use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
+    use gear_core_errors::{
+        ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
+    };
 
     #[test]
     fn test_handle_signal() {
@@ -921,9 +767,11 @@ mod tests {
 
         res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
 
-        let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor)
-            .source(prog.id())
-            .dest(user_id);
+        let expected_log = Log::error_builder(ErrorReplyReason::UnavailableActor(
+            SimpleUnavailableActorError::InitializationFailure,
+        ))
+        .source(prog.id())
+        .dest(user_id);
 
         assert!(res.not_executed.contains(&skipped_mid));
         assert!(res.contains(&expected_log));
@@ -954,8 +802,8 @@ mod tests {
 
         let user_id = 42;
         let mut user_spent_balance = 0;
-        sys.mint_to(user_id, 12 * EXISTENTIAL_DEPOSIT);
-        assert_eq!(sys.balance_of(user_id), 12 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(user_id, 240 * EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 240 * EXISTENTIAL_DEPOSIT);
 
         let program_id = 137;
         let prog = Program::from_binary_with_id(&sys, program_id, demo_ping::WASM_BINARY);
@@ -972,7 +820,7 @@ mod tests {
         );
         assert_eq!(
             sys.balance_of(user_id),
-            9 * EXISTENTIAL_DEPOSIT - user_spent_balance
+            237 * EXISTENTIAL_DEPOSIT - user_spent_balance
         );
 
         prog.send_with_value(user_id, "PING".to_string(), 2 * EXISTENTIAL_DEPOSIT);
@@ -984,7 +832,7 @@ mod tests {
         );
         assert_eq!(
             sys.balance_of(user_id),
-            7 * EXISTENTIAL_DEPOSIT - user_spent_balance
+            235 * EXISTENTIAL_DEPOSIT - user_spent_balance
         );
     }
 
@@ -999,12 +847,12 @@ mod tests {
         let sender2 = 45;
 
         // Top-up senders balances
-        sys.mint_to(sender0, 20 * EXISTENTIAL_DEPOSIT);
-        sys.mint_to(sender1, 20 * EXISTENTIAL_DEPOSIT);
-        sys.mint_to(sender2, 20 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender0, 400 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender1, 400 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender2, 400 * EXISTENTIAL_DEPOSIT);
 
         // Top-up receiver balance
-        let mut receiver_expected_balance = 10 * EXISTENTIAL_DEPOSIT;
+        let mut receiver_expected_balance = 200 * EXISTENTIAL_DEPOSIT;
         sys.mint_to(receiver, receiver_expected_balance);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
@@ -1018,19 +866,19 @@ mod tests {
         let sender0_spent_value = sys.run_next_block().spent_value();
         assert_eq!(
             sys.balance_of(sender0),
-            18 * EXISTENTIAL_DEPOSIT - sender0_spent_value
+            398 * EXISTENTIAL_DEPOSIT - sender0_spent_value
         );
         prog.send_bytes_with_value(sender1, b"insert", 4 * EXISTENTIAL_DEPOSIT);
         let sender1_spent_value = sys.run_next_block().spent_value();
         assert_eq!(
             sys.balance_of(sender1),
-            16 * EXISTENTIAL_DEPOSIT - sender1_spent_value
+            396 * EXISTENTIAL_DEPOSIT - sender1_spent_value
         );
         prog.send_bytes_with_value(sender2, b"insert", 6 * EXISTENTIAL_DEPOSIT);
         let sender2_spent_value = sys.run_next_block().spent_value();
         assert_eq!(
             sys.balance_of(sender2),
-            14 * EXISTENTIAL_DEPOSIT - sender2_spent_value
+            394 * EXISTENTIAL_DEPOSIT - sender2_spent_value
         );
 
         // Check program's balance
@@ -1082,7 +930,7 @@ mod tests {
     #[test]
     #[should_panic(
         expected = "Insufficient balance: user (0x0000000000000000000000000500000000000000000000000000000000000000) \
-    tries to send (1000000000001) value, (4500000000000) gas and ED (1000000000000), while his balance (1000000000000)"
+    tries to send (1000000000001) value, (75000000000000) gas and ED (1000000000000), while his balance (1000000000000)"
     )]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
@@ -1103,13 +951,13 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        const RECEIVER_INITIAL_BALANCE: Value = 10 * EXISTENTIAL_DEPOSIT;
+        const RECEIVER_INITIAL_BALANCE: Value = 200 * EXISTENTIAL_DEPOSIT;
 
         let sender = 42;
         let receiver = 84;
         let mut receiver_expected_balance = RECEIVER_INITIAL_BALANCE;
 
-        sys.mint_to(sender, 20 * EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender, 400 * EXISTENTIAL_DEPOSIT);
         sys.mint_to(receiver, RECEIVER_INITIAL_BALANCE);
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);

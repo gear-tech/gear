@@ -18,14 +18,13 @@ base64.workspace = true
 colored.workspace = true
 futures-util.workspace = true
 futures.workspace = true
-gear-core = { workspace = true, features = [ "std" ] }
+gear-core = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
 hex.workspace = true
 indexmap = { workspace = true, features = ["std"] }
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 log.workspace = true
 scale-value.workspace = true
-serde.workspace = true
 serde_json = { workspace = true, features = [ "std" ] }
 subxt.workspace = true
 thiserror.workspace = true
@@ -39,14 +38,11 @@ parking_lot.workspace = true
 scale-decode.workspace = true
 parity-scale-codec.workspace = true
 
-# deps for feature `testing`
-rand = { workspace = true, optional = true }
-
 [dev-dependencies]
 gear-node-wrapper.workspace = true
-tokio = { workspace = true, features = [ "full" ] }
+tokio = { workspace = true, features = ["full"] }
 demo-messenger.workspace = true
-demo-new-meta.workspace = true
+demo-fungible-token.workspace = true
 demo-vec.workspace = true
 demo-waiter = { workspace = true, features = ["std"] }
 
@@ -54,4 +50,4 @@ demo-waiter = { workspace = true, features = ["std"] }
 gear-utils.workspace = true
 
 [features]
-testing = [ "rand" ]
+testing = []

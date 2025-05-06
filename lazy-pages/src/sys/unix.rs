@@ -52,8 +52,8 @@ cfg_if! {
             const WRITE_BIT_MASK: u32 = 0b10;
             const TRAPNO: u16 = 0xe; // Page Fault
 
-            let mcontext = (*ucontext).uc_mcontext;
-            let exception_state = (*mcontext).__es;
+            let mcontext = unsafe { *ucontext }.uc_mcontext;
+            let exception_state = unsafe { *mcontext }.__es;
             let trapno = exception_state.__trapno;
             let err = exception_state.__err;
 
@@ -68,9 +68,9 @@ cfg_if! {
             const EXCEPTION_CLASS_SHIFT: u32 = u32::BITS - 6;
             const EXCEPTION_CLASS: u32 = 0b10_0100; // Data Abort from a lower Exception Level
 
-            let ucontext = ucontext.as_mut()?;
+            let ucontext = unsafe { ucontext.as_mut() }?;
             let mcontext = ucontext.uc_mcontext;
-            let exception_state = (*mcontext).__es;
+            let exception_state = unsafe { *mcontext }.__es;
             let esr = exception_state.__esr;
 
             let exception_class = esr >> EXCEPTION_CLASS_SHIFT;
@@ -113,11 +113,11 @@ use errno::Errno;
 
 #[derive(Debug, Clone, Copy, derive_more::Display)]
 enum ThreadInitError {
-    #[display(fmt = "Cannot get information about old signal stack: {_0}")]
+    #[display("Cannot get information about old signal stack: {_0}")]
     OldStack(Errno),
-    #[display(fmt = "Cannot mmap space for signal stack: {_0}")]
+    #[display("Cannot mmap space for signal stack: {_0}")]
     Mmap(Errno),
-    #[display(fmt = "Cannot set new signal stack: {_0}")]
+    #[display("Cannot set new signal stack: {_0}")]
     SigAltStack(Errno),
 }
 

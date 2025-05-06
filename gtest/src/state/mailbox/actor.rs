@@ -22,7 +22,6 @@ use crate::{
     state::{accounts::Accounts, actors::Actors},
     Log, Value, MAX_USER_GAS_LIMIT,
 };
-use codec::Encode;
 use gear_common::{
     auxiliary::{mailbox::*, BlockNumber},
     storage::Interval,
@@ -31,6 +30,7 @@ use gear_core::{
     ids::{prelude::MessageIdExt as _, MessageId, ProgramId},
     message::{ReplyMessage, ReplyPacket},
 };
+use parity_scale_codec::Encode;
 use std::cell::RefCell;
 
 /// Interface to a particular user mailbox.
@@ -56,7 +56,7 @@ impl<'a> ActorMailbox<'a> {
     /// Sends user reply message.
     ///
     /// Same as [`Self::reply_bytes`], but payload is encoded
-    /// in a *partiy-scale-codec* format.
+    /// in a *parity-scale-codec* format.
     pub fn reply(
         &self,
         log: Log,
@@ -177,9 +177,9 @@ impl<'a> ActorMailbox<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
-    use codec::Encode;
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     use gear_core::{gas_metering::RentWeights, ids::ProgramId};
+    use parity_scale_codec::Encode;
 
     fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, Log)) {
         let program = Program::from_binary_with_id(system, 121, WASM_BINARY);

@@ -36,7 +36,7 @@ use primitive_types::H256;
 use sp_runtime::{
     testing::TestXt,
     traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
-    BuildStorage, Perbill,
+    BuildStorage,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -119,10 +119,8 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
-    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
-    pub SplitTxFeeRatio: Option<u32> = None;
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
 }
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
@@ -205,7 +203,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (BOB, 10_000u128),
             (BLOCK_AUTHOR, 1_000u128),
             (FEE_PAYER, 10_000_000u128),
-            (BankAddress::get(), ExistentialDeposit::get()),
+            (GearBank::bank_address(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

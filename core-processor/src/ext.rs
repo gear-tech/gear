@@ -139,7 +139,7 @@ impl ProcessorContext {
             forbidden_funcs: Default::default(),
             reserve_for: 0,
             random_data: ([0u8; 32].to_vec(), 0),
-            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(100),
             existential_deposit: Default::default(),
             mailbox_threshold: Default::default(),
             costs: Default::default(),
@@ -281,10 +281,8 @@ impl From<FallibleExtError> for RunFallibleError {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
 pub enum AllocExtError {
     /// Charge error
-    #[display(fmt = "{_0}")]
     Charge(ChargeError),
     /// Allocation error
-    #[display(fmt = "{_0}")]
     Alloc(AllocError),
 }
 
@@ -579,7 +577,7 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
             ..
         } = self.context;
 
-        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
+        let (static_pages, allocations, allocations_changed) = allocations_context.into_parts();
 
         // Accessed pages are all pages, that had been released and are in allocations set or static.
         let mut accessed_pages = LP::get_write_accessed_pages();
@@ -618,7 +616,8 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
             gas_amount: gas_counter.to_amount(),
             gas_reserver,
             system_reservation_context,
-            allocations: (allocations != initial_allocations).then_some(allocations),
+            // `allocations_changed` can be some times `true` event if final state of allocations is the same as before execution
+            allocations: allocations_changed.then_some(allocations),
             pages_data,
             generated_dispatches,
             awakening,
@@ -1138,7 +1137,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         let program_id = self.program_id()?;
         let message_id = self.message_id()?;
 
-        log::debug!(target: "gwasm", "DEBUG: [handle({message_id:.2?})] {program_id:.2?}: {data}");
+        log::debug!(target: "gwasm", "[handle({message_id:.2?})] {program_id:.2?}: {data}");
 
         Ok(())
     }
@@ -1201,6 +1200,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         })
     }
 
+    #[allow(clippy::obfuscated_if_else)]
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::FallibleError> {
         let (amount, reimburse) = self.context.gas_reserver.unreserve(id)?;
 
@@ -1420,6 +1420,10 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
         &self.context.forbidden_funcs
+    }
+
+    fn msg_ctx(&self) -> &MessageContext {
+        &self.context.message_context
     }
 }
 

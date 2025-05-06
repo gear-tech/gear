@@ -1,7 +1,7 @@
 [package]
 name = "gbuild-test-program"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib"]
@@ -18,8 +18,7 @@ default = []
 std = []
 
 [workspace]
-members = [ "foo", "bar" , "meta"]
+members = ["foo", "bar"]
 
 [workspace.metadata.gbuild]
-programs = [ "foo", "bar" ]
-metas = ["meta"]
+programs = ["foo", "bar"]

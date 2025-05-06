@@ -18,13 +18,14 @@
 
 //! Common utils for integration tests
 pub use self::{args::Args, node::NodeExec, result::Result};
-use gear_core::ids::{prelude::*, CodeId, ProgramId};
+use anyhow::Context;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::{
     iter::IntoIterator,
     process::{Command, Output},
 };
+use tracing_subscriber::EnvFilter;
 
 mod app;
 mod args;
@@ -33,7 +34,7 @@ pub mod node;
 mod result;
 
 pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
-pub const RENT_POOL_SS58_ADDRESS: &str = "kGkkENXuYL4Xw6H1ymWm6VwHLi66s56Ywt45pf9hEx1hmx5MV";
+pub const TREASURY_SS58_ADDRESS: &str = "kGi1Ui7VXBFmPmaoMD5xgWd2VHNixZ5BbLNhHFYD39T85rUi3";
 
 impl NodeExec for NodeInstance {
     /// Run binary `gcli`
@@ -59,13 +60,17 @@ pub fn dev() -> Result<NodeInstance> {
     login_as_alice()?;
     Node::from_path(env::node_bin())?
         .spawn()
+        .context("failed to spawn node")
         .map_err(Into::into)
 }
 
 /// Init env logger
 #[allow(dead_code)]
 pub fn init_logger() {
-    let _ = env_logger::builder().is_test(true).try_init();
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_test_writer()
+        .try_init();
 }
 
 /// Login as //Alice
@@ -73,11 +78,6 @@ pub fn login_as_alice() -> Result<()> {
     let _ = gcli(["wallet", "dev"])?;
 
     Ok(())
-}
-
-/// Generate program id from code id and salt
-pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
-    ProgramId::generate_from_user(CodeId::generate(bin), salt)
 }
 
 /// AccountId32 of `addr`

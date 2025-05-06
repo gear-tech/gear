@@ -19,6 +19,7 @@
 use crate::Database;
 use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
+use ethexe_common::gear::Origin;
 use ethexe_runtime_common::unpack_i64_to_u32;
 use gear_core::{code::InstrumentedCode, ids::ProgramId};
 use gprimitives::{CodeId, H256};
@@ -54,7 +55,9 @@ pub(crate) struct InstanceCreator {
 
 impl InstanceCreator {
     pub fn new(runtime: Vec<u8>) -> Result<Self> {
-        let engine = wasmtime::Engine::default();
+        let mut config = wasmtime::Config::new();
+        config.cache_config_load_default()?;
+        let engine = wasmtime::Engine::new(&config)?;
 
         let module = wasmtime::Module::new(&engine, runtime)?;
         let mut linker = wasmtime::Linker::new(&engine);
@@ -130,7 +133,7 @@ impl InstanceWrapper {
         original_code_id: CodeId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
-    ) -> Result<Vec<JournalNote>> {
+    ) -> Result<(Vec<JournalNote>, Option<Origin>)> {
         let chain_head = self.chain_head.expect("chain head must be set before run");
         threads::set(db, chain_head, state_hash);
 
@@ -142,7 +145,7 @@ impl InstanceWrapper {
         );
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
-        let ptr_lens: Vec<i64> = self.call("run", arg.encode())?;
+        let (ptr_lens, origin): (Vec<i64>, Option<Origin>) = self.call("run", arg.encode())?;
 
         let mut journal = Vec::new();
 
@@ -151,7 +154,7 @@ impl InstanceWrapper {
             journal.extend(journal_chunk);
         }
 
-        Ok(journal)
+        Ok((journal, origin))
     }
 
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {

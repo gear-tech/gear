@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 import {Gear} from "./libraries/Gear.sol";
 
@@ -75,15 +75,15 @@ interface IMirror {
 
     /* Operational functions */
 
-    function stateHash() external view returns (bytes32);
+    function router() external view returns (address);
 
     function inheritor() external view returns (address);
 
+    function initializer() external view returns (address);
+
+    function stateHash() external view returns (bytes32);
+
     function nonce() external view returns (uint256);
-
-    function router() external view returns (address);
-
-    function decoder() external view returns (address);
 
     /* Primary Gear logic */
 
@@ -99,7 +99,7 @@ interface IMirror {
 
     /* Router-driven state and funds management */
 
-    function initialize(address initializer, address decoder) external;
+    function initialize(address initializer, address abiInterface, bool isSmall) external;
 
     function performStateTransition(Gear.StateTransition calldata transition) external returns (bytes32);
 }

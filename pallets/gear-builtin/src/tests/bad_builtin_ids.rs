@@ -22,6 +22,7 @@ use crate::{
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
@@ -82,10 +83,8 @@ parameter_types! {
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const PerformanceMultiplier: u32 = 100;
-    pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
-    pub SplitGasFeeRatio: Option<(Perbill, AccountId)> = None;
-    pub SplitTxFeeRatio: Option<u32> = None;
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
 }
 
 pallet_gear_bank::impl_config!(Test);
@@ -210,19 +209,19 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-    let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
+    let bank_address = GearBank::bank_address();
+
+    let mut endowed_accounts = vec![bank_address, SIGNER, BLOCK_AUTHOR];
+    endowed_accounts.extend(GearBuiltin::list_builtins());
 
     ExtBuilder::default()
         .endowment(ENDOWMENT)
-        .endowed_accounts(vec![bank_address, SIGNER, BLOCK_AUTHOR])
+        .endowed_accounts(endowed_accounts)
         .build()
 }
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 use crate::mock::{BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER};

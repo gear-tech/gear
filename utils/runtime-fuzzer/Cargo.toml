@@ -10,7 +10,7 @@ path = "bin/run_corpus.rs"
 
 [dependencies]
 anyhow.workspace = true
-codec = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 log.workspace = true
 sha-1.workspace = true
@@ -33,7 +33,6 @@ frame-support.workspace = true
 frame-system.workspace = true
 sp-core = { workspace = true, features = ["std", "full_crypto"] }
 sp-io.workspace = true
-sp-keyring.workspace = true
 sp-runtime.workspace = true
 pallet-balances.workspace = true
 sp-consensus-slots = { workspace = true }
@@ -41,7 +40,6 @@ sp-consensus-babe.workspace = true
 sp-consensus-grandpa.workspace = true
 pallet-im-online.workspace = true
 sp-authority-discovery.workspace = true
-pallet-authorship.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

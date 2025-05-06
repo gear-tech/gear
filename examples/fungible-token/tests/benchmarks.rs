@@ -18,8 +18,7 @@
 
 #![cfg(test)]
 
-use demo_fungible_token::WASM_BINARY;
-use ft_io::*;
+use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
 use gclient::{EventProcessor, GearApi, Result};
 use gear_core::ids::{MessageId, ProgramId};
 use gstd::{vec, ActorId, Encode, Vec};

@@ -5,7 +5,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  BINARYEN_VERSION: version_111
 
 jobs:
   build-gear-loader:
@@ -21,14 +20,7 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
-
+        
       - name: "Build gear-loader"
         run: |
           cargo build --release --locked --package gear-node-loader
@@ -53,7 +45,7 @@ jobs:
           name: gear-loader
 
       - name: Run playbook
-        uses: dawidd6/action-ansible-playbook@v2
+        uses: dawidd6/action-ansible-playbook@v3
         with:
           directory: ./ansible/
           playbook: gear-loader-update.yaml

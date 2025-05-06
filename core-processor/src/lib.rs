@@ -49,8 +49,9 @@ pub use precharge::{
     SuccessfulDispatchResultKind,
 };
 pub use processing::{
-    process, process_allowance_exceed, process_execution_error, process_non_executable,
-    process_reinstrumentation_error, process_success,
+    process, process_allowance_exceed, process_code_not_exists, process_execution_error,
+    process_failed_init, process_program_exited, process_reinstrumentation_error, process_success,
+    process_uninitialized,
 };
 
 /// Informational functions for core-processor and executor.

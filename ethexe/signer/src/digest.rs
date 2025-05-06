@@ -16,15 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Keccak256 digest type. Implements AsDigest hashing for ethexe common types.
+//! Keccak256 digest type.
+//!
+//! Implements `ToDigest` hashing for ethexe common types.
 
 use core::fmt;
-use ethexe_common::gear::{
-    BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+use ethexe_common::{
+    gear::{
+        BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+    },
+    ProducerBlock,
 };
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
+/// Common digest type for the ethexe.
 #[derive(
     Clone,
     Copy,
@@ -39,7 +45,7 @@ use sha3::Digest as _;
     derive_more::Into,
     derive_more::AsRef,
 )]
-pub struct Digest([u8; 32]);
+pub struct Digest(pub(crate) [u8; 32]);
 
 impl fmt::Debug for Digest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -107,6 +113,12 @@ impl<T: ToDigest> ToDigest for Vec<T> {
 impl ToDigest for [u8] {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self);
+    }
+}
+
+impl<T: ToDigest + ?Sized> ToDigest for &T {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        (*self).update_hasher(hasher);
     }
 }
 
@@ -210,8 +222,17 @@ impl ToDigest for BatchCommitment {
             block_commitments,
         } = self;
 
-        hasher.update(code_commitments.to_digest().as_ref());
         hasher.update(block_commitments.to_digest().as_ref());
+        hasher.update(code_commitments.to_digest().as_ref());
+        hasher.update([0u8; 0].to_digest().as_ref()); // Placeholder for the rewards commitment
+    }
+}
+
+impl ToDigest for ProducerBlock {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self.block_hash.as_bytes());
+        hasher.update(self.gas_allowance.encode().as_slice());
+        hasher.update(self.off_chain_transactions.encode().as_slice());
     }
 }
 

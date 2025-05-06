@@ -25,9 +25,9 @@ mod wasmi_backend;
 
 use std::{collections::HashMap, pin::Pin, rc::Rc};
 
-use codec::Decode;
 use env::Instantiate;
 use gear_sandbox_env as sandbox_env;
+use parity_scale_codec::Decode;
 use sp_wasm_interface_common::{Pointer, Value, WordSize};
 
 use crate::{

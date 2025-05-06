@@ -19,34 +19,31 @@
 use crate::{
     abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
     wvara::WVara,
-    AlloyEthereum, AlloyProvider, AlloyTransport, TryGetReceipt,
+    AlloyEthereum, AlloyProvider, TryGetReceipt,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{fixed_bytes, Address, Bytes, U256},
+    primitives::{fixed_bytes, Address, Bytes, B256, U256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{eth::state::AccountOverride, Filter},
-    transports::BoxTransport,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType, VerifyingShare};
-use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
+use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
+use ethexe_signer::{Address as LocalAddress, ContractSignature};
 use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 pub mod events;
 
-type InstanceProvider = Arc<AlloyProvider>;
-type Instance = IRouter::IRouterInstance<AlloyTransport, InstanceProvider>;
-
-type QueryInstance = IRouter::IRouterInstance<AlloyTransport, Arc<RootProvider<BoxTransport>>>;
+type Instance = IRouter::IRouterInstance<(), AlloyProvider>;
+type QueryInstance = IRouter::IRouterInstance<(), RootProvider>;
 
 pub struct PendingCodeRequestBuilder {
     code_id: CodeId,
-    pending_builder: PendingTransactionBuilder<AlloyTransport, AlloyEthereum>,
+    pending_builder: PendingTransactionBuilder<AlloyEthereum>,
 }
 
 impl PendingCodeRequestBuilder {
@@ -76,11 +73,7 @@ impl Router {
     /// Huge gas limit is necessary so that the transaction is more likely to be picked up
     const HUGE_GAS_LIMIT: u64 = 10_000_000;
 
-    pub(crate) fn new(
-        address: Address,
-        wvara_address: Address,
-        provider: InstanceProvider,
-    ) -> Self {
+    pub(crate) fn new(address: Address, wvara_address: Address, provider: AlloyProvider) -> Self {
         Self {
             instance: Instance::new(address, provider),
             wvara_address,
@@ -95,7 +88,7 @@ impl Router {
         RouterQuery {
             instance: QueryInstance::new(
                 *self.instance.address(),
-                Arc::new(self.instance.provider().root().clone()),
+                self.instance.provider().root().clone(),
             ),
         }
     }
@@ -147,9 +140,11 @@ impl Router {
     }
 
     pub async fn create_program(&self, code_id: CodeId, salt: H256) -> Result<(H256, ActorId)> {
-        let builder = self
-            .instance
-            .createProgram(code_id.into_bytes().into(), salt.to_fixed_bytes().into());
+        let builder = self.instance.createProgram(
+            code_id.into_bytes().into(),
+            salt.to_fixed_bytes().into(),
+            Address::ZERO,
+        );
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
@@ -173,7 +168,7 @@ impl Router {
     pub async fn commit_batch(
         &self,
         commitment: BatchCommitment,
-        signatures: Vec<LocalSignature>,
+        signatures: Vec<ContractSignature>,
     ) -> Result<H256> {
         let builder = self.instance.commitBatch(
             commitment.into(),
@@ -222,17 +217,14 @@ pub struct RouterQuery {
 
 impl RouterQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = Arc::new(ProviderBuilder::new().on_builtin(rpc_url).await?);
+        let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self {
             instance: QueryInstance::new(Address::new(router_address.0), provider),
         })
     }
 
-    pub fn from_provider(
-        router_address: Address,
-        provider: Arc<RootProvider<BoxTransport>>,
-    ) -> Self {
+    pub fn from_provider(router_address: Address, provider: RootProvider) -> Self {
         Self {
             instance: QueryInstance::new(router_address, provider),
         }
@@ -265,15 +257,6 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn mirror_proxy_impl(&self) -> Result<LocalAddress> {
-        self.instance
-            .mirrorProxyImpl()
-            .call()
-            .await
-            .map(|res| LocalAddress(res._0.into()))
-            .map_err(Into::into)
-    }
-
     pub async fn wvara_address(&self) -> Result<Address> {
         self.instance
             .wrappedVara()
@@ -295,20 +278,12 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn validators_verifying_shares(&self) -> Result<Vec<VerifyingShare>> {
+    pub async fn validators_verifiable_secret_sharing_commitment(&self) -> Result<Vec<u8>> {
         self.instance
-            .validatorsVerifyingShares()
+            .validatorsVerifiableSecretSharingCommitment()
             .call()
             .await
-            .map(|res| {
-                res._0
-                    .into_iter()
-                    .map(|v| VerifyingShare {
-                        x: uint256_to_u256(v.x),
-                        y: uint256_to_u256(v.y),
-                    })
-                    .collect()
-            })
+            .map(|res| res._0.into())
             .map_err(Into::into)
     }
 
@@ -316,6 +291,16 @@ impl RouterQuery {
         self.instance
             .validators()
             .call()
+            .await
+            .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::into)
+    }
+
+    pub async fn validators_at(&self, block: H256) -> Result<Vec<LocalAddress>> {
+        self.instance
+            .validators()
+            .call()
+            .block(B256::from(block.0).into())
             .await
             .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::into)

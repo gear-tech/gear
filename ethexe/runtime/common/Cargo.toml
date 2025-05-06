@@ -33,4 +33,5 @@ std = [
     "gprimitives/serde",
     "log/std",
     "serde/std",
+    "ethexe-common/std",
 ]

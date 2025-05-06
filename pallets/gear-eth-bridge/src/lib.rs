@@ -52,11 +52,14 @@ pub mod pallet {
     use common::Origin;
     use frame_support::{
         pallet_prelude::*,
-        traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
-        StorageHasher,
+        traits::{
+            ConstBool, Currency, ExistenceRequirement, OneSessionHandler, StorageInstance,
+            StorageVersion,
+        },
+        PalletId, StorageHasher,
     };
     use frame_system::{
-        ensure_root, ensure_signed,
+        ensure_signed,
         pallet_prelude::{BlockNumberFor, OriginFor},
     };
     use gprimitives::{ActorId, H160, H256, U256};
@@ -68,17 +71,42 @@ pub mod pallet {
 
     type QueueCapacityOf<T> = <T as Config>::QueueCapacity;
     type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
+    type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+    type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
+    pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
 
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_gear_bank::Config {
         /// Type representing aggregated runtime event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+        /// The bridge' pallet id, used for deriving its sovereign account ID.
+        #[pallet::constant]
+        type PalletId: Get<PalletId>;
+
+        /// Account ID of the bridge builtin.
+        #[pallet::constant]
+        type BuiltinAddress: Get<Self::AccountId>;
+
+        /// Privileged origin for bridge management operations.
+        type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+        /// Privileged origin for administrative operations.
+        type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+        /// The AccountId of the bridge admin.
+        #[pallet::constant]
+        type BridgeAdmin: Get<Self::AccountId>;
+
+        /// The AccountId of the bridge pauser.
+        #[pallet::constant]
+        type BridgePauser: Get<Self::AccountId>;
 
         /// Constant defining maximal payload size in bytes of message for bridging.
         #[pallet::constant]
@@ -226,6 +254,12 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
+    /// Operational storage.
+    ///
+    /// Defines the amount of fee to be paid for the transport of messages.
+    #[pallet::storage]
+    pub type TransportFee<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
     #[pallet::storage_version(ETH_BRIDGE_STORAGE_VERSION)]
@@ -241,8 +275,8 @@ pub mod pallet {
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::pause())]
         pub fn pause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by root.
-            ensure_root(origin)?;
+            // Ensuring called by `ControlOrigin` or root.
+            T::ControlOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -265,8 +299,8 @@ pub mod pallet {
         #[pallet::call_index(1)]
         #[pallet::weight(<T as Config>::WeightInfo::unpause())]
         pub fn unpause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by root.
-            ensure_root(origin)?;
+            // Ensuring called by `ControlOrigin` or root.
+            T::ControlOrigin::ensure_origin_or_root(origin)?;
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -295,11 +329,40 @@ pub mod pallet {
             origin: OriginFor<T>,
             destination: H160,
             payload: Vec<u8>,
-        ) -> DispatchResultWithPostInfo {
-            let source = ensure_signed(origin)?.cast();
+        ) -> DispatchResultWithPostInfo
+        where
+            T::AccountId: Origin,
+        {
+            let source: ActorId = ensure_signed(origin.clone())?.cast();
+
+            // Transfer fee
+            let fee = TransportFee::<T>::get();
+            if !fee.is_zero() {
+                let builtin_id = T::BuiltinAddress::get();
+                CurrencyOf::<T>::transfer(
+                    &source.cast(),
+                    &builtin_id,
+                    fee,
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            }
 
             Self::queue_message(source, destination, payload)?;
 
+            Ok(().into())
+        }
+
+        /// Root extrinsic that sets fee for the transport of messages.
+        #[pallet::call_index(3)]
+        #[pallet::weight(<T as Config>::WeightInfo::set_fee())]
+        pub fn set_fee(origin: OriginFor<T>, fee: BalanceOf<T>) -> DispatchResultWithPostInfo {
+            // Ensuring called by `AdminOrigin` or root.
+            T::AdminOrigin::ensure_origin_or_root(origin)?;
+
+            // Setting the fee.
+            TransportFee::<T>::put(fee);
+
+            // Returning successful result without weight refund.
             Ok(().into())
         }
     }

@@ -23,13 +23,18 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+extern crate alloc;
+
 pub use gear_ss58::Ss58Address;
 pub use nonzero_u256::NonZeroU256;
 pub use primitive_types::{H160, H256, U256};
 
+pub mod utils;
+
 mod macros;
 mod nonzero_u256;
-mod utils;
+#[cfg(feature = "ethexe")]
+mod sol_types;
 
 use core::{
     fmt,
@@ -49,16 +54,16 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
 pub enum ConversionError {
     /// Invalid slice length.
-    #[display(fmt = "Slice should be 32 length")]
+    #[display("Slice should be 32 length")]
     InvalidSliceLength,
     /// Invalid hex string.
-    #[display(fmt = "Invalid hex string")]
+    #[display("Invalid hex string")]
     InvalidHexString,
     /// Invalid SS58 address.
-    #[display(fmt = "Invalid SS58 address")]
+    #[display("Invalid SS58 address")]
     InvalidSs58Address,
     /// SS58 encoding failed.
-    #[display(fmt = "SS58 encoding failed")]
+    #[display("SS58 encoding failed")]
     Ss58Encode,
 }
 
@@ -145,7 +150,7 @@ impl TryInto<H160> for ActorId {
 
 impl fmt::Display for ActorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let byte_array = utils::ByteArray(&self.0);
+        let byte_array = utils::ByteSliceFormatter::Array(&self.0);
 
         let is_alternate = f.alternate();
         if is_alternate {
@@ -174,7 +179,7 @@ impl fmt::Display for ActorId {
             let address_str = address.as_str();
 
             let len = address.as_str().len();
-            let median = (len + 1) / 2;
+            let median = len.div_ceil(2);
 
             let mut e1 = median;
             let mut s2 = median;

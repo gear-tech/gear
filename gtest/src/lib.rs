@@ -53,7 +53,7 @@
 //! name = "my-gear-app"
 //! version = "0.1.0"
 //! authors = ["Your Name"]
-//! edition = "2021"
+//! edition = "2024"
 //!
 //! [dependencies]
 //! gstd = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.1" }
@@ -241,10 +241,10 @@
 //! let prog = sys.get_program(105).unwrap();
 //! ```
 //!
-//! ## Initialization of styled `env_logger`
+//! ## Initialization of styled `tracing-subscriber`
 //!
-//! Initialization of styled `env_logger` to print logs (only from `gwasm` by
-//! default) into stdout:
+//! Initialization of styled `tracing-subscriber` to
+//! print logs (only from gwasm` by default) into stdout:
 //!
 //! ```no_run
 //! # let sys = gtest::System::new();
@@ -349,7 +349,7 @@
 //! let log = Log::builder();
 //!
 //! // Constructor for error reply log.
-//! let log = Log::error_builder(ErrorReplyReason::InactiveActor);
+//! let log = Log::error_builder(ErrorReplyReason::RemovedFromWaitlist);
 //! # let sys = gtest::System::new();
 //! # let prog = gtest::Program::current(&sys);
 //! // Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
@@ -500,8 +500,8 @@ mod state;
 mod system;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
-pub use codec;
 pub use error::{Result, TestError};
+pub use parity_scale_codec;
 pub use program::{
     calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
     WasmProgram,
@@ -547,7 +547,7 @@ pub mod constants {
     /// requirement.
     pub const EXISTENTIAL_DEPOSIT: Value = UNITS;
     /// Value per gas.
-    pub const VALUE_PER_GAS: Value = 6;
+    pub const VALUE_PER_GAS: Value = 100;
     /// Duration of one block in msecs.
     pub const BLOCK_DURATION_IN_MSECS: u64 = 3000;
     /// Duration of one epoch.

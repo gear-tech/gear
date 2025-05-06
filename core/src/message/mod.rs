@@ -43,8 +43,9 @@ pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
 pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
-use alloc::{collections::BTreeSet, string::String, vec::Vec};
-use core::fmt::Display;
+use crate::str::LimitedStr;
+use alloc::{string::String, vec::Vec};
+use core::fmt::{Debug, Display};
 use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
     scale::{Decode, Encode},
@@ -84,6 +85,67 @@ impl Payload {
     pub fn len_u32(&self) -> u32 {
         // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
         self.inner().len() as u32
+    }
+}
+
+/// Panic buffer which size cannot be bigger then max allowed payload size.
+#[derive(
+    Clone,
+    Default,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    derive_more::From,
+    derive_more::Into,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct PanicBuffer(Payload);
+
+impl PanicBuffer {
+    /// Returns ref to the internal data.
+    pub fn inner(&self) -> &Payload {
+        &self.0
+    }
+
+    fn to_limited_str(&self) -> Option<LimitedStr> {
+        let s = core::str::from_utf8(self.0.inner()).ok()?;
+        LimitedStr::try_from(s).ok()
+    }
+}
+
+impl From<LimitedStr<'_>> for PanicBuffer {
+    fn from(value: LimitedStr) -> Self {
+        const _: () = assert!(crate::str::TRIMMED_MAX_LEN <= MAX_PAYLOAD_SIZE);
+        Payload::try_from(value.into_inner().into_owned().into_bytes())
+            .map(Self)
+            .unwrap_or_else(|PayloadSizeError| {
+                unreachable!("`LimitedStr` is always smaller than maximum payload size",)
+            })
+    }
+}
+
+impl Display for PanicBuffer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Some(s) = self.to_limited_str() {
+            Display::fmt(&s, f)
+        } else {
+            Display::fmt(&self.0, f)
+        }
+    }
+}
+
+impl Debug for PanicBuffer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Some(s) = self.to_limited_str() {
+            Debug::fmt(s.as_str(), f)
+        } else {
+            Debug::fmt(&self.0, f)
+        }
     }
 }
 
@@ -208,23 +270,23 @@ impl DispatchKind {
         matches!(self, Self::Signal)
     }
 
-    /// Syscalls that are not allowed to be called for the dispatch kind.
-    pub fn forbidden_funcs(&self) -> BTreeSet<SyscallName> {
+    /// Returns is syscall forbidden for the dispatch kind.
+    pub fn forbids(&self, syscall_name: SyscallName) -> bool {
         match self {
-            DispatchKind::Signal => [
-                SyscallName::Source,
-                SyscallName::Reply,
-                SyscallName::ReplyPush,
-                SyscallName::ReplyCommit,
-                SyscallName::ReplyCommitWGas,
-                SyscallName::ReplyInput,
-                SyscallName::ReplyInputWGas,
-                SyscallName::ReservationReply,
-                SyscallName::ReservationReplyCommit,
-                SyscallName::SystemReserveGas,
-            ]
-            .into(),
-            _ => Default::default(),
+            DispatchKind::Signal => matches!(
+                syscall_name,
+                SyscallName::Source
+                    | SyscallName::Reply
+                    | SyscallName::ReplyPush
+                    | SyscallName::ReplyCommit
+                    | SyscallName::ReplyCommitWGas
+                    | SyscallName::ReplyInput
+                    | SyscallName::ReplyInputWGas
+                    | SyscallName::ReservationReply
+                    | SyscallName::ReservationReplyCommit
+                    | SyscallName::SystemReserveGas
+            ),
+            _ => false,
         }
     }
 }
@@ -260,4 +322,32 @@ pub struct ReplyInfo {
     pub value: u128,
     /// Reply code of the reply.
     pub code: ReplyCode,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::format;
+
+    fn panic_buf(bytes: &[u8]) -> PanicBuffer {
+        Payload::try_from(bytes).map(PanicBuffer).unwrap()
+    }
+
+    #[test]
+    fn panic_buffer_debug() {
+        let buf = panic_buf(b"Hello, world!");
+        assert_eq!(format!("{:?}", buf), r#""Hello, world!""#);
+
+        let buf = panic_buf(b"\xE0\x80\x80");
+        assert_eq!(format!("{:?}", buf), "0xe08080");
+    }
+
+    #[test]
+    fn panic_buffer_display() {
+        let buf = panic_buf(b"Hello, world!");
+        assert_eq!(format!("{}", buf), "Hello, world!");
+
+        let buf = panic_buf(b"\xE0\x80\x80");
+        assert_eq!(format!("{}", buf), "0xe08080");
+    }
 }
