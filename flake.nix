@@ -13,14 +13,6 @@
           overlays = [ rust-overlay.overlays.default ];
         };
 
-        rust = pkgs.rust-bin.nightly."2025-01-09".default.override {
-          extensions = [
-            "rust-src"
-            "rust-analyzer"
-            "llvm-tools"
-          ];
-          targets = ["wasm32v1-none"];
-        };
         toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
       in {
         toolchain.extensions = [
