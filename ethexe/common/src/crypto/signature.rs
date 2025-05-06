@@ -18,10 +18,17 @@
 
 //! Secp256k1 signature types and utilities.
 
-use crate::{Address, Digest, PrivateKey, PublicKey, ToDigest};
-use anyhow::Result;
+use super::{
+    address::Address,
+    digest::{Digest, ToDigest},
+    keys::{PrivateKey, PublicKey},
+};
 use derive_more::{Debug, Display};
-use k256::ecdsa::{self, signature::hazmat::PrehashVerifier, RecoveryId, SigningKey, VerifyingKey};
+use k256::ecdsa::{
+    self,
+    signature::{hazmat::PrehashVerifier, Result as SignResult},
+    RecoveryId, SigningKey, VerifyingKey,
+};
 use parity_scale_codec::{
     Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
 };
@@ -41,7 +48,7 @@ const SIGNATURE_LAST_BYTE: usize = SIGNATURE_SIZE - 1;
 
 impl Signature {
     /// Create a recoverable signature for the provided digest using the private key.
-    pub fn create<T>(private_key: PrivateKey, data: T) -> Result<Self>
+    pub fn create<T>(private_key: PrivateKey, data: T) -> SignResult<Self>
     where
         Digest: From<T>,
     {
@@ -56,7 +63,7 @@ impl Signature {
     }
 
     /// Recovers public key which was used to create the signature for the signed data.
-    pub fn recover<T>(&self, data: T) -> Result<PublicKey>
+    pub fn recover<T>(&self, data: T) -> SignResult<PublicKey>
     where
         Digest: From<T>,
     {
@@ -65,23 +72,20 @@ impl Signature {
             &self.inner,
             self.recovery_id,
         )
-        .map_err(Into::into)
         .map(Into::into)
     }
 
     /// Verifies the signature using the public key and data possibly signed with
     /// the public key.
-    pub fn verify<T>(&self, public_key: PublicKey, data: T) -> Result<()>
+    pub fn verify<T>(&self, public_key: PublicKey, data: T) -> SignResult<()>
     where
         Digest: From<T>,
     {
-        VerifyingKey::from(public_key)
-            .verify_prehash(Digest::from(data).as_ref(), &self.inner)
-            .map_err(Into::into)
+        VerifyingKey::from(public_key).verify_prehash(Digest::from(data).as_ref(), &self.inner)
     }
 
     /// Signature validation: verify the signature with public key recovery from the signature.
-    pub fn validate<T>(&self, data: T) -> Result<PublicKey>
+    pub fn validate<T>(&self, data: T) -> SignResult<PublicKey>
     where
         Digest: From<T>,
     {
@@ -196,7 +200,7 @@ impl<T: Sized> SignedData<T>
 where
     for<'a> Digest: From<&'a T>,
 {
-    pub fn create(private_key: PrivateKey, data: T) -> Result<Self> {
+    pub fn create(private_key: PrivateKey, data: T) -> SignResult<Self> {
         let signature = Signature::create(private_key, &data)?;
         let public_key = PublicKey::from(private_key);
 
@@ -215,7 +219,11 @@ pub struct ContractSignature(Signature);
 
 impl ContractSignature {
     /// Create a recoverable contract-specific signature for the provided data using the private key.
-    pub fn create<T>(contract_address: Address, private_key: PrivateKey, data: T) -> Result<Self>
+    pub fn create<T>(
+        contract_address: Address,
+        private_key: PrivateKey,
+        data: T,
+    ) -> SignResult<Self>
     where
         Digest: From<T>,
     {
@@ -226,7 +234,7 @@ impl ContractSignature {
         .map(ContractSignature)
     }
 
-    pub fn validate<T>(&self, contract_address: Address, data: T) -> Result<PublicKey>
+    pub fn validate<T>(&self, contract_address: Address, data: T) -> SignResult<PublicKey>
     where
         Digest: From<T>,
     {

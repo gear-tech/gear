@@ -26,9 +26,8 @@ use crate::{
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
-use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
+use ethexe_common::{gear::CodeCommitment, Address, Digest, SignedData, SimpleBlockData, ToDigest};
 use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
-use ethexe_signer::{Address, Digest, SignedData, ToDigest};
 use gprimitives::H256;
 
 /// [`Participant`] is a state of the validator that processes validation requests,

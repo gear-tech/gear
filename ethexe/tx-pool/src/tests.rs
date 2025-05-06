@@ -24,8 +24,9 @@
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
+use ethexe_common::ToDigest;
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb, OnChainStorage};
-use ethexe_signer::{MemoryKeyStorage, Signer, ToDigest};
+use ethexe_signer::{MemoryKeyStorage, Signer};
 use gprimitives::{H160, H256};
 use parity_scale_codec::Encode;
 

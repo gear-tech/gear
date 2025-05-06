@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, bail, Result};
+use ethexe_common::{Address, PrivateKey, PublicKey};
 use std::{collections::BTreeMap, fmt, fs, path::PathBuf, str::FromStr};
 use tempfile::TempDir;
-
-use crate::{Address, PrivateKey, PublicKey};
 
 pub trait KeyStorage: fmt::Debug + Send + Sync + 'static {
     /// Create an empty key store.

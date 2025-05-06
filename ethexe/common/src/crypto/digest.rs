@@ -20,12 +20,13 @@
 //!
 //! Implements `ToDigest` hashing for ethexe common types.
 
-use ethexe_common::{
+use crate::{
     gear::{
         BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
     },
     ProducerBlock,
 };
+use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -123,7 +124,7 @@ impl ToDigest for CodeCommitment {
         } = self;
 
         hasher.update(id.into_bytes().as_slice());
-        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
         hasher.update([*valid as u8]);
     }
 }
@@ -198,7 +199,7 @@ impl ToDigest for BlockCommitment {
         } = self;
 
         hasher.update(hash.as_bytes());
-        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
         hasher.update(previous_committed_block.as_bytes());
         hasher.update(predecessor_block.as_bytes());
         hasher.update(transitions.to_digest().as_ref());

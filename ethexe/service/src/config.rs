@@ -19,11 +19,11 @@
 //! Application config in one place.
 
 use anyhow::Result;
+use ethexe_common::{Address, PublicKey};
 use ethexe_network::NetworkConfig;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
-use ethexe_signer::{Address, PublicKey};
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug)]

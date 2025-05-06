@@ -16,13 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    signature::ContractSignature,
-    storage::{FSKeyStorage, KeyStorage},
-    Address, Digest, PrivateKey, PublicKey, Signature, SignedData,
-};
-
+use crate::storage::{FSKeyStorage, KeyStorage};
 use anyhow::Result;
+use ethexe_common::{
+    Address, ContractSignature, Digest, PrivateKey, PublicKey, Signature, SignedData,
+};
 use k256::{ecdsa::SigningKey, elliptic_curve::rand_core};
 use std::{
     fs,
@@ -74,7 +72,7 @@ impl Signer {
     {
         let private_key = self.storage().get_private_key(public_key)?;
 
-        Signature::create(private_key, data)
+        Signature::create(private_key, data).map_err(Into::into)
     }
 
     /// Create a ECDSA recoverable signature packed with data together.
@@ -82,7 +80,7 @@ impl Signer {
     where
         for<'a> Digest: From<&'a T>,
     {
-        SignedData::create(self.storage().get_private_key(public_key)?, data)
+        SignedData::create(self.storage().get_private_key(public_key)?, data).map_err(Into::into)
     }
 
     /// Create a ECDSA recoverable contract-specific signature.
@@ -97,7 +95,7 @@ impl Signer {
     {
         let private_key = self.storage().get_private_key(public_key)?;
 
-        ContractSignature::create(contract_address, private_key, data)
+        ContractSignature::create(contract_address, private_key, data).map_err(Into::into)
     }
 
     /// Generate a new private key and return a public key for it.

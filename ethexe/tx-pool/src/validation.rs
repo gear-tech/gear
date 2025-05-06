@@ -20,8 +20,8 @@
 
 use crate::SignedOffchainTransaction;
 use anyhow::{anyhow, bail, Context, Result};
+use ethexe_common::ToDigest;
 use ethexe_db::Database;
-use ethexe_signer::ToDigest;
 use parity_scale_codec::Encode;
 
 // TODO #4424
@@ -94,7 +94,10 @@ impl TxValidator {
         let tx_digest = self.transaction.encode().to_digest();
         let signature = crate::tx_signature(&self.transaction)?;
 
-        signature.validate(tx_digest).map(|_| ())
+        signature
+            .validate(tx_digest)
+            .map(|_| ())
+            .map_err(Into::into)
     }
 
     /// Validates transaction mortality.

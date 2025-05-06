@@ -27,8 +27,8 @@ use anyhow::{Context as _, Result};
 pub use ethexe_common::tx_pool::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction,
 };
+use ethexe_common::{Address, Signature, ToDigest};
 use ethexe_db::Database;
-use ethexe_signer::{Address, Signature, ToDigest};
 use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
 use validation::TxValidator;
@@ -62,7 +62,11 @@ impl TxPoolService {
 pub fn tx_send_message_source(tx: &SignedOffchainTransaction) -> Result<ActorId> {
     Signature::decode(&mut tx.signature.as_ref())
         .map_err(anyhow::Error::from)
-        .and_then(|signature| signature.recover(tx.transaction.encode().to_digest()))
+        .and_then(|signature| {
+            signature
+                .recover(tx.transaction.encode().to_digest())
+                .map_err(anyhow::Error::from)
+        })
         .map(|public_key| H160::from(Address::from(public_key).0).into())
 }
 

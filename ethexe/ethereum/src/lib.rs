@@ -46,8 +46,8 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use ethexe_common::gear::AggregatedPublicKey;
-use ethexe_signer::{Address as LocalAddress, Digest, PublicKey, Signer as LocalSigner};
+use ethexe_common::{gear::AggregatedPublicKey, Address as LocalAddress, Digest, PublicKey};
+use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{ActorId, U256 as GearU256};
 use mirror::Mirror;
 use roast_secp256k1_evm::frost::{

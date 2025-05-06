@@ -23,8 +23,7 @@ use crate::{
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
-use ethexe_common::gear::BatchCommitment;
-use ethexe_signer::Address;
+use ethexe_common::{gear::BatchCommitment, Address};
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -121,7 +120,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_signer::ToDigest;
+    use ethexe_common::ToDigest;
     use gprimitives::H256;
     use std::any::TypeId;
 

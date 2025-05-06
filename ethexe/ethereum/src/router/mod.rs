@@ -28,8 +28,10 @@ use alloy::{
     rpc::types::{eth::state::AccountOverride, Filter},
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
-use ethexe_signer::{Address as LocalAddress, ContractSignature};
+use ethexe_common::{
+    gear::{AggregatedPublicKey, BatchCommitment, SignatureType},
+    Address as LocalAddress, ContractSignature,
+};
 use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};

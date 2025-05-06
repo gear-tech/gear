@@ -20,15 +20,21 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "std")]
+extern crate std;
+
 extern crate alloc;
 
+pub mod crypto;
 pub mod db;
 pub mod events;
 pub mod gear;
 pub mod tx_pool;
 
+pub use crypto::*;
 pub use gear_core;
 pub use gprimitives;
+pub use sha3;
 
 use alloc::vec::Vec;
 use db::BlockHeader;

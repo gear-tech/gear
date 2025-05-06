@@ -1298,13 +1298,13 @@ mod utils {
     use super::*;
     use crate::Event;
     use alloy::eips::BlockId;
-    use ethexe_common::SimpleBlockData;
+    use ethexe_common::{Address, PrivateKey, PublicKey, SimpleBlockData};
     use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
     use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
-    use ethexe_signer::{MemoryKeyStorage, PrivateKey, PublicKey};
+    use ethexe_signer::MemoryKeyStorage;
     use ethexe_tx_pool::TxPoolService;
     use futures::StreamExt;
     use gear_core::message::ReplyCode;
@@ -1683,7 +1683,7 @@ mod utils {
 
             let listener = self.observer_events_publisher().subscribe().await;
 
-            let program_address = ethexe_signer::Address::try_from(target)?;
+            let program_address = Address::try_from(target)?;
             let program = self.ethereum.mirror(program_address);
 
             let (_, message_id) = program.send_message(payload, value).await?;
@@ -1697,7 +1697,7 @@ mod utils {
         pub async fn approve_wvara(&self, program_id: ActorId) {
             log::info!("📗 Approving WVara for {program_id}");
 
-            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let program_address = Address::try_from(program_id).unwrap();
             let wvara = self.ethereum.router().wvara();
             wvara.approve_all(program_address.0.into()).await.unwrap();
         }
@@ -1705,7 +1705,7 @@ mod utils {
         pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
             log::info!("📗 Transferring {value} WVara to {program_id}");
 
-            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let program_address = Address::try_from(program_id).unwrap();
             let wvara = self.ethereum.router().wvara();
             wvara
                 .transfer(program_address.0.into(), value)
