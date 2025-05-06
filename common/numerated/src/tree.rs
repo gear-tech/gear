@@ -26,6 +26,7 @@ use crate::{
 use alloc::{collections::BTreeMap, fmt, fmt::Debug, vec::Vec};
 use core::{fmt::Formatter, ops::RangeInclusive};
 use num_traits::{CheckedAdd, Zero};
+use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -95,6 +96,14 @@ use scale_info::{
 #[codec(crate = scale_info::scale)]
 pub struct IntervalsTree<T> {
     inner: BTreeMap<T, T>,
+}
+
+// at the moment used only for encoding wasm pages intervals tree
+// which is limited by 32K pages
+impl<T: MaxEncodedLen> MaxEncodedLen for IntervalsTree<T> {
+    fn max_encoded_len() -> usize {
+        T::max_encoded_len() * ((u16::MAX as usize) / 2 + 1)
+    }
 }
 
 impl<T: Copy> IntervalsTree<T> {

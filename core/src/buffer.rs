@@ -25,24 +25,152 @@ use core::{
 };
 
 use alloc::{vec, vec::Vec};
+use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+/*
+/// A dedicated trait to format data in [`LimitedVec`].
+///
+/// If data can be represented as bytes then it is formatted in limited format,
+/// otherwise only fraction of elements in a vec is formatted.
+pub trait LimitedDebug: Sized + Debug {
+    /// Format the data in limited format.
+    ///
+    /// Limited format is a format that shows only a fraction of elements in a vec.
+    /// The fraction is determined by the precision of the formatter.
+    fn fmt<E, const N: usize>(vec: &LimitedVec<Self, E, N>, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = vec.0.len();
+        let median = (len + 1) / 2;
 
-/// Limited len vector.
-/// `T` is data type.
-/// `E` is overflow error type.
-/// `N` is max len which a vector can have.
-#[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
+        let mut e1 = median;
+        let mut s2 = median;
 
-/// Formatter for [`LimitedVec`] will print to precision of 8 by default, to print the whole data, use `{:+}`.
-impl<T: Clone + Default, E: Default, const N: usize> Display for LimitedVec<T, E, N>
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            } else if !f.sign_plus() && median > 8 {
+                e1 = 8;
+                s2 = len - 8;
+            }
+        }
+
+        write!(f, "LimitedVec(")?;
+
+        for (i, element) in vec.0[..e1].iter().enumerate() {
+            <Self as Debug>::fmt(element, f)?;
+            if i < e1 - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        write!(f, "{sep}")?;
+
+        for (i, element) in vec.0[s2..].iter().enumerate() {
+            <Self as Debug>::fmt(element, f)?;
+            if i < len - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        write!(f, ")")
+    }
+}
+
+/// Same as [`LimitedDebug`] but for [`Display`] trait.
+pub trait LimitedDisplay: Sized + Display {
+    /// Format the data in limited format.
+    ///
+    /// Limited format is a format that shows only a fraction of elements in a vec.
+    /// The fraction is determined by the precision of the formatter.
+    fn fmt<E, const N: usize>(vec: &LimitedVec<Self, E, N>, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = vec.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        } else if !f.sign_plus() && median > 8 {
+            e1 = 8;
+            s2 = len - 8;
+        }
+
+        write!(f, "LimitedVec(")?;
+
+        for (i, element) in vec.0[..e1].iter().enumerate() {
+            <Self as Display>::fmt(element, f)?;
+            if i < e1 - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        write!(f, "{sep}")?;
+
+        for (i, element) in vec.0[s2..].iter().enumerate() {
+            <Self as Display>::fmt(element, f)?;
+            if i < len - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        write!(f, ")")
+    }
+}
+
+/* override default formatting for bytes to print `LimitedVec(0x123..4643)` */
+impl LimitedDebug for u8 {
+    fn fmt<E, const N: usize>(vec: &LimitedVec<Self, E, N>, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = vec.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        } else if !f.sign_plus() && median > 8 {
+            e1 = 8;
+            s2 = len - 8;
+        }
+
+        let p1 = hex::encode(&vec.0[..e1]);
+        let p2 = hex::encode(&vec.0[s2..]);
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+
+        if f.alternate() {
+            write!(f, "LimitedVec(0x{p1}{sep}{p2})")
+        } else {
+            write!(f, "0x{p1}{sep}{p2}")
+        }
+    }
+}
+
+impl LimitedDisplay for u8 {
+    fn fmt<E, const N: usize>(vec: &LimitedVec<Self, E, N>, f: &mut Formatter<'_>) -> fmt::Result {
+        <u8 as LimitedDebug>::fmt(vec, f)
+    }
+}
+
+impl<A, B> LimitedDebug for (A, B)
 where
-    [T]: AsRef<[u8]>,
+    A: Debug,
+    B: Debug,
 {
+}*/
+
+impl<T: fmt::Debug, E: Default, const N: usize> fmt::Debug for LimitedVec<T, E, N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let len = self.0.len();
         let median = len.div_ceil(2);
@@ -60,26 +188,77 @@ where
             s2 = len - 8;
         }
 
-        let p1 = hex::encode(&self.0[..e1]);
-        let p2 = hex::encode(&self.0[s2..]);
-        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        write!(f, "[")?;
 
-        if f.alternate() {
-            write!(f, "LimitedVec(0x{p1}{sep}{p2})")
-        } else {
-            write!(f, "0x{p1}{sep}{p2}")
+        for (i, element) in self.0[..e1].iter().enumerate() {
+            Debug::fmt(element, f)?;
+            if i < e1 - 1 {
+                write!(f, ",")?;
+            }
         }
+
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        write!(f, "{sep}")?;
+
+        for (i, element) in self.0[s2..].iter().enumerate() {
+            Debug::fmt(element, f)?;
+            if i < len - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        write!(f, "]")
     }
 }
 
-impl<T: Clone + Default, E: Default, const N: usize> Debug for LimitedVec<T, E, N>
-where
-    [T]: AsRef<[u8]>,
-{
+impl<T: fmt::Display, E: Default, const N: usize> fmt::Display for LimitedVec<T, E, N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        core::fmt::Display::fmt(self, f)
+        let len = self.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        } else if !f.sign_plus() && median > 8 {
+            e1 = 8;
+            s2 = len - 8;
+        }
+
+        write!(f, "[")?;
+
+        for (i, element) in self.0[..e1].iter().enumerate() {
+            Display::fmt(element, f)?;
+            if i < e1 - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        write!(f, "{sep}")?;
+
+        for (i, element) in self.0[s2..].iter().enumerate() {
+            Display::fmt(element, f)?;
+            if i < len - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        write!(f, "]")
     }
 }
+
+/// Limited len vector.
+/// `T` is data type.
+/// `E` is overflow error type.
+/// `N` is max len which a vector can have.
+#[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
 impl<T: Clone, E: Default, const N: usize> TryFrom<&[T]> for LimitedVec<T, E, N> {
     type Error = E;
@@ -184,6 +363,12 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
     /// Returns max len which this type of limited vector can have.
     pub const fn max_len() -> usize {
         N
+    }
+}
+
+impl<T: MaxEncodedLen, E, const N: usize> MaxEncodedLen for LimitedVec<T, E, N> {
+    fn max_encoded_len() -> usize {
+        N * T::max_encoded_len()
     }
 }
 

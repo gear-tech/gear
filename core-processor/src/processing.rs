@@ -30,6 +30,8 @@ use crate::{
 use alloc::{string::ToString, vec::Vec};
 use core::{fmt, fmt::Formatter};
 use gear_core::{
+    buffer::LimitedVec,
+    code::MAX_WASM_PAGES_AMOUNT,
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
     message::{
@@ -37,6 +39,7 @@ use gear_core::{
         StoredDispatch,
     },
     reservation::GasReservationState,
+    str::LimitedStr,
 };
 use gear_core_backend::{
     error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
@@ -162,6 +165,14 @@ where
                         .as_ref()
                         .map(|reserver| initial_reservations_amount <= reserver.states().len())
                         .unwrap_or(true));
+
+                    if let Some(allocations) = res.allocations.as_ref() {
+                        debug_assert!(allocations.intervals_amount() < MAX_WASM_PAGES_AMOUNT as usize,
+                            "maximum supported WASM pages amount is {MAX_WASM_PAGES_AMOUNT}, but program used {} pages",
+                            allocations.intervals_amount()
+                    );
+                    }
+                    debug_assert!(res.program_candidates.len() < 1024);
                 }
                 // reservation does not change in case of failure
                 _ => (),
@@ -350,7 +361,7 @@ fn process_error(
 
     let outcome = match case {
         ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
-            let err_msg = case.to_string();
+            let err_msg = LimitedStr::from(case.to_string());
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
                     program_id,
@@ -581,10 +592,15 @@ pub fn process_success(
 
     // Must be handled before handling generated dispatches.
     for (code_id, candidates) in program_candidates {
+        let size = candidates.len();
         journal.push(JournalNote::StoreNewPrograms {
             program_id,
             code_id,
-            candidates,
+            candidates: LimitedVec::try_from(candidates).unwrap_or_else(|_| {
+                let msg = alloc::format!("program_candidates is too big: limit 1024, got {}", size);
+                log::error!("{msg}");
+                unreachable!("{msg}")
+            }),
         });
     }
 
