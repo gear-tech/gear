@@ -50,7 +50,7 @@ impl FromStr for PrivateKey {
     type Err = FromHexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        super::decode_to_array(s).map(Self)
+        crate::decode_to_array(s).map(Self)
     }
 }
 
@@ -129,6 +129,6 @@ impl FromStr for PublicKey {
     type Err = FromHexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        super::decode_to_array(s).map(Self)
+        crate::decode_to_array(s).map(Self)
     }
 }

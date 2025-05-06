@@ -50,7 +50,7 @@ use sha3::Digest as _;
 #[repr(transparent)]
 #[debug("0x{}", hex::encode(self.0))]
 #[display("0x{}", hex::encode(self.0))]
-pub struct Digest(pub(crate) [u8; 32]);
+pub struct Digest([u8; 32]);
 
 impl<T> FromIterator<T> for Digest
 where

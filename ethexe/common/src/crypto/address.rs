@@ -62,7 +62,7 @@ impl FromStr for Address {
     type Err = FromHexError;
 
     fn from_str(s: &str) -> Result<Self, FromHexError> {
-        super::decode_to_array(s).map(Self)
+        crate::decode_to_array(s).map(Self)
     }
 }
 
