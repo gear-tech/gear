@@ -32,6 +32,8 @@ pub const SIGNING_THRESHOLD_PERCENTAGE: u16 = 6666;
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
 pub type Address = [u8; 20];
 
+pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
     pub x: U256,

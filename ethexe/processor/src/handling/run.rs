@@ -109,21 +109,29 @@ use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
-use gear_core::ids::ActorId;
-use gprimitives::H256;
+use gear_core::gas::GasAllowanceCounter;
+use gprimitives::{ActorId, H256};
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
 use crate::host::{InstanceCreator, InstanceWrapper};
 
+pub struct RunnerConfig {
+    pub chunk_processing_threads: usize,
+    pub chunk_gas_limit: u64,
+    pub block_gas_limit: u64,
+}
+
 pub async fn run(
-    chunk_processing_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
+    config: RunnerConfig,
 ) {
     let mut join_set = JoinSet::new();
-    let chunk_size = chunk_processing_threads;
+    let chunk_size = config.chunk_processing_threads;
+    let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
+    let mut is_out_of_gas_for_block = false;
 
     loop {
         let states: Vec<_> = in_block_transitions
@@ -140,6 +148,7 @@ pub async fn run(
         let chunks = split_to_chunks(chunk_size, states);
 
         if chunks.is_empty() {
+            // No more chunks to process. Stopping.
             break;
         }
 
@@ -150,13 +159,21 @@ pub async fn run(
                     .instantiate()
                     .expect("Failed to instantiate executor");
 
+                let gas_allowance_for_chunk = allowance_counter.left().min(config.chunk_gas_limit);
+
                 let _ = join_set.spawn_blocking(move || {
-                    let (jn, new_state_hash) =
-                        run_runtime(db, &mut executor, program_id, state_hash);
-                    (program_id, new_state_hash, jn)
+                    let (jn, new_state_hash, gas_spent) = run_runtime(
+                        db,
+                        &mut executor,
+                        program_id,
+                        state_hash,
+                        gas_allowance_for_chunk,
+                    );
+                    (program_id, new_state_hash, jn, gas_spent)
                 });
             }
 
+            let mut max_gas_spent_in_chunk = 0u64;
             let mut chunk_journal = Vec::new();
             while let Some(result) = join_set
                 .join_next()
@@ -164,7 +181,10 @@ pub async fn run(
                 .transpose()
                 .expect("Failed to join task")
             {
-                chunk_journal.push(result);
+                let (program_id, new_state_hash, program_journals, gas_spent) = result;
+
+                chunk_journal.push((program_id, new_state_hash, program_journals));
+                max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
             }
 
             for (program_id, new_state_hash, program_journals) in chunk_journal {
@@ -182,9 +202,19 @@ pub async fn run(
                             transitions: in_block_transitions,
                             storage: &db,
                         },
+                        gas_allowance_counter: &allowance_counter,
+                        chunk_gas_limit: config.chunk_gas_limit,
+                        out_of_gas_for_block: &mut is_out_of_gas_for_block,
                     };
                     core_processor::handle_journal(journal, &mut journal_handler);
                 }
+            }
+
+            allowance_counter.charge(max_gas_spent_in_chunk);
+
+            if is_out_of_gas_for_block {
+                // Out of gas for block, stopping processing
+                break;
             }
         }
     }
@@ -236,13 +266,21 @@ fn run_runtime(
     executor: &mut InstanceWrapper,
     program_id: ActorId,
     state_hash: H256,
-) -> (ProgramJournals, H256) {
+    gas_allowance: u64,
+) -> (ProgramJournals, H256, u64) {
     let code_id = db.program_code_id(program_id).expect("Code ID must be set");
 
     let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
 
     executor
-        .run(db, program_id, code_id, state_hash, instrumented_code)
+        .run(
+            db,
+            program_id,
+            code_id,
+            state_hash,
+            instrumented_code,
+            gas_allowance,
+        )
         .expect("Some error occurs while running program in instance")
 }
 

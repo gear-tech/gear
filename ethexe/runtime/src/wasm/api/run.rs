@@ -30,7 +30,8 @@ pub fn run(
     original_code_id: CodeId,
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,
-) -> ProgramJournals {
+    gas_allowance: u64,
+) -> (ProgramJournals, u64) {
     log::debug!("You're calling 'run(..)'");
 
     let block_info = BlockInfo {
@@ -45,12 +46,13 @@ pub fn run(
 
     let program_state = ri.storage().read_state(state_root).unwrap();
 
-    let journals = process_queue(
+    let (journals, gas_spent) = process_queue(
         program_id,
         program_state,
         maybe_instrumented_code,
         original_code_id,
         &ri,
+        gas_allowance,
     );
 
     for (journal, origin, call_reply) in &journals {
@@ -60,5 +62,5 @@ pub fn run(
         log::debug!("Origin: {origin:?}, call_reply {call_reply:?}");
     }
 
-    journals
+    (journals, gas_spent)
 }
