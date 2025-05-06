@@ -19,7 +19,6 @@ gprimitives.workspace = true
 alloy.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
-mapped_futures.workspace = true
 reqwest = { workspace = true, features = ["default-tls", "json"] }
 futures.workspace = true
 log.workspace = true

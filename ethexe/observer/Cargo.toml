@@ -13,7 +13,6 @@ ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-blob-loader.workspace = true
 ethexe-db.workspace = true
-gear-core.workspace = true
 gprimitives.workspace = true
 
 anyhow.workspace = true

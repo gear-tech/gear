@@ -1822,15 +1822,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bisetmap"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22c974dd8ef792bd6539b0ae3fe33f050a2f456aa073e1b560a36904d7d9ca1a"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4619,7 +4610,6 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "log",
- "mapped_futures",
  "reqwest",
  "tokio",
 ]
@@ -4789,7 +4779,6 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-signer",
  "futures",
- "gear-core",
  "gear-utils",
  "gprimitives",
  "log",
@@ -4847,7 +4836,6 @@ dependencies = [
  "ethexe-blob-loader",
  "ethexe-common",
  "ethexe-db",
- "ethexe-observer",
  "ethexe-processor",
  "ethexe-runtime-common",
  "futures",
@@ -9803,18 +9791,6 @@ name = "maplit"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
-
-[[package]]
-name = "mapped_futures"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "261bdb1f9bd805753d1af2b334427afdf808097cf8cac439ecd141b75d830824"
-dependencies = [
- "bisetmap",
- "futures-core",
- "futures-task",
- "futures-util",
-]
 
 [[package]]
 name = "match_cfg"
