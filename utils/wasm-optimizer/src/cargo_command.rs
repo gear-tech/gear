@@ -37,7 +37,7 @@ pub struct CargoCommand {
 impl CargoCommand {
     /// Initialize new cargo command.
     pub fn new() -> CargoCommand {
-        let toolchain = Toolchain::try_from_rustup().expect("Failed to get toolchain from rustup");
+        let toolchain = Toolchain::try_from_rustup().expect("Failed to resolve toolchain version");
 
         CargoCommand {
             path: "rustup".to_string(),
@@ -105,14 +105,20 @@ impl CargoCommand {
             self.toolchain.clone()
         };
 
-        let mut cargo = Command::new(&self.path);
-        if self.force_recommended_toolchain {
-            self.clean_up_environment(&mut cargo);
-        }
+        let mut cargo = if option_env!("IN_NIX_SHELL").is_some() {
+            Command::new("cargo")
+        } else {
+            let mut cargo = Command::new(&self.path);
+            cargo.arg("run")
+                .arg(toolchain.raw_toolchain_str().as_ref())
+                .arg("cargo");
+
+            if self.force_recommended_toolchain {
+                self.clean_up_environment(&mut cargo);
+            }
+            cargo
+        };
         cargo
-            .arg("run")
-            .arg(toolchain.raw_toolchain_str().as_ref())
-            .arg("cargo")
             .arg("rustc")
             .arg("--target=wasm32v1-none")
             .arg("--color=always")
