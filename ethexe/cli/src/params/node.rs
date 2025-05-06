@@ -46,10 +46,6 @@ pub struct NodeParams {
     #[serde(default)]
     pub dev: bool,
 
-    /// Public key of the sequencer, if node should act as one.
-    #[arg(long)]
-    pub sequencer: Option<String>,
-
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
     pub validator: Option<String>,
@@ -97,8 +93,6 @@ impl NodeParams {
         Ok(NodeConfig {
             database_path: self.db_dir(),
             key_path: self.keys_dir(),
-            sequencer: ConfigPublicKey::new(&self.sequencer)
-                .with_context(|| "invalid `sequencer` key")?,
             validator: ConfigPublicKey::new(&self.validator)
                 .with_context(|| "invalid `validator` key")?,
             validator_session: ConfigPublicKey::new(&self.validator_session)
@@ -169,7 +163,6 @@ impl MergeParams for NodeParams {
             base: self.base.or(with.base),
             tmp: self.tmp || with.tmp,
             dev: self.dev || with.dev,
-            sequencer: self.sequencer.or(with.sequencer),
 
             validator: self.validator.or(with.validator),
             validator_session: self.validator_session.or(with.validator_session),
