@@ -22,13 +22,16 @@ use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
     db::Schedule,
     events::{BlockRequestEvent, MirrorRequestEvent},
-    gear::StateTransition,
+    gear::{StateTransition, CHUNK_PROCESSING_GAS_LIMIT},
 };
 use ethexe_db::{CodesStorage, Database, StateHashWithQueueSize};
 use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, message::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
-use handling::{run, ProcessingHandler};
+use handling::{
+    run::{self, RunnerConfig},
+    ProcessingHandler,
+};
 use host::InstanceCreator;
 use std::collections::BTreeMap;
 
@@ -52,12 +55,14 @@ pub struct BlockProcessingResult {
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
     pub chunk_processing_threads: usize,
+    pub block_gas_limit: u64,
 }
 
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
             chunk_processing_threads: 16,
+            block_gas_limit: 4_000_000_000_000,
         }
     }
 }
@@ -165,10 +170,14 @@ impl Processor {
         self.creator.set_chain_head(handler.block_hash);
 
         run::run(
-            self.config().chunk_processing_threads,
             self.db.clone(),
             self.creator.clone(),
             &mut handler.transitions,
+            RunnerConfig {
+                chunk_processing_threads: self.config().chunk_processing_threads,
+                chunk_gas_limit: CHUNK_PROCESSING_GAS_LIMIT,
+                block_gas_limit: self.config().block_gas_limit,
+            },
         )
         .await;
     }

@@ -10,6 +10,7 @@ use core::{mem, num::NonZero};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{db::ScheduledTask, gear::Origin};
 use gear_core::{
+    gas::GasAllowanceCounter,
     ids::ProgramId,
     memory::PageBuf,
     message::{Dispatch as CoreDispatch, MessageWaitedType, StoredDispatch},
@@ -24,6 +25,9 @@ pub struct NativeJournalHandler<'a, S: Storage> {
     pub program_id: ProgramId,
     pub dispatch_origin: Origin,
     pub controller: TransitionController<'a, S>,
+    pub gas_allowance_counter: &'a GasAllowanceCounter,
+    pub chunk_gas_limit: u64,
+    pub out_of_gas_for_block: &'a mut bool,
 }
 
 impl<S: Storage> NativeJournalHandler<'_, S> {
@@ -133,8 +137,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
     }
 
     fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {
-        // TODO
-        // unreachable!("Must not be called here")
+        unreachable!("Handled inside runtime by `RuntimeJournalHandler`")
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
@@ -324,7 +327,10 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
     }
 
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
-        todo!()
+        // This means we are out of gas for block, not for chunk.
+        if self.gas_allowance_counter.left() < self.chunk_gas_limit {
+            *self.out_of_gas_for_block = true;
+        }
     }
 
     fn reserve_gas(&mut self, _: MessageId, _: ReservationId, _: ProgramId, _: u64, _: u32) {
@@ -363,6 +369,8 @@ where
 {
     pub storage: &'s S,
     pub program_state: &'s mut ProgramState,
+    pub gas_allowance_counter: &'s mut GasAllowanceCounter,
+    pub stop_processing: bool,
 }
 
 impl<S> RuntimeJournalHandler<'_, S>
@@ -404,11 +412,24 @@ where
                     } => {
                         allocations_update.insert(program_id, allocations);
                     }
+                    JournalNote::GasBurned {
+                        message_id: _,
+                        amount,
+                    } => {
+                        self.gas_allowance_counter.charge(amount);
+                    }
+                    note @ JournalNote::StopProcessing {
+                        dispatch: _,
+                        gas_burned,
+                    } => {
+                        self.gas_allowance_counter.charge(gas_burned);
+                        self.stop_processing = true;
+                        not_processed = Some(note);
+                    }
                     // TODO(romanm): handle the listed journal notes here:
                     // * WakeMessage
                     // * SendDispatch to self
                     // * SendValue to self
-                    // * GasBurned
                     note => not_processed = Some(note),
                 }
 
