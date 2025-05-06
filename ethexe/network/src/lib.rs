@@ -71,7 +71,7 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 pub enum NetworkEvent {
     DbResponse {
         request_id: db_sync::RequestId,
-        result: Result<db_sync::Response, (db_sync::OngoingRequest, db_sync::RequestFailure)>,
+        result: Result<db_sync::Response, (db_sync::RetriableRequest, db_sync::RequestFailure)>,
     },
     Message {
         data: Vec<u8>,
@@ -430,13 +430,10 @@ impl NetworkService {
                     result: Ok(response),
                 });
             }
-            BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
-                ongoing_request,
-                error,
-            }) => {
+            BehaviourEvent::DbSync(db_sync::Event::RequestFailed { request, error }) => {
                 return Some(NetworkEvent::DbResponse {
-                    request_id: ongoing_request.id(),
-                    result: Err((ongoing_request, error)),
+                    request_id: request.id(),
+                    result: Err((request, error)),
                 });
             }
             BehaviourEvent::DbSync(_) => {}

@@ -26,6 +26,7 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 futures.workspace = true
 derive_more.workspace = true
 void = "1.0.2"
+enum_delegate.workspace = true
 
 [dependencies.libp2p]
 git = "https://github.com/gear-tech/rust-libp2p"
