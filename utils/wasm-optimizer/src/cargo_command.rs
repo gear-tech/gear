@@ -109,7 +109,8 @@ impl CargoCommand {
             Command::new("cargo")
         } else {
             let mut cargo = Command::new(&self.path);
-            cargo.arg("run")
+            cargo
+                .arg("run")
                 .arg(toolchain.raw_toolchain_str().as_ref())
                 .arg("cargo");
 
