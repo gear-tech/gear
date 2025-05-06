@@ -862,12 +862,16 @@ where
             delay_hold.expected()
         };
 
+        if dispatch.is_error_reply() {
+            let err_msg = "send_delayed_dispatch: delayed sending of error reply appeared";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        }
+
         // It's necessary to deposit value so the source would have enough
         // balance locked (in gear-bank) for future value processing.
-        //
-        // In case of error replies, we don't need to do it, since original
-        // message value is already on locked balance in gear-bank.
-        if !dispatch.value().is_zero() && !dispatch.is_error_reply() {
+        if !dispatch.value().is_zero() {
             // Reserving value from source for future transfer or unreserve.
             GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
                 let err_msg = format!(
