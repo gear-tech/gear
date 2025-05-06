@@ -144,7 +144,8 @@ impl Encode for Signature {
 
 /// A signed data structure, that contains the data and its signature.
 /// Always valid after construction.
-#[derive(Clone, Debug, Encode, PartialEq, Eq)]
+#[derive(Clone, Encode, PartialEq, Eq, Debug, Display)]
+#[display("SignedData({data}, {signature})")]
 pub struct SignedData<T: Sized> {
     data: T,
     signature: Signature,
@@ -183,16 +184,7 @@ where
     fn decode<I: CodecInput>(input: &mut I) -> Result<Self, CodecError> {
         let data = T::decode(input)?;
         let signature = Signature::decode(input)?;
-
-        let public_key = signature
-            .validate(&data)
-            .map_err(|_| CodecError::from("Invalid signature or attached data"))?;
-
-        Ok(Self {
-            data,
-            signature,
-            public_key,
-        })
+        Self::try_from_parts(data, signature).map_err(CodecError::from)
     }
 }
 
@@ -209,6 +201,17 @@ where
             signature,
             public_key,
         })
+    }
+
+    pub fn try_from_parts(data: T, signature: Signature) -> Result<Self, &'static str> {
+        signature
+            .validate(&data)
+            .map_err(|_| "Invalid signature or attached data")
+            .map(|public_key| Self {
+                data,
+                signature,
+                public_key,
+            })
     }
 }
 

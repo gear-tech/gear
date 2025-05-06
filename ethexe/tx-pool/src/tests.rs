@@ -26,18 +26,12 @@ use crate::{
 };
 use ethexe_common::{
     db::{BlockMetaStorage, OnChainStorage},
-    BlockHeader, ToDigest,
+    BlockHeader,
 };
 use ethexe_db::Database;
-use ethexe_signer::{MemoryKeyStorage, Signer};
 use gprimitives::{H160, H256};
-use parity_scale_codec::Encode;
 
 pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOffchainTransaction {
-    let signer = Signer::empty::<MemoryKeyStorage>();
-
-    let public_key = signer.generate_key().expect("failed to generate key");
-
     let transaction = OffchainTransaction {
         raw: RawOffchainTransaction::SendMessage {
             program_id: H160::random(),
@@ -45,14 +39,8 @@ pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOff
         },
         reference_block: reference_block_hash,
     };
-    let signature = signer
-        .sign(public_key, transaction.encode().to_digest())
-        .expect("signing failed");
 
-    SignedOffchainTransaction {
-        transaction,
-        signature: signature.encode(),
-    }
+    SignedOffchainTransaction::create(H256::random().0.into(), transaction).unwrap()
 }
 
 pub(crate) struct BlocksManager {

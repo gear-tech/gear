@@ -44,7 +44,7 @@ use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
+use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction};
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -1065,24 +1065,16 @@ async fn tx_pool_gossip() {
             // referring to the latest valid block hash
             reference_block,
         };
-        let signature = env
-            .signer
-            .sign(sender_pub_key, ethexe_tx.encode().as_slice())
-            .expect("failed signing tx");
-        SignedOffchainTransaction {
-            signature: signature.encode(),
-            transaction: ethexe_tx,
-        }
+        env.signer.signed_data(sender_pub_key, ethexe_tx).unwrap()
     };
+
+    let (transaction, signature) = signed_ethexe_tx.clone().into_parts();
 
     // Send request
     log::info!("Sending tx pool request to node-1");
     let rpc_client = node0.rpc_client().expect("rpc server is set");
     let resp = rpc_client
-        .send_message(
-            signed_ethexe_tx.transaction.clone(),
-            signed_ethexe_tx.signature.clone(),
-        )
+        .send_message(transaction, signature.encode())
         .await
         .expect("failed sending request");
     assert!(resp.status().is_success());
