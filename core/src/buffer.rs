@@ -30,7 +30,7 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-
+/* 
 /// A dedicated trait to format data in [`LimitedVec`].
 ///
 /// If data can be represented as bytes then it is formatted in limited format,
@@ -168,7 +168,88 @@ where
     A: Debug,
     B: Debug,
 {
+}*/
+
+impl<T: fmt::Debug, E: Default, const N: usize> fmt::Debug for LimitedVec<T, E, N> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = self.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        } else if !f.sign_plus() && median > 8 {
+            e1 = 8;
+            s2 = len - 8;
+        }
+
+        write!(f, "[")?;
+
+        for (i, element) in self.0[..e1].iter().enumerate() {
+            Debug::fmt(element, f)?;
+            if i < e1 - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        write!(f, "{sep}")?;
+
+        for (i, element) in self.0[s2..].iter().enumerate() {
+            Debug::fmt(element, f)?;
+            if i < len - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        write!(f, "]")
+    }
 }
+
+impl<T: fmt::Display, E: Default, const N: usize> fmt::Display for LimitedVec<T, E, N> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let len = self.0.len();
+        let median = (len + 1) / 2;
+
+        let mut e1 = median;
+        let mut s2 = median;
+
+        if let Some(precision) = f.precision() {
+            if precision < median {
+                e1 = precision;
+                s2 = len - precision;
+            }
+        } else if !f.sign_plus() && median > 8 {
+            e1 = 8;
+            s2 = len - 8;
+        }
+
+        write!(f, "[")?;
+
+        for (i, element) in self.0[..e1].iter().enumerate() {
+            Display::fmt(element, f)?;
+            if i < e1 - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        write!(f, "{sep}")?;
+
+        for (i, element) in self.0[s2..].iter().enumerate() {
+            Display::fmt(element, f)?;
+            if i < len - 1 {
+                write!(f, ",")?;
+            }
+        }
+
+        write!(f, "]")
+    }
 
 /// Limited len vector.
 /// `T` is data type.
@@ -178,24 +259,6 @@ where
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
-/// Formatter for [`LimitedVec`] will print to precision of 8 by default, to print the whole data, use `{:+}`.
-impl<T: Clone + Default, E: Default, const N: usize> Display for LimitedVec<T, E, N>
-where
-    T: LimitedDisplay,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        <T as LimitedDisplay>::fmt(self, f)
-    }
-}
-
-impl<T: Clone + Default, E: Default, const N: usize> Debug for LimitedVec<T, E, N>
-where
-    T: LimitedDebug,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        <T as LimitedDebug>::fmt(self, f)
-    }
-}
 
 impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
     type Error = E;
