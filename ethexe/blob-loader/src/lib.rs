@@ -52,19 +52,12 @@ impl Stream for BlobLoaderService {
                 Ok(blob_data) => {
                     let code_id = &blob_data.code_id;
                     self.codes_loading.remove(code_id);
+                    self.db.set_original_code(blob_data.code.as_slice());
                     return Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))));
                 }
                 Err(e) => return Poll::Ready(Some(Err(e))),
             },
-            Poll::Ready(None) => {
-                // all futures are done
-                // if self.futures.is_empty() {
-                //     return Poll::Ready(None);
-                // }
-
-                return Poll::Pending;
-            }
-            Poll::Pending => return Poll::Pending,
+            _ => return Poll::Pending,
         }
     }
 }

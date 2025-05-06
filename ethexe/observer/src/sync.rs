@@ -133,6 +133,10 @@ impl ChainLoader {
                         }
                     }
                     BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
+                        log::info!(
+                            "🥶🥶🥶 Code got validated: {code_id:?}, block hash: {:?}",
+                            block_data.hash
+                        );
                         if codes_to_load_later.contains(code_id) {
                             return Err(anyhow!("Code {code_id} is validated before requested"));
                         };
@@ -265,7 +269,6 @@ impl Future for ChainSync {
     ) -> std::task::Poll<Self::Output> {
         match self.state.clone() {
             ChainSyncState::WaitingForBlock => {
-                log::info!("State: waiting for block, pending blocks len: {}", self.pending_blocks.len());
                 if let Some(header) = self.pending_blocks.back() {
                     let chain_loader = ChainLoader {
                         config: self.config.clone(),
@@ -280,7 +283,6 @@ impl Future for ChainSync {
                 return Poll::Pending;
             }
             ChainSyncState::LoadingChain => {
-                log::info!("State: loading chain");
                 let result = self.load_chain_fut.as_mut().unwrap().poll_unpin(cx);
                 match result {
                     Poll::Pending => Poll::Pending,
@@ -294,7 +296,6 @@ impl Future for ChainSync {
                             self.load_chain_fut = None;
                             self.state = ChainSyncState::WaitingForCodes;
                             cx.waker().wake_by_ref();
-                            //  (chain, codes_load_now));
                             return Poll::Pending;
                         }
                         Err(e) => return Poll::Ready(Err(e)),
@@ -302,7 +303,6 @@ impl Future for ChainSync {
                 }
             }
             ChainSyncState::WaitingForCodes => {
-                log::info!("State: waiting for codes");
                 for code in self.loaded_codes.clone().into_iter() {
                     if self.codes_to_wait.as_ref().unwrap().contains(&code) {
                         self.codes_to_wait.as_mut().unwrap().remove(&code);
@@ -332,13 +332,11 @@ impl Future for ChainSync {
             }
 
             ChainSyncState::Finalize => {
-                log::info!("State: finalizing");
                 match self.finalize_sync_fut.as_mut().unwrap().poll_unpin(cx) {
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(result) => {
                         self.finalize_sync_fut = None;
                         self.as_mut().state = ChainSyncState::WaitingForBlock;
-                        // cx.waker().wake_by_ref();
                         return Poll::Ready(result);
                     }
                 }

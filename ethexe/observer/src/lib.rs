@@ -76,6 +76,7 @@ pub struct BlockSyncedData {
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
+    // TODO: remove `Blob` event
     Blob(BlobData),
     Block(SimpleBlockData),
     BlockSynced(BlockSyncedData),
@@ -170,15 +171,16 @@ impl Stream for ObserverService {
             };
 
             log::trace!("Received a new block: {data:?}");
-            self.block_sync_queue.push_back(header.clone());
+            // self.block_sync_queue.push_back(header.clone());
             self.chain_sync.pending_blocks.push_front(header);
 
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
         }
 
-        if let Some(blob_data) = self.loaded_blobs.pop_back() {
-            return Poll::Ready(Some(Ok(ObserverEvent::Blob(blob_data))));
-        }
+        // while let Some(header) = self.block_sync_queue.pop_front() {
+        //     self.chain_sync.sync_chain_header(header);
+        //     return Poll::Pending;
+        // }
 
         if let Poll::Ready(Some(codes)) = self.codes_receiver.poll_recv(cx) {
             if !codes.is_empty() {
@@ -189,6 +191,10 @@ impl Stream for ObserverService {
         if let Poll::Ready(result) = self.chain_sync.poll_unpin(cx) {
             let event = result.map(|data| ObserverEvent::BlockSynced(data));
             return Poll::Ready(Some(event));
+        }
+
+        if let Some(blob_data) = self.loaded_blobs.pop_back() {
+            return Poll::Ready(Some(Ok(ObserverEvent::Blob(blob_data))));
         }
 
         // if self.sync_future.is_none() {
@@ -393,7 +399,8 @@ impl ObserverService {
             .get_block_by_hash(block.0.into())
             .await?
             .context("forced block not found")?;
-        self.block_sync_queue.push_back(block.header);
+        // self.block_sync_queue.push_back(block.header.clone());
+        self.chain_sync.sync_chain_header(block.header);
         Ok(())
     }
 

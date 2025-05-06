@@ -388,8 +388,6 @@ impl Service {
                             "🔢 receive a code blob, code_id {code_id}, code size {}",
                             code.len()
                         );
-
-                        compute.receive_code(code_id, timestamp, code)
                     }
                     ObserverEvent::Block(block_data) => {
                         log::info!(

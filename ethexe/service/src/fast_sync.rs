@@ -19,6 +19,7 @@
 use crate::{Event, Service};
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
+use ethexe_blob_loader::{BlobLoaderEvent, BlobLoaderService};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -309,7 +310,10 @@ impl Drop for RequestManager {
     }
 }
 
-async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
+async fn sync_finalized_head(
+    observer: &mut ObserverService,
+    blob_loader: &mut BlobLoaderService,
+) -> Result<H256> {
     let highest_block = observer
         .provider()
         // we get finalized block to avoid block reorganization
@@ -325,15 +329,22 @@ async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
     observer.force_sync_block(highest_block).await?;
     while let Some(event) = observer.next().await {
         match event? {
-            ObserverEvent::Blob(_blob) => {
-                unreachable!("no blob events should occur before chain head is synced")
-            }
+            ObserverEvent::Blob(_blob) => {}
             ObserverEvent::Block(_) => {}
             ObserverEvent::BlockSynced(data) => {
                 debug_assert_eq!(highest_block, data.block_hash);
                 break;
             }
-            ObserverEvent::RequestLoadBlobs(codes) => todo!("xzy"),
+            ObserverEvent::RequestLoadBlobs(codes) => {
+                blob_loader.load_codes(codes.clone(), None).unwrap();
+                for code in codes {
+                    if let Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))) =
+                        blob_loader.next().await
+                    {
+                        observer.receive_loaded_blob(blob_data).unwrap();
+                    }
+                }
+            }
         }
     }
 
@@ -526,6 +537,7 @@ async fn instrument_codes(
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
         observer,
+        blob_loader,
         compute,
         network,
         db,
@@ -539,7 +551,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     log::info!("Fast synchronization is in progress...");
 
-    let finalized_block = sync_finalized_head(observer).await?;
+    let finalized_block = sync_finalized_head(observer, blob_loader).await?;
     let Some(EventData {
         program_states,
         program_code_ids,

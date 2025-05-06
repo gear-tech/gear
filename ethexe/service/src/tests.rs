@@ -29,7 +29,10 @@ use alloy::{
     rpc::types::{anvil::MineOptions, Header as RpcHeader},
 };
 use anyhow::Result;
-use ethexe_blob_loader::blobs::{BlobReader, MockBlobReader};
+use ethexe_blob_loader::{
+    blobs::{BlobReader, MockBlobReader},
+    utils::read_code_from_tx_hash,
+};
 use ethexe_common::{
     db::{CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -1481,6 +1484,8 @@ mod utils {
             let (broadcaster, _events_stream) = {
                 let (sender, mut receiver) = broadcast::channel(2048);
                 let cloned_sender = sender.clone();
+                let cloned_blob_reader = blob_reader.clone_boxed();
+                let cloned_db = db.clone();
 
                 let (send_subscription_created, receive_subscription_created) =
                     tokio::sync::oneshot::channel::<()>();
@@ -1490,6 +1495,22 @@ mod utils {
 
                         while let Ok(event) = observer.select_next_some().await {
                             log::trace!(target: "test-event", "📗 Event: {:?}", event);
+                            if let ObserverEvent::RequestLoadBlobs(codes) = event.clone() {
+                                for code in codes {
+                                    let blob_info = cloned_db.code_blob_info(code).unwrap();
+
+                                    let blob_data = read_code_from_tx_hash(
+                                        cloned_blob_reader.clone(),
+                                        code,
+                                        blob_info.timestamp,
+                                        blob_info.tx_hash,
+                                        None,
+                                    )
+                                    .await
+                                    .unwrap();
+                                    observer.receive_loaded_blob(blob_data);
+                                }
+                            }
 
                             cloned_sender
                                 .send(event)
@@ -2346,15 +2367,12 @@ mod utils {
             let mut valid_info = None;
 
             self.listener
-                .apply_until(|event| {
-                    log::info!("observer event: {event:?}");
-                    match event {
-                        ObserverEvent::Blob(blob) if blob.code_id == self.code_id => {
-                            code_info = Some(blob.code);
-                            Ok(Some(()))
-                        }
-                        _ => Ok(None),
+                .apply_until(|event| match event {
+                    ObserverEvent::Blob(blob) if blob.code_id == self.code_id => {
+                        code_info = Some(blob.code);
+                        Ok(Some(()))
                     }
+                    _ => Ok(None),
                 })
                 .await?;
 
