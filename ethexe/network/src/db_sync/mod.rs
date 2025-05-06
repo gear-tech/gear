@@ -16,17 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod ongoing;
+mod requests;
+mod responses;
 
 pub(crate) use crate::{
-    db_sync::ongoing::{
-        OngoingRequest, OngoingRequests, OngoingResponses, PeerFailed, PeerResponse,
-        SendNextRequest, SendRequestError,
-    },
+    db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
     peer_score,
     utils::ParityScaleCodec,
 };
+
+use crate::db_sync::requests::{OngoingRequests, OngoingRequestsEvent};
 use ethexe_db::{BlockMetaStorage, Database};
 use gprimitives::{ActorId, H256};
 use libp2p::{
@@ -46,6 +46,7 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
+use tokio::sync::oneshot::Sender;
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
@@ -166,7 +167,7 @@ impl Response {
     /// Validates response against request.
     ///
     /// Returns `false` if external validation is required.
-    fn validate(&self) -> Result<(), ResponseValidationError> {
+    fn validate(&self) -> Result<bool, ResponseValidationError> {
         match self {
             Response::Hashes(hashes) => {
                 for (hash, data) in hashes {
@@ -175,12 +176,10 @@ impl Response {
                     }
                 }
             }
-            Response::ProgramIdsAt(_, _) => {
-                // TODO
-            }
+            Response::ProgramIdsAt(_, _) => return Ok(false),
         }
 
-        Ok(())
+        Ok(true)
     }
 
     fn strip_btree<K: Copy + Ord, V>(request: &BTreeSet<K>, response: &mut BTreeMap<K, V>) -> bool {
@@ -231,7 +230,7 @@ pub enum RequestFailure {
     Timeout,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum Event {
     /// Request is processing new round
     NewRequestRound {
@@ -257,7 +256,7 @@ pub enum Event {
     /// Request failed
     RequestFailed {
         /// The failed request
-        ongoing_request: OngoingRequest,
+        request: RetriableRequest,
         /// Reason of request failure
         error: RequestFailure,
     },
@@ -280,80 +279,11 @@ pub enum Event {
         /// Peer who should receive response
         peer_id: PeerId,
     },
-}
-
-impl<T, E> From<Result<T, E>> for Event
-where
-    Self: From<T>,
-    Self: From<E>,
-{
-    fn from(res: Result<T, E>) -> Self {
-        res.map(Into::into).unwrap_or_else(Into::into)
-    }
-}
-
-impl From<PeerResponse> for Event {
-    fn from(resp: PeerResponse) -> Self {
-        match resp {
-            PeerResponse::Success {
-                request_id,
-                response,
-            } => Event::RequestSucceed {
-                request_id,
-                response,
-            },
-            PeerResponse::NewRound {
-                peer_id,
-                request_id,
-            } => Event::NewRequestRound {
-                request_id,
-                peer_id,
-                reason: NewRequestRoundReason::PartialData,
-            },
-        }
-    }
-}
-
-impl From<PeerFailed> for Event {
-    fn from(
-        PeerFailed {
-            peer_id,
-            request_id,
-        }: PeerFailed,
-    ) -> Self {
-        Event::NewRequestRound {
-            request_id,
-            peer_id,
-            reason: NewRequestRoundReason::PeerFailed,
-        }
-    }
-}
-
-impl From<SendNextRequest> for Event {
-    fn from(
-        SendNextRequest {
-            peer_id,
-            request_id,
-        }: SendNextRequest,
-    ) -> Self {
-        Event::NewRequestRound {
-            request_id,
-            peer_id,
-            reason: NewRequestRoundReason::FromQueue,
-        }
-    }
-}
-
-impl From<SendRequestError> for Event {
-    fn from(err: SendRequestError) -> Self {
-        match err {
-            SendRequestError::OutOfRounds(ongoing_request) => Event::RequestFailed {
-                ongoing_request,
-                error: RequestFailure::OutOfRounds,
-            },
-            SendRequestError::NoPeers(request_id) => Event::PendingStateRequest { request_id },
-        }
-    }
+    ExternalValidationRequired {
+        request_id: RequestId,
+        response: Response,
+        sender: Sender<bool>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -420,11 +350,11 @@ impl Behaviour {
     }
 
     pub fn request(&mut self, request: Request) -> RequestId {
-        self.ongoing_requests.push_pending_request(request)
+        self.ongoing_requests.request(request)
     }
 
-    pub fn retry(&mut self, ongoing_request: OngoingRequest) {
-        self.ongoing_requests.retry(ongoing_request);
+    pub fn retry(&mut self, request: RetriableRequest) {
+        self.ongoing_requests.retry(request);
     }
 
     fn handle_inner_event(
@@ -464,13 +394,8 @@ impl Behaviour {
                         response,
                     },
             } => {
-                let res = self
-                    .ongoing_requests
-                    .on_peer_response(&mut self.inner, peer, request_id, response)
-                    .transpose();
-                if let Some(res) = res {
-                    return Poll::Ready(ToSwarm::GenerateEvent(res.into()));
-                }
+                self.ongoing_requests
+                    .on_peer_response(peer, request_id, response);
             }
             request_response::Event::OutboundFailure {
                 peer,
@@ -486,13 +411,7 @@ impl Behaviour {
                     self.peer_score_handle.unsupported_protocol(peer);
                 }
 
-                let res = self
-                    .ongoing_requests
-                    .on_peer_failed(&mut self.inner, peer, request_id)
-                    .transpose();
-                if let Some(res) = res {
-                    return Poll::Ready(ToSwarm::GenerateEvent(res.into()));
-                }
+                self.ongoing_requests.on_peer_failure(peer, request_id);
             }
             request_response::Event::InboundFailure {
                 peer,
@@ -592,25 +511,30 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some(ongoing_request) = self.ongoing_requests.remove_if_timeout(cx) {
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestFailed {
-                ongoing_request,
-                error: RequestFailure::Timeout,
-            }));
-        }
-
         if let Some(event) = self.pending_events.pop_front() {
             return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
-        let event = match self.ongoing_requests.send_next_request(&mut self.inner) {
-            Ok(Some(success)) => Some(success.into()),
-            Ok(None) => None,
-            Err(SendRequestError::NoPeers(_request_id)) => None,
-            Err(err) => Some(err.into()),
-        };
-        if let Some(event) = event {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
+        for event in self.ongoing_requests.poll_next_states(cx, &mut self.inner) {
+            let event = match event {
+                OngoingRequestsEvent::SuccessfulResponse(request_id, response) => {
+                    Event::RequestSucceed {
+                        request_id,
+                        response,
+                    }
+                }
+                OngoingRequestsEvent::FailedResponse(request, error) => {
+                    Event::RequestFailed { request, error }
+                }
+                OngoingRequestsEvent::ExternalValidationRequired(request_id, response, sender) => {
+                    Event::ExternalValidationRequired {
+                        request_id,
+                        response,
+                        sender,
+                    }
+                }
+            };
+            self.pending_events.push_back(event);
         }
 
         if let Poll::Ready((peer_id, response_id)) =
@@ -643,6 +567,21 @@ mod tests {
     use libp2p::{futures::StreamExt, swarm::SwarmEvent, Swarm};
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};
+
+    macro_rules! assert_matches {
+        ($left:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )? $(,)?) => {
+            match $left {
+                $( $pattern )|+ $( if $guard )? => {}
+                ref left_val => {
+                    panic!(
+                        "matching assertion failed:\n{:?}\n does not match\n{}",
+                        left_val,
+                        stringify!($($pattern)|+ $(if $guard)?),
+                    );
+                }
+            }
+        };
+    }
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default());
@@ -735,28 +674,28 @@ mod tests {
             .request(Request::Hashes([hello_hash, world_hash].into()));
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::NewRequestRound {
-                request_id,
-                peer_id: bob_peer_id,
+                request_id: rid,
+                peer_id,
                 reason: NewRequestRoundReason::FromQueue,
-            }
+            } if rid == request_id && peer_id == bob_peer_id
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::RequestSucceed {
-                request_id,
-                response: Response::Hashes(
-                    [
-                        (hello_hash, b"hello".to_vec()),
-                        (world_hash, b"world".to_vec())
-                    ]
-                    .into()
-                )
-            }
+                request_id: rid,
+                response
+            } if request_id == rid && response == Response::Hashes(
+                [
+                    (hello_hash, b"hello".to_vec()),
+                    (world_hash, b"world".to_vec())
+                ]
+                .into()
+            )
         )
     }
 
@@ -778,13 +717,13 @@ mod tests {
         let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::NewRequestRound {
-                request_id,
-                peer_id: *bob.local_peer_id(),
+                request_id: rid,
+                peer_id,
                 reason: NewRequestRoundReason::FromQueue,
-            }
+            } if rid == request_id && peer_id == *bob.local_peer_id()
         );
 
         tokio::spawn(async move {
@@ -807,9 +746,9 @@ mod tests {
         assert!(matches!(
             event,
             Event::RequestFailed {
-                ongoing_request,
+                request,
                 error: RequestFailure::OutOfRounds,
-            } if ongoing_request.id() == request_id
+            } if request.id() == request_id
         ));
     }
 
@@ -829,13 +768,13 @@ mod tests {
         let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::NewRequestRound {
-                request_id,
-                peer_id: *bob.local_peer_id(),
+                request_id: rid,
+                peer_id,
                 reason: NewRequestRoundReason::FromQueue,
-            }
+            } if rid == request_id &&  peer_id == *bob.local_peer_id()
         );
 
         tokio::spawn(async move {
@@ -861,9 +800,9 @@ mod tests {
         assert!(matches!(
             event,
             Event::RequestFailed {
-                ongoing_request,
+                request,
                 error: RequestFailure::Timeout,
-            } if ongoing_request.id() == request_id
+            } if request.id() == request_id
         ));
     }
 
@@ -892,13 +831,13 @@ mod tests {
             .request(Request::Hashes([data_0, data_1].into()));
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::NewRequestRound {
-                request_id,
-                peer_id: *bob.local_peer_id(),
+                request_id: rid,
+                peer_id,
                 reason: NewRequestRoundReason::FromQueue,
-            }
+            } if rid == request_id &&  peer_id == *bob.local_peer_id()
         );
 
         tokio::spawn(async move {
@@ -930,14 +869,14 @@ mod tests {
         });
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::RequestSucceed {
-                request_id,
-                response: Response::Hashes(
-                    [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
-                ),
-            }
+                request_id: rid,
+                response,
+            } if rid == request_id &&  response == Response::Hashes(
+                [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
+            )
         );
     }
 
@@ -982,19 +921,19 @@ mod tests {
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::RequestSucceed {
-                request_id,
-                response: Response::Hashes(
-                    [
-                        (hello_hash, b"hello".to_vec()),
-                        (world_hash, b"world".to_vec()),
-                        (mark_hash, b"!".to_vec()),
-                    ]
-                    .into()
-                )
-            }
+                request_id: rid,
+                response
+            } if rid == request_id &&  response == Response::Hashes(
+                [
+                    (hello_hash, b"hello".to_vec()),
+                    (world_hash, b"world".to_vec()),
+                    (mark_hash, b"!".to_vec()),
+                ]
+                .into()
+            )
         );
     }
 
@@ -1038,18 +977,18 @@ mod tests {
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::RequestSucceed {
-                request_id,
-                response: Response::Hashes(
-                    [
-                        (hello_hash, b"hello".to_vec()),
-                        (world_hash, b"world".to_vec())
-                    ]
-                    .into()
-                )
-            }
+                request_id: rid,
+                response
+            } if rid == request_id &&  response == Response::Hashes(
+                [
+                    (hello_hash, b"hello".to_vec()),
+                    (world_hash, b"world".to_vec())
+                ]
+                .into()
+            )
         )
     }
 
@@ -1070,17 +1009,17 @@ mod tests {
         let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::NewRequestRound {
-                request_id,
-                peer_id: bob_peer_id,
+                request_id: rid,
+                peer_id,
                 reason: NewRequestRoundReason::FromQueue
-            }
+            } if rid == request_id &&  peer_id == bob_peer_id
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(event, Event::PendingStateRequest { request_id });
+        assert_matches!(event, Event::PendingStateRequest { request_id: rid } if rid == request_id);
 
         let event = alice.next_swarm_event().await;
         assert!(
@@ -1174,7 +1113,7 @@ mod tests {
 
         let event = alice.next_behaviour_event().await;
         let Event::RequestFailed {
-            ongoing_request,
+            request: ongoing_request,
             error: RequestFailure::Timeout,
         } = event
         else {
@@ -1201,12 +1140,12 @@ mod tests {
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_eq!(
+        assert_matches!(
             event,
             Event::RequestSucceed {
-                request_id,
-                response: Response::Hashes([(request_key, b"test".to_vec())].into())
-            }
+                request_id: rid,
+                response
+            } if rid == request_id && response == Response::Hashes([(request_key, b"test".to_vec())].into())
         );
     }
 }
