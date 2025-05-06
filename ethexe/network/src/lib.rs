@@ -247,8 +247,8 @@ impl NetworkService {
             }
         };
 
-        let mut key = signer.get_private_key(key)?;
-        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key.0)
+        let key = signer.storage().get_private_key(key)?;
+        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
         Ok(identity::Keypair::from(pair))
@@ -620,13 +620,14 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
+    use ethexe_signer::Signer;
     use tempfile::TempDir;
     use tokio::time::{timeout, Duration};
 
     fn new_service_with_db(db: Database) -> (TempDir, NetworkService) {
         let tmp_dir = tempfile::tempdir().unwrap();
         let config = NetworkConfig::new_test(tmp_dir.path().to_path_buf());
-        let signer = ethexe_signer::Signer::new(tmp_dir.path().join("key")).unwrap();
+        let signer = Signer::fs(tmp_dir.path().join("key"));
         let service = NetworkService::new(config.clone(), &signer, db).unwrap();
         (tmp_dir, service)
     }

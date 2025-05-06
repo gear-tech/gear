@@ -177,8 +177,7 @@ impl Service {
             processor.config().virtual_threads
         );
 
-        let signer =
-            Signer::new(config.node.key_path.clone()).with_context(|| "failed to create signer")?;
+        let signer = Signer::fs(config.node.key_path.clone());
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;

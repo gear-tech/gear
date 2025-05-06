@@ -25,12 +25,13 @@ use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
 use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb, OnChainStorage};
-use ethexe_signer::{Signer, ToDigest};
+use ethexe_signer::{MemoryKeyStorage, Signer, ToDigest};
 use gprimitives::{H160, H256};
 use parity_scale_codec::Encode;
 
 pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOffchainTransaction {
-    let signer = Signer::tmp();
+    let signer = Signer::empty::<MemoryKeyStorage>();
+
     let public_key = signer.generate_key().expect("failed to generate key");
 
     let transaction = OffchainTransaction {
@@ -41,7 +42,7 @@ pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOff
         reference_block: reference_block_hash,
     };
     let signature = signer
-        .sign_digest(public_key, transaction.encode().to_digest())
+        .sign(public_key, transaction.encode().to_digest())
         .expect("signing failed");
 
     SignedOffchainTransaction {
