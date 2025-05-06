@@ -1,6 +1,5 @@
 use crate::blobs::{BlobData, BlobReader};
-use alloy::rpc::types::Header;
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Result};
 use ethexe_common::db::{CodesStorage, OnChainStorage};
 use ethexe_db::Database;
 use futures::{

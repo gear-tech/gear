@@ -164,7 +164,7 @@ async fn test_deployment() -> Result<()> {
         .next()
         .await
         .expect("BlobLoader didn't receive event")
-        .expect("received error insted ob event");
+        .expect("received error instead ob event");
     log::info!("Event received: {event:?}");
     let BlobLoaderEvent::BlobLoaded(blob_data) = event else {
         panic!("Expected event: BlobLoaderEvent::BlobLoaded, received: {event:?}");
@@ -226,7 +226,7 @@ async fn test_deployment() -> Result<()> {
         .next()
         .await
         .expect("BlobLoader didn't receive event")
-        .expect("received error insted ob event");
+        .expect("received error instead ob event");
     log::info!("Event received: {event:?}");
     let BlobLoaderEvent::BlobLoaded(blob_data) = event else {
         panic!("Expected event: BlobLoaderEvent::BlobLoaded, received: {event:?}");
