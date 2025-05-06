@@ -19,9 +19,9 @@
 use crate::storage::{FSKeyStorage, KeyStorage};
 use anyhow::Result;
 use ethexe_common::{
+    k256::{ecdsa::SigningKey, elliptic_curve::rand_core},
     Address, ContractSignature, Digest, PrivateKey, PublicKey, Signature, SignedData,
 };
-use k256::{ecdsa::SigningKey, elliptic_curve::rand_core};
 use std::{
     fs,
     path::PathBuf,

@@ -4900,10 +4900,8 @@ dependencies = [
  "ethexe-common",
  "gprimitives",
  "hex",
- "k256",
  "log",
  "parity-scale-codec",
- "sha3",
  "tempfile",
 ]
 
