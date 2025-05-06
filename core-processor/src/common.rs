@@ -279,9 +279,7 @@ pub enum JournalNote {
         /// Collection of program candidate ids and their init message ids.
         ///
         /// The limit in benchmarks is 2048, but in normal operation it should be 1024.
-        ///
-        /// todo(playX18): set the limit based on benchmark vs normal build
-        candidates: LimitedVec<(MessageId, ProgramId), PayloadSizeError, 2048>,
+        candidates: LimitedVec<(MessageId, ProgramId), PayloadSizeError, { Self::MAX_OUTGOING }>,
     },
     /// Stop processing queue.
     StopProcessing {
@@ -349,6 +347,10 @@ pub enum JournalNote {
         /// Amount of gas for reply.
         amount: u64,
     },
+}
+
+impl JournalNote {
+    pub(crate) const MAX_OUTGOING: usize = 2048;
 }
 
 /// Journal handler.

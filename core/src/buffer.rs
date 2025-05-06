@@ -30,7 +30,7 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-/* 
+/*
 /// A dedicated trait to format data in [`LimitedVec`].
 ///
 /// If data can be represented as bytes then it is formatted in limited format,
@@ -250,6 +250,7 @@ impl<T: fmt::Display, E: Default, const N: usize> fmt::Display for LimitedVec<T,
 
         write!(f, "]")
     }
+}
 
 /// Limited len vector.
 /// `T` is data type.
@@ -258,7 +259,6 @@ impl<T: fmt::Display, E: Default, const N: usize> fmt::Display for LimitedVec<T,
 #[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
-
 
 impl<T: Clone, E: Default, const N: usize> TryFrom<&[T]> for LimitedVec<T, E, N> {
     type Error = E;

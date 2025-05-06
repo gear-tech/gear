@@ -239,17 +239,42 @@ impl fmt::Display for ProcessErrorCase {
 impl ProcessErrorCase {
     fn to_reason(&self) -> ErrorReplyReason {
         match self {
-            ProcessErrorCase::NonExecutable => {
-                let reason = ErrorReplyReason::InactiveActor;
-                (reason, reason.to_string())
+            ProcessErrorCase::ProgramExited { .. } => {
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramExited)
             }
-            ProcessErrorCase::ExecutionFailed(reason) => {
-                (reason.as_simple().into(), reason.to_string())
+            ProcessErrorCase::FailedInit => ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::InitializationFailure,
+            ),
+            ProcessErrorCase::Uninitialized => {
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::Uninitialized)
             }
-            ProcessErrorCase::ReinstrumentationFailed => {
-                let err = ErrorReplyReason::ReinstrumentationFailure;
-                (err, err.to_string())
+            ProcessErrorCase::CodeNotExists => {
+                ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramNotCreated)
             }
+            ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::UnavailableActor(
+                SimpleUnavailableActorError::ReinstrumentationFailure,
+            ),
+            ProcessErrorCase::ExecutionFailed(reason) => reason.as_simple().into(),
+        }
+    }
+
+    // TODO: consider to convert `self` into `Payload` to avoid `PanicBuffer` cloning (#4594)
+    fn to_payload(&self) -> Payload {
+        match self {
+            ProcessErrorCase::ProgramExited { inheritor } => {
+                const _: () = assert!(size_of::<ProgramId>() <= Payload::MAX_LEN);
+                inheritor
+                    .into_bytes()
+                    .to_vec()
+                    .try_into()
+                    .unwrap_or_else(|PayloadSizeError| {
+                        unreachable!("`ProgramId` is always smaller than maximum payload size")
+                    })
+            }
+            ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
+                TrapExplanation::Panic(buf),
+            )) => buf.inner().clone(),
+            _ => Payload::default(),
         }
     }
 }
@@ -336,7 +361,7 @@ fn process_error(
 
     let outcome = match case {
         ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
-            let err_msg = case.to_string();
+            let err_msg = LimitedStr::from(case.to_string());
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
                     program_id,
@@ -572,7 +597,7 @@ pub fn process_success(
             program_id,
             code_id,
             candidates: LimitedVec::try_from(candidates).unwrap_or_else(|_| {
-                let msg = format!("program_candidates is too big: limit 1024, got {}", size);
+                let msg = alloc::format!("program_candidates is too big: limit 1024, got {}", size);
                 log::error!("{msg}");
                 unreachable!("{msg}")
             }),
