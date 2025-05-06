@@ -18,7 +18,7 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{BlobData, BlobReader, BlockSyncedData, ObserverEvent, RuntimeConfig};
+use crate::{BlockSyncedData, RuntimeConfig};
 use alloy::{primitives::Address, providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Result};
 use ethexe_blob_loader::utils::{load_block_data, load_blocks_data_batched};
@@ -29,17 +29,13 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockHeader, CodeInfo, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
-use futures::{
-    future::BoxFuture,
-    stream::{FuturesUnordered, Stream},
-    FutureExt,
-};
+use futures::{future::BoxFuture, FutureExt};
 use gprimitives::{CodeId, H256};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     task::Poll,
 };
-use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender};
+use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Clone)]
 pub(crate) enum ChainSyncState {
@@ -74,7 +70,7 @@ impl ChainLoader {
         };
 
         let blocks_data = self.pre_load_data(&header).await?;
-        Ok(self.load_chain(block, header, blocks_data).await?)
+        self.load_chain(block, header, blocks_data).await
     }
 
     async fn load_chain(
@@ -240,17 +236,18 @@ impl ChainFinalizer {
     }
 }
 
+type LoadChainFuture =
+    Option<BoxFuture<'static, Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)>>>;
 // TODO #4552: make tests for ChainSync
 pub(crate) struct ChainSync {
-    pub blobs_reader: Box<dyn BlobReader>,
+    // pub blobs_reader: Box<dyn BlobReader>,
     pub db: Database,
     pub config: RuntimeConfig,
     pub provider: RootProvider,
 
     pub codes_sender: UnboundedSender<Vec<CodeId>>,
 
-    pub load_chain_fut:
-        Option<BoxFuture<'static, Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)>>>,
+    pub load_chain_fut: LoadChainFuture,
     pub finalize_sync_fut: Option<BoxFuture<'static, Result<BlockSyncedData>>>,
     pub codes_to_wait: Option<HashSet<CodeId>>,
     pub chain: Option<Vec<H256>>,
@@ -280,7 +277,7 @@ impl Future for ChainSync {
                     self.as_mut().state = ChainSyncState::LoadingChain;
                     cx.waker().wake_by_ref();
                 }
-                return Poll::Pending;
+                Poll::Pending
             }
             ChainSyncState::LoadingChain => {
                 let result = self.load_chain_fut.as_mut().unwrap().poll_unpin(cx);
@@ -296,9 +293,9 @@ impl Future for ChainSync {
                             self.load_chain_fut = None;
                             self.state = ChainSyncState::WaitingForCodes;
                             cx.waker().wake_by_ref();
-                            return Poll::Pending;
+                            Poll::Pending
                         }
-                        Err(e) => return Poll::Ready(Err(e)),
+                        Err(e) => Poll::Ready(Err(e)),
                     },
                 }
             }
@@ -328,18 +325,18 @@ impl Future for ChainSync {
                     cx.waker().wake_by_ref();
                 }
 
-                return Poll::Pending;
+                Poll::Pending
             }
 
             ChainSyncState::Finalize => {
-                match self.finalize_sync_fut.as_mut().unwrap().poll_unpin(cx) {
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(result) => {
-                        self.finalize_sync_fut = None;
-                        self.as_mut().state = ChainSyncState::WaitingForBlock;
-                        return Poll::Ready(result);
-                    }
+                if let Poll::Ready(result) = self.finalize_sync_fut.as_mut().unwrap().poll_unpin(cx)
+                {
+                    self.finalize_sync_fut = None;
+                    self.as_mut().state = ChainSyncState::WaitingForBlock;
+                    return Poll::Ready(result);
                 }
+
+                Poll::Pending
             }
         }
     }

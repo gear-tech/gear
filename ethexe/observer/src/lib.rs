@@ -19,26 +19,18 @@
 //! Ethereum state observer for ethexe.
 
 use alloy::{
-    primitives::bytes::buf::Chain,
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_blob_loader::{
-    blobs::{BlobData, BlobReader},
-    utils::read_code_from_tx_hash,
-};
+use ethexe_blob_loader::blobs::{BlobData, BlobReader};
 use ethexe_common::{db::OnChainStorage, SimpleBlockData};
-use ethexe_db::{BlockHeader, CodeInfo, Database};
+use ethexe_db::{BlockHeader, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_signer::Address;
-use futures::{
-    future::BoxFuture,
-    stream::{FusedStream, FuturesUnordered},
-    FutureExt, Stream, StreamExt,
-};
+use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
 use gprimitives::{CodeId, H256};
 use std::{
     collections::{HashSet, VecDeque},
@@ -55,8 +47,6 @@ mod sync;
 #[cfg(test)]
 mod tests;
 
-type BlobDownloadFuture = BoxFuture<'static, Result<BlobData>>;
-type SyncFuture = BoxFuture<'static, Result<ObserverEvent>>;
 type HeadersSubscriptionFuture =
     BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
 
@@ -108,9 +98,9 @@ struct RuntimeConfig {
 // TODO #4552: make tests for observer service
 pub struct ObserverService {
     provider: RootProvider,
-    db: Database,
+    // db: Database,
     // TODO: remove `blobs_reader` from `ObserverService` struct
-    blobs_reader: Box<dyn BlobReader>,
+    // blobs_reader: Box<dyn BlobReader>,
     config: RuntimeConfig,
 
     chain_sync: ChainSync,
@@ -122,13 +112,12 @@ pub struct ObserverService {
     headers_stream: SubscriptionStream<Header>,
 
     // TODO: remove block_sync_queue
-    block_sync_queue: VecDeque<Header>,
+    // block_sync_queue: VecDeque<Header>,
 
     // sync_future: Option<SyncFuture>,
 
     // TODO: remove `codes_futures` also
-    codes_futures: FuturesUnordered<BlobDownloadFuture>,
-
+    // codes_futures: FuturesUnordered<BlobDownloadFuture>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -177,11 +166,6 @@ impl Stream for ObserverService {
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
         }
 
-        // while let Some(header) = self.block_sync_queue.pop_front() {
-        //     self.chain_sync.sync_chain_header(header);
-        //     return Poll::Pending;
-        // }
-
         if let Poll::Ready(Some(codes)) = self.codes_receiver.poll_recv(cx) {
             if !codes.is_empty() {
                 return Poll::Ready(Some(Ok(ObserverEvent::RequestLoadBlobs(codes))));
@@ -189,44 +173,13 @@ impl Stream for ObserverService {
         }
 
         if let Poll::Ready(result) = self.chain_sync.poll_unpin(cx) {
-            let event = result.map(|data| ObserverEvent::BlockSynced(data));
+            let event = result.map(ObserverEvent::BlockSynced);
             return Poll::Ready(Some(event));
         }
 
         if let Some(blob_data) = self.loaded_blobs.pop_back() {
             return Poll::Ready(Some(Ok(ObserverEvent::Blob(blob_data))));
         }
-
-        // if self.sync_future.is_none() {
-        //     if let Some(header) = self.block_sync_queue.pop_front() {
-        // let sync = ChainSync {
-        //     provider: self.provider.clone(),
-        //     db: self.db.clone(),
-        //     blobs_reader: self.blobs_reader.clone(),
-        //     config: self.config.clone(),
-        // };
-        //         self.sync_future = Some(Box::pin(sync.sync(header)));
-        //     }
-        // }
-
-        // if let Some(fut) = self.sync_future.as_mut() {
-        //     if let Poll::Ready(event) = fut.poll_unpin(cx) {
-        //         self.sync_future = None;
-
-        // let res = res.map(|(hash, codes)| {
-        //     for (code_id, code_info) in codes {
-        //         self.lookup_code(code_id, code_info.timestamp, code_info.tx_hash);
-        //     }
-
-        //     ObserverEvent::BlockSynced(hash)
-        // });
-        //         return Poll::Ready(Some(event));
-        //     }
-        // }
-
-        // if let Poll::Ready(Some(res)) = self.codes_futures.poll_next_unpin(cx) {
-        //     return Poll::Ready(Some(res.map(ObserverEvent::Blob)));
-        // }
 
         Poll::Pending
     }
@@ -243,7 +196,7 @@ impl ObserverService {
         eth_cfg: &EthereumConfig,
         max_sync_depth: u32,
         db: Database,
-        blobs_reader: Box<dyn BlobReader>,
+        _blobs_reader: Box<dyn BlobReader>,
     ) -> Result<Self> {
         let EthereumConfig {
             rpc,
@@ -281,14 +234,14 @@ impl ObserverService {
 
         Ok(Self {
             provider: provider.clone(),
-            db: db.clone(),
-            blobs_reader: blobs_reader.clone(),
+            // db: db.clone(),
+            // blobs_reader: blobs_reader.clone(),
             config: runtime_cfg.clone(),
             chain_sync: ChainSync {
-                blobs_reader,
+                // blobs_reader,
                 db,
                 config: runtime_cfg,
-                provider: provider,
+                provider,
                 codes_sender: s,
                 state: ChainSyncState::WaitingForBlock,
                 load_chain_fut: None,
@@ -303,8 +256,8 @@ impl ObserverService {
             last_block_number: 0,
             subscription_future: None,
             headers_stream,
-            codes_futures: Default::default(),
-            block_sync_queue: Default::default(),
+            // codes_futures: Default::default(),
+            // block_sync_queue: Default::default(),
             // sync_future: Default::default(),
         })
     }
@@ -369,10 +322,6 @@ impl ObserverService {
         Ok(())
     }
 
-    async fn mark_blob_loaded() -> Result<()> {
-        todo!();
-    }
-
     // TODO: think about removing this
     pub fn provider(&self) -> &RootProvider {
         &self.provider
@@ -381,12 +330,9 @@ impl ObserverService {
     pub fn status(&self) -> ObserverStatus {
         ObserverStatus {
             eth_best_height: self.last_block_number,
-            pending_codes: self.codes_futures.len(),
+            // TODO: remove `pending_codes` from ObserverStatus
+            pending_codes: 0usize,
         }
-    }
-
-    pub async fn finalize_chain_head(&mut self, codes: HashSet<CodeId>) {
-        todo!()
     }
 
     pub fn block_time_secs(&self) -> u64 {
@@ -402,16 +348,6 @@ impl ObserverService {
         // self.block_sync_queue.push_back(block.header.clone());
         self.chain_sync.sync_chain_header(block.header);
         Ok(())
-    }
-
-    fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
-        self.codes_futures.push(Box::pin(read_code_from_tx_hash(
-            self.blobs_reader.clone(),
-            code_id,
-            timestamp,
-            tx_hash,
-            Some(3),
-        )));
     }
 }
 

@@ -17,16 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
-use alloy::primitives::U256;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use ethexe_blob_loader::{
     blobs::{BlobData, BlobReader, ConsensusLayerBlobReader, MockBlobReader},
     BlobLoaderEvent, BlobLoaderService,
 };
-use ethexe_common::{
-    gear::{BlockCommitment, CodeCommitment},
-    ProducerBlock, SimpleBlockData,
-};
+use ethexe_common::ProducerBlock;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
@@ -34,7 +30,7 @@ use ethexe_consensus::{
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{db_sync, NetworkEvent, NetworkService};
+use ethexe_network::{NetworkEvent, NetworkService};
 use ethexe_observer::{BlockSyncedData, ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
@@ -381,7 +377,7 @@ impl Service {
                 Event::Observer(event) => match event {
                     ObserverEvent::Blob(BlobData {
                         code_id,
-                        timestamp,
+                        timestamp: _,
                         code,
                     }) => {
                         log::info!(

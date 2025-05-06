@@ -10,7 +10,6 @@ use futures::{
 use gprimitives::CodeId;
 use std::{collections::HashSet, fmt, pin::Pin, task::Poll};
 
-use blobs::*;
 use utils::*;
 
 pub mod blobs;
@@ -52,11 +51,11 @@ impl Stream for BlobLoaderService {
                     let code_id = &blob_data.code_id;
                     self.codes_loading.remove(code_id);
                     self.db.set_original_code(blob_data.code.as_slice());
-                    return Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))));
+                    Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
                 }
-                Err(e) => return Poll::Ready(Some(Err(e))),
+                Err(e) => Poll::Ready(Some(Err(e))),
             },
-            _ => return Poll::Pending,
+            _ => Poll::Pending,
         }
     }
 }

@@ -337,7 +337,7 @@ async fn sync_finalized_head(
             }
             ObserverEvent::RequestLoadBlobs(codes) => {
                 blob_loader.load_codes(codes.clone(), None).unwrap();
-                for code in codes {
+                for _code in codes {
                     if let Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))) =
                         blob_loader.next().await
                     {

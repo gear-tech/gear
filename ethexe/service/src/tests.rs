@@ -1508,7 +1508,7 @@ mod utils {
                                     )
                                     .await
                                     .unwrap();
-                                    observer.receive_loaded_blob(blob_data);
+                                    observer.receive_loaded_blob(blob_data).unwrap();
                                 }
                             }
 
