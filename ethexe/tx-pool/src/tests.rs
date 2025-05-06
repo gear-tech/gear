@@ -24,8 +24,11 @@
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
-use ethexe_common::ToDigest;
-use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb, OnChainStorage};
+use ethexe_common::{
+    db::{BlockMetaStorage, OnChainStorage},
+    BlockHeader, ToDigest,
+};
+use ethexe_db::Database;
 use ethexe_signer::{MemoryKeyStorage, Signer};
 use gprimitives::{H160, H256};
 use parity_scale_codec::Encode;
@@ -108,7 +111,7 @@ fn now() -> u64 {
 async fn test_add_transaction() {
     gear_utils::init_default_logger();
 
-    let db = Database::from_one(&MemDb::default());
+    let db = Database::memory();
     let bm = BlocksManager::new(db.clone());
 
     let tx_pool = TxPoolService::new(db);

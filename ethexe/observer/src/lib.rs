@@ -25,8 +25,8 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{db::OnChainStorage, Address, SimpleBlockData};
-use ethexe_db::{BlockHeader, CodeInfo, Database};
+use ethexe_common::{db::OnChainStorage, Address, BlockHeader, CodeInfo, SimpleBlockData};
+use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{
     future::BoxFuture,

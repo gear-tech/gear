@@ -8,7 +8,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use anyhow::bail;
 use core::{mem, num::NonZero};
 use core_processor::common::{DispatchOutcome, JournalHandler};
-use ethexe_common::{db::ScheduledTask, gear::Origin};
+use ethexe_common::{gear::Origin, ScheduledTask};
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,

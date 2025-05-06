@@ -130,7 +130,7 @@ impl TxValidator {
 mod tests {
     use super::*;
     use crate::tests::{self, BlocksManager};
-    use ethexe_db::{Database, MemDb};
+    use ethexe_db::Database;
     use gprimitives::H256;
 
     macro_rules! assert_ok {
@@ -148,14 +148,14 @@ mod tests {
     #[test]
     fn test_signature_validation() {
         let signed_transaction = tests::generate_signed_ethexe_tx(H256::random());
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let validator = TxValidator::new(signed_transaction, db).with_signature_check();
         assert_ok!(validator.validate());
     }
 
     #[test]
     fn test_valid_mortality() {
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let bm = BlocksManager::new(db.clone());
 
         // Test valid mortality
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_invalid_mortality_non_existent_block() {
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let non_window_block_hash = H256::random();
         let invalid_transaction = tests::generate_signed_ethexe_tx(non_window_block_hash);
 
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn test_invalid_mortality_rotten_tx() {
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let bm = BlocksManager::new(db.clone());
 
         let first_block_hash = bm.add_block().0;
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_uniqueness_validation() {
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let transaction = tests::generate_signed_ethexe_tx(H256::random());
 
         let transaction = TxValidator::new(transaction, db.clone())

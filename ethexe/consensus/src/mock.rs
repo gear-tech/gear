@@ -18,10 +18,12 @@
 
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     gear::{BlockCommitment, CodeCommitment, Message, StateTransition},
-    Address, Digest, PrivateKey, ProducerBlock, PublicKey, SignedData, SimpleBlockData,
+    Address, BlockHeader, CodeInfo, Digest, PrivateKey, ProducerBlock, PublicKey, SignedData,
+    SimpleBlockData,
 };
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Database, OnChainStorage};
+use ethexe_db::Database;
 use ethexe_signer::{MemoryKeyStorage, Signer};
 use gprimitives::H256;
 use std::vec;

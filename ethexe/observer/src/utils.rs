@@ -31,8 +31,7 @@ use alloy::{
     },
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::{events::BlockEvent, Address, BlockData};
-use ethexe_db::BlockHeader;
+use ethexe_common::{events::BlockEvent, Address, BlockData, BlockHeader};
 use ethexe_ethereum::{mirror, router, wvara};
 use futures::{future, stream::FuturesUnordered, FutureExt};
 use gear_core::ids::prelude::*;

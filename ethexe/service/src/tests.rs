@@ -30,12 +30,13 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_common::{
-    db::{CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
+    ScheduledTask,
 };
 use ethexe_compute::{BlockProcessed, ComputeEvent};
-use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
+use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
@@ -765,7 +766,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::from_one(&MemDb::default());
+    node.db = Database::memory();
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
@@ -1298,9 +1299,8 @@ mod utils {
     use super::*;
     use crate::Event;
     use alloy::eips::BlockId;
-    use ethexe_common::{Address, PrivateKey, PublicKey, SimpleBlockData};
+    use ethexe_common::{db::OnChainStorage, Address, PrivateKey, PublicKey, SimpleBlockData};
     use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
-    use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
@@ -1457,7 +1457,7 @@ mod utils {
 
             let blob_reader = MockBlobReader::new();
 
-            let db = Database::from_one(&MemDb::default());
+            let db = Database::memory();
 
             let eth_cfg = EthereumConfig {
                 rpc: rpc_url.clone(),
@@ -1583,7 +1583,7 @@ mod utils {
                 fast_sync,
             } = config;
 
-            let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
+            let db = db.unwrap_or_else(Database::memory);
 
             let (network_address, network_bootstrap_address) = self
                 .bootstrap_network

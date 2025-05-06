@@ -26,8 +26,11 @@ use crate::{
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
-use ethexe_common::{gear::CodeCommitment, Address, Digest, SignedData, SimpleBlockData, ToDigest};
-use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
+use ethexe_common::{
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    gear::CodeCommitment,
+    Address, Digest, SignedData, SimpleBlockData, ToDigest,
+};
 use gprimitives::H256;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
@@ -275,7 +278,8 @@ impl Participant {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_db::{BlockHeader, Database, OnChainStorage};
+    use ethexe_common::{db::OnChainStorage, BlockHeader};
+    use ethexe_db::Database;
     use std::any::TypeId;
 
     #[test]

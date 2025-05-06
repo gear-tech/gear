@@ -23,9 +23,8 @@ use derive_more::{Debug, Display};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
-    Address, ProducerBlock, SimpleBlockData,
+    Address, CodeInfo, ProducerBlock, SimpleBlockData,
 };
-use ethexe_db::CodeInfo;
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
 use gprimitives::H256;
