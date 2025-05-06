@@ -1,9 +1,9 @@
 [profile.default]
-solc_version = "0.8.28"
+solc_version = "0.8.29"
 src = "src"
 out = "out"
 libs = ["lib"]
-evm_version = "cancun"
+evm_version = "prague"
 optimizer = true
 bytecode_hash = "none"
 cbor_metadata = false
@@ -32,7 +32,6 @@ hoodi = "${HOODI_RPC_URL}"
 mainnet = { key = "${ETHERSCAN_API_KEY}" }
 sepolia = { key = "${ETHERSCAN_API_KEY}" }
 holesky = { key = "${ETHERSCAN_API_KEY}" }
-# https://github.com/foundry-rs/foundry/issues/10194
-hoodi = { key = "${ETHERSCAN_API_KEY}", chain = 560048, url = "https://api-hoodi.etherscan.io/api" }
+hoodi = { key = "${ETHERSCAN_API_KEY}" }
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

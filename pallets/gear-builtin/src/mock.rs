@@ -519,8 +519,11 @@ pub(crate) fn gas_tree_empty() -> bool {
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
     let bank_address = GearBank::bank_address();
 
+    let mut endowed_accounts = vec![bank_address, SIGNER, BLOCK_AUTHOR];
+    endowed_accounts.extend(GearBuiltin::list_builtins());
+
     ExtBuilder::default()
         .endowment(ENDOWMENT)
-        .endowed_accounts(vec![bank_address, SIGNER, BLOCK_AUTHOR])
+        .endowed_accounts(endowed_accounts)
         .build()
 }

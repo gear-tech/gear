@@ -128,12 +128,9 @@ contract DeploymentScript is Script {
             if (chainId == 1) {
                 console.log("curl --request POST 'https://api.etherscan.io/api' \\");
             } else {
-                // https://github.com/foundry-rs/forge-std/issues/671
                 console.log(
                     string.concat(
-                        "curl --request POST 'https://api-",
-                        chainId == 560048 ? "hoodi" : getChain(chainId).chainAlias,
-                        ".etherscan.io/api' \\"
+                        "curl --request POST 'https://api-", vm.getChain(chainId).chainAlias, ".etherscan.io/api' \\"
                     )
                 );
             }

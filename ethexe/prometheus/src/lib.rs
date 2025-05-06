@@ -148,27 +148,11 @@ impl PrometheusService {
         self.metrics.eth_best_height.set(eth_best_height as u64);
         self.metrics.pending_codes.set(pending_codes as u64);
     }
-
-    pub fn update_sequencer_metrics(
-        &mut self,
-        submitted_code_commitments: usize,
-        submitted_block_commitments: usize,
-    ) {
-        self.metrics
-            .submitted_code_commitments
-            .set(submitted_code_commitments as u64);
-
-        self.metrics
-            .submitted_block_commitments
-            .set(submitted_block_commitments as u64);
-    }
 }
 
 struct PrometheusMetrics {
     eth_best_height: Gauge<U64>,
     pending_codes: Gauge<U64>,
-    submitted_code_commitments: Gauge<U64>,
-    submitted_block_commitments: Gauge<U64>,
 }
 
 impl PrometheusMetrics {
@@ -214,22 +198,6 @@ impl PrometheusMetrics {
                 Gauge::<U64>::new(
                     "ethexe_pending_codes",
                     "Pending codes for lookup by observer",
-                )?,
-                registry,
-            )?,
-
-            submitted_code_commitments: register(
-                Gauge::<U64>::new(
-                    "ethexe_submitted_code_commitments",
-                    "Number of submitted code commitments in sequencer",
-                )?,
-                registry,
-            )?,
-
-            submitted_block_commitments: register(
-                Gauge::<U64>::new(
-                    "ethexe_submitted_block_commitments",
-                    "Number of submitted block commitments in sequencer",
                 )?,
                 registry,
             )?,

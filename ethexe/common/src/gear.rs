@@ -69,8 +69,8 @@ pub struct CodeCommitment {
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitment {
-    pub code_commitments: Vec<CodeCommitment>,
     pub block_commitments: Vec<BlockCommitment>,
+    pub code_commitments: Vec<CodeCommitment>,
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]

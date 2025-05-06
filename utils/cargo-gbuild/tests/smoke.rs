@@ -72,24 +72,26 @@ fn test_program_tests() {
     // This is momently only for adapting the environment (nightly)
     // of our CI.
     {
-        let targets = Command::new("rustup")
-            .args(["target", "list", "--toolchain", "stable"])
-            .output()
-            .expect("Failed to list rust toolchains")
-            .stdout;
+        if option_env!("IN_NIX_SHELL").is_none() {
+            let targets = Command::new("rustup")
+                .args(["target", "list", "--toolchain", "stable"])
+                .output()
+                .expect("Failed to list rust toolchains")
+                .stdout;
 
-        if !String::from_utf8_lossy(&targets).contains("wasm32v1-none (installed)") {
-            assert!(Command::new("rustup")
-                .args([
-                    "toolchain",
-                    "install",
-                    "stable",
-                    "--target",
-                    "wasm32v1-none",
-                ])
-                .status()
-                .expect("Failed to install stable toolchain")
-                .success());
+            if !String::from_utf8_lossy(&targets).contains("wasm32v1-none (installed)") {
+                assert!(Command::new("rustup")
+                    .args([
+                        "toolchain",
+                        "install",
+                        "stable",
+                        "--target",
+                        "wasm32v1-none",
+                    ])
+                    .status()
+                    .expect("Failed to install stable toolchain")
+                    .success());
+            }
         }
     }
 

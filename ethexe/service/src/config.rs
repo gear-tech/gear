@@ -54,7 +54,6 @@ impl Config {
 pub struct NodeConfig {
     pub database_path: PathBuf,
     pub key_path: PathBuf,
-    pub sequencer: ConfigPublicKey,
     pub validator: ConfigPublicKey,
     pub validator_session: ConfigPublicKey,
     pub eth_max_sync_depth: u32,
