@@ -90,6 +90,6 @@ impl fmt::Debug for GeneratedModule<'_> {
             wasmprinter::print_bytes(self.module.serialize().expect("failed to serialize"))
                 .expect("failed to print module");
 
-        write!(f, "{}", module_str)
+        write!(f, "{module_str}")
     }
 }
