@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    db_sync::{Config, InnerBehaviour, PeerId, Request, RequestFailure, RequestId, Response},
+    db_sync::{
+        Config, Event, InnerBehaviour, NewRequestRoundReason, PeerId, Request, RequestFailure,
+        RequestId, Response,
+    },
     peer_score::Handle,
     utils::ConnectionMap,
 };
@@ -53,12 +56,6 @@ impl RetriableRequest {
     pub fn id(&self) -> RequestId {
         self.request_id
     }
-}
-
-pub(crate) enum OngoingRequestsEvent {
-    SuccessfulResponse(RequestId, Response),
-    FailedResponse(RetriableRequest, RequestFailure),
-    ExternalValidationRequired(RequestId, Response, Sender<bool>),
 }
 
 pub(crate) struct OngoingRequests {
@@ -170,8 +167,9 @@ impl OngoingRequests {
         &mut self,
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,
-    ) -> Vec<OngoingRequestsEvent> {
+    ) -> Vec<Event> {
         let mut events = Vec::new();
+        let mut to_remove = Vec::new();
 
         for (&request_id, request) in &mut self.requests {
             let mut ctx = OngoingRequestContext {
@@ -185,21 +183,25 @@ impl OngoingRequests {
                 .expect("always Some")
                 .poll_next_state(&mut ctx);
 
-            if let OngoingRequest::Succeed(Succeed { response }) = next_state {
+            if let OngoingRequest::Succeed(_) | OngoingRequest::Failed(_) = &next_state {
                 debug_assert!(ctx.pending_events.is_empty());
-                events.push(OngoingRequestsEvent::SuccessfulResponse(
-                    request_id, response,
-                ));
-                continue;
-            } else if let OngoingRequest::Failed(Failed {
-                state,
-                failure: reason,
-            }) = next_state
-            {
-                events.push(OngoingRequestsEvent::FailedResponse(
-                    RetriableRequest { request_id, state },
-                    reason,
-                ));
+
+                let event = if let OngoingRequest::Succeed(Succeed { response }) = next_state {
+                    Event::RequestSucceed {
+                        request_id,
+                        response,
+                    }
+                } else if let OngoingRequest::Failed(Failed { state, error }) = next_state {
+                    Event::RequestFailed {
+                        request: RetriableRequest { request_id, state },
+                        error,
+                    }
+                } else {
+                    unreachable!()
+                };
+                events.push(event);
+                to_remove.push(request_id);
+
                 continue;
             }
 
@@ -212,11 +214,17 @@ impl OngoingRequests {
                         self.active_requests.insert(outbound_request_id, request_id);
                     }
                     OngoingRequestEvent::ExternalValidationRequired(sender, response) => events
-                        .push(OngoingRequestsEvent::ExternalValidationRequired(
-                            request_id, response, sender,
-                        )),
+                        .push(Event::ExternalValidationRequired {
+                            request_id,
+                            response,
+                            sender,
+                        }),
                 }
             }
+        }
+
+        for request_id in to_remove {
+            self.requests.remove(&request_id);
         }
 
         events
@@ -503,12 +511,12 @@ impl StateHandler for Succeed {
 
 struct Failed {
     state: OngoingRequestState,
-    failure: RequestFailure,
+    error: RequestFailure,
 }
 
 impl Failed {
-    fn create(state: OngoingRequestState, failure: RequestFailure) -> OngoingRequest {
-        Self { state, failure }.into()
+    fn create(state: OngoingRequestState, error: RequestFailure) -> OngoingRequest {
+        Self { state, error }.into()
     }
 }
 
