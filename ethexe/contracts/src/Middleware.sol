@@ -206,7 +206,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     function changeSlashRequester(address newRole) external {
         Storage storage $ = _storage();
         if (msg.sender != $.roleSlashRequester) {
-            revert RoleMismatch();
+            revert NotSlashRequester();
         }
         $.roleSlashRequester = newRole;
     }
@@ -214,7 +214,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     function changeSlashExecutor(address newRole) external {
         Storage storage $ = _storage();
         if (msg.sender != $.roleSlashExecutor) {
-            revert RoleMismatch();
+            revert NotSlashExecutor();
         }
         $.roleSlashExecutor = newRole;
     }
@@ -287,12 +287,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
             Gear.StakerRewards memory rewards = _commitment.distribution[i];
 
             if (!$.vaults.contains(rewards.vault)) {
-                revert UnknownVault();
+                revert NotRegisteredVault();
             }
-
-            // if (stakerRewards.token != $.collateral) {
-            //     revert UnknownCollateral();
-            // }
 
             address rewardsAddress = address($.vaults.getPinnedData(rewards.vault));
 
@@ -425,7 +421,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         Storage storage $ = _storage();
 
         if (msg.sender != $.roleSlashRequester) {
-            revert RoleMismatch();
+            revert NotSlashRequester();
         }
 
         for (uint256 i; i < data.length; ++i) {
@@ -451,7 +447,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
     function executeSlash(SlashIdentifier[] calldata slashes) external {
         if (msg.sender != _storage().roleSlashRequester) {
-            revert RoleMismatch();
+            revert NotSlashRequester();
         }
 
         for (uint256 i; i < slashes.length; ++i) {
@@ -485,7 +481,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     // Supports only null hook for now
     function _delegatorHookCheck(address hook) private pure {
         if (hook != address(0)) {
-            revert UnsupportedHook();
+            revert UnsupportedDelegatorHook();
         }
     }
 
@@ -603,7 +599,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
     function _validateStakerRewards(address _vault, address _rewards) private view {
         if (!IRegistry(_storage().registries.stakerRewardsFactory).isEntity(_rewards)) {
-            revert UnknownStakerRewards();
+            revert NonFactoryStakerRewards();
         }
 
         if (IDefaultStakerRewards(_rewards).VAULT() != _vault) {
