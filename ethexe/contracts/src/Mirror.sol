@@ -318,19 +318,6 @@ contract Mirror is IMirror {
     function _sendReplyMessage(Gear.Message calldata _message) private {
         _transferVara(_message.destination, _message.value);
 
-        if (!_tryParseAndEmitSailsEvent(_message)) {
-            if (_message.call) {
-                // TODO (breathx): consider support value and message id arg.
-                (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
-
-                if (success) {
-                    return;
-                }
-            }
-
-            emit Message(_message.id, _message.destination, _message.payload, _message.value);
-        }
-
         if (_message.call) {
             bool isSuccessReply = _message.replyDetails.code[0] == 0;
 
