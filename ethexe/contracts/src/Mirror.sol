@@ -188,7 +188,6 @@ contract Mirror is IMirror {
 
             messagesHashes = bytes.concat(messagesHashes, Gear.messageHash(message));
 
-            // TODO (breathx): optimize it to bytes WITHIN THE PR.
             if (message.replyDetails.to == 0) {
                 _sendMailboxedMessage(message);
             } else {
@@ -202,6 +201,14 @@ contract Mirror is IMirror {
     /// @dev Value never sent since goes to mailbox.
     function _sendMailboxedMessage(Gear.Message calldata _message) private {
         if (!_tryParseAndEmitSailsEvent(_message)) {
+            if (_message.call) {
+                (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
+
+                if (success) {
+                    return;
+                }
+            }
+
             emit Message(_message.id, _message.destination, _message.payload, _message.value);
         }
     }
@@ -311,22 +318,32 @@ contract Mirror is IMirror {
     function _sendReplyMessage(Gear.Message calldata _message) private {
         _transferVara(_message.destination, _message.value);
 
-        //TODO: find some other way to get `encodeReply`
-        if (_message.destination.code.length > 0) {
-            bytes4 replyCode = _message.replyDetails.code;
-            uint8 replyCodeDiscriminant = uint8(bytes1(replyCode));
+        if (!_tryParseAndEmitSailsEvent(_message)) {
+            if (_message.call) {
+                // TODO (breathx): consider support value and message id arg.
+                (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
+
+                if (success) {
+                    return;
+                }
+            }
+
+            emit Message(_message.id, _message.destination, _message.payload, _message.value);
+        }
+
+        if (_message.call) {
+            bool isSuccessReply = _message.replyDetails.code[0] == 0;
 
             bytes memory payload;
 
-            if (replyCodeDiscriminant == 0) {
-                /* gear_core::message::ReplyCode::Success = 0 */
+            if (isSuccessReply) {
                 payload = _message.payload;
-            } else if (replyCodeDiscriminant == 1) {
-                /* gear_core::message::ReplyCode::Error = 1 */
-                payload =
-                    abi.encodeWithSelector(ICallbacks.onErrorReply.selector, _message.id, _message.payload, replyCode);
             } else {
-                revert("unknown replyCode");
+                // TODO (breathx): this should be removed in favor of future sails impl.
+                // TODO (breathx): consider support value arg.
+                payload = abi.encodeWithSelector(
+                    ICallbacks.onErrorReply.selector, _message.id, _message.payload, _message.replyDetails.code
+                );
             }
 
             (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
@@ -334,11 +351,12 @@ contract Mirror is IMirror {
             if (success) {
                 return;
             }
-        } else {
-            emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
         }
+
+        emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
     }
 
+    // TODO (breathx): claimValues will fail if the program is exited: keep the funds on router.
     function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32) {
         bytes memory valueClaimsBytes;
 

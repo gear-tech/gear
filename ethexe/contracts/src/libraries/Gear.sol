@@ -121,7 +121,9 @@ library Gear {
         address destination;
         bytes payload;
         uint128 value;
+        // TODO (breathx): use ReplyDetails[]
         ReplyDetails replyDetails;
+        bool call;
     }
 
     struct ProtocolData {
@@ -133,6 +135,8 @@ library Gear {
 
     struct ReplyDetails {
         bytes32 to;
+        // TODO (breathx): consider struct and methods to determine reason.
+        // TODO (breathx): consider avoid submitting auto replies.
         bytes4 code;
     }
 
@@ -225,7 +229,8 @@ library Gear {
                 message.payload,
                 message.value,
                 message.replyDetails.to,
-                message.replyDetails.code
+                message.replyDetails.code,
+                message.call
             )
         );
     }

@@ -160,7 +160,8 @@ contract POCTest is Base {
             Gear.ReplyDetails(
                 0, // reply to
                 0 // reply code
-            )
+            ),
+            false // call
         );
 
         Gear.StateTransition[] memory _transitions = new Gear.StateTransition[](1);
@@ -212,7 +213,8 @@ contract POCTest is Base {
             Gear.ReplyDetails(
                 0, // reply to
                 0 // reply code
-            )
+            ),
+            false // call
         );
 
         Gear.StateTransition[] memory _transitions = new Gear.StateTransition[](1);
