@@ -22,10 +22,13 @@
 //! validation requests, and multi-signature operations in the Ethexe system.
 
 use anyhow::Result;
-use ethexe_common::gear::{BatchCommitment, BlockCommitment, CodeCommitment};
-use ethexe_signer::{
-    sha3::digest::Update, Address, ContractSignature, Digest, PublicKey, Signer, ToDigest,
+use ethexe_common::{
+    ecdsa::{ContractSignature, PublicKey},
+    gear::{BatchCommitment, BlockCommitment, CodeCommitment},
+    sha3::{self, digest::Update},
+    Address, Digest, ToDigest,
 };
+use ethexe_signer::Signer;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
@@ -55,7 +58,7 @@ impl BatchCommitmentValidationRequest {
 }
 
 impl ToDigest for BatchCommitmentValidationRequest {
-    fn update_hasher(&self, hasher: &mut ethexe_signer::sha3::Keccak256) {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.blocks.to_digest().as_ref());
         hasher.update(self.codes.to_digest().as_ref());
         hasher.update([0u8; 0].to_digest().as_ref());
@@ -94,7 +97,7 @@ impl BlockCommitmentValidationRequest {
 }
 
 impl ToDigest for BlockCommitmentValidationRequest {
-    fn update_hasher(&self, hasher: &mut ethexe_signer::sha3::Keccak256) {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
             block_hash,
             block_timestamp,

@@ -20,7 +20,8 @@ use super::utils;
 use crate::params::Params;
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
-use ethexe_signer::{Signature, Signer, ToDigest as _};
+use ethexe_common::{ecdsa::Signature, ToDigest as _};
+use ethexe_signer::Signer;
 use std::path::PathBuf;
 
 /// Keystore manipulations.

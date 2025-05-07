@@ -19,10 +19,11 @@
 use super::ProcessingHandler;
 use anyhow::{ensure, Result};
 use ethexe_common::{
+    db::CodesStorage,
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
+    ScheduledTask,
 };
-use ethexe_db::{CodesStorage, ScheduledTask};
 use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
 use gear_core::{ids::ProgramId, message::SuccessReplyReason};
 
