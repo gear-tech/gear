@@ -40,6 +40,12 @@ sol!(
     "Router.json"
 );
 
+// sol!(
+//     #[sol(rpc)]
+//     IMiddleware,
+//     "Middleware.json"
+// );
+
 sol!(
     #[sol(rpc)]
     ITransparentUpgradeableProxy,
