@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sequencer for ethexe.
-
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,
@@ -161,8 +159,11 @@ impl ChainHeadProcessContext {
                 valid: true,
             }) = event
             {
-                use ethexe_common::db::CodesStorage;
-                if self.db.instrumented_code(0, *code_id).is_none() {
+                // TODO: test branch
+                if !self
+                    .db
+                    .instrumented_code_exists(ethexe_runtime::VERSION, *code_id)
+                {
                     let code = CodesStorage::original_code(&self.db, *code_id)
                         .ok_or_else(|| anyhow!("code not found for validated code {code_id}"))?;
                     self.processor.process_upload_code(*code_id, &code)?;
