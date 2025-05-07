@@ -33,7 +33,7 @@ enum Task {
     Run {
         program_id: ProgramId,
         state_hash: H256,
-        result_sender: oneshot::Sender<(Vec<JournalNote>, Option<Origin>)>,
+        result_sender: oneshot::Sender<(Vec<JournalNote>, Option<Origin>, Option<bool>)>,
     },
 }
 
@@ -94,18 +94,20 @@ async fn run_in_async(
 
             let mut super_journal = vec![];
             for (program_id, receiver) in result_receivers.into_iter() {
-                let (journal, dispatch_origin) = receiver.await.unwrap();
+                let (journal, dispatch_origin, call_reply) = receiver.await.unwrap();
                 if !journal.is_empty() {
                     super_journal.push((
                         program_id,
-                        dispatch_origin.expect("origin should be set for non-empty journal"),
+                        dispatch_origin
+                            .expect("dispatch_origin should be set for non-empty journal"),
+                        call_reply.expect("call_reply should be set for non-empty journal"),
                         journal,
                     ));
                     no_more_to_do = false;
                 }
             }
 
-            for (program_id, dispatch_origin, journal) in super_journal {
+            for (program_id, dispatch_origin, call_reply, journal) in super_journal {
                 let mut handler = JournalHandler {
                     program_id,
                     controller: TransitionController {
@@ -113,6 +115,7 @@ async fn run_in_async(
                         storage: &db,
                     },
                     dispatch_origin,
+                    call_reply,
                 };
                 core_processor::handle_journal(journal, &mut handler);
             }
@@ -169,7 +172,7 @@ async fn one_batch(
     from_index: usize,
     task_senders: &[mpsc::Sender<Task>],
     in_block_transitions: &mut InBlockTransitions,
-) -> BTreeMap<ProgramId, oneshot::Receiver<(Vec<JournalNote>, Option<Origin>)>> {
+) -> BTreeMap<ProgramId, oneshot::Receiver<(Vec<JournalNote>, Option<Origin>, Option<bool>)>> {
     let mut result_receivers = BTreeMap::new();
 
     for (sender, (program_id, state_hash)) in task_senders

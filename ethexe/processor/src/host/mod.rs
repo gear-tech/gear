@@ -133,7 +133,7 @@ impl InstanceWrapper {
         original_code_id: CodeId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
-    ) -> Result<(Vec<JournalNote>, Option<Origin>)> {
+    ) -> Result<(Vec<JournalNote>, Option<Origin>, Option<bool>)> {
         let chain_head = self.chain_head.expect("chain head must be set before run");
         threads::set(db, chain_head, state_hash);
 
@@ -145,7 +145,8 @@ impl InstanceWrapper {
         );
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
-        let (ptr_lens, origin): (Vec<i64>, Option<Origin>) = self.call("run", arg.encode())?;
+        let (ptr_lens, origin, call_reply): (Vec<i64>, Option<Origin>, Option<bool>) =
+            self.call("run", arg.encode())?;
 
         let mut journal = Vec::new();
 
@@ -154,7 +155,7 @@ impl InstanceWrapper {
             journal.extend(journal_chunk);
         }
 
-        Ok((journal, origin))
+        Ok((journal, origin, call_reply))
     }
 
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {

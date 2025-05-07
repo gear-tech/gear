@@ -35,6 +35,7 @@ impl From<IMirror::MessageQueueingRequested> for MirrorEvent {
             source: address_to_actor_id(value.source),
             payload: value.payload.into(),
             value: value.value,
+            call_reply: value.callReply,
         }
     }
 }

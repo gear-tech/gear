@@ -37,6 +37,7 @@ pub enum Event {
         source: ActorId,
         payload: Vec<u8>,
         value: u128,
+        call_reply: bool,
     },
     Reply {
         payload: Vec<u8>,
@@ -74,11 +75,13 @@ impl Event {
                 source,
                 payload,
                 value,
+                call_reply,
             } => RequestEvent::MessageQueueingRequested {
                 id,
                 source,
                 payload,
                 value,
+                call_reply,
             },
             Self::ReplyQueueingRequested {
                 replied_to,
@@ -113,6 +116,7 @@ pub enum RequestEvent {
         source: ActorId,
         payload: Vec<u8>,
         value: u128,
+        call_reply: bool,
     },
     ReplyQueueingRequested {
         replied_to: MessageId,

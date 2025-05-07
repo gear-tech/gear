@@ -110,10 +110,11 @@ pub struct Message {
     pub payload: Vec<u8>,
     pub value: u128,
     pub reply_details: Option<ReplyDetails>,
+    pub call: bool,
 }
 
-impl From<StoredMessage> for Message {
-    fn from(value: StoredMessage) -> Self {
+impl Message {
+    pub fn from_stored(value: StoredMessage, call: bool) -> Self {
         let (id, _source, destination, payload, value, details) = value.into_parts();
         Self {
             id,
@@ -121,6 +122,7 @@ impl From<StoredMessage> for Message {
             payload: payload.into_vec(),
             value,
             reply_details: details.and_then(|v| v.to_reply_details()),
+            call,
         }
     }
 }
@@ -138,6 +140,7 @@ pub struct ProtocolData {
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub new_state_hash: H256,
+    pub exited: bool,
     pub inheritor: ActorId,
     pub value_to_receive: u128,
     pub value_claims: Vec<ValueClaim>,
