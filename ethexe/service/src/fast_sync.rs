@@ -336,12 +336,12 @@ async fn sync_finalized_head(
                 break;
             }
             ObserverEvent::RequestLoadBlobs(codes) => {
-                blob_loader.load_codes(codes.clone(), None).unwrap();
+                blob_loader.load_codes(codes.clone(), None)?;
                 for _code in codes {
                     if let Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))) =
                         blob_loader.next().await
                     {
-                        observer.receive_loaded_blob(blob_data).unwrap();
+                        observer.receive_loaded_blob(blob_data)?;
                     }
                 }
             }

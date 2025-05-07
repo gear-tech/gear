@@ -31,7 +31,7 @@ use ethexe_consensus::{
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{NetworkEvent, NetworkService};
-use ethexe_observer::{BlockSyncedData, ObserverEvent, ObserverService};
+use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};

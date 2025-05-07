@@ -166,11 +166,9 @@ async fn test_deployment() -> Result<()> {
         .expect("BlobLoader didn't receive event")
         .expect("received error instead ob event");
     log::info!("Event received: {event:?}");
-    let BlobLoaderEvent::BlobLoaded(blob_data) = event else {
-        panic!("Expected event: BlobLoaderEvent::BlobLoaded, received: {event:?}");
-    };
+    let BlobLoaderEvent::BlobLoaded(blob_data) = event;
 
-    observer.receive_loaded_blob(blob_data);
+    observer.receive_loaded_blob(blob_data).unwrap();
     let event = observer
         .next()
         .await
@@ -188,16 +186,6 @@ async fn test_deployment() -> Result<()> {
         .expect("received error instead of event");
     log::info!("Event received: {event:?}");
     assert!(matches!(event, ObserverEvent::BlockSynced(..)));
-
-    // let event = observer
-    //     .next()
-    //     .await
-    //     .expect("observer did not receive event")
-    //     .expect("received error instead of event");
-    // log::info!("Event received: {event:?}");
-    // assert!(
-    //     matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm)
-    // );
 
     let wat = "(module)";
     let wasm = wat2wasm(wat);
@@ -228,11 +216,9 @@ async fn test_deployment() -> Result<()> {
         .expect("BlobLoader didn't receive event")
         .expect("received error instead ob event");
     log::info!("Event received: {event:?}");
-    let BlobLoaderEvent::BlobLoaded(blob_data) = event else {
-        panic!("Expected event: BlobLoaderEvent::BlobLoaded, received: {event:?}");
-    };
+    let BlobLoaderEvent::BlobLoaded(blob_data) = event;
 
-    observer.receive_loaded_blob(blob_data);
+    observer.receive_loaded_blob(blob_data).unwrap();
 
     let event = observer
         .next()
