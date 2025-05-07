@@ -15,27 +15,70 @@ contract Mirror is IMirror {
     ///      https://github.com/gear-tech/sails/blob/master/rs/src/solidity.rs
     address internal constant ETH_EVENT_ADDR = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
 
+    /// @dev Address of the router contract, which is the sole authority.
     address public immutable router;
 
-    address public inheritor;
-    /// @dev This nonce is the source for message ids unique generations. Must be bumped on each send. Zeroed nonce is always represent init message by eligible account.
-    address public initializer;
-    bool isSmall;
+    /// @dev Program's current state hash.
     bytes32 public stateHash;
+
+    /// @dev Source for message ids unique generation.
+    ///      In-fact represents amount of messages received from Ethereum.
+    ///      Zeroed nonce is always represent init message.
     uint256 public nonce;
 
+    /// @dev The bool flag indicates whether the program is exited.
+    bool public exited;
+
+    // TODO (breathx): consider proxying there.
+    /// @dev The address of the inheritor, which is set by the program on exit.
+    address public inheritor;
+
+    /// @dev The address eligible to send first (init) message.
+    address public initializer;
+
+    /// @dev The bool flag indicates whether to process arbitrary calls as `sendMessage` payload.
+    bool isSmall;
+
+    /// @dev Minimal constructor that only sets the immutable router address.
     constructor(address _router) {
         router = _router;
     }
 
-    /// @dev Only the router can call functions marked with this modifier.
+    /// @dev Functions marked with this modifier can only be called if the init message has been created before.
+    modifier onlyAfterInitMessage() {
+        require(nonce > 0, "initializer hasn't created init message yet");
+        _;
+    }
+
+    /// @dev Functions marked with this modifier can only be called if the init message has been created before or the caller is the initializer.
+    modifier onlyAfterInitMessageOrInitializer() {
+        require(
+            nonce > 0 || msg.sender == initializer,
+            "initializer hasn't created init message yet; and caller is not the initializer"
+        );
+        _;
+    }
+
+    /// @dev Functions marked with this modifier can only be called if program is active.
+    modifier onlyIfActive() {
+        require(!exited, "program is exited");
+        _;
+    }
+
+    /// @dev Functions marked with this modifier can only be called if program is exited.
+    modifier onlyIfExited() {
+        require(exited, "program is not exited");
+        _;
+    }
+
+    /// @dev Functions marked with this modifier can only be called by the router.
     modifier onlyRouter() {
         require(msg.sender == router, "caller is not the router");
         _;
     }
 
-    /// @dev Non-zero value must be transferred from source to router in functions marked with this modifier.
-    modifier retrievingValue(uint128 value) {
+    /// @dev Non-zero Vara value must be transferred from source to router in functions marked with this modifier.
+    modifier retrievingVara(uint128 value) {
         if (value != 0) {
             bool success = _wvara(router).transferFrom(msg.sender, router, value);
             require(success, "failed to transfer non-zero amount of WVara from source to router");
@@ -43,41 +86,13 @@ contract Mirror is IMirror {
         _;
     }
 
-    // TODO (breathx): terminated programs compute threshold must always be treated as balance-enough.
-    /// @dev Functions marked with this modifier can be called only after the program is terminated.
-    modifier whenTerminated() {
-        require(inheritor != address(0), "program is not terminated");
-        _;
-    }
-
-    /// @dev Functions marked with this modifier can be called only after the initializer has created the init message.
-    modifier whenInitMessageCreated() {
-        require(nonce > 0, "initializer hasn't created init message yet");
-        _;
-    }
-
-    /// @dev Functions marked with this modifier can be called only after the initializer has created the init message or from the initializer (first access).
-    modifier whenInitMessageCreatedOrFromInitializer() {
-        require(
-            nonce > 0 || msg.sender == initializer,
-            "initializer hasn't created init message yet; and source is not initializer"
-        );
-        _;
-    }
-
-    /// @dev Functions marked with this modifier can be called only if the program is active.
-    modifier whileActive() {
-        require(inheritor == address(0), "program is terminated");
-        _;
-    }
-
     /* Primary Gear logic */
 
     function sendMessage(bytes calldata _payload, uint128 _value, bool _callReply)
         public
-        whileActive
-        whenInitMessageCreatedOrFromInitializer
-        retrievingValue(_value)
+        onlyIfActive
+        onlyAfterInitMessageOrInitializer
+        retrievingVara(_value)
         returns (bytes32)
     {
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
@@ -89,33 +104,37 @@ contract Mirror is IMirror {
 
     function sendReply(bytes32 _repliedTo, bytes calldata _payload, uint128 _value)
         external
-        whileActive
-        whenInitMessageCreated
-        retrievingValue(_value)
+        onlyIfActive
+        onlyAfterInitMessage
+        retrievingVara(_value)
     {
         emit ReplyQueueingRequested(_repliedTo, msg.sender, _payload, _value);
     }
 
-    function claimValue(bytes32 _claimedId) external whenInitMessageCreated {
+    // TODO (breathx): consider and support claimValue after exit.
+    function claimValue(bytes32 _claimedId) external onlyIfActive onlyAfterInitMessage {
         emit ValueClaimingRequested(_claimedId, msg.sender);
     }
 
-    function executableBalanceTopUp(uint128 _value) external whileActive retrievingValue(_value) {
+    function executableBalanceTopUp(uint128 _value) external onlyIfActive retrievingVara(_value) {
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
-    function transferLockedValueToInheritor() public whenTerminated {
+    function transferLockedValueToInheritor() public onlyIfExited {
         uint256 balance = _wvara(router).balanceOf(address(this));
-        _transferValue(inheritor, uint128(balance));
+        _transferVara(inheritor, uint128(balance));
     }
 
     /* Router-driven state and funds management */
 
     function initialize(address _initializer, address _abiInterface, bool _isSmall) public onlyRouter {
         require(initializer == address(0), "initializer could only be set once");
+
         require(!isSmall, "isSmall could only be set once");
+
         StorageSlot.AddressSlot storage implementationSlot =
             StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT);
+
         require(implementationSlot.value == address(0), "abi interface could only be set once");
 
         initializer = _initializer;
@@ -287,7 +306,7 @@ contract Mirror is IMirror {
 
     /// @dev Non-zero value always sent since never goes to mailbox.
     function _sendReplyMessage(Gear.Message calldata _message) private {
-        _transferValue(_message.destination, _message.value);
+        _transferVara(_message.destination, _message.value);
 
         //TODO: find some other way to get `encodeReply`
         if (_message.destination.code.length > 0) {
@@ -325,7 +344,7 @@ contract Mirror is IMirror {
 
             valueClaimsBytes = bytes.concat(valueClaimsBytes, Gear.valueClaimBytes(claim));
 
-            _transferValue(claim.destination, claim.value);
+            _transferVara(claim.destination, claim.value);
 
             emit ValueClaimed(claim.messageId, claim.value);
         }
@@ -333,9 +352,10 @@ contract Mirror is IMirror {
         return keccak256(valueClaimsBytes);
     }
 
-    // TODO (breathx): optimize inheritor to bytes WITHIN THE PR.
-    function _setInheritor(address _inheritor) private whileActive {
+    // TODO (breathx): allow zero inheritor in router.
+    function _setInheritor(address _inheritor) private onlyIfActive {
         /// @dev Set inheritor.
+        exited = true;
         inheritor = _inheritor;
 
         /// @dev Transfer all available balance to the inheritor.
@@ -357,7 +377,7 @@ contract Mirror is IMirror {
         return IWrappedVara(wvaraAddr);
     }
 
-    function _transferValue(address destination, uint128 value) private {
+    function _transferVara(address destination, uint128 value) private {
         if (value != 0) {
             bool success = _wvara(router).transfer(destination, value);
             require(success, "failed to transfer WVara");
