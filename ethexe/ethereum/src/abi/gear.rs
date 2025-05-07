@@ -76,6 +76,44 @@ impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
     }
 }
 
+impl From<OperatorRewardsCommitment> for Gear::OperatorRewardsCommitment {
+    fn from(value: OperatorRewardsCommitment) -> Self {
+        Self {
+            amount: u256_to_uint256(value.amount),
+            root: h256_to_bytes32(value.root),
+        }
+    }
+}
+
+impl From<StakerRewards> for Gear::StakerRewards {
+    fn from(value: StakerRewards) -> Self {
+        Self {
+            vault: value.vault.into(),
+            amount: u256_to_uint256(value.amount),
+        }
+    }
+}
+
+impl From<StakerRewardsCommitment> for Gear::StakerRewardsCommitment {
+    fn from(value: StakerRewardsCommitment) -> Self {
+        Self {
+            distribution: value.distribution.into_iter().map(Into::into).collect(),
+            totalAmount: u256_to_uint256(value.total_amount),
+            token: value.token.into(),
+        }
+    }
+}
+
+impl From<RewardsCommitment> for Gear::RewardsCommitment {
+    fn from(value: RewardsCommitment) -> Self {
+        Self {
+            operators: value.operators.into(),
+            stakers: value.stakers.into(),
+            timestamp: u64_to_uint48_lossy(value.timestamp),
+        }
+    }
+}
+
 impl From<BatchCommitment> for Gear::BatchCommitment {
     fn from(value: BatchCommitment) -> Self {
         Self {
@@ -85,7 +123,11 @@ impl From<BatchCommitment> for Gear::BatchCommitment {
                 .map(Into::into)
                 .collect(),
             codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
-            rewardCommitments: vec![],
+            rewardCommitments: value
+                .rewards_commitments
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         }
     }
 }
