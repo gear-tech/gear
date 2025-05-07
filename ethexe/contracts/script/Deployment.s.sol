@@ -63,15 +63,15 @@ contract DeploymentScript is Script {
         );
         mirror = new Mirror(address(router));
 
-        address operatorRewardsFactoryAddress = address(0x6D52fC402b2dA2669348Cc2682D85c61c122755D);
+        address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
 
         Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
-            vaultRegistry: address(0xAEb6bdd95c502390db8f52c8909F703E9Af6a346),
-            operatorRegistry: address(0xAd817a6Bc954F678451A71363f04150FDD81Af9F),
-            networkRegistry: address(0xC773b1011461e7314CF05f97d95aa8e92C1Fd8aA),
-            middlewareService: address(0xD7dC9B366c027743D90761F71858BCa83C6899Ad),
-            networkOptIn: address(0x7133415b33B438843D581013f98A08704316633c),
-            stakerRewardsFactory: address(0xFEB871581C2ab2e1EEe6f7dDC7e6246cFa087A23)
+            vaultRegistry: vm.envAddress("SYMBIOTIC_VAULT_REGISTRY"),
+            operatorRegistry: vm.envAddress("SYMBIOTIC_OPERATOR_REGISTRY"),
+            networkRegistry: vm.envAddress("SYMBIOTIC_NETWORK_REGISTRY"),
+            middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
+            networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
+            stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY")
         });
 
         IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
