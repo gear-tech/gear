@@ -112,6 +112,7 @@ contract DeploymentScript is Script {
         router.lookupGenesisHash();
 
         vm.assertEq(router.mirrorImpl(), address(mirror));
+        vm.assertEq(middlewareAddress, address(middleware));
         vm.assertNotEq(router.genesisBlockHash(), bytes32(0));
 
         vm.stopBroadcast();

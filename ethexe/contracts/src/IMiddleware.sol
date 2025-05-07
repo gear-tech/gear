@@ -110,7 +110,7 @@ interface IMiddleware {
         address roleSlashExecutor;
         address vetoResolver;
         /// @notice Stores the addreses for Symbiotic Ecosystem contracts.
-        /// @dev These addresses was taken from official documentation.
+        /// @dev These addresses was taken from official documentation (https://docs.symbiotic.fi/deployments/mainnet).
         Gear.SymbioticRegistries registries;
         EnumerableMap.AddressToUintMap operators;
         EnumerableMap.AddressToUintMap vaults;
