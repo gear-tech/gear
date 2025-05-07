@@ -139,6 +139,7 @@ library Gear {
     struct StateTransition {
         address actorId;
         bytes32 newStateHash;
+        bool exited;
         address inheritor;
         uint128 valueToReceive;
         ValueClaim[] valueClaims;
@@ -236,13 +237,16 @@ library Gear {
     function stateTransitionHash(
         address actor,
         bytes32 newStateHash,
+        bool exited,
         address inheritor,
         uint128 valueToReceive,
         bytes32 valueClaimsHash,
         bytes32 messagesHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
-            abi.encodePacked(actor, newStateHash, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash)
+            abi.encodePacked(
+                actor, newStateHash, exited, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash
+            )
         );
     }
 

@@ -167,6 +167,7 @@ contract POCTest is Base {
         _transitions[0] = Gear.StateTransition(
             _ping, // actor id
             bytes32(uint256(1)), // new state hash
+            false, // exited
             address(0), // inheritor
             uint128(0), // value to receive
             new Gear.ValueClaim[](0), // value claims
@@ -218,6 +219,7 @@ contract POCTest is Base {
         _transitions[0] = Gear.StateTransition(
             _ping, // actor id
             bytes32(uint256(2)), // new state hash
+            false, // exited
             address(0), // inheritor
             0, // value to receive
             new Gear.ValueClaim[](0), // value claims

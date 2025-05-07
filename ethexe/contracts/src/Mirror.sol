@@ -153,9 +153,11 @@ contract Mirror is IMirror {
         /// @dev Send value for each claim.
         bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
 
-        /// @dev Set inheritor if specified.
-        if (_transition.inheritor != address(0)) {
+        /// @dev Set inheritor if exited.
+        if (_transition.exited) {
             _setInheritor(_transition.inheritor);
+        } else {
+            require(_transition.inheritor == address(0), "inheritor must be zero if not exited");
         }
 
         /// @dev Update the state hash if changed.
@@ -167,6 +169,7 @@ contract Mirror is IMirror {
         return Gear.stateTransitionHash(
             _transition.actorId,
             _transition.newStateHash,
+            _transition.exited,
             _transition.inheritor,
             _transition.valueToReceive,
             valueClaimsHash,
