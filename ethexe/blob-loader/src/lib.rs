@@ -1,3 +1,21 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::blobs::{BlobData, BlobReader};
 use anyhow::{anyhow, Result};
 use ethexe_common::db::{CodesStorage, OnChainStorage};
@@ -14,10 +32,15 @@ use utils::*;
 
 pub mod blobs;
 pub mod utils;
+pub mod local;
 
 #[derive(Clone)]
 pub enum BlobLoaderEvent {
     BlobLoaded(BlobData),
+}
+
+pub trait BlobLoaderService{
+    fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()>;
 }
 
 impl fmt::Debug for BlobLoaderEvent {
@@ -28,8 +51,7 @@ impl fmt::Debug for BlobLoaderEvent {
     }
 }
 
-#[allow(unused)]
-pub struct BlobLoaderService {
+pub struct BlobLoader {
     futures: FuturesUnordered<BoxFuture<'static, Result<BlobData>>>,
     codes_loading: HashSet<CodeId>,
 
@@ -37,7 +59,7 @@ pub struct BlobLoaderService {
     db: Database,
 }
 
-impl Stream for BlobLoaderService {
+impl Stream for BlobLoader {
     type Item = Result<BlobLoaderEvent>;
 
     fn poll_next(
@@ -60,13 +82,13 @@ impl Stream for BlobLoaderService {
     }
 }
 
-impl FusedStream for BlobLoaderService {
+impl FusedStream for BlobLoader {
     fn is_terminated(&self) -> bool {
         false
     }
 }
 
-impl BlobLoaderService {
+impl BlobLoader{
     pub fn new(blob_reader: Box<dyn BlobReader>, db: Database) -> Self {
         Self {
             futures: FuturesUnordered::new(),
@@ -75,8 +97,10 @@ impl BlobLoaderService {
             db,
         }
     }
+}
 
-    pub fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()> {
+impl BlobLoaderService for BlobLoader{
+    fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()> {
         log::info!("Request load codes: {codes:?}");
         for code_id in codes {
             if self.codes_loading.contains(&code_id) || self.db.original_code_exists(code_id) {

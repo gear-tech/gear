@@ -24,8 +24,6 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-// use ethexe_common::db::{CodesStorage, OnChainStorage};
-// use ethexe_db::Database;
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
 use std::{
