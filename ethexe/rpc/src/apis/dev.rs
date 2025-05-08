@@ -47,7 +47,7 @@ impl DevServer for DevApi {
     async fn set_blob(&self, tx_hash: H256, blob: Bytes) -> RpcResult<CodeId> {
         let code_id = CodeId::generate(&blob);
 
-        self.blob_reader.add_blob_transaction(tx_hash, blob.0).await;
+        self.blob_reader.storage_mut().insert(tx_hash, blob.0);
 
         Ok(code_id)
     }
