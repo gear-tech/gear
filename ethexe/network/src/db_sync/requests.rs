@@ -32,13 +32,19 @@ use libp2p::{
 };
 use rand::prelude::IteratorRandom;
 use std::{
+    cell::OnceCell,
     collections::{HashMap, HashSet, VecDeque},
+    pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
-use tokio::sync::{
-    oneshot,
-    oneshot::{Receiver, Sender},
+use tokio::{
+    sync::{
+        oneshot,
+        oneshot::{Receiver, Sender},
+    },
+    time,
+    time::Sleep,
 };
 
 pub(crate) struct OngoingRequests {
@@ -96,8 +102,9 @@ impl OngoingRequests {
         let request_id = self.next_request_id();
         let request = OngoingRequest {
             state: Some(State::SendToNextPeer(NewRequestRoundReason::FromQueue)),
-            timer: Timer::new("ongoing request", self.request_timeout),
+            timer: OnceCell::new(),
             peer_score_handle: self.peer_score_handle.clone(),
+            rounds: 0,
 
             request: request.clone(),
             partial_response: None,
@@ -120,8 +127,9 @@ impl OngoingRequests {
             request_id,
             OngoingRequest {
                 state: Some(State::SendToNextPeer(NewRequestRoundReason::FromQueue)),
-                timer: Timer::new("ongoing request", self.request_timeout),
+                timer: OnceCell::new(),
                 peer_score_handle: self.peer_score_handle.clone(),
+                rounds: 0,
 
                 request,
                 partial_response,
@@ -175,6 +183,7 @@ impl OngoingRequests {
                 task_cx: cx,
                 pending_events: VecDeque::new(),
                 connections: &self.connections,
+                request_timeout: self.request_timeout,
                 max_rounds_per_request: self.max_rounds_per_request as usize,
             };
 
@@ -235,6 +244,7 @@ struct OngoingRequestContext<'a, 'cx> {
     task_cx: &'a mut Context<'cx>,
     pending_events: VecDeque<OngoingRequestEvent>,
     connections: &'a ConnectionMap,
+    request_timeout: Duration,
     max_rounds_per_request: usize,
 }
 
@@ -251,8 +261,9 @@ enum State {
 struct OngoingRequest {
     // future state
     state: Option<State>,
-    timer: Timer,
+    timer: OnceCell<Pin<Box<Sleep>>>,
     peer_score_handle: Handle,
+    rounds: usize,
 
     // common state
     request: Request,
@@ -305,12 +316,13 @@ impl OngoingRequest {
     }
 
     fn poll(&mut self, ctx: &mut OngoingRequestContext) -> Poll<Result<Response, RequestFailure>> {
-        if self.timer.poll_unpin(ctx.task_cx).is_ready() {
-            return Poll::Ready(Err(RequestFailure::Timeout));
+        if let Some(timer) = self.timer.get_mut() {
+            if timer.poll_unpin(ctx.task_cx).is_ready() {
+                return Poll::Ready(Err(RequestFailure::Timeout));
+            }
         }
 
-        // TODO: after retry the branch can be always true
-        if self.tried_peers.len() > ctx.max_rounds_per_request {
+        if self.rounds > ctx.max_rounds_per_request {
             return Poll::Ready(Err(RequestFailure::OutOfRounds));
         }
 
@@ -319,8 +331,12 @@ impl OngoingRequest {
             let next_state = match self.state.take().expect("always Some") {
                 State::SendToNextPeer(reason) => {
                     if let Some(peer) = self.choose_next_peer(ctx.connections) {
-                        // FIXME: reactivated each time
-                        self.timer.start(());
+                        // we start the timer only when the first round starts
+                        self.timer
+                            .get_or_init(|| Box::pin(time::sleep(ctx.request_timeout)));
+
+                        self.rounds += 1;
+
                         ctx.pending_events
                             .push_back(OngoingRequestEvent::SendRequest(
                                 peer,
@@ -411,6 +427,7 @@ impl RetriableRequest {
             state: _,
             timer: _,
             peer_score_handle: _,
+            rounds: _,
             request,
             partial_response,
             original_request,
