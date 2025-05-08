@@ -24,7 +24,6 @@ use crate::{
     peer_score::Handle,
     utils::ConnectionMap,
 };
-use ethexe_service_utils::Timer;
 use futures::FutureExt;
 use libp2p::{
     request_response::OutboundRequestId,
@@ -48,7 +47,7 @@ use tokio::{
 };
 
 pub(crate) struct OngoingRequests {
-    requests: HashMap<RequestId, OngoingRequest>,
+    requests: HashMap<RequestId, OngoingRequestFuture>,
     active_requests: HashMap<OutboundRequestId, RequestId>,
     connections: ConnectionMap,
     request_id_counter: u64,
@@ -100,17 +99,8 @@ impl OngoingRequests {
 
     pub(crate) fn request(&mut self, request: Request) -> RequestId {
         let request_id = self.next_request_id();
-        let request = OngoingRequest {
-            state: Some(State::SendToNextPeer(NewRequestRoundReason::FromQueue)),
-            timer: OnceCell::new(),
-            peer_score_handle: self.peer_score_handle.clone(),
-            rounds: 0,
-
-            request: request.clone(),
-            partial_response: None,
-            original_request: request,
-            tried_peers: HashSet::new(),
-        };
+        let request =
+            OngoingRequestFuture::new(OngoingRequest::new(request), self.peer_score_handle.clone());
         self.requests.insert(request_id, request);
         request_id
     }
@@ -119,23 +109,10 @@ impl OngoingRequests {
         let RetriableRequest {
             request_id,
             request,
-            partial_response,
-            tried_peers,
-            original_request,
         } = request;
         self.requests.insert(
             request_id,
-            OngoingRequest {
-                state: Some(State::SendToNextPeer(NewRequestRoundReason::FromQueue)),
-                timer: OnceCell::new(),
-                peer_score_handle: self.peer_score_handle.clone(),
-                rounds: 0,
-
-                request,
-                partial_response,
-                original_request,
-                tried_peers,
-            },
+            OngoingRequestFuture::new(request, self.peer_score_handle.clone()),
         );
     }
 
@@ -178,7 +155,7 @@ impl OngoingRequests {
         let mut events = Vec::new();
         let mut kept = Vec::new();
 
-        for (request_id, mut request) in self.requests.drain() {
+        for (request_id, mut fut) in self.requests.drain() {
             let mut ctx = OngoingRequestContext {
                 task_cx: cx,
                 pending_events: VecDeque::new(),
@@ -187,7 +164,7 @@ impl OngoingRequests {
                 max_rounds_per_request: self.max_rounds_per_request as usize,
             };
 
-            let poll = request.poll(&mut ctx);
+            let poll = fut.poll(&mut ctx);
 
             for event in ctx.pending_events {
                 match event {
@@ -220,16 +197,38 @@ impl OngoingRequests {
                     response,
                 }),
                 Poll::Ready(Err(error)) => events.push(Event::RequestFailed {
-                    request: RetriableRequest::new(request_id, request),
+                    request: RetriableRequest {
+                        request_id,
+                        request: fut.inner,
+                    },
                     error,
                 }),
-                Poll::Pending => kept.push((request_id, request)),
+                Poll::Pending => kept.push((request_id, fut)),
             }
         }
 
         self.requests.extend(kept);
 
         events
+    }
+}
+
+#[derive(Debug, Clone)]
+struct OngoingRequest {
+    request: Request,
+    partial_response: Option<Response>,
+    original_request: Request,
+    tried_peers: HashSet<PeerId>,
+}
+
+impl OngoingRequest {
+    fn new(request: Request) -> Self {
+        Self {
+            request: request.clone(),
+            partial_response: None,
+            original_request: request,
+            tried_peers: Default::default(),
+        }
     }
 }
 
@@ -258,40 +257,44 @@ enum State {
     AwaitingExternalValidation(PeerId, Receiver<bool>, Response),
 }
 
-struct OngoingRequest {
-    // future state
+struct OngoingRequestFuture {
+    inner: OngoingRequest,
     state: Option<State>,
     timer: OnceCell<Pin<Box<Sleep>>>,
     peer_score_handle: Handle,
     rounds: usize,
-
-    // common state
-    request: Request,
-    partial_response: Option<Response>,
-    original_request: Request,
-    tried_peers: HashSet<PeerId>,
 }
 
-impl OngoingRequest {
+impl OngoingRequestFuture {
+    fn new(ongoing_request: OngoingRequest, peer_score_handle: Handle) -> Self {
+        Self {
+            inner: ongoing_request,
+            state: Some(State::SendToNextPeer(NewRequestRoundReason::FromQueue)),
+            timer: OnceCell::new(),
+            peer_score_handle,
+            rounds: 0,
+        }
+    }
+
     fn choose_next_peer(&mut self, connections: &ConnectionMap) -> Option<PeerId> {
         let peers: HashSet<PeerId> = connections.peers().collect();
         let peer = peers
-            .difference(&self.tried_peers)
+            .difference(&self.inner.tried_peers)
             .choose_stable(&mut rand::thread_rng())
             .copied();
-        self.tried_peers.extend(peer);
+        self.inner.tried_peers.extend(peer);
         peer
     }
 
     fn merge_and_strip(&mut self, peer: PeerId, new_response: Response) -> Response {
-        let mut response = if let Some(mut response) = self.partial_response.take() {
+        let mut response = if let Some(mut response) = self.inner.partial_response.take() {
             response.merge(new_response);
             response
         } else {
             new_response
         };
 
-        if response.strip(&self.original_request) {
+        if response.strip(&self.inner.original_request) {
             log::debug!("data stripped in response from {peer}");
             self.peer_score_handle.excessive_data(peer);
         }
@@ -340,7 +343,7 @@ impl OngoingRequest {
                         ctx.pending_events
                             .push_back(OngoingRequestEvent::SendRequest(
                                 peer,
-                                self.request.clone(),
+                                self.inner.request.clone(),
                                 reason,
                             ));
                         State::AwaitingResponse
@@ -375,9 +378,9 @@ impl OngoingRequest {
                 },
                 State::OnPeerFailure => State::SendToNextPeer(NewRequestRoundReason::PeerFailed),
                 State::MergeAndStrip(peer, response) => {
-                    if let Some(new_request) = self.request.difference(&response) {
-                        self.request = new_request;
-                        self.partial_response = Some(self.merge_and_strip(peer, response));
+                    if let Some(new_request) = self.inner.request.difference(&response) {
+                        self.inner.request = new_request;
+                        self.inner.partial_response = Some(self.merge_and_strip(peer, response));
                         State::SendToNextPeer(NewRequestRoundReason::PartialData)
                     } else {
                         let response = self.merge_and_strip(peer, response);
@@ -412,36 +415,7 @@ impl OngoingRequest {
 #[derive(Debug, Clone)]
 pub struct RetriableRequest {
     request_id: RequestId,
-
-    // common state
-    request: Request,
-    partial_response: Option<Response>,
-    tried_peers: HashSet<PeerId>,
-    original_request: Request,
-}
-
-impl RetriableRequest {
-    fn new(
-        request_id: RequestId,
-        OngoingRequest {
-            state: _,
-            timer: _,
-            peer_score_handle: _,
-            rounds: _,
-            request,
-            partial_response,
-            original_request,
-            tried_peers,
-        }: OngoingRequest,
-    ) -> Self {
-        Self {
-            request_id,
-            request,
-            partial_response,
-            tried_peers,
-            original_request,
-        }
-    }
+    request: OngoingRequest,
 }
 
 impl PartialEq for RetriableRequest {
