@@ -29,6 +29,10 @@ use alloy::{
     rpc::types::{anvil::MineOptions, Header as RpcHeader},
 };
 use anyhow::Result;
+use ethexe_blob_loader::{
+    blobs::{BlobReader, MockBlobReader},
+    utils::read_code_from_tx_hash,
+};
 use ethexe_common::{
     db::{CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -37,7 +41,7 @@ use ethexe_common::{
 use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader};
+use ethexe_observer::EthereumConfig;
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
@@ -368,6 +372,7 @@ async fn mailbox() {
 
     let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
+    log::info!("Service started");
 
     let res = env
         .upload_code(demo_async::WASM_BINARY)
@@ -376,6 +381,7 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
+    log::info!("code uploaded");
 
     assert!(res.valid);
 
@@ -388,6 +394,7 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
+    log::info!("program created");
 
     let init_res = env
         .send_message(res.program_id, &env.sender_id.encode(), 0)
@@ -396,6 +403,7 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
+    log::info!("sended message");
     assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
     let pid = res.program_id;
@@ -1298,6 +1306,7 @@ mod utils {
     use super::*;
     use crate::Event;
     use alloy::eips::BlockId;
+    use ethexe_blob_loader::BlobLoaderService;
     use ethexe_common::SimpleBlockData;
     use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
     use ethexe_db::OnChainStorage;
@@ -1475,6 +1484,8 @@ mod utils {
             let (broadcaster, _events_stream) = {
                 let (sender, mut receiver) = broadcast::channel(2048);
                 let cloned_sender = sender.clone();
+                let cloned_blob_reader = blob_reader.clone_boxed();
+                let cloned_db = db.clone();
 
                 let (send_subscription_created, receive_subscription_created) =
                     tokio::sync::oneshot::channel::<()>();
@@ -1484,6 +1495,22 @@ mod utils {
 
                         while let Ok(event) = observer.select_next_some().await {
                             log::trace!(target: "test-event", "📗 Event: {:?}", event);
+                            if let ObserverEvent::RequestLoadBlobs(codes) = event.clone() {
+                                for code in codes {
+                                    let blob_info = cloned_db.code_blob_info(code).unwrap();
+
+                                    let blob_data = read_code_from_tx_hash(
+                                        cloned_blob_reader.clone(),
+                                        code,
+                                        blob_info.timestamp,
+                                        blob_info.tx_hash,
+                                        None,
+                                    )
+                                    .await
+                                    .unwrap();
+                                    observer.receive_loaded_blob(blob_data).unwrap();
+                                }
+                            }
 
                             cloned_sender
                                 .send(event)
@@ -2181,6 +2208,9 @@ mod utils {
             .await
             .unwrap();
 
+            let blob_loader =
+                BlobLoaderService::new(self.blob_reader.clone_boxed(), self.db.clone());
+
             let tx_pool_service = TxPoolService::new(self.db.clone());
 
             let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
@@ -2192,6 +2222,7 @@ mod utils {
             let service = Service::new_from_parts(
                 self.db.clone(),
                 observer,
+                blob_loader,
                 processor,
                 self.signer.clone(),
                 tx_pool_service,

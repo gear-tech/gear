@@ -18,6 +18,10 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{bail, Context, Result};
+use ethexe_blob_loader::{
+    blobs::{BlobData, BlobReader, ConsensusLayerBlobReader, MockBlobReader},
+    BlobLoaderEvent, BlobLoaderService,
+};
 use ethexe_common::ProducerBlock;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -27,9 +31,7 @@ use ethexe_consensus::{
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{NetworkEvent, NetworkService};
-use ethexe_observer::{
-    BlobData, BlobReader, ConsensusLayerBlobReader, MockBlobReader, ObserverEvent, ObserverService,
-};
+use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
@@ -59,6 +61,7 @@ pub enum Event {
     Consensus(ConsensusEvent),
     Network(NetworkEvent),
     Observer(ObserverEvent),
+    BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
 }
@@ -67,6 +70,7 @@ pub enum Event {
 pub struct Service {
     db: Database,
     observer: ObserverService,
+    blob_loader: BlobLoaderService,
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
@@ -123,10 +127,12 @@ impl Service {
             &config.ethereum,
             config.node.eth_max_sync_depth,
             db.clone(),
-            blob_reader,
+            blob_reader.clone(),
         )
         .await
         .context("failed to create observer service")?;
+
+        let blob_loader = BlobLoaderService::new(blob_reader, db.clone());
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -237,6 +243,7 @@ impl Service {
             db,
             network,
             observer,
+            blob_loader,
             compute,
             consensus,
             signer,
@@ -261,6 +268,7 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
+        blob_loader: BlobLoaderService,
         processor: Processor,
         signer: Signer,
         tx_pool: TxPoolService,
@@ -276,6 +284,7 @@ impl Service {
         Self {
             db,
             observer,
+            blob_loader,
             compute,
             consensus,
             signer,
@@ -303,6 +312,7 @@ impl Service {
             db,
             mut network,
             mut observer,
+            mut blob_loader,
             mut compute,
             mut consensus,
             signer: _signer,
@@ -340,6 +350,7 @@ impl Service {
                 event = consensus.select_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
+                event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
@@ -349,6 +360,7 @@ impl Service {
             };
 
             log::trace!("Primary service produced event, start handling: {event:?}");
+            log::info!("❓❓❓ Service event: {event:?}");
 
             // Broadcast event.
             // Never supposed to be Some in production.
@@ -365,15 +377,13 @@ impl Service {
                 Event::Observer(event) => match event {
                     ObserverEvent::Blob(BlobData {
                         code_id,
-                        timestamp,
+                        timestamp: _,
                         code,
                     }) => {
                         log::info!(
                             "🔢 receive a code blob, code_id {code_id}, code size {}",
                             code.len()
                         );
-
-                        compute.receive_code(code_id, timestamp, code)
                     }
                     ObserverEvent::Block(block_data) => {
                         log::info!(
@@ -392,6 +402,23 @@ impl Service {
                         // 2) all approved(at least) codes are loaded and available in database.
 
                         consensus.receive_synced_block(data)?
+                    }
+                    ObserverEvent::RequestLoadBlobs(codes) => {
+                        blob_loader.load_codes(codes, None).unwrap();
+                    }
+                },
+                Event::BlobLoader(event) => match event {
+                    BlobLoaderEvent::BlobLoaded(blob_data) => {
+                        if let Err(e) = observer.receive_loaded_blob(blob_data.clone()) {
+                            // TODO
+                            log::error!("Error in receiving loaded blob: {e:?}");
+                        };
+
+                        compute.receive_code(
+                            blob_data.code_id,
+                            blob_data.timestamp,
+                            blob_data.code,
+                        );
                     }
                 },
                 Event::Compute(event) => match event {

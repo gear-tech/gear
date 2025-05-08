@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_observer::MockBlobReader;
+use ethexe_blob_loader::blobs::MockBlobReader;
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
 use jsonrpsee::{

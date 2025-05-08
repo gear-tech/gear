@@ -25,37 +25,28 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
+use ethexe_blob_loader::blobs::{BlobData, BlobReader};
 use ethexe_common::{db::OnChainStorage, SimpleBlockData};
-use ethexe_db::{BlockHeader, CodeInfo, Database};
+use ethexe_db::{BlockHeader, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_signer::Address;
-use futures::{
-    future::BoxFuture,
-    stream::{FusedStream, FuturesUnordered},
-    FutureExt, Stream, StreamExt,
-};
+use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
 use gprimitives::{CodeId, H256};
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     fmt,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
-use sync::ChainSync;
-use utils::*;
+use sync::{ChainSync, ChainSyncState};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
-mod blobs;
 mod sync;
-mod utils;
 
 #[cfg(test)]
 mod tests;
 
-pub use blobs::*;
-
-type BlobDownloadFuture = BoxFuture<'static, Result<BlobData>>;
-type SyncFuture = BoxFuture<'static, Result<(BlockSyncedData, Vec<(CodeId, CodeInfo)>)>>;
 type HeadersSubscriptionFuture =
     BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
 
@@ -74,27 +65,12 @@ pub struct BlockSyncedData {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct BlobData {
-    pub code_id: CodeId,
-    pub timestamp: u64,
-    pub code: Vec<u8>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
+    // TODO: remove `Blob` event
     Blob(BlobData),
     Block(SimpleBlockData),
     BlockSynced(BlockSyncedData),
-}
-
-impl fmt::Debug for BlobData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BlobData")
-            .field("code_id", &self.code_id)
-            .field("timestamp", &self.timestamp)
-            .field("code", &format_args!("{} bytes", self.code.len()))
-            .finish()
-    }
+    RequestLoadBlobs(Vec<CodeId>),
 }
 
 impl fmt::Debug for ObserverEvent {
@@ -103,6 +79,9 @@ impl fmt::Debug for ObserverEvent {
             ObserverEvent::Blob(data) => data.fmt(f),
             ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
             ObserverEvent::BlockSynced(hash) => f.debug_tuple("BlockSynced").field(hash).finish(),
+            ObserverEvent::RequestLoadBlobs(codes) => {
+                f.debug_tuple("RequestLoadBlobs").field(codes).finish()
+            }
         }
     }
 }
@@ -119,16 +98,26 @@ struct RuntimeConfig {
 // TODO #4552: make tests for observer service
 pub struct ObserverService {
     provider: RootProvider,
-    db: Database,
-    blobs_reader: Box<dyn BlobReader>,
-
+    // db: Database,
+    // TODO: remove `blobs_reader` from `ObserverService` struct
+    // blobs_reader: Box<dyn BlobReader>,
     config: RuntimeConfig,
+
+    chain_sync: ChainSync,
+    codes_receiver: UnboundedReceiver<Vec<CodeId>>,
+    loaded_blobs: VecDeque<BlobData>,
+
+    // config: RuntimeConfig,
     last_block_number: u32,
     headers_stream: SubscriptionStream<Header>,
-    block_sync_queue: VecDeque<Header>,
 
-    sync_future: Option<SyncFuture>,
-    codes_futures: FuturesUnordered<BlobDownloadFuture>,
+    // TODO: remove block_sync_queue
+    // block_sync_queue: VecDeque<Header>,
+
+    // sync_future: Option<SyncFuture>,
+
+    // TODO: remove `codes_futures` also
+    // codes_futures: FuturesUnordered<BlobDownloadFuture>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -171,42 +160,25 @@ impl Stream for ObserverService {
             };
 
             log::trace!("Received a new block: {data:?}");
-
-            self.block_sync_queue.push_back(header);
+            // self.block_sync_queue.push_back(header.clone());
+            self.chain_sync.pending_blocks.push_front(header);
 
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
         }
 
-        if self.sync_future.is_none() {
-            if let Some(header) = self.block_sync_queue.pop_front() {
-                let sync = ChainSync {
-                    provider: self.provider.clone(),
-                    db: self.db.clone(),
-                    blobs_reader: self.blobs_reader.clone(),
-                    config: self.config.clone(),
-                };
-                self.sync_future = Some(Box::pin(sync.sync(header)));
+        if let Poll::Ready(Some(codes)) = self.codes_receiver.poll_recv(cx) {
+            if !codes.is_empty() {
+                return Poll::Ready(Some(Ok(ObserverEvent::RequestLoadBlobs(codes))));
             }
         }
 
-        if let Some(fut) = self.sync_future.as_mut() {
-            if let Poll::Ready(res) = fut.poll_unpin(cx) {
-                self.sync_future = None;
-
-                let res = res.map(|(hash, codes)| {
-                    for (code_id, code_info) in codes {
-                        self.lookup_code(code_id, code_info.timestamp, code_info.tx_hash);
-                    }
-
-                    ObserverEvent::BlockSynced(hash)
-                });
-
-                return Poll::Ready(Some(res));
-            }
+        if let Poll::Ready(result) = self.chain_sync.poll_unpin(cx) {
+            let event = result.map(ObserverEvent::BlockSynced);
+            return Poll::Ready(Some(event));
         }
 
-        if let Poll::Ready(Some(res)) = self.codes_futures.poll_next_unpin(cx) {
-            return Poll::Ready(Some(res.map(ObserverEvent::Blob)));
+        if let Some(blob_data) = self.loaded_blobs.pop_back() {
+            return Poll::Ready(Some(Ok(ObserverEvent::Blob(blob_data))));
         }
 
         Poll::Pending
@@ -224,7 +196,7 @@ impl ObserverService {
         eth_cfg: &EthereumConfig,
         max_sync_depth: u32,
         db: Database,
-        blobs_reader: Box<dyn BlobReader>,
+        _blobs_reader: Box<dyn BlobReader>,
     ) -> Result<Self> {
         let EthereumConfig {
             rpc,
@@ -250,24 +222,43 @@ impl ObserverService {
             .context("failed to subscribe blocks")?
             .into_stream();
 
+        let runtime_cfg = RuntimeConfig {
+            router_address: *router_address,
+            wvara_address,
+            max_sync_depth,
+            batched_sync_depth: 2,
+            block_time: *block_time,
+        };
+
+        let (s, r) = unbounded_channel();
+
         Ok(Self {
-            provider,
-            db,
-            blobs_reader,
-            config: RuntimeConfig {
-                router_address: *router_address,
-                wvara_address,
-                max_sync_depth,
-                // TODO #4562: make this configurable. Important: must be greater than 1.
-                batched_sync_depth: 2,
-                block_time: *block_time,
+            provider: provider.clone(),
+            // db: db.clone(),
+            // blobs_reader: blobs_reader.clone(),
+            config: runtime_cfg.clone(),
+            chain_sync: ChainSync {
+                // blobs_reader,
+                db,
+                config: runtime_cfg,
+                provider,
+                codes_sender: s,
+                state: ChainSyncState::WaitingForBlock,
+                load_chain_fut: None,
+                finalize_sync_fut: None,
+                codes_to_wait: None,
+                chain: None,
+                loaded_codes: HashSet::new(),
+                pending_blocks: VecDeque::new(),
             },
+            codes_receiver: r,
+            loaded_blobs: VecDeque::new(),
             last_block_number: 0,
             subscription_future: None,
             headers_stream,
-            codes_futures: Default::default(),
-            block_sync_queue: Default::default(),
-            sync_future: Default::default(),
+            // codes_futures: Default::default(),
+            // block_sync_queue: Default::default(),
+            // sync_future: Default::default(),
         })
     }
 
@@ -320,6 +311,18 @@ impl ObserverService {
         Ok(())
     }
 
+    pub fn receive_loaded_blob(&mut self, blob_data: BlobData) -> Result<()> {
+        // let blob_info = self
+        //     .db
+        //     .code_blob_info()
+        //     .ok_or(anyhow!("Expect CodeInfo for {code_id} exists in database"))?;
+
+        self.chain_sync.receive_loaded_code(blob_data.code_id);
+        self.loaded_blobs.push_front(blob_data);
+        Ok(())
+    }
+
+    // TODO: think about removing this
     pub fn provider(&self) -> &RootProvider {
         &self.provider
     }
@@ -327,7 +330,8 @@ impl ObserverService {
     pub fn status(&self) -> ObserverStatus {
         ObserverStatus {
             eth_best_height: self.last_block_number,
-            pending_codes: self.codes_futures.len(),
+            // TODO: remove `pending_codes` from ObserverStatus
+            pending_codes: 0usize,
         }
     }
 
@@ -341,19 +345,9 @@ impl ObserverService {
             .get_block_by_hash(block.0.into())
             .await?
             .context("forced block not found")?;
-        self.block_sync_queue.push_back(block.header);
+        // self.block_sync_queue.push_back(block.header.clone());
+        self.chain_sync.sync_chain_header(block.header);
         Ok(())
-    }
-
-    fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
-        self.codes_futures
-            .push(Box::pin(utils::read_code_from_tx_hash(
-                self.blobs_reader.clone(),
-                code_id,
-                timestamp,
-                tx_hash,
-                Some(3),
-            )));
     }
 }
 
