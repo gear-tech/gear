@@ -559,9 +559,13 @@ pub struct Dispatch {
     pub context: Option<ContextStore>,
     /// Origin of the message.
     pub origin: Origin,
+    /// If to call on eth.
+    /// Currently only used for replies: assert_eq!(message.call, replyToThisMessage.call);
+    pub call: bool,
 }
 
 impl Dispatch {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<S: Storage>(
         storage: &S,
         id: MessageId,
@@ -570,6 +574,7 @@ impl Dispatch {
         value: u128,
         is_init: bool,
         origin: Origin,
+        call: bool,
     ) -> Result<Self> {
         let payload = storage.write_payload_raw(payload)?;
 
@@ -588,6 +593,7 @@ impl Dispatch {
             details: None,
             context: None,
             origin,
+            call,
         })
     }
 
@@ -598,6 +604,7 @@ impl Dispatch {
         payload: Vec<u8>,
         value: u128,
         origin: Origin,
+        call: bool,
     ) -> Result<Self> {
         let payload_hash = storage.write_payload_raw(payload)?;
 
@@ -608,6 +615,7 @@ impl Dispatch {
             value,
             SuccessReplyReason::Manual,
             origin,
+            call,
         ))
     }
 
@@ -618,6 +626,7 @@ impl Dispatch {
         value: u128,
         reply_code: impl Into<ReplyCode>,
         origin: Origin,
+        call: bool,
     ) -> Self {
         Self {
             id: MessageId::generate_reply(reply_to),
@@ -628,6 +637,7 @@ impl Dispatch {
             details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
             context: None,
             origin,
+            call,
         }
     }
 
@@ -635,6 +645,7 @@ impl Dispatch {
         storage: &S,
         value: StoredDispatch,
         origin: Origin,
+        call_reply: bool,
     ) -> Self {
         let (kind, message, context) = value.into_parts();
         let (id, source, _destination, payload, value, details) = message.into_parts();
@@ -652,6 +663,7 @@ impl Dispatch {
             details,
             context,
             origin,
+            call: call_reply,
         }
     }
 
@@ -661,6 +673,7 @@ impl Dispatch {
             payload,
             value,
             details,
+            call,
             ..
         } = self;
 
@@ -672,6 +685,7 @@ impl Dispatch {
             payload,
             value,
             reply_details: details.and_then(|d| d.to_reply_details()),
+            call,
         }
     }
 }
