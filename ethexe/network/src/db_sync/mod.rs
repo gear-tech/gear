@@ -411,7 +411,7 @@ impl Behaviour {
                     self.peer_score_handle.unsupported_protocol(peer);
                 }
 
-                self.ongoing_requests.on_peer_failure(peer, request_id);
+                self.ongoing_requests.on_peer_failure(request_id);
             }
             request_response::Event::InboundFailure {
                 peer,
@@ -544,25 +544,11 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
+    use assert_matches::assert_matches;
     use ethexe_db::MemDb;
     use libp2p::{futures::StreamExt, swarm::SwarmEvent, Swarm};
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};
-
-    macro_rules! assert_matches {
-        ($left:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )? $(,)?) => {
-            match $left {
-                $( $pattern )|+ $( if $guard )? => {}
-                ref left_val => {
-                    panic!(
-                        "matching assertion failed:\n{:?}\n does not match\n{}",
-                        left_val,
-                        stringify!($($pattern)|+ $(if $guard)?),
-                    );
-                }
-            }
-        };
-    }
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default());
@@ -887,18 +873,21 @@ mod tests {
 
         // first round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id)
+        assert_matches!(
+            event,
+            Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id
         );
         // second round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::PartialData, .. } if rid == request_id)
+        assert_matches!(
+            event,
+            Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::PartialData, .. } if rid == request_id
         );
         // third round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::PartialData, .. } if rid == request_id)
+        assert_matches!(
+            event,
+            Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::PartialData, .. } if rid == request_id
         );
 
         let event = alice.next_behaviour_event().await;
@@ -1003,9 +992,7 @@ mod tests {
         assert_matches!(event, Event::PendingStateRequest { request_id: rid } if rid == request_id);
 
         let event = alice.next_swarm_event().await;
-        assert!(
-            matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id)
-        );
+        assert_matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id);
     }
 
     #[tokio::test]
