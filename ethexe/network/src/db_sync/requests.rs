@@ -253,7 +253,7 @@ enum State {
     AwaitingResponse,
     OnPeerResponse(PeerId, Response),
     OnPeerFailure,
-    MergeAndStrip(PeerId, Response),
+    TryComplete(PeerId, Response),
     AwaitingExternalValidation(PeerId, Receiver<bool>, Response),
 }
 
@@ -300,6 +300,17 @@ impl OngoingRequestFuture {
         }
 
         response
+    }
+
+    fn try_complete(&mut self, peer: PeerId, response: Response) -> Option<Response> {
+        if let Some(new_request) = self.inner.request.difference(&response) {
+            self.inner.request = new_request;
+            self.inner.partial_response = Some(self.merge_and_strip(peer, response));
+            None
+        } else {
+            let response = self.merge_and_strip(peer, response);
+            Some(response)
+        }
     }
 
     fn on_peer_response(&mut self, peer: PeerId, response: Response) {
@@ -359,7 +370,7 @@ impl OngoingRequestFuture {
                     State::AwaitingResponse
                 }
                 State::OnPeerResponse(peer, response) => match response.validate() {
-                    Ok(true) => State::MergeAndStrip(peer, response),
+                    Ok(true) => State::TryComplete(peer, response),
                     Ok(false) => {
                         let (sender, receiver) = oneshot::channel();
                         ctx.pending_events.push_back(
@@ -377,19 +388,13 @@ impl OngoingRequestFuture {
                     }
                 },
                 State::OnPeerFailure => State::SendToNextPeer(NewRequestRoundReason::PeerFailed),
-                State::MergeAndStrip(peer, response) => {
-                    if let Some(new_request) = self.inner.request.difference(&response) {
-                        self.inner.request = new_request;
-                        self.inner.partial_response = Some(self.merge_and_strip(peer, response));
-                        State::SendToNextPeer(NewRequestRoundReason::PartialData)
-                    } else {
-                        let response = self.merge_and_strip(peer, response);
-                        return Poll::Ready(Ok(response));
-                    }
-                }
+                State::TryComplete(peer, response) => match self.try_complete(peer, response) {
+                    Some(response) => return Poll::Ready(Ok(response)),
+                    None => State::SendToNextPeer(NewRequestRoundReason::PartialData),
+                },
                 State::AwaitingExternalValidation(peer, mut receiver, response) => {
                     match receiver.poll_unpin(ctx.task_cx) {
-                        Poll::Ready(Ok(true)) => State::MergeAndStrip(peer, response),
+                        Poll::Ready(Ok(true)) => State::TryComplete(peer, response),
                         Poll::Ready(Ok(false)) => {
                             State::SendToNextPeer(NewRequestRoundReason::PartialData)
                         }
