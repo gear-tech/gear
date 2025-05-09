@@ -33,6 +33,8 @@ mod ext;
 mod handler;
 mod precharge;
 mod processing;
+#[cfg(all(test, feature = "std"))]
+mod tests;
 
 pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ContextChargedForProgram,

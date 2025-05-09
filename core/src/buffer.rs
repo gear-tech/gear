@@ -161,6 +161,13 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
         Ok(())
     }
 
+    /// Replace internal data with new one.
+    pub fn try_replace(&mut self, values: Self) -> Result<(), E> {
+        (values.0.len() <= N).then_some(()).ok_or_else(E::default)?;
+        self.0 = values.0;
+        Ok(())
+    }
+
     /// Returns ref to the internal data.
     pub fn inner(&self) -> &[T] {
         &self.0
@@ -266,6 +273,15 @@ mod test {
         buf.try_prepend(prepend_buf).unwrap();
 
         assert_eq!(buf.inner(), &[6, 7, 8, 1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_try_replace_works() {
+        let mut buf = TestBuffer::try_from(vec![1, 2, 3, 4, 5]).unwrap();
+        let replace_buf = TestBuffer::try_from(vec![6, 7, 8]).unwrap();
+        buf.try_replace(replace_buf).unwrap();
+
+        assert_eq!(buf.inner(), &[6, 7, 8]);
     }
 
     #[test]
