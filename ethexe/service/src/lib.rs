@@ -430,7 +430,8 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::DbResponse { .. } => {
+                        NetworkEvent::DbResponse { .. }
+                        | NetworkEvent::DbExternalValidation { .. } => {
                             unreachable!("`db-sync` is never used for requests in the main loop")
                         }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}

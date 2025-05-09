@@ -57,6 +57,7 @@ use std::{
     task::Poll,
     time::Duration,
 };
+use tokio::sync::oneshot::Sender;
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
@@ -67,11 +68,16 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-#[derive(Clone, Eq, PartialEq)]
+//#[derive(Clone, Eq, PartialEq)]
 pub enum NetworkEvent {
     DbResponse {
         request_id: db_sync::RequestId,
         result: Result<db_sync::Response, (db_sync::RetriableRequest, db_sync::RequestFailure)>,
+    },
+    DbExternalValidation {
+        request_id: db_sync::RequestId,
+        response: db_sync::Response,
+        sender: Sender<bool>,
     },
     Message {
         data: Vec<u8>,
@@ -88,6 +94,16 @@ impl fmt::Debug for NetworkEvent {
                 .debug_struct("DbResponse")
                 .field("request_id", request_id)
                 .field("result", result)
+                .finish(),
+            NetworkEvent::DbExternalValidation {
+                request_id,
+                response,
+                sender,
+            } => f
+                .debug_struct("DbExternalValidation")
+                .field("request_id", request_id)
+                .field("response", response)
+                .field("sender", sender)
                 .finish(),
             NetworkEvent::Message { data, source } => f
                 .debug_struct("Message")
@@ -617,6 +633,7 @@ fn offchain_tx_topic() -> gossipsub::IdentTopic {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
+    use assert_matches::assert_matches;
     use ethexe_db::MemDb;
     use ethexe_signer::{FSKeyStorage, Signer};
     use tokio::time::{timeout, Duration};
@@ -667,14 +684,14 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_eq!(
+        assert_matches!(
             event,
             NetworkEvent::DbResponse {
-                request_id,
-                result: Ok(db_sync::Response::Hashes(
-                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-                ))
-            }
+                request_id: rid,
+                result
+            } if rid == request_id && result == Ok(db_sync::Response::Hashes(
+                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+            ))
         );
     }
 
@@ -698,6 +715,6 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
+        assert_matches!(event, NetworkEvent::PeerBlocked(peer) if peer == service2_peer_id);
     }
 }
