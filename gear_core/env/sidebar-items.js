@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["DropPayloadLockBound","PayloadSliceAccess","PayloadSliceLock","UnlockPayloadBound"],"trait":["Externalities"]};
