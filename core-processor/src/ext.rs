@@ -25,7 +25,7 @@ use alloc::{
 use core::marker::PhantomData;
 use gear_core::{
     costs::{CostToken, ExtCosts, LazyPagesCosts},
-    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    env::{Externalities, PayloadCharge},
     env_vars::{EnvVars, EnvVarsV1},
     gas::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
@@ -37,7 +37,7 @@ use gear_core::{
     },
     message::{
         ContextOutcomeDrain, ContextStore, Dispatch, DispatchKind, GasLimit, HandlePacket,
-        InitPacket, MessageContext, Packet, ReplyPacket,
+        IncomingDispatch, InitPacket, MessageContext, Packet, ReplyPacket,
     },
     pages::{
         numerated::{interval::Interval, tree::IntervalsTree},
@@ -148,6 +148,7 @@ impl ProcessorContext {
 
 #[derive(Debug)]
 pub struct ExtInfo {
+    pub incoming_dispatch: IncomingDispatch,
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
@@ -593,7 +594,7 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
             pages_data.insert(page, buf);
         }
 
-        let (outcome, mut context_store) = message_context.drain();
+        let (outcome, mut context_store, incoming_dispatch) = message_context.drain();
         let ContextOutcomeDrain {
             outgoing_dispatches: generated_dispatches,
             awakening,
@@ -612,6 +613,7 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
         }
 
         let info = ExtInfo {
+            incoming_dispatch,
             gas_amount: gas_counter.to_amount(),
             gas_reserver,
             system_reservation_context,
@@ -1141,11 +1143,16 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         Ok(())
     }
 
-    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::FallibleError> {
+    fn payload_bytes_charge(
+        &mut self,
+        at: u32,
+        len: u32,
+    ) -> Result<PayloadCharge, Self::FallibleError> {
         self.with_changes(|mutator| {
             let end = at
                 .checked_add(len)
                 .ok_or(FallibleExecutionError::TooBigReadLen)?;
+
             mutator.charge_gas_if_enough(
                 mutator
                     .context
@@ -1154,13 +1161,21 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
                     .gr_read_per_byte
                     .cost_for(len.into()),
             )?;
-            PayloadSliceLock::try_new((at, end), &mut mutator.ext.context.message_context)
-                .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
+
+            Ok(PayloadCharge { at, end })
         })
     }
 
-    fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
-        UnlockPayloadBound::from((&mut self.context.message_context, payload_holder))
+    fn payload_bytes(&self, charge: PayloadCharge) -> Result<&[u8], Self::FallibleError> {
+        let payload_bytes = self
+            .context
+            .message_context
+            .current()
+            .payload_bytes()
+            .get(charge.at as usize..charge.end as usize)
+            .ok_or(FallibleExecutionError::TooBigReadLen)?;
+
+        Ok(payload_bytes)
     }
 
     fn size(&self) -> Result<usize, Self::UnrecoverableError> {
@@ -1728,7 +1743,7 @@ mod tests {
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
         );
 
-        let (outcome, _) = ext.context.message_context.drain();
+        let (outcome, _, _) = ext.context.message_context.drain();
         let ContextOutcomeDrain {
             mut outgoing_dispatches,
             ..
@@ -1755,11 +1770,12 @@ mod tests {
                 .build(),
         );
 
-        let res = ext
-            .context
-            .message_context
-            .payload_mut()
-            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        let res = unsafe {
+            ext.context
+                .message_context
+                .payload_mut()
+                .try_extend_from_slice(&[1, 2, 3, 4, 5, 6])
+        };
         assert!(res.is_ok());
 
         let fake_handle = 0;
@@ -1811,7 +1827,7 @@ mod tests {
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
         );
 
-        let (outcome, _) = ext.context.message_context.drain();
+        let (outcome, _, _) = ext.context.message_context.drain();
         let ContextOutcomeDrain {
             mut outgoing_dispatches,
             ..
@@ -1901,7 +1917,7 @@ mod tests {
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
         );
 
-        let (outcome, _) = ext.context.message_context.drain();
+        let (outcome, _, _) = ext.context.message_context.drain();
         let ContextOutcomeDrain {
             mut outgoing_dispatches,
             ..
@@ -1927,11 +1943,12 @@ mod tests {
                 .build(),
         );
 
-        let res = ext
-            .context
-            .message_context
-            .payload_mut()
-            .try_extend_from_slice(&[1, 2, 3, 4, 5, 6]);
+        let res = unsafe {
+            ext.context
+                .message_context
+                .payload_mut()
+                .try_extend_from_slice(&[1, 2, 3, 4, 5, 6])
+        };
         assert!(res.is_ok());
 
         let res = ext.reply_push_input(2, 3);
@@ -1973,7 +1990,7 @@ mod tests {
             FallibleExtError::Core(FallibleExtErrorCore::Message(MessageError::LateAccess))
         );
 
-        let (outcome, _) = ext.context.message_context.drain();
+        let (outcome, _, _) = ext.context.message_context.drain();
         let ContextOutcomeDrain {
             mut outgoing_dispatches,
             ..

@@ -29,17 +29,17 @@ use scale_info::{
     TypeInfo,
 };
 
-/// Incoming message.
+/// Incoming message info.
 ///
-/// Used for program execution.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-pub struct IncomingMessage {
+/// Used for easy copying.
+#[derive(
+    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
+pub struct IncomingMessageInfo {
     /// Message id.
     id: MessageId,
     /// Message source.
     source: ProgramId,
-    /// Message payload.
-    payload: Payload,
     /// Message gas limit. Required here.
     gas_limit: GasLimit,
     /// Message value.
@@ -48,12 +48,11 @@ pub struct IncomingMessage {
     details: Option<MessageDetails>,
 }
 
-impl IncomingMessage {
-    /// Create new IncomingMessage.
+impl IncomingMessageInfo {
+    /// Create new IncomingMessageInfo.
     pub fn new(
         id: MessageId,
         source: ProgramId,
-        payload: Payload,
         gas_limit: GasLimit,
         value: Value,
         details: Option<MessageDetails>,
@@ -61,23 +60,10 @@ impl IncomingMessage {
         Self {
             id,
             source,
-            payload,
             gas_limit,
             value,
             details,
         }
-    }
-
-    /// Convert IncomingMessage into gasless StoredMessage.
-    pub fn into_stored(self, destination: ProgramId) -> StoredMessage {
-        StoredMessage::new(
-            self.id,
-            self.source,
-            destination,
-            self.payload,
-            self.value,
-            self.details,
-        )
     }
 
     /// Message id.
@@ -88,16 +74,6 @@ impl IncomingMessage {
     /// Message source.
     pub fn source(&self) -> ProgramId {
         self.source
-    }
-
-    /// Message payload bytes.
-    pub fn payload_bytes(&self) -> &[u8] {
-        self.payload.inner()
-    }
-
-    /// Mutable reference to message payload.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        &mut self.payload
     }
 
     /// Message gas limit.
@@ -123,6 +99,73 @@ impl IncomingMessage {
     /// Returns bool defining if message is reply.
     pub fn is_reply(&self) -> bool {
         self.details.map(|d| d.is_reply_details()).unwrap_or(false)
+    }
+}
+
+/// Incoming message.
+///
+/// Used for program execution.
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+pub struct IncomingMessage {
+    /// Message info
+    info: IncomingMessageInfo,
+    /// Message payload.
+    payload: Payload,
+}
+
+impl IncomingMessage {
+    /// Create new IncomingMessage.
+    pub fn new(
+        id: MessageId,
+        source: ProgramId,
+        payload: Payload,
+        gas_limit: GasLimit,
+        value: Value,
+        details: Option<MessageDetails>,
+    ) -> Self {
+        Self {
+            info: IncomingMessageInfo::new(id, source, gas_limit, value, details),
+            payload,
+        }
+    }
+
+    /// Convert IncomingMessage into gasless StoredMessage.
+    pub fn into_stored(self, destination: ProgramId) -> StoredMessage {
+        StoredMessage::new(
+            self.info.id,
+            self.info.source,
+            destination,
+            self.payload,
+            self.info.value,
+            self.info.details,
+        )
+    }
+
+    /// Message info.
+    pub fn info(&self) -> IncomingMessageInfo {
+        self.info
+    }
+
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
+    }
+
+    /// Mutable reference to message payload.
+    ///
+    /// # Safety
+    ///
+    /// Use only in tests or when you are sure what you are doing.
+    pub unsafe fn payload_mut(&mut self) -> &mut Payload {
+        &mut self.payload
+    }
+}
+
+impl Deref for IncomingMessage {
+    type Target = IncomingMessageInfo;
+
+    fn deref(&self) -> &Self::Target {
+        &self.info
     }
 }
 
@@ -179,6 +222,15 @@ impl IncomingDispatch {
     /// Dispatch message reference.
     pub fn message(&self) -> &IncomingMessage {
         &self.message
+    }
+
+    /// Dispatch message mutable reference.
+    ///
+    /// # Safety
+    ///
+    /// Use only in tests or when you are sure what you are doing.
+    pub unsafe fn message_mut(&mut self) -> &mut IncomingMessage {
+        &mut self.message
     }
 
     /// Previous execution context reference, if exists.

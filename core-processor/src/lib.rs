@@ -50,8 +50,8 @@ pub use precharge::{
 };
 pub use processing::{
     process, process_allowance_exceed, process_code_not_exists, process_execution_error,
-    process_failed_init, process_program_exited, process_reinstrumentation_error, process_success,
-    process_uninitialized,
+    process_execution_error_with_dispatch, process_failed_init, process_program_exited,
+    process_reinstrumentation_error, process_success, process_uninitialized,
 };
 
 /// Informational functions for core-processor and executor.

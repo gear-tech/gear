@@ -57,7 +57,7 @@ use common::{storage::Limiter, BlockLimiter};
 use core::marker::PhantomData;
 use core_processor::{
     common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
-    process_allowance_exceed, process_execution_error, process_success,
+    process_allowance_exceed, process_execution_error_with_dispatch, process_success,
     SuccessfulDispatchResultKind, SystemReservationContext,
 };
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
@@ -435,7 +435,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
-                    let (outcome, context_store) = message_context.drain();
+                    let (outcome, context_store, _) = message_context.drain();
 
                     dispatch_result.context_store = context_store;
                     let ContextOutcomeDrain {
@@ -463,7 +463,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
                 // The core processor will take care of creating necessary `JournalNote`'s.
-                process_execution_error(
+                process_execution_error_with_dispatch(
                     dispatch,
                     actor_id,
                     gas_amount.burned(),

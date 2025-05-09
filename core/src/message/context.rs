@@ -211,8 +211,7 @@ impl ContextStore {
 /// Context of currently processing incoming message.
 #[derive(Debug)]
 pub struct MessageContext {
-    kind: DispatchKind,
-    current: IncomingMessage,
+    dispatch: IncomingDispatch,
     outcome: ContextOutcome,
     store: ContextStore,
     outgoing_payloads: OutgoingPayloads,
@@ -222,20 +221,22 @@ pub struct MessageContext {
 impl MessageContext {
     /// Create new message context.
     /// Returns `None` if outgoing messages bytes limit exceeded.
+    #[allow(clippy::useless_asref)]
     pub fn new(
         dispatch: IncomingDispatch,
         program_id: ProgramId,
         settings: ContextSettings,
     ) -> Self {
-        let (kind, message, store) = dispatch.into_parts();
-
         Self {
-            kind,
-            outcome: ContextOutcome::new(program_id, message.source(), message.id()),
-            current: message,
-            store: store.unwrap_or_default(),
+            outcome: ContextOutcome::new(program_id, dispatch.source(), dispatch.id()),
+            store: dispatch
+                .context()
+                .as_ref()
+                .map(|s| s.clone())
+                .unwrap_or_default(),
             outgoing_payloads: OutgoingPayloads::default(),
             settings,
+            dispatch,
         }
     }
 
@@ -246,11 +247,14 @@ impl MessageContext {
 
     /// Getter for inner dispatch kind
     pub fn kind(&self) -> DispatchKind {
-        self.kind
+        self.dispatch.kind()
     }
 
     fn check_reply_availability(&self) -> Result<(), ExecutionError> {
-        if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
+        if !matches!(
+            self.dispatch.kind(),
+            DispatchKind::Init | DispatchKind::Handle
+        ) {
             return Err(ExecutionError::IncorrectEntryForReply);
         }
 
@@ -290,7 +294,7 @@ impl MessageContext {
             return Err(Error::OutgoingMessagesAmountLimitExceeded);
         }
 
-        let message_id = MessageId::generate_outgoing(self.current.id(), last);
+        let message_id = MessageId::generate_outgoing(self.dispatch.message().id(), last);
         let message = InitMessage::from_packet(message_id, packet);
         self.store.local_nonce += 1;
         self.outgoing_payloads.handles.insert(last, None);
@@ -331,7 +335,7 @@ impl MessageContext {
                 .try_prepend(data)
                 .map_err(|data| (Error::MaxMessageSizeExceed, data))?;
 
-            let message_id = MessageId::generate_outgoing(self.current.id(), handle);
+            let message_id = MessageId::generate_outgoing(self.dispatch.message().id(), handle);
             let message = HandleMessage::from_packet(message_id, packet);
 
             self.outcome.handle.push((message, delay, reservation));
@@ -415,7 +419,7 @@ impl MessageContext {
         )
         .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
-        data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+        data.try_extend_from_slice(&self.dispatch.message().payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
@@ -428,7 +432,7 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
-        let input = self.current.payload_bytes();
+        let input = self.dispatch.message().payload_bytes();
         let offset = offset as usize;
         let len = len as usize;
 
@@ -472,7 +476,7 @@ impl MessageContext {
             return Err(Error::MaxMessageSizeExceed.into());
         }
 
-        let message_id = MessageId::generate_reply(self.current.id());
+        let message_id = MessageId::generate_reply(self.dispatch.message().id());
         let message = ReplyMessage::from_packet(message_id, packet);
 
         self.outcome.reply = Some((message, reservation));
@@ -518,7 +522,7 @@ impl MessageContext {
         self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
-            .try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+            .try_extend_from_slice(&self.dispatch.message().payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed.into())
     }
 
@@ -568,12 +572,21 @@ impl MessageContext {
 
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
-        &self.current
+        self.dispatch.message()
     }
 
-    /// Mutable reference to currently processed incoming message.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        self.current.payload_mut()
+    /// Return bytes of current payload
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.dispatch.message().payload_bytes()
+    }
+
+    /// Return mut payload
+    ///
+    /// # Safety
+    ///
+    /// Use only in tests or when you are sure what you are doing.
+    pub unsafe fn payload_mut(&mut self) -> &mut Payload {
+        unsafe { self.dispatch.message_mut().payload_mut() }
     }
 
     /// Current program's id.
@@ -581,11 +594,16 @@ impl MessageContext {
         self.outcome.program_id
     }
 
-    /// Destructs context after execution and returns provided outcome and store.
-    pub fn drain(self) -> (ContextOutcome, ContextStore) {
-        let Self { outcome, store, .. } = self;
+    /// Destructs context after execution and returns provided outcome, store and dispatch.
+    pub fn drain(self) -> (ContextOutcome, ContextStore, IncomingDispatch) {
+        let Self {
+            outcome,
+            store,
+            dispatch,
+            ..
+        } = self;
 
-        (outcome, store)
+        (outcome, store, dispatch)
     }
 }
 
@@ -1051,7 +1069,7 @@ mod tests {
         );
 
         // Checking that on drain we get only messages that were fully formed (directly sent or committed)
-        let (expected_result, _) = context.drain();
+        let (expected_result, _, _) = context.drain();
         assert_eq!(expected_result.handle.len(), 1);
         assert_eq!(expected_result.handle[0].0.payload_bytes(), vec![5, 7, 9]);
     }

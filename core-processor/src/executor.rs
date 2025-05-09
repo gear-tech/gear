@@ -89,9 +89,6 @@ where
     )
     .map_err(SystemExecutionError::from)?;
 
-    // Creating message context.
-    let message_context = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings);
-
     // Creating value counter.
     //
     // NOTE: Value available equals free balance with message value if value
@@ -105,6 +102,9 @@ where
         Default::default()
     });
     let value_counter = ValueCounter::new(value_available);
+
+    // Creating message context.
+    let message_context = MessageContext::new(dispatch, program.id, msg_ctx_settings);
 
     let context = ProcessorContext {
         gas_counter,
@@ -229,7 +229,7 @@ where
     // Output
     Ok(DispatchResult {
         kind,
-        dispatch,
+        dispatch: info.incoming_dispatch,
         program_id: program.id,
         context_store: info.context_store,
         generated_dispatches: info.generated_dispatches,
@@ -278,24 +278,22 @@ where
         .map(|p| p.inc())
         .unwrap_or(static_pages);
 
-    let message_context = MessageContext::new(
-        IncomingDispatch::new(
-            DispatchKind::Handle,
-            IncomingMessage::new(
-                Default::default(),
-                Default::default(),
-                payload
-                    .try_into()
-                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
-                gas_limit,
-                Default::default(),
-                Default::default(),
-            ),
-            None,
+    let incoming_message = IncomingDispatch::new(
+        DispatchKind::Handle,
+        IncomingMessage::new(
+            Default::default(),
+            Default::default(),
+            payload
+                .try_into()
+                .map_err(|e| format!("Failed to create payload: {e:?}"))?,
+            gas_limit,
+            Default::default(),
+            Default::default(),
         ),
-        program.id,
-        Default::default(),
+        None,
     );
+
+    let message_context = MessageContext::new(incoming_message, program.id, Default::default());
 
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
