@@ -441,6 +441,7 @@ impl Service {
                             };
                         }
                         NetworkEvent::DbResponse { .. }
+                        | NetworkEvent::DbExternalValidation { .. }
                         | NetworkEvent::PeerBlocked(_)
                         | NetworkEvent::PeerConnected(_) => (),
                     }

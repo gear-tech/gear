@@ -710,13 +710,13 @@ mod tests {
         });
 
         let event = alice.next_behaviour_event().await;
-        assert!(matches!(
+        assert_matches!(
             event,
             Event::RequestFailed {
                 request,
                 error: RequestFailure::OutOfRounds,
             } if request.id() == request_id
-        ));
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -928,23 +928,17 @@ mod tests {
 
         // first round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id)
-        );
+        assert_matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id);
 
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::PendingStateRequest { request_id: rid } if rid == request_id)
-        );
+        assert_matches!(event, Event::PendingStateRequest { request_id: rid } if rid == request_id);
 
         tokio::spawn(charlie.loop_on_next());
         alice.dial_and_wait(charlie_addr).await;
 
         // second round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id)
-        );
+        assert_matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id);
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(

@@ -34,7 +34,7 @@ use std::{
     cell::OnceCell,
     collections::{HashMap, HashSet, VecDeque},
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
     time::Duration,
 };
 use tokio::{
@@ -79,6 +79,10 @@ impl OngoingRequests {
             }) => {
                 let res = self.connections.add_connection(peer_id, connection_id);
                 debug_assert_eq!(res, Ok(()));
+
+                for request in self.requests.values_mut() {
+                    request.on_new_connection();
+                }
             }
             FromSwarm::ConnectionClosed(ConnectionClosed {
                 peer_id,
@@ -250,6 +254,7 @@ struct OngoingRequestContext<'a, 'cx> {
 #[derive(Debug)]
 enum State {
     SendToNextPeer(NewRequestRoundReason),
+    AwaitingNewConnection(NewRequestRoundReason),
     AwaitingResponse,
     OnPeerResponse(PeerId, Response),
     OnPeerFailure,
@@ -260,6 +265,7 @@ enum State {
 struct OngoingRequestFuture {
     inner: OngoingRequest,
     state: Option<State>,
+    waker: Option<Waker>,
     timer: OnceCell<Pin<Box<Sleep>>>,
     peer_score_handle: Handle,
     rounds: usize,
@@ -270,6 +276,7 @@ impl OngoingRequestFuture {
         Self {
             inner: ongoing_request,
             state: Some(State::SendToNextPeer(NewRequestRoundReason::FromQueue)),
+            waker: None,
             timer: OnceCell::new(),
             peer_score_handle,
             rounds: 0,
@@ -316,6 +323,10 @@ impl OngoingRequestFuture {
     fn on_peer_response(&mut self, peer: PeerId, response: Response) {
         if let Some(State::AwaitingResponse) = self.state {
             self.state = Some(State::OnPeerResponse(peer, response));
+
+            if let Some(waker) = self.waker.take() {
+                waker.wake();
+            }
         } else {
             unreachable!();
         }
@@ -324,8 +335,22 @@ impl OngoingRequestFuture {
     fn on_peer_failure(&mut self) {
         if let Some(State::AwaitingResponse) = self.state {
             self.state = Some(State::OnPeerFailure);
+
+            if let Some(waker) = self.waker.take() {
+                waker.wake();
+            }
         } else {
             unreachable!();
+        }
+    }
+
+    fn on_new_connection(&mut self) {
+        if let Some(State::AwaitingNewConnection(reason)) = self.state.take() {
+            self.state = Some(State::SendToNextPeer(reason));
+
+            if let Some(waker) = self.waker.take() {
+                waker.wake();
+            }
         }
     }
 
@@ -359,11 +384,14 @@ impl OngoingRequestFuture {
                             ));
                         State::AwaitingResponse
                     } else {
-                        pending = true;
                         ctx.pending_events
                             .push_back(OngoingRequestEvent::PendingState);
-                        State::SendToNextPeer(reason)
+                        State::AwaitingNewConnection(reason)
                     }
+                }
+                State::AwaitingNewConnection(reason) => {
+                    pending = true;
+                    State::AwaitingNewConnection(reason)
                 }
                 State::AwaitingResponse => {
                     pending = true;
@@ -411,6 +439,7 @@ impl OngoingRequestFuture {
             self.state = Some(next_state);
 
             if pending {
+                self.waker = Some(ctx.task_cx.waker().clone());
                 break Poll::Pending;
             }
         }
