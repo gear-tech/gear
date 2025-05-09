@@ -47,8 +47,7 @@ impl Balance {
     fn new(amount: Value) -> Self {
         if amount < EXISTENTIAL_DEPOSIT {
             panic!(
-                "Failed to create balance: the amount {} cannot be lower than the existential deposit",
-                amount
+                "Failed to create balance: the amount {amount} cannot be lower than the existential deposit"
             );
         }
 
@@ -163,8 +162,7 @@ impl Accounts {
     pub(crate) fn override_balance(id: ProgramId, amount: Value) {
         if amount < EXISTENTIAL_DEPOSIT {
             panic!(
-                "Failed to override balance: the amount {} cannot be lower than the existential deposit",
-                amount
+                "Failed to override balance: the amount {amount} cannot be lower than the existential deposit"
             );
         }
 

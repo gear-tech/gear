@@ -158,7 +158,7 @@ impl<T: Numerated + UpperBounded> IntervalIterator<T> {
 impl<T: Display> Display for IntervalIterator<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if let Some(interval) = &self.0 {
-            write!(f, "{}", interval)
+            write!(f, "{interval}")
         } else {
             write!(f, "∅")
         }
