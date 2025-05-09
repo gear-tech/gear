@@ -336,7 +336,7 @@ impl OngoingRequestFuture {
             }
         }
 
-        if self.rounds > ctx.max_rounds_per_request {
+        if self.rounds >= ctx.max_rounds_per_request {
             return Poll::Ready(Err(RequestFailure::OutOfRounds));
         }
 
