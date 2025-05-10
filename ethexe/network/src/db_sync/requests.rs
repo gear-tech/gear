@@ -33,8 +33,10 @@ use rand::prelude::IteratorRandom;
 use std::{
     cell::OnceCell,
     collections::{HashMap, HashSet, VecDeque},
+    mem::ManuallyDrop,
     pin::Pin,
-    task::{Context, Poll, Waker},
+    ptr::NonNull,
+    task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
     time::Duration,
 };
 use tokio::{
@@ -161,14 +163,18 @@ impl OngoingRequests {
 
         for (request_id, mut fut) in self.requests.drain() {
             let mut ctx = OngoingRequestContext {
-                task_cx: cx,
                 pending_events: VecDeque::new(),
                 connections: &self.connections,
                 request_timeout: self.request_timeout,
                 max_rounds_per_request: self.max_rounds_per_request as usize,
             };
 
-            let poll = fut.poll(&mut ctx);
+            let poll = {
+                let waker_wrapper = unsafe { WakerWrapper::new(cx.waker(), &mut ctx) };
+                let waker_wrapper = unsafe { waker_wrapper.waker() };
+                let mut cx = Context::from_waker(&waker_wrapper);
+                fut.poll_unpin(&mut cx)
+            };
 
             for event in ctx.pending_events {
                 match event {
@@ -243,8 +249,66 @@ enum OngoingRequestEvent {
     ExternalValidationRequired(Sender<bool>, Response),
 }
 
-struct OngoingRequestContext<'a, 'cx> {
-    task_cx: &'a mut Context<'cx>,
+struct WakerWrapper<'a, 'b> {
+    data: *const (),
+    vtable: &'static RawWakerVTable,
+    ctx: &'a mut OngoingRequestContext<'b>,
+}
+
+impl<'a, 'b> WakerWrapper<'a, 'b> {
+    const VTABLE: RawWakerVTable = RawWakerVTable::new(
+        |ptr| unsafe {
+            let this = NonNull::new(ptr as *mut WakerWrapper).unwrap();
+            let waker = this.as_ref().inner_waker();
+
+            let _cloned_waker: ManuallyDrop<Waker> = waker.clone();
+
+            let data = waker.data();
+            let vtable = waker.vtable();
+            RawWaker::new(data, vtable)
+        },
+        |ptr| unsafe {
+            let this = NonNull::new(ptr as *mut WakerWrapper).unwrap();
+            let waker = this.as_ref().inner_waker();
+            let waker = ManuallyDrop::into_inner(waker);
+            waker.wake();
+        },
+        |ptr| unsafe {
+            let this = NonNull::new(ptr as *mut WakerWrapper).unwrap();
+            let waker = this.as_ref().inner_waker();
+            waker.wake_by_ref();
+        },
+        |ptr| unsafe {
+            let this = NonNull::new(ptr as *mut WakerWrapper).unwrap();
+            let mut this = this.as_ref().inner_waker();
+            ManuallyDrop::drop(&mut this);
+        },
+    );
+
+    unsafe fn new(waker: &'a Waker, ctx: &'a mut OngoingRequestContext<'b>) -> Self {
+        Self {
+            data: waker.data(),
+            vtable: waker.vtable(),
+            ctx,
+        }
+    }
+
+    fn inner_waker(&self) -> ManuallyDrop<Waker> {
+        unsafe { ManuallyDrop::new(Waker::new(self.data, self.vtable)) }
+    }
+
+    unsafe fn waker(&self) -> ManuallyDrop<Waker> {
+        unsafe { ManuallyDrop::new(Waker::new(self as *const Self as *const (), &Self::VTABLE)) }
+    }
+
+    unsafe fn data(cx: &mut Context) -> &'a mut OngoingRequestContext<'b> {
+        let this = cx.waker().data() as *mut WakerWrapper;
+        let mut this = NonNull::new(this).unwrap();
+        unsafe { &mut this.as_mut().ctx }
+    }
+}
+
+struct OngoingRequestContext<'a> {
     pending_events: VecDeque<OngoingRequestEvent>,
     connections: &'a ConnectionMap,
     request_timeout: Duration,
@@ -364,10 +428,16 @@ impl OngoingRequestFuture {
             }
         }
     }
+}
 
-    fn poll(&mut self, ctx: &mut OngoingRequestContext) -> Poll<Result<Response, RequestFailure>> {
+impl Future for OngoingRequestFuture {
+    type Output = Result<Response, RequestFailure>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let ctx = unsafe { WakerWrapper::data(cx) };
+
         if let Some(timer) = self.timer.get_mut() {
-            if timer.poll_unpin(ctx.task_cx).is_ready() {
+            if timer.poll_unpin(cx).is_ready() {
                 return Poll::Ready(Err(RequestFailure::Timeout));
             }
         }
@@ -425,7 +495,7 @@ impl OngoingRequestFuture {
                     None => State::SendToNextPeer(NewRequestRoundReason::PartialData),
                 },
                 State::AwaitingExternalValidation(peer, mut receiver, response) => {
-                    match receiver.poll_unpin(ctx.task_cx) {
+                    match receiver.poll_unpin(cx) {
                         Poll::Ready(Ok(true)) => State::TryComplete(peer, response),
                         Poll::Ready(Ok(false)) => {
                             State::SendToNextPeer(NewRequestRoundReason::PartialData)
@@ -441,7 +511,7 @@ impl OngoingRequestFuture {
             };
 
             if next_state.is_awaiting() {
-                self.waker = Some(ctx.task_cx.waker().clone());
+                self.waker = Some(cx.waker().clone());
                 self.state = Some(next_state);
                 break Poll::Pending;
             } else {
