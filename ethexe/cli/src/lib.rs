@@ -41,13 +41,13 @@ impl Cli {
     pub const DEFAULT_PARAMS_PATH: &str = "./.ethexe.toml";
 
     /// Run the CLI.
-    pub async fn run(self) -> Result<()> {
+    pub fn run(self) -> Result<()> {
         let params = self
             .file_params()
             .with_context(|| "failed to read params from file")?
             .unwrap_or_default();
 
-        self.command.run(params).await
+        self.command.run(params)
     }
 
     fn file_params(&self) -> Result<Option<Params>> {

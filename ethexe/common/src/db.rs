@@ -65,6 +65,21 @@ impl BlockHeader {
     }
 }
 
+#[derive(PartialEq, Eq, Debug, Clone, Default, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
+pub struct StateHashWithQueueSize {
+    pub hash: H256,
+    pub cached_queue_size: u8,
+}
+
+impl StateHashWithQueueSize {
+    pub fn zero() -> Self {
+        Self {
+            hash: H256::zero(),
+            cached_queue_size: 0,
+        }
+    }
+}
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct CodeInfo {
     pub timestamp: u64,
@@ -86,8 +101,15 @@ pub trait BlockMetaStorage: Send + Sync {
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
     fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
 
-    fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
+    fn block_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, StateHashWithQueueSize>>;
+    fn set_block_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, StateHashWithQueueSize>,
+    );
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);

@@ -24,7 +24,10 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, OnChainStorage, Schedule},
+    db::{
+        BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, OnChainStorage, Schedule,
+        StateHashWithQueueSize,
+    },
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
@@ -314,7 +317,10 @@ impl BlockMetaStorage for Database {
         });
     }
 
-    fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+    fn block_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, StateHashWithQueueSize>> {
         self.kv
             .get(&Key::BlockProgramStates(block_hash).to_bytes())
             .map(|data| {
@@ -323,7 +329,11 @@ impl BlockMetaStorage for Database {
             })
     }
 
-    fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+    fn set_block_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, StateHashWithQueueSize>,
+    ) {
         log::trace!("For block {block_hash} set program states: {map:?}");
         self.kv.put(
             &Key::BlockProgramStates(block_hash).to_bytes(),
