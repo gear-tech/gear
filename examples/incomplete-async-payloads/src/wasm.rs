@@ -19,7 +19,6 @@
 use crate::Command;
 use gstd::{
     msg::{self, MessageHandle},
-    prelude::*,
     ActorId,
 };
 
