@@ -210,7 +210,7 @@ impl Response {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum NewRequestRoundReason {
     /// Request was queued for the first time or re-queued because of there are no available peers
     FromQueue,
