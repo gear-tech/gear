@@ -23,10 +23,12 @@
 use core::fmt;
 use ethexe_common::{
     gear::{
-        BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+        BatchCommitment, BlockCommitment, CodeCommitment, Message, OperatorRewardsCommitment,
+        RewardsCommitment, StakerRewards, StakerRewardsCommitment, StateTransition, ValueClaim,
     },
     ProducerBlock,
 };
+use gprimitives::U256;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -113,6 +115,14 @@ impl<T: ToDigest> ToDigest for Vec<T> {
 impl ToDigest for [u8] {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self);
+    }
+}
+
+impl ToDigest for U256 {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        for part in self.0.iter() {
+            hasher.update(part.to_be_bytes().as_ref());
+        }
     }
 }
 
@@ -214,17 +224,62 @@ impl ToDigest for BlockCommitment {
     }
 }
 
+impl ToDigest for OperatorRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self { amount, root } = self;
+        hasher.update(amount.to_digest().as_ref());
+        hasher.update(root.as_bytes());
+    }
+}
+
+impl ToDigest for StakerRewards {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self { vault, amount } = self;
+        hasher.update(vault);
+        hasher.update(amount.to_digest().as_ref());
+    }
+}
+
+impl ToDigest for StakerRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            distribution,
+            total_amount,
+            token,
+        } = self;
+
+        hasher.update(distribution.to_digest().as_ref());
+        hasher.update(total_amount.to_digest().as_ref());
+        hasher.update(token);
+    }
+}
+
+impl ToDigest for RewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            operators,
+            stakers,
+            timestamp,
+        } = self;
+
+        hasher.update(operators.to_digest().as_ref());
+        hasher.update(stakers.to_digest().as_ref());
+        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
+    }
+}
+
 impl ToDigest for BatchCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
         let Self {
             code_commitments,
             block_commitments,
+            rewards_commitments,
         } = self;
 
         hasher.update(block_commitments.to_digest().as_ref());
         hasher.update(code_commitments.to_digest().as_ref());
-        hasher.update([0u8; 0].to_digest().as_ref()); // Placeholder for the rewards commitment
+        hasher.update(rewards_commitments.to_digest().as_ref());
     }
 }
 
