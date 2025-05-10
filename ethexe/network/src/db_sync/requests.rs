@@ -262,6 +262,17 @@ enum State {
     AwaitingExternalValidation(PeerId, Receiver<bool>, Response),
 }
 
+impl State {
+    fn is_awaiting(&self) -> bool {
+        matches!(
+            self,
+            State::AwaitingNewConnection(_)
+                | State::AwaitingResponse
+                | State::AwaitingExternalValidation(_, _, _)
+        )
+    }
+}
+
 struct OngoingRequestFuture {
     inner: OngoingRequest,
     state: Option<State>,
@@ -366,7 +377,6 @@ impl OngoingRequestFuture {
         }
 
         loop {
-            let mut pending = false;
             let next_state = match self.state.take().expect("always Some") {
                 State::SendToNextPeer(reason) => {
                     if let Some(peer) = self.choose_next_peer(ctx.connections) {
@@ -389,14 +399,8 @@ impl OngoingRequestFuture {
                         State::AwaitingNewConnection(reason)
                     }
                 }
-                State::AwaitingNewConnection(reason) => {
-                    pending = true;
-                    State::AwaitingNewConnection(reason)
-                }
-                State::AwaitingResponse => {
-                    pending = true;
-                    State::AwaitingResponse
-                }
+                State::AwaitingNewConnection(reason) => State::AwaitingNewConnection(reason),
+                State::AwaitingResponse => State::AwaitingResponse,
                 State::OnPeerResponse(peer, response) => match response.validate() {
                     Ok(true) => State::TryComplete(peer, response),
                     Ok(false) => {
@@ -430,17 +434,18 @@ impl OngoingRequestFuture {
                             unreachable!("oneshot sender must never be dropped")
                         }
                         Poll::Pending => {
-                            pending = true;
                             State::AwaitingExternalValidation(peer, receiver, response)
                         }
                     }
                 }
             };
-            self.state = Some(next_state);
 
-            if pending {
+            if next_state.is_awaiting() {
                 self.waker = Some(ctx.task_cx.waker().clone());
+                self.state = Some(next_state);
                 break Poll::Pending;
+            } else {
+                self.state = Some(next_state);
             }
         }
     }
