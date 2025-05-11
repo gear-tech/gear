@@ -274,7 +274,6 @@ mod tests {
     use super::*;
     use libp2p::{swarm::SwarmEvent, Swarm};
     use libp2p_swarm_test::SwarmExt;
-    use std::time::Duration;
 
     async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {
         let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| Behaviour::new(config));

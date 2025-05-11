@@ -31,11 +31,9 @@ use libp2p::{
 };
 use rand::prelude::IteratorRandom;
 use std::{
-    any::Any,
+    cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
-    mem::ManuallyDrop,
-    ptr::NonNull,
-    task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
+    task::{Context, Poll, Waker},
     time::Duration,
 };
 use tokio::{
@@ -178,18 +176,15 @@ impl OngoingRequests {
 
         for (request_id, mut fut) in self.requests.drain() {
             let response = self.responses.remove(&request_id);
-            let mut ctx = OngoingRequestContext {
+            let ctx = OngoingRequestContext {
                 pending_events: VecDeque::new(),
                 peers: self.connections.peers().collect(),
                 response,
             };
 
-            let poll = {
-                let waker_wrapper = unsafe { WakerWrapper::new(cx.waker(), &mut ctx) };
-                let waker_wrapper = unsafe { waker_wrapper.waker() };
-                let mut cx = Context::from_waker(&waker_wrapper);
-                fut.poll_unpin(&mut cx)
-            };
+            CONTEXT.set(Some(ctx));
+            let poll = fut.poll_unpin(cx);
+            let ctx = CONTEXT.take().expect("context must be set");
 
             for event in ctx.pending_events {
                 match event {
@@ -424,84 +419,33 @@ enum OngoingRequestEvent {
     ExternalValidationRequired(Sender<bool>, Response),
 }
 
-struct WakerWrapper<'a> {
-    data: *const (),
-    vtable: &'static RawWakerVTable,
-    inner: &'a mut dyn Any,
-}
-
-impl<'a> WakerWrapper<'a> {
-    const VTABLE: RawWakerVTable = RawWakerVTable::new(
-        |ptr| unsafe {
-            let this = NonNull::new(ptr as *mut Self).unwrap();
-            let waker = this.as_ref().inner_waker();
-
-            let _cloned_waker: ManuallyDrop<Waker> = waker.clone();
-
-            let data = waker.data();
-            let vtable = waker.vtable();
-            RawWaker::new(data, vtable)
-        },
-        |ptr| unsafe {
-            let this = NonNull::new(ptr as *mut Self).unwrap();
-            let waker = this.as_ref().inner_waker();
-            let waker = ManuallyDrop::into_inner(waker);
-            waker.wake();
-        },
-        |ptr| unsafe {
-            let this = NonNull::new(ptr as *mut Self).unwrap();
-            let waker = this.as_ref().inner_waker();
-            waker.wake_by_ref();
-        },
-        |ptr| unsafe {
-            let this = NonNull::new(ptr as *mut Self).unwrap();
-            let mut this = this.as_ref().inner_waker();
-            ManuallyDrop::drop(&mut this);
-        },
-    );
-
-    unsafe fn new(waker: &'a Waker, inner: &'a mut dyn Any) -> Self {
-        Self {
-            data: waker.data(),
-            vtable: waker.vtable(),
-            inner,
-        }
-    }
-
-    fn inner_waker(&self) -> ManuallyDrop<Waker> {
-        unsafe { ManuallyDrop::new(Waker::new(self.data, self.vtable)) }
-    }
-
-    unsafe fn waker(&self) -> ManuallyDrop<Waker> {
-        unsafe { ManuallyDrop::new(Waker::new(self as *const Self as *const (), &Self::VTABLE)) }
-    }
-
-    unsafe fn data(cx: &mut Context<'a>) -> &'a mut dyn Any {
-        let this = cx.waker().data() as *mut Self;
-        let mut this = NonNull::new(this).unwrap();
-        unsafe { this.as_mut().inner }
-    }
-}
-
 struct OngoingRequestContext {
     pending_events: VecDeque<OngoingRequestEvent>,
     peers: HashSet<PeerId>,
     response: Option<Result<Response, ()>>,
 }
 
+thread_local! {
+    static CONTEXT: RefCell<Option<OngoingRequestContext>> = const { RefCell::new(None) };
+}
+
 fn context<T>(f: impl FnOnce(&mut OngoingRequestContext) -> T) -> impl Future<Output = T> {
-    future::lazy(|cx| {
-        let data = unsafe { WakerWrapper::data(cx).downcast_mut().expect("invalid type") };
-        f(data)
+    future::lazy(|_cx| {
+        CONTEXT.with_borrow_mut(|ctx| {
+            let ctx = ctx.as_mut().expect("context must be set");
+            f(ctx)
+        })
     })
 }
 
 fn poll_context<T>(
     mut f: impl FnMut(&mut OngoingRequestContext) -> Poll<T>,
 ) -> impl Future<Output = T> {
-    future::poll_fn(move |cx| {
-        let data = unsafe { WakerWrapper::data(cx).downcast_mut().expect("invalid type") };
-        f(data)
+    future::poll_fn(move |_cx| {
+        CONTEXT.with_borrow_mut(|ctx| {
+            let ctx = ctx.as_mut().expect("context must be set");
+            f(ctx)
+        })
     })
 }
 
