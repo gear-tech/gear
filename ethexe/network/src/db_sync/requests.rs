@@ -24,34 +24,33 @@ use crate::{
     peer_score::Handle,
     utils::ConnectionMap,
 };
-use futures::FutureExt;
+use futures::{future, future::BoxFuture, FutureExt};
 use libp2p::{
     request_response::OutboundRequestId,
     swarm::{behaviour::ConnectionEstablished, ConnectionClosed, FromSwarm},
 };
 use rand::prelude::IteratorRandom;
 use std::{
-    cell::OnceCell,
+    any::Any,
     collections::{HashMap, HashSet, VecDeque},
     mem::ManuallyDrop,
-    pin::Pin,
     ptr::NonNull,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
     time::Duration,
 };
 use tokio::{
-    sync::{
-        oneshot,
-        oneshot::{Receiver, Sender},
-    },
+    sync::{oneshot, oneshot::Sender},
     time,
-    time::Sleep,
 };
+
+type OngoingRequestFuture = BoxFuture<'static, Result<Response, (RequestFailure, OngoingRequest)>>;
 
 pub(crate) struct OngoingRequests {
     requests: HashMap<RequestId, OngoingRequestFuture>,
     active_requests: HashMap<OutboundRequestId, RequestId>,
+    responses: HashMap<RequestId, Result<Response, ()>>,
     connections: ConnectionMap,
+    waker: Option<Waker>,
     request_id_counter: u64,
     peer_score_handle: Handle,
     request_timeout: Duration,
@@ -63,7 +62,9 @@ impl OngoingRequests {
         Self {
             requests: Default::default(),
             active_requests: Default::default(),
+            responses: Default::default(),
             connections: Default::default(),
+            waker: None,
             request_id_counter: 0,
             peer_score_handle,
             request_timeout: config.request_timeout,
@@ -82,8 +83,8 @@ impl OngoingRequests {
                 let res = self.connections.add_connection(peer_id, connection_id);
                 debug_assert_eq!(res, Ok(()));
 
-                for request in self.requests.values_mut() {
-                    request.on_new_connection();
+                if let Some(waker) = self.waker.take() {
+                    waker.wake();
                 }
             }
             FromSwarm::ConnectionClosed(ConnectionClosed {
@@ -105,9 +106,10 @@ impl OngoingRequests {
 
     pub(crate) fn request(&mut self, request: Request) -> RequestId {
         let request_id = self.next_request_id();
-        let request =
-            OngoingRequestFuture::new(OngoingRequest::new(request), self.peer_score_handle.clone());
-        self.requests.insert(request_id, request);
+        self.requests.insert(
+            request_id,
+            ongoing_request(OngoingRequest::new(request), self.peer_score_handle.clone()).boxed(),
+        );
         request_id
     }
 
@@ -118,13 +120,12 @@ impl OngoingRequests {
         } = request;
         self.requests.insert(
             request_id,
-            OngoingRequestFuture::new(request, self.peer_score_handle.clone()),
+            ongoing_request(request, self.peer_score_handle.clone()).boxed(),
         );
     }
 
     pub(crate) fn on_peer_response(
         &mut self,
-        peer: PeerId,
         outbound_request_id: OutboundRequestId,
         response: Response,
     ) {
@@ -133,8 +134,8 @@ impl OngoingRequests {
             .remove(&outbound_request_id)
             .expect("unknown outbound request id");
         let request = self.requests.get_mut(&request_id);
-        if let Some(request) = request {
-            request.on_peer_response(peer, response);
+        if let Some(_request) = request {
+            self.responses.insert(request_id, Ok(response));
         } else {
             log::trace!("request {outbound_request_id} has been skipped");
         }
@@ -146,8 +147,8 @@ impl OngoingRequests {
             .remove(&outbound_request_id)
             .expect("unknown outbound request id");
         let request = self.requests.get_mut(&request_id);
-        if let Some(request) = request {
-            request.on_peer_failure();
+        if let Some(_request) = request {
+            self.responses.insert(request_id, Err(()));
         } else {
             log::trace!("request {outbound_request_id} has been skipped");
         }
@@ -161,12 +162,15 @@ impl OngoingRequests {
         let mut events = Vec::new();
         let mut kept = Vec::new();
 
+        self.waker = Some(cx.waker().clone());
+
         for (request_id, mut fut) in self.requests.drain() {
+            let response = self.responses.remove(&request_id);
             let mut ctx = OngoingRequestContext {
                 pending_events: VecDeque::new(),
-                connections: &self.connections,
-                request_timeout: self.request_timeout,
+                peers: self.connections.peers().collect(),
                 max_rounds_per_request: self.max_rounds_per_request as usize,
+                response,
             };
 
             let poll = {
@@ -206,10 +210,10 @@ impl OngoingRequests {
                     request_id,
                     response,
                 }),
-                Poll::Ready(Err(error)) => events.push(Event::RequestFailed {
+                Poll::Ready(Err((error, request))) => events.push(Event::RequestFailed {
                     request: RetriableRequest {
                         request_id,
-                        request: fut.inner,
+                        request,
                     },
                     error,
                 }),
@@ -249,16 +253,16 @@ enum OngoingRequestEvent {
     ExternalValidationRequired(Sender<bool>, Response),
 }
 
-struct WakerWrapper<'a, 'b> {
+struct WakerWrapper<'a> {
     data: *const (),
     vtable: &'static RawWakerVTable,
-    ctx: &'a mut OngoingRequestContext<'b>,
+    inner: &'a mut dyn Any,
 }
 
-impl<'a, 'b> WakerWrapper<'a, 'b> {
+impl<'a> WakerWrapper<'a> {
     const VTABLE: RawWakerVTable = RawWakerVTable::new(
         |ptr| unsafe {
-            let this = NonNull::new(ptr as *mut WakerWrapper).unwrap();
+            let this = NonNull::new(ptr as *mut Self).unwrap();
             let waker = this.as_ref().inner_waker();
 
             let _cloned_waker: ManuallyDrop<Waker> = waker.clone();
@@ -268,28 +272,28 @@ impl<'a, 'b> WakerWrapper<'a, 'b> {
             RawWaker::new(data, vtable)
         },
         |ptr| unsafe {
-            let this = NonNull::new(ptr as *mut WakerWrapper).unwrap();
+            let this = NonNull::new(ptr as *mut Self).unwrap();
             let waker = this.as_ref().inner_waker();
             let waker = ManuallyDrop::into_inner(waker);
             waker.wake();
         },
         |ptr| unsafe {
-            let this = NonNull::new(ptr as *mut WakerWrapper).unwrap();
+            let this = NonNull::new(ptr as *mut Self).unwrap();
             let waker = this.as_ref().inner_waker();
             waker.wake_by_ref();
         },
         |ptr| unsafe {
-            let this = NonNull::new(ptr as *mut WakerWrapper).unwrap();
+            let this = NonNull::new(ptr as *mut Self).unwrap();
             let mut this = this.as_ref().inner_waker();
             ManuallyDrop::drop(&mut this);
         },
     );
 
-    unsafe fn new(waker: &'a Waker, ctx: &'a mut OngoingRequestContext<'b>) -> Self {
+    unsafe fn new(waker: &'a Waker, inner: &'a mut dyn Any) -> Self {
         Self {
             data: waker.data(),
             vtable: waker.vtable(),
-            ctx,
+            inner,
         }
     }
 
@@ -301,223 +305,186 @@ impl<'a, 'b> WakerWrapper<'a, 'b> {
         unsafe { ManuallyDrop::new(Waker::new(self as *const Self as *const (), &Self::VTABLE)) }
     }
 
-    unsafe fn data(cx: &mut Context) -> &'a mut OngoingRequestContext<'b> {
-        let this = cx.waker().data() as *mut WakerWrapper;
+    unsafe fn data(cx: &mut Context<'a>) -> &'a mut dyn Any {
+        let this = cx.waker().data() as *mut Self;
         let mut this = NonNull::new(this).unwrap();
-        unsafe { &mut this.as_mut().ctx }
+        unsafe { this.as_mut().inner }
     }
 }
 
-struct OngoingRequestContext<'a> {
+struct OngoingRequestContext {
     pending_events: VecDeque<OngoingRequestEvent>,
-    connections: &'a ConnectionMap,
-    request_timeout: Duration,
+    peers: HashSet<PeerId>,
     max_rounds_per_request: usize,
+    response: Option<Result<Response, ()>>,
 }
 
-#[derive(Debug)]
-enum State {
-    SendToNextPeer(NewRequestRoundReason),
-    AwaitingNewConnection(NewRequestRoundReason),
-    AwaitingResponse,
-    OnPeerResponse(PeerId, Response),
-    OnPeerFailure,
-    TryComplete(PeerId, Response),
-    AwaitingExternalValidation(PeerId, Receiver<bool>, Response),
+fn context<T>(f: impl FnOnce(&mut OngoingRequestContext) -> T) -> impl Future<Output = T> {
+    future::lazy(|cx| {
+        let data = unsafe { WakerWrapper::data(cx).downcast_mut().expect("invalid type") };
+        f(data)
+    })
 }
 
-impl State {
-    fn is_awaiting(&self) -> bool {
-        matches!(
-            self,
-            State::AwaitingNewConnection(_)
-                | State::AwaitingResponse
-                | State::AwaitingExternalValidation(_, _, _)
-        )
-    }
-}
+async fn choose_next_peer(
+    tried_peers: &mut HashSet<PeerId>,
+) -> (PeerId, Option<NewRequestRoundReason>) {
+    let mut event_sent = false;
 
-struct OngoingRequestFuture {
-    inner: OngoingRequest,
-    state: Option<State>,
-    waker: Option<Waker>,
-    timer: OnceCell<Pin<Box<Sleep>>>,
-    peer_score_handle: Handle,
-    rounds: usize,
-}
+    let peer = loop {
+        let peer = context(|ctx| {
+            log::debug!("connections: {:?}", ctx.peers);
+            let peer = ctx
+                .peers
+                .difference(tried_peers)
+                .choose_stable(&mut rand::thread_rng())
+                .copied();
+            tried_peers.extend(peer);
+            peer
+        })
+        .await;
 
-impl OngoingRequestFuture {
-    fn new(ongoing_request: OngoingRequest, peer_score_handle: Handle) -> Self {
-        Self {
-            inner: ongoing_request,
-            state: Some(State::SendToNextPeer(NewRequestRoundReason::FromQueue)),
-            waker: None,
-            timer: OnceCell::new(),
-            peer_score_handle,
-            rounds: 0,
-        }
-    }
+        log::debug!("PEER: {peer:?}");
 
-    fn choose_next_peer(&mut self, connections: &ConnectionMap) -> Option<PeerId> {
-        let peers: HashSet<PeerId> = connections.peers().collect();
-        let peer = peers
-            .difference(&self.inner.tried_peers)
-            .choose_stable(&mut rand::thread_rng())
-            .copied();
-        self.inner.tried_peers.extend(peer);
-        peer
-    }
-
-    fn merge_and_strip(&mut self, peer: PeerId, new_response: Response) -> Response {
-        let mut response = if let Some(mut response) = self.inner.partial_response.take() {
-            response.merge(new_response);
-            response
+        if let Some(peer) = peer {
+            break peer;
         } else {
-            new_response
+            if !event_sent {
+                context(|ctx| {
+                    ctx.pending_events
+                        .push_back(OngoingRequestEvent::PendingState);
+                })
+                .await;
+                event_sent = true;
+            }
+
+            futures::pending!()
+        }
+    };
+
+    let event = Some(NewRequestRoundReason::FromQueue).filter(|_| event_sent);
+    (peer, event)
+}
+
+async fn send_request(
+    peer: PeerId,
+    request: Request,
+    reason: NewRequestRoundReason,
+) -> Result<Response, ()> {
+    context(|ctx| {
+        ctx.pending_events
+            .push_back(OngoingRequestEvent::SendRequest(
+                peer,
+                request.clone(),
+                reason,
+            ));
+    })
+    .await;
+
+    loop {
+        let res = context(|ctx| ctx.response.take()).await;
+        if let Some(res) = res {
+            return res;
+        }
+
+        futures::pending!();
+    }
+}
+
+fn merge_and_strip(
+    original_request: &Request,
+    partial_response: Option<Response>,
+    peer_score_handle: &Handle,
+    peer: PeerId,
+    new_response: Response,
+) -> Response {
+    let mut response = if let Some(mut response) = partial_response {
+        response.merge(new_response);
+        response
+    } else {
+        new_response
+    };
+
+    if response.strip(original_request) {
+        log::debug!("data stripped in response from {peer}");
+        peer_score_handle.excessive_data(peer);
+    }
+
+    response
+}
+
+async fn ongoing_request(
+    mut state: OngoingRequest,
+    peer_score_handle: Handle,
+) -> Result<Response, (RequestFailure, OngoingRequest)> {
+    let mut rounds = 0;
+    let max_rounds_per_request = context(|ctx| ctx.max_rounds_per_request).await;
+    let mut reason = NewRequestRoundReason::FromQueue;
+
+    loop {
+        log::error!("REASON: {reason:?}");
+
+        if rounds >= max_rounds_per_request {
+            return Err((RequestFailure::OutOfRounds, state));
+        }
+        rounds += 1;
+
+        let (peer, event) = choose_next_peer(&mut state.tried_peers).await;
+        reason = event.unwrap_or(reason);
+
+        let res = send_request(peer, state.request.clone(), reason).await;
+        let response = match res {
+            Ok(response) => response,
+            Err(()) => {
+                reason = NewRequestRoundReason::PeerFailed;
+                continue;
+            }
         };
 
-        if response.strip(&self.inner.original_request) {
-            log::debug!("data stripped in response from {peer}");
-            self.peer_score_handle.excessive_data(peer);
-        }
-
-        response
-    }
-
-    fn try_complete(&mut self, peer: PeerId, response: Response) -> Option<Response> {
-        if let Some(new_request) = self.inner.request.difference(&response) {
-            self.inner.request = new_request;
-            self.inner.partial_response = Some(self.merge_and_strip(peer, response));
-            None
-        } else {
-            let response = self.merge_and_strip(peer, response);
-            Some(response)
-        }
-    }
-
-    fn on_peer_response(&mut self, peer: PeerId, response: Response) {
-        if let Some(State::AwaitingResponse) = self.state {
-            self.state = Some(State::OnPeerResponse(peer, response));
-
-            if let Some(waker) = self.waker.take() {
-                waker.wake();
+        let no_external_validation = match response.validate() {
+            Ok(is_valid) => is_valid,
+            Err(err) => {
+                log::trace!("response validation failed for request from {peer}: {err:?}");
+                peer_score_handle.invalid_data(peer);
+                reason = NewRequestRoundReason::PartialData;
+                continue;
             }
-        } else {
-            unreachable!();
-        }
-    }
-
-    fn on_peer_failure(&mut self) {
-        if let Some(State::AwaitingResponse) = self.state {
-            self.state = Some(State::OnPeerFailure);
-
-            if let Some(waker) = self.waker.take() {
-                waker.wake();
-            }
-        } else {
-            unreachable!();
-        }
-    }
-
-    fn on_new_connection(&mut self) {
-        if let Some(State::AwaitingNewConnection(reason)) = self.state.take() {
-            self.state = Some(State::SendToNextPeer(reason));
-
-            if let Some(waker) = self.waker.take() {
-                waker.wake();
-            }
-        }
-    }
-}
-
-impl Future for OngoingRequestFuture {
-    type Output = Result<Response, RequestFailure>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let ctx = unsafe { WakerWrapper::data(cx) };
-
-        if let Some(timer) = self.timer.get_mut() {
-            if timer.poll_unpin(cx).is_ready() {
-                return Poll::Ready(Err(RequestFailure::Timeout));
+        };
+        if !no_external_validation {
+            let (sender, receiver) = oneshot::channel();
+            context(|ctx| {
+                ctx.pending_events
+                    .push_back(OngoingRequestEvent::ExternalValidationRequired(
+                        sender,
+                        response.clone(),
+                    ));
+            })
+            .await;
+            let is_valid = receiver
+                .await
+                .expect("oneshot receiver must never be dropped");
+            if !is_valid {
+                reason = NewRequestRoundReason::PartialData;
+                continue;
             }
         }
 
-        if self.rounds >= ctx.max_rounds_per_request {
-            return Poll::Ready(Err(RequestFailure::OutOfRounds));
+        let response = merge_and_strip(
+            &state.original_request,
+            state.partial_response.take(),
+            &peer_score_handle,
+            peer,
+            response,
+        );
+
+        if let Some(new_request) = state.original_request.difference(&response) {
+            state.request = new_request;
+            state.partial_response = Some(response);
+            reason = NewRequestRoundReason::PartialData;
+            continue;
         }
 
-        loop {
-            let next_state = match self.state.take().expect("always Some") {
-                State::SendToNextPeer(reason) => {
-                    if let Some(peer) = self.choose_next_peer(ctx.connections) {
-                        // we start the timer only when the first round starts
-                        self.timer
-                            .get_or_init(|| Box::pin(time::sleep(ctx.request_timeout)));
-
-                        self.rounds += 1;
-
-                        ctx.pending_events
-                            .push_back(OngoingRequestEvent::SendRequest(
-                                peer,
-                                self.inner.request.clone(),
-                                reason,
-                            ));
-                        State::AwaitingResponse
-                    } else {
-                        ctx.pending_events
-                            .push_back(OngoingRequestEvent::PendingState);
-                        State::AwaitingNewConnection(reason)
-                    }
-                }
-                State::AwaitingNewConnection(reason) => State::AwaitingNewConnection(reason),
-                State::AwaitingResponse => State::AwaitingResponse,
-                State::OnPeerResponse(peer, response) => match response.validate() {
-                    Ok(true) => State::TryComplete(peer, response),
-                    Ok(false) => {
-                        let (sender, receiver) = oneshot::channel();
-                        ctx.pending_events.push_back(
-                            OngoingRequestEvent::ExternalValidationRequired(
-                                sender,
-                                response.clone(),
-                            ),
-                        );
-                        State::AwaitingExternalValidation(peer, receiver, response)
-                    }
-                    Err(err) => {
-                        log::trace!("response validation failed for request from {peer}: {err:?}");
-                        self.peer_score_handle.invalid_data(peer);
-                        State::SendToNextPeer(NewRequestRoundReason::PartialData)
-                    }
-                },
-                State::OnPeerFailure => State::SendToNextPeer(NewRequestRoundReason::PeerFailed),
-                State::TryComplete(peer, response) => match self.try_complete(peer, response) {
-                    Some(response) => return Poll::Ready(Ok(response)),
-                    None => State::SendToNextPeer(NewRequestRoundReason::PartialData),
-                },
-                State::AwaitingExternalValidation(peer, mut receiver, response) => {
-                    match receiver.poll_unpin(cx) {
-                        Poll::Ready(Ok(true)) => State::TryComplete(peer, response),
-                        Poll::Ready(Ok(false)) => {
-                            State::SendToNextPeer(NewRequestRoundReason::PartialData)
-                        }
-                        Poll::Ready(Err(_recv_err)) => {
-                            unreachable!("oneshot sender must never be dropped")
-                        }
-                        Poll::Pending => {
-                            State::AwaitingExternalValidation(peer, receiver, response)
-                        }
-                    }
-                }
-            };
-
-            if next_state.is_awaiting() {
-                self.waker = Some(cx.waker().clone());
-                self.state = Some(next_state);
-                break Poll::Pending;
-            } else {
-                self.state = Some(next_state);
-            }
-        }
+        return Ok(response);
     }
 }
 

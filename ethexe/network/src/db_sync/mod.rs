@@ -387,15 +387,14 @@ impl Behaviour {
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
             request_response::Event::Message {
-                peer,
+                peer: _,
                 message:
                     Message::Response {
                         request_id,
                         response,
                     },
             } => {
-                self.ongoing_requests
-                    .on_peer_response(peer, request_id, response);
+                self.ongoing_requests.on_peer_response(request_id, response);
             }
             request_response::Event::OutboundFailure {
                 peer,
