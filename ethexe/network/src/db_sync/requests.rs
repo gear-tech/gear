@@ -109,7 +109,11 @@ impl OngoingRequests {
         self.requests.insert(
             request_id,
             OngoingRequest::new(request)
-                .request(self.peer_score_handle.clone(), self.max_rounds_per_request)
+                .request(
+                    self.peer_score_handle.clone(),
+                    self.request_timeout,
+                    self.max_rounds_per_request,
+                )
                 .boxed(),
         );
         request_id
@@ -123,7 +127,11 @@ impl OngoingRequests {
         self.requests.insert(
             request_id,
             request
-                .request(self.peer_score_handle.clone(), self.max_rounds_per_request)
+                .request(
+                    self.peer_score_handle.clone(),
+                    self.request_timeout,
+                    self.max_rounds_per_request,
+                )
                 .boxed(),
         );
     }
@@ -324,73 +332,88 @@ impl OngoingRequest {
         response
     }
 
+    async fn next_round(
+        &mut self,
+        mut reason: NewRequestRoundReason,
+        peer_score_handle: &Handle,
+    ) -> Result<Response, NewRequestRoundReason> {
+        let (peer, event) = self.choose_next_peer().await;
+        reason = event.unwrap_or(reason);
+
+        let response = self
+            .send_request(peer, reason)
+            .await
+            .map_err(|()| NewRequestRoundReason::PeerFailed)?;
+
+        let no_external_validation = match response.validate() {
+            Ok(is_valid) => is_valid,
+            Err(err) => {
+                log::trace!("response validation failed for request from {peer}: {err:?}");
+                peer_score_handle.invalid_data(peer);
+                return Err(NewRequestRoundReason::PartialData);
+            }
+        };
+        if !no_external_validation {
+            let (sender, receiver) = oneshot::channel();
+            context(|ctx| {
+                ctx.pending_events
+                    .push_back(OngoingRequestEvent::ExternalValidationRequired(
+                        sender,
+                        response.clone(),
+                    ));
+            })
+            .await;
+            let is_valid = receiver
+                .await
+                .expect("oneshot receiver must never be dropped");
+            if !is_valid {
+                return Err(NewRequestRoundReason::PartialData);
+            }
+        }
+
+        let response = self.merge_and_strip(peer_score_handle, peer, response);
+
+        if let Some(new_request) = self.original_request.difference(&response) {
+            self.request = new_request;
+            self.partial_response = Some(response);
+            return Err(NewRequestRoundReason::PartialData);
+        }
+
+        Ok(response)
+    }
+
     async fn request(
         mut self,
         peer_score_handle: Handle,
+        request_timeout: Duration,
         max_rounds_per_request: u32,
     ) -> Result<Response, (RequestFailure, Self)> {
-        let mut rounds = 0;
-        let mut reason = NewRequestRoundReason::FromQueue;
+        let request_loop = async {
+            let mut rounds = 0;
+            let mut reason = NewRequestRoundReason::FromQueue;
 
-        loop {
-            log::error!("REASON: {reason:?}");
+            loop {
+                log::error!("REASON: {reason:?}");
 
-            if rounds >= max_rounds_per_request {
-                return Err((RequestFailure::OutOfRounds, self));
-            }
-            rounds += 1;
-
-            let (peer, event) = self.choose_next_peer().await;
-            reason = event.unwrap_or(reason);
-
-            let res = self.send_request(peer, reason).await;
-            let response = match res {
-                Ok(response) => response,
-                Err(()) => {
-                    reason = NewRequestRoundReason::PeerFailed;
-                    continue;
+                if rounds >= max_rounds_per_request {
+                    return Err(RequestFailure::OutOfRounds);
                 }
-            };
+                rounds += 1;
 
-            let no_external_validation = match response.validate() {
-                Ok(is_valid) => is_valid,
-                Err(err) => {
-                    log::trace!("response validation failed for request from {peer}: {err:?}");
-                    peer_score_handle.invalid_data(peer);
-                    reason = NewRequestRoundReason::PartialData;
-                    continue;
-                }
-            };
-            if !no_external_validation {
-                let (sender, receiver) = oneshot::channel();
-                context(|ctx| {
-                    ctx.pending_events
-                        .push_back(OngoingRequestEvent::ExternalValidationRequired(
-                            sender,
-                            response.clone(),
-                        ));
-                })
-                .await;
-                let is_valid = receiver
-                    .await
-                    .expect("oneshot receiver must never be dropped");
-                if !is_valid {
-                    reason = NewRequestRoundReason::PartialData;
-                    continue;
-                }
+                match self.next_round(reason, &peer_score_handle).await {
+                    Ok(response) => return Ok(response),
+                    Err(new_reason) => {
+                        reason = new_reason;
+                    }
+                };
             }
+        };
 
-            let response = self.merge_and_strip(&peer_score_handle, peer, response);
-
-            if let Some(new_request) = self.original_request.difference(&response) {
-                self.request = new_request;
-                self.partial_response = Some(response);
-                reason = NewRequestRoundReason::PartialData;
-                continue;
-            }
-
-            return Ok(response);
-        }
+        let res = time::timeout(request_timeout, request_loop)
+            .await
+            .map_err(|_elapsed| RequestFailure::Timeout)
+            .and_then(|res| res);
+        res.map_err(|failure| (failure, self))
     }
 }
 
