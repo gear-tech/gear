@@ -121,7 +121,7 @@ impl<Req, Resp> Clone for ParityScaleCodec<Req, Resp> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct ConnectionMap {
     inner: HashMap<PeerId, HashSet<ConnectionId>>,
     limit: Option<u32>,
