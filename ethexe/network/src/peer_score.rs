@@ -258,7 +258,7 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Poll::Ready(to_swarm) = self.block_list.poll(cx) {
-            return Poll::Ready(to_swarm.map_out(|void| void::unreachable(void)));
+            return Poll::Ready(to_swarm.map_out(|infallible| match infallible {}));
         }
 
         if let Poll::Ready(Some((peer_id, reason))) = self.rx.poll_recv(cx) {
@@ -276,7 +276,7 @@ mod tests {
     use libp2p_swarm_test::SwarmExt;
 
     async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {
-        let mut swarm = Swarm::new_ephemeral(|_keypair| Behaviour::new(config));
+        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| Behaviour::new(config));
         swarm.listen().with_memory_addr_external().await;
         swarm
     }

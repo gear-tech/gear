@@ -374,6 +374,7 @@ impl Behaviour {
         match event {
             request_response::Event::Message {
                 peer,
+                connection_id: _,
                 message:
                     Message::Request {
                         request_id: _,
@@ -398,6 +399,7 @@ impl Behaviour {
             }
             request_response::Event::Message {
                 peer,
+                connection_id: _,
                 message:
                     Message::Response {
                         request_id,
@@ -414,6 +416,7 @@ impl Behaviour {
             }
             request_response::Event::OutboundFailure {
                 peer,
+                connection_id: _,
                 request_id,
                 error,
             } => {
@@ -436,6 +439,7 @@ impl Behaviour {
             }
             request_response::Event::InboundFailure {
                 peer,
+                connection_id: _,
                 request_id: _,
                 error: InboundFailure::UnsupportedProtocols,
             } => {
@@ -587,7 +591,7 @@ mod tests {
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default());
         let behaviour = Behaviour::new(config, peer_score::Handle::new_test(), db.clone());
-        let mut swarm = Swarm::new_ephemeral(move |_keypair| behaviour);
+        let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
         (swarm, db)
     }
@@ -707,7 +711,7 @@ mod tests {
         let alice_config = Config::default().with_max_rounds_per_request(1);
         let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
 
-        let mut bob = Swarm::new_ephemeral(move |_keypair| {
+        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
@@ -758,7 +762,7 @@ mod tests {
         init_logger();
 
         let (mut alice, _alice_db) = new_swarm().await;
-        let mut bob = Swarm::new_ephemeral(move |_keypair| {
+        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
@@ -815,7 +819,7 @@ mod tests {
 
         let (mut alice, _alice_db) = new_swarm().await;
 
-        let mut bob = Swarm::new_ephemeral(move |_keypair| {
+        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
@@ -998,7 +1002,7 @@ mod tests {
         let alice_config = Config::default().with_request_timeout(Duration::from_secs(2));
         let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
 
-        let mut bob = Swarm::new_ephemeral(move |_keypair| {
+        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new([], request_response::Config::default())
         });
         let bob_peer_id = *bob.local_peer_id();
@@ -1072,7 +1076,7 @@ mod tests {
 
         let alice_config = Config::default().with_max_rounds_per_request(1);
         let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
-        let mut bob = Swarm::new_ephemeral(move |_keypair| {
+        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
