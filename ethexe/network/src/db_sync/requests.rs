@@ -108,7 +108,9 @@ impl OngoingRequests {
         let request_id = self.next_request_id();
         self.requests.insert(
             request_id,
-            ongoing_request(OngoingRequest::new(request), self.peer_score_handle.clone()).boxed(),
+            OngoingRequest::new(request)
+                .request(self.peer_score_handle.clone(), self.max_rounds_per_request)
+                .boxed(),
         );
         request_id
     }
@@ -120,7 +122,9 @@ impl OngoingRequests {
         } = request;
         self.requests.insert(
             request_id,
-            ongoing_request(request, self.peer_score_handle.clone()).boxed(),
+            request
+                .request(self.peer_score_handle.clone(), self.max_rounds_per_request)
+                .boxed(),
         );
     }
 
@@ -169,7 +173,6 @@ impl OngoingRequests {
             let mut ctx = OngoingRequestContext {
                 pending_events: VecDeque::new(),
                 peers: self.connections.peers().collect(),
-                max_rounds_per_request: self.max_rounds_per_request as usize,
                 response,
             };
 
@@ -244,6 +247,159 @@ impl OngoingRequest {
             tried_peers: Default::default(),
         }
     }
+
+    async fn choose_next_peer(&mut self) -> (PeerId, Option<NewRequestRoundReason>) {
+        let mut event_sent = false;
+
+        let peer = loop {
+            let peer = context(|ctx| {
+                log::debug!("connections: {:?}", ctx.peers);
+                let peer = ctx
+                    .peers
+                    .difference(&self.tried_peers)
+                    .choose_stable(&mut rand::thread_rng())
+                    .copied();
+                self.tried_peers.extend(peer);
+                peer
+            })
+            .await;
+
+            log::debug!("PEER: {peer:?}");
+
+            if let Some(peer) = peer {
+                break peer;
+            } else {
+                if !event_sent {
+                    context(|ctx| {
+                        ctx.pending_events
+                            .push_back(OngoingRequestEvent::PendingState);
+                    })
+                    .await;
+                    event_sent = true;
+                }
+
+                futures::pending!()
+            }
+        };
+
+        let event = Some(NewRequestRoundReason::FromQueue).filter(|_| event_sent);
+        (peer, event)
+    }
+
+    async fn send_request(
+        &mut self,
+        peer: PeerId,
+        reason: NewRequestRoundReason,
+    ) -> Result<Response, ()> {
+        context(|ctx| {
+            ctx.pending_events
+                .push_back(OngoingRequestEvent::SendRequest(
+                    peer,
+                    self.request.clone(),
+                    reason,
+                ));
+        })
+        .await;
+
+        poll_context(|ctx| {
+            if let Some(res) = ctx.response.take() {
+                Poll::Ready(res)
+            } else {
+                Poll::Pending
+            }
+        })
+        .await
+    }
+
+    fn merge_and_strip(
+        &mut self,
+        peer_score_handle: &Handle,
+        peer: PeerId,
+        new_response: Response,
+    ) -> Response {
+        let mut response = if let Some(mut response) = self.partial_response.take() {
+            response.merge(new_response);
+            response
+        } else {
+            new_response
+        };
+
+        if response.strip(&self.original_request) {
+            log::debug!("data stripped in response from {peer}");
+            peer_score_handle.excessive_data(peer);
+        }
+
+        response
+    }
+
+    async fn request(
+        mut self,
+        peer_score_handle: Handle,
+        max_rounds_per_request: u32,
+    ) -> Result<Response, (RequestFailure, Self)> {
+        let mut rounds = 0;
+        let mut reason = NewRequestRoundReason::FromQueue;
+
+        loop {
+            log::error!("REASON: {reason:?}");
+
+            if rounds >= max_rounds_per_request {
+                return Err((RequestFailure::OutOfRounds, self));
+            }
+            rounds += 1;
+
+            let (peer, event) = self.choose_next_peer().await;
+            reason = event.unwrap_or(reason);
+
+            let res = self.send_request(peer, reason).await;
+            let response = match res {
+                Ok(response) => response,
+                Err(()) => {
+                    reason = NewRequestRoundReason::PeerFailed;
+                    continue;
+                }
+            };
+
+            let no_external_validation = match response.validate() {
+                Ok(is_valid) => is_valid,
+                Err(err) => {
+                    log::trace!("response validation failed for request from {peer}: {err:?}");
+                    peer_score_handle.invalid_data(peer);
+                    reason = NewRequestRoundReason::PartialData;
+                    continue;
+                }
+            };
+            if !no_external_validation {
+                let (sender, receiver) = oneshot::channel();
+                context(|ctx| {
+                    ctx.pending_events
+                        .push_back(OngoingRequestEvent::ExternalValidationRequired(
+                            sender,
+                            response.clone(),
+                        ));
+                })
+                .await;
+                let is_valid = receiver
+                    .await
+                    .expect("oneshot receiver must never be dropped");
+                if !is_valid {
+                    reason = NewRequestRoundReason::PartialData;
+                    continue;
+                }
+            }
+
+            let response = self.merge_and_strip(&peer_score_handle, peer, response);
+
+            if let Some(new_request) = self.original_request.difference(&response) {
+                self.request = new_request;
+                self.partial_response = Some(response);
+                reason = NewRequestRoundReason::PartialData;
+                continue;
+            }
+
+            return Ok(response);
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -315,7 +471,6 @@ impl<'a> WakerWrapper<'a> {
 struct OngoingRequestContext {
     pending_events: VecDeque<OngoingRequestEvent>,
     peers: HashSet<PeerId>,
-    max_rounds_per_request: usize,
     response: Option<Result<Response, ()>>,
 }
 
@@ -326,166 +481,13 @@ fn context<T>(f: impl FnOnce(&mut OngoingRequestContext) -> T) -> impl Future<Ou
     })
 }
 
-async fn choose_next_peer(
-    tried_peers: &mut HashSet<PeerId>,
-) -> (PeerId, Option<NewRequestRoundReason>) {
-    let mut event_sent = false;
-
-    let peer = loop {
-        let peer = context(|ctx| {
-            log::debug!("connections: {:?}", ctx.peers);
-            let peer = ctx
-                .peers
-                .difference(tried_peers)
-                .choose_stable(&mut rand::thread_rng())
-                .copied();
-            tried_peers.extend(peer);
-            peer
-        })
-        .await;
-
-        log::debug!("PEER: {peer:?}");
-
-        if let Some(peer) = peer {
-            break peer;
-        } else {
-            if !event_sent {
-                context(|ctx| {
-                    ctx.pending_events
-                        .push_back(OngoingRequestEvent::PendingState);
-                })
-                .await;
-                event_sent = true;
-            }
-
-            futures::pending!()
-        }
-    };
-
-    let event = Some(NewRequestRoundReason::FromQueue).filter(|_| event_sent);
-    (peer, event)
-}
-
-async fn send_request(
-    peer: PeerId,
-    request: Request,
-    reason: NewRequestRoundReason,
-) -> Result<Response, ()> {
-    context(|ctx| {
-        ctx.pending_events
-            .push_back(OngoingRequestEvent::SendRequest(
-                peer,
-                request.clone(),
-                reason,
-            ));
+fn poll_context<T>(
+    mut f: impl FnMut(&mut OngoingRequestContext) -> Poll<T>,
+) -> impl Future<Output = T> {
+    future::poll_fn(move |cx| {
+        let data = unsafe { WakerWrapper::data(cx).downcast_mut().expect("invalid type") };
+        f(data)
     })
-    .await;
-
-    loop {
-        let res = context(|ctx| ctx.response.take()).await;
-        if let Some(res) = res {
-            return res;
-        }
-
-        futures::pending!();
-    }
-}
-
-fn merge_and_strip(
-    original_request: &Request,
-    partial_response: Option<Response>,
-    peer_score_handle: &Handle,
-    peer: PeerId,
-    new_response: Response,
-) -> Response {
-    let mut response = if let Some(mut response) = partial_response {
-        response.merge(new_response);
-        response
-    } else {
-        new_response
-    };
-
-    if response.strip(original_request) {
-        log::debug!("data stripped in response from {peer}");
-        peer_score_handle.excessive_data(peer);
-    }
-
-    response
-}
-
-async fn ongoing_request(
-    mut state: OngoingRequest,
-    peer_score_handle: Handle,
-) -> Result<Response, (RequestFailure, OngoingRequest)> {
-    let mut rounds = 0;
-    let max_rounds_per_request = context(|ctx| ctx.max_rounds_per_request).await;
-    let mut reason = NewRequestRoundReason::FromQueue;
-
-    loop {
-        log::error!("REASON: {reason:?}");
-
-        if rounds >= max_rounds_per_request {
-            return Err((RequestFailure::OutOfRounds, state));
-        }
-        rounds += 1;
-
-        let (peer, event) = choose_next_peer(&mut state.tried_peers).await;
-        reason = event.unwrap_or(reason);
-
-        let res = send_request(peer, state.request.clone(), reason).await;
-        let response = match res {
-            Ok(response) => response,
-            Err(()) => {
-                reason = NewRequestRoundReason::PeerFailed;
-                continue;
-            }
-        };
-
-        let no_external_validation = match response.validate() {
-            Ok(is_valid) => is_valid,
-            Err(err) => {
-                log::trace!("response validation failed for request from {peer}: {err:?}");
-                peer_score_handle.invalid_data(peer);
-                reason = NewRequestRoundReason::PartialData;
-                continue;
-            }
-        };
-        if !no_external_validation {
-            let (sender, receiver) = oneshot::channel();
-            context(|ctx| {
-                ctx.pending_events
-                    .push_back(OngoingRequestEvent::ExternalValidationRequired(
-                        sender,
-                        response.clone(),
-                    ));
-            })
-            .await;
-            let is_valid = receiver
-                .await
-                .expect("oneshot receiver must never be dropped");
-            if !is_valid {
-                reason = NewRequestRoundReason::PartialData;
-                continue;
-            }
-        }
-
-        let response = merge_and_strip(
-            &state.original_request,
-            state.partial_response.take(),
-            &peer_score_handle,
-            peer,
-            response,
-        );
-
-        if let Some(new_request) = state.original_request.difference(&response) {
-            state.request = new_request;
-            state.partial_response = Some(response);
-            reason = NewRequestRoundReason::PartialData;
-            continue;
-        }
-
-        return Ok(response);
-    }
 }
 
 #[derive(Debug, Clone)]
