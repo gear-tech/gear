@@ -984,6 +984,9 @@ mod tests {
         let event = alice.next_behaviour_event().await;
         assert_matches!(event, Event::PendingStateRequest { request_id: rid } if rid == request_id);
 
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(event, Event::RequestFailed { request, error } if request.id() == request_id && error == RequestFailure::Timeout);
+
         let event = alice.next_swarm_event().await;
         assert_matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id);
     }
