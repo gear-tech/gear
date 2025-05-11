@@ -251,36 +251,28 @@ impl OngoingRequest {
     async fn choose_next_peer(&mut self) -> (PeerId, Option<NewRequestRoundReason>) {
         let mut event_sent = false;
 
-        let peer = loop {
-            let peer = context(|ctx| {
-                log::debug!("connections: {:?}", ctx.peers);
-                let peer = ctx
-                    .peers
-                    .difference(&self.tried_peers)
-                    .choose_stable(&mut rand::thread_rng())
-                    .copied();
-                self.tried_peers.extend(peer);
-                peer
-            })
-            .await;
-
-            log::debug!("PEER: {peer:?}");
+        let peer = poll_context(|ctx| {
+            log::debug!("connections: {:?}", ctx.peers);
+            let peer = ctx
+                .peers
+                .difference(&self.tried_peers)
+                .choose_stable(&mut rand::thread_rng())
+                .copied();
+            self.tried_peers.extend(peer);
 
             if let Some(peer) = peer {
-                break peer;
+                Poll::Ready(peer)
             } else {
                 if !event_sent {
-                    context(|ctx| {
-                        ctx.pending_events
-                            .push_back(OngoingRequestEvent::PendingState);
-                    })
-                    .await;
+                    ctx.pending_events
+                        .push_back(OngoingRequestEvent::PendingState);
                     event_sent = true;
                 }
 
-                futures::pending!()
+                Poll::Pending
             }
-        };
+        })
+        .await;
 
         let event = Some(NewRequestRoundReason::FromQueue).filter(|_| event_sent);
         (peer, event)
