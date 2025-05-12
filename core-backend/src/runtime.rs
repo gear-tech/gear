@@ -68,7 +68,7 @@ impl<Caller> MemoryAccessIoWrap<Caller> {
         self.memory_io = Some(io);
     }
 
-    pub fn io_ref(
+    pub fn io_mut_ref(
         &mut self,
     ) -> Result<&mut MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError> {
         self.memory_io

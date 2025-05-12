@@ -108,8 +108,8 @@ pub(crate) struct Read {
     size: u32,
 }
 
-pub(crate) struct ReadLimited<const N: usize = { Payload::MAX_LEN }> {
-    result: Result<Result<Vec<u8>, MemoryAccessError>, PayloadSizeError>,
+pub(crate) struct ReadPayloadLimited<const N: usize = { Payload::MAX_LEN }> {
+    result: Result<Result<Payload, MemoryAccessError>, PayloadSizeError>,
     size: u32,
 }
 
@@ -208,13 +208,13 @@ impl SyscallArg for Read {
             size: output.size,
             result: ctx
                 .memory_wrap
-                .io_ref()
+                .io_mut_ref()
                 .and_then(|io| io.read(&mut ctx.caller_wrap, output)),
         }
     }
 }
 
-impl<const N: usize> SyscallArg for ReadLimited<N> {
+impl<const N: usize> SyscallArg for ReadPayloadLimited<N> {
     type Output = Result<WasmMemoryRead, PayloadSizeError>;
     const REQUIRED_ARGS: usize = 2;
 
@@ -249,13 +249,25 @@ impl<const N: usize> SyscallArg for ReadLimited<N> {
         Ext: BackendExternalities + 'static,
     {
         match output {
-            Ok(output) => Self {
-                size: output.size,
-                result: Ok(ctx
+            Ok(output) => {
+                let size = output.size;
+
+                let bytes = ctx
                     .memory_wrap
-                    .io_ref()
-                    .and_then(|io| io.read(&mut ctx.caller_wrap, output))),
-            },
+                    .io_mut_ref()
+                    .and_then(|io| io.read(&mut ctx.caller_wrap, output));
+
+                let payload = bytes.map(|bytes| {
+                    bytes.try_into().unwrap_or_else(|_| {
+                        unreachable!("Length is checked inside ReadPayloadLimited::pre_process")
+                    })
+                });
+
+                Self {
+                    size,
+                    result: Ok(payload),
+                }
+            }
             Err(err) => Self {
                 size: 0,
                 result: Err(err),
@@ -294,7 +306,7 @@ impl<T> SyscallArg for ReadAs<T> {
         Self {
             result: ctx
                 .memory_wrap
-                .io_ref()
+                .io_mut_ref()
                 .and_then(|io| io.read_as(&mut ctx.caller_wrap, output)),
         }
     }
@@ -330,7 +342,7 @@ impl<T: Decode + MaxEncodedLen> SyscallArg for ReadDecoded<T> {
         Self {
             result: ctx
                 .memory_wrap
-                .io_ref()
+                .io_mut_ref()
                 .and_then(|io| io.read_decoded(&mut ctx.caller_wrap, output)),
         }
     }
@@ -373,7 +385,7 @@ impl<T: Decode + MaxEncodedLen + Default> SyscallArg for ReadDecodedSpecial<T> {
             Some(output) => Self {
                 result: ctx
                     .memory_wrap
-                    .io_ref()
+                    .io_mut_ref()
                     .and_then(|io| io.read_decoded(&mut ctx.caller_wrap, output)),
             },
             None => Self {
@@ -448,8 +460,8 @@ impl Read {
     }
 }
 
-impl<const N: usize> ReadLimited<N> {
-    pub fn into_inner(self) -> Result<Result<Vec<u8>, MemoryAccessError>, PayloadSizeError> {
+impl<const N: usize> ReadPayloadLimited<N> {
+    pub fn into_inner(self) -> Result<Result<Payload, MemoryAccessError>, PayloadSizeError> {
         self.result
     }
 
@@ -487,7 +499,7 @@ impl WriteInGrRead {
         Ext: BackendExternalities + 'static,
     {
         ctx.memory_wrap
-            .io_ref()
+            .io_mut_ref()
             .and_then(|io| io.write(&mut ctx.caller_wrap, self.write, buff))
     }
 
@@ -507,7 +519,7 @@ impl<T> WriteAs<T> {
         Ext: BackendExternalities + 'static,
     {
         ctx.memory_wrap
-            .io_ref()
+            .io_mut_ref()
             .and_then(|io| io.write_as(&mut ctx.caller_wrap, self.write, obj))
     }
 }
