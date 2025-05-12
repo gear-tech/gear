@@ -436,11 +436,7 @@ async fn sync_from_network(
                     let pages_region: MemoryPagesRegion =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
 
-                    for page_buf_hash in pages_region
-                        .as_inner()
-                        .iter()
-                        .map(|(_page, hash)| hash.hash())
-                    {
+                    for page_buf_hash in pages_region.as_inner().values().map(|hash| hash.hash()) {
                         manager.add(page_buf_hash, RequestMetadata::Data);
                     }
                 }

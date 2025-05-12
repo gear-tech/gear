@@ -172,7 +172,7 @@ impl StorageQueryBuilder {
                     .to_string()
                     .ends_with(&(AT_DOC_SUFFIX.to_string() + ".\""))
         }) {
-            panic!("the docs must be end with `{}`", AT_DOC_SUFFIX);
+            panic!("the docs must be end with `{AT_DOC_SUFFIX}`");
         }
 
         // validate the function name.

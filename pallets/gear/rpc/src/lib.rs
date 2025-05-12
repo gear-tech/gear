@@ -39,7 +39,7 @@ use std::sync::Arc;
 
 /// Converts a runtime trap into a [`CallError`].
 fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> ErrorObjectOwned {
-    ErrorObject::owned(8000, "Runtime error", Some(format!("{:?}", err)))
+    ErrorObject::owned(8000, "Runtime error", Some(format!("{err:?}")))
 }
 
 #[rpc(server)]

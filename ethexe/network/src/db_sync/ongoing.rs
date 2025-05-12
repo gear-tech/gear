@@ -178,6 +178,7 @@ impl OngoingRequest {
         self
     }
 
+    #[allow(clippy::result_large_err)]
     fn choose_next_peer(
         self,
         map: &ConnectionMap,
@@ -299,6 +300,7 @@ impl OngoingRequests {
         Some(outgoing_request)
     }
 
+    #[allow(clippy::result_large_err)]
     fn send_request(
         &mut self,
         behaviour: &mut InnerBehaviour,
@@ -321,6 +323,7 @@ impl OngoingRequests {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     pub(crate) fn send_next_request(
         &mut self,
         behaviour: &mut InnerBehaviour,
@@ -338,6 +341,7 @@ impl OngoingRequests {
         }))
     }
 
+    #[allow(clippy::result_large_err)]
     pub(crate) fn on_peer_response(
         &mut self,
         behaviour: &mut InnerBehaviour,
@@ -362,6 +366,7 @@ impl OngoingRequests {
         }))
     }
 
+    #[allow(clippy::result_large_err)]
     pub(crate) fn on_peer_failed(
         &mut self,
         behaviour: &mut InnerBehaviour,
