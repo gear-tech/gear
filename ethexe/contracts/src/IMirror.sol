@@ -55,12 +55,28 @@ interface IMirror {
     event Message(bytes32 id, address indexed destination, bytes payload, uint128 value);
 
     /**
+     * @dev Emitted when the program fails to call outgoing message to other contracts.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about failed message call from program.
+     */
+    event MessageCallFailed(bytes32 id, address indexed destination, uint128 value);
+
+    /**
      * @dev Emitted when the program sends reply message.
      *
      * NOTE:    It's event for USERS:
      *  it informs about new reply sent from program.
      */
     event Reply(bytes payload, uint128 value, bytes32 replyTo, bytes4 indexed replyCode);
+
+    /**
+     * @dev Emitted when the program fails to call reply message to other contracts.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about failed reply call from program.
+     */
+    event ReplyCallFailed(uint128 value, bytes32 replyTo, bytes4 indexed replyCode);
 
     // TODO (breathx): should we deposit it? should we notify about successful reply sending?
     /**

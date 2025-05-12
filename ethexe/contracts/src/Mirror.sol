@@ -204,7 +204,10 @@ contract Mirror is IMirror {
             if (_message.call) {
                 (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
 
-                if (success) {
+                if (!success) {
+                    /// @dev In case of failed call, we emit appropriate event to inform external users.
+                    emit MessageCallFailed(_message.id, _message.destination, _message.value);
+
                     return;
                 }
             }
@@ -335,7 +338,10 @@ contract Mirror is IMirror {
 
             (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
 
-            if (success) {
+            if (!success) {
+                /// @dev In case of failed call, we emit appropriate event to inform external users.
+                emit ReplyCallFailed(_message.value, _message.replyDetails.to, _message.replyDetails.code);
+
                 return;
             }
         }
