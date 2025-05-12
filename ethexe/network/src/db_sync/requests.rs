@@ -44,6 +44,7 @@ use tokio::{
 type OngoingRequestFuture = BoxFuture<'static, Result<Response, (RequestFailure, OngoingRequest)>>;
 
 pub(crate) struct OngoingRequests {
+    pending_events: VecDeque<Event>,
     requests: HashMap<RequestId, OngoingRequestFuture>,
     active_requests: HashMap<OutboundRequestId, RequestId>,
     responses: HashMap<RequestId, Result<Response, ()>>,
@@ -58,6 +59,7 @@ pub(crate) struct OngoingRequests {
 impl OngoingRequests {
     pub(crate) fn new(config: &Config, peer_score_handle: Handle) -> Self {
         Self {
+            pending_events: VecDeque::new(),
             requests: Default::default(),
             active_requests: Default::default(),
             responses: Default::default(),
@@ -168,8 +170,11 @@ impl OngoingRequests {
         &mut self,
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,
-    ) -> Poll<Vec<Event>> {
-        let mut events = Vec::new();
+    ) -> Poll<Event> {
+        if let Some(event) = self.pending_events.pop_front() {
+            return Poll::Ready(event);
+        }
+
         let mut kept = Vec::new();
 
         for (request_id, mut fut) in self.requests.drain() {
@@ -187,41 +192,45 @@ impl OngoingRequests {
             for event in ctx.pending_events {
                 match event {
                     OngoingRequestEvent::PendingState => {
-                        events.push(Event::PendingStateRequest { request_id });
+                        self.pending_events
+                            .push_back(Event::PendingStateRequest { request_id });
                     }
                     OngoingRequestEvent::SendRequest(peer, request, reason) => {
                         let outbound_request_id = behaviour.send_request(&peer, request);
                         self.active_requests.insert(outbound_request_id, request_id);
 
-                        events.push(Event::NewRequestRound {
+                        self.pending_events.push_back(Event::NewRequestRound {
                             request_id,
                             peer_id: peer,
                             reason,
                         });
                     }
                     OngoingRequestEvent::ExternalValidationRequired(sender, response) => {
-                        events.push(Event::ExternalValidationRequired {
-                            request_id,
-                            response,
-                            sender,
-                        });
+                        self.pending_events
+                            .push_back(Event::ExternalValidationRequired {
+                                request_id,
+                                response,
+                                sender,
+                            });
                     }
                 }
             }
 
             log::error!("poll: {poll:?}");
             match poll {
-                Poll::Ready(Ok(response)) => events.push(Event::RequestSucceed {
+                Poll::Ready(Ok(response)) => self.pending_events.push_back(Event::RequestSucceed {
                     request_id,
                     response,
                 }),
-                Poll::Ready(Err((error, request))) => events.push(Event::RequestFailed {
-                    request: RetriableRequest {
-                        request_id,
-                        request,
-                    },
-                    error,
-                }),
+                Poll::Ready(Err((error, request))) => {
+                    self.pending_events.push_back(Event::RequestFailed {
+                        request: RetriableRequest {
+                            request_id,
+                            request,
+                        },
+                        error,
+                    })
+                }
                 Poll::Pending => {
                     kept.push((request_id, fut));
                 }
@@ -233,11 +242,11 @@ impl OngoingRequests {
             self.requests.extend(kept);
         }
 
-        if events.is_empty() {
-            Poll::Pending
-        } else {
-            Poll::Ready(events)
+        if !self.pending_events.is_empty() {
+            cx.waker().wake_by_ref();
         }
+
+        Poll::Pending
     }
 }
 

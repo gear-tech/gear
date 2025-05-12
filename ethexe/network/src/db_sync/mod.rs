@@ -41,7 +41,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     fmt,
     task::{Context, Poll},
     time::Duration,
@@ -328,7 +328,6 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 
 pub struct Behaviour {
     inner: InnerBehaviour,
-    pending_events: VecDeque<Event>,
     peer_score_handle: peer_score::Handle,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
@@ -342,7 +341,6 @@ impl Behaviour {
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
             ),
-            pending_events: VecDeque::new(),
             peer_score_handle: peer_score_handle.clone(),
             ongoing_requests: OngoingRequests::new(&config, peer_score_handle),
             ongoing_responses: OngoingResponses::new(db, &config),
@@ -514,13 +512,8 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some(event) = self.pending_events.pop_front() {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
-        }
-
-        if let Poll::Ready(request_events) = self.ongoing_requests.poll(cx, &mut self.inner) {
-            cx.waker().wake_by_ref();
-            self.pending_events.extend(request_events);
+        if let Poll::Ready(request_event) = self.ongoing_requests.poll(cx, &mut self.inner) {
+            return Poll::Ready(ToSwarm::GenerateEvent(request_event));
         }
 
         if let Poll::Ready((peer_id, response_id)) =
