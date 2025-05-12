@@ -518,8 +518,10 @@ impl NetworkBehaviour for Behaviour {
             return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
-        let request_events = self.ongoing_requests.poll_next_states(cx, &mut self.inner);
-        self.pending_events.extend(request_events);
+        if let Poll::Ready(request_events) = self.ongoing_requests.poll(cx, &mut self.inner) {
+            cx.waker().wake_by_ref();
+            self.pending_events.extend(request_events);
+        }
 
         if let Poll::Ready((peer_id, response_id)) =
             self.ongoing_responses.poll(cx, &mut self.inner)
