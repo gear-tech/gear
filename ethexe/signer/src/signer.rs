@@ -169,7 +169,7 @@ mod tests {
 
         // Verify the recovered address matches the expected address
         assert_eq!(
-            format!("{:?}", recovered_address),
+            format!("{recovered_address:?}"),
             format!("{}", public_key.to_address())
         );
     }
