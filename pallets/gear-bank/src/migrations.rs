@@ -227,7 +227,7 @@ mod tests {
             let weight = MigrateToV1::<Test>::on_runtime_upgrade();
             assert_ok!(MigrateToV1::<Test>::post_upgrade(state));
 
-            println!("Weight: {:?}", weight);
+            println!("Weight: {weight:?}");
             assert!(!weight.is_zero());
 
             assert_eq!(StorageVersion::get::<GearBank>(), 1);

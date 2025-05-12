@@ -16,17 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sequencer for ethexe.
-
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,
 };
 use ethexe_db::Database;
-use ethexe_processor::{LocalOutcome, Processor};
+use ethexe_processor::{BlockProcessingResult, Processor};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
 use std::{
@@ -161,8 +159,11 @@ impl ChainHeadProcessContext {
                 valid: true,
             }) = event
             {
-                use ethexe_common::db::CodesStorage;
-                if self.db.instrumented_code(0, *code_id).is_none() {
+                // TODO: test branch
+                if !self
+                    .db
+                    .instrumented_code_exists(ethexe_runtime::VERSION, *code_id)
+                {
                     let code = CodesStorage::original_code(&self.db, *code_id)
                         .ok_or_else(|| anyhow!("code not found for validated code {code_id}"))?;
                     self.processor.process_upload_code(*code_id, &code)?;
@@ -184,29 +185,25 @@ impl ChainHeadProcessContext {
             .filter_map(|event| event.to_request())
             .collect();
 
-        let block_outcomes = self
+        let processing_result = self
             .processor
             .process_block_events(block, block_request_events)?;
 
-        let outcomes: Vec<_> = block_outcomes
-            .into_iter()
-            .map(|outcome| {
-                if let LocalOutcome::Transition(transition) = outcome {
-                    transition
-                } else {
-                    unreachable!("Only transitions are expected here")
-                }
-            })
-            .collect();
+        let BlockProcessingResult {
+            transitions,
+            states,
+            schedule,
+        } = processing_result;
 
-        if !outcomes.is_empty() {
+        if !transitions.is_empty() {
             commitments_queue.push_back(block);
         }
         self.db.set_block_commitment_queue(block, commitments_queue);
 
-        self.db.set_block_outcome(block, outcomes);
+        self.db.set_block_outcome(block, transitions);
 
-        // TODO #4551: move set_program_states here from processor
+        self.db.set_block_program_states(block, states);
+        self.db.set_block_schedule(block, schedule);
 
         // Set block as valid - means state db has all states for the end of the block
         self.db.set_block_computed(block);

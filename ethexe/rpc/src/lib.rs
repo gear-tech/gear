@@ -36,7 +36,6 @@ use jsonrpsee::{
 use std::{
     net::SocketAddr,
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
 };
 use tokio::{
@@ -74,11 +73,11 @@ pub struct RpcConfig {
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    blob_reader: Option<Arc<MockBlobReader>>,
+    blob_reader: Option<MockBlobReader>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<Arc<MockBlobReader>>) -> Self {
+    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<MockBlobReader>) -> Self {
         Self {
             config,
             db,

@@ -984,6 +984,9 @@ mod util {
     pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
         let bank_address = GearBank::bank_address();
 
+        let mut endowed_accounts = vec![bank_address, SIGNER, REWARD_PAYEE];
+        endowed_accounts.extend(GearBuiltin::list_builtins());
+
         ExtBuilder::default()
             .initial_authorities(vec![
                 (VAL_1_STASH, VAL_1_AUTH_ID),
@@ -991,7 +994,7 @@ mod util {
                 (VAL_3_STASH, VAL_3_AUTH_ID),
             ])
             .endowment(ENDOWMENT)
-            .endowed_accounts(vec![bank_address, SIGNER, REWARD_PAYEE])
+            .endowed_accounts(endowed_accounts)
             .build()
     }
 
